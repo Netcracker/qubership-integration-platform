@@ -47,6 +47,19 @@ use its production import services and snapshot persistence. The bundle is writt
 `runtime-catalog/target/snapshotbundle` by default. Run this flow from a monorepo checkout
 containing both modules; no additional test artifact needs to be installed.
 
+Test configurations use the layout
+`testConfigurations/<folder>/<name>/<chainId>/<chainId>.chain.qip.yaml`.
+Use `folder` and `name` from the tested element's `description.yaml` or `description.yml`.
+For example, the `choice` chain belongs under `routing/condition/<chainId>/`.
+Keep each chain's `resources/` directory beside its YAML file. An element directory can
+contain several chains; supporting chains belong beside the scenario's primary chain.
+The `routing/chain-call-2/` directory groups the ordinary and nested async chain-call scenarios
+with their subchains. Shared imported services stay under `testConfigurations/services/`.
+
+The producer discovers chain files recursively and copies each complete chain directory into
+a temporary `chains/<chainId>/` import tree. It also copies the shared services. This preserves
+the catalog's import format and relative resource references while keeping the source files grouped by element.
+
 `MicroEngineSnapshotRouteExecutionTest` reads the manifests in
 `micro-engine/src/test/resources/testspecifications`, including their subdirectories.
 Each scenario gets a fresh Quarkus CDI component container and Camel context. All
@@ -134,9 +147,12 @@ editor completion and structural diagnostics. Java validates provider parameters
 deployment references, route selectors, and matcher semantics.
 
 1. Add an executable exported chain and its resources under
-   `integration-build-pipeline/src/test/resources/testConfigurations`.
+   `integration-build-pipeline/src/test/resources/testConfigurations/<folder>/<name>/<chainId>/`.
+   Take `folder` and `name` from the element description. Give every chain a distinct ID and name
+   across the bundle, including additional cases for the same element.
 2. Add a manifest under `micro-engine/src/test/resources/testspecifications`. Its file
-   name identifies the chain name unless it declares explicit deployments.
+   name identifies the chain name unless it declares explicit deployments. An explicit
+   deployment's `route` identifies the chain by name, regardless of its configuration directory.
 3. Use `sourceElementId` to identify fixture nodes in generated snapshots. Use
    `dependsOn` for additional deployments and `invocations` for stateful sequences.
 4. Declare inputs, result expectations, and expected fixture interactions. Keep

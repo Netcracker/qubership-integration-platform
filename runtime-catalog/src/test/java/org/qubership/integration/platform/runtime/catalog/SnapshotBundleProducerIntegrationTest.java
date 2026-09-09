@@ -185,9 +185,7 @@ class SnapshotBundleProducerIntegrationTest {
     void shouldGenerateSnapshotBundleWhenConfigurationsAreImported() throws IOException {
         Path sourceDirectory = new ClassPathResource("testConfigurations").getFile().toPath();
         Path importDirectory = temporaryDirectory.resolve("testConfigurations");
-        copyDirectory(sourceDirectory, importDirectory);
-
-        Set<String> chainIds = findChainIds(importDirectory);
+        Set<String> chainIds = prepareImportDirectory(sourceDirectory, importDirectory);
         ImportRequest importRequest = createImportRequest(chainIds);
 
         ImportResult importResult = snapshotBundleImportService.importDirectoryAndAwaitCompletion(
@@ -328,20 +326,25 @@ class SnapshotBundleProducerIntegrationTest {
         return IntStream.range(0, nodes.getLength()).mapToObj(index -> (Element) nodes.item(index));
     }
 
-    private static Set<String> findChainIds(Path importDirectory) throws IOException {
-        Path chainsDirectory = importDirectory.resolve("chains");
-        Set<String> chainIds;
-        try (Stream<Path> entries = Files.list(chainsDirectory)) {
-            chainIds = entries
-                    .filter(Files::isDirectory)
-                    .map(path -> path.getFileName().toString())
-                    .collect(Collectors.toCollection(TreeSet::new));
+    private static Set<String> prepareImportDirectory(Path sourceDirectory, Path importDirectory) throws IOException {
+        // The catalog importer requires chains/<id>, while test sources are grouped by element.
+        Set<String> chainIds = new TreeSet<>();
+        try (Stream<Path> sourcePaths = Files.walk(sourceDirectory)) {
+            List<Path> chainDefinitions = sourcePaths
+                    .filter(Files::isRegularFile)
+                    .filter(path -> path.getFileName().toString().endsWith(".chain.qip.yaml"))
+                    .toList();
+            for (Path chainDefinition : chainDefinitions) {
+                Path chainDirectory = chainDefinition.getParent();
+                String chainId = chainDirectory.getFileName().toString();
+                assertThat(chainDefinition.getFileName().toString()).isEqualTo(chainId + ".chain.qip.yaml");
+                copyDirectory(chainDirectory, importDirectory.resolve("chains").resolve(chainId));
+                chainIds.add(chainId);
+            }
         }
 
         assertThat(chainIds).isNotEmpty();
-        chainIds.forEach(chainId -> assertThat(
-                chainsDirectory.resolve(chainId).resolve(chainId + ".chain.qip.yaml")
-        ).isRegularFile());
+        copyDirectory(sourceDirectory.resolve("services"), importDirectory.resolve("services"));
         return chainIds;
     }
 
