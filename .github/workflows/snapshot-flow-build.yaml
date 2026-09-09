@@ -202,9 +202,11 @@ jobs:
           resolve_build micro-engine-build.yaml "Micro Engine Build" "$micro_engine_expected"
           micro_engine_action="$BUILD_ACTION"
 
-          echo "integration_build_pipeline=${integration_build_pipeline_action}" >> "$GITHUB_OUTPUT"
-          echo "runtime_catalog=${runtime_catalog_action}" >> "$GITHUB_OUTPUT"
-          echo "micro_engine=${micro_engine_action}" >> "$GITHUB_OUTPUT"
+          {
+            echo "integration_build_pipeline=${integration_build_pipeline_action}"
+            echo "runtime_catalog=${runtime_catalog_action}"
+            echo "micro_engine=${micro_engine_action}"
+          } >> "$GITHUB_OUTPUT"
 
           {
             echo "### Prerequisite build plan"

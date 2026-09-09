@@ -940,7 +940,11 @@
             "xml": {
               "name": "tag"
             },
-            "$ref": "#/definitions/Tag"
+            "allOf": [
+              {
+                "$ref": "#/definitions/Tag"
+              }
+            ]
           }
         },
         "status": {

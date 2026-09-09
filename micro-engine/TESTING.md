@@ -124,7 +124,7 @@ including those that use Kafka, JMS, RabbitMQ, or Pub/Sub fixtures. Their route 
 from the generated catalog bundle.
 
 Supporting files live under `src/test/resources/snapshot-fixtures`, grouped by element:
-`file-read/source.txt` supplies the file input, and `xslt/transform.xslt` supplies the stylesheet.
+`file-read/source.txt` supplies the file input, and `xslt/transform.xslt` supplies the style sheet.
 Manifests refer to these files through `classpath:snapshot-fixtures/...` resources.
 
 ## Add a scenario

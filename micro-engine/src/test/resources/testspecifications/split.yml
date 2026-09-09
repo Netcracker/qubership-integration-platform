@@ -15,7 +15,7 @@ scenarios:
       accept: "application/json"
     properties:
       splitRequestProperty: "split-request-property"
-    expectedBody: {"main": "Main branch", "secondary": "Secondary branch"}
+    expectedBody: { "main": "Main branch", "secondary": "Secondary branch" }
     expectedHeaders:
       CamelHttpResponseCode: "200"
       X-Request-Id: "split-request-id"

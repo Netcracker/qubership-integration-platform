@@ -14,7 +14,7 @@ scenarios:
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
-        expectedBody: {"id": 1, "name": "doggie", "photoUrls": []}
+        expectedBody: { "id": 1, "name": "doggie", "photoUrls": [] }
         expectedHeaders:
           "CamelHttpResponseCode": 200
           "X-Test-Response": "success"
@@ -30,7 +30,7 @@ scenarios:
               headers:
                 "Content-Type": "application/json"
                 "X-Test-Response": "success"
-              body: {"id": 1, "name": "doggie", "photoUrls": []}
+              body: { "id": 1, "name": "doggie", "photoUrls": [] }
             expectedRequest:
               count: 50
               method: "GET"
@@ -62,7 +62,7 @@ scenarios:
               headers:
                 "Content-Type": "application/json"
                 "X-Test-Response": "failure"
-              body: {"message": "Temporary service failure"}
+              body: { "message": "Temporary service failure" }
             expectedRequest:
               count: 49
               method: "GET"
@@ -93,7 +93,7 @@ scenarios:
               headers:
                 "Content-Type": "application/json"
                 "X-Test-Response": "failure"
-              body: {"message": "Temporary service failure"}
+              body: { "message": "Temporary service failure" }
             expectedRequest:
               count: 1
               method: "GET"
@@ -124,7 +124,7 @@ scenarios:
               headers:
                 "Content-Type": "application/json"
                 "X-Test-Response": "would-have-succeeded"
-              body: {"id": 1, "name": "doggie", "photoUrls": []}
+              body: { "id": 1, "name": "doggie", "photoUrls": [] }
             expectedRequest:
               count: 0
               method: "GET"
@@ -136,7 +136,7 @@ scenarios:
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
-        expectedBody: {"id": 1, "name": "doggie", "photoUrls": []}
+        expectedBody: { "id": 1, "name": "doggie", "photoUrls": [] }
         expectedHeaders:
           "CamelHttpResponseCode": 200
           "X-Test-Response": "recovered"
@@ -152,7 +152,7 @@ scenarios:
               headers:
                 "Content-Type": "application/json"
                 "X-Test-Response": "recovered"
-              body: {"id": 1, "name": "doggie", "photoUrls": []}
+              body: { "id": 1, "name": "doggie", "photoUrls": [] }
             expectedRequest:
               count: 9
               method: "GET"
@@ -166,7 +166,7 @@ scenarios:
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
-        expectedBody: {"id": 1, "name": "doggie", "photoUrls": []}
+        expectedBody: { "id": 1, "name": "doggie", "photoUrls": [] }
         expectedHeaders:
           "CamelHttpResponseCode": 200
           "X-Test-Response": "recovered"
@@ -182,7 +182,7 @@ scenarios:
               headers:
                 "Content-Type": "application/json"
                 "X-Test-Response": "recovered"
-              body: {"id": 1, "name": "doggie", "photoUrls": []}
+              body: { "id": 1, "name": "doggie", "photoUrls": [] }
             expectedRequest:
               count: 1
               method: "GET"
@@ -195,7 +195,7 @@ scenarios:
         body: "Original"
         headers:
           "X-Test-Request": "request-value"
-        expectedBody: {"id": 1, "name": "doggie", "photoUrls": []}
+        expectedBody: { "id": 1, "name": "doggie", "photoUrls": [] }
         expectedHeaders:
           "CamelHttpResponseCode": 200
           "X-Test-Response": "recovered"
@@ -211,7 +211,7 @@ scenarios:
               headers:
                 "Content-Type": "application/json"
                 "X-Test-Response": "recovered"
-              body: {"id": 1, "name": "doggie", "photoUrls": []}
+              body: { "id": 1, "name": "doggie", "photoUrls": [] }
             expectedRequest:
               count: 1
               method: "GET"
