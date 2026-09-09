@@ -78,6 +78,21 @@ class BusinessFirstRequirementFlowIT {
     new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
   }
 
+  @Test
+  void rockyFlowAcceptsBriefHopLabelAsMappingIntentId() {
+    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBriefWithMapping();
+    MappingIntent mapping = brief.mappingIntents().getFirst();
+    assertEquals("create-task/RESPONSE -> task-result/REQUEST", mapping.hopLabel());
+
+    ChainSemanticRevision revision =
+        adapter.adapt(rockyMappedCapture(mapping.hopLabel()), "run-rocky", brief, CONTRACT);
+
+    assertTrue(
+        revision.executionEdges().stream()
+            .anyMatch(edge -> mapping.mappingIntentId().equals(edge.mappingId())));
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+  }
+
   private static ChainSemanticCapture rockyMappedCapture(String mappingIntentId) {
     return ChainSemanticCaptureFixtures.rockyCapture(
         List.of(new CapturedOperation("mapper-1", "script", List.of())),

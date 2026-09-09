@@ -75,6 +75,26 @@ public class CatalogSystemReadTool {
         searchCatalogSystems(searchCondition));
   }
 
+  /**
+   * Loads one catalog system by id. Blank ids and a missing system yield empty; this does not
+   * search by name.
+   */
+  public Optional<CatalogRestClient.SystemDto> getCatalogSystem(String systemId) {
+    String sid = CatalogStrings.blankToNull(systemId);
+    if (sid == null) {
+      return Optional.empty();
+    }
+    try {
+      CatalogRestClient.SystemDto system = catalogRestClient.getSystem(sid);
+      if (system != null) {
+        operationsLookup.rememberSystems(List.of(system));
+      }
+      return Optional.ofNullable(system);
+    } catch (RuntimeException e) {
+      return Optional.empty();
+    }
+  }
+
   /** Typed specifications lookup for catalog-first binding resolution. */
   public List<CatalogRestClient.SpecificationDto> getApiSpecifications(String systemId) {
     String sid = CatalogStrings.blankToNull(systemId);

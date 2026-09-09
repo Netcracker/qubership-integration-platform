@@ -625,6 +625,25 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureKeepsReadyForPlanFlowWhenUploadedSpecsAreApproved() {
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "draft-conv", List.of("sessions/conv/salesforce-wfm.json"));
+    RequirementDraftTool tool = RequirementDraftTool.withConversationService(store, conversations);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(flowCapture(true, DraftDecision.READY_FOR_PLAN, rockyFlow()));
+
+    assertFalse(result.contains("resolveApiOperation"), result);
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertTrue(draft.openQuestions().isEmpty());
+    assertEquals(rockyFlow(), draft.flow());
+  }
+
+  @Test
   void captureIsReadyWhenEveryServiceCallHasItsOwnResolution() {
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
     RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);

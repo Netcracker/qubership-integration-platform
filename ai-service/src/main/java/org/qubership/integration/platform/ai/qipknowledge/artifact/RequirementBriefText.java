@@ -131,17 +131,11 @@ public final class RequirementBriefText {
     }
     body.append("Mapping intents:");
     for (var intent : intents) {
-      body.append('\n')
-          .append("- mappingIntentId=")
-          .append(intent.mappingIntentId())
-          .append(' ')
-          .append(intent.sourceRef())
-          .append('/')
-          .append(intent.sourcePort())
-          .append(" -> ")
-          .append(intent.targetRef())
-          .append('/')
-          .append(intent.targetPort());
+      body.append('\n').append("- ");
+      if (!intent.mappingIntentId().isBlank()) {
+        body.append("mappingIntentId=").append(intent.mappingIntentId()).append(' ');
+      }
+      body.append(intent.hopLabel());
       for (MappingIntentRule rule : intent.rules()) {
         body.append('\n')
             .append("  - ")

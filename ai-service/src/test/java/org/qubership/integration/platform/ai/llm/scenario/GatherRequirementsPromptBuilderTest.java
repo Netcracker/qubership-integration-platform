@@ -85,6 +85,7 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("do not ask the reader to import or bind them"), input);
     assertTrue(input.contains("Capture the business flow from the attached document"), input);
     assertFalse(input.contains("Capture SERVICE_CALL facts"), input);
+    assertFalse(input.contains("resolveApiOperation"), input);
   }
 
   @Test

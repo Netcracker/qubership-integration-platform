@@ -1,10 +1,10 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -32,6 +32,10 @@ import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -342,6 +346,68 @@ class AutoUploadedSpecImportCapabilityTest {
   }
 
   @Test
+  void importsWhenFlowHasPartialCatalogBinding() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway, conversationService, artifactStore, handler, matcher, mock(RequirementDraftStore.class));
+    RequirementDraft draft =
+        omWfmDraft().withBoundInteraction("create-salesforce-task", restHint("create-salesforce-task"));
+    CompilationArtifacts.Reference draftRef = requirementDraftRef();
+    stubRequirementDraft(artifactStore, draftRef, draft);
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/om-async.yaml"));
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
+        .thenReturn(
+            Uni.createFrom()
+                .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
+    when(matcher.matchImported(eq("service-call"), any(), any(), any(), any(), eq("conv-1")))
+        .thenReturn(new CatalogBindingMatcher.MatchResult.None());
+    CompilationArtifacts.Reference approvalRef = approvalRef();
+    stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
+
+    CapabilitySignal.Completed completed = run(capability, draft, List.of(draftRef, approvalRef));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/om-async.yaml", "om-async.yaml")),
+            eq("INTERNAL"));
+  }
+
+  @Test
+  void skipsImportWhenEveryOutboundInteractionIsBound() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+    RequirementDraft draft =
+        omWfmDraft()
+            .withBoundInteraction("create-salesforce-task", restHint("create-salesforce-task"))
+            .withBoundInteraction("return-task-result", restHint("return-task-result"));
+    CompilationArtifacts.Reference draftRef = requirementDraftRef();
+    stubRequirementDraft(artifactStore, draftRef, draft);
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/om-async.yaml"));
+
+    CapabilitySignal.Completed completed = run(capability, draft, List.of(draftRef));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    verify(gateway, never()).importUploadedSpec(any(), any(), any());
+  }
+
+  @Test
   void importsAttachmentsWhenInputDraftHasNoCatalogBinding() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     ConversationService conversationService = mock(ConversationService.class);
@@ -403,7 +469,8 @@ class AutoUploadedSpecImportCapabilityTest {
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
-    when(matcher.match(any(), nullable(String.class), nullable(String.class), eq("conv-1")))
+    when(matcher.matchImported(
+            eq("service-call"), eq("sys"), eq("group"), eq("spec"), any(), eq("conv-1")))
         .thenReturn(
             new CatalogBindingMatcher.MatchResult.Exact(
                 new CatalogMatch(
@@ -448,7 +515,214 @@ class AutoUploadedSpecImportCapabilityTest {
     assertEquals(
         "Call catalog-bound Stub OpenAPI Service stubOperation operation, POST /stub/path",
         storeDraft.getValue().facts().get(0).text());
-    verify(matcher).match(eq("service-call"), any(), any(), eq("conv-1"));
+    verify(matcher)
+        .matchImported(eq("service-call"), eq("sys"), eq("group"), eq("spec"), any(), eq("conv-1"));
+  }
+
+  @Test
+  void emitsCatalogBindingHintWhenImportMatchesFlowInteraction() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway, conversationService, artifactStore, handler, matcher, draftStore);
+    RequirementDraft draft =
+        draft()
+            .withFacts(
+                List.of(
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.GOAL,
+                        "chain",
+                        "Create OM to Salesforce WFM")))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction(
+                            "on-task-start", Direction.INBOUND, "Caller", "POST /tasks", ""),
+                        new Interaction(
+                            "create-salesforce-task",
+                            Direction.OUTBOUND,
+                            "Salesforce WFM",
+                            "createTask",
+                            "")),
+                    List.of(new Transition("on-task-start", "create-salesforce-task"))));
+    CompilationArtifacts.Reference draftRef = requirementDraftRef();
+    stubRequirementDraft(artifactStore, draftRef, draft);
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/salesforce-wfm.yaml"));
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
+        .thenReturn(
+            Uni.createFrom()
+                .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
+    when(matcher.matchImported(
+            eq("service-call"), eq("sys"), eq("group"), eq("spec"), eq("createTask"), eq("conv-1")))
+        .thenReturn(
+            new CatalogBindingMatcher.MatchResult.Exact(
+                new CatalogMatch(
+                    "sys",
+                    "group",
+                    "spec",
+                    "op-create-task",
+                    "Salesforce WFM",
+                    "rest",
+                    "POST",
+                    "/sobjects/Task",
+                    "createTask",
+                    "catalog-read:sys/spec/op-create-task")));
+    CompilationArtifacts.Reference approvalRef = approvalRef();
+    stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
+
+    CapabilitySignal.Completed completed = run(capability, draft, List.of(draftRef, approvalRef));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    List<ArtifactCandidate> hints =
+        completed.outcome().candidates().stream()
+            .filter(c -> c.kind() == CompilationArtifacts.Kind.CATALOG_BINDING_HINT)
+            .toList();
+    assertEquals(1, hints.size());
+    CatalogBindingHint hint = (CatalogBindingHint) hints.get(0).payload();
+    assertEquals("create-salesforce-task", hint.interactionId());
+    assertEquals("op-create-task", hint.integrationOperationId());
+    RequirementDraft updated =
+        (RequirementDraft)
+            completed.outcome().candidates().stream()
+                .filter(c -> c.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT)
+                .findFirst()
+                .orElseThrow()
+                .payload();
+    assertTrue(updated.readyForPlan());
+    assertEquals(1, updated.catalogBindings().size());
+  }
+
+  @Test
+  void bindsFlowInteractionsByImportedSystemIdsWhenParticipantNamesDiffer() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway, conversationService, artifactStore, handler, matcher, draftStore);
+    RequirementDraft draft =
+        draft()
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction(
+                            "on-task-start", Direction.INBOUND, "Caller", "POST /tasks", ""),
+                        new Interaction(
+                            "salesforce-create-task",
+                            Direction.OUTBOUND,
+                            "Salesforce WFM – Auth & Task API",
+                            "createTask",
+                            ""),
+                        new Interaction(
+                            "wfms-task-result",
+                            Direction.OUTBOUND,
+                            "WFMS Create Work Order",
+                            "onTaskResult",
+                            "")),
+                    List.of(
+                        new Transition("on-task-start", "salesforce-create-task"),
+                        new Transition("salesforce-create-task", "wfms-task-result"))));
+    CompilationArtifacts.Reference draftRef = requirementDraftRef();
+    stubRequirementDraft(artifactStore, draftRef, draft);
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/salesforce-wfm.yaml", "uploads/wfms.yaml"));
+    when(gateway.importUploadedSpec(
+            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
+        .thenAnswer(
+            invocation -> {
+              UploadedSpecAttachment attachment = invocation.getArgument(1);
+              if (attachment.s3Key().contains("salesforce")) {
+                return Uni.createFrom()
+                    .item(
+                        new UploadedSpecImportOutcome(
+                            "sf-key", "sys-sf", "group-sf", "spec-sf", false));
+              }
+              return Uni.createFrom()
+                  .item(
+                      new UploadedSpecImportOutcome(
+                          "wfms-key", "sys-wfms", "group-wfms", "spec-wfms", false));
+            });
+    when(matcher.matchImported(
+            eq("service-call"), any(), any(), any(), any(), eq("conv-1")))
+        .thenAnswer(
+            invocation -> {
+              String systemId = invocation.getArgument(1);
+              String query = invocation.getArgument(4);
+              if ("sys-sf".equals(systemId) && "createTask".equals(query)) {
+                return new CatalogBindingMatcher.MatchResult.Exact(
+                    new CatalogMatch(
+                        "sys-sf",
+                        "group-sf",
+                        "spec-sf",
+                        "op-create-task",
+                        "Salesforce WFM Auth Task API",
+                        "http",
+                        "POST",
+                        "/sobjects/Task",
+                        "createTask",
+                        "catalog-read:sys-sf/spec-sf/op-create-task"));
+              }
+              if ("sys-wfms".equals(systemId) && "onTaskResult".equals(query)) {
+                return new CatalogBindingMatcher.MatchResult.Exact(
+                    new CatalogMatch(
+                        "sys-wfms",
+                        "group-wfms",
+                        "spec-wfms",
+                        "op-task-result",
+                        "WFMS Create Work Order",
+                        "rest",
+                        "POST",
+                        "/task-result",
+                        "onTaskResult",
+                        "catalog-read:sys-wfms/spec-wfms/op-task-result"));
+              }
+              return new CatalogBindingMatcher.MatchResult.None();
+            });
+    CompilationArtifacts.Reference approvalRef = approvalRef();
+    stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
+
+    CapabilitySignal.Completed completed = run(capability, draft, List.of(draftRef, approvalRef));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    RequirementDraft updated =
+        (RequirementDraft)
+            completed.outcome().candidates().stream()
+                .filter(c -> c.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT)
+                .findFirst()
+                .orElseThrow()
+                .payload();
+    assertTrue(updated.readyForPlan());
+    assertEquals(2, updated.catalogBindings().size());
+    verify(matcher, never()).match(any(), any(), any(), any());
+    verify(matcher)
+        .matchImported(
+            eq("service-call"),
+            eq("sys-sf"),
+            eq("group-sf"),
+            eq("spec-sf"),
+            eq("createTask"),
+            eq("conv-1"));
+    verify(matcher)
+        .matchImported(
+            eq("service-call"),
+            eq("sys-wfms"),
+            eq("group-wfms"),
+            eq("spec-wfms"),
+            eq("onTaskResult"),
+            eq("conv-1"));
   }
 
   @Test
@@ -487,10 +761,11 @@ class AutoUploadedSpecImportCapabilityTest {
         .thenReturn(
             Uni.createFrom()
                 .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
-    when(matcher.match(any(), nullable(String.class), nullable(String.class), eq("conv-1")))
+    when(matcher.matchImported(
+            eq("service-call"), eq("sys"), eq("group"), eq("spec"), any(), eq("conv-1")))
         .thenAnswer(
             invocation -> {
-              String q = invocation.getArgument(2);
+              String q = invocation.getArgument(4);
               if (q != null && q.contains("POST /stub/path")) {
                 return new CatalogBindingMatcher.MatchResult.Exact(
                     new CatalogMatch(
@@ -610,6 +885,44 @@ class AutoUploadedSpecImportCapabilityTest {
   private static RequirementDraft draft() {
     return new RequirementDraft(
         true, "Build a chain", DraftDecision.READY_FOR_PLAN, List.of(), "brainstorming", "1");
+  }
+
+  private static RequirementDraft omWfmDraft() {
+    return draft()
+        .withFlow(
+            new RequirementFlow(
+                List.of(
+                    new Interaction(
+                        "on-task-start", Direction.INBOUND, "Caller", "POST /tasks", ""),
+                    new Interaction(
+                        "create-salesforce-task",
+                        Direction.OUTBOUND,
+                        "Salesforce WFM",
+                        "createTask",
+                        ""),
+                    new Interaction(
+                        "return-task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+                List.of(
+                    new Transition("on-task-start", "create-salesforce-task"),
+                    new Transition("create-salesforce-task", "return-task-result"))));
+  }
+
+  private static CatalogBindingHint restHint(String interactionId) {
+    return new CatalogBindingHint(
+        CatalogBindingHint.SCHEMA_VERSION,
+        interactionId,
+        interactionId,
+        "POST /ops/" + interactionId,
+        "sys",
+        "group",
+        "spec",
+        "op-" + interactionId,
+        "rest",
+        "POST",
+        "/ops/" + interactionId,
+        "catalog",
+        Instant.EPOCH,
+        "test");
   }
 
   private static RequirementDraft draftWithBinding() {

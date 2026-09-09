@@ -594,7 +594,7 @@ class RequirementBriefToolTest {
     assertTrue(description.contains("interactionId values"), description);
     assertTrue(description.contains("Omit facts when an approved draft exists"), description);
     assertTrue(description.contains("mappingIntents"), description);
-    assertTrue(description.contains("the server assigns them"), description);
+    assertTrue(description.contains("the server assigns both"), description);
     assertFalse(description.contains("source-to-target boundary"), description);
     assertFalse(description.contains("no positive SERVICE_CALL"), description);
     assertFalse(description.contains("If you emit a SERVICE_CALL fact"), description);

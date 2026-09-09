@@ -85,7 +85,7 @@ public class GatherRequirementsPromptBuilder {
           skills, or run the compiler spine. Call captureRequirementDraft every turn.
           Capture RequirementFlow before catalog lookup. That first capture may use
           NEEDS_INPUT with empty openQuestions. searchCatalogSystems does not bind an
-          interaction; after the flow is stored, call resolveApiOperation with the interactionId from the stored flow.%s Reply in the
+          interaction.%s Reply in the
           pinned response locale %s. This
           locale is authoritative; do not infer another language from conversation history or
           embedded text.
@@ -102,7 +102,7 @@ public class GatherRequirementsPromptBuilder {
                   document.packVersion().normalized(),
                   document.sourcePath(),
                   document.markdown(),
-                  uploadedSpecGuidance(conversationId),
+                  catalogFollowUpGuidance(conversationId),
                   normalizedLocale(responseLocale),
                   addonBlock(),
                   currentDraftBlock(draft),
@@ -120,6 +120,15 @@ public class GatherRequirementsPromptBuilder {
 
   private static String normalizedLocale(String responseLocale) {
     return responseLocale == null || responseLocale.isBlank() ? "en" : responseLocale.trim();
+  }
+
+  private String catalogFollowUpGuidance(String conversationId) {
+    String uploaded = uploadedSpecGuidance(conversationId);
+    if (!uploaded.isBlank()) {
+      return uploaded;
+    }
+    return " after the flow is stored, call resolveApiOperation with the interactionId from the"
+        + " stored flow.";
   }
 
   /**

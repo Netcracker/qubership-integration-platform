@@ -115,7 +115,8 @@ public class ChainSemanticCaptureAdapter {
 
     List<SemanticEntryPoint> entryPoints =
         entryPoints(triggerBindings, capture, nodeIds, factIds);
-    List<SemanticExecutionEdge> edges = edges(capture, nodeIds, regionIds);
+    List<SemanticExecutionEdge> edges =
+        canonicalizeMappingIntentIds(edges(capture, nodeIds, regionIds), authoritative);
     requireApprovedAnchorGraph(authoritative, triggerBindings, briefServiceCalls, edges);
     List<MappingIntent> mappingIntents = mappingIntents(authoritative, edges, nodes);
     List<SemanticContainment> containment = containment(capture, nodeIds);
@@ -521,14 +522,67 @@ public class ChainSemanticCaptureAdapter {
 
   // Mappings
 
-  private static List<MappingIntent> mappingIntents(
-      RequirementBrief brief, List<SemanticExecutionEdge> edges, List<SemanticNode> nodes) {
+  /**
+   * Copies {@code mappingIntentId=} from the brief when the model pasted the hop label printed
+   * next to that token, for example {@code create-task/RESPONSE -> task-result/REQUEST}.
+   */
+  private static List<SemanticExecutionEdge> canonicalizeMappingIntentIds(
+      List<SemanticExecutionEdge> edges, RequirementBrief brief) {
+    Map<String, MappingIntent> approved = approvedMappingIntents(brief);
+    List<SemanticExecutionEdge> rewritten = new ArrayList<>(edges.size());
+    for (SemanticExecutionEdge edge : edges) {
+      String capturedId = edge.mappingId();
+      if (capturedId == null || capturedId.isBlank()) {
+        rewritten.add(edge);
+        continue;
+      }
+      String canonical = canonicalMappingIntentId(capturedId, approved);
+      if (capturedId.equals(canonical)) {
+        rewritten.add(edge);
+        continue;
+      }
+      rewritten.add(
+          new SemanticExecutionEdge(
+              edge.edgeId(),
+              edge.sourceNodeId(),
+              edge.targetNodeId(),
+              edge.regionId(),
+              edge.route(),
+              canonical));
+    }
+    return List.copyOf(rewritten);
+  }
+
+  private static Map<String, MappingIntent> approvedMappingIntents(RequirementBrief brief) {
     Map<String, MappingIntent> approved = new LinkedHashMap<>();
     for (MappingIntent intent : brief.mappingIntents()) {
       if (intent != null && !intent.mappingIntentId().isBlank()) {
         approved.put(intent.mappingIntentId(), intent);
       }
     }
+    return approved;
+  }
+
+  private static String canonicalMappingIntentId(
+      String capturedId, Map<String, MappingIntent> approved) {
+    if (approved.containsKey(capturedId)) {
+      return capturedId;
+    }
+    MappingIntent match = null;
+    for (MappingIntent intent : approved.values()) {
+      if (capturedId.equals(intent.hopLabel())) {
+        if (match != null) {
+          return capturedId;
+        }
+        match = intent;
+      }
+    }
+    return match == null ? capturedId : match.mappingIntentId();
+  }
+
+  private static List<MappingIntent> mappingIntents(
+      RequirementBrief brief, List<SemanticExecutionEdge> edges, List<SemanticNode> nodes) {
+    Map<String, MappingIntent> approved = approvedMappingIntents(brief);
     Map<String, SemanticExecutionEdge> siteByIntent = new LinkedHashMap<>();
     for (SemanticExecutionEdge edge : edges) {
       String intentId = edge.mappingId();

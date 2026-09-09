@@ -413,11 +413,19 @@ public record RequirementDraft(
     return true;
   }
 
-  /** True when the interaction this pending import belongs to already has a catalog binding. */
+  /**
+   * True when specification import should skip because the selected call is already in the catalog.
+   * An API Hub candidate is bound when that interaction has a catalog hint. A non-empty flow is
+   * bound when {@link RequirementFlowValidator#validateBindings} reports no gaps. An empty flow is
+   * bound when any catalog hint is present.
+   */
   public boolean selectedImportCallAlreadyBound() {
     if (apiHubCandidateInteractionId != null) {
       return catalogBindings.stream()
           .anyMatch(hint -> apiHubCandidateInteractionId.equals(hint.interactionId()));
+    }
+    if (!flow.interactions().isEmpty()) {
+      return RequirementFlowValidator.validateBindings(flow, facts, catalogBindings).isEmpty();
     }
     return !catalogBindings.isEmpty();
   }

@@ -139,6 +139,54 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void acceptsTheBriefHopLabelAsMappingIntentId() {
+    RequirementBrief brief = ChainSemanticCaptureFixtures.briefWithMapping();
+    MappingIntent intent = brief.mappingIntents().getFirst();
+
+    ChainSemanticRevision revision =
+        adapt(ChainSemanticCaptureFixtures.mappedCapture(intent.hopLabel()), brief);
+
+    assertEquals(
+        ChainSemanticCaptureFixtures.MAPPING_INTENT_ID,
+        revision.executionEdges().stream()
+            .map(SemanticExecutionEdge::mappingId)
+            .filter(ChainSemanticCaptureFixtures.MAPPING_INTENT_ID::equals)
+            .findFirst()
+            .orElse(null));
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+  }
+
+  @Test
+  void acceptsHopLabelAfterProjectorMintsABlankMappingIntentId() {
+    RequirementBrief raw =
+        ChainSemanticCaptureFixtures.briefWithMapping()
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "",
+                        "trigger-1",
+                        MappingPort.OUTPUT,
+                        "fact-call",
+                        MappingPort.REQUEST,
+                        List.of(new MappingIntentRule("id", "orderId", null)))));
+    RequirementBrief brief = RequirementBriefProjector.canonicalizeMappingIntents(raw);
+    MappingIntent intent = brief.mappingIntents().getFirst();
+    assertNotEquals("", intent.mappingIntentId());
+
+    ChainSemanticRevision revision =
+        adapt(ChainSemanticCaptureFixtures.mappedCapture(intent.hopLabel()), brief);
+
+    assertEquals(
+        intent.mappingIntentId(),
+        revision.executionEdges().stream()
+            .map(SemanticExecutionEdge::mappingId)
+            .filter(intent.mappingIntentId()::equals)
+            .findFirst()
+            .orElse(null));
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+  }
+
+  @Test
   void rewritesMappingRefsFromFactIdsOntoTheCarryingEdge() {
     RequirementBrief brief = ChainSemanticCaptureFixtures.briefWithMapping();
     ChainSemanticRevision revision =

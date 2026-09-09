@@ -15,6 +15,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 
 class RequirementDraftImportIntentTest {
 
@@ -241,6 +242,95 @@ class RequirementDraftImportIntentTest {
     RequirementDraft draft = store.get("conv-keep").orElseThrow();
     assertTrue(draft.importIntent());
     assertEquals("existing vision", draft.assembledText());
+  }
+
+  @Test
+  void selectedImportCallAlreadyBoundIsFalseWhenFlowStillHasUnboundOutbound() {
+    RequirementDraft draft =
+        omWfmDraft().withBoundInteraction("create-salesforce-task", restHint("create-salesforce-task"));
+
+    assertFalse(draft.selectedImportCallAlreadyBound());
+  }
+
+  @Test
+  void selectedImportCallAlreadyBoundIsTrueWhenEveryOutboundIsBound() {
+    RequirementDraft draft =
+        omWfmDraft()
+            .withBoundInteraction("create-salesforce-task", restHint("create-salesforce-task"))
+            .withBoundInteraction("return-task-result", restHint("return-task-result"));
+
+    assertTrue(draft.selectedImportCallAlreadyBound());
+  }
+
+  @Test
+  void selectedImportCallAlreadyBoundIsTrueWhenEmptyFlowHasAnyBinding() {
+    RequirementDraft draft =
+        new RequirementDraft(true, "bound call", DraftDecision.READY_FOR_PLAN, List.of(), "brainstorming", "1")
+            .withFacts(List.of(sampleCall()))
+            .withBoundServiceCall(sampleCall().serviceCallId(), sampleHint(sampleCall()));
+
+    assertTrue(draft.selectedImportCallAlreadyBound());
+  }
+
+  @Test
+  void selectedImportCallAlreadyBoundIsTrueWhenApiHubCandidateInteractionIsBound() {
+    RequirementFact call = sampleCall();
+    RequirementDraft draft =
+        new RequirementDraft(
+                false,
+                "GeoSite proxy",
+                DraftDecision.NEEDS_INPUT,
+                List.of(),
+                null,
+                null,
+                null,
+                sampleCandidate(),
+                false,
+                List.of(call),
+                true)
+            .withApiHubCandidate(sampleCandidate(), call.serviceCallId())
+            .withBoundServiceCall(call.serviceCallId(), sampleHint(call));
+
+    assertTrue(draft.selectedImportCallAlreadyBound());
+  }
+
+  private static RequirementDraft omWfmDraft() {
+    return new RequirementDraft(
+            true, "OM to Salesforce WFM", DraftDecision.READY_FOR_PLAN, List.of(), "brainstorming", "1")
+        .withFlow(
+            new RequirementFlow(
+                List.of(
+                    new Interaction(
+                        "on-task-start", Direction.INBOUND, "Caller", "POST /tasks", ""),
+                    new Interaction(
+                        "create-salesforce-task",
+                        Direction.OUTBOUND,
+                        "Salesforce WFM",
+                        "createTask",
+                        ""),
+                    new Interaction(
+                        "return-task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+                List.of(
+                    new Transition("on-task-start", "create-salesforce-task"),
+                    new Transition("create-salesforce-task", "return-task-result"))));
+  }
+
+  private static CatalogBindingHint restHint(String interactionId) {
+    return new CatalogBindingHint(
+        CatalogBindingHint.SCHEMA_VERSION,
+        interactionId,
+        interactionId,
+        "POST /ops/" + interactionId,
+        "sys",
+        "group",
+        "spec",
+        "op-" + interactionId,
+        "rest",
+        "POST",
+        "/ops/" + interactionId,
+        "catalog",
+        Instant.EPOCH,
+        "test");
   }
 
   private static ApiHubRequirementRefs sampleCandidate() {

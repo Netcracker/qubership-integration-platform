@@ -30,6 +30,15 @@ public record MappingIntent(
             : implementationPreference.trim();
   }
 
+  /**
+   * Label printed next to {@code mappingIntentId=} in the brief, for example
+   * {@code create-task/RESPONSE -> task-result/REQUEST}.
+   */
+  @JsonIgnore
+  public String hopLabel() {
+    return sourceRef + "/" + sourcePort + " -> " + targetRef + "/" + targetPort;
+  }
+
   @JsonIgnore
   public MappingIntent(
       String mappingIntentId,
@@ -39,6 +48,17 @@ public record MappingIntent(
       MappingPort targetPort,
       List<MappingIntentRule> rules) {
     this(mappingIntentId, sourceRef, sourcePort, targetRef, targetPort, rules, null);
+  }
+
+  public MappingIntent withMappingIntentId(String mappingIntentId) {
+    return new MappingIntent(
+        mappingIntentId,
+        sourceRef,
+        sourcePort,
+        targetRef,
+        targetPort,
+        rules,
+        implementationPreference);
   }
 
   public MappingIntent withRules(List<MappingIntentRule> newRules) {

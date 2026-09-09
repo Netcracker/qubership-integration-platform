@@ -7,8 +7,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 
 /**
- * LLM-facing mapping row: source and target refs plus field rules. Mapping ports are not captured;
- * {@link RequirementBriefProjector} assigns them from the approved flow.
+ * LLM-facing mapping row: source and target refs plus field rules. Mapping ports and mappingIntentId
+ * are not captured; {@link RequirementBriefProjector} assigns them from the approved hop.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record CapturedMappingIntent(
