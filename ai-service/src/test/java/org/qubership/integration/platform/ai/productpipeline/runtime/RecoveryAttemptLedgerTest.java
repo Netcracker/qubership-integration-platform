@@ -149,6 +149,38 @@ class RecoveryAttemptLedgerTest {
   }
 
   @Test
+  void authorMayReopenMissingBriefFactsAfterAutomaticReplay() {
+    RecoveryCause missing =
+        RecoveryCause.missingBriefFacts(List.of("$.preserved.executionId"));
+    List<RunTransition> journal = new ArrayList<>();
+    RecoveryAttemptKey key = ledger.key("requirement-analysis", missing, "brief-a", journal);
+    journal.add(
+        transition(
+            ledger.recordReopen(
+                key, RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, "brief-a"),
+            "requirement-analysis"));
+    assertTrue(ledger.ownerAlreadyReopened(journal, key, ""));
+    assertTrue(ledger.automaticReopenRecorded(journal, key, ""));
+    assertTrue(
+        ledger.mayReopen(
+            journal,
+            key,
+            InputOrigin.TRUSTED,
+            RecoveryAttemptLedger.ReopenInitiator.AUTHOR,
+            ""));
+    assertFalse(
+        ledger.mayReopen(
+            journal,
+            key,
+            InputOrigin.TRUSTED,
+            RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC,
+            ""));
+    assertEquals(
+        1,
+        ledger.remaining(journal, key, InputOrigin.TRUSTED).causalReopensRemaining());
+  }
+
+  @Test
   void anAbsolutePerRunCeilingRefusesFurtherAttempts() {
     RecoveryAttemptLedger tight =
         new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 2));

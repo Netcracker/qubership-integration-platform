@@ -100,12 +100,23 @@ public final class RecoveryAttemptLedger {
    * input, so a rephrasing that leaves those artifacts identical does not change the identity.
    */
   public static String inputArtifactIdentity(ProductPipelineRunDocument doc, String ownerStageId) {
-    if (doc == null || doc.run() == null || doc.run().stages() == null) {
+    if (doc == null || doc.run() == null) {
+      return "";
+    }
+    return inputArtifactIdentity(doc.run().stages(), ownerStageId);
+  }
+
+  /**
+   * Same identity as {@link #inputArtifactIdentity(ProductPipelineRunDocument, String)} from a
+   * snapshot list, including an in-memory approval that is not committed yet.
+   */
+  public static String inputArtifactIdentity(List<StageSnapshot> stages, String ownerStageId) {
+    if (stages == null) {
       return "";
     }
     String owner = ownerStageId == null ? "" : ownerStageId;
     StringBuilder identity = new StringBuilder();
-    for (StageSnapshot snapshot : doc.run().stages()) {
+    for (StageSnapshot snapshot : stages) {
       String hash = approvedContentHash(snapshot);
       if (!hash.isEmpty()) {
         if (identity.length() > 0) {
@@ -179,6 +190,16 @@ public final class RecoveryAttemptLedger {
         + payload(key, nvl(inputArtifactIdentity));
   }
 
+  /**
+   * True when this is a chain author's correction of a known missing-brief-facts defect. Automatic
+   * replay of the same defect stays blocked by {@link #ownerAlreadyReopened}.
+   */
+  public static boolean isAuthorMissingBriefFactsCorrection(
+      ReopenInitiator initiator, RecoveryCauseCode causeCode) {
+    return initiator == ReopenInitiator.AUTHOR
+        && causeCode == RecoveryCauseCode.MISSING_BRIEF_FACTS;
+  }
+
   public boolean mayReopen(
       List<RunTransition> transitions,
       RecoveryAttemptKey key,
@@ -188,7 +209,8 @@ public final class RecoveryAttemptLedger {
     if (key == null || ceilingReached(transitions)) {
       return false;
     }
-    if (ownerAlreadyReopened(transitions, key, legacyFailureSignature)) {
+    if (ownerAlreadyReopened(transitions, key, legacyFailureSignature)
+        && !isAuthorMissingBriefFactsCorrection(initiator, key.causeCode())) {
       return false;
     }
     if (initiator != ReopenInitiator.AUTOMATIC) {
@@ -232,6 +254,39 @@ public final class RecoveryAttemptLedger {
       Parsed parsed = parse(reason);
       if (parsed != null
           && parsed.reopen
+          && key.ownerStageId().equals(parsed.ownerStageId)
+          && key.causeCode() == parsed.causeCode
+          && key.evidenceIdentity().equals(parsed.evidenceIdentity)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * True when automatic replay already reopened this owner for this defect. Author reopens do not
+   * count; a later unchanged candidate still has no fresh automatic budget.
+   */
+  public boolean automaticReopenRecorded(
+      List<RunTransition> transitions, RecoveryAttemptKey key, String legacyFailureSignature) {
+    if (key == null || transitions == null) {
+      return false;
+    }
+    String legacy =
+        ProductPipelineRunSupport.causalReopenReason(key.ownerStageId(), nvl(legacyFailureSignature));
+    for (RunTransition transition : transitions) {
+      String reason = transition == null ? null : transition.reason();
+      if (reason == null) {
+        continue;
+      }
+      if (reason.equals(legacy)) {
+        return true;
+      }
+      if (!reason.startsWith(AUTOMATIC_REOPEN_REASON_PREFIX)) {
+        continue;
+      }
+      Parsed parsed = parse(reason);
+      if (parsed != null
           && key.ownerStageId().equals(parsed.ownerStageId)
           && key.causeCode() == parsed.causeCode
           && key.evidenceIdentity().equals(parsed.evidenceIdentity)) {

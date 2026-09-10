@@ -1636,7 +1636,9 @@ public final class ProductPipelineRunSupport {
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
     RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
     String legacy = causalReopenFailureSignature(doc.run().runId());
-    if (recoveryLedger.ownerAlreadyReopened(doc.transitions(), key, legacy)) {
+    if (recoveryLedger.ownerAlreadyReopened(doc.transitions(), key, legacy)
+        && !RecoveryAttemptLedger.isAuthorMissingBriefFactsCorrection(
+            initiator, cause.causeCode())) {
       return HaltRecoveryGuard.OWNER_ALREADY_REOPENED;
     }
     if (!recoveryLedger.mayReopen(doc.transitions(), key, origin, initiator, legacy)) {
@@ -2355,7 +2357,11 @@ public final class ProductPipelineRunSupport {
                         new StaleApprovalException(
                             "approval target is not the current approvable candidate"));
               }
-              recordSupersededBriefOnRepairApproval(command.runId(), target);
+              boolean holdUnchangedBrief =
+                  shouldHoldUnchangedExhaustedBrief(doc, stage, target);
+              if (!holdUnchangedBrief) {
+                recordSupersededBriefOnRepairApproval(command.runId(), target);
+              }
               List<Reference> approvedCandidates =
                   approvedCandidates(stage.outputRefs(), stageProfile.approval());
               boolean multiItemApproval =
@@ -2425,6 +2431,10 @@ public final class ProductPipelineRunSupport {
 
               ProductPipelineProfile profile = profilesByRun.get(command.runId());
               String currentStageId = doc.run().currentStageId();
+              if (holdUnchangedBrief) {
+                return holdUnchangedExhaustedBrief(doc, command, updated);
+              }
+              String correction = recordExhaustedBriefCorrection(doc, currentStageId, updated);
               ImplementationGatePolicy gate = profile.implementationGate();
               if (gate != null && currentStageId.equals(gate.afterStageId())) {
                 commitStatus(
@@ -2465,7 +2475,7 @@ public final class ProductPipelineRunSupport {
                   RunStatus.RUNNING,
                   StageStatus.SUCCEEDED,
                   updated,
-                  "approved",
+                  correction.isEmpty() ? "approved" : correction,
                   null,
                   command.commandId(),
                   command.commandPayloadHash());
@@ -2473,6 +2483,104 @@ public final class ProductPipelineRunSupport {
               commitMove(after, nextStageId, markStageRunning(after, nextStageId), "advance after approval");
               return Multi.createFrom().empty();
             });
+  }
+
+  /**
+   * True when this approval is the exhausted missing-brief-facts edit path and the approved brief
+   * is the same canonical artifact automatic replay already observed.
+   */
+  private boolean shouldHoldUnchangedExhaustedBrief(
+      ProductPipelineRunDocument doc, StageSnapshot stage, Reference target) {
+    if (target == null || target.kind() != Kind.REQUIREMENT_BRIEF) {
+      return false;
+    }
+    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
+    if (!cause.isMissingBriefFacts()) {
+      return false;
+    }
+    String owner = doc.run().currentStageId();
+    List<StageSnapshot> preview = previewApprovedStages(doc, stage, target);
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(preview, owner);
+    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    String legacy = causalReopenFailureSignature(doc.run().runId());
+    if (!recoveryLedger.automaticReopenRecorded(doc.transitions(), key, legacy)) {
+      return false;
+    }
+    return !recoveryLedger.correctionAdvancesEpoch(doc.transitions(), key, artifact);
+  }
+
+  private static List<StageSnapshot> previewApprovedStages(
+      ProductPipelineRunDocument doc, StageSnapshot stage, Reference target) {
+    List<StageSnapshot> preview = new ArrayList<>();
+    for (StageSnapshot snapshot : doc.run().stages()) {
+      if (snapshot.stageId().equals(stage.stageId())) {
+        preview.add(
+            new StageSnapshot(
+                snapshot.stageId(),
+                StageStatus.SUCCEEDED,
+                snapshot.outputRefs(),
+                target.artifactId(),
+                snapshot.candidateReferences(),
+                target,
+                snapshot.candidateRevision()));
+      } else {
+        preview.add(snapshot);
+      }
+    }
+    return preview;
+  }
+
+  private String recordExhaustedBriefCorrection(
+      ProductPipelineRunDocument doc, String owner, List<StageSnapshot> updated) {
+    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
+    if (!cause.isMissingBriefFacts()) {
+      return "";
+    }
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(updated, owner);
+    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    String legacy = causalReopenFailureSignature(doc.run().runId());
+    if (!recoveryLedger.automaticReopenRecorded(doc.transitions(), key, legacy)) {
+      return "";
+    }
+    return recoveryLedger.recordCorrection(
+        doc.transitions(), key, artifact, InputOrigin.TRUSTED);
+  }
+
+  /**
+   * Keeps downstream execution paused after an unchanged brief. The exhausted edit card stays on
+   * the failed stage so the author can correct again.
+   */
+  private Multi<PipelineSignal> holdUnchangedExhaustedBrief(
+      ProductPipelineRunDocument doc, ApproveCommand command, List<StageSnapshot> approved) {
+    String failedStage =
+        stringAttribute(command.runId(), STAGE_ERROR_FAILED_STAGE_ATTR)
+            .orElse(doc.run().currentStageId());
+    String prompt = latestWaitingForInputPrompt(doc);
+    List<StageSnapshot> waiting = new ArrayList<>();
+    for (StageSnapshot snapshot : approved) {
+      if (failedStage.equals(snapshot.stageId())) {
+        waiting.add(
+            new StageSnapshot(
+                snapshot.stageId(),
+                StageStatus.WAITING_FOR_INPUT,
+                snapshot.outputRefs(),
+                snapshot.approvedArtifactId(),
+                snapshot.candidateReferences(),
+                snapshot.approvableReference(),
+                snapshot.candidateRevision()));
+      } else {
+        waiting.add(snapshot);
+      }
+    }
+    commitWaitAt(
+        doc,
+        failedStage,
+        waiting,
+        prompt,
+        haltEvidence(attributesByRun.get(command.runId()), null),
+        command.commandId(),
+        command.commandPayloadHash());
+    return Multi.createFrom().item(new PipelineSignal.WaitingForInput(failedStage, prompt));
   }
 
   /** Records the implementation gate command without selecting or running the next stage. */
@@ -2718,6 +2826,48 @@ public final class ProductPipelineRunSupport {
                 doc.run().status(),
                 RunStatus.RUNNING,
                 nextStageId,
+                clock.instant(),
+                reason,
+                commandId,
+                commandPayloadHash)));
+  }
+
+  /**
+   * Moves currentStageId to {@code stageId} and waits there. Used when an unchanged exhausted brief
+   * must not resume downstream execution.
+   */
+  private void commitWaitAt(
+      ProductPipelineRunDocument doc,
+      String stageId,
+      List<StageSnapshot> stages,
+      String reason,
+      String failureEvidence,
+      String commandId,
+      String commandPayloadHash) {
+    long expected = doc.run().runRevision();
+    runStore.commit(
+        expected,
+        new LogicalCommit(
+            doc.run().runId(),
+            expected,
+            RunStatus.WAITING_FOR_INPUT,
+            stageId,
+            stages,
+            new StageAttempt(
+                UUID.randomUUID().toString(),
+                stageId,
+                expected + 1L,
+                StageStatus.WAITING_FOR_INPUT,
+                clock.instant(),
+                clock.instant(),
+                List.of(),
+                failureEvidence),
+            new RunTransition(
+                expected,
+                expected + 1L,
+                doc.run().status(),
+                RunStatus.WAITING_FOR_INPUT,
+                stageId,
                 clock.instant(),
                 reason,
                 commandId,
