@@ -1817,13 +1817,13 @@ public final class ProductPipelineRunSupport {
       String owner,
       InputOrigin origin,
       RecoveryAttemptLedger.ReopenInitiator initiator) {
-    if (!isEarlierApprovedOwner(doc, owner)) {
+    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
+    if (!isEarlierApprovedOwner(doc, owner) && !isCommittedIdentityMismatchOwner(doc, owner, cause)) {
       return false;
     }
     if (catalogHasBeenWritten(doc.run().runId())) {
       return false;
     }
-    RecoveryCause cause = currentRecoveryCause(doc.run().runId());
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
     RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
     return recoveryLedger.mayReopen(
@@ -1832,6 +1832,25 @@ public final class ProductPipelineRunSupport {
         origin,
         initiator,
         causalReopenFailureSignature(doc.run().runId()));
+  }
+
+  private boolean isCommittedIdentityMismatchOwner(
+      ProductPipelineRunDocument doc, String owner, RecoveryCause cause) {
+    if (cause == null || !cause.isBindingIdentityMismatch()) {
+      return false;
+    }
+    if (owner == null || owner.isBlank() || owner.equals(doc.run().currentStageId())) {
+      return false;
+    }
+    return doc.run().stages().stream()
+        .filter(stage -> owner.equals(stage.stageId()))
+        .findFirst()
+        .map(
+            stage ->
+                stage.status() == StageStatus.SUCCEEDED
+                    && stage.outputRefs() != null
+                    && !stage.outputRefs().isEmpty())
+        .orElse(false);
   }
 
   private static boolean isEarlierApprovedOwner(ProductPipelineRunDocument doc, String owner) {

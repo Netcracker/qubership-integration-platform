@@ -105,6 +105,15 @@ public final class ProducerOwnedRecovery {
                     new Route(Action.ASK_CLARIFICATION, producer, cause.requestedFact()))
             .orElseGet(() -> new Route(Action.PARK, failed));
       }
+      if (cause.isBindingIdentityMismatch()) {
+        return OwnerCandidateSet.semanticRevisionProducerStageId(request.candidates(), failed)
+            .map(
+                producer ->
+                    request.catalogWritten()
+                        ? new Route(Action.PARK, producer)
+                        : new Route(Action.REOPEN_UPSTREAM, producer))
+            .orElseGet(() -> new Route(Action.PARK, failed));
+      }
       return new Route(Action.ASK_CLARIFICATION, failed, cause.requestedFact());
     }
     FindingOwnerCategory category = HaltProducerCauseTable.ownerCategory(cause.causeCode());

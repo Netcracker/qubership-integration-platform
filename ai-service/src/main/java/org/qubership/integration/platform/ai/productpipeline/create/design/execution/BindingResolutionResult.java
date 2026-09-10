@@ -75,8 +75,29 @@ public sealed interface BindingResolutionResult {
           RecoveryCause.MISSING_CATALOG_BINDING_FACT);
     }
 
+    /**
+     * A hint exists, but its interaction identity is not the semantic occurrence. Distinct from
+     * absence and from a stale catalog operation.
+     */
+    public static Failed identityMismatch(String semanticInteractionId, String bindingInteractionId) {
+      String semantic = DesignArtifacts.requireText(semanticInteractionId, "semanticInteractionId");
+      String binding = DesignArtifacts.requireText(bindingInteractionId, "bindingInteractionId");
+      return new Failed(
+          semantic,
+          "semantic interaction identity "
+              + semantic
+              + " disagrees with catalog binding interactionId="
+              + binding,
+          StageOutcomeClass.DOMAIN_FAILURE,
+          RecoveryCause.BINDING_IDENTITY_MISMATCH_FACT);
+    }
+
     public boolean isMissingHint() {
       return RecoveryCause.MISSING_CATALOG_BINDING_FACT.equals(requestedFact);
+    }
+
+    public boolean isIdentityMismatch() {
+      return RecoveryCause.BINDING_IDENTITY_MISMATCH_FACT.equals(requestedFact);
     }
   }
 }

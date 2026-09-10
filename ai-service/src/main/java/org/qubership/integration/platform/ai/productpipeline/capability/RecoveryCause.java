@@ -48,6 +48,9 @@ public record RecoveryCause(
   /** Requested fact when execution has no catalog binding hint for an interaction. */
   public static final String MISSING_CATALOG_BINDING_FACT = "missing catalog binding";
 
+  /** Requested fact when a stored hint and the semantic occurrence use different identities. */
+  public static final String BINDING_IDENTITY_MISMATCH_FACT = "binding identity mismatch";
+
   public static RecoveryCause catalogResolution(String requestedFact) {
     String fact =
         requestedFact == null || requestedFact.isBlank() ? "catalog service" : requestedFact;
@@ -72,6 +75,28 @@ public record RecoveryCause(
   public boolean isMissingCatalogBinding() {
     return causeCode == RecoveryCauseCode.CATALOG_RESOLUTION
         && MISSING_CATALOG_BINDING_FACT.equals(requestedFact);
+  }
+
+  /**
+   * Catalog resolution failed because a stored hint and the semantic occurrence disagree. {@code
+   * semanticInteractionId} is the occurrence execution looked up, not a catalog display name.
+   */
+  public static RecoveryCause bindingIdentityMismatch(String semanticInteractionId) {
+    String id = semanticInteractionId == null ? "" : semanticInteractionId.trim();
+    List<PlanValidationFinding> evidence =
+        id.isEmpty()
+            ? List.of()
+            : List.of(
+                new PlanValidationFinding(RecoveryCauseCode.CATALOG_RESOLUTION.name(), id, true));
+    return new RecoveryCause(
+        RecoveryCauseCode.CATALOG_RESOLUTION,
+        List.copyOf(evidence),
+        BINDING_IDENTITY_MISMATCH_FACT);
+  }
+
+  public boolean isBindingIdentityMismatch() {
+    return causeCode == RecoveryCauseCode.CATALOG_RESOLUTION
+        && BINDING_IDENTITY_MISMATCH_FACT.equals(requestedFact);
   }
 
   /** Occurrence the missing-hint cause named, when present. */
