@@ -58,7 +58,7 @@ describe("Test schemas over samples", () => {
       verbose: true,
       allErrors: true,
       discriminator: true,
-      keywords: ["subtype", "resourceType", "metaInfo"]
+      keywords: ["subtype", "resourceType", "metaInfo", "$refSchema"]
     });
     getSchemas()
       .map((document) => document.content)

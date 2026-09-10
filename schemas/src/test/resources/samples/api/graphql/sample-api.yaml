@@ -1,0 +1,20 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/api.schema.yaml"
+id: "some-id"
+name: "Sample API"
+content:
+  specificationType: "graphql"
+  operations:
+    - id: "generated-id"
+      type: "graphql"
+      name: customer
+      operationType: query
+      description: Optional comment
+    - id: "generated-id"
+      type: "graphql"
+      name: changeCustomer
+      operationType: mutation
+      description: Optional comment
+  specifications:
+    - filePath: "some-resource-name.yaml"
+      isRoot: true
