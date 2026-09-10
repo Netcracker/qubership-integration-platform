@@ -2244,7 +2244,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   /**
    * Known pre-write brief defect after automatic reopen is spent. Edit requirements stays
-   * available; identity-mismatch G3 stops and post-write parks do not take this path.
+   * available; identity-mismatch G3 stops and post-write parks do not take this path. A mapping
+   * capture reject on the brief producer itself still offers Edit requirements.
    */
   private boolean offersManualBriefEdit(
       ProductPipelineRunDocument doc,
@@ -2256,7 +2257,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return false;
     }
     String owner = recovery == null ? "" : recovery.producerStageId();
-    if (owner.isBlank() || owner.equals(stage.stageId())) {
+    if (owner.isBlank()) {
+      return false;
+    }
+    if (owner.equals(stage.stageId())
+        && (cause == null || cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT)) {
       return false;
     }
     ProducerOwnedRecovery.Action action =
@@ -2279,7 +2284,23 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return false;
     }
     String owner = briefOwnerStageId(doc, stage);
-    return !owner.isBlank() && !owner.equals(stage.stageId());
+    if (!owner.isBlank() && !owner.equals(stage.stageId())) {
+      return true;
+    }
+    return cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT
+        && stageProducesRequirementBrief(stage);
+  }
+
+  private static boolean stageProducesRequirementBrief(ProfileStage stage) {
+    if (stage == null) {
+      return false;
+    }
+    for (ArtifactTypeRef produced : stage.produces()) {
+      if (produced != null && produced.matches(Kind.REQUIREMENT_BRIEF)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private String briefOwnerStageId(ProductPipelineRunDocument doc, ProfileStage stage) {
