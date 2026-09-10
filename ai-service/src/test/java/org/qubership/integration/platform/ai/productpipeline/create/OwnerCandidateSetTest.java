@@ -78,6 +78,30 @@ class OwnerCandidateSetTest {
   }
 
   @Test
+  void catalogBindingProducerPrefersRequirementDiscovery() {
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("uploaded-spec-import", "requirement-draft"),
+            new OwnerCandidate("requirement-discovery", "requirement-draft"));
+
+    assertEquals(
+        Optional.of("requirement-discovery"),
+        OwnerCandidateSet.catalogBindingProducerStageId(candidates, "design-execution"));
+  }
+
+  @Test
+  void catalogBindingProducerIsEmptyWhenNoHintOwnerIsPresent() {
+    assertEquals(
+        Optional.empty(),
+        OwnerCandidateSet.catalogBindingProducerStageId(
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan")),
+            "design-execution"));
+  }
+
+  @Test
   void namedStagesIsEmptyWhenTheFollowUpNamesAStageOutsideTheSet() {
     List<OwnerCandidate> candidates =
         List.of(

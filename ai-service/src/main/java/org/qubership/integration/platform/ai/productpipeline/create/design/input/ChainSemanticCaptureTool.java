@@ -128,10 +128,12 @@ public class ChainSemanticCaptureTool {
       revision = adapter.adapt(capture, binding.runId(), brief, contract);
       validator.validate(revision, contract, brief);
     } catch (IllegalArgumentException ex) {
+      ProductCapabilityCaptureContext.offerSemanticRejection(binding, ex.getMessage());
       return ex.getMessage();
     }
     String preflightError = preflight(revision, contract);
     if (preflightError != null) {
+      ProductCapabilityCaptureContext.offerSemanticRejection(binding, preflightError);
       return preflightError;
     }
     ProductCapabilityCaptureContext.offerSemantic(binding, revision);

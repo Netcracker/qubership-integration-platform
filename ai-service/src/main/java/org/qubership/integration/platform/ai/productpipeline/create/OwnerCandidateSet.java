@@ -25,6 +25,9 @@ public final class OwnerCandidateSet {
 
   private static final Set<String> BRIEF_ARTIFACT_TYPES = Set.of("requirement-brief");
   private static final Set<String> DRAFT_ARTIFACT_TYPES = Set.of("requirement-draft");
+  private static final Set<String> CATALOG_BINDING_HINT_TYPES = Set.of("catalog-binding-hint");
+  private static final List<String> CATALOG_BINDING_PRODUCER_STAGE_IDS =
+      List.of("requirement-discovery", "uploaded-spec-import");
 
   private static final Pattern GO_BACK_TO_TARGET =
       Pattern.compile(
@@ -392,6 +395,23 @@ public final class OwnerCandidateSet {
   static Optional<String> draftProducerStageId(
       List<OwnerCandidate> candidates, String failedStageId) {
     return producerStageId(candidates, failedStageId, DRAFT_ARTIFACT_TYPES);
+  }
+
+  /**
+   * Stage that can persist a {@code catalog-binding-hint}. Prefers requirement discovery, then
+   * uploaded-spec import, then any candidate whose produced type is the hint.
+   */
+  static Optional<String> catalogBindingProducerStageId(
+      List<OwnerCandidate> candidates, String failedStageId) {
+    if (candidates == null || candidates.isEmpty()) {
+      return Optional.empty();
+    }
+    for (String stageId : CATALOG_BINDING_PRODUCER_STAGE_IDS) {
+      if (!stageId.equals(failedStageId) && containsStage(candidates, stageId)) {
+        return Optional.of(stageId);
+      }
+    }
+    return producerStageId(candidates, failedStageId, CATALOG_BINDING_HINT_TYPES);
   }
 
   /**

@@ -303,20 +303,28 @@ class DesignInputCapabilityTest {
                     "requirementBrief",
                     ChainSemanticCaptureFixtures.approvedBrief())));
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
-    assertEquals("prose without a tool call", prepared.message());
+    assertEquals(DesignInputCapability.MISSING_CAPTURE, prepared.message());
     assertEquals(
         RecoveryCauseCode.CONTRACT_SHAPE, prepared.recoveryCause().causeCode());
+    assertEquals(DesignInputCapability.MISSING_CAPTURE, prepared.recoveryCause().findings().getFirst().message());
     assertTrue(prepared.candidates().isEmpty());
   }
 
   @Test
-  void rejectedCaptureKeepsTheAgentExplanation() {
-    String explanation =
-        "The semantic revision could not be captured because the onTaskResult trigger must have"
-            + " exactly one outgoing edge.";
+  void rejectedCaptureIgnoresAMisleadingAgentParaphrase() {
+    ChainSemanticCaptureTool captureTool = captureTool();
+    String paraphrase =
+        "Unable to capture the semantic revision because the proposed failure path is not"
+            + " supported by the linear chain topology.";
     DesignInputCapability capability =
         new DesignInputCapability(
-            (conversationId, prompt) -> Multi.createFrom().item(explanation),
+            (conversationId, prompt) -> {
+              String rejection =
+                  captureTool.captureChainSemanticRevision(
+                      ChainSemanticCaptureFixtures.foreignSourceFactCapture());
+              assertTrue(rejection.contains("foreign-fact"), rejection);
+              return Multi.createFrom().item(paraphrase);
+            },
             new DefaultChainSemanticIdsRenderer());
     StageOutcome prepared =
         outcome(
@@ -327,8 +335,9 @@ class DesignInputCapabilityTest {
                     "requirementBrief",
                     ChainSemanticCaptureFixtures.approvedBrief())));
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
-    assertEquals(explanation, prepared.message());
-    assertEquals(explanation, prepared.recoveryCause().findings().getFirst().message());
+    assertTrue(prepared.message().contains("foreign-fact"), prepared.message());
+    assertFalse(prepared.message().contains("linear chain topology"), prepared.message());
+    assertEquals(prepared.message(), prepared.recoveryCause().findings().getFirst().message());
   }
 
   @Test
