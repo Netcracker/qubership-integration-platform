@@ -45,6 +45,7 @@ public final class ProductCapabilityCaptureContext {
       AtomicReference<RequirementDraft> draftCandidate,
       AtomicReference<RequirementBrief> briefCandidate,
       AtomicReference<ChainSemanticRevision> semanticCandidate,
+      AtomicReference<String> captureRejection,
       Consumer<Object> onCandidate) {}
 
   public static Context bindDiscovery(
@@ -56,6 +57,7 @@ public final class ProductCapabilityCaptureContext {
             conversationId,
             null,
             null,
+            new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
@@ -80,6 +82,7 @@ public final class ProductCapabilityCaptureContext {
             new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
+            new AtomicReference<>(),
             onCandidate);
     Context context = Context.of(CONTEXT_KEY, binding);
     install(binding, context);
@@ -98,6 +101,7 @@ public final class ProductCapabilityCaptureContext {
             conversationId,
             null,
             approvedBrief,
+            new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
@@ -247,10 +251,24 @@ public final class ProductCapabilityCaptureContext {
     if (binding == null || binding.mode() != Mode.DESIGN) {
       return;
     }
+    binding.captureRejection().set(null);
     binding.semanticCandidate().set(revision);
     if (binding.onCandidate() != null) {
       binding.onCandidate().accept(revision);
     }
+  }
+
+  public static void offerSemanticRejection(Binding binding, String message) {
+    if (binding == null || binding.mode() != Mode.DESIGN) {
+      return;
+    }
+    if (binding.semanticCandidate().get() != null) {
+      return;
+    }
+    if (message == null || message.isBlank()) {
+      return;
+    }
+    binding.captureRejection().set(message);
   }
 
   public static Context attachedContext() {

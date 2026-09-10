@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.capability;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 
@@ -44,10 +45,46 @@ public record RecoveryCause(
     return text.toString();
   }
 
+  /** Requested fact when execution has no catalog binding hint for an interaction. */
+  public static final String MISSING_CATALOG_BINDING_FACT = "missing catalog binding";
+
   public static RecoveryCause catalogResolution(String requestedFact) {
     String fact =
         requestedFact == null || requestedFact.isBlank() ? "catalog service" : requestedFact;
     return new RecoveryCause(RecoveryCauseCode.CATALOG_RESOLUTION, List.of(), fact);
+  }
+
+  /**
+   * Catalog resolution failed because the interaction has no hint. {@code interactionId} is the
+   * unresolved occurrence, not a catalog display name.
+   */
+  public static RecoveryCause missingCatalogBinding(String interactionId) {
+    String id = interactionId == null ? "" : interactionId.trim();
+    List<PlanValidationFinding> evidence =
+        id.isEmpty()
+            ? List.of()
+            : List.of(
+                new PlanValidationFinding(RecoveryCauseCode.CATALOG_RESOLUTION.name(), id, true));
+    return new RecoveryCause(
+        RecoveryCauseCode.CATALOG_RESOLUTION, List.copyOf(evidence), MISSING_CATALOG_BINDING_FACT);
+  }
+
+  public boolean isMissingCatalogBinding() {
+    return causeCode == RecoveryCauseCode.CATALOG_RESOLUTION
+        && MISSING_CATALOG_BINDING_FACT.equals(requestedFact);
+  }
+
+  /** Occurrence the missing-hint cause named, when present. */
+  public Optional<String> unresolvedInteractionId() {
+    if (!isMissingCatalogBinding()) {
+      return Optional.empty();
+    }
+    for (PlanValidationFinding finding : findings) {
+      if (finding != null && finding.message() != null && !finding.message().isBlank()) {
+        return Optional.of(finding.message());
+      }
+    }
+    return Optional.empty();
   }
 
   public static RecoveryCause missingBriefFacts(List<String> missingFacts) {

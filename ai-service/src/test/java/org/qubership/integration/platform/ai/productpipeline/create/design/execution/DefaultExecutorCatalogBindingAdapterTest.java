@@ -65,6 +65,21 @@ class DefaultExecutorCatalogBindingAdapterTest {
   }
 
   @Test
+  void missingHintKeepsTheInteractionAndDoesNotSearch() {
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(), approved());
+
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
+    assertEquals("call-1", failed.serviceCallId());
+    assertTrue(failed.isMissingHint(), failed.requestedFact());
+    assertTrue(failed.reason().contains("no catalog binding hint"), failed.reason());
+    assertTrue(
+        catalog.calls().stream().noneMatch(call -> call.startsWith("searchCatalogSystems")),
+        catalog.calls().toString());
+  }
+
+  @Test
   void resolvedBindingLoadsSchemasOnceAndPersistsBothSides() {
     List<BindingResolutionResult> results =
         adapter.resolve(

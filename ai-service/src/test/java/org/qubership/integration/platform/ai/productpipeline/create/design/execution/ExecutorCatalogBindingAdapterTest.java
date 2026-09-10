@@ -230,6 +230,7 @@ class ExecutorCatalogBindingAdapterTest {
     BindingResolutionResult.Failed failed =
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
     assertEquals("call-1", failed.serviceCallId());
+    assertTrue(failed.isMissingHint(), failed.reason());
     assertTrue(failed.reason().contains("no catalog binding hint"), failed.reason());
     verify(catalogReadTool, never()).searchCatalogSystems(anyString());
   }
@@ -339,6 +340,7 @@ class ExecutorCatalogBindingAdapterTest {
     assertTrue(
         failed.reason().contains("the approved catalog binding no longer resolves"),
         failed.reason());
+    assertTrue(!failed.isMissingHint(), failed.requestedFact());
   }
 
   @Test
@@ -459,6 +461,7 @@ class ExecutorCatalogBindingAdapterTest {
     BindingResolutionResult.Failed failed =
         assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
     assertEquals("om-on-task-start", failed.serviceCallId());
+    assertTrue(failed.isMissingHint(), failed.reason());
     assertTrue(failed.reason().contains("no catalog binding hint"), failed.reason());
     verify(catalogReadTool, never()).searchCatalogSystems(anyString());
   }

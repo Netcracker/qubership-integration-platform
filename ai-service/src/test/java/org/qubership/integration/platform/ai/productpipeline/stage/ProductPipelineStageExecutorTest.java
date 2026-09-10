@@ -41,6 +41,8 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
+import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -1874,6 +1876,57 @@ class ProductPipelineStageExecutorTest {
     assertInstanceOf(StageDecision.WaitForApproval.class, analysis.decision());
     applyLifecycle(runtime, analysis);
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+  }
+
+  @Test
+  void editRequirementsReopensRequirementAnalysisWhenMappingTurnWouldZeroMatch() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile = requirementAnalysisThenPlanningProfile(brief, validation);
+    MappingTurnAdapter zeroMatch =
+        (current, message) -> new MappingTurnResult.Clarification("ZERO_MATCH", List.of());
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            zeroMatch,
+            analysisCandidate(),
+            planningValidationFailure());
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    String approvedHash =
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().contentHash();
+    agent.recoverReviseBrief(
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().reference(),
+        List.of(),
+        "The approved requirements need correction.");
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(
+            StageDecision.WaitForInput.class, execute(runtime, "planning").decision());
+    assertEquals(
+        PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+
+    List<PipelineSignal> signals =
+        runtime
+            .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertTrue(
+        signals.stream()
+            .filter(PipelineSignal.Message.class::isInstance)
+            .map(PipelineSignal.Message.class::cast)
+            .noneMatch(message -> message.text().contains("ZERO_MATCH")),
+        signals.toString());
+    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals(
+        approvedHash,
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().contentHash());
   }
 
   @Test
@@ -4221,15 +4274,25 @@ class ProductPipelineStageExecutorTest {
       FailureNarrative narrative,
       ProductPipelineProfile ignoredProfile,
       StageCapability... capabilities) {
-    return new CreateChainTestOrchestrator(
+    return newRuntime(narrative, ignoredProfile, null, capabilities);
+  }
+
+  private CreateChainTestOrchestrator newRuntime(
+      FailureNarrative narrative,
+      ProductPipelineProfile ignoredProfile,
+      MappingTurnAdapter mappingTurnAdapter,
+      StageCapability... capabilities) {
+    ProductPipelineRunSupport.Builder builder =
         ProductPipelineRunSupport.builder(
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(List.of(capabilities)),
                 Clock.fixed(FIXED, ZoneOffset.UTC))
-            .failureNarrative(narrative)
-            .build(),
-        runStore);
+            .failureNarrative(narrative);
+    if (mappingTurnAdapter != null) {
+      builder.mappingTurnAdapter(mappingTurnAdapter);
+    }
+    return new CreateChainTestOrchestrator(builder.build(), runStore);
   }
 
   private CreateChainTestOrchestrator newRuntime(

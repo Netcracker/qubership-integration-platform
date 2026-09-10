@@ -110,8 +110,8 @@ public class DeployChainScenario implements ScenarioHandler {
       PendingRedeployStore pendingRedeployStore,
       KnownFailureMapper knownFailureMapper,
       PinnedFailureStore pinnedFailureStore,
-      @ConfigProperty(name = "cloud.microservice.namespace", defaultValue = "")
-          String microserviceNamespace) {
+      @ConfigProperty(name = "cloud.microservice.namespace") Optional<String> cloudNamespace,
+      @ConfigProperty(name = "namespace") Optional<String> helmNamespace) {
     this(
         chainContextExtractor,
         catalogRestClient,
@@ -120,7 +120,7 @@ public class DeployChainScenario implements ScenarioHandler {
         pinnedFailureStore,
         DEFAULT_POLL_TIMEOUT_MS,
         DEFAULT_POLL_DELAY_MS,
-        microserviceNamespace);
+        configuredNamespace(cloudNamespace, helmNamespace));
   }
 
   DeployChainScenario(
@@ -159,6 +159,15 @@ public class DeployChainScenario implements ScenarioHandler {
     this.pollTimeoutMillis = pollTimeoutMillis;
     this.pollDelayMillis = pollDelayMillis;
     this.microserviceNamespace = microserviceNamespace == null ? "" : microserviceNamespace;
+  }
+
+  private static String configuredNamespace(
+      Optional<String> cloudNamespace, Optional<String> helmNamespace) {
+    return nonBlank(cloudNamespace).orElseGet(() -> nonBlank(helmNamespace).orElse(""));
+  }
+
+  private static Optional<String> nonBlank(Optional<String> value) {
+    return value.map(String::trim).filter(item -> !item.isEmpty());
   }
 
   @Override

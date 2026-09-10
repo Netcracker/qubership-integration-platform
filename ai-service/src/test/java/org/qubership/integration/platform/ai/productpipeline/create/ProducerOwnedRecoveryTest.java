@@ -139,19 +139,55 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
-  void aMissingCatalogServiceAsksOneClarificationQuestion() {
+  void aMissingCatalogBindingAsksTheBindingProducer() {
     ProducerOwnedRecovery.Route route =
         route(
             "design-execution",
-            RecoveryCause.catalogResolution("catalog service"),
-            EXECUTION_CANDIDATES,
+            RecoveryCause.missingCatalogBinding("wfms-create-work-order"),
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan"),
+                new OwnerCandidate("requirement-discovery", "requirement-draft"),
+                new OwnerCandidate("requirement-analysis", "requirement-brief")),
             false,
             0,
             Optional.empty());
 
     assertEquals(ProducerOwnedRecovery.Action.ASK_CLARIFICATION, route.action());
-    assertEquals("design-execution", route.producerStageId());
+    assertEquals("requirement-discovery", route.producerStageId());
     assertTrue(route.requestedFact() != null && !route.requestedFact().isBlank());
+  }
+
+  @Test
+  void aMissingCatalogBindingWithoutAProducerStopsSafely() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.missingCatalogBinding("wfms-create-work-order"),
+            EXECUTION_CANDIDATES,
+            false,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-execution", route.producerStageId());
+  }
+
+  @Test
+  void aMissingCatalogBindingWithoutDiscoveryStopsSafely() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.missingCatalogBinding("wfms-create-work-order"),
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("uploaded-spec-import", "catalog-binding-hint")),
+            false,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-execution", route.producerStageId());
   }
 
   @Test
