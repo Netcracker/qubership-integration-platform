@@ -57,6 +57,8 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     List<CatalogBindingHint> hintList = hints == null ? List.of() : hints;
     List<SemanticNode.ServiceCall> calls = serviceCalls(revision);
     Set<String> semanticOccurrenceIds = occurrenceIds(revision);
+    Set<String> requiredOccurrenceIds = requiredOccurrenceIds(revision);
+    Set<String> leftoverHintIds = leftoverUnusedHintIds(hintList, semanticOccurrenceIds);
     List<BindingResolutionResult> results = new ArrayList<>();
     List<ResolvedServiceCallBinding> resolved = new ArrayList<>();
     for (SemanticNode.ServiceCall call : calls) {
@@ -66,7 +68,8 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
               call.nodeId(),
               call.serviceCallId(),
               hintList,
-              semanticOccurrenceIds,
+              requiredOccurrenceIds,
+              leftoverHintIds,
               true);
       results.add(result);
       if (result instanceof BindingResolutionResult.Resolved success) {
@@ -82,7 +85,8 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
               trigger.nodeId(),
               trigger.interactionId(),
               hintList,
-              semanticOccurrenceIds,
+              requiredOccurrenceIds,
+              leftoverHintIds,
               required);
       if (result == null) {
         continue;
@@ -108,20 +112,22 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       String targetNodeId,
       String occurrenceId,
       List<CatalogBindingHint> hints,
-      Set<String> semanticOccurrenceIds,
+      Set<String> requiredOccurrenceIds,
+      Set<String> leftoverHintIds,
       boolean required) {
-    HintLookup lookup = findHint(occurrenceId, hints, semanticOccurrenceIds);
+    HintLookup lookup = findHint(occurrenceId, hints);
     if (lookup.failureReason() != null) {
       return new BindingResolutionResult.Failed(
           occurrenceId, lookup.failureReason(), StageOutcomeClass.DOMAIN_FAILURE);
     }
-    if (lookup.orphanedInteractionId() != null) {
-      return BindingResolutionResult.Failed.identityMismatch(
-          occurrenceId, lookup.orphanedInteractionId());
-    }
     if (lookup.hint() == null) {
       if (!required) {
         return null;
+      }
+      String leftover =
+          leftoverBindingForSoleRequired(occurrenceId, requiredOccurrenceIds, leftoverHintIds);
+      if (leftover != null) {
+        return BindingResolutionResult.Failed.identityMismatch(occurrenceId, leftover);
       }
       return BindingResolutionResult.Failed.missingHint(occurrenceId);
     }
@@ -275,8 +281,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     }
   }
 
-  private static HintLookup findHint(
-      String occurrenceId, List<CatalogBindingHint> hints, Set<String> semanticOccurrenceIds) {
+  private static HintLookup findHint(String occurrenceId, List<CatalogBindingHint> hints) {
     List<CatalogBindingHint> matches = new ArrayList<>();
     for (CatalogBindingHint hint : hints) {
       if (hint == null) {
@@ -297,43 +302,50 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       return HintLookup.failed(
           "multiple catalog binding hints for interactionId=" + occurrenceId);
     }
-    String orphaned = firstOrphanedHintId(hints, semanticOccurrenceIds);
-    if (orphaned != null) {
-      return HintLookup.identityMismatch(orphaned);
-    }
     return HintLookup.absent();
   }
 
-  private static String firstOrphanedHintId(
+  /**
+   * Returns the leftover hint identity when this required occurrence is the sole required ID
+   * and exactly one unused hint remains. Extra historical hints and optional HTTP triggers
+   * are not rename targets.
+   */
+  private static String leftoverBindingForSoleRequired(
+      String occurrenceId, Set<String> requiredOccurrenceIds, Set<String> leftoverHintIds) {
+    if (requiredOccurrenceIds.size() != 1
+        || !requiredOccurrenceIds.contains(occurrenceId)
+        || leftoverHintIds.size() != 1) {
+      return null;
+    }
+    return leftoverHintIds.iterator().next();
+  }
+
+  private static Set<String> leftoverUnusedHintIds(
       List<CatalogBindingHint> hints, Set<String> semanticOccurrenceIds) {
+    Set<String> leftover = new LinkedHashSet<>();
     Set<String> semantic = semanticOccurrenceIds == null ? Set.of() : semanticOccurrenceIds;
     for (CatalogBindingHint hint : hints) {
       if (hint == null || !"3".equals(hint.schemaVersion())) {
         continue;
       }
       if (!semantic.contains(hint.interactionId())) {
-        return hint.interactionId();
+        leftover.add(hint.interactionId());
       }
     }
-    return null;
+    return leftover;
   }
 
-  private record HintLookup(
-      CatalogBindingHint hint, String failureReason, String orphanedInteractionId) {
+  private record HintLookup(CatalogBindingHint hint, String failureReason) {
     static HintLookup found(CatalogBindingHint hint) {
-      return new HintLookup(hint, null, null);
+      return new HintLookup(hint, null);
     }
 
     static HintLookup failed(String reason) {
-      return new HintLookup(null, reason, null);
+      return new HintLookup(null, reason);
     }
 
     static HintLookup absent() {
-      return new HintLookup(null, null, null);
-    }
-
-    static HintLookup identityMismatch(String orphanedInteractionId) {
-      return new HintLookup(null, null, orphanedInteractionId);
+      return new HintLookup(null, null);
     }
   }
 
@@ -379,6 +391,19 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
     }
     for (SemanticNode.Trigger trigger : triggers(revision)) {
       ids.add(trigger.interactionId());
+    }
+    return ids;
+  }
+
+  private static Set<String> requiredOccurrenceIds(ChainSemanticRevision revision) {
+    Set<String> ids = new LinkedHashSet<>();
+    for (SemanticNode.ServiceCall call : serviceCalls(revision)) {
+      ids.add(call.serviceCallId());
+    }
+    for (SemanticNode.Trigger trigger : triggers(revision)) {
+      if ("async-api-trigger".equals(trigger.capabilityKey())) {
+        ids.add(trigger.interactionId());
+      }
     }
     return ids;
   }

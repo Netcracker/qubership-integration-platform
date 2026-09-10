@@ -274,6 +274,54 @@ class ExecutorCatalogBindingAdapterTest {
   }
 
   @Test
+  void unusedLeftoverHintSkipsOptionalHttpTriggerWhenRequiredCallsAreBound() {
+    stubExactCatalogHit("Petstore Ext", "sys-1", "sg-1", "spec-1", "op-1", "GET", "/pets");
+    CatalogBindingHint leftover =
+        v2Hint("imported-old-call", "fact-old", "GET /legacy", "sys-legacy", "op-old");
+    CatalogBindingHint bound = v2Hint("call-1", "fact-1", "GET /pets", "sys-1", "op-1");
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(
+            CONVERSATION_ID, sampleOneCall(), List.of(leftover, bound), approved());
+
+    assertEquals(1, results.size());
+    BindingResolutionResult.Resolved resolved =
+        assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
+    assertEquals("call-1", resolved.binding().serviceCallId());
+    assertTrue(
+        results.stream()
+            .noneMatch(
+                result ->
+                    result instanceof BindingResolutionResult.Failed failed
+                        && failed.isIdentityMismatch()),
+        results.toString());
+  }
+
+  @Test
+  void unusedLeftoverHintKeepsANewRequiredCallAsMissingHint() {
+    stubExactCatalogHit(
+        "Petstore Ext", "sys-1", "sg-1", "spec-1", "op-inv", "GET", "/store/inventory");
+    CatalogBindingHint leftover =
+        v2Hint("imported-old-call", "fact-old", "GET /legacy", "sys-legacy", "op-old");
+    CatalogBindingHint inv =
+        v2Hint("call-inv", "fact-inv", "GET /store/inventory", "sys-1", "op-inv");
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(
+            CONVERSATION_ID,
+            twoCalls("call-inv", "GET /store/inventory", "call-pet", "GET /pet/{petId}"),
+            List.of(leftover, inv),
+            approved());
+
+    assertInstanceOf(BindingResolutionResult.Resolved.class, results.get(0));
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(BindingResolutionResult.Failed.class, results.get(1));
+    assertEquals("call-pet", failed.serviceCallId());
+    assertTrue(failed.isMissingHint(), failed.requestedFact());
+    assertTrue(!failed.isIdentityMismatch(), failed.requestedFact());
+  }
+
+  @Test
   void nonV2HintIsRejected() {
     CatalogBindingHint v1 =
         new CatalogBindingHint(
