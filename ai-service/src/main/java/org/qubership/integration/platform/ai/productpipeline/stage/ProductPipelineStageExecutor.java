@@ -46,6 +46,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidate;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerDiagnosis;
@@ -115,6 +116,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private final int repeatedFailureThreshold;
   private final RecoveryAttemptLedger recoveryLedger;
   private final RecoveryOutcomeTelemetry recoveryTelemetry;
+  private final MappingRepairCaptureValidator mappingRepairCaptureValidator;
   private volatile RecoveryValidationDeps recoveryValidationDeps;
 
   private static final class RecoveryValidationDeps {
@@ -265,6 +267,38 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       int repeatedFailureThreshold,
       RecoveryAttemptLedger recoveryLedger,
       RecoveryOutcomeTelemetry recoveryTelemetry) {
+    this(
+        runStore,
+        artifactStore,
+        capabilities,
+        clock,
+        profilesByRun,
+        manifestsByRun,
+        attributesByRun,
+        technicalRetriesByStage,
+        approvalPrompts,
+        failureNarrative,
+        repeatedFailureThreshold,
+        recoveryLedger,
+        recoveryTelemetry,
+        null);
+  }
+
+  public ProductPipelineStageExecutor(
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore,
+      StageCapabilityRegistry capabilities,
+      Clock clock,
+      Map<String, ProductPipelineProfile> profilesByRun,
+      Map<String, RunManifest> manifestsByRun,
+      Map<String, Map<String, Object>> attributesByRun,
+      Map<String, Integer> technicalRetriesByStage,
+      ApprovalPrompts approvalPrompts,
+      FailureNarrative failureNarrative,
+      int repeatedFailureThreshold,
+      RecoveryAttemptLedger recoveryLedger,
+      RecoveryOutcomeTelemetry recoveryTelemetry,
+      MappingRepairCaptureValidator mappingRepairCaptureValidator) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -282,6 +316,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     this.recoveryLedger = recoveryLedger == null ? new RecoveryAttemptLedger() : recoveryLedger;
     this.recoveryTelemetry =
         recoveryTelemetry == null ? new RecoveryOutcomeTelemetry() : recoveryTelemetry;
+    this.mappingRepairCaptureValidator = mappingRepairCaptureValidator;
   }
 
   public ApprovalRecordV2 approveCandidate(
@@ -721,6 +756,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               null,
               null);
         }
+        StageExecutionResult rejectedRepair =
+            rejectInvalidMappingRepair(doc, stage, resolution.resolvedCandidates(), emitted);
+        if (rejectedRepair != null) {
+          yield rejectedRepair;
+        }
         List<Reference> refs =
             appendCandidates(runId, stage, resolution.resolvedCandidates(), committedInputs(doc));
         Reference approvable = selectByPolicy(refs, stage.approval().artifact());
@@ -843,6 +883,56 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             null);
       }
     };
+  }
+
+  private StageExecutionResult rejectInvalidMappingRepair(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<ResolvedCandidate> candidates,
+      List<PipelineSignal> emitted) {
+    if (mappingRepairCaptureValidator == null || candidates == null) {
+      return null;
+    }
+    RequirementBrief brief = requirementBriefCandidate(candidates);
+    if (brief == null) {
+      return null;
+    }
+    Map<String, Object> attributes = attributesByRun.getOrDefault(doc.run().runId(), Map.of());
+    Object evidenceRef = attributes.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
+    MappingRepairCaptureValidator.Result validation =
+        mappingRepairCaptureValidator.validate(
+            doc.run().runId(),
+            doc.run().conversationId(),
+            evidenceRef instanceof String text ? text : "",
+            brief);
+    if (validation.status() != MappingRepairCaptureValidator.Result.Status.BLOCKED
+        && validation.status() != MappingRepairCaptureValidator.Result.Status.UNRESOLVED) {
+      return null;
+    }
+    return haltRecoverable(
+        doc,
+        stage,
+        List.of(),
+        StageOutcomeClass.VALIDATION_FAILURE,
+        validation.message(),
+        List.of(),
+        emitted,
+        true,
+        true,
+        RecoveryCause.mappingContract(validation.findings()),
+        null);
+  }
+
+  private static RequirementBrief requirementBriefCandidate(List<ResolvedCandidate> candidates) {
+    for (ResolvedCandidate resolved : candidates) {
+      ArtifactCandidate candidate = resolved == null ? null : resolved.candidate();
+      if (candidate != null
+          && candidate.kind() == Kind.REQUIREMENT_BRIEF
+          && candidate.payload() instanceof RequirementBrief brief) {
+        return brief;
+      }
+    }
+    return null;
   }
 
   private StageExecutionResult haltRecoverable(
