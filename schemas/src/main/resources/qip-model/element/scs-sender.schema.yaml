@@ -38,7 +38,7 @@ properties:
           - const: DELETE
             title: Delete session
         title: Operation
-        default: SET
+        default: GET
     allOf:
       - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
       - if:

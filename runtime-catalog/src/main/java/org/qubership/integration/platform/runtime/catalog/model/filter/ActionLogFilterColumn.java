@@ -17,16 +17,42 @@
 package org.qubership.integration.platform.runtime.catalog.model.filter;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Getter;
+
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+
+import static org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition.*;
 
 @Schema(description = "Audit log column name for filter")
 public enum ActionLogFilterColumn {
-    OPERATION,
-    ENTITY_ID,
-    ENTITY_TYPE,
-    ENTITY_NAME,
-    PARENT_ID,
-    PARENT_NAME,
-    REQUEST_ID,
-    ACTION_TIME,
-    INITIATOR
+    OPERATION(TextConditions.ALL),
+    ENTITY_ID(TextConditions.ALL),
+    ENTITY_TYPE(TextConditions.ALL),
+    ENTITY_NAME(TextConditions.ALL),
+    PARENT_ID(TextConditions.ALL),
+    PARENT_NAME(TextConditions.ALL),
+    REQUEST_ID(TextConditions.ALL),
+    ACTION_TIME(IS_AFTER, IS_BEFORE, IS_WITHIN),
+    INITIATOR(TextConditions.ALL);
+
+    // Conditions the query builder translates for this column. The rest used to answer 500 on a type
+    // mismatch, or 200 with the whole table where the builder had no case for them.
+    @Getter
+    private final Set<FilterCondition> supportedConditions;
+
+    ActionLogFilterColumn(FilterCondition... supportedConditions) {
+        this.supportedConditions = Collections.unmodifiableSet(EnumSet.copyOf(List.of(supportedConditions)));
+    }
+
+    private static final class TextConditions {
+        private static final FilterCondition[] ALL = {
+                IS, IS_NOT, CONTAINS, DOES_NOT_CONTAIN, STARTS_WITH, ENDS_WITH, IN, NOT_IN, EMPTY, NOT_EMPTY
+        };
+
+        private TextConditions() {
+        }
+    }
 }

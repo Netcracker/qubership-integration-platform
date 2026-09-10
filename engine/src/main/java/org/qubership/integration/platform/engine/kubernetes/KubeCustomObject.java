@@ -4,6 +4,7 @@ import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.util.Map;
@@ -11,6 +12,7 @@ import java.util.Map;
 @Getter
 @Setter
 @Builder
+@NoArgsConstructor
 @AllArgsConstructor
 public class KubeCustomObject {
 

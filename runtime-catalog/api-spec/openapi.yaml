@@ -1584,6 +1584,13 @@ components:
           type: "boolean"
         maskingEnabled:
           type: "boolean"
+        sessionLogDetails:
+          default: "OFF"
+          enum:
+          - "SENDERS"
+          - "FULL"
+          - "OFF"
+          type: "string"
         sessionsLoggingLevel:
           enum:
           - "OFF"
@@ -3165,6 +3172,11 @@ components:
           items:
             $ref: "#/components/schemas/ImportInstructionResult"
           type: "array"
+        mcpService:
+          description: "List of results by each MCP service"
+          items:
+            $ref: "#/components/schemas/ImportSystemResult"
+          type: "array"
         systems:
           description: "List of results by each service"
           items:
@@ -4354,6 +4366,11 @@ components:
         activeEnvironmentId:
           description: "Id of currently activated environment"
           type: "string"
+        chains:
+          description: "List of chains that is using current service"
+          items:
+            $ref: "#/components/schemas/BaseResponse"
+          type: "array"
         createdBy:
           $ref: "#/components/schemas/UserDTO"
           description: "User who created entity"
@@ -4636,24 +4653,19 @@ components:
     UpdateRolesRequest:
       description: "Http trigger roles update request object"
       properties:
-        chainId:
-          description: "Chain id"
-          type: "string"
         elementId:
           description: "Element id"
+          minLength: 1
           type: "string"
-        isRedeploy:
-          description: "Whether chain redeploy should be initiated"
-          type: "boolean"
         roles:
           description: "List of roles"
           items:
             type: "string"
           type: "array"
           uniqueItems: true
-        unsavedChanges:
-          description: "Whether changes on graph is unsaved in the chain"
-          type: "boolean"
+      required:
+      - "elementId"
+      - "roles"
       type: "object"
     UsedProperty:
       description: "Exchange property"
@@ -4904,12 +4916,8 @@ paths:
               type: "array"
         required: true
       responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChainRolesResponse"
-          description: "OK"
+        "204":
+          description: "No Content"
       tags:
       - "chain-roles-controller"
   /v1/catalog/chains/access-control/redeploy:
@@ -4920,18 +4928,14 @@ paths:
         content:
           application/json:
             schema:
-              description: "Http trigger roles update request object"
+              description: "Ids of the chains to redeploy"
               items:
-                $ref: "#/components/schemas/UpdateRolesRequest"
+                type: "string"
               type: "array"
         required: true
       responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChainRolesResponse"
-          description: "OK"
+        "204":
+          description: "No Content"
       tags:
       - "chain-roles-controller"
   /v1/catalog/chains/deployments/bulk:
@@ -4996,12 +5000,8 @@ paths:
               type: "array"
         required: true
       responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChainRolesResponse"
-          description: "OK"
+        "204":
+          description: "No Content"
       tags:
       - "chain-roles-controller"
   /v1/catalog/chains/roles/redeploy:
@@ -5012,18 +5012,14 @@ paths:
         content:
           application/json:
             schema:
-              description: "Http trigger roles update request object"
+              description: "Ids of the chains to redeploy"
               items:
-                $ref: "#/components/schemas/UpdateRolesRequest"
+                type: "string"
               type: "array"
         required: true
       responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ChainRolesResponse"
-          description: "OK"
+        "204":
+          description: "No Content"
       tags:
       - "chain-roles-controller"
   /v1/catalog/chains/{chainId}/deployments:
@@ -9575,6 +9571,13 @@ paths:
         schema:
           default: false
           type: "boolean"
+      - description: "Whether response will include chains using the service"
+        in: "query"
+        name: "includeChainUsage"
+        required: false
+        schema:
+          default: false
+          type: "boolean"
       responses:
         "200":
           content:
@@ -9661,6 +9664,14 @@ paths:
     post:
       description: "Filter services request"
       operationId: "filterSystems"
+      parameters:
+      - description: "Whether response will include chains using the service"
+        in: "query"
+        name: "includeChainUsage"
+        required: false
+        schema:
+          default: false
+          type: "boolean"
       requestBody:
         content:
           application/json:
@@ -9685,6 +9696,14 @@ paths:
     post:
       description: "Search services request"
       operationId: "searchSystems"
+      parameters:
+      - description: "Whether response will include chains using the service"
+        in: "query"
+        name: "includeChainUsage"
+        required: false
+        schema:
+          default: false
+          type: "boolean"
       requestBody:
         content:
           application/json:

@@ -33,6 +33,9 @@ import type { EntityFilterModel } from "../../src/components/table/filter/filter
 const mockGetServices = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockFilterSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockSearchSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
+const mockIsAutodiscoveryInProgress = jest.fn<Promise<number>, unknown[]>();
+const mockGetAutodiscoveryResult = jest.fn();
+const mockRunServiceDiscovery = jest.fn();
 const mockShowModal = jest.fn();
 const mockNavigate = jest.fn();
 
@@ -49,6 +52,12 @@ jest.mock("../../src/api/api", () => ({
     updateService: jest.fn(),
     updateApiSpecificationGroup: jest.fn(),
     updateSpecificationModel: jest.fn(),
+    isAutodiscoveryInProgress: (...args: unknown[]) =>
+      mockIsAutodiscoveryInProgress(...args),
+    getAutodiscoveryResult: (...args: unknown[]) =>
+      mockGetAutodiscoveryResult(...args),
+    runServiceDiscovery: (...args: unknown[]) =>
+      mockRunServiceDiscovery(...args),
   },
 }));
 
@@ -67,6 +76,8 @@ jest.mock("../../src/hooks/useNotificationService", () => ({
   useNotificationService: () => ({
     requestFailed: jest.fn(),
     info: jest.fn(),
+    warning: jest.fn(),
+    errorWithDetails: jest.fn(),
   }),
 }));
 
@@ -187,6 +198,15 @@ describe("ServicesListPage", () => {
     ]);
     mockFilterSystems.mockResolvedValue([]);
     mockSearchSystems.mockResolvedValue([]);
+    mockIsAutodiscoveryInProgress.mockResolvedValue(100);
+    mockGetAutodiscoveryResult.mockResolvedValue({
+      discoveredSystemIds: [],
+      updatedSystemsIds: [],
+      discoveredGroupIds: [],
+      discoveredSpecificationIds: [],
+      errorMessages: [],
+    });
+    mockRunServiceDiscovery.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -195,11 +215,11 @@ describe("ServicesListPage", () => {
     messageInfoSpy.mockRestore();
   });
 
-  it("calls getServices on initial load when no search/filters", async () => {
+  it("asks the systems endpoint for chain usage on initial load", async () => {
     jest.useRealTimers();
     render(<ServicesList tab="external" />);
     await waitFor(() => {
-      expect(mockGetServices).toHaveBeenCalledWith("", false);
+      expect(mockGetServices).toHaveBeenCalledWith("", false, true);
     });
     expect(mockFilterSystems).not.toHaveBeenCalled();
     expect(mockSearchSystems).not.toHaveBeenCalled();
@@ -235,7 +255,7 @@ describe("ServicesListPage", () => {
     jest.advanceTimersByTime(500);
 
     await waitFor(() => {
-      expect(mockSearchSystems).toHaveBeenCalledWith("my-service");
+      expect(mockSearchSystems).toHaveBeenCalledWith("my-service", true);
     });
   });
 
@@ -245,7 +265,7 @@ describe("ServicesListPage", () => {
     render(<ServicesList tab="external" />);
 
     await waitFor(() => {
-      expect(mockFilterSystems).toHaveBeenCalledWith(mockFilters);
+      expect(mockFilterSystems).toHaveBeenCalledWith(mockFilters, true);
     });
   });
 
@@ -257,7 +277,7 @@ describe("ServicesListPage", () => {
     render(<ServicesList tab="internal" />);
 
     await waitFor(() => {
-      expect(mockGetServices).toHaveBeenCalledWith("", false);
+      expect(mockGetServices).toHaveBeenCalledWith("", false, true);
     });
   });
 

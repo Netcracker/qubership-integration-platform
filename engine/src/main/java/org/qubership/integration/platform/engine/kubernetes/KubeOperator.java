@@ -16,24 +16,26 @@
 
 package org.qubership.integration.platform.engine.kubernetes;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.kubernetes.client.openapi.ApiClient;
 import io.kubernetes.client.openapi.ApiException;
 import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
+import io.kubernetes.client.openapi.models.V1DeleteOptions;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import io.kubernetes.client.openapi.models.V1Preconditions;
 import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1SecretList;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.Pair;
+import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
-import org.springframework.lang.Nullable;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -47,21 +49,21 @@ public class KubeOperator {
     private final CustomObjectsApi customObjectsApi;
 
     private final String namespace;
-    private final Boolean devmode;
+    private final Boolean devMode;
 
-    public KubeOperator(ObjectMapper objectMapper) {
+    public KubeOperator(ObjectMapper objectMapper, boolean devMode) {
         this.objectMapper = objectMapper;
         coreApi = new CoreV1Api();
         customObjectsApi = new CustomObjectsApi();
         namespace = null;
-        devmode = null;
+        this.devMode = devMode;
     }
 
     public KubeOperator(
             ObjectMapper objectMapper,
             ApiClient client,
             String namespace,
-            Boolean devmode
+            boolean devMode
     ) {
         this.objectMapper = objectMapper;
         coreApi = new CoreV1Api(client);
@@ -69,7 +71,21 @@ public class KubeOperator {
         customObjectsApi = new CustomObjectsApi(client);
 
         this.namespace = namespace;
-        this.devmode = devmode;
+        this.devMode = devMode;
+    }
+
+    KubeOperator(
+            ObjectMapper objectMapper,
+            CoreV1Api coreApi,
+            CustomObjectsApi customObjectsApi,
+            String namespace,
+            boolean devMode
+    ) {
+        this.objectMapper = objectMapper;
+        this.coreApi = coreApi;
+        this.customObjectsApi = customObjectsApi;
+        this.namespace = namespace;
+        this.devMode = devMode;
     }
 
     public Map<String, Map<String, String>> getAllSecretsWithLabel(Pair<String, String> label) {
@@ -95,13 +111,13 @@ public class KubeOperator {
             }
         } catch (ApiException e) {
             if (e.getCode() != 404) {
-                if (!isDevmode()) {
+                if (!devMode) {
                     log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
                 }
                 throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
             }
         } catch (Exception e) {
-            if (!isDevmode()) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
@@ -111,10 +127,9 @@ public class KubeOperator {
     }
 
     public void createOrReplaceCustomObject(KubeCustomObjectRequest request) {
-        String resourceVersion = getCustomObjectResourceVersion(request);
+        String resourceVersion = request.getBody().getMetadata().getResourceVersion();
         try {
             if (resourceVersion != null) {
-                request.getBody().getMetadata().setResourceVersion(resourceVersion);
                 customObjectsApi.replaceNamespacedCustomObject(
                         request.getGroup(),
                         request.getVersion(),
@@ -132,20 +147,23 @@ public class KubeOperator {
                         request.getBody()
                 ).execute();
             }
+        } catch (ApiException e) {
+            if (e.getCode() == 409) {
+                throw new KubeApiConflictException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+            }
+            if (!devMode) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
         } catch (Exception e) {
-            if (!isDevmode()) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
         }
     }
 
-    public Boolean isDevmode() {
-        return devmode;
-    }
-
-    @Nullable
-    private String getCustomObjectResourceVersion(KubeCustomObjectRequest request) {
+    public Optional<KubeCustomObject> getCustomObject(KubeCustomObjectRequest request) {
         try {
             Object response = customObjectsApi.getNamespacedCustomObject(
                     request.getGroup(),
@@ -155,20 +173,59 @@ public class KubeOperator {
                     getNotNullCustomResourceName(request)
             ).execute();
 
-            JsonNode responseNode = objectMapper.convertValue(response, JsonNode.class);
-            JsonNode resourceVersion = responseNode.path("metadata").path("resourceVersion");
-            return resourceVersion.isMissingNode() || resourceVersion.isNull() ? null : resourceVersion.asText();
-        } catch (Exception e) {
-            if (e instanceof ApiException apiEx && apiEx.getCode() == 404) {
-                log.debug("Custom kubernetes resource does not exist: {}", request);
-                return null;
+            return Optional.of(objectMapper.convertValue(response, KubeCustomObject.class));
+        } catch (ApiException e) {
+            if (e.getCode() == 404) {
+                return Optional.empty();
             }
-
-            if (!isDevmode()) {
+            if (!devMode) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+        } catch (Exception e) {
+            if (!devMode) {
                 log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
             }
             throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
         }
+    }
+
+    public void deleteCustomObject(KubeCustomObjectRequest request) {
+        String resourceVersion = request.getBody().getMetadata().getResourceVersion();
+        try {
+            CustomObjectsApi.APIdeleteNamespacedCustomObjectRequest deleteRequest = customObjectsApi.deleteNamespacedCustomObject(
+                    request.getGroup(),
+                    request.getVersion(),
+                    getNotNullNamespace(),
+                    request.getResourceNamePlural(),
+                    getNotNullCustomResourceName(request)
+            );
+            if (resourceVersion != null) {
+                deleteRequest.body(new V1DeleteOptions()
+                        .preconditions(new V1Preconditions().resourceVersion(resourceVersion)));
+            }
+            deleteRequest.execute();
+        } catch (ApiException e) {
+            if (e.getCode() == 404) {
+                return;
+            }
+            if (e.getCode() == 409) {
+                throw new KubeApiConflictException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+            }
+            if (!devMode) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getResponseBody());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getResponseBody(), e);
+        } catch (Exception e) {
+            if (!devMode) {
+                log.error(DEFAULT_ERR_MESSAGE + e.getMessage());
+            }
+            throw new KubeApiException(DEFAULT_ERR_MESSAGE + e.getMessage(), e);
+        }
+    }
+
+    public boolean isDevMode() {
+        return devMode;
     }
 
     private String getNotNullNamespace() {

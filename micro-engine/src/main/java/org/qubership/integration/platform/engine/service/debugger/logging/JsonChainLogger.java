@@ -22,8 +22,19 @@ import static io.quarkiverse.loggingjson.providers.KeyValueStructuredArgument.kv
 @ApplicationScoped
 @IfBuildProperty(name = "qip.logging.format", stringValue = "json", enableIfMissing = true)
 public class JsonChainLogger extends AbstractChainLogger {
+    private final LogExchangeMarkers logExchangeMarkers;
+
     public JsonChainLogger() {
         super(null, null, null, null, null);
+        this.logExchangeMarkers = null;
+    }
+
+    public JsonChainLogger(TracingService tracingService,
+            Instance<OriginatingBusinessIdProvider> originatingBusinessIdProvider,
+            PayloadExtractor payloadExtractor,
+            ChainRuntimePropertiesService chainRuntimePropertiesService,
+            VariablesService variablesService) {
+        this(tracingService, originatingBusinessIdProvider, payloadExtractor, chainRuntimePropertiesService, variablesService, null);
     }
 
     @Inject
@@ -31,9 +42,11 @@ public class JsonChainLogger extends AbstractChainLogger {
             Instance<OriginatingBusinessIdProvider> originatingBusinessIdProvider,
             PayloadExtractor payloadExtractor,
             ChainRuntimePropertiesService chainRuntimePropertiesService,
-            VariablesService variablesService) {
+            VariablesService variablesService,
+            LogExchangeMarkers logExchangeMarkers) {
         super(tracingService, originatingBusinessIdProvider, payloadExtractor, chainRuntimePropertiesService,
                 variablesService);
+        this.logExchangeMarkers = logExchangeMarkers;
     }
 
     @Override
@@ -125,6 +138,9 @@ public class JsonChainLogger extends AbstractChainLogger {
     }
 
     private List<StructuredArgument> buildExchangeArguments(LoggedPayloadValues loggedPayloadValues) {
+        if (logExchangeMarkers != null) {
+            return logExchangeMarkers.buildExchangeMarkers(loggedPayloadValues);
+        }
         List<StructuredArgument> result = new ArrayList<>();
         result.add(kv("exchange_headers", truncateValue(loggedPayloadValues.getHeaders())));
         result.add(kv("exchange_body", truncateValue(loggedPayloadValues.getBody())));

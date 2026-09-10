@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-ui
+  name: {{ .Release.Name }}-ui-{{ .Values.global.blueGreenVersion }}
   labels:
-    app: {{ .Release.Name }}-ui
+    app: {{ .Release.Name }}-ui-{{ .Values.global.blueGreenVersion }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-ui
+      app: {{ .Release.Name }}-ui-{{ .Values.global.blueGreenVersion }}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-ui
+        app: {{ .Release.Name }}-ui-{{ .Values.global.blueGreenVersion }}
     spec:
       containers:
         - name: nginx

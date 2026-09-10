@@ -182,7 +182,7 @@ public class VariablesService {
                 }
             }
         } catch (KubeApiException e) {
-            if (operator.isDevmode()) {
+            if (operator.isDevMode()) {
                 log.debug("Can't to get secured variables from k8s");
             } else {
                 log.warn("Failed to get secured variables from k8s", e);

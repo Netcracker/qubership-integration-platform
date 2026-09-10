@@ -49,7 +49,10 @@ type EditorProps = {
   height?: number | string;
   className?: string;
   beforeMount?: (monaco: FakeMonaco) => void;
-  onMount?: (editor: unknown, monaco: FakeMonaco) => void;
+  onMount?: (
+    editor: { getDomNode: () => HTMLDivElement | null },
+    monaco: FakeMonaco,
+  ) => void;
   onChange?: (value: string | undefined) => void;
   options?: Record<string, unknown>;
 };
@@ -65,13 +68,20 @@ jest.mock("@monaco-editor/react", () => {
   return {
     __esModule: true,
     Editor: (props: EditorProps) => {
+      const editorRef = actualReact.useRef<HTMLDivElement | null>(null);
       capturedEditorProps = props;
       actualReact.useEffect(() => {
         latestFakeMonaco = createFakeMonaco(initialLanguagesRef.value);
         props.beforeMount?.(latestFakeMonaco);
-        props.onMount?.({}, latestFakeMonaco);
+        props.onMount?.(
+          { getDomNode: () => editorRef.current },
+          latestFakeMonaco,
+        );
       }, []);
-      return actualReact.createElement("div", { "data-testid": "editor" });
+      return actualReact.createElement("div", {
+        ref: editorRef,
+        "data-testid": "editor",
+      });
     },
   };
 });
@@ -243,14 +253,30 @@ describe("Script", () => {
   });
 
   describe("overflow widgets DOM node", () => {
-    it("creates a div with monaco-editor class appended to body", () => {
+    it("appends the overflow node to body outside a modal", () => {
       render(<Script value="" />);
       const node = capturedEditorProps?.options
         ?.overflowWidgetsDomNode as HTMLDivElement;
       expect(node).toBeInstanceOf(HTMLDivElement);
       expect(node.className).toBe("monaco-editor");
       expect(node.style.zIndex).toBe("10000");
+      expect(node.style.pointerEvents).toBe("auto");
       expect(node.parentElement).toBe(document.body);
+    });
+
+    it("appends the overflow node to the nearest modal dialog", () => {
+      const { getByTestId } = render(
+        <div role="dialog" aria-modal="true" data-testid="outer-dialog">
+          <div role="dialog" aria-modal="true" data-testid="inner-dialog">
+            <Script value="" />
+          </div>
+        </div>,
+      );
+      const node = capturedEditorProps?.options
+        ?.overflowWidgetsDomNode as HTMLDivElement;
+
+      expect(node.parentElement).toBe(getByTestId("inner-dialog"));
+      expect(node.parentElement).not.toBe(getByTestId("outer-dialog"));
     });
 
     it("enables fixedOverflowWidgets", () => {
@@ -258,13 +284,25 @@ describe("Script", () => {
       expect(capturedEditorProps?.options?.fixedOverflowWidgets).toBe(true);
     });
 
-    it("removes the node from body on unmount", () => {
-      const { unmount } = render(<Script value="" />);
+    it("removes the overflow node from its dialog on unmount", () => {
+      const dialog = document.createElement("div");
+      dialog.setAttribute("role", "dialog");
+      dialog.setAttribute("aria-modal", "true");
+      const mountPoint = document.createElement("div");
+      dialog.appendChild(mountPoint);
+      document.body.appendChild(dialog);
+
+      const { unmount } = render(<Script value="" />, {
+        container: mountPoint,
+      });
       const node = capturedEditorProps?.options
         ?.overflowWidgetsDomNode as HTMLDivElement;
-      expect(document.body.contains(node)).toBe(true);
+      expect(dialog.contains(node)).toBe(true);
+
       unmount();
-      expect(document.body.contains(node)).toBe(false);
+
+      expect(document.body.contains(dialog)).toBe(true);
+      expect(dialog.contains(node)).toBe(false);
     });
   });
 

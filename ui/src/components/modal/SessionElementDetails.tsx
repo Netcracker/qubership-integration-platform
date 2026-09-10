@@ -14,6 +14,7 @@ import { copyToClipboard } from "../../misc/clipboard-util.ts";
 import { SessionElementBodyChangesView } from "../sessions/SessionElementBodyChangesView.tsx";
 import { traverseElementsDepthFirst } from "../../misc/tree-utils.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
+import { buildGraphUrl } from "../../misc/session-graph-utils.ts";
 import { ModalWithFullscreenToggle } from "./ModalWithFullscreenToggle.tsx";
 
 type SessionElementDetailsProps = {
@@ -219,12 +220,7 @@ export const SessionElementDetails: React.FC<SessionElementDetailsProps> = ({
           <span style={{ marginRight: 8 }}>{element?.elementName}</span>
           <OverridableIcon
             name="link"
-            onClick={() =>
-              window.open(
-                `/chains/${session.chainId}/graph/${element?.chainElementId}`,
-                "_blank",
-              )
-            }
+            onClick={() => window.open(buildGraphUrl(element, session), "_blank")}
           />
         </>
       }

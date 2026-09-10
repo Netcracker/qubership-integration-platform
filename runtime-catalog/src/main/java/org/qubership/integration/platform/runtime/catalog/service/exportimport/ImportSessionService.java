@@ -42,7 +42,7 @@ public class ImportSessionService {
 
     @Autowired
     public ImportSessionService(
-            @Value("${qip.import.session-lifetime-minutes:300}") Integer importSessionLifetimeMinutes,
+            @Value("${qip.import.session-lifetime-minutes:10080}") Integer importSessionLifetimeMinutes,
             ImportSessionRepository importSessionRepository
     ) {
         this.importSessionLifetimeMinutes = importSessionLifetimeMinutes;

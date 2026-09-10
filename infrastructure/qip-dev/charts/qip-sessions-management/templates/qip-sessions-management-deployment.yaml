@@ -2,18 +2,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: {{ .Release.Name }}-sessions-management
-  name: {{ .Release.Name }}-sessions-management
+    app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
+  name: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: {{ .Release.Name }}-sessions-management
+      app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
   strategy: {}
   template:
     metadata:
       labels:
-        app: {{ .Release.Name }}-sessions-management
+        app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
     spec:
       containers:
         - args:
@@ -76,6 +76,13 @@ spec:
             initialDelaySeconds: 30
             periodSeconds: 10
             timeoutSeconds: 15
+          # The readiness group carries readinessState alone. Probing /actuator/health
+          # instead would gate traffic on every dependency the service reports.
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            timeoutSeconds: 5
           name: {{ .Release.Name }}-sessions-management
           ports:
             - containerPort: 8080

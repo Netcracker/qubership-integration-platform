@@ -16,8 +16,7 @@
   },
   "enabledApiProposals": [
     "tunnels",
-    "customEditorDiffs",
-    "customEditorPriority"
+    "customEditorDiffs"
   ],
   "categories": [
     "Other"
@@ -116,8 +115,7 @@
         ],
         "priority": {
           "textEditor": "default",
-          "diffEditor": "default",
-          "mergeEditor": "never"
+          "diffEditor": "default"
         }
       },
       {
@@ -249,8 +247,6 @@
     "@types/js-yaml": "^4.0.9",
     "@vscode/dts": "^0.4.1",
     "@xmldom/xmldom": "^0.8.11",
-    "ajv": "^8.17.1",
-    "ajv-formats": "^3.0.1",
     "graphql": "^16.12.0",
     "js-yaml": "^4.1.1",
     "protobufjs": "^7.5.4",

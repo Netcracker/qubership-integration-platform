@@ -1,12 +1,9 @@
 package org.qubership.integration.platform.engine.util;
 
 import org.apache.camel.Exchange;
-import org.qubership.integration.platform.engine.model.Session;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.service.ExecutionStatus;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,17 +22,18 @@ public class ExchangeUtil {
 
     public static void setSessionProperties(
             Exchange exchange,
-            Session session,
+            String sessionId,
+            String started,
+            Long startedMillis,
             boolean shouldBeLogged
     ) {
-        Long startedMillis = LocalDateTime.parse(session.getStarted()).toInstant(ZoneOffset.UTC).toEpochMilli();
-        exchange.setProperty(CamelConstants.Properties.SESSION_ID, session.getId());
+        exchange.setProperty(CamelConstants.Properties.SESSION_ID, sessionId);
         exchange.setProperty(CamelConstants.Properties.SESSION_SHOULD_BE_LOGGED, shouldBeLogged);
         exchange.setProperty(IS_MAIN_EXCHANGE, true);
-        exchange.setProperty(CamelConstants.Properties.START_TIME, session.getStarted());
+        exchange.setProperty(CamelConstants.Properties.START_TIME, started);
         exchange.setProperty(CamelConstants.Properties.START_TIME_MS, startedMillis);
         exchange.getProperty(CamelConstants.Properties.EXCHANGES, ConcurrentHashMap.class)
-                .put(session.getId(), new ConcurrentHashMap<String, Exchange>());
+                .put(sessionId, new ConcurrentHashMap<String, Exchange>());
     }
 
     public static Long getSessionStartTime(Exchange exchange) {

@@ -81,7 +81,6 @@ import type {
   AccessControlSearchRequest,
   AccessControlResponse,
   AccessControlUpdateRequest,
-  AccessControlBulkDeployRequest,
   CustomResourceBuildRequest,
   MicroDomainDeployRequest,
   BulkMicroDomainDeployResult,
@@ -350,11 +349,18 @@ export interface Api {
   getServices(
     modelType: string,
     withSpec: boolean,
+    includeChainUsage?: boolean,
   ): Promise<IntegrationSystem[]>;
 
-  filterServices(filters: EntityFilterModel[]): Promise<IntegrationSystem[]>;
+  filterServices(
+    filters: EntityFilterModel[],
+    includeChainUsage?: boolean,
+  ): Promise<IntegrationSystem[]>;
 
-  searchServices(searchCondition: string): Promise<IntegrationSystem[]>;
+  searchServices(
+    searchCondition: string,
+    includeChainUsage?: boolean,
+  ): Promise<IntegrationSystem[]>;
 
   createService(system: SystemRequest): Promise<IntegrationSystem>;
 
@@ -606,11 +612,9 @@ export interface Api {
 
   updateHttpTriggerAccessControl(
     searchRequest: AccessControlUpdateRequest[],
-  ): Promise<AccessControlResponse>;
+  ): Promise<void>;
 
-  bulkDeployChainsAccessControl(
-    searchRequest: AccessControlBulkDeployRequest[],
-  ): Promise<AccessControlResponse>;
+  bulkDeployChainsAccessControl(chainIds: string[]): Promise<void>;
 
   runServiceDiscovery(): Promise<unknown>;
 

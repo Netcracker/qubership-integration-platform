@@ -2,6 +2,29 @@
     <process ref="securityProcessor"/>
 {{/if-property}}
 
+<setHeader name="CamelGraphQLQuery">
+    <simple>{{escape (property 'query')}}</simple>
+</setHeader>
+
+{{#if-property 'variablesJSON' presented=''}}
+    <setProperty name="internalProperty_graphQLVariablesJSON">
+        <simple>{{escape (property 'variablesJSON')}}</simple>
+    </setProperty>
+{{/if-property}}
+
+<setProperty name="internalProperty_graphQLEndpointUri">
+    {{#if-property 'isExternalCall' not-equals='false'}}
+        <simple>graphql-custom:{{gatewayProtocol}}://{{gatewayUrl}}{{routeVariable}}{{escape
+            (extractPathAndQuery (property 'uri'))}}{{escape (query)}}&amp;httpClientConfigurer=#{{identifier}}</simple>
+    {{/if-property}}
+
+    {{#if-property 'isExternalCall' equals='false'}}
+        <simple>graphql-custom:{{property 'uri'}}{{escape (query)}}&amp;httpClientConfigurer=#{{identifier}}</simple>
+    {{/if-property}}
+</setProperty>
+
+<process ref="graphQLSessionLoggingProcessor"/>
+
 <step id="{{identifier}}">
     {{#if-property 'correlationIdPosition' presented=''}}
         <setProperty name="correlationIdPosition">
@@ -13,18 +36,11 @@
             <constant>{{property 'correlationIdName'}}</constant>
         </setProperty>
 
-        <process ref="correlationIdPropagationProcessor" />
+        <process ref="correlationIdPropagationProcessor"/>
     {{/if-property}}
 
-    <setHeader name="CamelGraphQLQuery">
-        <simple>{{escape (property 'query')}}</simple>
-    </setHeader>
-
     {{#if-property 'variablesJSON' presented=''}}
-        <setProperty name="internalProperty_graphQLVariablesJSON">
-            <simple>{{escape (property 'variablesJSON')}}</simple>
-        </setProperty>
-        <process ref="graphQLVariablesProcessor" />
+        <process ref="graphQLVariablesProcessor"/>
     {{/if-property}}
 
     <doTry>
@@ -37,6 +53,8 @@
 
             <process ref="contextPropagationProcessor"/>
         {{/if-property}}
+
+        <removeHeader name="Content-Type"/>
 
         {{#if-property 'isExternalCall' not-equals='false'}}
             <toD uri="graphql-custom:{{gatewayProtocol}}://{{gatewayUrl}}{{routeVariable}}{{escape (extractPathAndQuery (property 'uri'))}}{{escape (query)}}&amp;httpClientConfigurer=#{{identifier}}"/>

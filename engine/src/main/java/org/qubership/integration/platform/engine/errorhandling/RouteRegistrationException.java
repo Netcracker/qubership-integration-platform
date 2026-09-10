@@ -14,18 +14,26 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.exception.exceptions;
+package org.qubership.integration.platform.engine.errorhandling;
 
-public class InvalidEnumConstantException extends RuntimeException {
-    public InvalidEnumConstantException() {
+public class RouteRegistrationException extends RuntimeException {
+    public RouteRegistrationException() {
         super();
     }
 
-    public InvalidEnumConstantException(String message) {
+    public RouteRegistrationException(String message, Exception exception) {
+        super(message, exception);
+    }
+
+    public RouteRegistrationException(String message) {
         super(message);
     }
 
-    public InvalidEnumConstantException(String message, Throwable cause) {
+    public RouteRegistrationException(String message, Throwable cause) {
         super(message, cause);
+    }
+
+    public RouteRegistrationException(Throwable cause) {
+        super(cause.getMessage(), cause);
     }
 }

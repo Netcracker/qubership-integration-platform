@@ -22,8 +22,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.InvalidEnumConstantException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogDTO;
+import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
+import org.qubership.integration.platform.runtime.catalog.model.filter.ActionLogFilterColumn;
+import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.ActionsLogMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
@@ -36,7 +39,9 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -152,18 +157,56 @@ class ActionsLogServiceTest {
     }
 
     @Test
-    @DisplayName("findByPagedSearchRequest returns empty result on invalid enum filter")
-    void findByPagedSearchRequestReturnsEmptyOnInvalidEnum() {
+    @DisplayName("A condition the column cannot translate is rejected instead of reaching the query")
+    void findByPagedSearchRequestRejectsUnsupportedCondition() {
         ActionLogSearchRequest request = new ActionLogSearchRequest();
         request.setOffset(10);
         request.setLimit(50);
+        request.setFilters(List.of(filter(ActionLogFilterColumn.ACTION_TIME, FilterCondition.CONTAINS)));
 
-        when(actionLogRepository.findActionLogsByFilter(10, 50, Collections.emptyList()))
-                .thenThrow(new InvalidEnumConstantException("invalid enum"));
+        assertThatThrownBy(() -> actionsLogService.findByPagedSearchRequest(request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("CONTAINS")
+                .hasMessageContaining("ACTION_TIME");
 
-        ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
+        verifyNoInteractions(actionLogRepository);
+    }
 
-        assertThat(response.getOffset()).isEqualTo(10);
-        assertThat(response.getActionLogs()).isEmpty();
+    @Test
+    @DisplayName("A condition no column implements is rejected on a text column too")
+    void findByPagedSearchRequestRejectsConditionWithoutQueryBuilderCase() {
+        ActionLogSearchRequest request = new ActionLogSearchRequest();
+        request.setOffset(0);
+        request.setLimit(50);
+        request.setFilters(List.of(filter(ActionLogFilterColumn.ENTITY_NAME, FilterCondition.LESS_THAN)));
+
+        assertThatThrownBy(() -> actionsLogService.findByPagedSearchRequest(request))
+                .isInstanceOf(BadRequestException.class);
+
+        verifyNoInteractions(actionLogRepository);
+    }
+
+    @Test
+    @DisplayName("A condition the column does support still reaches the query")
+    void findByPagedSearchRequestRunsSupportedCondition() {
+        ActionLogSearchRequest request = new ActionLogSearchRequest();
+        request.setOffset(0);
+        request.setLimit(50);
+        List<ActionLogFilterRequestDTO> filters =
+                List.of(filter(ActionLogFilterColumn.ENTITY_NAME, FilterCondition.CONTAINS));
+        request.setFilters(filters);
+
+        when(actionLogRepository.findActionLogsByFilter(0, 50, filters)).thenReturn(Collections.emptyList());
+        when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
+
+        assertThat(actionsLogService.findByPagedSearchRequest(request).getActionLogs()).isEmpty();
+    }
+
+    private ActionLogFilterRequestDTO filter(ActionLogFilterColumn column, FilterCondition condition) {
+        ActionLogFilterRequestDTO filter = new ActionLogFilterRequestDTO();
+        filter.setColumn(column);
+        filter.setCondition(condition);
+        filter.setValue("probe-value");
+        return filter;
     }
 }

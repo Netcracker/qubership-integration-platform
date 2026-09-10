@@ -24,6 +24,10 @@ local variant of one of these is the most common thing a reviewer sends back.
   `false`. Filter `null`, `undefined`, and `""` explicitly.
 - Action-button columns take the `actions-column` class; use `ACTIONS_COLUMN_CLASS` and the helpers
   in `actionsColumn.ts`.
+- A table whose rows open a details drawer takes its `onRow` from `rowClickProps(open)` in
+  `src/components/table/rowClick.ts`, so a click on a link, a button, or the selection cell does not
+  open the drawer behind what it activated. A table that builds `onRow` itself, as `Chains` does for
+  drag and drop, calls the `shouldIgnoreRowClick` guard beside it instead.
 
 ### Horizontal scroll
 

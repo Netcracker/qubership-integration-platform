@@ -21,7 +21,7 @@ import jakarta.persistence.PersistenceContext;
 import jakarta.persistence.criteria.*;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ActionLogException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.InvalidEnumConstantException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
 import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.ActionLogFilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.model.filter.ActionLogFilterColumn;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
@@ -41,12 +41,25 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
             ActionLogFilterColumn.PARENT_ID, Pair.of("parentId", Function.identity()),
             ActionLogFilterColumn.PARENT_NAME, Pair.of("parentName", Function.identity()),
             ActionLogFilterColumn.REQUEST_ID, Pair.of("requestId", Function.identity()),
-            ActionLogFilterColumn.OPERATION, Pair.of("operation", LogOperation::valueOf),
-            ActionLogFilterColumn.ENTITY_TYPE, Pair.of("entityType", EntityType::valueOf),
+            ActionLogFilterColumn.OPERATION, Pair.of("operation", enumConverter(LogOperation.class)),
+            ActionLogFilterColumn.ENTITY_TYPE, Pair.of("entityType", enumConverter(EntityType.class)),
             ActionLogFilterColumn.ACTION_TIME, Pair.of("actionTime", Function.identity()),
             ActionLogFilterColumn.INITIATOR, Pair.of("user.username", Function.identity())
     );
     private static final String ACTION_TIME_COLUMN = "actionTime";
+
+    // valueOf() throws past the handler that would answer 400, so the caller used to get a 500
+    // carrying the enum's fully qualified name.
+    private static <E extends Enum<E>> Function<String, E> enumConverter(Class<E> type) {
+        return value -> {
+            try {
+                return Enum.valueOf(type, value);
+            } catch (IllegalArgumentException exception) {
+                throw new BadRequestException("Value " + value + " is not supported. Supported values: "
+                        + Arrays.toString(type.getEnumConstants()));
+            }
+        };
+    }
 
     @PersistenceContext
     private EntityManager entityManager;
@@ -54,7 +67,7 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
 
     @Override
     public List<ActionLog> findActionLogsByFilter(
-            Timestamp offsetTime, long rangeTime, List<ActionLogFilterRequestDTO> filters) throws InvalidEnumConstantException {
+            Timestamp offsetTime, long rangeTime, List<ActionLogFilterRequestDTO> filters) {
         CriteriaQuery<ActionLog> query = buildFilterQuery(offsetTime, rangeTime, filters);
         return entityManager.createQuery(query).getResultList();
     }
@@ -119,7 +132,7 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
     private CriteriaQuery<ActionLog> buildFilterQuery(
             Timestamp offsetTime,
             long rangeTime,
-            List<ActionLogFilterRequestDTO> filters) throws InvalidEnumConstantException {
+            List<ActionLogFilterRequestDTO> filters) {
         CriteriaBuilder builder = entityManager.getCriteriaBuilder();
         CriteriaQuery<ActionLog> query = builder.createQuery(ActionLog.class);
         Root<ActionLog> actionLog = query.from(ActionLog.class);

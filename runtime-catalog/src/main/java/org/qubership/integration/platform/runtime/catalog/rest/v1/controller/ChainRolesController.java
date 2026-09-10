@@ -18,7 +18,9 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElementSearchCriteria;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.ChainRolesResponse;
@@ -27,6 +29,7 @@ import org.qubership.integration.platform.runtime.catalog.service.ChainRolesServ
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -34,6 +37,7 @@ import java.util.List;
 
 @Slf4j
 @RestController
+@Validated
 @RequestMapping(value = {"/v1/catalog/chains/roles", "/v1/catalog/chains/access-control"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "chain-roles-controller", description = "Chain Roles Controller")
@@ -56,15 +60,17 @@ public class ChainRolesController {
 
     @PutMapping("")
     @Operation(description = "Make a bulk update on roles configuration for http triggers")
-    public ResponseEntity<ChainRolesResponse> updateRoles(@RequestBody @Parameter(description = "Http trigger roles update request object") List<UpdateRolesRequest> request) {
-        ChainRolesResponse response = chainRolesService.updateRoles(request);
-        return ResponseEntity.ok(response);
+    @ApiResponse(responseCode = "204", description = "No Content")
+    public ResponseEntity<Void> updateRoles(@RequestBody @Parameter(description = "Http trigger roles update request object") List<@Valid UpdateRolesRequest> request) {
+        chainRolesService.updateRoles(request);
+        return ResponseEntity.noContent().build();
     }
 
     @PutMapping("/redeploy")
     @Operation(description = "Make a bulk redeploy for chains specified in the request")
-    public ResponseEntity<ChainRolesResponse> bulkRedeploy(@RequestBody @Parameter(description = "Http trigger roles update request object") List<UpdateRolesRequest> request) {
-        ChainRolesResponse response = chainRolesService.redeploy(request);
-        return ResponseEntity.ok(response);
+    @ApiResponse(responseCode = "204", description = "No Content")
+    public ResponseEntity<Void> bulkRedeploy(@RequestBody @Parameter(description = "Ids of the chains to redeploy") List<String> chainIds) {
+        chainRolesService.redeploy(chainIds);
+        return ResponseEntity.noContent().build();
     }
 }

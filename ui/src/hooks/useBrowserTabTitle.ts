@@ -85,6 +85,7 @@ async function resolveChainTabTitle(chainId: string): Promise<string | null> {
 
 export function useBrowserTabTitle(): void {
   const { pathname, hash } = useLocation();
+  const chainId = extractChainId(pathname);
   const [hashTick, setHashTick] = useState(0);
 
   useEffect(() => {
@@ -96,6 +97,28 @@ export function useBrowserTabTitle(): void {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    if (!chainId) {
+      return;
+    }
+
+    void resolveChainTabTitle(chainId).then((chainTitle) => {
+      if (!cancelled) {
+        document.title = chainTitle ?? BROWSER_TAB_DEFAULT_TITLE;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chainId]);
+
+  useEffect(() => {
+    if (chainId) {
+      return;
+    }
+
     let cancelled = false;
 
     const applyTitle = (title: string) => {
@@ -113,13 +136,6 @@ export function useBrowserTabTitle(): void {
         return;
       }
 
-      const chainId = extractChainId(pathname);
-      if (chainId) {
-        const chainTitle = await resolveChainTabTitle(chainId);
-        applyTitle(chainTitle ?? BROWSER_TAB_DEFAULT_TITLE);
-        return;
-      }
-
       const serviceTitle = await resolveServiceTabTitle(pathname);
       if (serviceTitle) {
         applyTitle(serviceTitle);
@@ -134,5 +150,5 @@ export function useBrowserTabTitle(): void {
     return () => {
       cancelled = true;
     };
-  }, [pathname, hash, hashTick]);
+  }, [pathname, hash, hashTick, chainId]);
 }

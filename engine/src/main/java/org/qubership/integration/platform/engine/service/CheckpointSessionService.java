@@ -21,7 +21,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
-import org.qubership.integration.platform.engine.configuration.camel.CamelServletConfiguration;
+import org.qubership.integration.platform.engine.errorhandling.ChainNotDeployedOnEngineException;
 import org.qubership.integration.platform.engine.model.checkpoint.CheckpointPayloadOptions;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Headers;
 import org.qubership.integration.platform.engine.persistence.shared.entity.Checkpoint;
@@ -54,23 +54,33 @@ public class CheckpointSessionService {
     private final WebClient localhostWebclient;
     private final ObjectMapper jsonMapper;
     private final IdempotencyRecordService idempotencyRecordService;
+    private final ChainDeploymentChecker chainDeploymentChecker;
     @Value("${qip.sessions.checkpoints.cleanup.interval}")
     private String idempotencyKeyTTL;
+    @Value("${qip.camel.routes.prefix}")
+    private String routesPrefix;
 
     @Autowired
     public CheckpointSessionService(SessionInfoRepository sessionInfoRepository,
         CheckpointRepository checkpointRepository, WebClient localhostWebclient,
-        @Qualifier("jsonMapper") ObjectMapper jsonMapper, IdempotencyRecordService idempotencyRecordService) {
+        @Qualifier("jsonMapper") ObjectMapper jsonMapper, IdempotencyRecordService idempotencyRecordService,
+        ChainDeploymentChecker chainDeploymentChecker) {
         this.sessionInfoRepository = sessionInfoRepository;
         this.checkpointRepository = checkpointRepository;
         this.localhostWebclient = localhostWebclient;
         this.jsonMapper = jsonMapper;
         this.idempotencyRecordService = idempotencyRecordService;
+        this.chainDeploymentChecker = chainDeploymentChecker;
     }
 
     @Transactional("checkpointTransactionManager")
     public void retryFromLastCheckpoint(String chainId, String sessionId, String body,
         Supplier<Pair<String, String>> authHeaderProvider, boolean traceMe) {
+
+        if (!chainDeploymentChecker.isChainDeployed(chainId)) {
+            throw new ChainNotDeployedOnEngineException(
+                "Chain " + chainId + " is not deployed on this engine; can't retry session with id: " + sessionId);
+        }
 
         Checkpoint lastCheckpoint = findLastCheckpoint(chainId, sessionId);
 
@@ -105,7 +115,7 @@ public class CheckpointSessionService {
                                           boolean traceMe) {
         RequestBodySpec request = localhostWebclient
             .post()
-            .uri(CamelServletConfiguration.CAMEL_ROUTES_PREFIX + CHECKPOINT_RETRY_PATH_TEMPLATE,
+            .uri(routesPrefix + CHECKPOINT_RETRY_PATH_TEMPLATE,
                 checkpoint.getSession().getChainId(),
                 checkpoint.getSession().getId(),
                 checkpoint.getCheckpointElementId());

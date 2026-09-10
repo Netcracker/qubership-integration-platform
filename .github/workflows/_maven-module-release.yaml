@@ -1,11 +1,12 @@
 ---
 # Reusable Maven module release workflow.
 #
-# Model (bump-before): the pom <revision> (+ <changelist>-SNAPSHOT for services)
-# holds the last released version. On release we bump it per release-type, publish
-# that (changelist stripped), write the bumped <revision> back, and tag the bump
-# commit. Deciding the version at release time keeps forked release lines from
-# colliding on a shared pending version; `version` overrides for edge cases.
+# Model (bump-before): the pom <revision> (the working tree adds
+# <changelist>-SNAPSHOT) holds the last released version. On release we bump it
+# per release-type, publish that (changelist stripped), write the bumped
+# <revision> back, and tag the bump commit. Deciding the version at release time
+# keeps forked release lines from colliding on a shared pending version;
+# `version` overrides for edge cases.
 # flatten-maven-plugin inlines the parent, so the published POM has no SNAPSHOT.
 #
 # The tag rides the bump commit, so <revision> matches the released version and
@@ -220,7 +221,8 @@ jobs:
           # No -am: the parent is pre-installed above, and an in-repo library
           # dependency (integration-build-pipeline) must come from its published
           # release, not from a reactor build this job would then deploy twice.
-          # -Drevision publishes the computed version; -Dchangelist= strips -SNAPSHOT.
+          # -Drevision publishes the computed version; -Dchangelist= strips
+          # -SNAPSHOT from this module's version and from its library pin alike.
           # shellcheck disable=SC2086
           mvn --batch-mode deploy \
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \

@@ -20,6 +20,7 @@ import {
   DomainType,
   LogLoggingLevel,
   LogPayload,
+  SessionLogDetails,
   SessionsLoggingLevel,
 } from "../../../src/api/apiTypes";
 
@@ -184,6 +185,63 @@ const consulLoggingSettings: ChainLoggingSettings = {
     maskingEnabled: false,
   },
   consulDefault: {
+    sessionsLoggingLevel: SessionsLoggingLevel.INFO,
+    logLoggingLevel: LogLoggingLevel.WARNING,
+    logPayload: [],
+    dptEventsEnabled: true,
+    maskingEnabled: false,
+  },
+};
+
+const loggingWithSessionDetailsFull: ChainLoggingSettings = {
+  fallbackDefault: {
+    sessionsLoggingLevel: SessionsLoggingLevel.OFF,
+    logLoggingLevel: LogLoggingLevel.ERROR,
+    logPayload: [],
+    dptEventsEnabled: false,
+    maskingEnabled: false,
+  },
+  custom: {
+    sessionsLoggingLevel: SessionsLoggingLevel.DEBUG,
+    logLoggingLevel: LogLoggingLevel.INFO,
+    logPayload: [],
+    dptEventsEnabled: false,
+    maskingEnabled: false,
+    sessionLogDetails: SessionLogDetails.FULL,
+  },
+};
+
+const loggingWithSessionDetailsSenders: ChainLoggingSettings = {
+  fallbackDefault: {
+    sessionsLoggingLevel: SessionsLoggingLevel.OFF,
+    logLoggingLevel: LogLoggingLevel.ERROR,
+    logPayload: [],
+    dptEventsEnabled: false,
+    maskingEnabled: false,
+  },
+  consulDefault: {
+    sessionsLoggingLevel: SessionsLoggingLevel.INFO,
+    logLoggingLevel: LogLoggingLevel.WARNING,
+    logPayload: [],
+    dptEventsEnabled: true,
+    maskingEnabled: false,
+    sessionLogDetails: SessionLogDetails.SENDERS,
+  },
+};
+
+const loggingWithSessionDetailsOff: ChainLoggingSettings = {
+  fallbackDefault: {
+    sessionsLoggingLevel: SessionsLoggingLevel.DEBUG,
+    logLoggingLevel: LogLoggingLevel.ERROR,
+    logPayload: [],
+    dptEventsEnabled: false,
+    maskingEnabled: false,
+    sessionLogDetails: SessionLogDetails.OFF,
+  },
+};
+
+const loggingWithoutSessionDetails: ChainLoggingSettings = {
+  fallbackDefault: {
     sessionsLoggingLevel: SessionsLoggingLevel.INFO,
     logLoggingLevel: LogLoggingLevel.WARNING,
     logPayload: [],
@@ -373,5 +431,96 @@ describe("ChainDetailsDrawer", () => {
       await Promise.resolve();
     });
     // No errors — test simply completes.
+  });
+
+  describe("Session log details", () => {
+    it("renders capitalized sessionLogDetails from custom (FULL -> Full)", async () => {
+      mockGetLoggingSettings.mockResolvedValue(loggingWithSessionDetailsFull);
+      render(
+        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+      );
+      await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
+      expect(await screen.findByText("Full")).toBeInTheDocument();
+    });
+
+    it("renders capitalized sessionLogDetails from consulDefault (SENDERS -> Senders)", async () => {
+      mockGetLoggingSettings.mockResolvedValue(loggingWithSessionDetailsSenders);
+      render(
+        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+      );
+      await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
+      expect(await screen.findByText("Senders")).toBeInTheDocument();
+    });
+
+    it("renders capitalized sessionLogDetails OFF -> Off from fallbackDefault", async () => {
+      mockGetLoggingSettings.mockResolvedValue(loggingWithSessionDetailsOff);
+      render(
+        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+      );
+      await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
+      expect(await screen.findByText("Off")).toBeInTheDocument();
+    });
+
+    it("shows placeholder dash when sessionLogDetails is missing", async () => {
+      mockGetLoggingSettings.mockResolvedValue(loggingWithoutSessionDetails);
+      render(
+        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+      );
+      await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
+      // Session log details row should be the dash placeholder
+      expect(screen.getByText("Session log details")).toBeInTheDocument();
+      // At least one dash is rendered for the missing field
+      expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Full")).not.toBeInTheDocument();
+      expect(screen.queryByText("Senders")).not.toBeInTheDocument();
+      expect(screen.queryByText("Off")).not.toBeInTheDocument();
+    });
+
+    it("shows placeholder dash when loggingSettings is null", async () => {
+      mockGetLoggingSettings.mockResolvedValue(null);
+      render(
+        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+      );
+      await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
+      // loggingSettings null → pickLoggingProperties returns undefined → dash
+      expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+      expect(screen.queryByText("Full")).not.toBeInTheDocument();
+    });
+
+    it("prefers custom sessionLogDetails over consulDefault and fallback", async () => {
+      const mixed: ChainLoggingSettings = {
+        fallbackDefault: {
+          sessionsLoggingLevel: SessionsLoggingLevel.OFF,
+          logLoggingLevel: LogLoggingLevel.ERROR,
+          logPayload: [],
+          dptEventsEnabled: false,
+          maskingEnabled: false,
+          sessionLogDetails: SessionLogDetails.OFF,
+        },
+        consulDefault: {
+          sessionsLoggingLevel: SessionsLoggingLevel.INFO,
+          logLoggingLevel: LogLoggingLevel.WARNING,
+          logPayload: [],
+          dptEventsEnabled: true,
+          maskingEnabled: false,
+          sessionLogDetails: SessionLogDetails.SENDERS,
+        },
+        custom: {
+          sessionsLoggingLevel: SessionsLoggingLevel.DEBUG,
+          logLoggingLevel: LogLoggingLevel.INFO,
+          logPayload: [],
+          dptEventsEnabled: true,
+          maskingEnabled: false,
+          sessionLogDetails: SessionLogDetails.FULL,
+        },
+      };
+      mockGetLoggingSettings.mockResolvedValue(mixed);
+      render(
+        <ChainDetailsDrawer chain={chainFull} open={true} onClose={jest.fn()} />,
+      );
+      await waitFor(() => expect(mockGetLoggingSettings).toHaveBeenCalled());
+      expect(await screen.findByText("Full")).toBeInTheDocument();
+      expect(screen.queryByText("Senders")).not.toBeInTheDocument();
+    });
   });
 });
