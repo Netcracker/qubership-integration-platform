@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillRuntimeEligibility;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
@@ -92,6 +93,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
@@ -267,6 +269,41 @@ class MappingContractBriefProducerRecoveryTest {
                 .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
     assertTrue(findings.contains("$.preserved.executionId"), findings);
     assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
+  }
+
+  @Test
+  void spentAutomaticReopenCaptureRejectOffersEditRequirementsAndEndRun() throws Exception {
+    repairedBrief.set(rewordedUnknownTargetBrief());
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(runtime);
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+
+    StageExecutionResult repaired = execute(runtime, "requirement-analysis");
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, repaired.decision());
+    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElse(""));
+    assertEquals(
+        List.of(ChatEvent.EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow()));
+    assertEquals(
+        RecoveryCauseCode.MAPPING_CONTRACT.name(),
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR)));
+    assertNotEquals(
+        RecoveryCauseCode.MISSING_BRIEF_FACTS.name(),
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR)));
   }
 
   @Test
