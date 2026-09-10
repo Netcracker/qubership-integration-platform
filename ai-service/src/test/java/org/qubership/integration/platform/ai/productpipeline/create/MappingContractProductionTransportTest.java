@@ -226,6 +226,32 @@ class MappingContractProductionTransportTest {
   }
 
   @Test
+  void consumedBriefIdentityUsesTheRequestBriefNotTheLatestStoreRevision() {
+    RequirementBrief laterBrief =
+        new RequirementBrief(
+                "later-goal", List.of(), List.of(), List.of(), List.of(), "later-summary")
+            .withMappingIntents(List.of(unknownTargetIntent()));
+    Revision laterStored = appendRunArtifact(Kind.REQUIREMENT_BRIEF, "1", laterBrief);
+    assertNotEquals(storedBrief.artifactId(), laterStored.artifactId());
+    assertEquals(
+        laterStored.artifactId(),
+        artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().artifactId());
+
+    MappingContractBlockedException blocked =
+        assertThrows(
+            MappingContractBlockedException.class,
+            () -> engine.execute(engineRequest, (skillId, status) -> {}).await().indefinitely());
+    PlanValidationFinding finding =
+        blocked.findings().stream()
+            .filter(candidate -> "MAPPING_UNKNOWN_TARGET".equals(candidate.code()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(storedBrief.artifactId(), finding.mappingDetails().consumedBriefArtifactId());
+    assertEquals(storedBrief.contentHash(), finding.mappingDetails().consumedBriefContentHash());
+    assertNotEquals(laterStored.artifactId(), finding.mappingDetails().consumedBriefArtifactId());
+  }
+
+  @Test
   void findingsTravelPipelineEngineAndAdapterAsMappingContract() {
     ExecutionResult result = adapter.executeAfterApproval(adapterInputs);
 

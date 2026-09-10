@@ -1311,10 +1311,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         accepted =
             captureRegenerateDecision(
                 recoveryEvidence, findings.isBlank() ? evidenceText : findings);
-      } else if (cause != null && cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT) {
-        accepted =
-            captureReviseBriefDecision(
-                recoveryEvidence, findings.isBlank() ? evidenceText : findings);
       } else {
         accepted =
             new RecoveryDecision(
@@ -1326,13 +1322,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 "",
                 findings.isBlank() ? evidenceText : findings);
       }
-    }
-    if (accepted.causeClass() == RecoveryCauseClass.UNCLASSIFIED
-        && cause != null
-        && cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT) {
-      accepted =
-          captureReviseBriefDecision(
-              recoveryEvidence, findings.isBlank() ? evidenceText : findings);
     }
     if (accepted.action() == RecoveryAction.ASK_USER
         && usesStructuredContractRecovery(stage, StageOutcomeClass.CONTRACT_FAILURE, cause)) {

@@ -38,11 +38,8 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
-import org.qubership.integration.platform.ai.plan.mapping.MappingFindingCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
-import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
-import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -58,9 +55,6 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextRequest;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeFailureKind;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspace;
@@ -509,18 +503,6 @@ public class RequirementAnalysisCapability implements StageCapability {
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, unresolvedMapping.get()));
     }
-    var repeatedUnknownTarget = remainingUnknownTarget(context, brief);
-    if (repeatedUnknownTarget.isPresent()) {
-      StageRepairEvidence shared = StageRepairEvidence.from(context);
-      RecoveryCause cause =
-          shared == null
-              ? RecoveryCause.mappingContract(List.of())
-              : RecoveryCause.fromFormattedFindingCodes(
-                  shared.findings(), StageOutcomeClass.CONTRACT_FAILURE);
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(
-              StageOutcomeClass.CONTRACT_FAILURE, repeatedUnknownTarget.get(), cause));
-    }
     var coverageError = coverageValidator.validate(approved, brief);
     if (coverageError.isPresent()) {
       return new CapabilitySignal.Completed(
@@ -554,52 +536,6 @@ public class RequirementAnalysisCapability implements StageCapability {
             : "Requirement brief ready";
     return new CapabilitySignal.Completed(
         new StageOutcome(outcomeClass, List.of(candidate), message, null));
-  }
-
-  static java.util.Optional<String> remainingUnknownTarget(
-      StageExecutionContext context, RequirementBrief brief) {
-    StageRepairEvidence shared = StageRepairEvidence.from(context);
-    if (shared == null || shared.findings() == null || shared.findings().isBlank()) {
-      return java.util.Optional.empty();
-    }
-    RecoveryCause prior =
-        RecoveryCause.fromFormattedFindingCodes(
-            shared.findings(), StageOutcomeClass.VALIDATION_FAILURE);
-    if (prior.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
-      return java.util.Optional.empty();
-    }
-    for (var finding : prior.findings()) {
-      if (finding == null
-          || !MappingFindingCode.MAPPING_UNKNOWN_TARGET.name().equals(finding.code())) {
-        continue;
-      }
-      var path = BriefMappingValidator.unknownTargetPathFromMessage(finding.message());
-      if (path.isEmpty()) {
-        continue;
-      }
-      if (briefHasTarget(brief, path.get())) {
-        return java.util.Optional.of(finding.message());
-      }
-    }
-    return java.util.Optional.empty();
-  }
-
-  private static boolean briefHasTarget(RequirementBrief brief, String targetPath) {
-    if (brief == null || brief.mappingIntents() == null) {
-      return false;
-    }
-    String want = MappingContract.canonicalPath(targetPath);
-    for (MappingIntent intent : brief.mappingIntents()) {
-      if (intent == null || intent.rules() == null) {
-        continue;
-      }
-      for (MappingIntentRule rule : intent.rules()) {
-        if (rule != null && want.equals(MappingContract.canonicalPath(rule.targetPath()))) {
-          return true;
-        }
-      }
-    }
-    return false;
   }
 
   static boolean isMissingChatSession(String summary) {
