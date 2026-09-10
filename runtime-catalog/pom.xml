@@ -30,7 +30,7 @@
          scripts/check-version-invariants.sh. The dependency below appends ${changelist}, so a normal build
          resolves the development coordinate from the reactor and a release, which passes -Dchangelist=,
          resolves the published jar. -->
-    <qip-integration-build-pipeline.version>1.2.3</qip-integration-build-pipeline.version>
+    <qip-integration-build-pipeline.version>1.2.3-1-istio-SNAPSHOT</qip-integration-build-pipeline.version>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
