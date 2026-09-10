@@ -974,6 +974,26 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           new StageDecision.ReopenProducer(stage.stageId(), recovery.producerStageId()),
           emitted);
     }
+    if (recovery.action() == ProducerOwnedRecovery.Action.REOPEN_UPSTREAM
+        && cause.isBindingIdentityMismatch()) {
+      return waitGuardedRecovery(
+          doc,
+          stage,
+          refs,
+          diagnoseAutomaticReopenRefusal(doc, recovery.producerStageId(), cause, evidence),
+          cause,
+          evidence,
+          emitted);
+    }
+    if (recovery.action() == ProducerOwnedRecovery.Action.PARK
+        && cause.isBindingIdentityMismatch()) {
+      HaltRecoveryGuard guard =
+          catalogHasBeenWritten(doc.run().runId())
+              ? HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN
+              : diagnoseAutomaticReopenRefusal(
+                  doc, recovery.producerStageId(), cause, evidence);
+      return waitGuardedRecovery(doc, stage, refs, guard, cause, evidence, emitted);
+    }
     if (recovery.action() == ProducerOwnedRecovery.Action.ASK_CLARIFICATION) {
       String ownerArtifact =
           RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId());
@@ -1247,7 +1267,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           List.of(new Reference(Kind.DESIGN_PLAN_REPORT, failureId, "rejected-plan"));
     }
     List<SemanticFinding> semanticFindings =
-        semanticFindingsForRejectedGraph(runId, rejectedRefs, stage.stageId(), failureId, findings, evidenceText);
+        semanticFindingsForRejectedGraph(
+            runId, rejectedRefs, stage.stageId(), failureId, findings, evidenceText);
     RecoveryEvidence draftEvidence =
         new RecoveryEvidence(
             1,
@@ -1874,15 +1895,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (catalogHasBeenWritten(doc.run().runId())) {
       return false;
     }
-    boolean approved =
-        doc.run().stages().stream()
-            .filter(stage -> owner.equals(stage.stageId()))
-            .findFirst()
-            .map(
-                stage ->
-                    stage.approvedArtifactId() != null && !stage.approvedArtifactId().isBlank())
-            .orElse(false);
-    if (!approved) {
+    if (!isReopenableOwner(doc, owner, cause)) {
       return false;
     }
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
@@ -1893,6 +1906,87 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         InputOrigin.TRUSTED,
         RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC,
         ToolCallFingerprints.failureSignature(evidence));
+  }
+
+  private boolean isReopenableOwner(
+      ProductPipelineRunDocument doc, String owner, RecoveryCause cause) {
+    StageSnapshot snapshot =
+        doc.run().stages().stream()
+            .filter(stage -> owner.equals(stage.stageId()))
+            .findFirst()
+            .orElse(null);
+    if (snapshot == null) {
+      return false;
+    }
+    if (snapshot.approvedArtifactId() != null && !snapshot.approvedArtifactId().isBlank()) {
+      return true;
+    }
+    return cause != null
+        && cause.isBindingIdentityMismatch()
+        && snapshot.status() == StageStatus.SUCCEEDED
+        && snapshot.outputRefs() != null
+        && !snapshot.outputRefs().isEmpty();
+  }
+
+  private HaltRecoveryGuard diagnoseAutomaticReopenRefusal(
+      ProductPipelineRunDocument doc, String owner, RecoveryCause cause, String evidence) {
+    if (catalogHasBeenWritten(doc.run().runId())) {
+      return HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN;
+    }
+    if (owner == null
+        || owner.isBlank()
+        || owner.equals(doc.run().currentStageId())
+        || !isReopenableOwner(doc, owner, cause)) {
+      return HaltRecoveryGuard.BLANK_OR_UNAPPROVED_OWNER;
+    }
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    RecoveryAttemptKey key = recoveryLedger.key(owner, cause, artifact, doc.transitions());
+    String legacy = ToolCallFingerprints.failureSignature(evidence == null ? "" : evidence);
+    if (recoveryLedger.ownerAlreadyReopened(doc.transitions(), key, legacy)) {
+      return HaltRecoveryGuard.OWNER_ALREADY_REOPENED;
+    }
+    return HaltRecoveryGuard.MAX_CAUSAL_REOPENS;
+  }
+
+  private StageExecutionResult waitGuardedRecovery(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      HaltRecoveryGuard guard,
+      RecoveryCause cause,
+      String evidence,
+      List<PipelineSignal> emitted) {
+    HaltRecoveryGuard named = guard == null ? HaltRecoveryGuard.MAX_CAUSAL_REOPENS : guard;
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
+    RecoveryAttemptKey key =
+        recoveryLedger.key(stage.stageId(), cause, artifact, doc.transitions());
+    String body =
+        named.cardSentence()
+            + HaltRecoveryGuard.remainingLine(
+                recoveryLedger.remaining(doc.transitions(), key, InputOrigin.TRUSTED));
+    String details = terminalRecoveryDetails(evidence, evidence, doc.run().runId(), PROGRESS_NONE);
+    String prompt =
+        PipelineGates.tagGuard(
+            PipelineGates.tagRecoveryDetails(
+                PipelineGates.retag(PipelineGates.RECOVERY_REPEATED, body), details, null),
+            named.name());
+    String durablePrompt =
+        PipelineGates.tagHaltIdentity(
+            prompt, ToolCallFingerprints.failureSignature(evidence));
+    List<StageSnapshot> stages =
+        refs.isEmpty()
+            ? doc.run().stages()
+            : markStageOutputs(doc, stage.stageId(), refs, StageStatus.WAITING_FOR_INPUT);
+    commitStatus(
+        doc,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
+        stages,
+        durablePrompt,
+        ProductPipelineRunSupport.haltEvidence(attributesByRun.get(doc.run().runId()), null));
+    emitted.add(new PipelineSignal.WaitingForInput(stage.stageId(), prompt));
+    return new StageExecutionResult(
+        new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
   }
 
   private static boolean isCurrentUnapprovedOwner(ProductPipelineRunDocument doc, String owner) {

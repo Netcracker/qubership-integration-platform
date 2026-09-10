@@ -191,6 +191,56 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
+  void aBindingIdentityMismatchReopensTheSemanticProducer() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.bindingIdentityMismatch("create-work-order"),
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-input", "chain-semantic-revision"),
+                new OwnerCandidate("requirement-discovery", "catalog-binding-hint")),
+            false,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("design-input", route.producerStageId());
+  }
+
+  @Test
+  void aBindingIdentityMismatchAfterCatalogWriteStopsSafely() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.bindingIdentityMismatch("create-work-order"),
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-input", "chain-semantic-revision")),
+            true,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-input", route.producerStageId());
+  }
+
+  @Test
+  void aBindingIdentityMismatchWithoutASemanticProducerStopsSafely() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.bindingIdentityMismatch("create-work-order"),
+            EXECUTION_CANDIDATES,
+            false,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-execution", route.producerStageId());
+  }
+
+  @Test
   void aDiagnosedOwnerIsUsedOnlyWhenTheFindingDoesNotNameAProducer() {
     ProducerOwnedRecovery.Route route =
         route(
