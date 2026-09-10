@@ -262,6 +262,30 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
+  void mappingContractIgnoresNonBriefConsumedProvenance() {
+    ProducerOwnedRecovery.Route route =
+        ProducerOwnedRecovery.route(
+            new ProducerOwnedRecovery.Request(
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                RecoveryCause.mappingContract(
+                    List.of(
+                        new PlanValidationFinding(
+                            "MAPPING_UNKNOWN_TARGET",
+                            "Target path $.preserved.executionId is absent from the target contract.",
+                            true))),
+                EXECUTION_CANDIDATES,
+                false,
+                0,
+                1,
+                Optional.empty(),
+                Optional.of("design-planning")));
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("requirement-analysis", route.producerStageId());
+  }
+
+  @Test
   void mappingContractDoesNotFallBackToThePlanProducer() {
     ProducerOwnedRecovery.Route route =
         route(
