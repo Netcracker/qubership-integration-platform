@@ -1415,6 +1415,9 @@ components:
         containsSchedulerElements:
           description: "Whether chain contains scheduler elements"
           type: "boolean"
+        createdBy:
+          description: "Name of the user who created that deployment"
+          type: "string"
         createdWhen:
           description: "Timestamp of object creation"
           format: "int64"
