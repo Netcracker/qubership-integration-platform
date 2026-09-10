@@ -1111,27 +1111,35 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     return new PinnedRunContext(manifest, pin);
   }
 
-  /** Retains the exact requirement brief reference selected before execution brief enrichment. */
+  /** Retains the requirement brief reference this execution attempt compiled. */
   private static List<Reference> consumedArtifactsForRun(
       PinnedRunContext pinned, List<Reference> preSatisfiedArtifactRefs) {
+    Reference preSatisfiedBrief = firstRequirementBriefReference(preSatisfiedArtifactRefs);
     List<Reference> consumed = new ArrayList<>();
     if (pinned != null && pinned.manifest() != null) {
       for (Reference ref : pinned.manifest().sourceReferences()) {
-        if (ref != null) {
+        if (ref != null
+            && (ref.kind() != Kind.REQUIREMENT_BRIEF || preSatisfiedBrief == null)) {
           consumed.add(ref);
         }
       }
     }
-    if (consumed.stream().noneMatch(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF)
-        && preSatisfiedArtifactRefs != null) {
-      for (Reference ref : preSatisfiedArtifactRefs) {
-        if (ref != null && ref.kind() == Kind.REQUIREMENT_BRIEF) {
-          consumed.add(ref);
-          break;
-        }
-      }
+    if (preSatisfiedBrief != null) {
+      consumed.add(preSatisfiedBrief);
     }
     return List.copyOf(consumed);
+  }
+
+  private static Reference firstRequirementBriefReference(List<Reference> references) {
+    if (references == null) {
+      return null;
+    }
+    for (Reference ref : references) {
+      if (ref != null && ref.kind() == Kind.REQUIREMENT_BRIEF) {
+        return ref;
+      }
+    }
+    return null;
   }
 
   private GraphPatchExecutionContext buildExecutionContext(
