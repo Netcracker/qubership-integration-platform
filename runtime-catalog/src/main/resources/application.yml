@@ -274,6 +274,7 @@ qip:
         enabled: true
   export:
     legacy-format: ${QIP_EXPORT_LEGACY_FORMAT:false} # Deprecated since 25.3
+    legacy-resource-names: ${QIP_EXPORT_LEGACY_RESOURCE_NAMES:false}
     remove-unused-specifications: ${QIP_EXPORT_REMOVE_UNUSED_SPECS:true}
   import:
     session-lifetime-minutes: ${IMPORT_LOG_LIFETIME_MINUTES:10080}
