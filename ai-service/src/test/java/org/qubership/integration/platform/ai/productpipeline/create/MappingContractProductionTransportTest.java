@@ -21,7 +21,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
@@ -36,6 +35,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
@@ -57,12 +57,14 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
-import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ApprovedCompilerExecutionRunner;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.BindingResolutionResult;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ChainSemanticGraphCompiler;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionInputs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DefaultApprovedCompilerExecutionRunner;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionBriefFactory;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ExecutorCatalogBindingAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
@@ -73,6 +75,9 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
@@ -119,9 +124,10 @@ class MappingContractProductionTransportTest {
   void setUp() throws Exception {
     PlanCompilationTestSupport.memory();
     Clock clock = Clock.fixed(FIXED, ZoneOffset.UTC);
-    artifacts =
-        new CompilationArtifacts(new InMemoryArtifactBlobStore(), MAPPER, clock);
+    InMemoryArtifactBlobStore blobStore = new InMemoryArtifactBlobStore();
+    artifacts = new CompilationArtifacts(blobStore, MAPPER, clock);
     artifactStore = new ProductPipelineArtifactStore(artifacts);
+    ProductPipelineRunStore runStore = new ProductPipelineRunStore(blobStore, MAPPER, clock);
     InMemorySkillWorkspaceStore workspaceStore =
         new InMemorySkillWorkspaceStore(new ChainPlanStore());
     SkillExecutorRegistry skillRegistry = mock(SkillExecutorRegistry.class);
@@ -167,6 +173,7 @@ class MappingContractProductionTransportTest {
     ResolvedServiceCallBinding binding = sampleBinding();
     ResolvedCompilerDag dag = scriptGeneratorDag();
     RunManifest manifest = emptySourceReferencesManifest(dag);
+    persistRun(runStore, manifest);
     engineRequest =
         new CompilerDagExecutionRequest(
             RUN_ID,
@@ -176,25 +183,19 @@ class MappingContractProductionTransportTest {
             revision,
             dag,
             List.of("cip-script-generator"),
-            List.of(),
+            List.of(storedBrief.reference()),
             CompilerExecutionSeed.forCreate(
                 CONVERSATION_ID, brief, revision, graph, List.of(binding)));
 
+    ChainSemanticGraphCompiler graphCompiler = mock(ChainSemanticGraphCompiler.class);
+    when(graphCompiler.compile(any(), any(), anyList(), any())).thenReturn(graph);
     ApprovedCompilerExecutionRunner engineRunner =
-        new ApprovedCompilerExecutionRunner() {
-          @Override
-          public CompilerDagExecutionResult execute(
-              DesignExecutionPlan approvedPlan,
-              ChainSemanticRevision ignoredRevision,
-              List<ResolvedServiceCallBinding> ignoredBindings,
-              RunManifest runManifest,
-              String attemptId,
-              StageRepairEvidence repairEvidence,
-              ChainPlanGraph priorGraph,
-              BiConsumer<String, String> skillProgress) {
-            return engine.execute(engineRequest, skillProgress).await().indefinitely();
-          }
-        };
+        new DefaultApprovedCompilerExecutionRunner(
+            engine,
+            runStore,
+            artifactStore,
+            graphCompiler,
+            new ClasspathCompilerContractRepository());
     ExecutorCatalogBindingAdapter bindingAdapter = mock(ExecutorCatalogBindingAdapter.class);
     when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any()))
         .thenReturn(List.of(new BindingResolutionResult.Resolved(binding)));
@@ -208,7 +209,7 @@ class MappingContractProductionTransportTest {
   }
 
   @Test
-  void productionManifestFillsConsumedBriefIdentityOnFindings() {
+  void preSatisfiedBriefReferenceFillsConsumedIdentityOnFindings() {
     assertTrue(engineRequest.runManifest().sourceReferences().isEmpty());
     MappingContractBlockedException blocked =
         assertThrows(
@@ -252,7 +253,13 @@ class MappingContractProductionTransportTest {
   }
 
   @Test
-  void findingsTravelPipelineEngineAndAdapterAsMappingContract() {
+  void findingsKeepLoadedBriefIdentityThroughProductionRunnerEnrichment() {
+    RequirementBrief loadedBrief =
+        artifactStore.payload(storedBrief, RequirementBrief.class);
+    assertNotEquals(
+        loadedBrief,
+        DesignExecutionBriefFactory.build(loadedBrief, adapterInputs.revision()));
+
     ExecutionResult result = adapter.executeAfterApproval(adapterInputs);
 
     assertEquals(StageOutcomeClass.VALIDATION_FAILURE, result.outcomeClass());
@@ -263,6 +270,19 @@ class MappingContractProductionTransportTest {
     assertEquals("$.preserved.executionId", finding.mappingDetails().targetPath());
     assertEquals(storedBrief.artifactId(), finding.mappingDetails().consumedBriefArtifactId());
     assertEquals(storedBrief.contentHash(), finding.mappingDetails().consumedBriefContentHash());
+  }
+
+  private void persistRun(ProductPipelineRunStore runStore, RunManifest manifest) {
+    Reference manifestRef = appendRunArtifact(Kind.RUN_MANIFEST, "1", manifest).reference();
+    runStore.create(
+        new RunSnapshot(
+            RUN_ID,
+            CONVERSATION_ID,
+            1L,
+            RunStatus.RUNNING,
+            "design-execution",
+            List.of(),
+            manifestRef));
   }
 
   private ExecutionInputs adapterInputs(ChainSemanticRevision revision, RunManifest manifest) {
@@ -422,7 +442,7 @@ class MappingContractProductionTransportTest {
         "createOrder",
         "Orders API",
         List.of(intent),
-        List.of());
+        List.of("Preserve trace identifiers"));
   }
 
   private static ChainPlanGraph sampleGraph() {
