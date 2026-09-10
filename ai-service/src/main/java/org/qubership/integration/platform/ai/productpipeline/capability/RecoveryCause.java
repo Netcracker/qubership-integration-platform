@@ -99,6 +99,11 @@ public record RecoveryCause(
         && BINDING_IDENTITY_MISMATCH_FACT.equals(requestedFact);
   }
 
+  /** True when the halt is the typed missing-brief-facts defect. */
+  public boolean isMissingBriefFacts() {
+    return causeCode == RecoveryCauseCode.MISSING_BRIEF_FACTS;
+  }
+
   /** Occurrence the missing-hint cause named, when present. */
   public Optional<String> unresolvedInteractionId() {
     if (!isMissingCatalogBinding()) {

@@ -324,6 +324,11 @@ public final class RecoveryAttemptLedger {
     return used;
   }
 
+  /** True when the absolute per-run recovery ceiling is spent. */
+  public boolean perRunCeilingReached(List<RunTransition> transitions) {
+    return ceilingReached(transitions);
+  }
+
   private boolean ceilingReached(List<RunTransition> transitions) {
     if (transitions == null || limits.perRunCeiling() <= 0) {
       return true;
