@@ -24,7 +24,7 @@
 
   <properties>
     <revision>1.2.3</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>-1-istio-SNAPSHOT</changelist>
 
     <!-- Last released version of the in-repo library, kept equal to integration-build-pipeline's revision by
          scripts/check-version-invariants.sh. The dependency below appends ${changelist}, so a normal build

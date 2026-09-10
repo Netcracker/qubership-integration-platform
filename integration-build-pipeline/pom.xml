@@ -30,7 +30,7 @@
 
   <properties>
     <revision>1.2.3</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>-1-istio-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

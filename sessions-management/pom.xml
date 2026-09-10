@@ -23,7 +23,7 @@
 
   <properties>
     <revision>1.2.3</revision>
-    <changelist>-SNAPSHOT</changelist>
+    <changelist>-1-istio-SNAPSHOT</changelist>
 
     <!-- BOMs -->
     <!-- 3rd party dependencies -->
