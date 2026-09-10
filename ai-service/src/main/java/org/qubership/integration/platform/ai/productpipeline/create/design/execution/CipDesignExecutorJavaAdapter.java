@@ -441,11 +441,12 @@ public class CipDesignExecutorJavaAdapter {
                 RecoveryCause.catalogResolution("catalog operation")));
       }
       if (result instanceof BindingResolutionResult.Failed failed) {
+        RecoveryCause cause =
+            failed.isMissingHint()
+                ? RecoveryCause.missingCatalogBinding(failed.serviceCallId())
+                : RecoveryCause.catalogResolution(failed.requestedFact());
         return Optional.of(
-            ExecutionResult.failure(
-                failed.outcomeClass(),
-                failed.reason(),
-                RecoveryCause.catalogResolution(failed.requestedFact())));
+            ExecutionResult.failure(failed.outcomeClass(), failed.reason(), cause));
       }
     }
     return Optional.empty();

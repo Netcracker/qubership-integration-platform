@@ -105,10 +105,7 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       if (!required) {
         return null;
       }
-      return new BindingResolutionResult.Failed(
-          occurrenceId,
-          "no catalog binding hint for interactionId=" + occurrenceId,
-          StageOutcomeClass.DOMAIN_FAILURE);
+      return BindingResolutionResult.Failed.missingHint(occurrenceId);
     }
     CatalogBindingHint observed = lookup.hint();
     Optional<RevalidatedCatalogMatch> revalidated = revalidateHint(conversationId, observed);

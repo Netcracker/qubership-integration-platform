@@ -97,6 +97,14 @@ public final class ProducerOwnedRecovery {
       }
     }
     if (cause.causeCode() == RecoveryCauseCode.CATALOG_RESOLUTION) {
+      if (cause.isMissingCatalogBinding()) {
+        return OwnerCandidateSet.catalogBindingProducerStageId(request.candidates(), failed)
+            .filter("requirement-discovery"::equals)
+            .map(
+                producer ->
+                    new Route(Action.ASK_CLARIFICATION, producer, cause.requestedFact()))
+            .orElseGet(() -> new Route(Action.PARK, failed));
+      }
       return new Route(Action.ASK_CLARIFICATION, failed, cause.requestedFact());
     }
     FindingOwnerCategory category = HaltProducerCauseTable.ownerCategory(cause.causeCode());

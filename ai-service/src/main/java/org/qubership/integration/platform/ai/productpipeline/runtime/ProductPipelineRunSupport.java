@@ -48,10 +48,12 @@ import org.qubership.integration.platform.ai.productpipeline.create.FailureNarra
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidate;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.PauseQuestionResult;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapWait;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
@@ -1314,6 +1316,10 @@ public final class ProductPipelineRunSupport {
               if (asked.isNotAQuestion()) {
                 String gate =
                     PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+                if (PipelineGates.STAGE_CLARIFICATION.equals(gate)
+                    && currentRecoveryCause(command.runId()).isMissingCatalogBinding()) {
+                  return applyMissingBindingClarification(doc, command);
+                }
                 if (PipelineGates.STAGE_RETRY.equals(gate)
                     || PipelineGates.isContextualRecoveryGate(gate)) {
                   return reemitHaltCard(doc);
@@ -1371,6 +1377,60 @@ public final class ProductPipelineRunSupport {
     } else {
       attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, priorFollowUp);
     }
+  }
+
+  /**
+   * Resolves a missing catalog binding from clarification text and persists it on the binding
+   * producer. Saving the text and retrying execution against unchanged hints does not count.
+   */
+  private Multi<PipelineSignal> applyMissingBindingClarification(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    RecoveryCause cause = currentRecoveryCause(command.runId());
+    String interactionId = cause.unresolvedInteractionId().orElse("");
+    String producerStageId = diagnosedOwnerOf(command.runId());
+    if (!"requirement-discovery".equals(producerStageId) || interactionId.isBlank()) {
+      return reemitHaltCard(doc);
+    }
+    Optional<CatalogBindingHint> hint =
+        capabilities
+            .find(RequirementDiscoveryCapability.CAPABILITY_ID)
+            .filter(RequirementDiscoveryCapability.class::isInstance)
+            .map(RequirementDiscoveryCapability.class::cast)
+            .flatMap(
+                discovery ->
+                    discovery.bindMissingInteraction(
+                        doc.run().conversationId(), interactionId, command.text()));
+    if (hint.isEmpty()) {
+      return reemitHaltCard(doc);
+    }
+    artifactStore.append(
+        new AppendCommand(
+            command.runId(),
+            Kind.CATALOG_BINDING_HINT,
+            "1",
+            RequirementDiscoveryCapability.CAPABILITY_ID,
+            "1",
+            hint.get(),
+            List.of(),
+            null,
+            provenance(
+                command.runId(),
+                producerStageId,
+                RequirementDiscoveryCapability.CAPABILITY_ID)));
+    Map<String, Object> attributes = attributesByRun.get(command.runId());
+    if (attributes != null) {
+      attributes.remove(HALT_FOLLOW_UP_TEXT_ATTR);
+    }
+    commitStatus(
+        doc,
+        RunStatus.RUNNING,
+        StageStatus.RUNNING,
+        doc.run().stages(),
+        "accepted binding clarification",
+        null,
+        command.commandId(),
+        command.commandPayloadHash());
+    return Multi.createFrom().empty();
   }
 
   /** Outcome class of the halt holding this run, or {@code null} when none was recorded. */
@@ -2081,7 +2141,7 @@ public final class ProductPipelineRunSupport {
         .orElse(false);
   }
 
-  private static boolean isHaltFollowUp(ProductPipelineRunDocument doc, String text) {
+  private boolean isHaltFollowUp(ProductPipelineRunDocument doc, String text) {
     if (PipelineGates.isHaltCardAction(text) || doc.run().status() != RunStatus.WAITING_FOR_INPUT) {
       return false;
     }
@@ -2090,7 +2150,10 @@ public final class ProductPipelineRunSupport {
     }
     String gate = PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
     if (PipelineGates.STAGE_CLARIFICATION.equals(gate)) {
-      return OwnerCandidateSet.requestsNamedStage(text);
+      if (OwnerCandidateSet.requestsNamedStage(text)) {
+        return true;
+      }
+      return currentRecoveryCause(doc.run().runId()).isMissingCatalogBinding();
     }
     return PipelineGates.isRecoverableHaltGate(gate);
   }
