@@ -994,6 +994,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                   doc, recovery.producerStageId(), cause, evidence);
       return waitGuardedRecovery(doc, stage, refs, guard, cause, evidence, emitted);
     }
+    if (offersManualBriefEdit(doc, stage, recovery, cause, evidence)) {
+      return waitEditableBriefRecovery(
+          doc, stage, refs, cause, evidence, recovery.producerStageId(), emitted);
+    }
     if (recovery.action() == ProducerOwnedRecovery.Action.ASK_CLARIFICATION) {
       String ownerArtifact =
           RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId());
@@ -1113,6 +1117,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 || repeatedHaltCount(doc, stage.stageId(), haltIdentity) + 1
                     >= repeatedFailureThreshold);
     if (escalated) {
+      if (offersManualBriefEdit(doc, stage, cause)) {
+        return waitEditableBriefRecovery(
+            doc, stage, refs, cause, evidence, briefOwnerStageId(doc, stage), emitted);
+      }
       return waitContextualRecovery(
           doc,
           stage,
@@ -1424,6 +1432,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             catalogHasBeenWritten(runId),
             identicalRejection);
     if (identicalRejection) {
+      if (offersManualBriefEdit(doc, stage, cause)) {
+        return waitEditableBriefRecovery(
+            doc, stage, refs, cause, evidenceText, briefOwnerStageId(doc, stage), emitted);
+      }
       return waitContextualRecovery(
           doc,
           stage,
@@ -1499,6 +1511,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
 
     if (accepted.action() == RecoveryAction.PARK) {
+      if (offersManualBriefEdit(doc, stage, cause)) {
+        return waitEditableBriefRecovery(
+            doc, stage, refs, cause, evidenceText, briefOwnerStageId(doc, stage), emitted);
+      }
       return waitContextualRecovery(
           doc,
           stage,
@@ -1946,6 +1962,133 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return HaltRecoveryGuard.OWNER_ALREADY_REOPENED;
     }
     return HaltRecoveryGuard.MAX_CAUSAL_REOPENS;
+  }
+
+  /**
+   * Known pre-write brief defect after automatic reopen is spent. Edit requirements stays
+   * available; identity-mismatch G3 stops and post-write parks do not take this path.
+   */
+  private boolean offersManualBriefEdit(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      ProducerOwnedRecovery.Route recovery,
+      RecoveryCause cause,
+      String evidence) {
+    if (!offersManualBriefEdit(doc, stage, cause)) {
+      return false;
+    }
+    String owner = recovery == null ? "" : recovery.producerStageId();
+    if (owner.isBlank() || owner.equals(stage.stageId())) {
+      return false;
+    }
+    ProducerOwnedRecovery.Action action =
+        recovery == null ? ProducerOwnedRecovery.Action.PARK : recovery.action();
+    if (action == ProducerOwnedRecovery.Action.REOPEN_UPSTREAM) {
+      return !canCausalReopen(doc, owner, cause, evidence);
+    }
+    return action == ProducerOwnedRecovery.Action.PARK;
+  }
+
+  private boolean offersManualBriefEdit(
+      ProductPipelineRunDocument doc, ProfileStage stage, RecoveryCause cause) {
+    if (cause == null || !cause.isMissingBriefFacts()) {
+      return false;
+    }
+    if (catalogHasBeenWritten(doc.run().runId())) {
+      return false;
+    }
+    if (recoveryLedger.perRunCeilingReached(doc.transitions())) {
+      return false;
+    }
+    String owner = briefOwnerStageId(doc, stage);
+    return !owner.isBlank() && !owner.equals(stage.stageId());
+  }
+
+  private String briefOwnerStageId(ProductPipelineRunDocument doc, ProfileStage stage) {
+    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    String failed = stage == null ? "" : stage.stageId();
+    return OwnerCandidateSet.selectOwner(
+            "",
+            ownerCandidates(profile, failed),
+            failed,
+            RecoveryCause.of(RecoveryCauseCode.MISSING_BRIEF_FACTS),
+            "")
+        .owner()
+        .orElse("");
+  }
+
+  private StageExecutionResult waitEditableBriefRecovery(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      RecoveryCause cause,
+      String evidence,
+      String ownerStageId,
+      List<PipelineSignal> emitted) {
+    String owner = ownerStageId == null ? "" : ownerStageId;
+    if (owner.isBlank()) {
+      owner = briefOwnerStageId(doc, stage);
+    }
+    if (!owner.isBlank()) {
+      putRunAttribute(
+          doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, owner);
+    }
+    String findings = cause == null ? "" : cause.formattedFindings();
+    String diagnostic = findings.isBlank() ? evidence : findings;
+    return waitContextualRecovery(
+        doc,
+        stage,
+        refs,
+        PipelineGates.RECOVERY_REVISE_BRIEF,
+        exhaustedBriefRecoverySummary(cause),
+        terminalRecoveryDetails(diagnostic, evidence, doc.run().runId(), PROGRESS_NONE),
+        null,
+        emitted);
+  }
+
+  static String exhaustedBriefRecoverySummary(RecoveryCause cause) {
+    List<String> fields = unresolvedBriefFields(cause);
+    if (fields.isEmpty()) {
+      return "The previous correction did not resolve the listed fields.";
+    }
+    return "The previous correction did not resolve " + joinListedFields(fields) + ".";
+  }
+
+  private static List<String> unresolvedBriefFields(RecoveryCause cause) {
+    if (cause == null || cause.findings().isEmpty()) {
+      return List.of();
+    }
+    List<String> fields = new ArrayList<>();
+    for (PlanValidationFinding finding : cause.findings()) {
+      if (finding == null || finding.message() == null) {
+        continue;
+      }
+      String message = finding.message().trim();
+      if (message.startsWith("$.")) {
+        fields.add(message);
+      }
+    }
+    return List.copyOf(fields);
+  }
+
+  private static String joinListedFields(List<String> fields) {
+    if (fields.isEmpty()) {
+      return "";
+    }
+    if (fields.size() == 1) {
+      return fields.getFirst();
+    }
+    if (fields.size() == 2) {
+      return fields.get(0) + " and " + fields.get(1);
+    }
+    StringBuilder text = new StringBuilder();
+    for (int index = 0; index < fields.size(); index++) {
+      if (index > 0) {
+        text.append(index == fields.size() - 1 ? ", and " : ", ");
+      }
+      text.append(fields.get(index));
+    }
+    return text.toString();
   }
 
   private StageExecutionResult waitGuardedRecovery(
