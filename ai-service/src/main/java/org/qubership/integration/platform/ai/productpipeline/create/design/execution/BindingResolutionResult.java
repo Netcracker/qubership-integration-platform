@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignArtifacts;
 
@@ -63,6 +64,19 @@ public sealed interface BindingResolutionResult {
 
     public Failed(String serviceCallId, String reason) {
       this(serviceCallId, reason, StageOutcomeClass.DOMAIN_FAILURE, "catalog service");
+    }
+
+    /** Absence of a hint for {@code occurrenceId}, distinct from a stale or ambiguous match. */
+    public static Failed missingHint(String occurrenceId) {
+      return new Failed(
+          occurrenceId,
+          "no catalog binding hint for interactionId=" + occurrenceId,
+          StageOutcomeClass.DOMAIN_FAILURE,
+          RecoveryCause.MISSING_CATALOG_BINDING_FACT);
+    }
+
+    public boolean isMissingHint() {
+      return RecoveryCause.MISSING_CATALOG_BINDING_FACT.equals(requestedFact);
     }
   }
 }

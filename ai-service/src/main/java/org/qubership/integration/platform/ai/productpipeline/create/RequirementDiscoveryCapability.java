@@ -3,9 +3,11 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import io.smallrye.mutiny.Context;
@@ -27,9 +29,11 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /**
  * Product-pipeline requirement discovery stage. Uses brainstorming capture only; analysis never
@@ -45,28 +49,36 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private final GatherRequirementsPromptBuilder promptBuilder;
   private final BiFunction<String, String, Multi<ChatEvent>> gatherRunner;
   private final ConversationService conversationService;
+  private final CatalogBindingMatcher catalogBindingMatcher;
 
   @Inject
   public RequirementDiscoveryCapability(
       GatherRequirementsAgent gatherRequirementsAgent,
       RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder,
-      ConversationService conversationService) {
-    this(gatherRequirementsAgent, draftStore, promptBuilder, null, conversationService);
+      ConversationService conversationService,
+      CatalogBindingMatcher catalogBindingMatcher) {
+    this(
+        gatherRequirementsAgent,
+        draftStore,
+        promptBuilder,
+        null,
+        conversationService,
+        catalogBindingMatcher);
   }
 
   RequirementDiscoveryCapability(
       GatherRequirementsAgent gatherRequirementsAgent,
       RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder) {
-    this(gatherRequirementsAgent, draftStore, promptBuilder, null, null);
+    this(gatherRequirementsAgent, draftStore, promptBuilder, null, null, null);
   }
 
   RequirementDiscoveryCapability(
       GatherRequirementsAgent gatherRequirementsAgent,
       RequirementDraftStore draftStore,
       BiFunction<String, String, Multi<ChatEvent>> gatherRunner) {
-    this(gatherRequirementsAgent, draftStore, null, gatherRunner, null);
+    this(gatherRequirementsAgent, draftStore, null, gatherRunner, null, null);
   }
 
   RequirementDiscoveryCapability(
@@ -74,7 +86,15 @@ public class RequirementDiscoveryCapability implements StageCapability {
       RequirementDraftStore draftStore,
       GatherRequirementsPromptBuilder promptBuilder,
       BiFunction<String, String, Multi<ChatEvent>> gatherRunner) {
-    this(gatherRequirementsAgent, draftStore, promptBuilder, gatherRunner, null);
+    this(gatherRequirementsAgent, draftStore, promptBuilder, gatherRunner, null, null);
+  }
+
+  public RequirementDiscoveryCapability(
+      GatherRequirementsAgent gatherRequirementsAgent,
+      RequirementDraftStore draftStore,
+      BiFunction<String, String, Multi<ChatEvent>> gatherRunner,
+      CatalogBindingMatcher catalogBindingMatcher) {
+    this(gatherRequirementsAgent, draftStore, null, gatherRunner, null, catalogBindingMatcher);
   }
 
   RequirementDiscoveryCapability(
@@ -83,11 +103,62 @@ public class RequirementDiscoveryCapability implements StageCapability {
       GatherRequirementsPromptBuilder promptBuilder,
       BiFunction<String, String, Multi<ChatEvent>> gatherRunner,
       ConversationService conversationService) {
+    this(
+        gatherRequirementsAgent,
+        draftStore,
+        promptBuilder,
+        gatherRunner,
+        conversationService,
+        null);
+  }
+
+  RequirementDiscoveryCapability(
+      GatherRequirementsAgent gatherRequirementsAgent,
+      RequirementDraftStore draftStore,
+      GatherRequirementsPromptBuilder promptBuilder,
+      BiFunction<String, String, Multi<ChatEvent>> gatherRunner,
+      ConversationService conversationService,
+      CatalogBindingMatcher catalogBindingMatcher) {
     this.gatherRequirementsAgent = gatherRequirementsAgent;
     this.draftStore = Objects.requireNonNull(draftStore, "draftStore");
     this.promptBuilder = promptBuilder;
     this.gatherRunner = gatherRunner;
     this.conversationService = conversationService;
+    this.catalogBindingMatcher = catalogBindingMatcher;
+  }
+
+  /**
+   * Resolves an unambiguous catalog name for a missing interaction. Empty when the matcher is
+   * absent or the name is not a single catalog operation.
+   */
+  public Optional<CatalogBindingHint> bindMissingInteraction(
+      String conversationId, String interactionId, String answer) {
+    if (catalogBindingMatcher == null
+        || interactionId == null
+        || interactionId.isBlank()
+        || answer == null
+        || answer.isBlank()) {
+      return Optional.empty();
+    }
+    String name = answer.trim();
+    CatalogBindingMatcher.MatchResult result =
+        catalogBindingMatcher.match("service-call", name, name, conversationId);
+    if (!(result instanceof CatalogBindingMatcher.MatchResult.Exact exact)) {
+      return Optional.empty();
+    }
+    String operation =
+        exact.match().operationName() == null || exact.match().operationName().isBlank()
+            ? name
+            : exact.match().operationName();
+    RequirementFlow.Interaction interaction =
+        new RequirementFlow.Interaction(
+            interactionId.trim(),
+            RequirementFlow.Direction.OUTBOUND,
+            name,
+            operation,
+            "");
+    return Optional.of(
+        CatalogBindingHint.from(interaction, exact.match(), "catalog", Instant.now()));
   }
 
   @Override

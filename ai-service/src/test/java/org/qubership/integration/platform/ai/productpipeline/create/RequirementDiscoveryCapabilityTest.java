@@ -15,6 +15,7 @@ import io.smallrye.mutiny.Multi;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +26,7 @@ import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDo
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
@@ -44,6 +46,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.Artifact
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
@@ -1587,5 +1590,33 @@ class RequirementDiscoveryCapabilityTest {
                 null)),
         new TerminalPolicy("requirement-discovery", "PLAN_APPROVED"),
         List.of("requirement-discovery"));
+  }
+
+  @Test
+  void bindMissingInteractionPersistsAnExactCatalogHit() {
+    CatalogSystemReadTool catalog = mock(CatalogSystemReadTool.class);
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto("sys-wfms", "WFMS Create Work Order", "EXTERNAL", "http");
+    CatalogRestClient.SpecificationDto spec =
+        new CatalogRestClient.SpecificationDto("spec-wfms", "WFMS v1", "sg-wfms", "sys-wfms");
+    CatalogRestClient.OperationDto operation =
+        new CatalogRestClient.OperationDto(
+            "op-create-wo", "Create Work Order", "POST", "/work-orders", "spec-wfms");
+    when(catalog.searchCatalogSystems("WFMS Create Work Order")).thenReturn(List.of(system));
+    when(catalog.getApiSpecifications("sys-wfms")).thenReturn(List.of(spec));
+    when(catalog.listCatalogOperations("conv-bind", "spec-wfms", "sys-wfms", null))
+        .thenReturn(List.of(operation));
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null, new RequirementDraftStore(), null, new CatalogBindingMatcher(catalog));
+
+    Optional<CatalogBindingHint> hint =
+        capability.bindMissingInteraction(
+            "conv-bind", "wfms-create-work-order", "WFMS Create Work Order");
+
+    assertTrue(hint.isPresent());
+    assertEquals("wfms-create-work-order", hint.get().interactionId());
+    assertEquals("sys-wfms", hint.get().systemId());
+    assertEquals("op-create-wo", hint.get().integrationOperationId());
   }
 }
