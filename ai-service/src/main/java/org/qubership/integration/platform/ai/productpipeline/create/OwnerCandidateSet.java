@@ -394,6 +394,22 @@ public final class OwnerCandidateSet {
     return producerStageId(candidates, failedStageId, BRIEF_ARTIFACT_TYPES);
   }
 
+  static boolean isBriefProducerStageId(
+      List<OwnerCandidate> candidates, String failedStageId, String stageId) {
+    if (candidates == null
+        || stageId == null
+        || stageId.isBlank()
+        || stageId.equals(failedStageId)) {
+      return false;
+    }
+    return candidates.stream()
+        .anyMatch(
+            candidate ->
+                candidate != null
+                    && stageId.equals(candidate.stageId())
+                    && BRIEF_ARTIFACT_TYPES.contains(candidate.artifactType()));
+  }
+
   /** Finds the last earlier stage that declares a requirement brief output. */
   public static Optional<String> briefProducerStageId(
       ProductPipelineProfile profile, String failedStageId) {

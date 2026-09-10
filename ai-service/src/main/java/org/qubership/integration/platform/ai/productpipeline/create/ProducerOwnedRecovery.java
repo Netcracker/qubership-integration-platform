@@ -206,7 +206,10 @@ public final class ProducerOwnedRecovery {
       Optional<String> briefProducer =
           OwnerCandidateSet.briefProducerStageId(candidates, failedStageId);
       return consumedBriefProducerStageId
-          .filter(stageId -> briefProducer.filter(stageId::equals).isPresent())
+          .filter(
+              stageId ->
+                  OwnerCandidateSet.isBriefProducerStageId(
+                      candidates, failedStageId, stageId))
           .or(() -> briefProducer);
     }
     Optional<String> fromFinding =
