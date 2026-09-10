@@ -304,6 +304,37 @@ class MappingContractGateTest {
   }
 
   @Test
+  void propertyLessTargetSchemaDoesNotInventUnknownTarget() {
+    MappingContract emptyTarget =
+        contractFrom(
+            """
+            {
+              "type": "object"
+            }
+            """);
+    MappingIntent intent =
+        new MappingIntent(
+            "map-init",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.orderId", "$.orderId", null, MappingRuleStatus.PROPOSED)));
+    MappingContractEvaluation evaluated =
+        MappingContractGate.evaluate(intent, SOURCE, emptyTarget);
+    assertTrue(
+        evaluated.findings().stream()
+            .noneMatch(
+                finding ->
+                    finding.code() == MappingFindingCode.MAPPING_UNKNOWN_TARGET
+                        || finding.code() == MappingFindingCode.MAPPING_MISSING_REQUIRED_TARGET),
+        evaluated.findings().toString());
+    assertFalse(evaluated.blocked());
+  }
+
+  @Test
   void completeRulesPass() {
     MappingIntent intent =
         new MappingIntent(

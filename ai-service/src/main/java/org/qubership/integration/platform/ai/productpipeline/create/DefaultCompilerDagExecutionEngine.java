@@ -818,7 +818,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             pinned.pin().compilerPackageDigest(),
             request.languageVersion(),
             request.requirementBrief(),
-            pinned.manifest().sourceReferences(),
+            consumedArtifactsForRun(request.runId(), pinned),
             inputGraph,
             node.ownership(),
             request.attemptId(),
@@ -1093,6 +1093,33 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     return new PinnedRunContext(manifest, pin);
   }
 
+  /**
+   * Create-runs start with empty manifest {@code sourceReferences}. The brief this attempt used is
+   * the latest {@code REQUIREMENT_BRIEF} on the run.
+   */
+  private List<Reference> consumedArtifactsForRun(String runId, PinnedRunContext pinned) {
+    List<Reference> consumed = new ArrayList<>();
+    if (pinned != null && pinned.manifest() != null) {
+      consumed.addAll(pinned.manifest().sourceReferences());
+    }
+    if (!containsRequirementBrief(consumed) && runId != null && !runId.isBlank()) {
+      artifactStore
+          .latest(runId, Kind.REQUIREMENT_BRIEF)
+          .map(Revision::reference)
+          .ifPresent(consumed::add);
+    }
+    return List.copyOf(consumed);
+  }
+
+  private static boolean containsRequirementBrief(List<Reference> refs) {
+    for (Reference ref : refs) {
+      if (ref != null && ref.kind() == Kind.REQUIREMENT_BRIEF) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private GraphPatchExecutionContext buildExecutionContext(
       CompilerPlanningRequest request,
       CompilerExecutionSeed seed,
@@ -1114,10 +1141,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         canonicalGraphDigest.sha256(inputGraph),
         pinned.pin().compilerPackageDigest(),
         request.languageVersion(),
-        request.requirementBrief(),
-        pinned.manifest().sourceReferences(),
-        inputGraph,
-        ownershipFor(node),
+            request.requirementBrief(),
+            consumedArtifactsForRun(request.runId(), pinned),
+            inputGraph,
+            ownershipFor(node),
         request.attemptId(),
         ChainEditSkillContext.targetNodeIds(workspace, node.skillId()));
   }
