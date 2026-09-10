@@ -175,7 +175,7 @@ public final class HaltProducerCauseTable {
   /** Owner category the router uses for {@code causeCode}. Exhaustive over {@link RecoveryCauseCode}. */
   static FindingOwnerCategory ownerCategory(RecoveryCauseCode causeCode) {
     return switch (causeCode) {
-      case SECURITY_POLICY, MISSING_BRIEF_FACTS, MAPPING_CONTRACT ->
+      case SECURITY_POLICY, MISSING_BRIEF_FACTS ->
           FindingOwnerCategory.POLICY_OR_BRIEF;
       case MISSING_REQUIRED_PROPERTY -> FindingOwnerCategory.PLAN_FILL;
       case UNKNOWN_PROPERTY -> FindingOwnerCategory.EXECUTION;
@@ -186,7 +186,8 @@ public final class HaltProducerCauseTable {
               VALIDATION_BLOCKER,
               MISSING_MANDATORY_INPUT,
               DOMAIN_FAILURE,
-              INTERNAL ->
+              INTERNAL,
+              MAPPING_CONTRACT ->
           FindingOwnerCategory.UNSPECIFIED;
     };
   }

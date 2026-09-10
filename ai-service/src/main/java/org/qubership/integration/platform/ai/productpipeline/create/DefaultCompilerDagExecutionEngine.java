@@ -818,7 +818,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             pinned.pin().compilerPackageDigest(),
             request.languageVersion(),
             request.requirementBrief(),
-            consumedArtifactsForRun(request.runId(), pinned),
+            consumedArtifactsForRun(request.runId(), pinned, request.requirementBrief()),
             inputGraph,
             node.ownership(),
             request.attemptId(),
@@ -1094,30 +1094,34 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
   }
 
   /**
-   * Create-runs start with empty manifest {@code sourceReferences}. The brief this attempt used is
-   * the latest {@code REQUIREMENT_BRIEF} on the run.
+   * Create-runs start with empty manifest {@code sourceReferences}. Attach the requirement brief
+   * this attempt consumed, matched by payload, not the latest store revision.
    */
-  private List<Reference> consumedArtifactsForRun(String runId, PinnedRunContext pinned) {
+  private List<Reference> consumedArtifactsForRun(
+      String runId, PinnedRunContext pinned, RequirementBrief consumedBrief) {
     List<Reference> consumed = new ArrayList<>();
     if (pinned != null && pinned.manifest() != null) {
-      consumed.addAll(pinned.manifest().sourceReferences());
+      for (Reference ref : pinned.manifest().sourceReferences()) {
+        if (ref != null && ref.kind() != Kind.REQUIREMENT_BRIEF) {
+          consumed.add(ref);
+        }
+      }
     }
-    if (!containsRequirementBrief(consumed) && runId != null && !runId.isBlank()) {
-      artifactStore
-          .latest(runId, Kind.REQUIREMENT_BRIEF)
-          .map(Revision::reference)
-          .ifPresent(consumed::add);
-    }
+    matchingConsumedBrief(runId, consumedBrief).map(Revision::reference).ifPresent(consumed::add);
     return List.copyOf(consumed);
   }
 
-  private static boolean containsRequirementBrief(List<Reference> refs) {
-    for (Reference ref : refs) {
-      if (ref != null && ref.kind() == Kind.REQUIREMENT_BRIEF) {
-        return true;
+  private Optional<Revision> matchingConsumedBrief(String runId, RequirementBrief consumedBrief) {
+    if (runId == null || runId.isBlank() || consumedBrief == null) {
+      return Optional.empty();
+    }
+    for (Revision revision : artifactStore.history(runId, Kind.REQUIREMENT_BRIEF)) {
+      RequirementBrief stored = artifactStore.payload(revision, RequirementBrief.class);
+      if (consumedBrief.equals(stored)) {
+        return Optional.of(revision);
       }
     }
-    return false;
+    return Optional.empty();
   }
 
   private GraphPatchExecutionContext buildExecutionContext(
@@ -1142,7 +1146,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         pinned.pin().compilerPackageDigest(),
         request.languageVersion(),
             request.requirementBrief(),
-            consumedArtifactsForRun(request.runId(), pinned),
+            consumedArtifactsForRun(request.runId(), pinned, request.requirementBrief()),
             inputGraph,
             ownershipFor(node),
         request.attemptId(),

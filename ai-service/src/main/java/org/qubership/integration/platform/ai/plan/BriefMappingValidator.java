@@ -384,22 +384,6 @@ public final class BriefMappingValidator {
     };
   }
 
-  /** Inverse of {@link #messageFor} for {@link MappingFindingCode#MAPPING_UNKNOWN_TARGET}. */
-  public static Optional<String> unknownTargetPathFromMessage(String message) {
-    if (message == null) {
-      return Optional.empty();
-    }
-    String prefix = "Target path ";
-    String marker = " is absent from the target contract";
-    int start = message.indexOf(prefix);
-    int end = message.indexOf(marker);
-    if (start < 0 || end < 0 || end <= start) {
-      return Optional.empty();
-    }
-    String path = message.substring(start + prefix.length(), end).trim();
-    return path.isBlank() ? Optional.empty() : Optional.of(path);
-  }
-
   private static MappingIntentRule classifyOne(
       MappingIntentRule candidate,
       MappingContract source,

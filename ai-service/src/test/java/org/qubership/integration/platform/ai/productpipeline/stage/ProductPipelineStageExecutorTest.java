@@ -2885,48 +2885,6 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void mappingContractUnknownTargetReopensTheBriefProducer() {
-    AtomicInteger executionCalls = new AtomicInteger();
-    ProductPipelineProfile profile = analysisThenDesignInputThenExecutionProfile();
-    StageCapability designInput =
-        capability(
-            "design-input-cap",
-            context ->
-                Multi.createFrom()
-                    .item(
-                        new CapabilitySignal.Completed(
-                            new StageOutcome(
-                                StageOutcomeClass.SUCCEEDED,
-                                List.of(
-                                    new ArtifactCandidate(
-                                        Kind.CHAIN_SEMANTIC_REVISION,
-                                        SemanticFixtures.linearOrders(),
-                                        List.of())),
-                                "revision ready",
-                                null))));
-    StageCapability execution = executionMappingContractFailure(executionCalls);
-    CreateChainTestOrchestrator runtime =
-        newRuntime(profile, analysisCandidate(), designInput, execution);
-    startAndRecordInput(runtime, profile);
-    approveStage(runtime, "requirement-analysis");
-    applyLifecycle(runtime, execute(runtime, "design-input"));
-
-    StageExecutionResult failed = execute(runtime, "design-execution");
-    StageDecision.ReopenProducer reopen =
-        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
-    assertEquals("requirement-analysis", reopen.producerStageId());
-    assertEquals(1, executionCalls.get());
-    Map<String, Object> attributes = runtime.support().runAttributes(RUN_ID);
-    assertEquals(
-        RecoveryCauseCode.MAPPING_CONTRACT.name(),
-        attributes.get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR));
-    String findings =
-        String.valueOf(attributes.get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
-    assertTrue(findings.startsWith("MAPPING_UNKNOWN_TARGET:"), findings);
-    assertFalse(findings.contains("Unresolved required target field $.preserved"));
-  }
-
-  @Test
   void missingApprovedBriefFactsReopenRequirementAnalysisWithTheFollowUp() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Design input needs more information.", "design-input");
@@ -4712,29 +4670,6 @@ class ProductPipelineStageExecutorTest {
                               new ArtifactCandidate(Kind.IMPLEMENTATION_PLAN, payload, List.of())),
                           "plan ready",
                           null)));
-        });
-  }
-
-  private StageCapability executionMappingContractFailure(AtomicInteger executionCalls) {
-    return capability(
-        "execution-cap",
-        context -> {
-          executionCalls.incrementAndGet();
-          String message =
-              "Target path $.preserved.executionId is absent from the target contract of mapping"
-                  + " intent 'salesforce-create-task'.";
-          return Multi.createFrom()
-              .item(
-                  new CapabilitySignal.Completed(
-                      new StageOutcome(
-                          StageOutcomeClass.VALIDATION_FAILURE,
-                          List.of(),
-                          message,
-                          null,
-                          RecoveryCause.mappingContract(
-                              List.of(
-                                  new PlanValidationFinding(
-                                      "MAPPING_UNKNOWN_TARGET", message, true))))));
         });
   }
 
