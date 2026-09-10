@@ -191,13 +191,12 @@ public final class RecoveryAttemptLedger {
   }
 
   /**
-   * True when this is a chain author's correction of a known missing-brief-facts defect. Automatic
-   * replay of the same defect stays blocked by {@link #ownerAlreadyReopened}.
+   * True when this is a chain author's correction of a known brief defect. Automatic replay of the
+   * same defect stays blocked by {@link #ownerAlreadyReopened}.
    */
   public static boolean isAuthorMissingBriefFactsCorrection(
       ReopenInitiator initiator, RecoveryCauseCode causeCode) {
-    return initiator == ReopenInitiator.AUTHOR
-        && causeCode == RecoveryCauseCode.MISSING_BRIEF_FACTS;
+    return initiator == ReopenInitiator.AUTHOR && RecoveryCause.isKnownBriefDefect(causeCode);
   }
 
   public boolean mayReopen(

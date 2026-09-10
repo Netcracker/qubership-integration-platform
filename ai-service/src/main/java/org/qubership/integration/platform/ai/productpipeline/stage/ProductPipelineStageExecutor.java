@@ -2269,7 +2269,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private boolean offersManualBriefEdit(
       ProductPipelineRunDocument doc, ProfileStage stage, RecoveryCause cause) {
-    if (cause == null || !cause.isMissingBriefFacts()) {
+    if (cause == null || !cause.isKnownBriefDefect()) {
       return false;
     }
     if (catalogHasBeenWritten(doc.run().runId())) {
@@ -2338,10 +2338,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     List<String> fields = new ArrayList<>();
     for (PlanValidationFinding finding : cause.findings()) {
-      if (finding == null || finding.message() == null) {
+      if (finding == null) {
         continue;
       }
-      String message = finding.message().trim();
+      String targetPath = finding.mappingDetails().targetPath().trim();
+      if (!targetPath.isBlank()) {
+        fields.add(targetPath);
+        continue;
+      }
+      String message = finding.message() == null ? "" : finding.message().trim();
       if (message.startsWith("$.")) {
         fields.add(message);
       }
