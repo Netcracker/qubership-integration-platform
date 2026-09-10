@@ -25,6 +25,7 @@ scenarios:
       secondary.X-Branch-Name-2: "Secondary"
     expectedProperties:
       splitRequestProperty: "split-request-property"
+      secondary.splitRequestProperty: "split-request-property"
     interactions:
       - fixture: "main-branch-barrier"
         expectedRequest:

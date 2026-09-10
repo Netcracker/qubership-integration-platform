@@ -7,9 +7,25 @@ scenarios:
       increment: 10
       counter: 0
 
+  - id: "skips-iterations-when-counter-is-zero"
+    endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
+    body: "Original"
+    properties:
+      counter: 0
+    expectedProperties:
+      increment: 0
+      counter: 0
+
   - id: "enforces-maximum-iteration-limit"
     endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
     invocations:
+      - id: "completes-after-fifteen-iterations"
+        body: "Original"
+        properties:
+          counter: 15
+        expectedProperties:
+          increment: 15
+          counter: 0
       - id: "fails-before-sixteenth-iteration"
         body: "Original"
         properties:

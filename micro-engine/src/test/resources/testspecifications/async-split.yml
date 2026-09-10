@@ -8,6 +8,8 @@ scenarios:
     body: "Original"
     headers:
       X-Test-Request: "request-value"
+    properties:
+      asyncSplitRequestProperty: "async-split-request-property"
     expectedBody: "Original"
     expectedHeaders:
       X-Test-Request: "request-value"
@@ -22,8 +24,12 @@ scenarios:
             headers:
               X-Test-Request: "request-value"
               X-Branch-Name-1: "Main"
+            properties:
+              asyncSplitRequestProperty: "async-split-request-property"
           - count: 1
             body: "Secondary branch"
             headers:
               X-Test-Request: "request-value"
               X-Branch-Name-2: "Secondary"
+            properties:
+              asyncSplitRequestProperty: "async-split-request-property"

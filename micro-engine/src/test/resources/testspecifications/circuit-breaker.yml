@@ -131,6 +131,99 @@ scenarios:
               path: "/pet/1"
           - fixture: "breaker"
             expectedState: "OPEN"
+      - id: "records-failed-half-open-probes"
+        repeat: 9
+        body: "Original"
+        headers:
+          "X-Test-Request": "request-value"
+        expectedBody: "On Fallback"
+        expectedHeaders:
+          "X-Test-Request": "request-value"
+        expectedAbsentHeaders:
+          - "CamelHttpResponseCode"
+          - "X-Test-Response"
+        expectedProperties:
+          "CamelCircuitBreakerState": "HALF_OPEN"
+          "CamelCircuitBreakerSuccessfulExecution": false
+          "CamelCircuitBreakerResponseFromFallback": true
+          "internalProperty_element_warning": "true"
+        interactions:
+          - fixture: "petstore"
+            response:
+              status: 500
+              headers:
+                "Content-Type": "application/json"
+                "X-Test-Response": "failure"
+              body: { "message": "Temporary service failure" }
+            expectedRequest:
+              count: 9
+              method: "GET"
+              path: "/pet/1"
+              headers:
+                "X-Test-Request": "request-value"
+          - fixture: "breaker"
+            transitionToState: "HALF_OPEN"
+            expectedState: "HALF_OPEN"
+      - id: "reopens-after-failed-half-open-calls"
+        body: "Original"
+        headers:
+          "X-Test-Request": "request-value"
+        expectedBody: "On Fallback"
+        expectedHeaders:
+          "X-Test-Request": "request-value"
+        expectedAbsentHeaders:
+          - "CamelHttpResponseCode"
+          - "X-Test-Response"
+        expectedProperties:
+          "CamelCircuitBreakerState": "OPEN"
+          "CamelCircuitBreakerSuccessfulExecution": false
+          "CamelCircuitBreakerResponseFromFallback": true
+          "internalProperty_element_warning": "true"
+        interactions:
+          - fixture: "petstore"
+            response:
+              status: 500
+              headers:
+                "Content-Type": "application/json"
+                "X-Test-Response": "failure"
+              body: { "message": "Temporary service failure" }
+            expectedRequest:
+              count: 1
+              method: "GET"
+              path: "/pet/1"
+              headers:
+                "X-Test-Request": "request-value"
+          - fixture: "breaker"
+            expectedState: "OPEN"
+      - id: "short-circuits-after-failed-recovery"
+        body: "Original"
+        headers:
+          "X-Test-Request": "request-value"
+        expectedBody: "On Fallback"
+        expectedHeaders:
+          "X-Test-Request": "request-value"
+        expectedAbsentHeaders:
+          - "CamelHttpResponseCode"
+          - "X-Test-Response"
+        expectedProperties:
+          "CamelCircuitBreakerState": "OPEN"
+          "CamelCircuitBreakerSuccessfulExecution": false
+          "CamelCircuitBreakerResponseFromFallback": true
+          "internalProperty_element_warning": "true"
+        interactions:
+          - fixture: "petstore"
+            response:
+              status: 200
+              headers:
+                "Content-Type": "application/json"
+                "X-Test-Response": "would-have-succeeded"
+              body: { "id": 1, "name": "doggie", "photoUrls": [] }
+            expectedRequest:
+              count: 0
+              method: "GET"
+              path: "/pet/1"
+          - fixture: "breaker"
+            expectedState: "OPEN"
       - id: "permits-half-open-probes"
         repeat: 9
         body: "Original"
