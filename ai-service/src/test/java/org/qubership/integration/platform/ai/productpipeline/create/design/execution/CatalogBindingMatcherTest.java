@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -155,5 +156,39 @@ class CatalogBindingMatcherTest {
     assertEquals("spec-sf", match.specificationId());
     verify(catalogReadTool, never()).searchCatalogSystems(any());
     verify(catalogReadTool, never()).getApiSpecifications(any());
+  }
+
+  @Test
+  void severalMatchingOperationsStayAmbiguous() {
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto(
+            "sys-wfms", "WFMS Create Work Order", "EXTERNAL", "http");
+    CatalogRestClient.SpecificationDto spec =
+        new CatalogRestClient.SpecificationDto("spec-wfms", "WFMS v1", "sg-wfms", "sys-wfms");
+    CatalogRestClient.OperationDto create =
+        new CatalogRestClient.OperationDto(
+            "op-create-wo", "WFMS Create Work Order", "POST", "/work-orders", "spec-wfms");
+    CatalogRestClient.OperationDto draft =
+        new CatalogRestClient.OperationDto(
+            "op-create-wo-draft",
+            "WFMS Create Work Order Draft",
+            "POST",
+            "/work-orders/draft",
+            "spec-wfms");
+
+    when(catalogReadTool.searchCatalogSystems("WFMS Create Work Order"))
+        .thenReturn(List.of(system));
+    when(catalogReadTool.getApiSpecifications("sys-wfms")).thenReturn(List.of(spec));
+    when(catalogReadTool.listCatalogOperations("spec-wfms", "sys-wfms", null))
+        .thenReturn(List.of(create, draft));
+
+    CatalogBindingMatcher.MatchResult result =
+        matcher.match("service-call", "WFMS Create Work Order", "WFMS Create Work Order");
+
+    CatalogBindingMatcher.MatchResult.Ambiguous ambiguous =
+        assertInstanceOf(CatalogBindingMatcher.MatchResult.Ambiguous.class, result);
+    assertEquals(2, ambiguous.matches().size());
+    assertTrue(ambiguous.candidateIds().contains("op-create-wo"));
+    assertTrue(ambiguous.candidateIds().contains("op-create-wo-draft"));
   }
 }

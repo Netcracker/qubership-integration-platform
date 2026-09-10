@@ -36,7 +36,21 @@ public class CatalogBindingMatcher {
   public sealed interface MatchResult {
     record Exact(CatalogMatch match) implements MatchResult {}
 
-    record Ambiguous(List<String> candidateIds) implements MatchResult {}
+    record Ambiguous(List<CatalogMatch> matches) implements MatchResult {
+      public Ambiguous {
+        matches = matches == null ? List.of() : List.copyOf(matches);
+      }
+
+      public List<String> candidateIds() {
+        LinkedHashSet<String> ids = new LinkedHashSet<>();
+        for (CatalogMatch match : matches) {
+          if (match != null && match.integrationOperationId() != null) {
+            ids.add(match.integrationOperationId());
+          }
+        }
+        return List.copyOf(ids);
+      }
+    }
 
     record None() implements MatchResult {}
   }
@@ -192,11 +206,7 @@ public class CatalogBindingMatcher {
     if (matches.size() == 1) {
       return new MatchResult.Exact(matches.getFirst());
     }
-    LinkedHashSet<String> ids = new LinkedHashSet<>();
-    for (CatalogMatch match : matches) {
-      ids.add(match.integrationOperationId());
-    }
-    return new MatchResult.Ambiguous(List.copyOf(ids));
+    return new MatchResult.Ambiguous(List.copyOf(matches));
   }
 
   /**

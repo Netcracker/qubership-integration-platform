@@ -127,6 +127,25 @@ public class RequirementDiscoveryCapability implements StageCapability {
     this.catalogBindingMatcher = catalogBindingMatcher;
   }
 
+  /** True when discovery can resolve a missing binding from clarification text. */
+  public boolean canResolveMissingBindings() {
+    return catalogBindingMatcher != null;
+  }
+
+  /**
+   * Matches clarification text against the local catalog. Exact uses the answer as both service
+   * name and operation query. {@link CatalogBindingMatcher.MatchResult.None} when the matcher is
+   * absent or the text is blank.
+   */
+  public CatalogBindingMatcher.MatchResult matchMissingInteraction(
+      String conversationId, String answer) {
+    if (catalogBindingMatcher == null || answer == null || answer.isBlank()) {
+      return new CatalogBindingMatcher.MatchResult.None();
+    }
+    String name = answer.trim();
+    return catalogBindingMatcher.match("service-call", name, name, conversationId);
+  }
+
   /**
    * Resolves an unambiguous catalog name for a missing interaction. Empty when the matcher is
    * absent or the name is not a single catalog operation.
@@ -142,7 +161,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     String name = answer.trim();
     CatalogBindingMatcher.MatchResult result =
-        catalogBindingMatcher.match("service-call", name, name, conversationId);
+        matchMissingInteraction(conversationId, answer);
     if (!(result instanceof CatalogBindingMatcher.MatchResult.Exact exact)) {
       return Optional.empty();
     }

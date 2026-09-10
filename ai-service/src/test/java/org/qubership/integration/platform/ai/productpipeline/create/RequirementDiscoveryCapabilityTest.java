@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -1618,5 +1619,55 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals("wfms-create-work-order", hint.get().interactionId());
     assertEquals("sys-wfms", hint.get().systemId());
     assertEquals("op-create-wo", hint.get().integrationOperationId());
+  }
+
+  @Test
+  void bindMissingInteractionStaysEmptyWhenSeveralOperationsMatch() {
+    CatalogSystemReadTool catalog = mock(CatalogSystemReadTool.class);
+    CatalogRestClient.SystemDto system =
+        new CatalogRestClient.SystemDto("sys-wfms", "WFMS Create Work Order", "EXTERNAL", "http");
+    CatalogRestClient.SpecificationDto spec =
+        new CatalogRestClient.SpecificationDto("spec-wfms", "WFMS v1", "sg-wfms", "sys-wfms");
+    CatalogRestClient.OperationDto create =
+        new CatalogRestClient.OperationDto(
+            "op-create-wo", "WFMS Create Work Order", "POST", "/work-orders", "spec-wfms");
+    CatalogRestClient.OperationDto draft =
+        new CatalogRestClient.OperationDto(
+            "op-create-wo-draft",
+            "WFMS Create Work Order Draft",
+            "POST",
+            "/work-orders/draft",
+            "spec-wfms");
+    when(catalog.searchCatalogSystems("WFMS Create Work Order")).thenReturn(List.of(system));
+    when(catalog.getApiSpecifications("sys-wfms")).thenReturn(List.of(spec));
+    when(catalog.listCatalogOperations("conv-bind", "spec-wfms", "sys-wfms", null))
+        .thenReturn(List.of(create, draft));
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null, new RequirementDraftStore(), null, new CatalogBindingMatcher(catalog));
+
+    CatalogBindingMatcher.MatchResult result =
+        capability.matchMissingInteraction("conv-bind", "WFMS Create Work Order");
+    Optional<CatalogBindingHint> hint =
+        capability.bindMissingInteraction(
+            "conv-bind", "wfms-create-work-order", "WFMS Create Work Order");
+
+    assertInstanceOf(CatalogBindingMatcher.MatchResult.Ambiguous.class, result);
+    assertTrue(hint.isEmpty());
+  }
+
+  @Test
+  void matchMissingInteractionReturnsNoneForABlankAnswer() {
+    CatalogSystemReadTool catalog = mock(CatalogSystemReadTool.class);
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null, new RequirementDraftStore(), null, new CatalogBindingMatcher(catalog));
+
+    CatalogBindingMatcher.MatchResult result =
+        capability.matchMissingInteraction("conv-bind", "  ");
+
+    assertInstanceOf(CatalogBindingMatcher.MatchResult.None.class, result);
+    assertTrue(
+        capability.bindMissingInteraction("conv-bind", "wfms-create-work-order", "  ").isEmpty());
   }
 }
