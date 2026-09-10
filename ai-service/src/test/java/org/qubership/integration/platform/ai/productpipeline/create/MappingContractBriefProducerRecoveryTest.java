@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -54,7 +53,6 @@ import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchema
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
-import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
@@ -274,13 +272,11 @@ class MappingContractBriefProducerRecoveryTest {
   void validRepairIsApprovedRebuiltAndExecutedInTheSameRun() throws Exception {
     AtomicInteger executionCalls = new AtomicInteger();
     AtomicReference<String> compilerVisibleContext = new AtomicReference<>("");
-    AtomicReference<ChainPlanGraph> compilerVisibleArtifact = new AtomicReference<>();
     repairedBrief.set(validContextPreservingBrief());
     CreateChainTestOrchestrator runtime =
         runtime(
             FakeFailureNarrativeAgent.narrates("unused"),
-            validatingExecution(
-                executionCalls, compilerVisibleContext, compilerVisibleArtifact));
+            validatingExecution(executionCalls, compilerVisibleContext));
     haltAtMappingContract(runtime);
     StageExecutionResult failed = execute(runtime, "design-execution");
     applyLifecycle(runtime, failed);
@@ -314,32 +310,18 @@ class MappingContractBriefProducerRecoveryTest {
       requestTargets.add(rule.targetPath());
     }
     assertEquals(List.of("$.Subject"), requestTargets);
-    for (String property :
-        List.of("executionId", "orderId", "processInstanceId", "executionNumber", "taskId")) {
-      assertTrue(compilerVisibleContext.get().contains(property), compilerVisibleContext.get());
-    }
-    assertTrue(compilerVisibleContext.get().contains("exchange.setProperty"));
-    assertTrue(compilerVisibleContext.get().contains("exchange.getProperty"));
-    assertFalse(compilerVisibleContext.get().contains("$.processId"));
-    ChainPlanGraph compiled = compilerVisibleArtifact.get();
-    assertNotNull(compiled);
-    StringBuilder scriptBodies = new StringBuilder();
-    for (ChainPlanNode node : compiled.nodes()) {
-      for (PlanProperty property : node.properties()) {
-        if ("script".equals(property.key())) {
-          scriptBodies.append(property.value()).append('\n');
-        }
-      }
-    }
-    String scripts = scriptBodies.toString();
+    String compilerOutput = compilerVisibleContext.get();
     for (String property :
         List.of("executionId", "orderId", "processInstanceId", "executionNumber", "taskId")) {
       assertTrue(
-          scripts.contains("exchange.setProperty('" + property + "', body." + property + ")"),
-          scripts);
-      assertTrue(scripts.contains("exchange.getProperty('" + property + "')"), scripts);
+          compilerOutput.contains(
+              "exchange.setProperty('" + property + "', body." + property + ")"),
+          compilerOutput);
+      assertTrue(
+          compilerOutput.contains("exchange.getProperty('" + property + "')"), compilerOutput);
     }
-    assertFalse(scripts.contains("processId"), scripts);
+    assertFalse(compilerOutput.contains("$.processId"), compilerOutput);
+    assertFalse(compilerOutput.contains("preserved."), compilerOutput);
   }
 
   private enum AdvisoryConflict {
@@ -566,13 +548,6 @@ class MappingContractBriefProducerRecoveryTest {
 
   private StageCapability validatingExecution(
       AtomicInteger calls, AtomicReference<String> compilerVisibleContext) {
-    return validatingExecution(calls, compilerVisibleContext, new AtomicReference<>());
-  }
-
-  private StageCapability validatingExecution(
-      AtomicInteger calls,
-      AtomicReference<String> compilerVisibleContext,
-      AtomicReference<ChainPlanGraph> compilerVisibleArtifact) {
     return capability(
         "execution-cap",
         context -> {
@@ -630,57 +605,11 @@ class MappingContractBriefProducerRecoveryTest {
                           "return-context",
                           sourceContract(response)));
           compilerVisibleContext.set(generationContext);
-          compilerVisibleArtifact.set(exchangePropertyArtifact(generationContext));
           return Multi.createFrom()
               .item(
                   new CapabilitySignal.Completed(
                       StageOutcome.of(StageOutcomeClass.SUCCEEDED, "execution accepted")));
         });
-  }
-
-  private static ChainPlanGraph exchangePropertyArtifact(String generationContext) {
-    List<String> properties =
-        List.of("executionId", "orderId", "processInstanceId", "executionNumber", "taskId");
-    StringBuilder setters = new StringBuilder();
-    StringBuilder getters = new StringBuilder();
-    for (String property : properties) {
-      String mapping = "$." + property + " -> $." + property;
-      if (!generationContext.contains(mapping)
-          || !generationContext.contains("exchange.setProperty / exchange.getProperty")) {
-        throw new AssertionError("Missing exchange-property compiler guidance for " + property);
-      }
-      setters
-          .append("exchange.setProperty('")
-          .append(property)
-          .append("', body.")
-          .append(property)
-          .append(")\n");
-      getters
-          .append("def ")
-          .append(property)
-          .append(" = exchange.getProperty('")
-          .append(property)
-          .append("')\n");
-    }
-    return new ChainPlanGraph(
-        "1.0",
-        new ChainSection("id", "Orders"),
-        List.of(
-            new ChainPlanNode(
-                "capture-context",
-                "script",
-                "Capture context",
-                null,
-                1,
-                List.of(new PlanProperty("script", setters.toString()))),
-            new ChainPlanNode(
-                "restore-context",
-                "script",
-                "Restore context",
-                null,
-                2,
-                List.of(new PlanProperty("script", getters.toString())))),
-        List.of());
   }
 
   private MappingRepairCaptureValidator captureValidator() {
