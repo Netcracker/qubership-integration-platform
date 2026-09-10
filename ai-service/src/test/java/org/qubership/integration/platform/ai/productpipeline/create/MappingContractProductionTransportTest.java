@@ -272,6 +272,25 @@ class MappingContractProductionTransportTest {
     assertEquals(storedBrief.contentHash(), finding.mappingDetails().consumedBriefContentHash());
   }
 
+  @Test
+  void findingsUseTheBriefRevisionLoadedByTheProductionRunner() {
+    RequirementBrief laterBrief =
+        new RequirementBrief(
+                "later-goal", List.of(), List.of(), List.of(), List.of(), "later-summary")
+            .withMappingIntents(List.of(unknownTargetIntent()));
+    Revision laterStored = appendRunArtifact(Kind.REQUIREMENT_BRIEF, "1", laterBrief);
+    RunManifest manifest =
+        manifestWithSourceReferences(scriptGeneratorDag(), List.of(storedBrief.reference()));
+
+    ExecutionResult result =
+        adapter.executeAfterApproval(adapterInputs(revisionWith(unknownTargetIntent()), manifest));
+
+    PlanValidationFinding finding = result.recoveryCause().findings().getFirst();
+    assertEquals(laterStored.artifactId(), finding.mappingDetails().consumedBriefArtifactId());
+    assertEquals(laterStored.contentHash(), finding.mappingDetails().consumedBriefContentHash());
+    assertNotEquals(storedBrief.artifactId(), finding.mappingDetails().consumedBriefArtifactId());
+  }
+
   private void persistRun(ProductPipelineRunStore runStore, RunManifest manifest) {
     Reference manifestRef = appendRunArtifact(Kind.RUN_MANIFEST, "1", manifest).reference();
     runStore.create(
@@ -503,6 +522,11 @@ class MappingContractProductionTransportTest {
   }
 
   private static RunManifest emptySourceReferencesManifest(ResolvedCompilerDag dag) {
+    return manifestWithSourceReferences(dag, List.of());
+  }
+
+  private static RunManifest manifestWithSourceReferences(
+      ResolvedCompilerDag dag, List<Reference> sourceReferences) {
     CompilerRunPin pin =
         new CompilerRunPin(
             "compiler",
@@ -525,7 +549,7 @@ class MappingContractProductionTransportTest {
     return new RunManifest(
         RUN_ID,
         null,
-        List.of(),
+        sourceReferences,
         "product",
         "create-chain",
         "2",
