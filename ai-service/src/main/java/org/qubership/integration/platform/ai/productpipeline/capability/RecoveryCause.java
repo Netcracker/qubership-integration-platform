@@ -104,6 +104,20 @@ public record RecoveryCause(
     return causeCode == RecoveryCauseCode.MISSING_BRIEF_FACTS;
   }
 
+  /**
+   * True when the halt is a known brief-owned defect that uses the landed Edit requirements path.
+   * {@link RecoveryCauseCode#MAPPING_CONTRACT} stays its own diagnosis; it only shares this
+   * edit/resume predicate with {@link #isMissingBriefFacts()}.
+   */
+  public boolean isKnownBriefDefect() {
+    return isKnownBriefDefect(causeCode);
+  }
+
+  public static boolean isKnownBriefDefect(RecoveryCauseCode causeCode) {
+    return causeCode == RecoveryCauseCode.MISSING_BRIEF_FACTS
+        || causeCode == RecoveryCauseCode.MAPPING_CONTRACT;
+  }
+
   /** Occurrence the missing-hint cause named, when present. */
   public Optional<String> unresolvedInteractionId() {
     if (!isMissingCatalogBinding()) {

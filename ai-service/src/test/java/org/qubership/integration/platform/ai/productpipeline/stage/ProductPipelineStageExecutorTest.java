@@ -52,6 +52,7 @@ import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompiler
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
+import org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -2983,6 +2984,52 @@ class ProductPipelineStageExecutorTest {
         PipelineGates.strip(wait.prompt())
             .contains("Edit the requirements if this node or path is wrong"));
     assertFalse(PipelineGates.strip(wait.prompt()).contains("design-input"));
+  }
+
+  @Test
+  void exhaustedBriefRecoverySummaryListsTypedMappingTargetPaths() {
+    PlanValidationFinding finding =
+        new PlanValidationFinding(
+            "MAPPING_UNKNOWN_TARGET",
+            "Target path $.preserved.executionId is absent from the target contract.",
+            true,
+            new MappingValidationDetails(
+                "preserved-mapping",
+                "source-call",
+                "RESPONSE",
+                "target-call",
+                "REQUEST",
+                "$.source",
+                "$.preserved.executionId",
+                "",
+                "PROPOSED",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "$.preserved.executionId"));
+    String summary =
+        ProductPipelineStageExecutor.exhaustedBriefRecoverySummary(
+            RecoveryCause.mappingContract(List.of(finding)));
+    assertTrue(summary.contains("$.preserved.executionId"), summary);
+    assertFalse(
+        summary.toLowerCase(Locale.ROOT).contains("omitted a required api value"), summary);
+    assertFalse(summary.toLowerCase(Locale.ROOT).contains("your requirements"), summary);
+  }
+
+  @Test
+  void exhaustedBriefRecoverySummaryStillListsMissingBriefFactsPaths() {
+    String summary =
+        ProductPipelineStageExecutor.exhaustedBriefRecoverySummary(
+            RecoveryCause.missingBriefFacts(List.of("$.preserved.executionId")));
+    assertTrue(summary.contains("$.preserved.executionId"), summary);
   }
 
   @Test

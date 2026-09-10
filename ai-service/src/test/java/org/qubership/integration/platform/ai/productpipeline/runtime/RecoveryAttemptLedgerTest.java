@@ -181,6 +181,43 @@ class RecoveryAttemptLedgerTest {
   }
 
   @Test
+  void authorMayReopenMappingContractAfterAutomaticReplay() {
+    RecoveryCause mapping =
+        RecoveryCause.mappingContract(
+            List.of(
+                new PlanValidationFinding(
+                    "MAPPING_UNKNOWN_TARGET",
+                    "Target path $.preserved.executionId is absent from the target contract.",
+                    true)));
+    List<RunTransition> journal = new ArrayList<>();
+    RecoveryAttemptKey key = ledger.key("requirement-analysis", mapping, "brief-a", journal);
+    journal.add(
+        transition(
+            ledger.recordReopen(
+                key, RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC, "brief-a"),
+            "requirement-analysis"));
+    assertTrue(ledger.ownerAlreadyReopened(journal, key, ""));
+    assertTrue(ledger.automaticReopenRecorded(journal, key, ""));
+    assertTrue(
+        ledger.mayReopen(
+            journal,
+            key,
+            InputOrigin.TRUSTED,
+            RecoveryAttemptLedger.ReopenInitiator.AUTHOR,
+            ""));
+    assertFalse(
+        ledger.mayReopen(
+            journal,
+            key,
+            InputOrigin.TRUSTED,
+            RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC,
+            ""));
+    assertEquals(
+        1,
+        ledger.remaining(journal, key, InputOrigin.TRUSTED).causalReopensRemaining());
+  }
+
+  @Test
   void anAbsolutePerRunCeilingRefusesFurtherAttempts() {
     RecoveryAttemptLedger tight =
         new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(1, 2, 2));
