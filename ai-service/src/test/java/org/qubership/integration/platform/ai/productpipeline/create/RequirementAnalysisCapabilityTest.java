@@ -1284,4 +1284,64 @@ class RequirementAnalysisCapabilityTest {
         List.of("element-standards"));
     return client;
   }
+
+  @Test
+  void remainingUnknownTargetRejectsARewordedInvalidPath() {
+    String message =
+        "Target path $.preserved.executionId is absent from the target contract of mapping intent"
+            + " 'salesforce-create-task'.";
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-mapping-repair",
+            "conv-mapping-repair",
+            "requirement-analysis",
+            "exec-1",
+            "attempt-2",
+            null,
+            null,
+            List.of(),
+            Map.of(
+                ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+                "mapping blocked",
+                ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR,
+                "MAPPING_UNKNOWN_TARGET: " + message));
+    RequirementBrief stillInvalid =
+        coveringBrief(RequirementFactFixtures.greetingsApprovedDraft(), "Greetings HTTP script")
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "salesforce-create-task",
+                        "onTaskStart",
+                        MappingPort.OUTPUT,
+                        "salesforce-create-task",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.executionId",
+                                "$.preserved.executionId",
+                                "explicitly initialize preserved.executionId",
+                                MappingRuleStatus.PROPOSED)))));
+
+    assertTrue(
+        RequirementAnalysisCapability.remainingUnknownTarget(context, stillInvalid).isPresent());
+
+    RequirementBrief repaired =
+        coveringBrief(RequirementFactFixtures.greetingsApprovedDraft(), "Greetings HTTP script")
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "salesforce-create-task",
+                        "onTaskStart",
+                        MappingPort.OUTPUT,
+                        "salesforce-create-task",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.executionId",
+                                "$.Subject",
+                                null,
+                                MappingRuleStatus.PROPOSED)))));
+    assertTrue(
+        RequirementAnalysisCapability.remainingUnknownTarget(context, repaired).isEmpty());
+  }
 }
