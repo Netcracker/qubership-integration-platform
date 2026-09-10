@@ -6,9 +6,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.plan.mapping.MappingContractEvaluation;
@@ -147,10 +149,14 @@ public class MappingRepairCaptureValidator {
     MappingPort candidatePort = source ? intent.sourcePort() : intent.targetPort();
     MappingSchemaSide prior = persistedSide(conversationId, owner, direction, digest);
     boolean sameBoundary = sameBoundary(priorRef, candidateRef, direction, candidatePort);
-    CatalogBindingHint binding =
+    BindingLookup bindingLookup =
         sameBoundary
-            ? binding(candidate, owner, priorRef, candidateRef)
+            ? binding(candidate, candidateRef, owner, priorRef)
             : binding(candidate, candidateRef);
+    if (bindingLookup.failureReason() != null) {
+      return SideResolution.unresolved(bindingLookup.failureReason());
+    }
+    CatalogBindingHint binding = bindingLookup.binding();
     if (requiresOperationContract(prior, binding, sameBoundary)) {
       return operationSide(binding, candidatePort);
     }
@@ -285,16 +291,41 @@ public class MappingRepairCaptureValidator {
     return null;
   }
 
-  private static CatalogBindingHint binding(
-      RequirementBrief brief, String... interactionIds) {
+  private static BindingLookup binding(RequirementBrief brief, String... interactionIds) {
+    Set<String> searched = new LinkedHashSet<>();
     for (String interactionId : interactionIds) {
+      if (!searched.add(interactionId)) {
+        continue;
+      }
+      List<CatalogBindingHint> matches = new ArrayList<>();
       for (CatalogBindingHint candidate : brief.catalogBindings()) {
         if (candidate != null && Objects.equals(interactionId, candidate.interactionId())) {
-          return candidate;
+          matches.add(candidate);
         }
       }
+      if (matches.size() == 1) {
+        return BindingLookup.found(matches.getFirst());
+      }
+      if (matches.size() > 1) {
+        return BindingLookup.failed(
+            "Multiple catalog bindings match mapping boundary '" + interactionId + "'.");
+      }
     }
-    return null;
+    return BindingLookup.absent();
+  }
+
+  private record BindingLookup(CatalogBindingHint binding, String failureReason) {
+    static BindingLookup found(CatalogBindingHint binding) {
+      return new BindingLookup(binding, null);
+    }
+
+    static BindingLookup failed(String reason) {
+      return new BindingLookup(null, reason);
+    }
+
+    static BindingLookup absent() {
+      return new BindingLookup(null, null);
+    }
   }
 
   private record SideResolution(MappingSchemaSide side, String limitation) {
