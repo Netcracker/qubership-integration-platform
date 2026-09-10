@@ -36,6 +36,13 @@ class HaltProducerCauseTableTest {
   }
 
   @Test
+  void requirementAnalysisDoesNotOwnMappingContract() {
+    assertFalse(
+        HaltProducerCauseTable.causesOf(HaltProducer.REQUIREMENT_ANALYSIS)
+            .contains(RecoveryCauseCode.MAPPING_CONTRACT));
+  }
+
+  @Test
   void instructionNamesTheChangeFromTheTypedCause() {
     String sentence =
         HaltProducerCauseTable.instruction(
@@ -47,7 +54,7 @@ class HaltProducerCauseTableTest {
   }
 
   @Test
-  void instructionForAnUnknownMappingTargetDoesNotAskForAValue() {
+  void mappingContractDoesNotSelectARepairInstruction() {
     String sentence =
         HaltProducerCauseTable.instruction(
             RecoveryCause.mappingContract(
@@ -59,10 +66,7 @@ class HaltProducerCauseTableTest {
             OwnerDiagnosis.of("The mapping target is absent.", "requirement-analysis"),
             List.of(new OwnerCandidate("requirement-analysis", "requirement-brief")));
 
-    assertEquals(
-        "Correct the mapping target in the requirements; the field is absent from this contract.",
-        sentence);
-    assertFalse(sentence.contains("Add the missing facts"));
+    assertEquals("", sentence);
   }
 
   @Test
