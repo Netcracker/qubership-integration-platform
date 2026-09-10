@@ -929,7 +929,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           doc, stage, refs, cause, findings, evidence, emitted);
     }
     ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
-    List<OwnerCandidate> closed = ownerCandidates(profile, stage.stageId());
+    List<OwnerCandidate> closed =
+        mappingOwnerCandidates(
+            cause, profile, stage.stageId(), ownerCandidates(profile, stage.stageId()));
     Optional<String> consumedBriefProducer =
         compiledBriefProducerStageId(doc.run().runId(), cause);
     String artifactIdentity =
@@ -1994,6 +1996,25 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     List<OwnerCandidate> first = OwnerCandidateSet.firstLayer(profile, failedStageId);
     List<OwnerCandidate> deeper = OwnerCandidateSet.deepen(profile, first);
     return deeper.size() > first.size() ? deeper : first;
+  }
+
+  private static List<OwnerCandidate> mappingOwnerCandidates(
+      RecoveryCause cause,
+      ProductPipelineProfile profile,
+      String failedStageId,
+      List<OwnerCandidate> candidates) {
+    if (cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
+      return candidates;
+    }
+    String briefProducer =
+        OwnerCandidateSet.briefProducerStageId(profile, failedStageId).orElse("");
+    if (briefProducer.isBlank()
+        || OwnerCandidateSet.containsStage(candidates, briefProducer)) {
+      return candidates;
+    }
+    List<OwnerCandidate> expanded = new ArrayList<>(candidates);
+    expanded.add(new OwnerCandidate(briefProducer, "requirement-brief"));
+    return List.copyOf(expanded);
   }
 
   private boolean catalogHasBeenWritten(String runId) {

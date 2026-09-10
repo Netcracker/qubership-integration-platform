@@ -203,8 +203,11 @@ public final class ProducerOwnedRecovery {
       final String diagnosedOwner,
       final Optional<String> consumedBriefProducerStageId) {
     if (causeCode == RecoveryCauseCode.MAPPING_CONTRACT) {
-      return consumedBriefProducerStageId.or(
-          () -> OwnerCandidateSet.briefProducerStageId(candidates, failedStageId));
+      Optional<String> briefProducer =
+          OwnerCandidateSet.briefProducerStageId(candidates, failedStageId);
+      return consumedBriefProducerStageId
+          .filter(stageId -> briefProducer.filter(stageId::equals).isPresent())
+          .or(() -> briefProducer);
     }
     Optional<String> fromFinding =
         switch (category) {

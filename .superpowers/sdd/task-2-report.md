@@ -201,3 +201,38 @@ Result: `BUILD SUCCESS`; 168 tests run, 0 failures, 0 errors, 0 skipped.
 - Recovery evidence remains schema version 1. Tickets 03 and 04, exception-prose parsing, and
   `MISSING_BRIEF_FACTS` routing remain unchanged.
 - No functional concerns.
+
+## Fix pass 2
+
+Status: DONE
+
+Validated consumed-brief provenance against a brief producer declared by the pipeline profile or
+closed candidate set. A non-brief provenance stage such as `design-planning` no longer wins.
+Recovery falls back to the profile brief producer, usually `requirement-analysis`.
+
+### TDD evidence
+
+RED:
+
+- `ProducerOwnedRecoveryTest#mappingContractIgnoresNonBriefConsumedProvenance`: expected
+  `requirement-analysis`, but got `design-planning`.
+
+GREEN:
+
+```sh
+mvn -f ai-service/pom.xml \
+  -Dtest=HaltProducerCauseTableTest,ProducerOwnedRecoveryTest,RecoveryEvidenceTest,ProductPipelineStageExecutorTest,MappingContractBriefProducerRecoveryTest,MissingCatalogBindingClarificationTest,BindingIdentityMismatchRecoveryTest,MissingBriefFactsExhaustedRecoveryTest \
+  test
+```
+
+Result: `BUILD SUCCESS`; 169 tests run, 0 failures, 0 errors, 0 skipped.
+
+### Self-review
+
+- The regression fixture uses consumed provenance `design-planning` while the candidates include
+  the `requirement-analysis` brief producer.
+- `productionTransportReopensTheBriefProducer` applies the `ReopenProducer` lifecycle decision and
+  asserts `currentStageId()` is `requirement-analysis` with `RunStatus.RUNNING`.
+- Tickets 03 and 04, `MISSING_BRIEF_FACTS`, schema version, and exception-prose parsing remain
+  unchanged.
+- No functional concerns.

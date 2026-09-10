@@ -182,6 +182,9 @@ class MappingContractBriefProducerRecoveryTest {
     StageExecutionResult failed = execute(runtime, "design-execution");
     assertBriefProducerRoute(runtime, failed, agent);
     assertPersistedMappingEvidence();
+    applyLifecycle(runtime, failed);
+    assertEquals("requirement-analysis", run().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, run().run().status());
   }
 
   @Test
