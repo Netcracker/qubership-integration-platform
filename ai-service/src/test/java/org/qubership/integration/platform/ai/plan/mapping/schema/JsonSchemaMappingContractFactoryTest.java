@@ -56,11 +56,25 @@ class JsonSchemaMappingContractFactoryTest {
   }
 
   @Test
-  void objectWithoutPropertiesIsKnownWithNoFields() throws Exception {
+  void objectWithoutPropertiesIsUnknownContract() throws Exception {
     JsonNode schema = MAPPER.readTree("{\"type\": \"object\"}");
     MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
-    assertTrue(contract.known());
+    assertFalse(contract.known());
     assertTrue(contract.field("$.anything").isEmpty());
+  }
+
+  @Test
+  void propertyLessSchemaIsUnknownContract() throws Exception {
+    MappingContract typedObject =
+        JsonSchemaMappingContractFactory.from(MAPPER.readTree("{\"type\": \"object\"}"));
+    MappingContract emptyObject = JsonSchemaMappingContractFactory.from(MAPPER.readTree("{}"));
+    MappingContract emptyProperties =
+        JsonSchemaMappingContractFactory.from(
+            MAPPER.readTree("{\"type\": \"object\", \"properties\": {}}"));
+    assertFalse(typedObject.known());
+    assertFalse(emptyObject.known());
+    assertFalse(emptyProperties.known());
+    assertTrue(typedObject.field("$.anything").isEmpty());
   }
 
   @Test
