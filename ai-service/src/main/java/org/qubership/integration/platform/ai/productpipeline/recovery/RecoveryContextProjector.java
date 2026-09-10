@@ -120,6 +120,7 @@ public final class RecoveryContextProjector {
         evidence.failureId(),
         evidence.observedCauseCode(),
         evidence.observingStageId(),
+        evidence.producerStageId(),
         evidence.approvedBriefRef(),
         evidence.approvedSemanticRef(),
         evidence.rejectedArtifactRefs(),
@@ -164,6 +165,9 @@ public final class RecoveryContextProjector {
     node.put("failureId", evidence.failureId());
     node.put("observedCauseCode", evidence.observedCauseCode());
     node.put("observingStageId", evidence.observingStageId());
+    if (evidence.producerStageId() != null && !evidence.producerStageId().isBlank()) {
+      node.put("producerStageId", evidence.producerStageId());
+    }
     if (evidence.approvedBriefRef() != null) {
       node.set("approvedBriefRef", mapper.valueToTree(evidence.approvedBriefRef()));
     }
