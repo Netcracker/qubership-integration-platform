@@ -113,16 +113,25 @@ class MappingRepairCaptureValidatorTest {
   @Test
   void changedOperationUsesTheNewContract() throws Exception {
     String evidenceHash = persistRecoveryEvidence();
-    schemaLoader.schemas.set(
-        new OperationSchemaMaps(
-            "new-operation", Map.of("application/json", newTargetSchema()), Map.of()));
+    schemaLoader.schemasByOperation.set(
+        Map.of(
+            "old-operation",
+            new OperationSchemaMaps(
+                "old-operation", Map.of("application/json", oldTargetSchema()), Map.of()),
+            "new-operation",
+            new OperationSchemaMaps(
+                "new-operation", Map.of("application/json", newTargetSchema()), Map.of())));
     RequirementBrief candidate =
         brief(
                 intent(
+                    "call-2",
                     List.of(
                         new MappingIntentRule(
                             "$.subject", "$.Name", null, MappingRuleStatus.PROPOSED))))
-            .withCatalogBindings(List.of(binding("new-operation")));
+            .withCatalogBindings(
+                List.of(
+                    binding("call-1", "old-operation"),
+                    binding("call-2", "new-operation")));
 
     Result result = validator.validate(RUN_ID, CONVERSATION_ID, evidenceHash, candidate);
 
@@ -133,7 +142,8 @@ class MappingRepairCaptureValidatorTest {
   @Test
   void unavailableChangedOperationContractKeepsTheRepairUnresolved() throws Exception {
     String evidenceHash = persistRecoveryEvidence();
-    schemaLoader.schemas.set(new OperationSchemaMaps("new-operation", Map.of(), Map.of()));
+    schemaLoader.schemasByOperation.set(
+        Map.of("new-operation", new OperationSchemaMaps("new-operation", Map.of(), Map.of())));
     RequirementBrief candidate =
         brief(
                 intent(
@@ -260,20 +270,28 @@ class MappingRepairCaptureValidatorTest {
   }
 
   private static MappingIntent intent(List<MappingIntentRule> rules) {
+    return intent("call-1", rules);
+  }
+
+  private static MappingIntent intent(String targetRef, List<MappingIntentRule> rules) {
     return new MappingIntent(
         "salesforce-create-task",
         "trigger-http",
         MappingPort.OUTPUT,
-        "call-1",
+        targetRef,
         MappingPort.REQUEST,
         rules);
   }
 
   private static CatalogBindingHint binding(String operationId) {
+    return binding("call-1", operationId);
+  }
+
+  private static CatalogBindingHint binding(String interactionId, String operationId) {
     return new CatalogBindingHint(
         CatalogBindingHint.SCHEMA_VERSION,
-        "call-1",
-        "call-1",
+        interactionId,
+        interactionId,
         "Create task",
         "system-1",
         "group-1",
@@ -324,12 +342,13 @@ class MappingRepairCaptureValidatorTest {
 
   private static final class RecordingSchemaLoader implements OperationSchemaLoader {
     private final AtomicReference<String> lastOperationId = new AtomicReference<>();
-    private final AtomicReference<OperationSchemaMaps> schemas = new AtomicReference<>();
+    private final AtomicReference<Map<String, OperationSchemaMaps>> schemasByOperation =
+        new AtomicReference<>(Map.of());
 
     @Override
     public OperationSchemaMaps load(String operationId) {
       lastOperationId.set(operationId);
-      return schemas.get();
+      return schemasByOperation.get().get(operationId);
     }
 
     @Override

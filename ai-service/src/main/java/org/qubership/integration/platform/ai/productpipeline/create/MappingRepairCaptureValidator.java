@@ -146,8 +146,11 @@ public class MappingRepairCaptureValidator {
     String candidateRef = source ? intent.sourceRef() : intent.targetRef();
     MappingPort candidatePort = source ? intent.sourcePort() : intent.targetPort();
     MappingSchemaSide prior = persistedSide(conversationId, owner, direction, digest);
-    CatalogBindingHint binding = binding(candidate, owner, priorRef, candidateRef);
     boolean sameBoundary = sameBoundary(priorRef, candidateRef, direction, candidatePort);
+    CatalogBindingHint binding =
+        sameBoundary
+            ? binding(candidate, owner, priorRef, candidateRef)
+            : binding(candidate, candidateRef);
     if (requiresOperationContract(prior, binding, sameBoundary)) {
       return operationSide(binding, candidatePort);
     }
@@ -283,13 +286,12 @@ public class MappingRepairCaptureValidator {
   }
 
   private static CatalogBindingHint binding(
-      RequirementBrief brief, String owner, String priorRef, String candidateRef) {
-    for (CatalogBindingHint candidate : brief.catalogBindings()) {
-      if (candidate != null
-          && (Objects.equals(owner, candidate.interactionId())
-              || Objects.equals(priorRef, candidate.interactionId())
-              || Objects.equals(candidateRef, candidate.interactionId()))) {
-        return candidate;
+      RequirementBrief brief, String... interactionIds) {
+    for (String interactionId : interactionIds) {
+      for (CatalogBindingHint candidate : brief.catalogBindings()) {
+        if (candidate != null && Objects.equals(interactionId, candidate.interactionId())) {
+          return candidate;
+        }
       }
     }
     return null;
