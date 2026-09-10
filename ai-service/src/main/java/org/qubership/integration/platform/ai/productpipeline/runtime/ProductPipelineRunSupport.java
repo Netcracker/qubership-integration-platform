@@ -45,6 +45,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidate;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet;
 import org.qubership.integration.platform.ai.productpipeline.create.PauseQuestionResult;
@@ -231,6 +232,7 @@ public final class ProductPipelineRunSupport {
     private RecoveryOutcomeTelemetry recoveryTelemetry;
     private MappingTurnAdapter mappingTurnAdapter;
     private MappingTurnTelemetry mappingTurnTelemetry;
+    private MappingRepairCaptureValidator mappingRepairCaptureValidator;
 
     private Builder(
         ProductPipelineRunStore runStore,
@@ -298,6 +300,12 @@ public final class ProductPipelineRunSupport {
       return this;
     }
 
+    public Builder mappingRepairCaptureValidator(
+        MappingRepairCaptureValidator mappingRepairCaptureValidator) {
+      this.mappingRepairCaptureValidator = mappingRepairCaptureValidator;
+      return this;
+    }
+
     public ProductPipelineRunSupport build() {
       return new ProductPipelineRunSupport(
           runStore,
@@ -314,7 +322,8 @@ public final class ProductPipelineRunSupport {
           recoveryLedger,
           recoveryTelemetry,
           mappingTurnAdapter,
-          mappingTurnTelemetry);
+          mappingTurnTelemetry,
+          mappingRepairCaptureValidator);
     }
   }
 
@@ -334,6 +343,42 @@ public final class ProductPipelineRunSupport {
       RecoveryOutcomeTelemetry recoveryTelemetry,
       MappingTurnAdapter mappingTurnAdapter,
       MappingTurnTelemetry mappingTurnTelemetry) {
+    this(
+        runStore,
+        artifactStore,
+        capabilities,
+        profileCatalog,
+        compilerRunPinResolver,
+        clock,
+        approvalPrompts,
+        s3Service,
+        failureNarrative,
+        cacheIdleTimeout,
+        repeatedFailureThreshold,
+        recoveryLedger,
+        recoveryTelemetry,
+        mappingTurnAdapter,
+        mappingTurnTelemetry,
+        null);
+  }
+
+  public ProductPipelineRunSupport(
+      ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore,
+      StageCapabilityRegistry capabilities,
+      ProductPipelineProfileCatalog profileCatalog,
+      CompilerRunPinResolver compilerRunPinResolver,
+      Clock clock,
+      ApprovalPrompts approvalPrompts,
+      S3Service s3Service,
+      FailureNarrative failureNarrative,
+      Duration cacheIdleTimeout,
+      int repeatedFailureThreshold,
+      RecoveryAttemptLedger recoveryLedger,
+      RecoveryOutcomeTelemetry recoveryTelemetry,
+      MappingTurnAdapter mappingTurnAdapter,
+      MappingTurnTelemetry mappingTurnTelemetry,
+      MappingRepairCaptureValidator mappingRepairCaptureValidator) {
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.capabilities = Objects.requireNonNull(capabilities, "capabilities");
@@ -366,7 +411,8 @@ public final class ProductPipelineRunSupport {
             this.failureNarrative,
             repeatedFailureThreshold,
             this.recoveryLedger,
-            this.recoveryTelemetry);
+            this.recoveryTelemetry,
+            mappingRepairCaptureValidator);
   }
 
   /** Single-stage execution seam used by Flow. */
