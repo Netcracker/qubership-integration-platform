@@ -379,15 +379,20 @@ public class CompilerSkillContextBuilder {
       if (!isCopyField(sourcePath) || hopSource.field(sourcePath).isPresent()) {
         continue;
       }
+      String property = jsonFieldName(sourcePath);
       StringBuilder line = new StringBuilder();
       line.append("- ")
           .append(MappingContract.canonicalPath(sourcePath))
           .append(" -> ")
           .append(rule.targetPath())
-          .append(
-              ": source not on this hop schema; encode with exchange.setProperty /"
-                  + " exchange.getProperty (CIP GEN-10). Capture on the upstream script site whose"
-                  + " source schema has this path");
+          .append(": source not on this hop schema; capture with exchange.setProperty('")
+          .append(property)
+          .append("', body.")
+          .append(property)
+          .append(") on the upstream script site whose source schema has this path, then read with")
+          .append(" exchange.getProperty('")
+          .append(property)
+          .append("') on this script site (CIP GEN-10)");
       String upstream =
           upstreamIntentId(
               sourcePath, intent.mappingIntentId(), revisionIntents, sourceContractsByIntentId);
