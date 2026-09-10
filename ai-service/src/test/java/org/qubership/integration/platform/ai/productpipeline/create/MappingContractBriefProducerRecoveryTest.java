@@ -155,6 +155,7 @@ class MappingContractBriefProducerRecoveryTest {
   private CompilationArtifacts artifacts;
   private CipDesignExecutorJavaAdapter adapter;
   private ProductPipelineProfile profile;
+  private Revision consumedBriefRevision;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -181,6 +182,35 @@ class MappingContractBriefProducerRecoveryTest {
     StageExecutionResult failed = execute(runtime, "design-execution");
     assertBriefProducerRoute(runtime, failed, agent);
     assertPersistedMappingEvidence();
+  }
+
+  @Test
+  void persistedEvidenceUsesTheCompiledBriefInsteadOfTheLatestRevision() throws Exception {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Conflicting advisory owner.", "design-planning");
+    CreateChainTestOrchestrator runtime = runtime(agent, injectedMappingExecution());
+    haltAtMappingContract(runtime);
+    Revision compiledR1 = consumedBriefRevision;
+    Revision newerR2 =
+        appendRunArtifact(
+            Kind.REQUIREMENT_BRIEF,
+            "1",
+            new RequirementBrief(
+                    "newer goal", List.of(), List.of(), List.of(), List.of(), "newer summary")
+                .withMappingIntents(List.of(unknownTargetIntent())),
+            "requirement-analysis");
+    assertNotEquals(compiledR1.reference(), newerR2.reference());
+
+    StageExecutionResult failed = execute(runtime, "design-execution");
+
+    assertBriefProducerRoute(runtime, failed, agent);
+    RecoveryEvidence evidence =
+        artifactStore.payload(
+            artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE).getFirst(),
+            RecoveryEvidence.class);
+    assertEquals(compiledR1.artifactId(), evidence.approvedBriefRef().artifactId());
+    assertEquals(compiledR1.contentHash(), evidence.approvedBriefRef().contentHash());
+    assertNotEquals(newerR2.artifactId(), evidence.approvedBriefRef().artifactId());
   }
 
   @ParameterizedTest
@@ -272,6 +302,7 @@ class MappingContractBriefProducerRecoveryTest {
         .await()
         .indefinitely();
     applyLifecycle(runtime, execute(runtime, "design-input"));
+    consumedBriefRevision = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow();
   }
 
   private void assertBriefProducerRoute(
@@ -470,7 +501,6 @@ class MappingContractBriefProducerRecoveryTest {
   }
 
   private PlanValidationFinding unknownTargetFinding() {
-    Revision brief = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow();
     MappingValidationDetails details =
         new MappingValidationDetails(
             "salesforce-create-task",
@@ -482,8 +512,8 @@ class MappingContractBriefProducerRecoveryTest {
             "$.preserved.executionId",
             "",
             "PROPOSED",
-            brief.artifactId(),
-            brief.contentHash(),
+            consumedBriefRevision.artifactId(),
+            consumedBriefRevision.contentHash(),
             "trigger-http",
             "OUTPUT",
             "sha-source",
@@ -545,16 +575,18 @@ class MappingContractBriefProducerRecoveryTest {
   private static ProductPipelineProfile threeStageProfile() {
     ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
     ArtifactTypeRef flow = new ArtifactTypeRef("chain-semantic-revision", 1);
+    ArtifactTypeRef plan = new ArtifactTypeRef("implementation-plan", 1);
+    ArtifactTypeRef userInput = new ArtifactTypeRef("user-input", 1);
     return new ProductPipelineProfile(
         1,
         "mapping-brief-producer",
         "1",
-        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(userInput),
         List.of(
             new ProfileStage(
                 "requirement-analysis",
                 "analysis-cap",
-                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(userInput),
                 List.of(brief),
                 new ApprovalPolicy(brief),
                 null,
@@ -562,8 +594,8 @@ class MappingContractBriefProducerRecoveryTest {
             new ProfileStage(
                 "design-input",
                 "design-input-cap",
-                List.of(brief),
-                List.of(flow),
+                List.of(userInput),
+                List.of(plan, flow),
                 null,
                 null,
                 new RetryPolicy(0, 1L)),
@@ -656,6 +688,11 @@ class MappingContractBriefProducerRecoveryTest {
   }
 
   private Revision appendRunArtifact(Kind kind, String schemaVersion, Object payload) {
+    return appendRunArtifact(kind, schemaVersion, payload, "design-execution");
+  }
+
+  private Revision appendRunArtifact(
+      Kind kind, String schemaVersion, Object payload, String producerStageId) {
     return artifactStore.append(
         new AppendCommand(
             RUN_ID,
@@ -668,7 +705,7 @@ class MappingContractBriefProducerRecoveryTest {
             null,
             new ArtifactProvenance(
                 RUN_ID,
-                "design-execution",
+                producerStageId,
                 "create-chain",
                 "2",
                 "profile-sha",

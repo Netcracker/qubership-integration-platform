@@ -262,6 +262,28 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
+  void mappingContractDoesNotFallBackToThePlanProducer() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.mappingContract(
+                List.of(
+                    new PlanValidationFinding(
+                        "MAPPING_UNKNOWN_TARGET",
+                        "Target path $.preserved.executionId is absent from the target contract.",
+                        true))),
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan")),
+            false,
+            0,
+            Optional.of("design-planning"));
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-execution", route.producerStageId());
+  }
+
+  @Test
   void aDiagnosedOwnerIsUsedOnlyWhenTheFindingDoesNotNameAProducer() {
     ProducerOwnedRecovery.Route route =
         route(
