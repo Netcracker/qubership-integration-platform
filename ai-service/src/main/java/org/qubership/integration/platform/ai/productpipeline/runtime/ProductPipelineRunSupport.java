@@ -53,6 +53,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunP
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapCoverage;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapPassThroughConfirmation;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapWait;
+import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -177,6 +179,9 @@ public final class ProductPipelineRunSupport {
   private static final String HALT_FOLLOW_UP_INPUT_PREFIX = "halt-follow-up-";
   private static final ObjectMapper HALT_EVIDENCE_JSON = new ObjectMapper();
   private static final Duration DEFAULT_CACHE_IDLE_TIMEOUT = Duration.ofHours(1);
+  private static final String UNUSABLE_BINDING_ANSWER_BODY =
+      "That answer does not identify one catalog operation for this interaction. "
+          + "Name the catalog service or operation it should use.";
 
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineArtifactStore artifactStore;
@@ -1382,6 +1387,8 @@ public final class ProductPipelineRunSupport {
   /**
    * Resolves a missing catalog binding from clarification text and persists it on the binding
    * producer. Saving the text and retrying execution against unchanged hints does not count.
+   * Several catalog matches stay on an actionable wait. An empty, unknown, or incompatible answer
+   * explains the unresolved choice and does not spend a semantic repair.
    */
   private Multi<PipelineSignal> applyMissingBindingClarification(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
@@ -1391,46 +1398,121 @@ public final class ProductPipelineRunSupport {
     if (!"requirement-discovery".equals(producerStageId) || interactionId.isBlank()) {
       return reemitHaltCard(doc);
     }
-    Optional<CatalogBindingHint> hint =
+    Optional<RequirementDiscoveryCapability> discovery =
         capabilities
             .find(RequirementDiscoveryCapability.CAPABILITY_ID)
             .filter(RequirementDiscoveryCapability.class::isInstance)
-            .map(RequirementDiscoveryCapability.class::cast)
-            .flatMap(
-                discovery ->
-                    discovery.bindMissingInteraction(
-                        doc.run().conversationId(), interactionId, command.text()));
-    if (hint.isEmpty()) {
+            .map(RequirementDiscoveryCapability.class::cast);
+    if (discovery.isEmpty() || !discovery.get().canResolveMissingBindings()) {
       return reemitHaltCard(doc);
     }
-    artifactStore.append(
-        new AppendCommand(
-            command.runId(),
-            Kind.CATALOG_BINDING_HINT,
-            "1",
-            RequirementDiscoveryCapability.CAPABILITY_ID,
-            "1",
-            hint.get(),
-            List.of(),
-            null,
-            provenance(
-                command.runId(),
-                producerStageId,
-                RequirementDiscoveryCapability.CAPABILITY_ID)));
-    Map<String, Object> attributes = attributesByRun.get(command.runId());
-    if (attributes != null) {
-      attributes.remove(HALT_FOLLOW_UP_TEXT_ATTR);
+    Optional<CatalogBindingHint> hint =
+        discovery
+            .get()
+            .bindMissingInteraction(doc.run().conversationId(), interactionId, command.text());
+    if (hint.isPresent()) {
+      artifactStore.append(
+          new AppendCommand(
+              command.runId(),
+              Kind.CATALOG_BINDING_HINT,
+              "1",
+              RequirementDiscoveryCapability.CAPABILITY_ID,
+              "1",
+              hint.get(),
+              List.of(),
+              null,
+              provenance(
+                  command.runId(),
+                  producerStageId,
+                  RequirementDiscoveryCapability.CAPABILITY_ID)));
+      Map<String, Object> attributes = attributesByRun.get(command.runId());
+      if (attributes != null) {
+        attributes.remove(HALT_FOLLOW_UP_TEXT_ATTR);
+      }
+      commitStatus(
+          doc,
+          RunStatus.RUNNING,
+          StageStatus.RUNNING,
+          doc.run().stages(),
+          "accepted binding clarification",
+          null,
+          command.commandId(),
+          command.commandPayloadHash());
+      return Multi.createFrom().empty();
     }
+    CatalogBindingMatcher.MatchResult result =
+        discovery.get().matchMissingInteraction(doc.run().conversationId(), command.text());
+    if (result instanceof CatalogBindingMatcher.MatchResult.Ambiguous ambiguous) {
+      String body = ambiguousBindingBody(ambiguous.matches());
+      if (!body.isBlank()) {
+        return waitMissingBindingClarification(doc, command, body);
+      }
+    }
+    return waitMissingBindingClarification(doc, command, UNUSABLE_BINDING_ANSWER_BODY);
+  }
+
+  private static String ambiguousBindingBody(List<CatalogMatch> matches) {
+    if (matches == null || matches.isEmpty()) {
+      return "";
+    }
+    List<String> labels = new ArrayList<>();
+    for (CatalogMatch match : matches) {
+      if (match == null) {
+        continue;
+      }
+      String label = catalogOperationLabel(match);
+      if (!label.isBlank()) {
+        labels.add(label);
+      }
+    }
+    if (labels.isEmpty()) {
+      return "";
+    }
+    return "Several catalog operations match that name. Name one: "
+        + String.join(", ", labels)
+        + ".";
+  }
+
+  private static String catalogOperationLabel(CatalogMatch match) {
+    String name =
+        match.operationName() == null || match.operationName().isBlank()
+            ? match.integrationOperationId()
+            : match.operationName();
+    if (name == null || name.isBlank()) {
+      return "";
+    }
+    if (match.method() != null
+        && !match.method().isBlank()
+        && match.path() != null
+        && !match.path().isBlank()) {
+      return name + " (" + match.method() + " " + match.path() + ")";
+    }
+    return name;
+  }
+
+  /**
+   * Keeps the missing-binding clarification wait with a new reader-visible body. Does not persist a
+   * hint, invoke the compiler, or record a semantic repair.
+   */
+  private Multi<PipelineSignal> waitMissingBindingClarification(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, String body) {
+    String previous = latestWaitingForInputPrompt(doc);
+    String remaining =
+        HaltRecoveryGuard.remainingLine(
+            recoveryLedger.remaining(
+                doc.transitions(), currentAttemptKey(doc), InputOrigin.TRUSTED));
+    String prompt = PipelineGates.withStrippedBody(previous, body + remaining);
     commitStatus(
         doc,
-        RunStatus.RUNNING,
-        StageStatus.RUNNING,
+        RunStatus.WAITING_FOR_INPUT,
+        StageStatus.WAITING_FOR_INPUT,
         doc.run().stages(),
-        "accepted binding clarification",
-        null,
+        prompt,
+        haltEvidence(attributesByRun.get(command.runId()), null),
         command.commandId(),
         command.commandPayloadHash());
-    return Multi.createFrom().empty();
+    return Multi.createFrom()
+        .item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), prompt));
   }
 
   /** Outcome class of the halt holding this run, or {@code null} when none was recorded. */

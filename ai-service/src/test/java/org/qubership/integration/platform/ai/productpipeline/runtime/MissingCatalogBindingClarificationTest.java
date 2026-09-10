@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.eq;
@@ -21,6 +22,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -231,6 +234,109 @@ class MissingCatalogBindingClarificationTest {
     assertEquals(callsAfterBind, execution.calls.get());
   }
 
+  @Test
+  void severalCatalogMatchesStayOnAnActionableCandidateWait() {
+    stubCatalog(
+        new CatalogRestClient.OperationDto(
+            "op-create-wo", "WFMS Create Work Order", "POST", "/work-orders", "spec-wfms"),
+        new CatalogRestClient.OperationDto(
+            "op-create-wo-draft",
+            "WFMS Create Work Order Draft",
+            "POST",
+            "/work-orders/draft",
+            "spec-wfms"));
+    haltOnMissingBinding();
+    SemanticRecoveryState before = runtime.captureSemanticRecoveryState(RUN_ID);
+    int callsBefore = execution.calls.get();
+
+    List<PipelineSignal> signals =
+        runtime
+            .acceptInput(new AcceptInputCommand(RUN_ID, SERVICE_NAME, "bind-amb", "hash-amb"))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(RUN_ID, run().run().runId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    assertEquals("design-execution", run().run().currentStageId());
+    String prompt = latestWaitingPrompt();
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(prompt).orElse(""));
+    String visible = PipelineGates.strip(prompt);
+    assertTrue(visible.contains("/work-orders"), visible);
+    assertTrue(visible.contains("/work-orders/draft"), visible);
+    assertEquals(0, persistedHints().size());
+    assertEquals(callsBefore, execution.calls.get());
+    assertEquals(false, execution.compilerInvoked.get());
+    SemanticRecoveryState after = runtime.captureSemanticRecoveryState(RUN_ID);
+    assertEquals(before.remaining(), after.remaining());
+    assertEquals(before.gateId(), after.gateId());
+    assertTrue(
+        signals.stream().anyMatch(PipelineSignal.WaitingForInput.class::isInstance),
+        signals.toString());
+    assertTrue(
+        signals.stream().noneMatch(PipelineSignal.Completed.class::isInstance),
+        signals.toString());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"", "   ", "Not A Catalog Service"})
+  void emptyOrUnknownAnswersExplainTheUnresolvedChoice(String answer) {
+    haltOnMissingBinding();
+    assertUnusableBindingAnswer(answer, "bind-unknown", "hash-unknown");
+  }
+
+  @Test
+  void anIncompatibleAnswerExplainsTheUnresolvedChoice() {
+    CatalogRestClient.SystemDto billing =
+        new CatalogRestClient.SystemDto("sys-billing", "Billing HTTP", "EXTERNAL", "http");
+    CatalogRestClient.SpecificationDto spec =
+        new CatalogRestClient.SpecificationDto("spec-billing", "Billing v1", "sg-billing", "sys-billing");
+    CatalogRestClient.OperationDto invoice =
+        new CatalogRestClient.OperationDto(
+            "op-get-invoice", "getInvoice", "GET", "/invoices", "spec-billing");
+    when(catalog.searchCatalogSystems("Billing HTTP")).thenReturn(List.of(billing));
+    when(catalog.getApiSpecifications("sys-billing")).thenReturn(List.of(spec));
+    when(catalog.listCatalogOperations(eq(CONV_ID), eq("spec-billing"), eq("sys-billing"), isNull()))
+        .thenReturn(List.of(invoice));
+    when(catalog.listCatalogOperations("spec-billing", "sys-billing", null))
+        .thenReturn(List.of(invoice));
+    haltOnMissingBinding();
+    assertUnusableBindingAnswer("Billing HTTP", "bind-incompat", "hash-incompat");
+  }
+
+  private void assertUnusableBindingAnswer(String answer, String commandId, String hash) {
+    SemanticRecoveryState before = runtime.captureSemanticRecoveryState(RUN_ID);
+    int callsBefore = execution.calls.get();
+
+    List<PipelineSignal> signals =
+        runtime
+            .acceptInput(new AcceptInputCommand(RUN_ID, answer, commandId, hash))
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(RUN_ID, run().run().runId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+    assertEquals("design-execution", run().run().currentStageId());
+    assertEquals(
+        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""));
+    SemanticRecoveryState after = runtime.captureSemanticRecoveryState(RUN_ID);
+    assertEquals(before.remaining(), after.remaining());
+    assertEquals(before.gateId(), after.gateId());
+    assertNotEquals(before.promptIdentity(), after.promptIdentity());
+    assertEquals(0, persistedHints().size());
+    assertEquals(callsBefore, execution.calls.get());
+    assertEquals(false, execution.compilerInvoked.get());
+    assertTrue(
+        signals.stream().anyMatch(PipelineSignal.WaitingForInput.class::isInstance),
+        signals.toString());
+    assertTrue(
+        signals.stream().noneMatch(PipelineSignal.Completed.class::isInstance),
+        signals.toString());
+  }
+
   private void haltOnMissingBinding() {
     runtime
         .startOrResume(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
@@ -257,21 +363,23 @@ class MissingCatalogBindingClarificationTest {
     assertEquals(0, persistedHints().size());
   }
 
-  private void stubCatalog() {
+  private void stubCatalog(CatalogRestClient.OperationDto... operations) {
     CatalogRestClient.SystemDto system =
         new CatalogRestClient.SystemDto("sys-wfms", SERVICE_NAME, "EXTERNAL", "http");
     CatalogRestClient.SpecificationDto spec =
         new CatalogRestClient.SpecificationDto("spec-wfms", "WFMS v1", "sg-wfms", "sys-wfms");
-    CatalogRestClient.OperationDto operation =
-        new CatalogRestClient.OperationDto(
-            "op-create-wo", "Create Work Order", "POST", "/work-orders", "spec-wfms");
+    List<CatalogRestClient.OperationDto> ops =
+        operations.length == 0
+            ? List.of(
+                new CatalogRestClient.OperationDto(
+                    "op-create-wo", "Create Work Order", "POST", "/work-orders", "spec-wfms"))
+            : List.of(operations);
     when(catalog.searchCatalogSystems(SERVICE_NAME)).thenReturn(List.of(system));
     when(catalog.searchCatalogSystems("sys-wfms")).thenReturn(List.of(system));
     when(catalog.getApiSpecifications("sys-wfms")).thenReturn(List.of(spec));
     when(catalog.listCatalogOperations(eq(CONV_ID), eq("spec-wfms"), eq("sys-wfms"), isNull()))
-        .thenReturn(List.of(operation));
-    when(catalog.listCatalogOperations("spec-wfms", "sys-wfms", null))
-        .thenReturn(List.of(operation));
+        .thenReturn(ops);
+    when(catalog.listCatalogOperations("spec-wfms", "sys-wfms", null)).thenReturn(ops);
   }
 
   private List<CatalogBindingHint> persistedHints() {

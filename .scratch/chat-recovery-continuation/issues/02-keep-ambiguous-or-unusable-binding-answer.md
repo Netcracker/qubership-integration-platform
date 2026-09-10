@@ -4,8 +4,8 @@
 
 **Blocked by:** 01 - Apply a missing catalog binding from a clarification answer
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A2: Multiple catalog matches stay on an actionable candidate card; compiler is not invoked
-- [ ] A3: Empty, unknown, or incompatible answers explain the unresolved choice and do not spend a semantic repair
-- [ ] If ownership cannot be established, stop safely without asking a question that has no consumer
+- [x] A2: Multiple catalog matches stay on an actionable candidate card; compiler is not invoked
+- [x] A3: Empty, unknown, or incompatible answers explain the unresolved choice and do not spend a semantic repair
+- [x] If ownership cannot be established, stop safely without asking a question that has no consumer
