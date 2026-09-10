@@ -1,0 +1,380 @@
+{
+  "mappingDescription" : {
+    "source" : {
+      "body" : {
+        "name" : "object",
+        "schema" : {
+          "id" : "a091a38fa23b431c9455a83fd47f62fc",
+          "attributes" : [ {
+            "id" : "cc36d49202db4eec94efb52e6a8ff4d7",
+            "name" : "birthDate",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "33ed8c79263249d88ee2b1f1d3220adf",
+            "name" : "city",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "35ffebd39e7346a59675890127054267",
+            "name" : "countryCode",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "3f435ca50cfa4583a4c33ac64de4b373",
+            "name" : "email",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "bb3c61e7572f4326ace827c93dc62457",
+            "name" : "firstName",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "705a5c6a6d534e68b679cd64cf483d2b",
+            "name" : "lastName",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "187763e5cf194a5599211d584efd7a77",
+            "name" : "marketingConsent",
+            "type" : {
+              "name" : "boolean"
+            },
+            "required" : false
+          }, {
+            "id" : "261dae3ab1b84ce6a15ea6ba9ce3c4e9",
+            "name" : "personId",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "09c1da3ab70d46b19a2897a44f79a63a",
+            "name" : "phone",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          } ]
+        },
+        "metadata" : {
+          "dataFormat" : "JSON",
+          "sourceType" : "sample",
+          "sourceFormat" : "JSON"
+        },
+        "definitions" : [ ]
+      },
+      "headers" : [ ],
+      "properties" : [ ]
+    },
+    "target" : {
+      "body" : {
+        "name" : "object",
+        "schema" : {
+          "id" : "64d5d12aa4a848e2b7c0038ae562f7f3",
+          "attributes" : [ {
+            "id" : "06211eab4ca34c31be410b6a67b2e1fc",
+            "name" : "city",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "515cb33b401e4f128d9ea772d80ab602",
+            "name" : "customerId",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "0d54b9b5844644a595e064cf7fbb8767",
+            "name" : "displayName",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "1c16c43b3f8c46b29c5b3224acc5c0ba",
+            "name" : "emailAddress",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "b020786a479a40a0aecf9ac610f86d52",
+            "name" : "loyaltyProgramId",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "b896c92b947c4086967b116ebc72fc46",
+            "name" : "marketingAllowed",
+            "type" : {
+              "name" : "boolean"
+            },
+            "required" : false
+          }, {
+            "id" : "79d87ebaa0e0476ca07d13a3bb600884",
+            "name" : "phoneNumber",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "5465913fa76e440aa0f874465718fe65",
+            "name" : "preferredContactChannel",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "e951dbee98eb467aa53d02368525cc70",
+            "name" : "registeredAt",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          }, {
+            "id" : "41d93c0320604ac4bfd507c86c4b078d",
+            "name" : "residence",
+            "type" : {
+              "name" : "string"
+            },
+            "required" : false
+          } ]
+        },
+        "metadata" : {
+          "dataFormat" : "JSON",
+          "sourceType" : "sample",
+          "sourceFormat" : "JSON"
+        },
+        "definitions" : [ ]
+      },
+      "headers" : [ {
+        "id" : "9af42520e03d477683adeacdb4ac3c4a",
+        "name" : "X-Person-Id",
+        "type" : {
+          "name" : "string"
+        }
+      } ],
+      "properties" : [ {
+        "id" : "983edacf15c047ad9690a694a4ca0813",
+        "name" : "personId",
+        "type" : {
+          "name" : "string"
+        }
+      } ]
+    },
+    "actions" : [ {
+      "id" : "1ef2784771bc41c3835268eb38278d33",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "515cb33b401e4f128d9ea772d80ab602" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "kind" : "body",
+        "path" : [ "261dae3ab1b84ce6a15ea6ba9ce3c4e9" ],
+        "type" : "attribute"
+      } ]
+    }, {
+      "id" : "a8a0fd8816444ad7838671436261e050",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "79d87ebaa0e0476ca07d13a3bb600884" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "kind" : "body",
+        "path" : [ "09c1da3ab70d46b19a2897a44f79a63a" ],
+        "type" : "attribute"
+      } ]
+    }, {
+      "id" : "e65aeeb30fef441589b7edae3e64dadf",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "5465913fa76e440aa0f874465718fe65" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "type" : "constant",
+        "constantId" : "46ec74af958d4bc08d74be77484be23e"
+      } ]
+    }, {
+      "id" : "00bae3e63ce84c10a054cca5f5507098",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "0d54b9b5844644a595e064cf7fbb8767" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "kind" : "body",
+        "path" : [ "bb3c61e7572f4326ace827c93dc62457" ],
+        "type" : "attribute"
+      }, {
+        "kind" : "body",
+        "path" : [ "705a5c6a6d534e68b679cd64cf483d2b" ],
+        "type" : "attribute"
+      } ],
+      "metadata" : {
+        "description" : ""
+      },
+      "transformation" : {
+        "name" : "expression",
+        "parameters" : [ "body.firstName + '_' + body.lastName" ]
+      }
+    }, {
+      "id" : "aa7d8b79b9094fd49c033af9a1a18d18",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "b896c92b947c4086967b116ebc72fc46" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "kind" : "body",
+        "path" : [ "187763e5cf194a5599211d584efd7a77" ],
+        "type" : "attribute"
+      } ]
+    }, {
+      "id" : "2e532186ac3d4d58859fe3c84137fe6a",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "1c16c43b3f8c46b29c5b3224acc5c0ba" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "kind" : "body",
+        "path" : [ "3f435ca50cfa4583a4c33ac64de4b373" ],
+        "type" : "attribute"
+      } ]
+    }, {
+      "id" : "ae74ca56c8ca4a078b938976f3d94c21",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "b020786a479a40a0aecf9ac610f86d52" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "type" : "constant",
+        "constantId" : "c31ecdc390b24210973fc0f3c9902900"
+      } ]
+    }, {
+      "id" : "0b68ff0845f44c2a89f7273cec638cca",
+      "target" : {
+        "kind" : "header",
+        "path" : [ "9af42520e03d477683adeacdb4ac3c4a" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "kind" : "body",
+        "path" : [ "261dae3ab1b84ce6a15ea6ba9ce3c4e9" ],
+        "type" : "attribute"
+      } ]
+    }, {
+      "id" : "97b228d31bf549b2bc2363131b4a4ea5",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "41d93c0320604ac4bfd507c86c4b078d" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "kind" : "body",
+        "path" : [ "35ffebd39e7346a59675890127054267" ],
+        "type" : "attribute"
+      } ],
+      "metadata" : {
+        "description" : ""
+      },
+      "transformation" : {
+        "name" : "dictionary",
+        "parameters" : [ "Planet Earth", "NL=Netherland", "US=United States", "AQ=Antarctica" ]
+      }
+    }, {
+      "id" : "44df402a44aa4c8583acefba1ad5f103",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "e951dbee98eb467aa53d02368525cc70" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "type" : "constant",
+        "constantId" : "5bf0dcd770d84c559c9e0af9659c291d"
+      } ]
+    }, {
+      "id" : "9ec419dfe866422e931aea9785fc1f0a",
+      "target" : {
+        "kind" : "property",
+        "path" : [ "983edacf15c047ad9690a694a4ca0813" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "kind" : "body",
+        "path" : [ "261dae3ab1b84ce6a15ea6ba9ce3c4e9" ],
+        "type" : "attribute"
+      } ]
+    }, {
+      "id" : "c44801787b424cee8dbe9e45c7ed4af0",
+      "target" : {
+        "kind" : "body",
+        "path" : [ "06211eab4ca34c31be410b6a67b2e1fc" ],
+        "type" : "attribute"
+      },
+      "sources" : [ {
+        "kind" : "body",
+        "path" : [ "33ed8c79263249d88ee2b1f1d3220adf" ],
+        "type" : "attribute"
+      } ]
+    } ],
+    "constants" : [ {
+      "id" : "46ec74af958d4bc08d74be77484be23e",
+      "name" : "PHONE",
+      "type" : {
+        "name" : "string"
+      },
+      "valueSupplier" : {
+        "kind" : "given",
+        "value" : "PHONE"
+      }
+    }, {
+      "id" : "c31ecdc390b24210973fc0f3c9902900",
+      "name" : "loyaltyProgramId",
+      "type" : {
+        "name" : "string"
+      },
+      "valueSupplier" : {
+        "kind" : "generated",
+        "generator" : {
+          "name" : "generateUUID",
+          "parameters" : [ ]
+        }
+      }
+    }, {
+      "id" : "5bf0dcd770d84c559c9e0af9659c291d",
+      "name" : "registeredAt",
+      "type" : {
+        "name" : "string"
+      },
+      "valueSupplier" : {
+        "kind" : "generated",
+        "generator" : {
+          "name" : "currentDateTime",
+          "parameters" : [ null, "uuuu-MM-dd'T'HH:mm:ssX", "en_US", "UTC" ]
+        }
+      }
+    } ]
+  }
+}

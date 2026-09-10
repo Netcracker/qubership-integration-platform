@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+fixtures:
+  - id: "checkpoint-store"
+    provider: "checkpoint"
+
+scenarios:
+  - id: "retries-failed-session-from-checkpoint"
+    driver:
+      provider: "http-trigger"
+      parameters:
+        method: "POST"
+        path: "/routes/checkpoint-start"
+    invocations:
+      - id: "fails-after-saving-checkpoint"
+        body: "original payload"
+        headers:
+          X-Checkpoint-Test: "original header"
+        expectedFailure:
+          type: "java.lang.RuntimeException"
+          message: "Checkpoint invocation failed before retry."
+          cause: null
+        expectedHeaders:
+          CamelHttpResponseCode: 500
+        interactions:
+          - fixture: "checkpoint-store"
+            expectedState: "SAVED"
+
+      - id: "restores-checkpoint-and-completes"
+        driver:
+          provider: "http-trigger"
+          parameters:
+            method: "POST"
+            path: "/routes/chains/c0273e0b-d143-4704-b4ee-266f045c6631/sessions/failed-session/checkpoint-elements/3ddc6ac7-b537-4f30-a207-cb7e5da8bdab/retry"
+        expectedBody: "original payload"
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedExchangeHeaders:
+          X-Checkpoint-Test: "original header"
+        expectedProperties:
+          checkpointTestProperty: "original property"
+          parentSessionId: "failed-session"
+          originalSessionId: "failed-session"
+          internalProperty_parentSessionId: "failed-session"
+          internalProperty_originalSessionId: "failed-session"
+        interactions:
+          - fixture: "checkpoint-store"
+            expectedState: "RESTORED"
+
+      - id: "restores-checkpoint-with-replacement-payload"
+        driver:
+          provider: "http-trigger"
+          parameters:
+            method: "POST"
+            path: "/routes/chains/c0273e0b-d143-4704-b4ee-266f045c6631/sessions/failed-session/checkpoint-elements/3ddc6ac7-b537-4f30-a207-cb7e5da8bdab/retry"
+        body: >-
+          {"body":"replacement payload","headers":{"X-Checkpoint-Test":"replacement header"},"properties":{"checkpointTestProperty":"replacement property"}}
+        expectedBody: "replacement payload"
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedExchangeHeaders:
+          X-Checkpoint-Test: "replacement header"
+        expectedProperties:
+          checkpointTestProperty: "replacement property"
+          parentSessionId: "failed-session"
+          originalSessionId: "failed-session"
+          internalProperty_parentSessionId: "failed-session"
+          internalProperty_originalSessionId: "failed-session"
+        interactions:
+          - fixture: "checkpoint-store"
+            expectedState: "RESTORED"
+
+  - id: "skips-checkpoint-when-triggered-by-chain-call"
+    endpointUri: "cip-chain:1fdf8320-5663-41b5-b121-8c7ff75b50ae"
+    invocations:
+      - id: "skips-checkpoint-storage"
+        body: "unsaved payload"
+        expectedFailure:
+          type: "java.lang.RuntimeException"
+          message: "Checkpoint invocation failed before retry."
+          cause: null
+        interactions:
+          - fixture: "checkpoint-store"
+            expectedState: "EMPTY"

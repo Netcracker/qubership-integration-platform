@@ -1,0 +1,48 @@
+---
+id: "987d5a3c-8021-4fcd-8098-72662364713d"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "choice"
+content:
+  labels: []
+  elements:
+  - id: "1e1dde8d-223f-43b8-951b-ccf3c121789c"
+    name: "Condition"
+    type: "condition"
+    children:
+    - id: "015dd0d4-f1cc-44b7-b973-789c5e4b1153"
+      name: "If"
+      type: "if"
+      children:
+      - id: "e7676253-31e4-41ea-bdd2-d9c31c806b36"
+        name: "If Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-e7676253-31e4-41ea-bdd2-d9c31c806b36.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        condition: "${exchangeProperty.condition}"
+        priority: 0
+    - id: "1ba99377-2d6c-4e1f-a610-92c89b1b65e9"
+      name: "Else"
+      type: "else"
+      children:
+      - id: "6eecec13-3ae7-4e16-8444-6a818c55dd34"
+        name: "Else Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-6eecec13-3ae7-4e16-8444-6a818c55dd34.groovy"
+          propertiesToExportInSeparateFile: "script"
+  - id: "49a56894-0819-4cdc-8f46-178070bc9b10"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "49a56894-0819-4cdc-8f46-178070bc9b10"
+  dependencies:
+  - from: "49a56894-0819-4cdc-8f46-178070bc9b10"
+    to: "1e1dde8d-223f-43b8-951b-ccf3c121789c"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

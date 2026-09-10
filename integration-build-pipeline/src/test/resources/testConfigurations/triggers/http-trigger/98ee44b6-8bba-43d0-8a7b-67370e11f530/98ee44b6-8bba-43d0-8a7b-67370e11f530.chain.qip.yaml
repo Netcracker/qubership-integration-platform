@@ -1,0 +1,43 @@
+---
+id: "98ee44b6-8bba-43d0-8a7b-67370e11f530"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "http-trigger"
+content:
+  labels: []
+  elements:
+  - id: "8b21e4c7-fc5d-47fe-9769-b352ae5aa29e"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      accessControlType: "NONE"
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "test"
+      externalRoute: true
+      handleChainFailureAction: "default"
+      handleValidationAction: "default"
+      httpBinding: "handlingHttpBinding"
+      httpMethodRestrict: "GET,POST"
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: "ignore"
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: "e8b645a7-82b5-4fbd-976e-8a0aa33f8fc4"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-e8b645a7-82b5-4fbd-976e-8a0aa33f8fc4.groovy"
+      propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "8b21e4c7-fc5d-47fe-9769-b352ae5aa29e"
+    to: "e8b645a7-82b5-4fbd-976e-8a0aa33f8fc4"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

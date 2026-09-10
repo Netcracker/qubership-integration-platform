@@ -1,0 +1,27 @@
+---
+id: "a46c255e-d355-4b37-83df-25c5e99ceb64"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "chain-call"
+content:
+  labels: []
+  elements:
+  - id: "4bccb828-d66d-43a6-9704-f95137c70d5b"
+    name: "Chain Call"
+    type: "chain-call-2"
+    properties:
+      block: true
+      elementId: "ec738992-9f5b-4368-92d2-0e4c461b7bb6"
+      failIfNoConsumers: false
+      timeout: 30000
+  - id: "573699af-6329-47f9-a409-f469528b6eaa"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "573699af-6329-47f9-a409-f469528b6eaa"
+  dependencies:
+  - from: "573699af-6329-47f9-a409-f469528b6eaa"
+    to: "4bccb828-d66d-43a6-9704-f95137c70d5b"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

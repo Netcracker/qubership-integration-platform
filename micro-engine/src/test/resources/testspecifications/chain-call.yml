@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: "chain-call"
+deployments:
+  - id: "chain-call"
+    route: "chain-call"
+    dependsOn:
+      - "test-subchain"
+  - id: "test-subchain"
+    route: "test-subchain"
+scenarios:
+  - id: "calls-subchain"
+    endpointUri: "cip-chain:573699af-6329-47f9-a409-f469528b6eaa"
+    body: "Original"
+    headers:
+      X-Test-Request: "request-value"
+    properties:
+      testProperty: "property-value"
+    expectedBody: "Subchain called"
+    expectedHeaders:
+      X-Test-Request: "request-value"
+    expectedProperties:
+      testProperty: "property-value"

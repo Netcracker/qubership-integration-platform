@@ -1,0 +1,27 @@
+---
+id: "b8799dbd-754e-437b-afa8-60547ca4c8e3"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "mapper"
+content:
+  labels: []
+  elements:
+  - id: "49e5f58d-bc48-4c85-adbd-0aa107a9a95e"
+    name: "Mapper"
+    type: "mapper-2"
+    properties:
+      exportFileExtension: "json"
+      propertiesFilename: "mappingDescription-49e5f58d-bc48-4c85-adbd-0aa107a9a95e.json"
+      propertiesToExportInSeparateFile: "mappingDescription"
+      throwException: true
+  - id: "dd1278ad-01e6-4748-998e-b4653776682a"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "dd1278ad-01e6-4748-998e-b4653776682a"
+  dependencies:
+  - from: "dd1278ad-01e6-4748-998e-b4653776682a"
+    to: "49e5f58d-bc48-4c85-adbd-0aa107a9a95e"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

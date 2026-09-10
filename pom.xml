@@ -19,8 +19,9 @@
       <module>checkstyle</module>
       <module>integration-build-pipeline</module>
       <module>engine</module>
-      <module>micro-engine</module>
+      <!-- snapshotTests generates the bundle in runtime-catalog before micro-engine consumes it. -->
       <module>runtime-catalog</module>
+      <module>micro-engine</module>
       <module>sessions-management</module>
       <module>schemas</module>
     </modules>

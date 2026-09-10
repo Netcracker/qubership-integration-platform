@@ -1,0 +1,53 @@
+---
+id: "ca0e3983-c40c-494a-a7be-5ecbc0ee1217"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "log-record"
+content:
+  labels: []
+  elements:
+  - id: "13f91533-b6a7-47b5-bf4f-50aeec42b137"
+    name: "Log Warning Record"
+    type: "log-record"
+    properties:
+      businessIdentifiers:
+        Req-Id: "1"
+      logLevel: "Warning"
+      message: "Warning Message"
+      receiver: "Test"
+      sender: "Test"
+  - id: "530a36fd-71b6-47be-ac0a-7d3891d2236a"
+    name: "Log Record"
+    type: "log-record"
+    properties:
+      businessIdentifiers:
+        Req-Id: "1"
+      logLevel: "Info"
+      message: "Info Message"
+      receiver: "Test"
+      sender: "Test"
+  - id: "64420010-d342-4351-8e50-2e0921681277"
+    name: "Log Error Record"
+    type: "log-record"
+    properties:
+      businessIdentifiers:
+        Req-Id: "1"
+      logLevel: "Error"
+      message: "Error Message"
+      receiver: "Test"
+      sender: "Test"
+  - id: "ee44c80f-b71a-496f-898a-394bda8d7214"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "ee44c80f-b71a-496f-898a-394bda8d7214"
+  dependencies:
+  - from: "ee44c80f-b71a-496f-898a-394bda8d7214"
+    to: "13f91533-b6a7-47b5-bf4f-50aeec42b137"
+  - from: "ee44c80f-b71a-496f-898a-394bda8d7214"
+    to: "530a36fd-71b6-47be-ac0a-7d3891d2236a"
+  - from: "ee44c80f-b71a-496f-898a-394bda8d7214"
+    to: "64420010-d342-4351-8e50-2e0921681277"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"
