@@ -1046,7 +1046,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         doc.run().runId(),
         ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
         recovery.producerStageId());
-    if (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT) {
+    if (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT
+        && !cause.findings().isEmpty()) {
       persistMappingContractEvidence(doc, stage, refs, cause, recovery.producerStageId());
     }
     if (recovery.action() == ProducerOwnedRecovery.Action.REPAIR_CURRENT) {

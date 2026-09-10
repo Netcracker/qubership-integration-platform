@@ -86,6 +86,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.execu
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DefaultApprovedCompilerExecutionRunner;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.ExecutorCatalogBindingAdapter;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -322,6 +323,44 @@ class MappingContractBriefProducerRecoveryTest {
     }
     assertFalse(compilerOutput.contains("$.processId"), compilerOutput);
     assertFalse(compilerOutput.contains("preserved."), compilerOutput);
+  }
+
+  @Test
+  void unresolvedRepairKeepsTypedEvidenceForASecondCapture() throws Exception {
+    repairedBrief.set(validRepairWithAmbiguousBindings());
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(runtime);
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+    String originalEvidenceHash =
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+
+    StageExecutionResult firstRepair = execute(runtime, "requirement-analysis");
+
+    assertFalse(firstRepair.decision() instanceof StageDecision.WaitForApproval);
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).size());
+    assertPersistedMappingEvidence();
+    assertEquals(
+        originalEvidenceHash,
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)));
+
+    MappingRepairCaptureValidator.Result secondCapture =
+        captureValidator()
+            .validate(RUN_ID, CONV_ID, originalEvidenceHash, validContextPreservingBrief());
+
+    assertEquals(MappingRepairCaptureValidator.Result.Status.PASSED, secondCapture.status());
+    assertPersistedMappingEvidence();
   }
 
   private enum AdvisoryConflict {
@@ -1039,6 +1078,30 @@ class MappingContractBriefProducerRecoveryTest {
                     original.targetRef(),
                     original.targetPort(),
                     rules)));
+  }
+
+  private static RequirementBrief validRepairWithAmbiguousBindings() {
+    return validContextPreservingBrief()
+        .withCatalogBindings(
+            List.of(catalogBinding("node-call", "op-1"), catalogBinding("node-call", "new-op")));
+  }
+
+  private static CatalogBindingHint catalogBinding(String interactionId, String operationId) {
+    return new CatalogBindingHint(
+        CatalogBindingHint.SCHEMA_VERSION,
+        interactionId,
+        interactionId,
+        "Create task",
+        "system-1",
+        "group-1",
+        "specification-1",
+        operationId,
+        "http",
+        "POST",
+        "/tasks",
+        "2024.4",
+        FIXED,
+        "catalog-evidence");
   }
 
   private static RequirementBrief validContextPreservingBrief() {
