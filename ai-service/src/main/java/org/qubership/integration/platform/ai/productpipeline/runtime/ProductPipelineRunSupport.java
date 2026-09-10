@@ -573,6 +573,9 @@ public final class ProductPipelineRunSupport {
               if (isEscalatedAction(doc, command.text(), PipelineGates.DROP_ELEMENT_ACTION)) {
                 return dropBlockingElement(doc, command);
               }
+              if (PipelineGates.isHaltCardAction(command.text())) {
+                return acceptTypedInput(doc, command);
+              }
               if (isHaltFollowUp(doc, command.text())) {
                 return recordHaltFollowUp(doc, command);
               }

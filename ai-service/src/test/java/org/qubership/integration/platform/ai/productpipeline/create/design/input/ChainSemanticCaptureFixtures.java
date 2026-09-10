@@ -179,6 +179,23 @@ final class ChainSemanticCaptureFixtures {
     return capture(null);
   }
 
+  static ChainSemanticCapture foreignSourceFactCapture() {
+    ChainSemanticCapture capture = linearCapture();
+    return new ChainSemanticCapture(
+        capture.chainIdentity(),
+        List.of(),
+        List.of(),
+        List.of(new CapturedOperation("op-shared", "script", List.of("foreign-fact"))),
+        capture.sequenceRegions(),
+        capture.conditionRegions(),
+        capture.splitRegions(),
+        capture.loopRegions(),
+        capture.retryRegions(),
+        capture.errorScopeRegions(),
+        capture.edges(),
+        capture.containment());
+  }
+
   static ChainSemanticCapture mappedCapture() {
     return mappedCapture(MAPPING_INTENT_ID);
   }
