@@ -930,6 +930,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
     List<OwnerCandidate> closed = ownerCandidates(profile, stage.stageId());
+    Optional<String> consumedBriefProducer =
+        compiledBriefProducerStageId(doc.run().runId(), cause);
     String artifactIdentity =
         RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
     RecoveryAttemptKey observingKey =
@@ -945,7 +947,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                     catalogHasBeenWritten(doc.run().runId()),
                     recoveryLedger.repairsUsed(doc.transitions(), observingKey, InputOrigin.TRUSTED),
                     recoveryLedger.limits().maxSemanticRepairs(),
-                    Optional.empty()))
+                    Optional.empty(),
+                    consumedBriefProducer))
             : new ProducerOwnedRecovery.Route(ProducerOwnedRecovery.Action.PARK, "");
     putRunAttribute(
         doc.run().runId(),
@@ -1683,6 +1686,35 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return deps;
   }
 
+  private Optional<String> compiledBriefProducerStageId(String runId, RecoveryCause cause) {
+    Reference compiledBriefRef = compiledBriefReference(cause);
+    if (compiledBriefRef == null) {
+      return Optional.empty();
+    }
+    return artifactStore
+        .get(runId, compiledBriefRef)
+        .map(Revision::provenance)
+        .filter(provenance -> provenance.stageId() != null && !provenance.stageId().isBlank())
+        .map(ArtifactProvenance::stageId);
+  }
+
+  private static Reference compiledBriefReference(RecoveryCause cause) {
+    if (cause == null || cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
+      return null;
+    }
+    for (PlanValidationFinding finding : cause.findings()) {
+      if (finding == null) {
+        continue;
+      }
+      String artifactId = finding.mappingDetails().consumedBriefArtifactId();
+      String contentHash = finding.mappingDetails().consumedBriefContentHash();
+      if (!artifactId.isBlank() && !contentHash.isBlank()) {
+        return new Reference(Kind.REQUIREMENT_BRIEF, artifactId, contentHash);
+      }
+    }
+    return null;
+  }
+
   /**
    * Stores observing stage and brief producer on the durable recovery record. Schema-side identity
    * stays in the finding JSON; those sides live under conversation compilation, not this run.
@@ -1695,10 +1727,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       String producerStageId) {
     String runId = doc.run().runId();
     String failureId = UUID.randomUUID().toString();
-    Revision approvedBriefRevision =
-        artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF).orElse(null);
-    Reference approvedBriefRef =
-        approvedBriefRevision == null ? null : approvedBriefRevision.reference();
+    Reference approvedBriefRef = compiledBriefReference(cause);
     List<Reference> rejectedRefs = rejectedArtifactRefs(runId, refs);
     RecoveryEvidence evidence =
         new RecoveryEvidence(
