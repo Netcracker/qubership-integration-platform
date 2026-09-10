@@ -7,6 +7,7 @@ import com.netcracker.cloud.maas.client.api.rabbit.RabbitMaaSClient;
 import com.netcracker.cloud.maas.client.impl.MaaSAPIClientImpl;
 import com.netcracker.cloud.maas.client.impl.http.HttpClient;
 import com.netcracker.cloud.security.core.auth.M2MManager;
+import com.netcracker.cloud.security.core.utils.k8s.M2MClientFactory;
 import com.netcracker.cloud.security.core.utils.tls.TlsUtils;
 import lombok.extern.slf4j.Slf4j;
 import okhttp3.OkHttpClient;
@@ -61,9 +62,9 @@ public class MaasClientConfiguration {
     ) throws Exception {
         String token = HttpHeaders.encodeBasicAuth(username, password, null);
         Supplier<String> tokenSupplier = () -> token;
-        HttpClient httpClient = HttpClient.getMaasClient(tokenSupplier);
+        HttpClient httpClient = new HttpClient(tokenSupplier);
         try {
-            OkHttpClient client = new OkHttpClient.Builder()
+            OkHttpClient client = M2MClientFactory.getMaasOkHttpClient(tokenSupplier).newBuilder()
                     .sslSocketFactory(TlsUtils.getSslContext().getSocketFactory(), TlsUtils.getTrustManager())
                     .addInterceptor(chain -> {
                         Request.Builder reqBuilder = chain.request().newBuilder();
