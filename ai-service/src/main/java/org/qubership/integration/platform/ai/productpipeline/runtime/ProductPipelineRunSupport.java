@@ -2532,7 +2532,7 @@ public final class ProductPipelineRunSupport {
   }
 
   /**
-   * True when this approval is the exhausted missing-brief-facts edit path and the approved brief
+   * True when this approval is the exhausted known-brief-defect edit path and the approved brief
    * is the same canonical artifact automatic replay already observed.
    */
   private boolean shouldHoldUnchangedExhaustedBrief(
@@ -2541,7 +2541,7 @@ public final class ProductPipelineRunSupport {
       return false;
     }
     RecoveryCause cause = currentRecoveryCause(doc.run().runId());
-    if (!cause.isMissingBriefFacts()) {
+    if (!cause.isKnownBriefDefect()) {
       return false;
     }
     String owner = doc.run().currentStageId();
@@ -2579,7 +2579,7 @@ public final class ProductPipelineRunSupport {
   private String recordExhaustedBriefCorrection(
       ProductPipelineRunDocument doc, String owner, List<StageSnapshot> updated) {
     RecoveryCause cause = currentRecoveryCause(doc.run().runId());
-    if (!cause.isMissingBriefFacts()) {
+    if (!cause.isKnownBriefDefect()) {
       return "";
     }
     String artifact = RecoveryAttemptLedger.inputArtifactIdentity(updated, owner);
