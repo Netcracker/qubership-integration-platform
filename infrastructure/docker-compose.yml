@@ -179,9 +179,8 @@ services:
     ports:
       - "8099:8099"
     env_file:
-      - path: ai-service-dev.env
-      - path: .env.local
-        required: false
+      - ai-service-dev.env
+      - .env.local
     healthcheck:
       test:
         [
@@ -206,9 +205,8 @@ services:
     ports:
       - "8094:8080"
     env_file:
-      - path: ai-service-dev.env
-      - path: .env.local
-        required: false
+      - ai-service-dev.env
+      - .env.local
     environment:
       QIP_AI_A2A_PUBLIC_BASE_URL: ${QIP_AI_A2A_PUBLIC_BASE_URL:-http://localhost:8094}
       QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX: ${QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX:-}
