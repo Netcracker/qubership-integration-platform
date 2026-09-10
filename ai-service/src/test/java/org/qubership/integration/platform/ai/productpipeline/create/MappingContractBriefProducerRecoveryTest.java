@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -46,6 +48,8 @@ import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -113,6 +117,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -156,6 +161,9 @@ class MappingContractBriefProducerRecoveryTest {
   private CipDesignExecutorJavaAdapter adapter;
   private ProductPipelineProfile profile;
   private Revision consumedBriefRevision;
+  private AtomicInteger analysisCalls;
+  private AtomicInteger designInputCalls;
+  private AtomicReference<RequirementBrief> repairedBrief;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -167,8 +175,13 @@ class MappingContractBriefProducerRecoveryTest {
     runStore = new ProductPipelineRunStore(blobStore, MAPPER, clock);
     profile = threeStageProfile();
     adapter = productionAdapter(clock);
+    analysisCalls = new AtomicInteger();
+    designInputCalls = new AtomicInteger();
+    repairedBrief = new AtomicReference<>();
     persistSide("trigger-http", MappingPort.OUTPUT, sourceSchema());
     persistSide("call-1", MappingPort.REQUEST, targetSchema());
+    persistSide("call-1", MappingPort.RESPONSE, serviceResponseSchema());
+    persistSide("result-call", MappingPort.REQUEST, resultSchema());
   }
 
   @Test
@@ -227,6 +240,83 @@ class MappingContractBriefProducerRecoveryTest {
     StageExecutionResult failed = execute(runtime, "design-execution");
     assertBriefProducerRoute(runtime, failed, agent);
     assertPersistedMappingEvidence();
+  }
+
+  @Test
+  void rewordedRepairWithTheSameUnknownTargetIsRejectedBeforeApproval() throws Exception {
+    repairedBrief.set(rewordedUnknownTargetBrief());
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(runtime);
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+
+    StageExecutionResult repaired = execute(runtime, "requirement-analysis");
+
+    assertInstanceOf(StageDecision.WaitForInput.class, repaired.decision());
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).size());
+    assertEquals(1, designInputCalls.get());
+    String findings =
+        String.valueOf(
+            runtime
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
+    assertTrue(findings.contains("$.preserved.executionId"), findings);
+    assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
+  }
+
+  @Test
+  void validRepairIsApprovedRebuiltAndExecutedInTheSameRun() throws Exception {
+    AtomicInteger executionCalls = new AtomicInteger();
+    AtomicReference<String> compilerVisibleContext = new AtomicReference<>("");
+    repairedBrief.set(validContextPreservingBrief());
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(executionCalls, compilerVisibleContext));
+    haltAtMappingContract(runtime);
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    applyLifecycle(runtime, failed);
+
+    StageExecutionResult repaired = execute(runtime, "requirement-analysis");
+    assertInstanceOf(StageDecision.WaitForApproval.class, repaired.decision());
+    runtime
+        .recordApprove(
+            new ApproveCommand(
+                RUN_ID,
+                snapshot("requirement-analysis").approvableReference(),
+                run().run().runRevision()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    applyLifecycle(runtime, execute(runtime, "design-input"));
+    applyLifecycle(runtime, execute(runtime, "design-execution"));
+
+    assertEquals(RUN_ID, run().run().runId());
+    assertEquals(RunStatus.PLAN_APPROVED, run().run().status());
+    assertEquals(2, executionCalls.get());
+    assertEquals(2, designInputCalls.get());
+    RequirementBrief executed =
+        artifactStore
+            .latest(RUN_ID, Kind.REQUIREMENT_BRIEF)
+            .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
+            .orElseThrow();
+    List<String> requestTargets = new java.util.ArrayList<>();
+    for (MappingIntentRule rule : executed.mappingIntents().getFirst().rules()) {
+      requestTargets.add(rule.targetPath());
+    }
+    assertEquals(List.of("$.Subject"), requestTargets);
+    for (String property :
+        List.of("executionId", "orderId", "processInstanceId", "executionNumber", "taskId")) {
+      assertTrue(compilerVisibleContext.get().contains(property), compilerVisibleContext.get());
+    }
+    assertTrue(compilerVisibleContext.get().contains("exchange.setProperty"));
+    assertTrue(compilerVisibleContext.get().contains("exchange.getProperty"));
+    assertFalse(compilerVisibleContext.get().contains("$.processId"));
   }
 
   private enum AdvisoryConflict {
@@ -370,6 +460,7 @@ class MappingContractBriefProducerRecoveryTest {
                     List.of(analysisCapability(), designInputCapability(), execution)),
                 Clock.fixed(FIXED, ZoneOffset.UTC))
             .failureNarrative(new FailureNarrative(agent))
+            .mappingRepairCaptureValidator(captureValidator())
             .build();
     return new CreateChainTestOrchestrator(support, runStore);
   }
@@ -385,7 +476,13 @@ class MappingContractBriefProducerRecoveryTest {
                             StageOutcomeClass.CANDIDATE,
                             List.of(
                                 new ArtifactCandidate(
-                                    Kind.REQUIREMENT_BRIEF, unknownTargetBrief(), List.of())),
+                                    Kind.REQUIREMENT_BRIEF,
+                                    analysisCalls.incrementAndGet() == 1
+                                        ? unknownTargetBrief()
+                                        : repairedBrief.get() == null
+                                            ? unknownTargetBrief()
+                                            : repairedBrief.get(),
+                                    List.of())),
                             "brief ready",
                             null))));
   }
@@ -393,19 +490,25 @@ class MappingContractBriefProducerRecoveryTest {
   private StageCapability designInputCapability() {
     return capability(
         "design-input-cap",
-        context ->
-            Multi.createFrom()
-                .item(
-                    new CapabilitySignal.Completed(
-                        new StageOutcome(
-                            StageOutcomeClass.SUCCEEDED,
-                            List.of(
-                                new ArtifactCandidate(
-                                    Kind.CHAIN_SEMANTIC_REVISION,
-                                    revisionWith(unknownTargetIntent()),
-                                    List.of())),
-                            "revision ready",
-                            null))));
+        context -> {
+          designInputCalls.incrementAndGet();
+          RequirementBrief brief =
+              context.attributes().get("requirementBrief") instanceof RequirementBrief value
+                  ? value
+                  : unknownTargetBrief();
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      new StageOutcome(
+                          StageOutcomeClass.SUCCEEDED,
+                          List.of(
+                              new ArtifactCandidate(
+                                  Kind.CHAIN_SEMANTIC_REVISION,
+                                  revisionWith(brief.mappingIntents()),
+                                  List.of())),
+                          "revision ready",
+                          null)));
+        });
   }
 
   private StageCapability injectedMappingExecution() {
@@ -436,6 +539,116 @@ class MappingContractBriefProducerRecoveryTest {
                           null,
                           result.recoveryCause())));
         });
+  }
+
+  private StageCapability validatingExecution(
+      AtomicInteger calls, AtomicReference<String> compilerVisibleContext) {
+    return capability(
+        "execution-cap",
+        context -> {
+          calls.incrementAndGet();
+          RequirementBrief brief =
+              assertInstanceOf(
+                  RequirementBrief.class, context.attributes().get("requirementBrief"));
+          List<PlanValidationFinding> findings = new java.util.ArrayList<>();
+          Revision briefRevision =
+              artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow();
+          for (MappingIntent intent : brief.mappingIntents()) {
+            MappingSchemaSide source = sideFor(intent.sourceRef(), intent.sourcePort());
+            MappingSchemaSide target = sideFor(intent.targetRef(), intent.targetPort());
+            var evaluated = org.qubership.integration.platform.ai.plan.mapping.MappingContractGate
+                .evaluate(intent, sourceContract(source), sourceContract(target));
+            findings.addAll(
+                org.qubership.integration.platform.ai.plan.mapping.MappingContractGate.toPlanFindings(
+                    evaluated,
+                    source,
+                    target,
+                    briefRevision.artifactId(),
+                    briefRevision.contentHash()));
+          }
+          if (!findings.isEmpty()) {
+            return Multi.createFrom()
+                .item(
+                    new CapabilitySignal.Completed(
+                        StageOutcome.of(
+                            StageOutcomeClass.VALIDATION_FAILURE,
+                            "mapping contract rejected",
+                            RecoveryCause.mappingContract(findings))));
+          }
+          MappingIntent resultIntent =
+              brief.mappingIntents().stream()
+                  .filter(intent -> "return-context".equals(intent.mappingIntentId()))
+                  .findFirst()
+                  .orElseThrow();
+          MappingSchemaSide response =
+              sideFor(resultIntent.sourceRef(), resultIntent.sourcePort());
+          MappingSchemaSide result =
+              sideFor(resultIntent.targetRef(), resultIntent.targetPort());
+          compilerVisibleContext.set(
+              contextBuilder()
+                  .renderMappingGenerationContext(
+                      resultIntent,
+                      new org.qubership.integration.platform.ai.plan.mapping.envelope
+                              .JsonSchemaMessageSchemaFactory(MAPPER)
+                          .fromSides(response, result),
+                      response,
+                      result,
+                      brief.mappingIntents(),
+                      Map.of(
+                          "salesforce-create-task",
+                          sourceContract(sideFor("trigger-http", MappingPort.OUTPUT)),
+                          "return-context",
+                          sourceContract(response))));
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      StageOutcome.of(StageOutcomeClass.SUCCEEDED, "execution accepted")));
+        });
+  }
+
+  private MappingRepairCaptureValidator captureValidator() {
+    return new MappingRepairCaptureValidator(
+        artifactStore,
+        MAPPER,
+        new OperationSchemaLoader() {
+          @Override
+          public OperationSchemaMaps load(String operationId) {
+            throw new AssertionError("unchanged repair must reuse persisted contracts");
+          }
+
+          @Override
+          public MappingSchemaSide persistRequest(
+              String compilationId,
+              String serviceCallId,
+              String operationId,
+              String contentType) {
+            throw new UnsupportedOperationException();
+          }
+
+          @Override
+          public MappingSchemaSide persistResponse(
+              String compilationId,
+              String serviceCallId,
+              String operationId,
+              String contentType,
+              String responseCode) {
+            throw new UnsupportedOperationException();
+          }
+        });
+  }
+
+  private MappingSchemaSide sideFor(String owner, MappingPort port) {
+    String schemaOwner = "node-call".equals(owner) ? "call-1" : owner;
+    return artifactStore.history(CONV_ID, Kind.MAPPING_SCHEMA_SIDE).stream()
+        .map(revision -> artifactStore.payload(revision, MappingSchemaSide.class))
+        .filter(side -> schemaOwner.equals(side.serviceCallId()) && port == side.direction())
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static MappingContract sourceContract(MappingSchemaSide side) {
+    return org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory
+        .from(side.schema());
   }
 
   private ExecutionInputs productionInputs() {
@@ -746,6 +959,10 @@ class MappingContractBriefProducerRecoveryTest {
           "type": "object",
           "properties": {
             "executionId": { "type": "string" },
+            "orderId": { "type": "string" },
+            "processInstanceId": { "type": "string" },
+            "executionNumber": { "type": "string" },
+            "taskId": { "type": "string" },
             "subject": { "type": "string" }
           }
         }
@@ -763,10 +980,96 @@ class MappingContractBriefProducerRecoveryTest {
         """);
   }
 
+  private static JsonNode serviceResponseSchema() throws Exception {
+    return MAPPER.readTree(
+        """
+        {
+          "type": "object",
+          "properties": { "id": { "type": "string" } }
+        }
+        """);
+  }
+
+  private static JsonNode resultSchema() throws Exception {
+    return MAPPER.readTree(
+        """
+        {
+          "type": "object",
+          "properties": {
+            "executionId": { "type": "string" },
+            "orderId": { "type": "string" },
+            "processInstanceId": { "type": "string" },
+            "executionNumber": { "type": "string" },
+            "taskId": { "type": "string" }
+          }
+        }
+        """);
+  }
+
   private static RequirementBrief unknownTargetBrief() {
     return new RequirementBrief(
             "goal", List.of(), List.of(), List.of(), List.of(), "summary")
         .withMappingIntents(List.of(unknownTargetIntent()));
+  }
+
+  private static RequirementBrief rewordedUnknownTargetBrief() {
+    MappingIntent original = unknownTargetIntent();
+    List<MappingIntentRule> rules =
+        List.of(
+            original.rules().getFirst(),
+            new MappingIntentRule(
+                "$.executionId",
+                "$.preserved.executionId",
+                "keep the correlation id for the response",
+                MappingRuleStatus.PROPOSED));
+    return new RequirementBrief(
+            "reworded goal", List.of(), List.of(), List.of(), List.of(), "reworded summary")
+        .withMappingIntents(
+            List.of(
+                new MappingIntent(
+                    original.mappingIntentId(),
+                    original.sourceRef(),
+                    original.sourcePort(),
+                    original.targetRef(),
+                    original.targetPort(),
+                    rules)));
+  }
+
+  private static RequirementBrief validContextPreservingBrief() {
+    MappingIntent request =
+        new MappingIntent(
+            "salesforce-create-task",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.subject", "$.Subject", null, MappingRuleStatus.PROPOSED)));
+    List<MappingIntentRule> contextRules =
+        List.of(
+            new MappingIntentRule("$.executionId", "$.executionId", null),
+            new MappingIntentRule("$.orderId", "$.orderId", null),
+            new MappingIntentRule("$.processInstanceId", "$.processInstanceId", null),
+            new MappingIntentRule("$.executionNumber", "$.executionNumber", null),
+            new MappingIntentRule("$.taskId", "$.taskId", null));
+    MappingIntent response =
+        new MappingIntent(
+            "return-context",
+            "call-1",
+            MappingPort.RESPONSE,
+            "result-call",
+            MappingPort.REQUEST,
+            contextRules,
+            "SCRIPT");
+    return new RequirementBrief(
+            "preserve independent correlation context",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "create the task and preserve correlation context")
+        .withMappingIntents(List.of(request, response));
   }
 
   private static MappingIntent unknownTargetIntent() {
@@ -786,6 +1089,10 @@ class MappingContractBriefProducerRecoveryTest {
   }
 
   private static ChainSemanticRevision revisionWith(MappingIntent intent) {
+    return revisionWith(List.of(intent));
+  }
+
+  private static ChainSemanticRevision revisionWith(List<MappingIntent> intents) {
     return SemanticFixtures.linear(
         "Orders",
         "revision-orders",
@@ -794,7 +1101,7 @@ class MappingContractBriefProducerRecoveryTest {
         "call-1",
         "createOrder",
         "Orders API",
-        List.of(intent),
+        intents,
         List.of("Preserve trace identifiers"));
   }
 
