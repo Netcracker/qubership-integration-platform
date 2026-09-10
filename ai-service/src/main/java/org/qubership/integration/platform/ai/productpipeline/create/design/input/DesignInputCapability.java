@@ -54,6 +54,8 @@ public class DesignInputCapability implements StageCapability {
   public static final String SKILL_ID = "chain-semantic-design";
   public static final String PROVIDED_IDS_REJECTED =
       "IDS is an approval view; provide requirements that can produce a semantic revision";
+  public static final String MISSING_CAPTURE =
+      "Design did not capture a chain semantic revision.";
 
   private static final String IDS_FLOW_MARKER = "Integration flow for CIP Chain";
 
@@ -165,6 +167,7 @@ public class DesignInputCapability implements StageCapability {
       return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, tagged);
     }
     AtomicReference<ChainSemanticRevision> captured = new AtomicReference<>();
+    AtomicReference<String> rejection = new AtomicReference<>();
     ToolSession.bind(context.conversationId());
     ProductCapabilityCaptureContext.bindDesign(
         context.runId(),
@@ -180,13 +183,16 @@ public class DesignInputCapability implements StageCapability {
     try {
       agentText =
           runDesignAgent(context.conversationId(), authoringPrompt(brief, contract, context));
+      ProductCapabilityCaptureContext.designBinding(context.conversationId())
+          .map(binding -> binding.captureRejection().get())
+          .ifPresent(rejection::set);
     } finally {
       ProductCapabilityCaptureContext.unbind(context.conversationId());
       ToolSession.clear();
     }
     ChainSemanticRevision revision = captured.get();
     if (revision == null) {
-      String message = captureFailureMessage(agentText);
+      String message = captureFailureMessage(rejection.get());
       LOG.warnf(
           "design-input captured nothing: runId=%s, conversationId=%s, agentText=%s",
           context.runId(),
@@ -342,12 +348,11 @@ public class DesignInputCapability implements StageCapability {
     return extra.toString();
   }
 
-  static String captureFailureMessage(String agentText) {
-    String explained = agentText == null ? "" : agentText.strip();
-    if (explained.isBlank()) {
-      return "Design did not capture a chain semantic revision.";
+  static String captureFailureMessage(String rejection) {
+    if (rejection != null && !rejection.isBlank()) {
+      return AiTraceLog.preview(rejection, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS);
     }
-    return AiTraceLog.preview(explained, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS);
+    return MISSING_CAPTURE;
   }
 
   private static RequirementBrief requirementBrief(StageExecutionContext context) {
