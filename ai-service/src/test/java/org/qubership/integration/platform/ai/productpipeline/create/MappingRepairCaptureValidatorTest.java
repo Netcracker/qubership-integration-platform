@@ -140,6 +140,54 @@ class MappingRepairCaptureValidatorTest {
   }
 
   @Test
+  void sameBoundaryOperationChangeUsesTheNewContract() throws Exception {
+    String evidenceHash = persistRecoveryEvidence("node-call");
+    schemaLoader.schemasByOperation.set(
+        Map.of(
+            "old-operation",
+            new OperationSchemaMaps(
+                "old-operation", Map.of("application/json", oldTargetSchema()), Map.of()),
+            "new-operation",
+            new OperationSchemaMaps(
+                "new-operation", Map.of("application/json", newTargetSchema()), Map.of())));
+    RequirementBrief candidate =
+        brief(
+                intent(
+                    "node-call",
+                    List.of(
+                        new MappingIntentRule(
+                            "$.subject", "$.Name", null, MappingRuleStatus.PROPOSED))))
+            .withCatalogBindings(
+                List.of(
+                    binding("call-1", "old-operation"),
+                    binding("node-call", "new-operation")));
+
+    Result result = validator.validate(RUN_ID, CONVERSATION_ID, evidenceHash, candidate);
+
+    assertEquals(Result.Status.PASSED, result.status());
+    assertEquals("new-operation", schemaLoader.lastOperationId.get());
+  }
+
+  @Test
+  void duplicateBindingsKeepTheRepairUnresolved() throws Exception {
+    String evidenceHash = persistRecoveryEvidence();
+    RequirementBrief candidate =
+        brief(
+                intent(
+                    List.of(
+                        new MappingIntentRule(
+                            "$.subject", "$.Subject", null, MappingRuleStatus.PROPOSED))))
+            .withCatalogBindings(
+                List.of(
+                    binding("call-1", "old-operation"),
+                    binding("call-1", "new-operation")));
+
+    Result result = validator.validate(RUN_ID, CONVERSATION_ID, evidenceHash, candidate);
+
+    assertEquals(Result.Status.UNRESOLVED, result.status());
+  }
+
+  @Test
   void unavailableChangedOperationContractKeepsTheRepairUnresolved() throws Exception {
     String evidenceHash = persistRecoveryEvidence();
     schemaLoader.schemasByOperation.set(
@@ -159,6 +207,10 @@ class MappingRepairCaptureValidatorTest {
   }
 
   private String persistRecoveryEvidence() throws Exception {
+    return persistRecoveryEvidence("call-1");
+  }
+
+  private String persistRecoveryEvidence(String targetRef) throws Exception {
     PlanValidationFinding finding =
         new PlanValidationFinding(
             "MAPPING_UNKNOWN_TARGET",
@@ -168,7 +220,7 @@ class MappingRepairCaptureValidatorTest {
                 "salesforce-create-task",
                 "trigger-http",
                 "OUTPUT",
-                "call-1",
+                targetRef,
                 "REQUEST",
                 "$.executionId",
                 "$.preserved.executionId",
