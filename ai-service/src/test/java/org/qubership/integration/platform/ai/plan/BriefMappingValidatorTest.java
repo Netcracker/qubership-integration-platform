@@ -457,6 +457,48 @@ class BriefMappingValidatorTest {
   }
 
   @Test
+  void mapper2PreferenceKeepsOffHopSourceAndFreeFormExpressionAccepted() {
+    MappingContractEvaluation offHop =
+        BriefMappingValidator.evaluateBoundary(
+            "response-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.processInstanceId", "$.processId", null, MappingRuleStatus.PROPOSED)),
+            MappingContract.of(new MappingContract.Field("$.id", "string", true)),
+            MappingContract.of(new MappingContract.Field("$.processId", "string", false)),
+            "MAPPER_2");
+    MappingContractEvaluation expression =
+        BriefMappingValidator.evaluateBoundary(
+            "map-init",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.name",
+                    "$.fullName",
+                    "concat first and last then trim",
+                    MappingRuleStatus.PROPOSED)),
+            SOURCE,
+            MappingContract.of(new MappingContract.Field("$.fullName", "string", true)),
+            "MAPPER_2");
+    assertFalse(offHop.blocked());
+    assertTrue(
+        offHop.findings().stream()
+            .noneMatch(finding -> finding.code() == MappingFindingCode.MAPPING_INVALID_SOURCE));
+    assertFalse(expression.blocked());
+    assertTrue(
+        expression.findings().stream()
+            .noneMatch(
+                finding -> finding.code() == MappingFindingCode.MAPPING_UNSUPPORTED_EXPRESSION));
+  }
+
+  @Test
   void scriptContextReadIsNotAnInvalidSource() {
     MappingContractEvaluation evaluated =
         BriefMappingValidator.evaluateBoundary(
@@ -563,25 +605,21 @@ class BriefMappingValidatorTest {
   @Test
   void sameFieldNameOnTwoBoundariesIsLocatedIndependently() {
     MappingContract source = MappingContract.of(new MappingContract.Field("$.id", "string", true));
-    MappingContract knownTarget =
-        MappingContract.of(new MappingContract.Field("$.id", "string", true));
-    MappingContract otherTarget =
+    MappingContract requestTarget =
         MappingContract.of(new MappingContract.Field("$.name", "string", true));
-    MappingRuleFinding requestFinding =
+    MappingContract responseTarget =
+        MappingContract.of(new MappingContract.Field("$.title", "string", true));
+    MappingContractEvaluation request =
         BriefMappingValidator.evaluateBoundary(
-                "map-request",
-                "trigger",
-                MappingPort.OUTPUT,
-                "call-a",
-                MappingPort.REQUEST,
-                List.of(new MappingIntentRule("$.id", "$.id", null)),
-                source,
-                knownTarget,
-                null)
-            .findings()
-            .stream()
-            .findFirst()
-            .orElse(null);
+            "map-request",
+            "trigger",
+            MappingPort.OUTPUT,
+            "call-a",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("$.id", "$.id", null)),
+            source,
+            requestTarget,
+            null);
     MappingContractEvaluation response =
         BriefMappingValidator.evaluateBoundary(
             "map-response",
@@ -591,18 +629,26 @@ class BriefMappingValidatorTest {
             MappingPort.REQUEST,
             List.of(new MappingIntentRule("$.id", "$.id", null)),
             source,
-            otherTarget,
+            responseTarget,
             null);
-    MappingRuleFinding unknown =
+    MappingRuleFinding requestFinding =
+        request.blockerFindings().stream()
+            .filter(finding -> finding.code() == MappingFindingCode.MAPPING_UNKNOWN_TARGET)
+            .findFirst()
+            .orElseThrow();
+    MappingRuleFinding responseFinding =
         response.blockerFindings().stream()
             .filter(finding -> finding.code() == MappingFindingCode.MAPPING_UNKNOWN_TARGET)
             .findFirst()
             .orElseThrow();
-    assertTrue(requestFinding == null || !requestFinding.blocker());
-    assertEquals("map-response", unknown.mappingIntentId());
-    assertEquals("$.id", unknown.targetPath());
-    assertEquals(MappingPort.REQUEST, unknown.targetPort());
-    assertEquals("call-b", unknown.targetRef());
+    assertEquals("$.id", requestFinding.targetPath());
+    assertEquals("$.id", responseFinding.targetPath());
+    assertEquals("map-request", requestFinding.mappingIntentId());
+    assertEquals("map-response", responseFinding.mappingIntentId());
+    assertEquals("call-a", requestFinding.targetRef());
+    assertEquals("call-b", responseFinding.targetRef());
+    assertEquals(MappingPort.REQUEST, requestFinding.targetPort());
+    assertEquals(MappingPort.REQUEST, responseFinding.targetPort());
   }
 
   private static RequirementBrief briefWithIntents(List<MappingIntent> intents) {

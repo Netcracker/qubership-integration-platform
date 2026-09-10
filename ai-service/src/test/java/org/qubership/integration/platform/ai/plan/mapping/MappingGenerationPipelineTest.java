@@ -153,6 +153,39 @@ class MappingGenerationPipelineTest {
   }
 
   @Test
+  void propertyLessPersistedSchemaDoesNotBlockAsUnknownTarget() throws Exception {
+    JsonNode emptyObject = MAPPER.readTree("{\"type\": \"object\"}");
+    persistSide("trigger-http", MappingPort.OUTPUT, emptyObject);
+    persistSide("call-1", MappingPort.REQUEST, emptyObject);
+    MappingIntent intent =
+        new MappingIntent(
+            "map-init",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.orderId", "$.orderId", null, MappingRuleStatus.PROPOSED)));
+
+    MappingGenerationPipeline.Result prepared =
+        pipeline.prepare(
+            COMPILATION_ID,
+            SCRIPT_SKILL,
+            revisionWith(intent),
+            List.of(binding()),
+            sampleContext(List.of(), List.of(intent)));
+
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
+    assertTrue(
+        prepared.findings().stream()
+            .noneMatch(
+                finding ->
+                    "MAPPING_UNKNOWN_TARGET".equals(finding.code())
+                        || "MAPPING_MISSING_REQUIRED_TARGET".equals(finding.code())));
+  }
+
+  @Test
   void unknownPreservedTargetRetainsTypedFindingsAndBriefIdentity() throws Exception {
     persistSide(
         "trigger-http",
