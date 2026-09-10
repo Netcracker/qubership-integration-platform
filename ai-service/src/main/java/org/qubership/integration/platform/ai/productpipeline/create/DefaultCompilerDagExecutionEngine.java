@@ -1140,7 +1140,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             serviceCallBindings(workspace),
             executionContext);
     if (prepared.blocked()) {
-      throw new MappingContractBlockedException(prepared.blockedMessage());
+      throw new MappingContractBlockedException(prepared.blockedMessage(), prepared.findings());
     }
     return prepared.context() == null ? executionContext : prepared.context();
   }

@@ -325,7 +325,7 @@ public class CipDesignExecutorJavaAdapter {
       return ExecutionResult.failure(
           StageOutcomeClass.VALIDATION_FAILURE,
           blocked.getMessage(),
-          RecoveryCause.missingBriefFacts(List.of(blocked.getMessage())));
+          RecoveryCause.mappingContract(blocked.findings()));
     }
     if (engineResult.outcomeClass() != StageOutcomeClass.SUCCEEDED
         && engineResult.outcomeClass() != StageOutcomeClass.CANDIDATE) {

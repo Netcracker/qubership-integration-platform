@@ -8,6 +8,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 
@@ -43,6 +44,25 @@ class HaltProducerCauseTableTest {
             List.of(new OwnerCandidate("analysis", "requirement-brief")));
 
     assertEquals("State the access policy in the requirements.", sentence);
+  }
+
+  @Test
+  void instructionForAnUnknownMappingTargetDoesNotAskForAValue() {
+    String sentence =
+        HaltProducerCauseTable.instruction(
+            RecoveryCause.mappingContract(
+                List.of(
+                    new PlanValidationFinding(
+                        "MAPPING_UNKNOWN_TARGET",
+                        "Target path $.preserved.executionId is absent from the target contract.",
+                        true))),
+            OwnerDiagnosis.of("The mapping target is absent.", "requirement-analysis"),
+            List.of(new OwnerCandidate("requirement-analysis", "requirement-brief")));
+
+    assertEquals(
+        "Correct the mapping target in the requirements; the field is absent from this contract.",
+        sentence);
+    assertFalse(sentence.contains("Add the missing facts"));
   }
 
   @Test

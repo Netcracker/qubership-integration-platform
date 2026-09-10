@@ -26,7 +26,8 @@ public final class HaltProducerCauseTable {
           Set.of(
               RecoveryCauseCode.CONTRACT_SHAPE,
               RecoveryCauseCode.MISSING_MANDATORY_INPUT,
-              RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED);
+              RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED,
+              RecoveryCauseCode.MAPPING_CONTRACT);
       case DESIGN_INPUT ->
           Set.of(
               RecoveryCauseCode.MISSING_BRIEF_FACTS,
@@ -54,6 +55,7 @@ public final class HaltProducerCauseTable {
               RecoveryCauseCode.MISSING_REQUIRED_PROPERTY,
               RecoveryCauseCode.MISSING_BRIEF_FACTS,
               RecoveryCauseCode.CATALOG_RESOLUTION,
+              RecoveryCauseCode.MAPPING_CONTRACT,
               RecoveryCauseCode.CONTRACT_SHAPE,
               RecoveryCauseCode.VALIDATION_BLOCKER,
               RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED);
@@ -120,6 +122,7 @@ public final class HaltProducerCauseTable {
     return switch (cause.causeCode()) {
       case SECURITY_POLICY -> "State the access policy in " + role + ".";
       case MISSING_BRIEF_FACTS -> "Add the missing facts to " + role + ".";
+      case MAPPING_CONTRACT -> mappingInstruction(cause, role);
       case MISSING_REQUIRED_PROPERTY -> "Add the required property to " + role + ".";
       case UNKNOWN_PROPERTY -> "Remove the unknown property from the generated element.";
       case CATALOG_RESOLUTION -> {
@@ -138,10 +141,42 @@ public final class HaltProducerCauseTable {
     };
   }
 
+  private static String mappingInstruction(RecoveryCause cause, String role) {
+    String code = firstMappingFindingCode(cause);
+    if ("MAPPING_UNKNOWN_TARGET".equals(code)) {
+      return "Correct the mapping target in "
+          + role
+          + "; the field is absent from this contract.";
+    }
+    if ("MAPPING_MISSING_REQUIRED_TARGET".equals(code)) {
+      return "Supply a mapping for the required target in " + role + ".";
+    }
+    if ("MAPPING_INVALID_SOURCE".equals(code)) {
+      return "Correct the mapping source in " + role + ".";
+    }
+    if ("MAPPING_UNSUPPORTED_EXPRESSION".equals(code)) {
+      return "Rewrite the mapping expression in " + role + ".";
+    }
+    return "Correct the mapping rules in " + role + ".";
+  }
+
+  private static String firstMappingFindingCode(RecoveryCause cause) {
+    if (cause == null || cause.findings().isEmpty()) {
+      return "";
+    }
+    for (var finding : cause.findings()) {
+      if (finding != null && finding.code() != null && !finding.code().isBlank()) {
+        return finding.code();
+      }
+    }
+    return "";
+  }
+
   /** Owner category the router uses for {@code causeCode}. Exhaustive over {@link RecoveryCauseCode}. */
   static FindingOwnerCategory ownerCategory(RecoveryCauseCode causeCode) {
     return switch (causeCode) {
-      case SECURITY_POLICY, MISSING_BRIEF_FACTS -> FindingOwnerCategory.POLICY_OR_BRIEF;
+      case SECURITY_POLICY, MISSING_BRIEF_FACTS, MAPPING_CONTRACT ->
+          FindingOwnerCategory.POLICY_OR_BRIEF;
       case MISSING_REQUIRED_PROPERTY -> FindingOwnerCategory.PLAN_FILL;
       case UNKNOWN_PROPERTY -> FindingOwnerCategory.EXECUTION;
       case CONTRACT_SHAPE,

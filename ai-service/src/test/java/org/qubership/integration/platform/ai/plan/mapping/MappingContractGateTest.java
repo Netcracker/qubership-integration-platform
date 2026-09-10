@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan.mapping;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +53,154 @@ class MappingContractGateTest {
             List.of());
     Optional<String> message = MappingContractGate.blockedMessage(intent, SOURCE, TARGET);
     assertTrue(message.orElseThrow().startsWith(BriefMappingValidator.UNRESOLVED_REQUIRED_PREFIX));
+    MappingContractEvaluation evaluated = MappingContractGate.evaluate(intent, SOURCE, TARGET);
+    assertEquals(
+        MappingFindingCode.MAPPING_MISSING_REQUIRED_TARGET,
+        evaluated.blockerFindings().getFirst().code());
+  }
+
+  @Test
+  void inventedFieldOnAnUnrelatedApiIsUnknownTargetNotMissingRequiredForThatField() {
+    MappingIntent intent =
+        new MappingIntent(
+            "billing-create-invoice",
+            "http-trigger",
+            MappingPort.OUTPUT,
+            "billing-create-invoice",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.orderId", "$.notARealInvoiceField", null, MappingRuleStatus.PROPOSED)));
+    MappingContractEvaluation evaluated =
+        MappingContractGate.evaluate(
+            intent,
+            contractFrom(
+                """
+                {
+                  "type": "object",
+                  "properties": { "orderId": { "type": "string" } },
+                  "required": ["orderId"]
+                }
+                """),
+            contractFrom(
+                """
+                {
+                  "type": "object",
+                  "properties": { "invoiceId": { "type": "string" } },
+                  "required": ["invoiceId"]
+                }
+                """));
+    assertEquals(
+        MappingFindingCode.MAPPING_UNKNOWN_TARGET,
+        evaluated.blockerFindings().stream()
+            .filter(finding -> "$.notARealInvoiceField".equals(finding.targetPath()))
+            .findFirst()
+            .orElseThrow()
+            .code());
+    assertTrue(
+        evaluated.blockerFindings().stream()
+            .noneMatch(
+                finding ->
+                    finding.code() == MappingFindingCode.MAPPING_MISSING_REQUIRED_TARGET
+                        && "$.notARealInvoiceField".equals(finding.targetPath())));
+  }
+
+  @Test
+  void unknownTargetDoesNotStartGeneratorAndIsNotMissingRequired() {
+    MappingContract target =
+        contractFrom(
+            """
+            {
+              "type": "object",
+              "properties": { "Subject": { "type": "string" } },
+              "required": ["Subject"]
+            }
+            """);
+    MappingIntent intent =
+        new MappingIntent(
+            "salesforce-create-task",
+            "onTaskStart",
+            MappingPort.OUTPUT,
+            "salesforce-create-task",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("$.subject", "$.Subject", null, MappingRuleStatus.PROPOSED),
+                new MappingIntentRule(
+                    "$.executionId",
+                    "$.preserved.executionId",
+                    "preserve for response",
+                    MappingRuleStatus.PROPOSED)));
+    MappingContractEvaluation evaluated =
+        MappingContractGate.evaluate(
+            intent,
+            contractFrom(
+                """
+                {
+                  "type": "object",
+                  "properties": {
+                    "executionId": { "type": "string" },
+                    "subject": { "type": "string" }
+                  }
+                }
+                """),
+            target);
+    assertTrue(evaluated.blocked());
+    assertEquals(1, evaluated.blockerFindings().size());
+    assertEquals(
+        MappingFindingCode.MAPPING_UNKNOWN_TARGET, evaluated.blockerFindings().getFirst().code());
+    assertFalse(
+        evaluated.blockedMessage().startsWith(BriefMappingValidator.UNRESOLVED_REQUIRED_PREFIX));
+  }
+
+  @Test
+  void rewordedUnknownTargetStillBlocks() {
+    MappingContract target =
+        contractFrom(
+            """
+            {
+              "type": "object",
+              "properties": { "Subject": { "type": "string" } },
+              "required": ["Subject"]
+            }
+            """);
+    MappingContract source =
+        contractFrom(
+            """
+            {
+              "type": "object",
+              "properties": { "executionId": { "type": "string" } }
+            }
+            """);
+    MappingIntent original =
+        new MappingIntent(
+            "map-request",
+            "onTaskStart",
+            MappingPort.OUTPUT,
+            "create-task",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.executionId",
+                    "$.preserved.executionId",
+                    "preserve for response",
+                    MappingRuleStatus.PROPOSED)));
+    MappingIntent reworded =
+        original.withRules(
+            List.of(
+                new MappingIntentRule(
+                    "$.executionId",
+                    "$.preserved.executionId",
+                    "explicitly initialize preserved.executionId from inbound executionId",
+                    MappingRuleStatus.PROPOSED)));
+    assertTrue(MappingContractGate.evaluate(original, source, target).blocked());
+    assertTrue(MappingContractGate.evaluate(reworded, source, target).blocked());
+    assertEquals(
+        MappingFindingCode.MAPPING_UNKNOWN_TARGET,
+        MappingContractGate.evaluate(reworded, source, target).blockerFindings().stream()
+            .filter(finding -> "$.preserved.executionId".equals(finding.targetPath()))
+            .findFirst()
+            .orElseThrow()
+            .code());
   }
 
   @Test

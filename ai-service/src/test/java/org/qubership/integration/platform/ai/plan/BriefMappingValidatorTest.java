@@ -7,6 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.mapping.MappingContractEvaluation;
+import org.qubership.integration.platform.ai.plan.mapping.MappingFindingCode;
+import org.qubership.integration.platform.ai.plan.mapping.MappingRuleFinding;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -329,6 +332,277 @@ class BriefMappingValidatorTest {
     assertEquals("SCRIPT", intent.get().implementationPreference());
     assertEquals(MappingRuleStatus.USER_DEFINED, intent.get().rules().getFirst().status());
     assertFalse(BriefMappingValidator.blocksApproval(briefWithIntents(List.of(intent.get()))));
+  }
+
+  @Test
+  void unknownTargetIsNotAMissingRequiredField() {
+    MappingContract taskCreate =
+        MappingContract.of(new MappingContract.Field("$.Subject", "string", true));
+    MappingContractEvaluation evaluated =
+        BriefMappingValidator.evaluateBoundary(
+            "salesforce-create-task",
+            "onTaskStart",
+            MappingPort.OUTPUT,
+            "salesforce-create-task",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("$.subject", "$.Subject", null, MappingRuleStatus.PROPOSED),
+                new MappingIntentRule(
+                    "$.executionId",
+                    "$.preserved.executionId",
+                    "preserve for response",
+                    MappingRuleStatus.PROPOSED)),
+            MappingContract.of(
+                new MappingContract.Field("$.executionId", "string", false),
+                new MappingContract.Field("$.subject", "string", false)),
+            taskCreate,
+            null);
+
+    assertTrue(evaluated.blocked());
+    assertEquals(1, evaluated.blockerFindings().size());
+    MappingRuleFinding finding = evaluated.blockerFindings().getFirst();
+    assertEquals(MappingFindingCode.MAPPING_UNKNOWN_TARGET, finding.code());
+    assertEquals("$.preserved.executionId", finding.targetPath());
+    assertEquals("salesforce-create-task", finding.mappingIntentId());
+    assertFalse(finding.message().startsWith(BriefMappingValidator.UNRESOLVED_REQUIRED_PREFIX));
+    assertTrue(finding.expectedContract().contains("does not declare"));
+  }
+
+  @Test
+  void inventedFieldOnAnUnrelatedApiIsUnknownTarget() {
+    MappingContractEvaluation evaluated =
+        BriefMappingValidator.evaluateBoundary(
+            "billing-create-invoice",
+            "http-trigger",
+            MappingPort.OUTPUT,
+            "billing-create-invoice",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.orderId", "$.notARealInvoiceField", null, MappingRuleStatus.PROPOSED)),
+            MappingContract.of(new MappingContract.Field("$.orderId", "string", true)),
+            MappingContract.of(new MappingContract.Field("$.invoiceId", "string", true)),
+            null);
+
+    MappingRuleFinding unknown =
+        evaluated.blockerFindings().stream()
+            .filter(finding -> finding.code() == MappingFindingCode.MAPPING_UNKNOWN_TARGET)
+            .findFirst()
+            .orElseThrow();
+    assertEquals("$.notARealInvoiceField", unknown.targetPath());
+    assertTrue(
+        evaluated.blockerFindings().stream()
+            .anyMatch(
+                finding -> finding.code() == MappingFindingCode.MAPPING_MISSING_REQUIRED_TARGET
+                    && "$.invoiceId".equals(finding.targetPath())));
+  }
+
+  @Test
+  void missingRequiredTargetIsADistinctFinding() {
+    MappingContractEvaluation evaluated =
+        BriefMappingValidator.evaluateBoundary(
+            "map-init",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("$.orderId", "$.orderId", null)),
+            SOURCE,
+            TARGET,
+            null);
+
+    List<MappingRuleFinding> missing =
+        evaluated.blockerFindings().stream()
+            .filter(finding -> finding.code() == MappingFindingCode.MAPPING_MISSING_REQUIRED_TARGET)
+            .toList();
+    assertEquals(2, missing.size());
+    assertEquals("$.fullName", missing.getFirst().targetPath());
+    assertEquals("$.personId", missing.get(1).targetPath());
+    assertTrue(
+        evaluated.blockerFindings().stream()
+            .noneMatch(finding -> finding.code() == MappingFindingCode.MAPPING_UNKNOWN_TARGET));
+  }
+
+  @Test
+  void freeFormExpressionOnAKnownTargetIsNotUnsupportedWhileMapper2IsOff() {
+    MappingContract target =
+        MappingContract.of(new MappingContract.Field("$.fullName", "string", true));
+    MappingContractEvaluation evaluated =
+        BriefMappingValidator.evaluateBoundary(
+            "map-init",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.name",
+                    "$.fullName",
+                    "concat first and last then trim",
+                    MappingRuleStatus.PROPOSED)),
+            SOURCE,
+            target,
+            "SCRIPT");
+
+    assertFalse(evaluated.blocked());
+    assertTrue(
+        evaluated.findings().stream()
+            .noneMatch(finding -> finding.code() == MappingFindingCode.MAPPING_UNSUPPORTED_EXPRESSION));
+    assertTrue(
+        evaluated.findings().stream()
+            .noneMatch(finding -> finding.code() == MappingFindingCode.MAPPING_UNKNOWN_TARGET));
+    assertTrue(
+        evaluated.findings().stream()
+            .noneMatch(finding -> finding.code() == MappingFindingCode.MAPPING_INVALID_SOURCE));
+  }
+
+  @Test
+  void scriptContextReadIsNotAnInvalidSource() {
+    MappingContractEvaluation evaluated =
+        BriefMappingValidator.evaluateBoundary(
+            "response-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.processInstanceId", "$.processId", null, MappingRuleStatus.PROPOSED)),
+            MappingContract.of(new MappingContract.Field("$.id", "string", true)),
+            MappingContract.of(new MappingContract.Field("$.processId", "string", false)),
+            "SCRIPT");
+
+    assertFalse(evaluated.blocked());
+    assertTrue(
+        evaluated.findings().stream()
+            .noneMatch(finding -> finding.code() == MappingFindingCode.MAPPING_INVALID_SOURCE));
+  }
+
+  @Test
+  void rewordedUnknownTargetStillFailsTheSameCheck() {
+    MappingContract target =
+        MappingContract.of(new MappingContract.Field("$.Subject", "string", true));
+    MappingIntentRule original =
+        new MappingIntentRule(
+            "$.executionId",
+            "$.preserved.executionId",
+            "preserve for response",
+            MappingRuleStatus.PROPOSED);
+    MappingIntentRule reworded =
+        new MappingIntentRule(
+            "$.executionId",
+            "$.preserved.executionId",
+            "explicitly initialize preserved.executionId from inbound executionId",
+            MappingRuleStatus.PROPOSED);
+    MappingFindingCode first =
+        BriefMappingValidator.evaluateBoundary(
+                "map-request",
+                "onTaskStart",
+                MappingPort.OUTPUT,
+                "create-task",
+                MappingPort.REQUEST,
+                List.of(original),
+                MappingContract.of(new MappingContract.Field("$.executionId", "string", false)),
+                target,
+                null)
+            .blockerFindings()
+            .stream()
+            .filter(finding -> "$.preserved.executionId".equals(finding.targetPath()))
+            .findFirst()
+            .orElseThrow()
+            .code();
+    MappingFindingCode second =
+        BriefMappingValidator.evaluateBoundary(
+                "map-request",
+                "onTaskStart",
+                MappingPort.OUTPUT,
+                "create-task",
+                MappingPort.REQUEST,
+                List.of(reworded),
+                MappingContract.of(new MappingContract.Field("$.executionId", "string", false)),
+                target,
+                null)
+            .blockerFindings()
+            .stream()
+            .filter(finding -> "$.preserved.executionId".equals(finding.targetPath()))
+            .findFirst()
+            .orElseThrow()
+            .code();
+    assertEquals(MappingFindingCode.MAPPING_UNKNOWN_TARGET, first);
+    assertEquals(first, second);
+  }
+
+  @Test
+  void unknownContractDoesNotInventAMissingField() {
+    MappingContractEvaluation evaluated =
+        BriefMappingValidator.evaluateBoundary(
+            "map-init",
+            "trigger-1",
+            MappingPort.OUTPUT,
+            "call-1",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.executionId",
+                    "$.preserved.executionId",
+                    "preserve for response",
+                    MappingRuleStatus.PROPOSED)),
+            MappingContract.unknown(),
+            MappingContract.unknown(),
+            null);
+
+    assertFalse(evaluated.blocked());
+    assertTrue(
+        evaluated.findings().stream()
+            .noneMatch(
+                finding ->
+                    finding.code() == MappingFindingCode.MAPPING_MISSING_REQUIRED_TARGET
+                        || finding.code() == MappingFindingCode.MAPPING_UNKNOWN_TARGET));
+  }
+
+  @Test
+  void sameFieldNameOnTwoBoundariesIsLocatedIndependently() {
+    MappingContract source = MappingContract.of(new MappingContract.Field("$.id", "string", true));
+    MappingContract knownTarget =
+        MappingContract.of(new MappingContract.Field("$.id", "string", true));
+    MappingContract otherTarget =
+        MappingContract.of(new MappingContract.Field("$.name", "string", true));
+    MappingRuleFinding requestFinding =
+        BriefMappingValidator.evaluateBoundary(
+                "map-request",
+                "trigger",
+                MappingPort.OUTPUT,
+                "call-a",
+                MappingPort.REQUEST,
+                List.of(new MappingIntentRule("$.id", "$.id", null)),
+                source,
+                knownTarget,
+                null)
+            .findings()
+            .stream()
+            .findFirst()
+            .orElse(null);
+    MappingContractEvaluation response =
+        BriefMappingValidator.evaluateBoundary(
+            "map-response",
+            "call-a",
+            MappingPort.RESPONSE,
+            "call-b",
+            MappingPort.REQUEST,
+            List.of(new MappingIntentRule("$.id", "$.id", null)),
+            source,
+            otherTarget,
+            null);
+    MappingRuleFinding unknown =
+        response.blockerFindings().stream()
+            .filter(finding -> finding.code() == MappingFindingCode.MAPPING_UNKNOWN_TARGET)
+            .findFirst()
+            .orElseThrow();
+    assertTrue(requestFinding == null || !requestFinding.blocker());
+    assertEquals("map-response", unknown.mappingIntentId());
+    assertEquals("$.id", unknown.targetPath());
+    assertEquals(MappingPort.REQUEST, unknown.targetPort());
+    assertEquals("call-b", unknown.targetRef());
   }
 
   private static RequirementBrief briefWithIntents(List<MappingIntent> intents) {

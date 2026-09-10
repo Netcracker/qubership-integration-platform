@@ -117,6 +117,15 @@ public record RecoveryCause(
     return Optional.empty();
   }
 
+  /**
+   * Mapping rules failed a known contract. Finding codes name the specific violation; this
+   * aggregate cause routes to the brief producer.
+   */
+  public static RecoveryCause mappingContract(List<PlanValidationFinding> findings) {
+    return new RecoveryCause(
+        RecoveryCauseCode.MAPPING_CONTRACT, findings == null ? List.of() : findings, "");
+  }
+
   public static RecoveryCause missingBriefFacts(List<String> missingFacts) {
     List<PlanValidationFinding> evidence = new ArrayList<>();
     if (missingFacts != null) {
@@ -196,6 +205,13 @@ public record RecoveryCause(
       case "MISSING_REQUIRED_PROPERTY" -> RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
       case "MISSING_BRIEF_FACTS" -> RecoveryCauseCode.MISSING_BRIEF_FACTS;
       case "CATALOG_RESOLUTION" -> RecoveryCauseCode.CATALOG_RESOLUTION;
+      case "MAPPING_CONTRACT",
+              "MAPPING_UNKNOWN_TARGET",
+              "MAPPING_MISSING_REQUIRED_TARGET",
+              "MAPPING_INVALID_SOURCE",
+              "MAPPING_UNSUPPORTED_EXPRESSION",
+              "MAPPING_UNRESOLVED_RULE" ->
+          RecoveryCauseCode.MAPPING_CONTRACT;
       default -> null;
     };
   }

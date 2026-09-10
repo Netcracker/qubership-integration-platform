@@ -1275,8 +1275,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           List.of(new Reference(Kind.DESIGN_PLAN_REPORT, failureId, "rejected-plan"));
     }
     List<SemanticFinding> semanticFindings =
-        semanticFindingsForRejectedGraph(
-            runId, rejectedRefs, stage.stageId(), failureId, findings, evidenceText);
+        semanticFindingsFor(
+            runId, rejectedRefs, stage.stageId(), failureId, findings, evidenceText, cause);
     RecoveryEvidence draftEvidence =
         new RecoveryEvidence(
             1,
@@ -1311,6 +1311,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         accepted =
             captureRegenerateDecision(
                 recoveryEvidence, findings.isBlank() ? evidenceText : findings);
+      } else if (cause != null && cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT) {
+        accepted =
+            captureReviseBriefDecision(
+                recoveryEvidence, findings.isBlank() ? evidenceText : findings);
       } else {
         accepted =
             new RecoveryDecision(
@@ -1322,6 +1326,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 "",
                 findings.isBlank() ? evidenceText : findings);
       }
+    }
+    if (accepted.causeClass() == RecoveryCauseClass.UNCLASSIFIED
+        && cause != null
+        && cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT) {
+      accepted =
+          captureReviseBriefDecision(
+              recoveryEvidence, findings.isBlank() ? evidenceText : findings);
     }
     if (accepted.action() == RecoveryAction.ASK_USER
         && usesStructuredContractRecovery(stage, StageOutcomeClass.CONTRACT_FAILURE, cause)) {
@@ -1665,6 +1676,70 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       }
     }
     return deps;
+  }
+
+  private List<SemanticFinding> semanticFindingsFor(
+      String runId,
+      List<Reference> rejectedRefs,
+      String observingStageId,
+      String failureId,
+      String findings,
+      String evidenceText,
+      RecoveryCause cause) {
+    List<SemanticFinding> mapped = mappingSemanticFindings(cause, failureId);
+    if (!mapped.isEmpty()) {
+      return mapped;
+    }
+    return semanticFindingsForRejectedGraph(
+        runId, rejectedRefs, observingStageId, failureId, findings, evidenceText);
+  }
+
+  private List<SemanticFinding> mappingSemanticFindings(RecoveryCause cause, String failureId) {
+    if (cause == null || cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
+      return List.of();
+    }
+    ObjectMapper mapper = recoveryValidationDeps().objectMapper;
+    List<SemanticFinding> projected = new ArrayList<>();
+    int index = 1;
+    for (PlanValidationFinding finding : cause.findings()) {
+      if (finding == null) {
+        continue;
+      }
+      String rawJson = serializedFindingJson(mapper, finding);
+      String location =
+          finding.mappingDetails() == null ? "" : finding.mappingDetails().mappingIntentId();
+      String targetPath =
+          finding.mappingDetails() == null ? "" : finding.mappingDetails().targetPath();
+      projected.add(
+          new SemanticFinding(
+              finding.code(),
+              finding.message(),
+              failureId + "-mapping-" + index,
+              location,
+              targetPath,
+              List.of(),
+              List.of(),
+              List.of(),
+              "",
+              Map.of(),
+              List.of(),
+              rawJson));
+      index++;
+    }
+    return List.copyOf(projected);
+  }
+
+  /** Diagnostic JSON for restore. Never store the human message when serialization fails. */
+  private static String serializedFindingJson(ObjectMapper mapper, PlanValidationFinding finding) {
+    try {
+      String json = mapper.writeValueAsString(finding);
+      if (json != null && json.strip().startsWith("{")) {
+        return json;
+      }
+    } catch (Exception ignored) {
+      // Fall through to a valid empty object.
+    }
+    return "{}";
   }
 
   private List<SemanticFinding> semanticFindingsForRejectedGraph(

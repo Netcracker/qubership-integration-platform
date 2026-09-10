@@ -3,7 +3,9 @@ package org.qubership.integration.platform.ai.productpipeline.recovery;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -50,6 +52,43 @@ class RecoveryEvidenceTest {
     assertEquals(List.of(), evidence.rejectedArtifactRefs());
     assertEquals(List.of(), evidence.findings());
     assertEquals(List.of(), evidence.priorAttemptRefs());
+  }
+
+  @Test
+  void legacyJsonWithoutMappingFieldsRemainsReadable() throws Exception {
+    RecoveryEvidence restored =
+        new ObjectMapper()
+            .readValue(
+                """
+                {
+                  "schemaVersion": 1,
+                  "failureId": "failure-1",
+                  "observedCauseCode": "MISSING_REQUIRED_PROPERTY",
+                  "observingStageId": "design-execution",
+                  "rejectedArtifactRefs": [],
+                  "findings": [
+                    {
+                      "code": "MISSING_REQUIRED_PROPERTY",
+                      "violatedRule": "service-call.properties.required",
+                      "occurrenceId": "call-1",
+                      "nodeId": "call-1",
+                      "elementType": "service-call",
+                      "missingKeys": ["retryCount"],
+                      "rawValidatorJson": "{\\"valid\\":false}"
+                    }
+                  ],
+                  "priorAttemptRefs": []
+                }
+                """,
+                RecoveryEvidence.class);
+
+    assertEquals("failure-1", restored.failureId());
+    assertEquals("MISSING_REQUIRED_PROPERTY", restored.observedCauseCode());
+    assertEquals("design-execution", restored.observingStageId());
+    assertEquals(1, restored.findings().size());
+    assertEquals("MISSING_REQUIRED_PROPERTY", restored.findings().getFirst().code());
+    assertEquals("call-1", restored.findings().getFirst().nodeId());
+    assertTrue(restored.findings().getFirst().rawValidatorJson().contains("valid"));
   }
 
   @Test
