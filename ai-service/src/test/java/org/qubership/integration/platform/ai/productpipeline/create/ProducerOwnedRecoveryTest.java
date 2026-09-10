@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
@@ -238,6 +239,26 @@ class ProducerOwnedRecoveryTest {
 
     assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
     assertEquals("design-execution", route.producerStageId());
+  }
+
+  @Test
+  void mappingContractReopensTheBriefProducer() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.mappingContract(
+                List.of(
+                    new PlanValidationFinding(
+                        "MAPPING_UNKNOWN_TARGET",
+                        "Target path $.preserved.executionId is absent from the target contract.",
+                        true))),
+            EXECUTION_CANDIDATES,
+            false,
+            0,
+            Optional.of("design-planning"));
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("requirement-analysis", route.producerStageId());
   }
 
   @Test

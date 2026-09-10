@@ -951,6 +951,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         doc.run().runId(),
         ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
         recovery.producerStageId());
+    if (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT) {
+      persistMappingContractEvidence(doc, stage, refs, cause, recovery.producerStageId());
+    }
     if (recovery.action() == ProducerOwnedRecovery.Action.REPAIR_CURRENT) {
       String ownerArtifact =
           RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId());
@@ -998,7 +1001,18 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return waitEditableBriefRecovery(
           doc, stage, refs, cause, evidence, recovery.producerStageId(), emitted);
     }
-    if (recovery.action() == ProducerOwnedRecovery.Action.ASK_CLARIFICATION) {
+    if (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT) {
+      return waitGuardedRecovery(
+          doc,
+          stage,
+          refs,
+          diagnoseAutomaticReopenRefusal(doc, recovery.producerStageId(), cause, evidence),
+          cause,
+          evidence,
+          emitted);
+    }
+    if (recovery.action() == ProducerOwnedRecovery.Action.ASK_CLARIFICATION
+        && cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
       String ownerArtifact =
           RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId());
       RecoveryAttemptKey clarificationKey =
@@ -1046,7 +1060,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return new StageExecutionResult(
           new StageDecision.WaitForInput(stage.stageId(), prompt), emitted);
     }
-    if (outcomeClass == StageOutcomeClass.VALIDATION_FAILURE) {
+    if (outcomeClass == StageOutcomeClass.VALIDATION_FAILURE
+        && cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
       putRunAttribute(
           doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
       return recoverValidationFailure(
@@ -1385,6 +1400,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 recoveryEvidence.failureId(),
                 recoveryEvidence.observedCauseCode(),
                 recoveryEvidence.observingStageId(),
+                recoveryEvidence.producerStageId(),
                 recoveryEvidence.approvedBriefRef(),
                 recoveryEvidence.approvedSemanticRef(),
                 recoveryEvidence.rejectedArtifactRefs(),
@@ -1667,6 +1683,62 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return deps;
   }
 
+  /**
+   * Stores observing stage and brief producer on the durable recovery record. Schema-side identity
+   * stays in the finding JSON; those sides live under conversation compilation, not this run.
+   */
+  private void persistMappingContractEvidence(
+      ProductPipelineRunDocument doc,
+      ProfileStage stage,
+      List<Reference> refs,
+      RecoveryCause cause,
+      String producerStageId) {
+    String runId = doc.run().runId();
+    String failureId = UUID.randomUUID().toString();
+    Revision approvedBriefRevision =
+        artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF).orElse(null);
+    Reference approvedBriefRef =
+        approvedBriefRevision == null ? null : approvedBriefRevision.reference();
+    List<Reference> rejectedRefs = rejectedArtifactRefs(runId, refs);
+    RecoveryEvidence evidence =
+        new RecoveryEvidence(
+            1,
+            failureId,
+            cause.causeCode().name(),
+            stage.stageId(),
+            producerStageId,
+            approvedBriefRef,
+            null,
+            rejectedRefs,
+            mappingSemanticFindings(cause, failureId),
+            null,
+            List.of());
+    List<Reference> evidenceInputs = new ArrayList<>();
+    if (approvedBriefRef != null) {
+      evidenceInputs.add(approvedBriefRef);
+    }
+    rejectedRefs.stream()
+        .filter(ref -> !evidenceInputs.contains(ref))
+        .filter(ref -> artifactStore.get(runId, ref).isPresent())
+        .forEach(evidenceInputs::add);
+    Revision storedEvidence =
+        artifactStore.append(
+            new AppendCommand(
+                runId,
+                Kind.RECOVERY_EVIDENCE,
+                "1",
+                "product-pipeline-runtime",
+                "1",
+                evidence,
+                evidenceInputs,
+                null,
+                provenance(runId, stage.stageId(), stage.capabilityId())));
+    putRunAttribute(
+        runId,
+        ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR,
+        storedEvidence.contentHash());
+  }
+
   private List<SemanticFinding> semanticFindingsFor(
       String runId,
       List<Reference> rejectedRefs,
@@ -1816,6 +1888,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         evidence.failureId(),
         evidence.observedCauseCode(),
         evidence.observingStageId(),
+        evidence.producerStageId(),
         evidence.approvedBriefRef(),
         evidence.approvedSemanticRef(),
         evidence.rejectedArtifactRefs(),

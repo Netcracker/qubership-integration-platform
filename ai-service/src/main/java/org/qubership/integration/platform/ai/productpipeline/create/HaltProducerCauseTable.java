@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import java.util.List;
 import java.util.Set;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet.FindingOwnerCategory;
@@ -121,7 +122,7 @@ public final class HaltProducerCauseTable {
     return switch (cause.causeCode()) {
       case SECURITY_POLICY -> "State the access policy in " + role + ".";
       case MISSING_BRIEF_FACTS -> "Add the missing facts to " + role + ".";
-      case MAPPING_CONTRACT -> "";
+      case MAPPING_CONTRACT -> mappingContractSentence(cause, role);
       case MISSING_REQUIRED_PROPERTY -> "Add the required property to " + role + ".";
       case UNKNOWN_PROPERTY -> "Remove the unknown property from the generated element.";
       case CATALOG_RESOLUTION -> {
@@ -140,10 +141,36 @@ public final class HaltProducerCauseTable {
     };
   }
 
+  /**
+   * Unknown-target repair must say the field is absent. Do not ask the producer to supply a value
+   * for a path this contract does not declare.
+   */
+  private static String mappingContractSentence(RecoveryCause cause, String role) {
+    if (hasFindingCode(cause, "MAPPING_UNKNOWN_TARGET")) {
+      return "The field is absent from this contract. Correct the target in " + role + ".";
+    }
+    if (hasFindingCode(cause, "MAPPING_MISSING_REQUIRED_TARGET")) {
+      return "Supply a valid mapping source in " + role + ".";
+    }
+    return "Correct the mapping in " + role + ".";
+  }
+
+  private static boolean hasFindingCode(RecoveryCause cause, String code) {
+    if (cause == null || code == null || code.isBlank()) {
+      return false;
+    }
+    for (PlanValidationFinding finding : cause.findings()) {
+      if (finding != null && code.equals(finding.code())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   /** Owner category the router uses for {@code causeCode}. Exhaustive over {@link RecoveryCauseCode}. */
   static FindingOwnerCategory ownerCategory(RecoveryCauseCode causeCode) {
     return switch (causeCode) {
-      case SECURITY_POLICY, MISSING_BRIEF_FACTS ->
+      case SECURITY_POLICY, MISSING_BRIEF_FACTS, MAPPING_CONTRACT ->
           FindingOwnerCategory.POLICY_OR_BRIEF;
       case MISSING_REQUIRED_PROPERTY -> FindingOwnerCategory.PLAN_FILL;
       case UNKNOWN_PROPERTY -> FindingOwnerCategory.EXECUTION;
@@ -154,8 +181,7 @@ public final class HaltProducerCauseTable {
               VALIDATION_BLOCKER,
               MISSING_MANDATORY_INPUT,
               DOMAIN_FAILURE,
-              INTERNAL,
-              MAPPING_CONTRACT ->
+              INTERNAL ->
           FindingOwnerCategory.UNSPECIFIED;
     };
   }

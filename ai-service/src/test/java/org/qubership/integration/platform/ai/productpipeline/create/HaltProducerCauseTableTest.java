@@ -6,11 +6,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandidateSet.FindingOwnerCategory;
 
 class HaltProducerCauseTableTest {
 
@@ -54,7 +56,14 @@ class HaltProducerCauseTableTest {
   }
 
   @Test
-  void mappingContractDoesNotSelectARepairInstruction() {
+  void mappingContractSelectsTheBriefProducerCategory() {
+    assertEquals(
+        FindingOwnerCategory.POLICY_OR_BRIEF,
+        HaltProducerCauseTable.ownerCategory(RecoveryCauseCode.MAPPING_CONTRACT));
+  }
+
+  @Test
+  void mappingContractInstructionSaysTheFieldIsAbsentFromThisContract() {
     String sentence =
         HaltProducerCauseTable.instruction(
             RecoveryCause.mappingContract(
@@ -66,7 +75,9 @@ class HaltProducerCauseTableTest {
             OwnerDiagnosis.of("The mapping target is absent.", "requirement-analysis"),
             List.of(new OwnerCandidate("requirement-analysis", "requirement-brief")));
 
-    assertEquals("", sentence);
+    assertTrue(sentence.toLowerCase(Locale.ROOT).contains("absent from this contract"));
+    assertFalse(sentence.toLowerCase(Locale.ROOT).contains("add the missing"));
+    assertTrue(sentence.contains("the requirements"));
   }
 
   @Test
