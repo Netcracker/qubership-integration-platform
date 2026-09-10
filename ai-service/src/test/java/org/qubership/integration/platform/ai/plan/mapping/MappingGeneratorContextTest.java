@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan.mapping;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
@@ -175,6 +176,94 @@ class MappingGeneratorContextTest {
     assertTrue(mappingContext.contains("getProperty"));
     assertTrue(mappingContext.contains("map-request"));
     assertTrue(mappingContext.contains("must be copied unchanged"));
+  }
+
+  @Test
+  void hyphenatedJsonFieldUsesASafeGroovyAccessor() throws Exception {
+    String mappingContext = offHopExchangeGuidance("$.order-id");
+
+    assertTrue(mappingContext.contains("body['order-id']"), mappingContext);
+    assertFalse(mappingContext.contains("body.order-id"), mappingContext);
+    assertTrue(
+        mappingContext.contains("exchange.setProperty('order-id', body['order-id'])"),
+        mappingContext);
+  }
+
+  @Test
+  void quotedJsonFieldEscapesTheGroovyStringLiteral() throws Exception {
+    String mappingContext = offHopExchangeGuidance("$.order'id");
+
+    assertTrue(mappingContext.contains("body['order\\'id']"), mappingContext);
+    assertTrue(
+        mappingContext.contains("exchange.setProperty('order\\'id', body['order\\'id'])"),
+        mappingContext);
+    assertFalse(mappingContext.contains("body.order'id"), mappingContext);
+  }
+
+  private String offHopExchangeGuidance(String sourcePath) throws Exception {
+    JsonNode hopSchema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "id": { "type": "string" } }
+            }
+            """);
+    JsonNode upstreamSchema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "order-id": { "type": "string" },
+                "order'id": { "type": "string" }
+              }
+            }
+            """);
+    JsonNode targetSchema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "processId": { "type": "string" } }
+            }
+            """);
+    MappingSchemaSide resultSource = side("createTask", MappingPort.RESPONSE, hopSchema, "sha-hop");
+    MappingSchemaSide resultTarget =
+        side("onTaskResult", MappingPort.REQUEST, targetSchema, "sha-target");
+    MappingEnvelope resultEnvelope =
+        new JsonSchemaMessageSchemaFactory(MAPPER).fromSides(resultSource, resultTarget);
+    MappingIntent requestIntent =
+        new MappingIntent(
+            "map-request",
+            "onTaskStart",
+            MappingPort.OUTPUT,
+            "createTask",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.name", "$.Subject", null, MappingRuleStatus.USER_DEFINED)));
+    MappingIntent resultIntent =
+        new MappingIntent(
+            "map-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    sourcePath, "$.processId", null, MappingRuleStatus.PROPOSED)));
+    Map<String, MappingContract> sourceContracts =
+        Map.of(
+            "map-request", JsonSchemaMappingContractFactory.from(upstreamSchema),
+            "map-result", JsonSchemaMappingContractFactory.from(hopSchema));
+    return builder.renderMappingGenerationContext(
+        resultIntent,
+        resultEnvelope,
+        resultSource,
+        resultTarget,
+        List.of(requestIntent, resultIntent),
+        sourceContracts);
   }
 
   private static MappingIntent identityOrderId() {
