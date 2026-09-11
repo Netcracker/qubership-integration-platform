@@ -28,6 +28,8 @@ public final class OwnerCandidateSet {
   private static final Set<String> CATALOG_BINDING_HINT_TYPES = Set.of("catalog-binding-hint");
   private static final List<String> CATALOG_BINDING_PRODUCER_STAGE_IDS =
       List.of("requirement-discovery", "uploaded-spec-import");
+  private static final Set<String> SEMANTIC_REVISION_TYPES = Set.of("chain-semantic-revision");
+  private static final List<String> SEMANTIC_REVISION_PRODUCER_STAGE_IDS = List.of("design-input");
 
   private static final Pattern GO_BACK_TO_TARGET =
       Pattern.compile(
@@ -392,6 +394,48 @@ public final class OwnerCandidateSet {
     return producerStageId(candidates, failedStageId, BRIEF_ARTIFACT_TYPES);
   }
 
+  static boolean isBriefProducerStageId(
+      List<OwnerCandidate> candidates, String failedStageId, String stageId) {
+    if (candidates == null
+        || stageId == null
+        || stageId.isBlank()
+        || stageId.equals(failedStageId)) {
+      return false;
+    }
+    return candidates.stream()
+        .anyMatch(
+            candidate ->
+                candidate != null
+                    && stageId.equals(candidate.stageId())
+                    && BRIEF_ARTIFACT_TYPES.contains(candidate.artifactType()));
+  }
+
+  /** Finds the last earlier stage that declares a requirement brief output. */
+  public static Optional<String> briefProducerStageId(
+      ProductPipelineProfile profile, String failedStageId) {
+    if (profile == null) {
+      return Optional.empty();
+    }
+    int failedIndex = indexOf(profile, failedStageId);
+    if (failedIndex <= 0) {
+      return Optional.empty();
+    }
+    String found = null;
+    for (int i = 0; i < failedIndex; i++) {
+      ProfileStage stage = profile.stages().get(i);
+      boolean producesBrief =
+          declaredProduces(stage).stream()
+              .anyMatch(
+                  artifactType ->
+                      artifactType != null
+                          && BRIEF_ARTIFACT_TYPES.contains(artifactType.type()));
+      if (producesBrief) {
+        found = stage.stageId();
+      }
+    }
+    return Optional.ofNullable(found);
+  }
+
   static Optional<String> draftProducerStageId(
       List<OwnerCandidate> candidates, String failedStageId) {
     return producerStageId(candidates, failedStageId, DRAFT_ARTIFACT_TYPES);
@@ -412,6 +456,23 @@ public final class OwnerCandidateSet {
       }
     }
     return producerStageId(candidates, failedStageId, CATALOG_BINDING_HINT_TYPES);
+  }
+
+  /**
+   * Stage that produced the {@code chain-semantic-revision}. Prefers design-input, then any
+   * candidate whose produced type is the revision.
+   */
+  static Optional<String> semanticRevisionProducerStageId(
+      List<OwnerCandidate> candidates, String failedStageId) {
+    if (candidates == null || candidates.isEmpty()) {
+      return Optional.empty();
+    }
+    for (String stageId : SEMANTIC_REVISION_PRODUCER_STAGE_IDS) {
+      if (!stageId.equals(failedStageId) && containsStage(candidates, stageId)) {
+        return Optional.of(stageId);
+      }
+    }
+    return producerStageId(candidates, failedStageId, SEMANTIC_REVISION_TYPES);
   }
 
   /**

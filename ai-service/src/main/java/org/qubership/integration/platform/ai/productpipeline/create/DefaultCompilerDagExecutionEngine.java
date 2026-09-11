@@ -64,8 +64,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
 import org.qubership.integration.platform.ai.qipknowledge.pack.ClasspathQipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -273,6 +271,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     String workspaceId = seed.workspaceId();
     applySeed(seed);
     PinnedRunContext pinned = resolvePinnedRun(engineRequest);
+    List<Reference> consumedArtifacts =
+        consumedArtifactsForRun(pinned, engineRequest.preSatisfiedArtifactRefs());
     ResolvedCompilerDag dag = engineRequest.executionDag();
     PlanningSchedulerState state = seededState(dag, seed);
     List<String> executed = new ArrayList<>();
@@ -310,10 +310,26 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
           try {
             List<SkillArtifact> outputs =
                 executeNode(
-                    request, seed, workspace, state, node, pinned, dag, validatorPasses, patchLedger);
+                    request,
+                    seed,
+                    workspace,
+                    state,
+                    node,
+                    pinned,
+                    consumedArtifacts,
+                    dag,
+                    validatorPasses,
+                    patchLedger);
             outputs =
                 materializeGraphPatchOutputs(
-                    request, seed, workspace, node, outputs, pinned, patchLedger);
+                    request,
+                    seed,
+                    workspace,
+                    node,
+                    outputs,
+                    pinned,
+                    consumedArtifacts,
+                    patchLedger);
             for (SkillArtifact output : outputs) {
               workspaceStore.putArtifact(workspaceId, output);
             }
@@ -573,6 +589,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       PlanningSchedulerState state,
       ResolvedCompilerNode node,
       PinnedRunContext pinned,
+      List<Reference> consumedArtifacts,
       ResolvedCompilerDag dag,
       Map<String, ValidationResult> validatorPasses,
       PlanningPatchLedger.Builder patchLedger) {
@@ -588,7 +605,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
               false,
               seed.seedText());
       GraphPatchExecutionContext executionContext =
-          buildExecutionContext(request, seed, workspace, node, pinned);
+          buildExecutionContext(request, seed, workspace, node, pinned, consumedArtifacts);
       executionContext = prepareMappingGeneration(request, workspace, node, executionContext);
       if (executionContext != null) {
         executionContextStore.set(request.conversationId(), node.skillId(), executionContext);
@@ -791,6 +808,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       ResolvedCompilerNode node,
       List<SkillArtifact> outputs,
       PinnedRunContext pinned,
+      List<Reference> consumedArtifacts,
       PlanningPatchLedger.Builder patchLedger) {
     if (outputs == null || outputs.isEmpty()) {
       return List.of();
@@ -818,7 +836,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             pinned.pin().compilerPackageDigest(),
             request.languageVersion(),
             request.requirementBrief(),
-            pinned.manifest().sourceReferences(),
+            consumedArtifacts,
             inputGraph,
             node.ownership(),
             request.attemptId(),
@@ -1093,12 +1111,44 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
     return new PinnedRunContext(manifest, pin);
   }
 
+  /** Retains the requirement brief reference this execution attempt compiled. */
+  private static List<Reference> consumedArtifactsForRun(
+      PinnedRunContext pinned, List<Reference> preSatisfiedArtifactRefs) {
+    Reference preSatisfiedBrief = firstRequirementBriefReference(preSatisfiedArtifactRefs);
+    List<Reference> consumed = new ArrayList<>();
+    if (pinned != null && pinned.manifest() != null) {
+      for (Reference ref : pinned.manifest().sourceReferences()) {
+        if (ref != null
+            && (ref.kind() != Kind.REQUIREMENT_BRIEF || preSatisfiedBrief == null)) {
+          consumed.add(ref);
+        }
+      }
+    }
+    if (preSatisfiedBrief != null) {
+      consumed.add(preSatisfiedBrief);
+    }
+    return List.copyOf(consumed);
+  }
+
+  private static Reference firstRequirementBriefReference(List<Reference> references) {
+    if (references == null) {
+      return null;
+    }
+    for (Reference ref : references) {
+      if (ref != null && ref.kind() == Kind.REQUIREMENT_BRIEF) {
+        return ref;
+      }
+    }
+    return null;
+  }
+
   private GraphPatchExecutionContext buildExecutionContext(
       CompilerPlanningRequest request,
       CompilerExecutionSeed seed,
       SkillWorkspace workspace,
       ResolvedCompilerNode node,
-      PinnedRunContext pinned) {
+      PinnedRunContext pinned,
+      List<Reference> consumedArtifacts) {
     if (!"captureGraphPatch".equals(node.captureTool()) && !"repairScriptBodies".equals(node.captureTool())) {
       return null;
     }
@@ -1114,10 +1164,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         canonicalGraphDigest.sha256(inputGraph),
         pinned.pin().compilerPackageDigest(),
         request.languageVersion(),
-        request.requirementBrief(),
-        pinned.manifest().sourceReferences(),
-        inputGraph,
-        ownershipFor(node),
+            request.requirementBrief(),
+            consumedArtifacts,
+            inputGraph,
+            ownershipFor(node),
         request.attemptId(),
         ChainEditSkillContext.targetNodeIds(workspace, node.skillId()));
   }
@@ -1140,7 +1190,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             serviceCallBindings(workspace),
             executionContext);
     if (prepared.blocked()) {
-      throw new MappingContractBlockedException(prepared.blockedMessage());
+      throw new MappingContractBlockedException(prepared.blockedMessage(), prepared.findings());
     }
     return prepared.context() == null ? executionContext : prepared.context();
   }

@@ -37,6 +37,7 @@ public final class ProducerOwnedRecovery {
    * @param semanticRepairsUsed repairs already spent on this rejection
    * @param maxSemanticRepairs automatic repair budget
    * @param diagnosedOwner advisory owner from the narrative turn
+   * @param consumedBriefProducerStageId producer from the compiled brief's provenance
    */
   public record Request(
       String failedStageId,
@@ -46,13 +47,39 @@ public final class ProducerOwnedRecovery {
       boolean catalogWritten,
       int semanticRepairsUsed,
       int maxSemanticRepairs,
-      Optional<String> diagnosedOwner) {
+      Optional<String> diagnosedOwner,
+      Optional<String> consumedBriefProducerStageId) {
 
     public Request {
       failedStageId = failedStageId == null ? "" : failedStageId;
       cause = cause == null ? RecoveryCause.of(RecoveryCause.fromOutcomeClass(outcomeClass)) : cause;
       candidates = candidates == null ? List.of() : List.copyOf(candidates);
       diagnosedOwner = diagnosedOwner == null ? Optional.empty() : diagnosedOwner;
+      consumedBriefProducerStageId =
+          consumedBriefProducerStageId == null
+              ? Optional.empty()
+              : consumedBriefProducerStageId.filter(stageId -> !stageId.isBlank());
+    }
+
+    public Request(
+        String failedStageId,
+        StageOutcomeClass outcomeClass,
+        RecoveryCause cause,
+        List<OwnerCandidate> candidates,
+        boolean catalogWritten,
+        int semanticRepairsUsed,
+        int maxSemanticRepairs,
+        Optional<String> diagnosedOwner) {
+      this(
+          failedStageId,
+          outcomeClass,
+          cause,
+          candidates,
+          catalogWritten,
+          semanticRepairsUsed,
+          maxSemanticRepairs,
+          diagnosedOwner,
+          Optional.empty());
     }
   }
 
@@ -105,13 +132,32 @@ public final class ProducerOwnedRecovery {
                     new Route(Action.ASK_CLARIFICATION, producer, cause.requestedFact()))
             .orElseGet(() -> new Route(Action.PARK, failed));
       }
+      if (cause.isBindingIdentityMismatch()) {
+        return OwnerCandidateSet.semanticRevisionProducerStageId(request.candidates(), failed)
+            .map(
+                producer ->
+                    request.catalogWritten()
+                        ? new Route(Action.PARK, producer)
+                        : new Route(Action.REOPEN_UPSTREAM, producer))
+            .orElseGet(() -> new Route(Action.PARK, failed));
+      }
       return new Route(Action.ASK_CLARIFICATION, failed, cause.requestedFact());
     }
     FindingOwnerCategory category = HaltProducerCauseTable.ownerCategory(cause.causeCode());
     String diagnosed = request.diagnosedOwner().orElse("");
-    String producer =
-        producerFor(category, request.candidates(), failed, diagnosed)
-            .orElse(failed);
+    Optional<String> selectedProducer =
+        producerFor(
+            cause.causeCode(),
+            category,
+            request.candidates(),
+            failed,
+            diagnosed,
+            request.consumedBriefProducerStageId());
+    if (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT
+        && selectedProducer.isEmpty()) {
+      return new Route(Action.PARK, failed);
+    }
+    String producer = selectedProducer.orElse(failed);
     if (request.catalogWritten() && !producer.equals(failed)) {
       return new Route(Action.PARK, producer);
     }
@@ -150,10 +196,22 @@ public final class ProducerOwnedRecovery {
   }
 
   private static Optional<String> producerFor(
+      final RecoveryCauseCode causeCode,
       final FindingOwnerCategory category,
       final List<OwnerCandidate> candidates,
       final String failedStageId,
-      final String diagnosedOwner) {
+      final String diagnosedOwner,
+      final Optional<String> consumedBriefProducerStageId) {
+    if (causeCode == RecoveryCauseCode.MAPPING_CONTRACT) {
+      Optional<String> briefProducer =
+          OwnerCandidateSet.briefProducerStageId(candidates, failedStageId);
+      return consumedBriefProducerStageId
+          .filter(
+              stageId ->
+                  OwnerCandidateSet.isBriefProducerStageId(
+                      candidates, failedStageId, stageId))
+          .or(() -> briefProducer);
+    }
     Optional<String> fromFinding =
         switch (category) {
           case EXECUTION -> Optional.of(failedStageId);
