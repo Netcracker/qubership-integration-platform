@@ -1,5 +1,13 @@
 package org.qubership.integration.platform.engine.service;
 
+import groovy.lang.GroovyShell;
+import org.apache.camel.model.ChoiceDefinition;
+import org.apache.camel.model.RouteDefinition;
+import org.apache.camel.model.RoutesDefinition;
+import org.apache.camel.model.ScriptDefinition;
+import org.apache.camel.model.WhenDefinition;
+import org.apache.camel.model.language.GroovyExpression;
+import org.apache.camel.model.language.SimpleExpression;
 import org.apache.camel.observation.MicrometerObservationTracer;
 import org.apache.camel.spring.SpringCamelContext;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,6 +34,8 @@ import org.qubership.integration.platform.engine.service.externallibrary.Externa
 import org.qubership.integration.platform.engine.service.externallibrary.GroovyLanguageWithResettableCache;
 import org.springframework.beans.factory.ObjectFactory;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Executor;
@@ -47,6 +57,7 @@ class IntegrationRuntimeServiceTest {
 
     private DeploymentProcessingService deploymentProcessingService;
     private QuartzSchedulerService quartzSchedulerService;
+    private ExternalLibraryGroovyShellFactory groovyShellFactory;
     private IntegrationRuntimeService service;
 
     @SuppressWarnings("unchecked")
@@ -54,11 +65,12 @@ class IntegrationRuntimeServiceTest {
     void setUp() {
         deploymentProcessingService = mock(DeploymentProcessingService.class);
         quartzSchedulerService = mock(QuartzSchedulerService.class);
+        groovyShellFactory = mock(ExternalLibraryGroovyShellFactory.class);
         service = new IntegrationRuntimeService(
                 mock(ServerConfiguration.class),
                 quartzSchedulerService,
                 mock(TracingConfiguration.class),
-                mock(ExternalLibraryGroovyShellFactory.class),
+                groovyShellFactory,
                 mock(GroovyLanguageWithResettableCache.class),
                 mock(MetricsStore.class),
                 mock(ExternalLibraryService.class),
@@ -76,6 +88,43 @@ class IntegrationRuntimeServiceTest {
                 mock(SecurityAccessPolicyConverter.class),
                 (ObjectFactory<CamelDebugger>) mock(ObjectFactory.class),
                 (ObjectFactory<MicrometerObservationTracer>) mock(ObjectFactory.class));
+    }
+
+    @Test
+    void rejectsDeploymentWhenNestedGroovyScriptCannotCompile() throws Exception {
+        when(groovyShellFactory.createGroovyShell(null)).thenReturn(new GroovyShell());
+        RoutesDefinition routesDefinition = routesWithNestedGroovyScript("if (");
+        Method method = IntegrationRuntimeService.class.getDeclaredMethod("compileGroovyScripts", RoutesDefinition.class);
+        method.setAccessible(true);
+
+        InvocationTargetException thrown = assertThrows(InvocationTargetException.class,
+                () -> method.invoke(service, routesDefinition));
+
+        assertSame(RuntimeException.class, thrown.getCause().getClass());
+    }
+
+    @Test
+    void compilesValidNestedGroovyScriptBeforeDeployment() throws Exception {
+        when(groovyShellFactory.createGroovyShell(null)).thenReturn(new GroovyShell());
+        Method method = IntegrationRuntimeService.class.getDeclaredMethod("compileGroovyScripts", RoutesDefinition.class);
+        method.setAccessible(true);
+
+        assertDoesNotThrow(() -> method.invoke(service, routesWithNestedGroovyScript("return null")));
+
+        verify(groovyShellFactory).createGroovyShell(null);
+    }
+
+    private static RoutesDefinition routesWithNestedGroovyScript(String script) {
+        RouteDefinition routeDefinition = new RouteDefinition();
+        ChoiceDefinition choice = new ChoiceDefinition();
+        WhenDefinition when = new WhenDefinition(new SimpleExpression("true"));
+        when.getOutputs().add(new ScriptDefinition(new GroovyExpression(script)));
+        choice.addOutput(when);
+        routeDefinition.getOutputs().add(choice);
+
+        RoutesDefinition routesDefinition = new RoutesDefinition();
+        routesDefinition.getRoutes().add(routeDefinition);
+        return routesDefinition;
     }
 
     @Test
