@@ -78,6 +78,28 @@ class JsonSchemaMappingContractFactoryTest {
   }
 
   @Test
+  void closedEmptyObjectIsAKnownContract() throws Exception {
+    MappingContract withEmptyProperties =
+        JsonSchemaMappingContractFactory.from(
+            MAPPER.readTree(
+                """
+                {"type":"object","properties":{},"additionalProperties":false}
+                """));
+    MappingContract withoutProperties =
+        JsonSchemaMappingContractFactory.from(
+            MAPPER.readTree(
+                """
+                {"type":"object","additionalProperties":false}
+                """));
+
+    assertTrue(withEmptyProperties.known());
+    assertTrue(withoutProperties.known());
+    assertTrue(withEmptyProperties.fields().isEmpty());
+    assertTrue(withoutProperties.fields().isEmpty());
+    assertTrue(withEmptyProperties.field("$.invented").isEmpty());
+  }
+
+  @Test
   void oneOfObjectVariantsExposeUnionFields() throws Exception {
     JsonNode schema =
         MAPPER.readTree(

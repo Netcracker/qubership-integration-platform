@@ -304,6 +304,34 @@ class MappingContractGateTest {
   }
 
   @Test
+  void inventedFieldOnClosedEmptyTargetIsUnknownTarget() {
+    MappingContract closedEmpty =
+        contractFrom(
+            """
+            {"type":"object","properties":{},"additionalProperties":false}
+            """);
+    MappingIntent intent =
+        new MappingIntent(
+            "map-init",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.orderId", "$.invented", null, MappingRuleStatus.PROPOSED)));
+    MappingContractEvaluation evaluated = MappingContractGate.evaluate(intent, SOURCE, closedEmpty);
+    assertEquals(
+        MappingFindingCode.MAPPING_UNKNOWN_TARGET,
+        evaluated.blockerFindings().stream()
+            .filter(finding -> "$.invented".equals(finding.targetPath()))
+            .findFirst()
+            .orElseThrow()
+            .code());
+    assertTrue(evaluated.blocked());
+  }
+
+  @Test
   void propertyLessTargetSchemaDoesNotInventUnknownTarget() {
     MappingContract emptyTarget =
         contractFrom(
