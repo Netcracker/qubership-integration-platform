@@ -7,6 +7,7 @@ import {
   EdgeChange,
   Node,
   NodeChange,
+  OnNodeDrag,
   useEdgesState,
   useNodesState,
   useReactFlow,
@@ -1251,8 +1252,8 @@ export const useChainGraph = () => {
     ],
   );
 
-  const handleDragInteraction = useCallback(
-    (_: React.MouseEvent, draggedNode: ChainGraphNode) => {
+  const handleDragInteraction = useCallback<OnNodeDrag<ChainGraphNode>>(
+    (_event, draggedNode) => {
       scheduleHoverVisuals(() => draggedNode);
     },
     [scheduleHoverVisuals],
@@ -1282,8 +1283,8 @@ export const useChainGraph = () => {
     return false;
   };
 
-  const onNodeDragStop = useCallback(
-    async (_event: React.MouseEvent, draggedNode: ChainGraphNode) => {
+  const onNodeDragStop = useCallback<OnNodeDrag<ChainGraphNode>>(
+    async (_event, draggedNode) => {
       if (!chainContext?.chain) return;
       if (isLibraryLoading) return;
 
