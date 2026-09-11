@@ -380,6 +380,7 @@ public class CompilerSkillContextBuilder {
         continue;
       }
       String property = jsonFieldName(sourcePath);
+      String bodyAccess = groovyBodyAccess(sourcePath);
       StringBuilder line = new StringBuilder();
       line.append("- ")
           .append(MappingContract.canonicalPath(sourcePath))
@@ -387,9 +388,13 @@ public class CompilerSkillContextBuilder {
           .append(rule.targetPath())
           .append(": source not on this hop schema; capture with exchange.setProperty(")
           .append(groovySingleQuoted(property))
-          .append(", ")
-          .append(groovyBodyAccess(property))
-          .append(") on the upstream script site whose source schema has this path, then read with")
+          .append(", ");
+      if (bodyAccess != null) {
+        line.append(bodyAccess);
+      } else {
+        line.append("the value at ").append(MappingContract.canonicalPath(sourcePath));
+      }
+      line.append(") on the upstream script site whose source schema has this path, then read with")
           .append(" exchange.getProperty(")
           .append(groovySingleQuoted(property))
           .append(") on this script site (CIP GEN-10)");
@@ -470,11 +475,40 @@ public class CompilerSkillContextBuilder {
     return canonical;
   }
 
-  private static String groovyBodyAccess(String property) {
-    if (isGroovyIdentifier(property)) {
-      return "body." + property;
+  private static String groovyBodyAccess(String sourcePath) {
+    List<String> segments = groovyBodySegments(sourcePath);
+    if (segments == null || segments.isEmpty()) {
+      return null;
     }
-    return "body[" + groovySingleQuoted(property) + "]";
+    StringBuilder access = new StringBuilder("body");
+    for (String segment : segments) {
+      if (isGroovyIdentifier(segment)) {
+        access.append('.').append(segment);
+      } else {
+        access.append('[').append(groovySingleQuoted(segment)).append(']');
+      }
+    }
+    return access.toString();
+  }
+
+  /**
+   * Mapping-contract paths are {@code $.} plus dotted field names from JSON Schema properties.
+   * Bracket JSONPath, wildcards, and empty segments have no safe executable accessor.
+   */
+  private static List<String> groovyBodySegments(String sourcePath) {
+    String field = jsonFieldName(sourcePath);
+    if (field.isEmpty() || field.indexOf('[') >= 0 || field.indexOf(']') >= 0) {
+      return null;
+    }
+    String[] parts = field.split("\\.", -1);
+    List<String> segments = new ArrayList<>();
+    for (String part : parts) {
+      if (part.isEmpty()) {
+        return null;
+      }
+      segments.add(part);
+    }
+    return segments;
   }
 
   private static String groovySingleQuoted(String value) {

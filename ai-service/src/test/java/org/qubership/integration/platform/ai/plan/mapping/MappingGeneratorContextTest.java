@@ -1,11 +1,15 @@
 package org.qubership.integration.platform.ai.plan.mapping;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import groovy.lang.Binding;
+import groovy.lang.GroovyShell;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
@@ -181,23 +185,42 @@ class MappingGeneratorContextTest {
   @Test
   void hyphenatedJsonFieldUsesASafeGroovyAccessor() throws Exception {
     String mappingContext = offHopExchangeGuidance("$.order-id");
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("order-id", "ORDER-42");
 
-    assertTrue(mappingContext.contains("body['order-id']"), mappingContext);
+    assertEquals("ORDER-42", evaluateBodyAccessor(mappingContext, body));
     assertFalse(mappingContext.contains("body.order-id"), mappingContext);
-    assertTrue(
-        mappingContext.contains("exchange.setProperty('order-id', body['order-id'])"),
-        mappingContext);
   }
 
   @Test
   void quotedJsonFieldEscapesTheGroovyStringLiteral() throws Exception {
     String mappingContext = offHopExchangeGuidance("$.order'id");
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("order'id", "ORDER-42");
 
-    assertTrue(mappingContext.contains("body['order\\'id']"), mappingContext);
-    assertTrue(
-        mappingContext.contains("exchange.setProperty('order\\'id', body['order\\'id'])"),
-        mappingContext);
+    assertEquals("ORDER-42", evaluateBodyAccessor(mappingContext, body));
     assertFalse(mappingContext.contains("body.order'id"), mappingContext);
+  }
+
+  @Test
+  void nestedSourcePathUsesNestedGroovyBodyAccess() throws Exception {
+    String mappingContext = offHopExchangeGuidance("$.parameters.orderId");
+    Map<String, Object> parameters = new LinkedHashMap<>();
+    parameters.put("orderId", "ORDER-42");
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("parameters", parameters);
+
+    assertFalse(mappingContext.contains("body['parameters.orderId']"), mappingContext);
+    assertEquals("ORDER-42", evaluateBodyAccessor(mappingContext, body));
+  }
+
+  @Test
+  void simpleExecutionIdFieldUsesIdentifierAccess() throws Exception {
+    String mappingContext = offHopExchangeGuidance("$.executionId");
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("executionId", "ORDER-42");
+
+    assertEquals("ORDER-42", evaluateBodyAccessor(mappingContext, body));
   }
 
   private String offHopExchangeGuidance(String sourcePath) throws Exception {
@@ -216,7 +239,12 @@ class MappingGeneratorContextTest {
               "type": "object",
               "properties": {
                 "order-id": { "type": "string" },
-                "order'id": { "type": "string" }
+                "order'id": { "type": "string" },
+                "executionId": { "type": "string" },
+                "parameters": {
+                  "type": "object",
+                  "properties": { "orderId": { "type": "string" } }
+                }
               }
             }
             """);
@@ -264,6 +292,19 @@ class MappingGeneratorContextTest {
         resultTarget,
         List.of(requestIntent, resultIntent),
         sourceContracts);
+  }
+
+  private static String evaluateBodyAccessor(String mappingContext, Map<String, Object> body) {
+    int setProperty = mappingContext.indexOf("exchange.setProperty(");
+    assertTrue(setProperty >= 0, mappingContext);
+    int comma = mappingContext.indexOf(", ", setProperty);
+    int close = mappingContext.indexOf(") on the upstream", comma);
+    assertTrue(comma > setProperty && close > comma, mappingContext);
+    String accessor = mappingContext.substring(comma + 2, close).trim();
+    assertTrue(accessor.startsWith("body"), accessor);
+    Binding binding = new Binding();
+    binding.setVariable("body", body);
+    return String.valueOf(new GroovyShell(binding).evaluate(accessor));
   }
 
   private static MappingIntent identityOrderId() {
