@@ -202,6 +202,8 @@ const draggedNode = {
   selected: true,
 } as unknown as ChainGraphNode;
 
+const dragEvent = {} as MouseEvent;
+
 const settle = async () => {
   await act(async () => {
     await Promise.resolve();
@@ -1185,10 +1187,10 @@ describe("useChainGraph", () => {
       const { result } = await withInitialNodes();
 
       act(() => {
-        result.current.onNodeDragStart({} as React.MouseEvent, draggedNode);
+        result.current.onNodeDragStart(dragEvent, draggedNode, [draggedNode]);
       });
       act(() => {
-        result.current.onNodeDrag({} as React.MouseEvent, draggedNode);
+        result.current.onNodeDrag(dragEvent, draggedNode, [draggedNode]);
       });
 
       await waitFor(() => {
@@ -1354,8 +1356,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           draggedNode,
+          [draggedNode],
         );
       });
 
@@ -1393,8 +1396,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           draggedNode,
+          [draggedNode],
         );
       });
 
@@ -1425,8 +1429,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           draggedNode,
+          [draggedNode],
         );
       });
 
@@ -1454,8 +1459,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           draggedNode,
+          [draggedNode],
         );
       });
 
@@ -1471,8 +1477,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await rendered.result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           draggedNode,
+          [draggedNode],
         );
       });
 
@@ -1502,8 +1509,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           draggedNode,
+          [draggedNode],
         );
       });
 
@@ -1541,8 +1549,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           { ...draggedNode, selected: false },
+          [{ ...draggedNode, selected: false }],
         );
       });
 
@@ -1557,8 +1566,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           { ...draggedNode, id: "ghost" },
+          [{ ...draggedNode, id: "ghost" }],
         );
       });
 
@@ -1581,8 +1591,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           draggedNode,
+          [draggedNode],
         );
       });
 
@@ -1631,8 +1642,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           rootLevelNode,
+          [rootLevelNode],
         );
       });
 
@@ -1646,8 +1658,9 @@ describe("useChainGraph", () => {
 
       await act(async () => {
         await rendered.result.current.onNodeDragStop(
-          {} as React.MouseEvent,
+          dragEvent,
           draggedNode,
+          [draggedNode],
         );
       });
 

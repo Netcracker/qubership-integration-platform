@@ -1,8 +1,14 @@
 import type {
   ActivityStepPayload,
+  CatalogSystemType,
   ChatDecision,
+  ChatDecisionSpec,
   StreamingChunk,
 } from "./types.ts";
+
+function parseCatalogSystemType(value: unknown): CatalogSystemType | undefined {
+  return value === "EXTERNAL" || value === "INTERNAL" ? value : undefined;
+}
 
 function parseStepPayload(payload: string): ActivityStepPayload | null {
   try {
@@ -91,7 +97,7 @@ export function parseDecisionPayload(payload: string): ChatDecision | null {
       decision.recovery = normalizeRecovery(parsed.recovery);
     }
     if (Array.isArray(parsed.specs)) {
-      const specs = parsed.specs.flatMap((item) => {
+      const specs: ChatDecisionSpec[] = parsed.specs.flatMap((item) => {
         if (typeof item !== "object" || item === null) {
           return [];
         }
@@ -103,17 +109,13 @@ export function parseDecisionPayload(payload: string): ChatDecision | null {
           typeof spec.displayName === "string" && spec.displayName.length > 0
             ? spec.displayName
             : spec.s3Key;
-        const systemType =
-          spec.systemType === "EXTERNAL" || spec.systemType === "INTERNAL"
-            ? spec.systemType
-            : undefined;
-        return [
-          {
-            s3Key: spec.s3Key,
-            displayName,
-            ...(systemType === undefined ? {} : { systemType }),
-          },
-        ];
+        const systemType = parseCatalogSystemType(spec.systemType);
+        const entry: ChatDecisionSpec = {
+          s3Key: spec.s3Key,
+          displayName,
+          ...(systemType === undefined ? {} : { systemType }),
+        };
+        return [entry];
       });
       if (specs.length > 0) {
         decision.specs = specs;

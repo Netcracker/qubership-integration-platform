@@ -677,6 +677,7 @@ describe("AiDecisionCard", () => {
         title: "Creation cannot continue",
         summary: "Creation stopped without a recoverable cause.",
         preservedWork: "Your approved requirements and plan are saved.",
+        technicalDetails: "",
       },
     });
     const { rerender } = render(
