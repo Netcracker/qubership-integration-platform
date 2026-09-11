@@ -22,6 +22,10 @@ public final class JsonSchemaMappingContractFactory {
     }
     List<MappingContract.Field> fields = new ArrayList<>();
     collectFields(schema, schema, "$", fields);
+    if (fields.isEmpty()) {
+      // Property-less JSON is not a known contract; do not invent unknown-target findings.
+      return MappingContract.unknown();
+    }
     return new MappingContract(fields, true);
   }
 

@@ -8,11 +8,11 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
@@ -77,11 +77,13 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       throw new IllegalStateException(
           "Approved design plan does not match the approved semantic revision");
     }
-    RequirementBrief storedBrief = loadStoredBrief(runManifest.runId());
-    if (storedBrief == null) {
+    Revision storedBriefRevision = loadStoredBriefRevision(runManifest.runId());
+    if (storedBriefRevision == null) {
       throw new IllegalStateException(
           "design-execution requires a committed RequirementBrief");
     }
+    RequirementBrief storedBrief =
+        artifactStore.payload(storedBriefRevision, RequirementBrief.class);
     BiConsumer<String, String> progress =
         skillProgress == null ? (skillId, status) -> {} : skillProgress;
     CompilerRunPin pin = requirePin(runManifest);
@@ -113,17 +115,13 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
             revision,
             executionDag,
             approvedOwningSkillIds,
-            List.of(),
+            List.of(storedBriefRevision.reference()),
             seed);
     return engine.execute(request, attemptId, progress).await().indefinitely();
   }
 
-  private RequirementBrief loadStoredBrief(String runId) {
-    Optional<RequirementBrief> brief =
-        artifactStore
-            .latest(runId, Kind.REQUIREMENT_BRIEF)
-            .map(revision -> artifactStore.payload(revision, RequirementBrief.class));
-    return brief.orElse(null);
+  private Revision loadStoredBriefRevision(String runId) {
+    return artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF).orElse(null);
   }
 
   private String resolveConversationId(String runId) {

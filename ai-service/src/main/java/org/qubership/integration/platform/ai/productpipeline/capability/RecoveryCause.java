@@ -48,6 +48,9 @@ public record RecoveryCause(
   /** Requested fact when execution has no catalog binding hint for an interaction. */
   public static final String MISSING_CATALOG_BINDING_FACT = "missing catalog binding";
 
+  /** Requested fact when a stored hint and the semantic occurrence use different identities. */
+  public static final String BINDING_IDENTITY_MISMATCH_FACT = "binding identity mismatch";
+
   public static RecoveryCause catalogResolution(String requestedFact) {
     String fact =
         requestedFact == null || requestedFact.isBlank() ? "catalog service" : requestedFact;
@@ -74,6 +77,47 @@ public record RecoveryCause(
         && MISSING_CATALOG_BINDING_FACT.equals(requestedFact);
   }
 
+  /**
+   * Catalog resolution failed because a stored hint and the semantic occurrence disagree. {@code
+   * semanticInteractionId} is the occurrence execution looked up, not a catalog display name.
+   */
+  public static RecoveryCause bindingIdentityMismatch(String semanticInteractionId) {
+    String id = semanticInteractionId == null ? "" : semanticInteractionId.trim();
+    List<PlanValidationFinding> evidence =
+        id.isEmpty()
+            ? List.of()
+            : List.of(
+                new PlanValidationFinding(RecoveryCauseCode.CATALOG_RESOLUTION.name(), id, true));
+    return new RecoveryCause(
+        RecoveryCauseCode.CATALOG_RESOLUTION,
+        List.copyOf(evidence),
+        BINDING_IDENTITY_MISMATCH_FACT);
+  }
+
+  public boolean isBindingIdentityMismatch() {
+    return causeCode == RecoveryCauseCode.CATALOG_RESOLUTION
+        && BINDING_IDENTITY_MISMATCH_FACT.equals(requestedFact);
+  }
+
+  /** True when the halt is the typed missing-brief-facts defect. */
+  public boolean isMissingBriefFacts() {
+    return causeCode == RecoveryCauseCode.MISSING_BRIEF_FACTS;
+  }
+
+  /**
+   * True when the halt is a known brief-owned defect that uses the landed Edit requirements path.
+   * {@link RecoveryCauseCode#MAPPING_CONTRACT} stays its own diagnosis; it only shares this
+   * edit/resume predicate with {@link #isMissingBriefFacts()}.
+   */
+  public boolean isKnownBriefDefect() {
+    return isKnownBriefDefect(causeCode);
+  }
+
+  public static boolean isKnownBriefDefect(RecoveryCauseCode causeCode) {
+    return causeCode == RecoveryCauseCode.MISSING_BRIEF_FACTS
+        || causeCode == RecoveryCauseCode.MAPPING_CONTRACT;
+  }
+
   /** Occurrence the missing-hint cause named, when present. */
   public Optional<String> unresolvedInteractionId() {
     if (!isMissingCatalogBinding()) {
@@ -85,6 +129,15 @@ public record RecoveryCause(
       }
     }
     return Optional.empty();
+  }
+
+  /**
+   * Mapping rules failed a known contract. Finding codes name the specific violation; this
+   * aggregate cause routes to the brief producer.
+   */
+  public static RecoveryCause mappingContract(List<PlanValidationFinding> findings) {
+    return new RecoveryCause(
+        RecoveryCauseCode.MAPPING_CONTRACT, findings == null ? List.of() : findings, "");
   }
 
   public static RecoveryCause missingBriefFacts(List<String> missingFacts) {
@@ -166,6 +219,13 @@ public record RecoveryCause(
       case "MISSING_REQUIRED_PROPERTY" -> RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
       case "MISSING_BRIEF_FACTS" -> RecoveryCauseCode.MISSING_BRIEF_FACTS;
       case "CATALOG_RESOLUTION" -> RecoveryCauseCode.CATALOG_RESOLUTION;
+      case "MAPPING_CONTRACT",
+              "MAPPING_UNKNOWN_TARGET",
+              "MAPPING_MISSING_REQUIRED_TARGET",
+              "MAPPING_INVALID_SOURCE",
+              "MAPPING_UNSUPPORTED_EXPRESSION",
+              "MAPPING_UNRESOLVED_RULE" ->
+          RecoveryCauseCode.MAPPING_CONTRACT;
       default -> null;
     };
   }

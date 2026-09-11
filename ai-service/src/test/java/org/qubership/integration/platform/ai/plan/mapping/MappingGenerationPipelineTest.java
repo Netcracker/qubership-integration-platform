@@ -47,6 +47,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
@@ -149,6 +150,163 @@ class MappingGenerationPipelineTest {
 
     assertFalse(prepared.blocked(), prepared.blockedMessage());
     assertTrue(artifacts.history(COMPILATION_ID, Kind.MAPPING_SCHEMA_SIDE).isEmpty());
+  }
+
+  @Test
+  void propertyLessPersistedSchemaDoesNotBlockAsUnknownTarget() throws Exception {
+    JsonNode emptyObject = MAPPER.readTree("{\"type\": \"object\"}");
+    persistSide("trigger-http", MappingPort.OUTPUT, emptyObject);
+    persistSide("call-1", MappingPort.REQUEST, emptyObject);
+    MappingIntent intent =
+        new MappingIntent(
+            "map-init",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.orderId", "$.orderId", null, MappingRuleStatus.PROPOSED)));
+
+    MappingGenerationPipeline.Result prepared =
+        pipeline.prepare(
+            COMPILATION_ID,
+            SCRIPT_SKILL,
+            revisionWith(intent),
+            List.of(binding()),
+            sampleContext(List.of(), List.of(intent)));
+
+    assertFalse(prepared.blocked(), prepared.blockedMessage());
+    assertTrue(
+        prepared.findings().stream()
+            .noneMatch(
+                finding ->
+                    "MAPPING_UNKNOWN_TARGET".equals(finding.code())
+                        || "MAPPING_MISSING_REQUIRED_TARGET".equals(finding.code())));
+  }
+
+  @Test
+  void unknownPreservedTargetRetainsTypedFindingsAndBriefIdentity() throws Exception {
+    persistSide(
+        "trigger-http",
+        MappingPort.OUTPUT,
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "executionId": { "type": "string" },
+                "subject": { "type": "string" }
+              }
+            }
+            """));
+    persistSide(
+        "call-1",
+        MappingPort.REQUEST,
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "Subject": { "type": "string" } },
+              "required": ["Subject"]
+            }
+            """));
+    MappingIntent intent =
+        new MappingIntent(
+            "salesforce-create-task",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("$.subject", "$.Subject", null, MappingRuleStatus.PROPOSED),
+                new MappingIntentRule(
+                    "$.executionId",
+                    "$.preserved.executionId",
+                    "preserve for response",
+                    MappingRuleStatus.PROPOSED)));
+
+    MappingGenerationPipeline.Result prepared =
+        pipeline.prepare(
+            COMPILATION_ID,
+            SCRIPT_SKILL,
+            revisionWith(intent),
+            List.of(binding()),
+            sampleContext(List.of(pinnedSourceRef()), List.of(intent)));
+
+    assertTrue(prepared.blocked());
+    assertFalse(prepared.findings().isEmpty());
+    PlanValidationFinding finding =
+        prepared.findings().stream()
+            .filter(candidate -> "MAPPING_UNKNOWN_TARGET".equals(candidate.code()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals("$.preserved.executionId", finding.mappingDetails().targetPath());
+    assertFalse(finding.message().startsWith(BriefMappingValidator.UNRESOLVED_REQUIRED_PREFIX));
+    assertEquals("brief-1", finding.mappingDetails().consumedBriefArtifactId());
+    assertEquals("hash-brief", finding.mappingDetails().consumedBriefContentHash());
+    MappingContractBlockedException blocked =
+        new MappingContractBlockedException(prepared.blockedMessage(), prepared.findings());
+    assertEquals(prepared.findings(), blocked.findings());
+    assertEquals(prepared.blockedMessage(), blocked.getMessage());
+  }
+
+  @Test
+  void inventedFieldOnUnrelatedApiRetainsUnknownTargetFinding() throws Exception {
+    persistSide(
+        "trigger-http",
+        MappingPort.OUTPUT,
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "orderId": { "type": "string" } },
+              "required": ["orderId"]
+            }
+            """));
+    persistSide(
+        "call-1",
+        MappingPort.REQUEST,
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": { "invoiceId": { "type": "string" } },
+              "required": ["invoiceId"]
+            }
+            """));
+    MappingIntent intent =
+        new MappingIntent(
+            "billing-create-invoice",
+            "trigger-http",
+            MappingPort.OUTPUT,
+            "node-call",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "$.orderId", "$.notARealInvoiceField", null, MappingRuleStatus.PROPOSED)));
+
+    MappingGenerationPipeline.Result prepared =
+        pipeline.prepare(
+            COMPILATION_ID,
+            SCRIPT_SKILL,
+            revisionWith(intent),
+            List.of(binding()),
+            sampleContext(List.of(pinnedSourceRef()), List.of(intent)));
+
+    assertTrue(prepared.blocked());
+    PlanValidationFinding unknown =
+        prepared.findings().stream()
+            .filter(finding -> "MAPPING_UNKNOWN_TARGET".equals(finding.code()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals("$.notARealInvoiceField", unknown.mappingDetails().targetPath());
+    assertTrue(
+        prepared.findings().stream()
+            .noneMatch(
+                finding ->
+                    "MAPPING_MISSING_REQUIRED_TARGET".equals(finding.code())
+                        && "$.notARealInvoiceField".equals(finding.mappingDetails().targetPath())));
   }
 
   @Test

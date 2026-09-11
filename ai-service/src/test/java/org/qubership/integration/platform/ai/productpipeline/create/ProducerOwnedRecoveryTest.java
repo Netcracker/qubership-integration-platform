@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
@@ -185,6 +186,149 @@ class ProducerOwnedRecoveryTest {
             false,
             0,
             Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-execution", route.producerStageId());
+  }
+
+  @Test
+  void aBindingIdentityMismatchReopensTheSemanticProducer() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.bindingIdentityMismatch("create-work-order"),
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-input", "chain-semantic-revision"),
+                new OwnerCandidate("requirement-discovery", "catalog-binding-hint")),
+            false,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("design-input", route.producerStageId());
+  }
+
+  @Test
+  void aBindingIdentityMismatchAfterCatalogWriteStopsSafely() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.bindingIdentityMismatch("create-work-order"),
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-input", "chain-semantic-revision")),
+            true,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-input", route.producerStageId());
+  }
+
+  @Test
+  void aBindingIdentityMismatchWithoutASemanticProducerStopsSafely() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.bindingIdentityMismatch("create-work-order"),
+            EXECUTION_CANDIDATES,
+            false,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-execution", route.producerStageId());
+  }
+
+  @Test
+  void mappingContractReopensTheBriefProducer() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.mappingContract(
+                List.of(
+                    new PlanValidationFinding(
+                        "MAPPING_UNKNOWN_TARGET",
+                        "Target path $.preserved.executionId is absent from the target contract.",
+                        true))),
+            EXECUTION_CANDIDATES,
+            false,
+            0,
+            Optional.of("design-planning"));
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("requirement-analysis", route.producerStageId());
+  }
+
+  @Test
+  void mappingContractIgnoresNonBriefConsumedProvenance() {
+    ProducerOwnedRecovery.Route route =
+        ProducerOwnedRecovery.route(
+            new ProducerOwnedRecovery.Request(
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                RecoveryCause.mappingContract(
+                    List.of(
+                        new PlanValidationFinding(
+                            "MAPPING_UNKNOWN_TARGET",
+                            "Target path $.preserved.executionId is absent from the target contract.",
+                            true))),
+                EXECUTION_CANDIDATES,
+                false,
+                0,
+                1,
+                Optional.empty(),
+                Optional.of("design-planning")));
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("requirement-analysis", route.producerStageId());
+  }
+
+  @Test
+  void mappingContractUsesAnyBriefProducerFromConsumedProvenance() {
+    ProducerOwnedRecovery.Route route =
+        ProducerOwnedRecovery.route(
+            new ProducerOwnedRecovery.Request(
+                "design-execution",
+                StageOutcomeClass.VALIDATION_FAILURE,
+                RecoveryCause.mappingContract(
+                    List.of(
+                        new PlanValidationFinding(
+                            "MAPPING_UNKNOWN_TARGET",
+                            "Target path $.preserved.executionId is absent from the target contract.",
+                            true))),
+                List.of(
+                    new OwnerCandidate("design-execution", "plan-validation-result"),
+                    new OwnerCandidate("requirement-analysis", "requirement-brief"),
+                    new OwnerCandidate("requirement-analysis-alt", "requirement-brief")),
+                false,
+                0,
+                1,
+                Optional.empty(),
+                Optional.of("requirement-analysis")));
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("requirement-analysis", route.producerStageId());
+  }
+
+  @Test
+  void mappingContractDoesNotFallBackToThePlanProducer() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.mappingContract(
+                List.of(
+                    new PlanValidationFinding(
+                        "MAPPING_UNKNOWN_TARGET",
+                        "Target path $.preserved.executionId is absent from the target contract.",
+                        true))),
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("design-planning", "implementation-plan")),
+            false,
+            0,
+            Optional.of("design-planning"));
 
     assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
     assertEquals("design-execution", route.producerStageId());
