@@ -1,6 +1,7 @@
 # ai-service E2E
 
 CREATE and COMPARE_AND_PATCH acceptance tests live under `product-pipeline/`.
+Isolated design-planner evaluations live under `planner-eval/`.
 
 ## Offline
 
