@@ -1,4 +1,6 @@
-# Qubership Integration Platform
+# Cloud Integration Platform
+
+(formerly known as *Qubership Integration Platform*)
 
 Open-source integration and orchestration platform built on Apache Camel. Lets you build integration flows (chains) with data transformation, process orchestration, and mapping between system formats. Deployed on Kubernetes; Docker Compose is used for local development.
 
