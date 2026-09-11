@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.plan.mapping.schema.MappingBoundary
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
@@ -104,12 +105,22 @@ public class MappingGenerationPipeline {
     for (MappingIntent intent : intents) {
       MappingBoundarySchemas schemas =
           resolver.resolve(revision, bindings, intent, envelopesByTransformNodeId);
-      Optional<String> blocked = MappingContractGate.blockedMessage(intent, schemas);
-      if (blocked.isPresent()) {
+      MappingContractEvaluation evaluated = MappingContractGate.evaluate(intent, schemas);
+      if (evaluated.blocked()) {
+        Reference brief = consumedBrief(context);
+        List<PlanValidationFinding> findings =
+            MappingContractGate.toPlanFindings(
+                evaluated,
+                schemas.source(),
+                schemas.target(),
+                brief == null ? "" : brief.artifactId(),
+                brief == null ? "" : brief.contentHash());
         LOG.warnf(
-            "Mapping contract blocked skillId=%s mappingIntentId=%s message=%s",
-            skillId, intent.mappingIntentId(), blocked.get());
-        return Result.blocked(blocked.get(), context);
+            "Mapping contract blocked skillId=%s mappingIntentId=%s code=%s",
+            skillId,
+            intent.mappingIntentId(),
+            findings.isEmpty() ? evaluated.blockedMessage() : findings.getFirst().code());
+        return Result.blocked(evaluated.blockedMessage(), context, findings);
       }
       MappingEnvelope envelope =
           envelopeFactory
@@ -345,6 +356,19 @@ public class MappingGenerationPipeline {
     return false;
   }
 
+  private static Reference consumedBrief(GraphPatchExecutionContext context) {
+    if (context == null || context.consumedArtifacts() == null) {
+      return null;
+    }
+    Reference last = null;
+    for (Reference ref : context.consumedArtifacts()) {
+      if (ref != null && ref.kind() == Kind.REQUIREMENT_BRIEF) {
+        last = ref;
+      }
+    }
+    return last;
+  }
+
   private record FrozenHop(
       MappingIntent intent, MappingBoundarySchemas schemas, MappingEnvelope envelope) {}
 
@@ -353,24 +377,31 @@ public class MappingGenerationPipeline {
       String blockedMessage,
       GraphPatchExecutionContext context,
       List<Reference> envelopeRefs,
-      String mappingGenerationContext) {
+      String mappingGenerationContext,
+      List<PlanValidationFinding> findings) {
 
     public Result {
       blockedMessage = blockedMessage == null ? "" : blockedMessage;
       envelopeRefs = envelopeRefs == null ? List.of() : List.copyOf(envelopeRefs);
       mappingGenerationContext =
           mappingGenerationContext == null ? "" : mappingGenerationContext;
+      findings = findings == null ? List.of() : List.copyOf(findings);
     }
 
     static Result blocked(String message, GraphPatchExecutionContext context) {
-      return new Result(true, message, context, List.of(), "");
+      return blocked(message, context, List.of());
+    }
+
+    static Result blocked(
+        String message, GraphPatchExecutionContext context, List<PlanValidationFinding> findings) {
+      return new Result(true, message, context, List.of(), "", findings);
     }
 
     static Result ready(
         GraphPatchExecutionContext context,
         List<Reference> envelopeRefs,
         String mappingGenerationContext) {
-      return new Result(false, "", context, envelopeRefs, mappingGenerationContext);
+      return new Result(false, "", context, envelopeRefs, mappingGenerationContext, List.of());
     }
   }
 }

@@ -325,7 +325,7 @@ public class CipDesignExecutorJavaAdapter {
       return ExecutionResult.failure(
           StageOutcomeClass.VALIDATION_FAILURE,
           blocked.getMessage(),
-          RecoveryCause.missingBriefFacts(List.of(blocked.getMessage())));
+          RecoveryCause.mappingContract(blocked.findings()));
     }
     if (engineResult.outcomeClass() != StageOutcomeClass.SUCCEEDED
         && engineResult.outcomeClass() != StageOutcomeClass.CANDIDATE) {
@@ -441,10 +441,14 @@ public class CipDesignExecutorJavaAdapter {
                 RecoveryCause.catalogResolution("catalog operation")));
       }
       if (result instanceof BindingResolutionResult.Failed failed) {
-        RecoveryCause cause =
-            failed.isMissingHint()
-                ? RecoveryCause.missingCatalogBinding(failed.serviceCallId())
-                : RecoveryCause.catalogResolution(failed.requestedFact());
+        RecoveryCause cause;
+        if (failed.isMissingHint()) {
+          cause = RecoveryCause.missingCatalogBinding(failed.serviceCallId());
+        } else if (failed.isIdentityMismatch()) {
+          cause = RecoveryCause.bindingIdentityMismatch(failed.serviceCallId());
+        } else {
+          cause = RecoveryCause.catalogResolution(failed.requestedFact());
+        }
         return Optional.of(
             ExecutionResult.failure(failed.outcomeClass(), failed.reason(), cause));
       }

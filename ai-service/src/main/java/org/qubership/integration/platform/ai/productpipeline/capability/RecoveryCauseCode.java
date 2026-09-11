@@ -20,6 +20,9 @@ public enum RecoveryCauseCode {
   /** Catalog binding did not resolve to one service or operation. */
   CATALOG_RESOLUTION,
 
+  /** Mapping rules failed the contract of a known source or target schema. */
+  MAPPING_CONTRACT,
+
   /** The stage contract rejected a model or adapter payload. */
   CONTRACT_SHAPE,
 

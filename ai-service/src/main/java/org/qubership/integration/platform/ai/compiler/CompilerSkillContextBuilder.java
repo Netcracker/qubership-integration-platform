@@ -379,15 +379,20 @@ public class CompilerSkillContextBuilder {
       if (!isCopyField(sourcePath) || hopSource.field(sourcePath).isPresent()) {
         continue;
       }
+      String property = jsonFieldName(sourcePath);
       StringBuilder line = new StringBuilder();
       line.append("- ")
           .append(MappingContract.canonicalPath(sourcePath))
           .append(" -> ")
           .append(rule.targetPath())
-          .append(
-              ": source not on this hop schema; encode with exchange.setProperty /"
-                  + " exchange.getProperty (CIP GEN-10). Capture on the upstream script site whose"
-                  + " source schema has this path");
+          .append(": source not on this hop schema; capture with exchange.setProperty(")
+          .append(groovySingleQuoted(property))
+          .append(", ")
+          .append(groovyBodyAccess(property))
+          .append(") on the upstream script site whose source schema has this path, then read with")
+          .append(" exchange.getProperty(")
+          .append(groovySingleQuoted(property))
+          .append(") on this script site (CIP GEN-10)");
       String upstream =
           upstreamIntentId(
               sourcePath, intent.mappingIntentId(), revisionIntents, sourceContractsByIntentId);
@@ -463,6 +468,39 @@ public class CompilerSkillContextBuilder {
       return canonical.substring(2);
     }
     return canonical;
+  }
+
+  private static String groovyBodyAccess(String property) {
+    if (isGroovyIdentifier(property)) {
+      return "body." + property;
+    }
+    return "body[" + groovySingleQuoted(property) + "]";
+  }
+
+  private static String groovySingleQuoted(String value) {
+    return "'" + escapeGroovySingleQuoted(value) + "'";
+  }
+
+  private static String escapeGroovySingleQuoted(String value) {
+    if (value == null || value.isEmpty()) {
+      return "";
+    }
+    return value.replace("\\", "\\\\").replace("'", "\\'");
+  }
+
+  private static boolean isGroovyIdentifier(String value) {
+    if (value == null || value.isEmpty()) {
+      return false;
+    }
+    if (!Character.isJavaIdentifierStart(value.charAt(0))) {
+      return false;
+    }
+    for (int i = 1; i < value.length(); i++) {
+      if (!Character.isJavaIdentifierPart(value.charAt(i))) {
+        return false;
+      }
+    }
+    return true;
   }
 
   public String buildScriptRepairMessage(

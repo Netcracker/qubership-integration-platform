@@ -102,6 +102,30 @@ class OwnerCandidateSetTest {
   }
 
   @Test
+  void semanticRevisionProducerPrefersDesignInput() {
+    List<OwnerCandidate> candidates =
+        List.of(
+            new OwnerCandidate("design-execution", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
+            new OwnerCandidate("design-input", "ids-document"));
+
+    assertEquals(
+        Optional.of("design-input"),
+        OwnerCandidateSet.semanticRevisionProducerStageId(candidates, "design-execution"));
+  }
+
+  @Test
+  void semanticRevisionProducerFallsBackToTheRevisionType() {
+    assertEquals(
+        Optional.of("capture"),
+        OwnerCandidateSet.semanticRevisionProducerStageId(
+            List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
+                new OwnerCandidate("capture", "chain-semantic-revision")),
+            "design-execution"));
+  }
+
+  @Test
   void namedStagesIsEmptyWhenTheFollowUpNamesAStageOutsideTheSet() {
     List<OwnerCandidate> candidates =
         List.of(
