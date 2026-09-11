@@ -17,6 +17,9 @@ import org.qubership.integration.platform.ai.harness.ChainPatchHarnessRequest;
 import org.qubership.integration.platform.ai.harness.ChainPatchRefusal;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessResponse;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessService;
+import org.qubership.integration.platform.ai.harness.PlannerHarnessRequest;
+import org.qubership.integration.platform.ai.harness.PlannerHarnessResponse;
+import org.qubership.integration.platform.ai.harness.PlannerHarnessService;
 import org.qubership.integration.platform.ai.harness.SkillHarnessRequest;
 import org.qubership.integration.platform.ai.harness.SkillHarnessResponse;
 import org.qubership.integration.platform.ai.harness.SkillHarnessService;
@@ -31,13 +34,47 @@ class SkillHarnessResourceTest {
 
   private SkillHarnessService harnessService;
   private ChainPatchHarnessService chainPatchHarnessService;
+  private PlannerHarnessService plannerHarnessService;
   private SkillHarnessResource resource;
 
   @BeforeEach
   void setUp() {
     harnessService = mock(SkillHarnessService.class);
     chainPatchHarnessService = mock(ChainPatchHarnessService.class);
-    resource = new SkillHarnessResource(harnessService, chainPatchHarnessService);
+    plannerHarnessService = mock(PlannerHarnessService.class);
+    resource =
+        new SkillHarnessResource(harnessService, chainPatchHarnessService, plannerHarnessService);
+  }
+
+  @Test
+  void runPlannerReturnsRecordedAttempts() {
+    PlannerHarnessResponse expected =
+        new PlannerHarnessResponse(
+            CONVERSATION_ID,
+            SkillHarnessStatus.COMPLETED,
+            "plan",
+            "skill-hash",
+            "test-model",
+            List.of(
+                new PlannerHarnessResponse.Attempt(1, null, "plan", null, 10)));
+    when(plannerHarnessService.run(any())).thenReturn(expected);
+
+    Response response =
+        resource.runPlanner(new PlannerHarnessRequest(CONVERSATION_ID, "IDS", null));
+
+    assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+    assertEquals(expected, response.getEntity());
+    verify(plannerHarnessService).run(any());
+  }
+
+  @Test
+  void runPlannerRejectsMissingInput() {
+    Response response =
+        resource.runPlanner(new PlannerHarnessRequest(CONVERSATION_ID, " ", null));
+
+    assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+    assertTrue(response.getEntity().toString().contains("input"));
+    verifyNoInteractions(plannerHarnessService);
   }
 
   @Test

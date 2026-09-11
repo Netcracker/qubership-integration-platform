@@ -13,11 +13,14 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessRequest;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessResponse;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessService;
+import org.qubership.integration.platform.ai.harness.PlannerHarnessRequest;
+import org.qubership.integration.platform.ai.harness.PlannerHarnessResponse;
+import org.qubership.integration.platform.ai.harness.PlannerHarnessService;
 import org.qubership.integration.platform.ai.harness.SkillHarnessRequest;
 import org.qubership.integration.platform.ai.harness.SkillHarnessResponse;
 import org.qubership.integration.platform.ai.harness.SkillHarnessService;
 
-/** REST entrypoint for one-off generator skill harness runs on an existing catalog chain. */
+/** REST entry point for isolated skill, planner, and chain-patch harness runs. */
 @Path("/api/v1/harness")
 @Produces(MediaType.APPLICATION_JSON)
 public class SkillHarnessResource {
@@ -26,12 +29,32 @@ public class SkillHarnessResource {
 
   private final SkillHarnessService harnessService;
   private final ChainPatchHarnessService chainPatchHarnessService;
+  private final PlannerHarnessService plannerHarnessService;
 
   @Inject
   public SkillHarnessResource(
-      SkillHarnessService harnessService, ChainPatchHarnessService chainPatchHarnessService) {
+      SkillHarnessService harnessService,
+      ChainPatchHarnessService chainPatchHarnessService,
+      PlannerHarnessService plannerHarnessService) {
     this.harnessService = harnessService;
     this.chainPatchHarnessService = chainPatchHarnessService;
+    this.plannerHarnessService = plannerHarnessService;
+  }
+
+  @POST
+  @Path("/planner-run")
+  @Blocking
+  @Consumes(MediaType.APPLICATION_JSON)
+  public Response runPlanner(PlannerHarnessRequest request) {
+    if (request == null) {
+      return badRequest("Request body is required");
+    }
+    if (isBlank(request.input())) {
+      return badRequest("input is required");
+    }
+
+    PlannerHarnessResponse response = plannerHarnessService.run(request);
+    return Response.ok(response).build();
   }
 
   @POST
