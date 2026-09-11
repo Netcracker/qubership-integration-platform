@@ -1,0 +1,91 @@
+{
+  "defaultRequiredPatterns": [
+    "cip-chain-assembler",
+    "cip-chain-validator",
+    "If you agree, reply \\*\\*Agree\\*\\* or \\*\\*Execute plan\\*\\* to proceed\\."
+  ],
+  "cases": [
+    {
+      "id": "simple-http-script",
+      "inputFile": "inputs/simple-http-script.md",
+      "requiredPatterns": ["cip-trigger-generator", "cip-script-generator", "cip-structure-generator"],
+      "forbiddenPatterns": [
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification",
+        "cip-service-call-generator"
+      ]
+    },
+    {
+      "id": "dual-trigger",
+      "inputFile": "inputs/dual-trigger.md",
+      "requiredPatterns": ["cip-trigger-generator", "quartz-scheduler", "cip-structure-generator"],
+      "forbiddenPatterns": [
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification",
+        "cip-service-call-generator"
+      ]
+    },
+    {
+      "id": "error-handling",
+      "inputFile": "inputs/error-handling.md",
+      "requiredPatterns": ["cip-trigger-generator", "cip-error-handling-generator", "try-catch-finally-2"],
+      "forbiddenPatterns": ["search_rest_api_operations", "get_rest_api_operations_specification"]
+    },
+    {
+      "id": "catalog-service-call",
+      "inputFile": "inputs/catalog-service-call.md",
+      "requiredPatterns": ["cip-trigger-generator", "cip-service-call-generator", "Orders.*createOrder"],
+      "forbiddenPatterns": ["search_rest_api_operations", "get_rest_api_operations_specification"]
+    },
+    {
+      "id": "apihub-service-call",
+      "inputFile": "inputs/apihub-service-call.md",
+      "requiredPatterns": [
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification",
+        "cip-service-call-generator",
+        "2024\\.4"
+      ],
+      "forbiddenPatterns": []
+    },
+    {
+      "id": "field-mapping",
+      "inputFile": "inputs/field-mapping.md",
+      "requiredPatterns": ["cip-transformation-generator", "mappingIntentId=order-map", "cip-service-call-generator"],
+      "forbiddenPatterns": ["search_rest_api_operations", "get_rest_api_operations_specification"]
+    },
+    {
+      "id": "messaging",
+      "inputFile": "inputs/messaging.md",
+      "requiredPatterns": ["cip-messaging-generator", "kafka", "cip-structure-generator"],
+      "forbiddenPatterns": [
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification",
+        "cip-service-call-generator"
+      ]
+    },
+    {
+      "id": "retry-policy",
+      "inputFile": "inputs/retry-policy.md",
+      "requiredPatterns": ["cip-service-call-generator", "cip-retry-generator", "retry"],
+      "forbiddenPatterns": ["search_rest_api_operations", "get_rest_api_operations_specification"]
+    },
+    {
+      "id": "loop",
+      "inputFile": "inputs/loop.md",
+      "requiredPatterns": ["cip-loop-generator", "cip-script-generator", "cip-structure-generator"],
+      "forbiddenPatterns": [
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification",
+        "cip-service-call-generator"
+      ]
+    },
+    {
+      "id": "mapping-repair",
+      "inputFile": "inputs/mapping-repair.md",
+      "repairEvidenceFile": "inputs/mapping-repair-evidence.md",
+      "requiredPatterns": ["cip-transformation-generator", "mappingIntentId=customer-map"],
+      "forbiddenPatterns": ["search_rest_api_operations", "get_rest_api_operations_specification"]
+    }
+  ]
+}
