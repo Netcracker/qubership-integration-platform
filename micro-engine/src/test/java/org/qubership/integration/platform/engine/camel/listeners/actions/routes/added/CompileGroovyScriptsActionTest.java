@@ -2,9 +2,12 @@ package org.qubership.integration.platform.engine.camel.listeners.actions.routes
 
 import groovy.lang.GroovyShell;
 import org.apache.camel.Route;
+import org.apache.camel.model.ChoiceDefinition;
 import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.model.ScriptDefinition;
+import org.apache.camel.model.WhenDefinition;
 import org.apache.camel.model.language.GroovyExpression;
+import org.apache.camel.model.language.SimpleExpression;
 import org.apache.camel.spi.CamelEvent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
@@ -16,6 +19,7 @@ import org.qubership.integration.platform.engine.service.groovy.GroovyLanguageWi
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -58,9 +62,31 @@ class CompileGroovyScriptsActionTest {
         verify(groovyLanguage).addScriptToCache(eq("1 + 1"), any());
     }
 
+    @Test
+    void shouldRejectDeploymentWhenNestedGroovyScriptCannotCompile() {
+        CamelEvent.RouteAddedEvent event = routeAddedEventWithNested(new GroovyExpression("if ("));
+
+        assertThrows(RuntimeException.class, () -> action.process(event));
+    }
+
     private static CamelEvent.RouteAddedEvent routeAddedEventWith(GroovyExpression expression) {
         RouteDefinition routeDefinition = new RouteDefinition();
         routeDefinition.getOutputs().add(new ScriptDefinition(expression));
+
+        Route route = mock(Route.class);
+        when(route.getRoute()).thenReturn(routeDefinition);
+        CamelEvent.RouteAddedEvent event = mock(CamelEvent.RouteAddedEvent.class);
+        when(event.getRoute()).thenReturn(route);
+        return event;
+    }
+
+    private static CamelEvent.RouteAddedEvent routeAddedEventWithNested(GroovyExpression expression) {
+        RouteDefinition routeDefinition = new RouteDefinition();
+        ChoiceDefinition choice = new ChoiceDefinition();
+        WhenDefinition when = new WhenDefinition(new SimpleExpression("true"));
+        when.getOutputs().add(new ScriptDefinition(expression));
+        choice.addOutput(when);
+        routeDefinition.getOutputs().add(choice);
 
         Route route = mock(Route.class);
         when(route.getRoute()).thenReturn(routeDefinition);
