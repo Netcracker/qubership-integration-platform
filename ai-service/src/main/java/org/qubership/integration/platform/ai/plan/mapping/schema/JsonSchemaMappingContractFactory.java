@@ -23,10 +23,30 @@ public final class JsonSchemaMappingContractFactory {
     List<MappingContract.Field> fields = new ArrayList<>();
     collectFields(schema, schema, "$", fields);
     if (fields.isEmpty()) {
-      // Property-less JSON is not a known contract; do not invent unknown-target findings.
-      return MappingContract.unknown();
+      return isClosedEmptyObject(schema, schema)
+          ? new MappingContract(List.of(), true)
+          : MappingContract.unknown();
     }
     return new MappingContract(fields, true);
+  }
+
+  private static boolean isClosedEmptyObject(JsonNode root, JsonNode node) {
+    JsonNode resolved = resolveRef(root, node, new HashSet<>());
+    if (resolved == null || !resolved.isObject()) {
+      return false;
+    }
+    if (firstArray(resolved.get("oneOf"), resolved.get("anyOf")) != null) {
+      return false;
+    }
+    JsonNode additional = resolved.get("additionalProperties");
+    if (additional == null || !additional.isBoolean() || additional.asBoolean()) {
+      return false;
+    }
+    JsonNode properties = resolved.get("properties");
+    if (properties == null) {
+      return true;
+    }
+    return properties.isObject() && properties.isEmpty();
   }
 
   private static void collectFields(
