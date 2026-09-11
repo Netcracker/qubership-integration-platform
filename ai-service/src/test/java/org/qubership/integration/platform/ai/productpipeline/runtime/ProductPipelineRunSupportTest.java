@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
@@ -15,6 +16,8 @@ import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -35,13 +38,87 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTyp
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileParser;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
 class ProductPipelineRunSupportTest {
 
   private static final Instant FIXED = Instant.parse("2026-08-25T00:00:00Z");
+
+  @Test
+  void haltEvidenceRoundTripsRecoveryEvidenceRefForTheReopenedProducer() {
+    Map<String, Object> attributes = new LinkedHashMap<>();
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "mapping contract rejected");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR, "VALIDATION_FAILURE");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-execution");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "MAPPING_UNKNOWN_TARGET");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR, "MAPPING_CONTRACT");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_REQUESTED_FACT_ATTR, "");
+    attributes.put(ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "requirement-analysis");
+    attributes.put(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR, "hash-active-evidence");
+    String json = ProductPipelineRunSupport.haltEvidence(attributes, "brief-hash");
+    Map<String, Object> restored = new HashMap<>();
+    ProductPipelineRunSupport.overlayHaltEvidenceForStage(
+        documentWithHalt("requirement-analysis", json), "requirement-analysis", restored);
+
+    assertEquals("hash-active-evidence", restored.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+    assertEquals("MAPPING_CONTRACT", restored.get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR));
+    assertEquals("design-execution", restored.get(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR));
+  }
+
+  @Test
+  void overlayHaltEvidenceKeepsTheObservingStageRefOnTheProducer() {
+    Map<String, Object> attributes = new LinkedHashMap<>();
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "mapping contract rejected");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR, "VALIDATION_FAILURE");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-execution");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "MAPPING_UNKNOWN_TARGET");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR, "MAPPING_CONTRACT");
+    attributes.put(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR, "hash-observing");
+    String observingJson = ProductPipelineRunSupport.haltEvidence(attributes, null);
+    String producerJson = ProductPipelineRunSupport.haltEvidence(attributes, "brief-hash");
+    ProductPipelineRunDocument doc =
+        new ProductPipelineRunDocument(
+            new RunSnapshot(
+                "run-1",
+                "conv-1",
+                2L,
+                RunStatus.RUNNING,
+                "requirement-analysis",
+                List.of(),
+                null),
+            List.of(
+                haltAttempt("design-execution", 1L, observingJson),
+                haltAttempt("requirement-analysis", 2L, producerJson)),
+            List.of(),
+            null);
+    Map<String, Object> producerAttrs = new HashMap<>();
+    ProductPipelineRunSupport.overlayHaltEvidenceForStage(doc, "requirement-analysis", producerAttrs);
+    Map<String, Object> observingAttrs = new HashMap<>();
+    ProductPipelineRunSupport.overlayHaltEvidenceForStage(doc, "design-execution", observingAttrs);
+
+    assertEquals("hash-observing", producerAttrs.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+    assertEquals("hash-observing", observingAttrs.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+  }
+
+  @Test
+  void legacyHaltEvidenceWithoutRecoveryEvidenceRefDoesNotInventAHash() {
+    String legacyJson =
+        """
+        {"stageErrorContext":"mapping contract rejected","stageErrorOutcomeClass":"VALIDATION_FAILURE","stageErrorFailedStageId":"design-execution","stageErrorFindings":"MAPPING_UNKNOWN_TARGET","stageErrorCauseCode":"MAPPING_CONTRACT","stageErrorRequestedFact":"","diagnosedOwnerStageId":"requirement-analysis"}
+        """;
+    Map<String, Object> restored = new HashMap<>();
+    ProductPipelineRunSupport.overlayHaltEvidenceForStage(
+        documentWithHalt("requirement-analysis", legacyJson), "requirement-analysis", restored);
+
+    assertEquals("MAPPING_CONTRACT", restored.get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR));
+    Object ref = restored.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
+    assertTrue(ref == null || String.valueOf(ref).isBlank());
+  }
 
   @Test
   void rebuildsOnlyConsecutiveFailedAttemptsForEachStage() {
@@ -145,6 +222,26 @@ class ProductPipelineRunSupportTest {
             null,
             null,
             null));
+  }
+
+  private static ProductPipelineRunDocument documentWithHalt(String stageId, String haltJson) {
+    return new ProductPipelineRunDocument(
+        new RunSnapshot("run-1", "conv-1", 1L, RunStatus.RUNNING, stageId, List.of(), null),
+        List.of(haltAttempt(stageId, 1L, haltJson)),
+        List.of(),
+        null);
+  }
+
+  private static StageAttempt haltAttempt(String stageId, long revision, String haltJson) {
+    return new StageAttempt(
+        "attempt-" + revision,
+        stageId,
+        revision,
+        StageStatus.RUNNING,
+        FIXED,
+        FIXED,
+        List.of(),
+        haltJson);
   }
 
   private static StageAttempt attempt(String stageId, long revision, StageStatus outcome) {

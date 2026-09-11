@@ -69,6 +69,22 @@ class MappingRepairCaptureValidatorTest {
   }
 
   @Test
+  void blankEvidenceHashIsNotApplicable() {
+    Result result = validator.validate(RUN_ID, CONVERSATION_ID, "", brief(intent(List.of())));
+
+    assertEquals(Result.Status.NOT_APPLICABLE, result.status());
+  }
+
+  @Test
+  void evidenceHashFromAnotherRunStaysUnresolved() throws Exception {
+    String otherRunHash = persistRecoveryEvidence();
+    Result result =
+        validator.validate("run-other-capture", CONVERSATION_ID, otherRunHash, brief(intent(List.of())));
+
+    assertEquals(Result.Status.UNRESOLVED, result.status());
+  }
+
+  @Test
   void rewordedExpressionWithTheSameInvalidTargetKeepsTheTypedFinding() throws Exception {
     String evidenceHash = persistRecoveryEvidence();
     RequirementBrief candidate =

@@ -400,6 +400,212 @@ class MappingContractBriefProducerRecoveryTest {
     assertPersistedMappingEvidence();
   }
 
+  @Test
+  void invalidRepairIsRejectedAfterRuntimeRestoreOnTheReopenedProducer() throws Exception {
+    repairedBrief.set(rewordedUnknownTargetBrief());
+    CreateChainTestOrchestrator first =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(first);
+    applyLifecycle(first, execute(first, "design-execution"));
+    String evidenceHash =
+        String.valueOf(
+            first.support().runAttributes(RUN_ID).get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+    assertFalse(evidenceHash.isBlank());
+    assertEquals("requirement-analysis", run().run().currentStageId());
+
+    CreateChainTestOrchestrator restored =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    restoreCaches(restored);
+
+    assertEquals(
+        evidenceHash,
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)));
+    StageExecutionResult repaired = execute(restored, "requirement-analysis");
+
+    assertFalse(repaired.decision() instanceof StageDecision.WaitForApproval, repaired.decision().toString());
+    assertInstanceOf(StageDecision.WaitForInput.class, repaired.decision());
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).size());
+    assertEquals(1, designInputCalls.get());
+    String findings =
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
+    assertTrue(findings.contains("$.preserved.executionId"), findings);
+    assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
+  }
+
+  @Test
+  void validRepairContinuesTheSameRunAfterRuntimeRestore() throws Exception {
+    AtomicInteger executionCalls = new AtomicInteger();
+    AtomicReference<String> compilerVisibleContext = new AtomicReference<>("");
+    repairedBrief.set(validContextPreservingBrief());
+    CreateChainTestOrchestrator first =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(executionCalls, compilerVisibleContext));
+    haltAtMappingContract(first);
+    applyLifecycle(first, execute(first, "design-execution"));
+
+    CreateChainTestOrchestrator restored =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(executionCalls, compilerVisibleContext));
+    restoreCaches(restored);
+    assertEquals(
+        String.valueOf(
+            first.support().runAttributes(RUN_ID).get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)),
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)));
+    StageExecutionResult repaired = execute(restored, "requirement-analysis");
+    assertInstanceOf(StageDecision.WaitForApproval.class, repaired.decision());
+    restored
+        .recordApprove(
+            new ApproveCommand(
+                RUN_ID,
+                snapshot("requirement-analysis").approvableReference(),
+                run().run().runRevision()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    applyLifecycle(restored, execute(restored, "design-input"));
+    applyLifecycle(restored, execute(restored, "design-execution"));
+
+    assertEquals(RUN_ID, run().run().runId());
+    assertEquals(RunStatus.PLAN_APPROVED, run().run().status());
+    assertEquals(2, executionCalls.get());
+    assertEquals(2, designInputCalls.get());
+  }
+
+  @Test
+  void laterRecoveryRecordAndAnotherRunDoNotReplaceActiveEvidence() throws Exception {
+    repairedBrief.set(rewordedUnknownTargetBrief());
+    CreateChainTestOrchestrator first =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    haltAtMappingContract(first);
+    applyLifecycle(first, execute(first, "design-execution"));
+    String activeHash =
+        String.valueOf(
+            first.support().runAttributes(RUN_ID).get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+    appendRunArtifact(
+        Kind.RECOVERY_EVIDENCE,
+        "1",
+        new RecoveryEvidence(
+            1,
+            "decoy-same-run",
+            "UNCLASSIFIED",
+            "design-execution",
+            "requirement-analysis",
+            null,
+            null,
+            List.of(),
+            List.of(),
+            null,
+            List.of()),
+        "design-execution");
+    artifactStore.append(
+        new AppendCommand(
+            "run-other-mapping-recovery",
+            Kind.RECOVERY_EVIDENCE,
+            "1",
+            "test-producer",
+            "1",
+            new RecoveryEvidence(
+                1,
+                "decoy-other-run",
+                "MAPPING_CONTRACT",
+                "design-execution",
+                "requirement-analysis",
+                null,
+                null,
+                List.of(),
+                List.of(),
+                null,
+                List.of()),
+            List.of(),
+            null,
+            new ArtifactProvenance(
+                "run-other-mapping-recovery",
+                "design-execution",
+                "create-chain",
+                "2",
+                "profile-sha",
+                "design-execution",
+                "1",
+                "closure")));
+    assertTrue(artifactStore.history(RUN_ID, Kind.RECOVERY_EVIDENCE).size() >= 2);
+
+    CreateChainTestOrchestrator restored =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    restoreCaches(restored);
+
+    assertEquals(
+        activeHash,
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR)));
+    StageExecutionResult repaired = execute(restored, "requirement-analysis");
+
+    assertFalse(repaired.decision() instanceof StageDecision.WaitForApproval, repaired.decision().toString());
+    String findings =
+        String.valueOf(
+            restored
+                .support()
+                .runAttributes(RUN_ID)
+                .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
+    assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
+    assertEquals(1, designInputCalls.get());
+  }
+
+  @Test
+  void ordinaryCreateDoesNotApplyMappingRepairCapture() throws Exception {
+    CreateChainTestOrchestrator runtime =
+        runtime(
+            FakeFailureNarrativeAgent.narrates("unused"),
+            validatingExecution(new AtomicInteger(), new AtomicReference<>()));
+    runtime
+        .startOrResume(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    if (run().run().status() == RunStatus.WAITING_FOR_INPUT) {
+      runtime
+          .recordInput(new AcceptInputCommand(RUN_ID, "create a Salesforce task chain"))
+          .collect()
+          .asList()
+          .await()
+          .indefinitely();
+    }
+
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    assertEquals(
+        MappingRepairCaptureValidator.Result.Status.NOT_APPLICABLE,
+        captureValidator().validate(RUN_ID, CONV_ID, "", unknownTargetBrief()).status());
+    Object evidenceRef =
+        runtime.support().runAttributes(RUN_ID).get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
+    assertTrue(evidenceRef == null || String.valueOf(evidenceRef).isBlank());
+  }
+
   private enum AdvisoryConflict {
     MISSING,
     ASK_USER,
@@ -837,6 +1043,15 @@ class MappingContractBriefProducerRecoveryTest {
     runtime
         .support()
         .applyStageLifecycle(RUN_ID, result)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+  }
+
+  private void restoreCaches(CreateChainTestOrchestrator runtime) {
+    runtime
+        .restoreForExternalWorkflow(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
         .collect()
         .asList()
         .await()
