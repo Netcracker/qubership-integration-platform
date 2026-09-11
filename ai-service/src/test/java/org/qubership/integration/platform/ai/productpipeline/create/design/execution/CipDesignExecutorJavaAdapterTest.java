@@ -36,9 +36,10 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
-import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.mapping.MappingContractBlockedException;
+import org.qubership.integration.platform.ai.plan.mapping.MappingContractEvaluation;
+import org.qubership.integration.platform.ai.plan.mapping.MappingContractGate;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
@@ -48,6 +49,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRu
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationBundle;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationPass;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssemblyResult;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
@@ -73,6 +75,11 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase;
 import org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationResult;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.PlanGraphValidationInput;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
@@ -462,17 +469,48 @@ class CipDesignExecutorJavaAdapterTest {
   }
 
   @Test
-  void mappingContractBlockedMapsToMissingBriefFacts() {
-    String blockedMessage =
-        BriefMappingValidator.UNRESOLVED_REQUIRED_PREFIX + "$.orderId";
+  void mappingContractBlockedMapsToMappingContractCause() {
+    MappingIntent intent =
+        new MappingIntent(
+            "salesforce-create-task",
+            "onTaskStart",
+            MappingPort.OUTPUT,
+            "salesforce-create-task",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("$.subject", "$.Subject", null, MappingRuleStatus.PROPOSED),
+                new MappingIntentRule(
+                    "$.executionId",
+                    "$.preserved.executionId",
+                    "preserve for response",
+                    MappingRuleStatus.PROPOSED)));
+    MappingContractEvaluation evaluated =
+        MappingContractGate.evaluate(
+            intent,
+            MappingContract.of(
+                new MappingContract.Field("$.executionId", "string", false),
+                new MappingContract.Field("$.subject", "string", false)),
+            MappingContract.of(new MappingContract.Field("$.Subject", "string", true)));
+    PlanValidationFinding finding =
+        MappingContractGate.toPlanFinding(
+            evaluated.blockerFindings().getFirst(), null, null, "brief-1", "hash-brief");
     when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any()))
-        .thenThrow(new MappingContractBlockedException(blockedMessage));
+        .thenThrow(
+            new MappingContractBlockedException(evaluated.blockedMessage(), List.of(finding)));
 
     ExecutionResult result = adapter.executeAfterApproval(baseInputs());
 
     assertEquals(StageOutcomeClass.VALIDATION_FAILURE, result.outcomeClass());
-    assertEquals(RecoveryCauseCode.MISSING_BRIEF_FACTS, result.recoveryCause().causeCode());
-    assertEquals(blockedMessage, result.message());
+    assertEquals(RecoveryCauseCode.MAPPING_CONTRACT, result.recoveryCause().causeCode());
+    assertNotEquals(RecoveryCauseCode.MISSING_BRIEF_FACTS, result.recoveryCause().causeCode());
+    assertEquals("MAPPING_UNKNOWN_TARGET", result.recoveryCause().findings().getFirst().code());
+    assertEquals(
+        "$.preserved.executionId",
+        result.recoveryCause().findings().getFirst().mappingDetails().targetPath());
+    assertEquals(
+        "brief-1",
+        result.recoveryCause().findings().getFirst().mappingDetails().consumedBriefArtifactId());
+    assertEquals(finding.message(), result.message());
     assertTrue(result.candidates().isEmpty());
     assertNull(result.checkpoint());
   }

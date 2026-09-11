@@ -80,6 +80,25 @@ class DefaultExecutorCatalogBindingAdapterTest {
   }
 
   @Test
+  void identityMismatchDoesNotSearchOrReuseTheHint() {
+    CatalogBindingHint hint = v2Hint("wfms-create-work-order", "fact-1", "GET /pets", "sys-1", "op-1");
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(hint), approved());
+
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
+    assertEquals("call-1", failed.serviceCallId());
+    assertTrue(failed.isIdentityMismatch(), failed.requestedFact());
+    assertTrue(!failed.isMissingHint(), failed.requestedFact());
+    assertTrue(failed.reason().contains("wfms-create-work-order"), failed.reason());
+    assertTrue(failed.reason().contains("call-1"), failed.reason());
+    assertTrue(
+        catalog.calls().stream().noneMatch(call -> call.startsWith("searchCatalogSystems")),
+        catalog.calls().toString());
+  }
+
+  @Test
   void resolvedBindingLoadsSchemasOnceAndPersistsBothSides() {
     List<BindingResolutionResult> results =
         adapter.resolve(

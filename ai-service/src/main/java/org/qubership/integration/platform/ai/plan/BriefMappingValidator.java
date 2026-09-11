@@ -8,7 +8,10 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.mapping.MappingContractEvaluation;
+import org.qubership.integration.platform.ai.plan.mapping.MappingFindingCode;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
+import org.qubership.integration.platform.ai.plan.mapping.MappingRuleFinding;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -71,14 +74,44 @@ public final class BriefMappingValidator {
       String implementationPreference) {
     Objects.requireNonNull(sourcePort, "sourcePort");
     Objects.requireNonNull(targetPort, "targetPort");
+    MappingContractEvaluation evaluated =
+        evaluateBoundary(
+            mappingIntentId,
+            sourceRef,
+            sourcePort,
+            targetRef,
+            targetPort,
+            candidates,
+            sourceContract,
+            targetContract,
+            implementationPreference);
+    return evaluated.intent();
+  }
+
+  /**
+   * Classifies candidate rules and returns structured findings from that same evaluation. Empty
+   * intent means identity-only AUTO pass-through.
+   */
+  public static MappingContractEvaluation evaluateBoundary(
+      String mappingIntentId,
+      String sourceRef,
+      MappingPort sourcePort,
+      String targetRef,
+      MappingPort targetPort,
+      List<MappingIntentRule> candidates,
+      MappingContract sourceContract,
+      MappingContract targetContract,
+      String implementationPreference) {
+    Objects.requireNonNull(sourcePort, "sourcePort");
+    Objects.requireNonNull(targetPort, "targetPort");
     MappingContract source = sourceContract == null ? MappingContract.unknown() : sourceContract;
     MappingContract target = targetContract == null ? MappingContract.unknown() : targetContract;
     List<MappingIntentRule> classified =
         classify(candidates, source, target, implementationPreference);
     if (isIdentityOnlyAuto(classified)) {
-      return Optional.empty();
+      return MappingContractEvaluation.passThrough();
     }
-    return Optional.of(
+    MappingIntent intent =
         new MappingIntent(
             mappingIntentId,
             sourceRef,
@@ -86,7 +119,11 @@ public final class BriefMappingValidator {
             targetRef,
             targetPort,
             classified,
-            implementationPreference));
+            implementationPreference);
+    return new MappingContractEvaluation(
+        Optional.of(intent),
+        MappingContractEvaluation.sorted(
+            findingsFor(intent, source, target, implementationPreference)));
   }
 
   public static List<MappingIntentRule> classify(
@@ -171,6 +208,180 @@ public final class BriefMappingValidator {
 
   public static boolean blocksApproval(RequirementBrief brief) {
     return unresolvedRequiredMessage(brief).isPresent();
+  }
+
+  /**
+   * Structured findings for a classified intent against the contracts used in that evaluation.
+   * Callers that already hold schema sides should go through {@link
+   * org.qubership.integration.platform.ai.plan.mapping.MappingContractGate}.
+   */
+  public static List<MappingRuleFinding> findingsFor(
+      MappingIntent intent,
+      MappingContract sourceContract,
+      MappingContract targetContract,
+      String implementationPreference) {
+    if (intent == null) {
+      return List.of();
+    }
+    MappingContract source = sourceContract == null ? MappingContract.unknown() : sourceContract;
+    MappingContract target = targetContract == null ? MappingContract.unknown() : targetContract;
+    boolean scriptPreferred = MappingMechanismSelector.isScriptPreference(implementationPreference);
+    boolean allowOffHopSource =
+        MappingMechanismSelector.allowsOffHopSource(implementationPreference);
+    List<MappingRuleFinding> findings = new ArrayList<>();
+    for (MappingIntentRule rule : intent.rules()) {
+      if (rule == null || rule.targetPath().isBlank()) {
+        continue;
+      }
+      MappingFindingCode reason =
+          reasonFor(rule, source, target, scriptPreferred, allowOffHopSource);
+      if (reason != null) {
+        findings.add(finding(reason, intent, rule, source, target));
+      }
+    }
+    return findings;
+  }
+
+  private static MappingFindingCode reasonFor(
+      MappingIntentRule rule,
+      MappingContract source,
+      MappingContract target,
+      boolean scriptPreferred,
+      boolean allowOffHopSource) {
+    if (rule.status() != MappingRuleStatus.UNRESOLVED) {
+      return null;
+    }
+    if (source.known()
+        && !allowOffHopSource
+        && source.field(rule.sourcePath()).isEmpty()
+        && !rule.sourcePath().isBlank()) {
+      return MappingFindingCode.MAPPING_INVALID_SOURCE;
+    }
+    if (target.known() && target.field(rule.targetPath()).isEmpty()) {
+      return MappingFindingCode.MAPPING_UNKNOWN_TARGET;
+    }
+    if (rule.expression() != null && !expressionSupported(rule.expression(), scriptPreferred)) {
+      return MappingFindingCode.MAPPING_UNSUPPORTED_EXPRESSION;
+    }
+    if (target.known()
+        && target.field(rule.targetPath()).filter(MappingContract.Field::required).isPresent()) {
+      return MappingFindingCode.MAPPING_MISSING_REQUIRED_TARGET;
+    }
+    return MappingFindingCode.MAPPING_UNRESOLVED_RULE;
+  }
+
+  private static MappingRuleFinding finding(
+      MappingFindingCode code,
+      MappingIntent intent,
+      MappingIntentRule rule,
+      MappingContract source,
+      MappingContract target) {
+    String targetPath = MappingContract.canonicalPath(rule.targetPath());
+    String sourcePath = MappingContract.canonicalPath(rule.sourcePath());
+    String expected = expectedContract(code, target, source, targetPath);
+    String observed = observed(code, rule, targetPath, sourcePath);
+    return new MappingRuleFinding(
+        code,
+        messageFor(code, targetPath, intent.mappingIntentId()),
+        true,
+        intent.mappingIntentId(),
+        intent.sourceRef(),
+        intent.sourcePort(),
+        intent.targetRef(),
+        intent.targetPort(),
+        sourcePath,
+        targetPath,
+        rule.expression() == null ? "" : rule.expression(),
+        rule.status() == null ? "" : rule.status().name(),
+        expected,
+        observed);
+  }
+
+  private static String expectedContract(
+      MappingFindingCode code, MappingContract target, MappingContract source, String targetPath) {
+    if (code == MappingFindingCode.MAPPING_UNKNOWN_TARGET && target.known()) {
+      return "Target contract does not declare " + targetPath + ". Known fields: " + fieldList(target);
+    }
+    if (code == MappingFindingCode.MAPPING_MISSING_REQUIRED_TARGET && target.known()) {
+      return "Required target field " + targetPath + " must have a supplying rule.";
+    }
+    if (code == MappingFindingCode.MAPPING_INVALID_SOURCE && source.known()) {
+      return "Source must be a field on this hop or a supported context read. Known fields: "
+          + fieldList(source);
+    }
+    if (code == MappingFindingCode.MAPPING_UNSUPPORTED_EXPRESSION) {
+      return "Expression must stay within the selected mapping mechanism policy.";
+    }
+    return "";
+  }
+
+  private static String observed(
+      MappingFindingCode code, MappingIntentRule rule, String targetPath, String sourcePath) {
+    if (code == MappingFindingCode.MAPPING_UNKNOWN_TARGET) {
+      return "Rule writes " + targetPath;
+    }
+    if (code == MappingFindingCode.MAPPING_MISSING_REQUIRED_TARGET) {
+      return "No supplying rule for " + targetPath;
+    }
+    if (code == MappingFindingCode.MAPPING_INVALID_SOURCE) {
+      return "Source path " + sourcePath;
+    }
+    if (code == MappingFindingCode.MAPPING_UNSUPPORTED_EXPRESSION) {
+      return "Expression " + (rule.expression() == null ? "" : rule.expression());
+    }
+    return "Unresolved rule for " + targetPath;
+  }
+
+  private static String fieldList(MappingContract contract) {
+    if (!contract.known() || contract.fields().isEmpty()) {
+      return "(none)";
+    }
+    StringBuilder text = new StringBuilder();
+    int count = 0;
+    for (MappingContract.Field field : contract.fields()) {
+      if (count >= 12) {
+        text.append(", …");
+        break;
+      }
+      if (count > 0) {
+        text.append(", ");
+      }
+      text.append(MappingContract.canonicalPath(field.path()));
+      count++;
+    }
+    return text.toString();
+  }
+
+  private static String messageFor(MappingFindingCode code, String targetPath, String mappingIntentId) {
+    String intent = mappingIntentId == null || mappingIntentId.isBlank() ? "" : mappingIntentId;
+    return switch (code) {
+      case MAPPING_UNKNOWN_TARGET ->
+          "Target path "
+              + targetPath
+              + " is absent from the target contract"
+              + (intent.isBlank() ? "." : " of mapping intent '" + intent + "'.")
+              + " Correct the target or represent context with exchange properties, not as an API"
+              + " field.";
+      case MAPPING_MISSING_REQUIRED_TARGET ->
+          UNRESOLVED_REQUIRED_PREFIX
+              + targetPath
+              + ". Map each required target from a source field, constant, or default before"
+              + " approving the brief.";
+      case MAPPING_INVALID_SOURCE ->
+          "Source path is not valid for this mapping mechanism"
+              + (intent.isBlank() ? "." : " in mapping intent '" + intent + "'.")
+              + " Correct the source or use the supported context mechanism.";
+      case MAPPING_UNSUPPORTED_EXPRESSION ->
+          "Expression is not supported by the selected mapping mechanism"
+              + (intent.isBlank() ? "." : " in mapping intent '" + intent + "'.")
+              + " Rewrite the expression within that policy.";
+      case MAPPING_UNRESOLVED_RULE ->
+          "Mapping rule for "
+              + targetPath
+              + " is unresolved"
+              + (intent.isBlank() ? "." : " in mapping intent '" + intent + "'.")
+              + " Preserve the uncertainty; do not invent a missing required field.";
+    };
   }
 
   private static MappingIntentRule classifyOne(

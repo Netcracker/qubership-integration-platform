@@ -41,6 +41,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.ApprovalProm
 import org.qubership.integration.platform.ai.productpipeline.create.AutoUploadedSpecImportCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
+import org.qubership.integration.platform.ai.productpipeline.create.MappingRepairCaptureValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementAnalysisCapability;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementDiscoveryCapability;
@@ -177,7 +178,8 @@ public class ProductPipelineRuntimeProducers {
       AppConfig appConfig,
       RecoveryOutcomeTelemetry recoveryTelemetry,
       MappingTurnInterpreter mappingTurnInterpreter,
-      MappingTurnTelemetry mappingTurnTelemetry) {
+      MappingTurnTelemetry mappingTurnTelemetry,
+      MappingRepairCaptureValidator mappingRepairCaptureValidator) {
     AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig =
         appConfig.create().failureNarrative();
     return new ProductPipelineRunSupport(
@@ -203,7 +205,8 @@ public class ProductPipelineRuntimeProducers {
                     appConfig.create().recoveryAttemptCeiling())),
             recoveryTelemetry,
             mappingTurnInterpreter,
-            mappingTurnTelemetry);
+            mappingTurnTelemetry,
+            mappingRepairCaptureValidator);
   }
 
   @Produces

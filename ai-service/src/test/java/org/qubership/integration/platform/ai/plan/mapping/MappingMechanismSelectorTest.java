@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan.mapping;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -95,6 +96,15 @@ class MappingMechanismSelectorTest {
     assertEquals(
         MappingMechanismSelector.select(english),
         MappingMechanismSelector.select(languageNeutral));
+  }
+
+  @Test
+  void mapper2EraExpressionWhitelistIsNotTheCompilerGateWhileMapper2IsOff() {
+    assertFalse(MappingMechanismSelector.mapper2Enabled());
+    assertFalse(MappingMechanismSelector.isSupportedScriptExpression("concat first and last"));
+    assertTrue(MappingMechanismSelector.scriptAcceptsExpression("concat first and last"));
+    assertTrue(MappingMechanismSelector.allowsOffHopSource("MAPPER_2"));
+    assertTrue(MappingMechanismSelector.allowsOffHopSource("SCRIPT"));
   }
 
   @Test
