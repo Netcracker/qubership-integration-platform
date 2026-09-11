@@ -899,11 +899,26 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     Map<String, Object> attributes = attributesByRun.getOrDefault(doc.run().runId(), Map.of());
     Object evidenceRef = attributes.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
+    String evidenceHash = evidenceRef instanceof String text ? text : "";
+    if (evidenceHash.isBlank() && isActiveMappingRepair(attributes)) {
+      return haltRecoverable(
+          doc,
+          stage,
+          List.of(),
+          StageOutcomeClass.VALIDATION_FAILURE,
+          "Mapping repair evidence is unavailable.",
+          List.of(),
+          emitted,
+          true,
+          true,
+          RecoveryCause.mappingContract(List.of()),
+          null);
+    }
     MappingRepairCaptureValidator.Result validation =
         mappingRepairCaptureValidator.validate(
             doc.run().runId(),
             doc.run().conversationId(),
-            evidenceRef instanceof String text ? text : "",
+            evidenceHash,
             brief);
     if (validation.status() != MappingRepairCaptureValidator.Result.Status.BLOCKED
         && validation.status() != MappingRepairCaptureValidator.Result.Status.UNRESOLVED) {
@@ -921,6 +936,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         true,
         RecoveryCause.mappingContract(validation.findings()),
         null);
+  }
+
+  private static boolean isActiveMappingRepair(Map<String, Object> attributes) {
+    Object cause = attributes.get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR);
+    return RecoveryCauseCode.MAPPING_CONTRACT
+        .name()
+        .equals(cause instanceof String text ? text : "");
   }
 
   private static RequirementBrief requirementBriefCandidate(List<ResolvedCandidate> candidates) {

@@ -3157,6 +3157,7 @@ public final class ProductPipelineRunSupport {
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_CAUSE_CODE_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_REQUESTED_FACT_ATTR);
     copyHaltAttribute(attributes, evidence, DIAGNOSED_OWNER_STAGE_ATTR);
+    copyHaltAttribute(attributes, evidence, RECOVERY_EVIDENCE_REF_ATTR);
     if (priorCandidate != null && !priorCandidate.isBlank()) {
       evidence.put(PRIOR_CANDIDATE_ATTR, priorCandidate);
     }
@@ -3183,6 +3184,7 @@ public final class ProductPipelineRunSupport {
         STAGE_ERROR_CAUSE_CODE_ATTR,
         STAGE_ERROR_REQUESTED_FACT_ATTR,
         DIAGNOSED_OWNER_STAGE_ATTR,
+        RECOVERY_EVIDENCE_REF_ATTR,
         PRIOR_CANDIDATE_ATTR)) {
       attributes.remove(key);
     }
