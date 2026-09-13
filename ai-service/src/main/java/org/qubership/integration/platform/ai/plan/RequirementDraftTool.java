@@ -4,6 +4,7 @@ import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -90,6 +91,13 @@ public class RequirementDraftTool {
 
   static final String FLOW_SOFT_DOWNGRADE_HINT =
       "Recapture the business interactions and transitions before catalog lookup.";
+
+  static final String FLOW_INCOMPLETE_SOFT_DOWNGRADE_PREFIX =
+      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): the captured flow does not"
+          + " match the explicit catalog operations. ";
+
+  static final String FLOW_INCOMPLETE_SOFT_DOWNGRADE_HINT =
+      "Recapture the complete RequirementFlow before continuing.";
 
   static final String ALREADY_READY_STOP_HINT =
       "Requirement draft is already READY_FOR_PLAN for this turn. Do not call"
@@ -330,6 +338,7 @@ public class RequirementDraftTool {
       List<RequirementFact> facts = capture.facts() == null ? List.of() : capture.facts();
       boolean softDowngradedForFacts = false;
       boolean softDowngradedForFlow = false;
+      boolean softDowngradedForFlowCompleteness = false;
       boolean softDowngradedForImport = false;
       boolean softDowngradedForBinding = false;
       boolean softDowngradedBlockedWithCandidate = false;
@@ -461,6 +470,35 @@ public class RequirementDraftTool {
       }
 
       if (decision == DraftDecision.READY_FOR_PLAN
+          && !capturedFlow.interactions().isEmpty()) {
+        List<CatalogRestClient.OperationDto> missingOperations =
+            missingExplicitCatalogOperations(
+                conversationId, capture.assembledText(), facts, catalogBindings);
+        if (!missingOperations.isEmpty()) {
+          List<String> missingDescriptions = new ArrayList<>();
+          for (CatalogRestClient.OperationDto operation : missingOperations) {
+            missingDescriptions.add(
+                operationLabel(operation) + " (integrationOperationId=" + operation.id() + ")");
+          }
+          softDowngradedForFlowCompleteness = true;
+          decision = DraftDecision.NEEDS_INPUT;
+          String operationNoun = missingOperations.size() == 1 ? "operation " : "operations ";
+          openQuestions =
+              List.of(
+                  "Capture catalog "
+                      + operationNoun
+                      + String.join("; ", missingDescriptions)
+                      + " in RequirementFlow before planning.");
+          LOG.warnf(
+              "captureRequirementDraft: soft-downgraded READY_FOR_PLAN with omitted catalog"
+                  + " operations count=%d conversationId=%s operationIds=%s",
+              missingOperations.size(),
+              conversationId,
+              missingOperations.stream().map(CatalogRestClient.OperationDto::id).toList());
+        }
+      }
+
+      if (decision == DraftDecision.READY_FOR_PLAN
           && (!unresolvedCalls.isEmpty() || bindingMissing)
           && !hasAllowedUploadedSpecs(conversationId)
           && capturedFlow.interactions().isEmpty()) {
@@ -516,6 +554,7 @@ public class RequirementDraftTool {
           new RequirementDraft(
               softDowngradedForFacts
                       || softDowngradedForFlow
+                      || softDowngradedForFlowCompleteness
                       || softDowngradedForImport
                       || softDowngradedForBinding
                       || softDowngradedBlockedWithCandidate
@@ -559,6 +598,7 @@ public class RequirementDraftTool {
               + " openQuestions=%d facts=%d sourceSkill=%s sourceVersion=%s sourceHash=%s textChars=%d"
               + " hasApiHubCandidate=%s softDowngradedForFacts=%s"
               + " softDowngradedForFlow=%s"
+              + " softDowngradedForFlowCompleteness=%s"
               + " softDowngradedForImport=%s softDowngradedForBinding=%s"
               + " softDowngradedBlockedWithCandidate=%s",
           conversationId,
@@ -573,6 +613,7 @@ public class RequirementDraftTool {
           draft.apiHubCandidate() != null,
           softDowngradedForFacts,
           softDowngradedForFlow,
+          softDowngradedForFlowCompleteness,
           softDowngradedForImport,
           softDowngradedForBinding,
           softDowngradedBlockedWithCandidate);
@@ -620,6 +661,17 @@ public class RequirementDraftTool {
             startMs,
             FLOW_SOFT_DOWNGRADE_PREFIX
                 + FLOW_SOFT_DOWNGRADE_HINT
+                + " "
+                + storedPreview);
+      }
+      if (softDowngradedForFlowCompleteness) {
+        return finish(
+            conversationId,
+            startMs,
+            FLOW_INCOMPLETE_SOFT_DOWNGRADE_PREFIX
+                + openQuestions.getFirst()
+                + " "
+                + FLOW_INCOMPLETE_SOFT_DOWNGRADE_HINT
                 + " "
                 + storedPreview);
       }
@@ -1134,6 +1186,182 @@ public class RequirementDraftTool {
       }
     }
     return List.copyOf(hints);
+  }
+
+  private List<CatalogRestClient.OperationDto> missingExplicitCatalogOperations(
+      String conversationId,
+      String assembledText,
+      List<RequirementFact> facts,
+      List<CatalogBindingHint> catalogBindings) {
+    if (catalogCache == null) {
+      return List.of();
+    }
+    List<CatalogRestClient.OperationDto> remembered = rememberedOperations(conversationId);
+    List<CatalogRestClient.OperationDto> missing = new ArrayList<>();
+    for (CatalogRestClient.OperationDto operation : remembered) {
+      if (excludedByNegativeFact(operation, facts)) {
+        continue;
+      }
+      int textOccurrences = operationOccurrences(assembledText, operation, remembered);
+      int factOccurrences = positiveFactOccurrences(facts, operation, remembered);
+      int requiredOccurrences = Math.max(textOccurrences, factOccurrences);
+      long boundOccurrences =
+          catalogBindings.stream()
+              .filter(Objects::nonNull)
+              .filter(binding -> operation.id().equals(binding.integrationOperationId()))
+              .count();
+      if (requiredOccurrences > boundOccurrences) {
+        missing.add(operation);
+      }
+    }
+    return List.copyOf(missing);
+  }
+
+  private List<CatalogRestClient.OperationDto> rememberedOperations(String conversationId) {
+    return catalogCache.rememberedOperations(conversationId).stream()
+        .filter(Objects::nonNull)
+        .filter(operation -> CatalogStrings.blankToNull(operation.id()) != null)
+        .sorted(Comparator.comparing(CatalogRestClient.OperationDto::id))
+        .toList();
+  }
+
+  private static int positiveFactOccurrences(
+      List<RequirementFact> facts,
+      CatalogRestClient.OperationDto operation,
+      List<CatalogRestClient.OperationDto> remembered) {
+    int structuredOccurrences = 0;
+    int proseOccurrences = 0;
+    for (RequirementFact fact : facts) {
+      if (fact == null || fact.polarity() != RequirementFactPolarity.POSITIVE) {
+        continue;
+      }
+      int mentioned = operationOccurrences(fact.text(), operation, remembered);
+      proseOccurrences = Math.max(proseOccurrences, mentioned);
+      if (structuredOperationMatches(fact.operation(), operation)) {
+        structuredOccurrences++;
+      }
+    }
+    return Math.max(structuredOccurrences, proseOccurrences);
+  }
+
+  private static boolean structuredOperationMatches(
+      String value, CatalogRestClient.OperationDto operation) {
+    if (value == null || value.isBlank()) {
+      return false;
+    }
+    return value.equals(operation.id())
+        || value.equals(operation.name())
+        || value.equals(operation.method() + " " + operation.path());
+  }
+
+  private static int operationOccurrences(
+      String text,
+      CatalogRestClient.OperationDto operation,
+      List<CatalogRestClient.OperationDto> remembered) {
+    int occurrences = countExactIdentifiers(text, operation.id());
+    if (uniqueName(operation, remembered)) {
+      occurrences = Math.max(occurrences, countExactIdentifiers(text, operation.name()));
+    }
+    if (uniqueMethodAndPath(operation, remembered)) {
+      occurrences =
+          Math.max(
+              occurrences,
+              Math.min(
+                  countExactIdentifiers(text, operation.method()),
+                  countExactIdentifiers(text, operation.path())));
+    }
+    if (occurrences == 0) {
+      return 0;
+    }
+    return 1;
+  }
+
+  private static boolean uniqueName(
+      CatalogRestClient.OperationDto operation,
+      List<CatalogRestClient.OperationDto> remembered) {
+    return CatalogStrings.blankToNull(operation.name()) != null
+        && remembered.stream()
+                .filter(candidate -> Objects.equals(candidate.name(), operation.name()))
+                .count()
+            == 1;
+  }
+
+  private static boolean uniqueMethodAndPath(
+      CatalogRestClient.OperationDto operation,
+      List<CatalogRestClient.OperationDto> remembered) {
+    return CatalogStrings.blankToNull(operation.method()) != null
+        && CatalogStrings.blankToNull(operation.path()) != null
+        && remembered.stream()
+                .filter(
+                    candidate ->
+                        Objects.equals(candidate.method(), operation.method())
+                            && Objects.equals(candidate.path(), operation.path()))
+                .count()
+            == 1;
+  }
+
+  private static int countExactIdentifiers(String text, String identifier) {
+    int count = 0;
+    int offset = 0;
+    while ((offset = exactIdentifierOffset(text, identifier, offset)) >= 0) {
+      count++;
+      offset += identifier.length();
+    }
+    return count;
+  }
+
+  private static int exactIdentifierOffset(String text, String identifier, int fromIndex) {
+    if (text == null || identifier == null || identifier.isBlank()) {
+      return -1;
+    }
+    int offset = Math.max(0, fromIndex);
+    while ((offset = text.indexOf(identifier, offset)) >= 0) {
+      int end = offset + identifier.length();
+      boolean startsAtBoundary = offset == 0 || !isIdentifierCharacter(text.charAt(offset - 1));
+      boolean endsAtBoundary = end == text.length() || !isIdentifierCharacter(text.charAt(end));
+      if (startsAtBoundary && endsAtBoundary) {
+        return offset;
+      }
+      offset = end;
+    }
+    return -1;
+  }
+
+  private static String operationLabel(CatalogRestClient.OperationDto operation) {
+    String name = CatalogStrings.blankToNull(operation.name());
+    if (name != null) {
+      return name;
+    }
+    String method = CatalogStrings.blankToNull(operation.method());
+    String path = CatalogStrings.blankToNull(operation.path());
+    if (method != null && path != null) {
+      return method + " " + path;
+    }
+    return operation.id();
+  }
+
+  private static boolean excludedByNegativeFact(
+      CatalogRestClient.OperationDto operation, List<RequirementFact> facts) {
+    for (RequirementFact fact : facts) {
+      if (fact == null || fact.polarity() != RequirementFactPolarity.NEGATIVE) {
+        continue;
+      }
+      if (containsExactIdentifier(fact.text(), operation.id())
+          || containsExactIdentifier(fact.text(), operation.name())
+          || (containsExactIdentifier(fact.text(), operation.method())
+              && containsExactIdentifier(fact.text(), operation.path()))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean containsExactIdentifier(String text, String identifier) {
+    return exactIdentifierOffset(text, identifier, 0) >= 0;
+  }
+
+  private static boolean isIdentifierCharacter(char value) {
+    return Character.isLetterOrDigit(value) || value == '_' || value == '$';
   }
 
   /**

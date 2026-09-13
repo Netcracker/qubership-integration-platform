@@ -13,7 +13,7 @@ import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitChatModelPro
  * reasoning effort from config for this builder, so only the budget needs a customizer.
  */
 @ApplicationScoped
-@ModelName(RateLimitChatModelProducer.UPSTREAM_MODEL_NAME)
+@ModelName(RateLimitChatModelProducer.OPENAI_UPSTREAM_MODEL_NAME)
 public class OpenAiChatThinkingCustomizer
     implements ModelBuilderCustomizer<OpenAiChatModel.OpenAiChatModelBuilder> {
 

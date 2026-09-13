@@ -149,6 +149,21 @@ public final class RequirementFlowValidator {
     }
 
     List<RequirementFact> factList = facts == null ? List.of() : facts;
+    for (RequirementFact fact : factList) {
+      if (fact == null
+          || fact.polarity() != RequirementFactPolarity.POSITIVE
+          || fact.kind() != RequirementFactKind.CAPABILITY
+          || !NATIVE_INBOUND_TRIGGER_KEYS.contains(fact.capabilityKey())) {
+        continue;
+      }
+      Optional<Interaction> owner = flow.interaction(fact.sourceFactId());
+      if (owner.isEmpty() || owner.get().direction() != Direction.INBOUND) {
+        return Optional.of(
+            "native trigger fact sourceFactId="
+                + fact.sourceFactId()
+                + " has no matching inbound interaction in the requirement flow");
+      }
+    }
     for (Interaction interaction : flow.interactions()) {
       String interactionId = interaction.interactionId();
       boolean requiresBinding = requiresCatalogBinding(interaction, factList);

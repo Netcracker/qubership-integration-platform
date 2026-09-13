@@ -144,9 +144,20 @@ public record MappingContract(List<Field> fields, boolean known) {
     if (want.indexOf(',') >= 0) {
       return Optional.empty();
     }
-    return fields.stream()
+    Optional<Field> exact = fields.stream()
         .filter(item -> want.equals(canonicalPath(item.path())))
         .findFirst();
+    if (exact.isPresent()) {
+      return exact;
+    }
+    return fields.stream()
+        .map(Field::path)
+        .map(MappingContract::canonicalPath)
+        .filter(item -> item.endsWith(".*"))
+        .map(item -> item.substring(0, item.length() - 2))
+        .filter(item -> want.startsWith(item + "."))
+        .findFirst()
+        .map(ignored -> new Field(want, "", false));
   }
 
   public record Field(String path, String type, boolean required) {

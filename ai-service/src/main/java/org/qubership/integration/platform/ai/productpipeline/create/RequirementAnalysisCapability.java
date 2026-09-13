@@ -324,11 +324,14 @@ public class RequirementAnalysisCapability implements StageCapability {
     if (userText == null || userText.isBlank()) {
       return brief;
     }
-    RequirementBrief starting = brief;
     RequirementBrief prior = priorBrief(context);
-    if (prior != null && !prior.mappingIntents().isEmpty()) {
-      starting = brief.withMappingIntents(prior.mappingIntents());
+    if (prior == null) {
+      return brief;
     }
+    RequirementBrief starting =
+        prior.mappingIntents().isEmpty()
+            ? brief
+            : brief.withMappingIntents(prior.mappingIntents());
     MappingTurnApplication application =
         MappingTurnProcessor.process(
             starting, userText.trim(), mappingTurnAdapter, mappingTurnTelemetry);

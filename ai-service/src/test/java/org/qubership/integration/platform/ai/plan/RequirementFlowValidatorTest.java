@@ -178,6 +178,26 @@ class RequirementFlowValidatorTest {
   }
 
   @Test
+  void rejectsNativeTriggerFactMissingFromRequirementFlow() {
+    RequirementFlow flow =
+        flow(List.of(interaction("task-start", INBOUND, "OM", "onTaskStart")), List.of());
+    RequirementFact nativeHttp =
+        new RequirementFact(
+            "orders-http",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /orders");
+
+    Optional<String> error =
+        RequirementFlowValidator.validateBindings(flow, List.of(nativeHttp), List.of(omStartHint()));
+
+    assertTrue(error.isPresent());
+    assertTrue(error.orElseThrow().contains("orders-http"), error.orElseThrow());
+    assertTrue(error.orElseThrow().contains("requirement flow"), error.orElseThrow());
+  }
+
+  @Test
   void reportsEntryPointWithoutBindingOrCapabilityFact() {
     RequirementFlow flow =
         flow(List.of(interaction("orders-http", INBOUND, "Caller", "GET /orders")), List.of());

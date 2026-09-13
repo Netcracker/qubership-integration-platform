@@ -10,7 +10,7 @@ import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitChatModelPro
 
 /** Applies the configured reasoning effort and thinking budget to the OpenAI streaming client. */
 @ApplicationScoped
-@ModelName(RateLimitChatModelProducer.UPSTREAM_MODEL_NAME)
+@ModelName(RateLimitChatModelProducer.OPENAI_UPSTREAM_MODEL_NAME)
 public class OpenAiStreamingReasoningCustomizer
     implements ModelBuilderCustomizer<OpenAiStreamingChatModel.OpenAiStreamingChatModelBuilder> {
 
@@ -19,7 +19,7 @@ public class OpenAiStreamingReasoningCustomizer
 
   OpenAiStreamingReasoningCustomizer(
       @ConfigProperty(
-              name = "quarkus.langchain4j.openai.upstream.chat-model.reasoning-effort",
+              name = "quarkus.langchain4j.openai.openai-upstream.chat-model.reasoning-effort",
               defaultValue = "none")
           String reasoningEffort,
       @ConfigProperty(name = "qip.ai.llm.thinking.budget-tokens")

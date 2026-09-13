@@ -350,6 +350,12 @@
   background: var(--vscode-textCodeBlock-background, #f5f5f5);
 }
 
+.ai-mermaid-diagram {
+  padding: 12px;
+  overflow: auto;
+  white-space: normal;
+}
+
 .ai-code-block__header {
   display: flex;
   justify-content: space-between;

@@ -305,6 +305,15 @@ public interface AppConfig {
   }
 
   interface LlmConfig {
+    @WithDefault("auto")
+    String provider();
+
+    @WithName("base-url")
+    String baseUrl();
+
+    @WithName("model-name")
+    String modelName();
+
     @WithName("exchange")
     ExchangeConfig exchange();
 
