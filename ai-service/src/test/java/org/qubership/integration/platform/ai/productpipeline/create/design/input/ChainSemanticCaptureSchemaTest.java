@@ -4,12 +4,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchemaElement;
 import io.quarkiverse.langchain4j.runtime.ToolsRecorder;
 import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor;
+import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutorFactory;
 import io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -48,6 +52,8 @@ class ChainSemanticCaptureSchemaTest {
 
   /** Injected only to prove the tool bean still resolves with its new adapter dependency. */
   @Inject ChainSemanticCaptureTool bean;
+
+  @Inject QuarkusToolExecutorFactory toolExecutorFactory;
 
   @AfterEach
   void unbind() {
@@ -94,6 +100,22 @@ class ChainSemanticCaptureSchemaTest {
   }
 
   @Test
+  void boundaryUnwrapsAStringifiedObjectArgumentBeforeGeneratedMapperBinding() throws Exception {
+    ProductCapabilityCaptureContext.bindDesign(
+        "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode arguments =
+        mapper.readTree(
+            linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, ""));
+    ((ObjectNode) arguments)
+        .put(parameterName(), arguments.get(parameterName()).toString());
+
+    String result = executeThroughFactory(mapper.writeValueAsString(arguments));
+
+    assertTrue(result.contains("orphan script: op-shared"), result);
+  }
+
+  @Test
   void generatedMapperIgnoresUnknownFieldsAndAbsentOptionalLists() {
     ProductCapabilityCaptureContext.bindDesign(
         "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
@@ -132,16 +154,29 @@ class ChainSemanticCaptureSchemaTest {
   private String execute(String arguments) {
     ToolMethodCreateInfo info = createInfo();
     QuarkusToolExecutor executor =
-        new QuarkusToolExecutor(
-            new QuarkusToolExecutor.Context(
-                ChainSemanticCaptureToolTest.tool(ChainSemanticCaptureToolTest.completePack()),
-                info.invokerClassName(),
-                info.methodName(),
-                info.argumentMapperClassName(),
-                info.executionModel(),
-                info.returnBehavior(),
-                false,
-                info));
+        new QuarkusToolExecutor(context(info));
+    return execute(executor, info, arguments);
+  }
+
+  private String executeThroughFactory(String arguments) {
+    ToolMethodCreateInfo info = createInfo();
+    return execute(toolExecutorFactory.create(context(info)), info, arguments);
+  }
+
+  private static QuarkusToolExecutor.Context context(ToolMethodCreateInfo info) {
+    return new QuarkusToolExecutor.Context(
+        ChainSemanticCaptureToolTest.tool(ChainSemanticCaptureToolTest.completePack()),
+        info.invokerClassName(),
+        info.methodName(),
+        info.argumentMapperClassName(),
+        info.executionModel(),
+        info.returnBehavior(),
+        false,
+        info);
+  }
+
+  private static String execute(
+      QuarkusToolExecutor executor, ToolMethodCreateInfo info, String arguments) {
     return executor.execute(
         ToolExecutionRequest.builder()
             .id("call-1")
