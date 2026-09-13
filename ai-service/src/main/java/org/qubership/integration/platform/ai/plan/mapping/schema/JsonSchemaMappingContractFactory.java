@@ -55,6 +55,9 @@ public final class JsonSchemaMappingContractFactory {
     if (resolved == null || !resolved.isObject()) {
       return;
     }
+    if (!"$".equals(pathPrefix) && allowsAdditionalProperties(resolved)) {
+      out.add(new MappingContract.Field(pathPrefix + ".*", "", false));
+    }
     JsonNode alternatives = firstArray(resolved.get("oneOf"), resolved.get("anyOf"));
     if (alternatives != null) {
       collectAlternativeFields(root, alternatives, pathPrefix, out);
@@ -77,6 +80,11 @@ public final class JsonSchemaMappingContractFactory {
         collectFields(root, propertySchema, path, out);
       }
     }
+  }
+
+  private static boolean allowsAdditionalProperties(JsonNode node) {
+    JsonNode additional = node.get("additionalProperties");
+    return additional == null || !additional.isBoolean() || additional.asBoolean();
   }
 
   private static void collectAlternativeFields(

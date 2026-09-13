@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
+import dev.langchain4j.agent.tool.ToolMemoryId;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
@@ -20,7 +21,6 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 
 /**
  * LangChain4j tool that lets the discovery agent persist a requirement brief.
- * Conversation id is taken from {@link org.qubership.integration.platform.ai.chat.ChatMdc#CONVERSATION_ID}.
  */
 @ApplicationScoped
 public class RequirementBriefTool {
@@ -117,8 +117,8 @@ public class RequirementBriefTool {
         "mappingIntents": [],
         "summary": "HTTP trigger forwards to a script that returns a greeting."
       }""")
-  public String captureRequirementBrief(RequirementBriefCapture capture) {
-    String conversationId = ChainPlanTool.resolveConversationId();
+  public String captureRequirementBrief(
+      RequirementBriefCapture capture, @ToolMemoryId String conversationId) {
     long startMs = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(
         LOG,
@@ -212,6 +212,10 @@ public class RequirementBriefTool {
           LOG, "captureRequirementBrief", conversationId, System.currentTimeMillis() - startMs, e);
       return "Error capturing requirement brief: " + e.getMessage();
     }
+  }
+
+  public String captureRequirementBrief(RequirementBriefCapture capture) {
+    return captureRequirementBrief(capture, ChainPlanTool.resolveConversationId());
   }
 
   /**

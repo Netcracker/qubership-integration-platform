@@ -1511,6 +1511,321 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureRejectsReadyFlowWhenExplicitCatalogOperationWasOmitted() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "OM onTaskStart calls Salesforce createTask, then sends completeTask through OM"
+                    + " onTaskResult.",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                rockyFacts(),
+                null,
+                rockyFlowWithoutResult()));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, stored.decision());
+    assertFalse(stored.readyForPlan());
+    assertTrue(stored.openQuestions().getFirst().contains("onTaskResult"), stored.toString());
+    assertTrue(result.contains("onTaskResult"), result);
+  }
+
+  @Test
+  void captureAcceptsReadyFlowWhenEveryExplicitCatalogOperationIsBound() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM onTaskStart calls Salesforce createTask, then OM onTaskResult returns the result.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            rockyFacts(),
+            null,
+            rockyFlow()));
+
+    assertEquals(DraftDecision.READY_FOR_PLAN, store.get("draft-conv").orElseThrow().decision());
+  }
+
+  @Test
+  void captureDetectsOmittedCatalogOperationByMethodAndPath() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "OM onTaskStart calls Salesforce createTask, then subscribe task.result.",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                rockyFacts(),
+                null,
+                rockyFlowWithoutResult()));
+
+    assertEquals(DraftDecision.NEEDS_INPUT, store.get("draft-conv").orElseThrow().decision());
+    assertTrue(result.contains("onTaskResult"), result);
+  }
+
+  @Test
+  void captureDetectsOmittedIntermediateCatalogOperation() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flowWithoutCreateTask =
+        new RequirementFlow(
+            List.of(
+                new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+                new Interaction("task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+            List.of(new Transition("task-start", "task-result")));
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "OM onTaskStart calls Salesforce createTask, then OM onTaskResult returns the result.",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                rockyFacts(),
+                null,
+                flowWithoutCreateTask));
+
+    assertEquals(DraftDecision.NEEDS_INPUT, store.get("draft-conv").orElseThrow().decision());
+    assertTrue(result.contains("createTask"), result);
+  }
+
+  @Test
+  void captureReportsAllOmittedCatalogOperationsInOneTurn() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow triggerOnly =
+        new RequirementFlow(
+            List.of(
+                new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", "")),
+            List.of());
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "OM onTaskStart calls Salesforce createTask, then OM onTaskResult returns the result.",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                rockyFacts(),
+                null,
+                triggerOnly));
+
+    assertEquals(DraftDecision.NEEDS_INPUT, store.get("draft-conv").orElseThrow().decision());
+    assertTrue(result.contains("createTask"), result);
+    assertTrue(result.contains("onTaskResult"), result);
+  }
+
+  @Test
+  void captureDetectsOmittedCatalogTriggerWhenAnotherTriggerRemains() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flowWithoutCatalogTrigger =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-entry", Direction.INBOUND, "Caller", "POST /tasks", ""),
+                new Interaction("create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+                new Interaction("task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+            List.of(
+                new Transition("http-entry", "create-task"),
+                new Transition("create-task", "task-result")));
+    List<RequirementFact> facts =
+        List.of(
+            RequirementFactFixtures.httpTriggerFact("http-entry", "POST", "/tasks"),
+            rockyFacts().getFirst());
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Caller POST /tasks and OM onTaskStart call Salesforce createTask, then OM"
+                    + " onTaskResult returns the result.",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                facts,
+                null,
+                flowWithoutCatalogTrigger));
+
+    assertEquals(DraftDecision.NEEDS_INPUT, store.get("draft-conv").orElseThrow().decision());
+    assertTrue(result.contains("onTaskStart"), result);
+  }
+
+  @Test
+  void captureIgnoresUncatalogedOperationLikePayloadFields() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM onTaskStart calls Salesforce createTask and maps completeTaskResultCode.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            rockyFacts(),
+            null,
+            rockyFlowWithoutResult()));
+
+    assertEquals(DraftDecision.READY_FOR_PLAN, store.get("draft-conv").orElseThrow().decision());
+  }
+
+  @Test
+  void captureAllowsExplicitlyExcludedCatalogOperation() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    List<RequirementFact> facts =
+        List.of(
+            rockyFacts().getFirst(),
+            RequirementFact.of(
+                RequirementFactPolarity.NEGATIVE,
+                RequirementFactKind.CONSTRAINT,
+                "excluded-result",
+                "Do not call onTaskResult"));
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM onTaskStart calls Salesforce createTask; do not call onTaskResult.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            facts,
+            null,
+            rockyFlowWithoutResult()));
+
+    assertEquals(DraftDecision.READY_FOR_PLAN, store.get("draft-conv").orElseThrow().decision());
+  }
+
+  @Test
+  void captureChecksKnownCatalogOperationsWithUploadedSpecifications() {
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys("draft-conv", List.of("salesforce-openapi"));
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(conversations);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM onTaskStart calls Salesforce createTask, then OM onTaskResult returns the result.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            rockyFacts(),
+            null,
+            rockyFlowWithoutResult()));
+
+    assertEquals(DraftDecision.NEEDS_INPUT, store.get("draft-conv").orElseThrow().decision());
+  }
+
+  @Test
+  void captureRejectsReadyFlowWhenPositiveFactNamesAnOmittedCatalogOperation() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    List<RequirementFact> facts =
+        List.of(
+            rockyFacts().getFirst(),
+            RequirementFact.of(
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "Return the result through onTaskResult"));
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM onTaskStart calls Salesforce createTask.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            facts,
+            null,
+            rockyFlowWithoutResult()));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, stored.decision());
+    assertTrue(stored.openQuestions().getFirst().contains("onTaskResult"), stored.toString());
+  }
+
+  @Test
+  void captureDoesNotCountRepeatedFactReferencesAsRepeatedCalls() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    List<RequirementFact> facts =
+        List.of(
+            rockyFacts().getFirst(),
+            RequirementFact.of(
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "Map the createTask request"),
+            RequirementFact.of(
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "Handle the createTask response"));
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM onTaskStart calls Salesforce createTask, then OM onTaskResult returns the result.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            facts,
+            null,
+            rockyFlow()));
+
+    assertEquals(DraftDecision.READY_FOR_PLAN, store.get("draft-conv").orElseThrow().decision());
+  }
+
+  @Test
+  void captureDoesNotCountMappingHeadersAsRepeatedCalls() {
+    RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM onTaskStart calls Salesforce createTask, then OM onTaskResult returns the result.\n"
+                + "Request mapping (onTaskStart -> createTask): Subject = name.\n"
+                + "Response mapping (createTask -> onTaskResult): commandType = completeTask.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            rockyFacts(),
+            null,
+            rockyFlow()));
+
+    assertEquals(DraftDecision.READY_FOR_PLAN, store.get("draft-conv").orElseThrow().decision());
+  }
+
+  @Test
   void capturePinsCreateTaskFromTheLatestUserOperationId() {
     String titleOpId =
         "80be9ebb-b528-48e1-8803-e355c1f109c1-Salesforce WFM-1.0.0-createTask";
@@ -1860,6 +2175,63 @@ class RequirementDraftToolTest {
         "task.result",
         "onTaskResult",
         "catalog-read:om-result");
+  }
+
+  private RequirementDraftTool rockyCatalogCaptureTool(ConversationService conversations) {
+    return new RequirementDraftTool(
+        store,
+        null,
+        rockyCatalogCache(),
+        null,
+        new ConversationApiResolutions(),
+        conversations,
+        rockyCatalogLookup());
+  }
+
+  private static CatalogOperationLookup rockyCatalogLookup() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(org.mockito.ArgumentMatchers.any(CatalogQuery.class)))
+        .thenAnswer(
+            invocation -> {
+              String operation = invocation.<CatalogQuery>getArgument(0).operationHint();
+              if ("onTaskStart".equals(operation)) {
+                return new CatalogLookupResult.Exact(omStartMatch());
+              }
+              if ("createTask".equals(operation)) {
+                return new CatalogLookupResult.Exact(salesforceMatch());
+              }
+              if ("onTaskResult".equals(operation)) {
+                return new CatalogLookupResult.Exact(omResultMatch());
+              }
+              return new CatalogLookupResult.None();
+            });
+    return lookup;
+  }
+
+  private static ConversationCatalogCache rockyCatalogCache() {
+    ConversationCatalogCache cache =
+        new ConversationCatalogCache(mock(CatalogOperationsReadCache.class));
+    cache.rememberOperation(
+        "draft-conv",
+        new CatalogRestClient.OperationDto(
+            "op-start", "onTaskStart", "publish", "task.start", "spec-om"));
+    cache.rememberOperation(
+        "draft-conv",
+        new CatalogRestClient.OperationDto(
+            "op-create", "createTask", "POST", "/tasks", "spec-sf"));
+    cache.rememberOperation(
+        "draft-conv",
+        new CatalogRestClient.OperationDto(
+            "op-result", "onTaskResult", "subscribe", "task.result", "spec-om"));
+    return cache;
+  }
+
+  private static RequirementFlow rockyFlowWithoutResult() {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+            new Interaction("create-task", Direction.OUTBOUND, "Salesforce", "createTask", "")),
+        List.of(new Transition("task-start", "create-task")));
   }
 
   private static List<RequirementFact> sampleFactsWithTrigger(String interactionId) {

@@ -5,8 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.langchain4j.model.ModelProvider;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
@@ -17,8 +20,8 @@ import org.jboss.logging.Logger;
 import org.junit.jupiter.api.Test;
 
 /**
- * Fail-closed CDI wiring gate: the unqualified ChatModel used by {@code @RegisterAiService} must
- * be the rate-limit wrapper over the named OpenAI {@code upstream} model.
+ * Fail-closed CDI wiring gate for the provider-specific named models and the rate-limit wrapper
+ * used by {@code @RegisterAiService}.
  */
 @QuarkusTest
 class RateLimitChatModelWiringIT {
@@ -29,12 +32,20 @@ class RateLimitChatModelWiringIT {
   @Inject StreamingChatModel streamingChatModel;
 
   @Inject
-  @ModelName(RateLimitChatModelProducer.UPSTREAM_MODEL_NAME)
-  ChatModel upstreamChatModel;
+  @ModelName(RateLimitChatModelProducer.OPENAI_UPSTREAM_MODEL_NAME)
+  ChatModel openAiChatModel;
 
   @Inject
-  @ModelName(RateLimitChatModelProducer.UPSTREAM_MODEL_NAME)
-  StreamingChatModel upstreamStreamingChatModel;
+  @ModelName(RateLimitChatModelProducer.OPENAI_UPSTREAM_MODEL_NAME)
+  StreamingChatModel openAiStreamingChatModel;
+
+  @Inject
+  @ModelName(RateLimitChatModelProducer.ANTHROPIC_UPSTREAM_MODEL_NAME)
+  ChatModel anthropicChatModel;
+
+  @Inject
+  @ModelName(RateLimitChatModelProducer.ANTHROPIC_UPSTREAM_MODEL_NAME)
+  StreamingChatModel anthropicStreamingChatModel;
 
   @Test
   void unqualifiedModelsAreRateLimitWrappersOverNamedUpstream() {
@@ -42,16 +53,20 @@ class RateLimitChatModelWiringIT {
     assertNotNull(
         streamingChatModel,
         "StreamingChatModel must inject (no 'No delegate StreamingChatModel bean found')");
-    assertNotNull(upstreamChatModel, "Named upstream ChatModel must inject");
-    assertNotNull(upstreamStreamingChatModel, "Named upstream StreamingChatModel must inject");
+    assertEquals(ModelProvider.OPEN_AI, openAiChatModel.provider());
+    assertEquals(ModelProvider.OPEN_AI, openAiStreamingChatModel.provider());
+    assertEquals(ModelProvider.ANTHROPIC, anthropicChatModel.provider());
+    assertEquals(ModelProvider.ANTHROPIC, anthropicStreamingChatModel.provider());
+    assertNull(anthropicChatModel.defaultRequestParameters().topK());
+    assertNull(anthropicStreamingChatModel.defaultRequestParameters().topK());
 
     LOG.infof("CDI ChatModel concrete class: %s", chatModel.getClass().getName());
     LOG.infof(
         "CDI StreamingChatModel concrete class: %s", streamingChatModel.getClass().getName());
-    LOG.infof("Named upstream ChatModel class: %s", upstreamChatModel.getClass().getName());
+    LOG.infof("Named OpenAI ChatModel class: %s", openAiChatModel.getClass().getName());
     LOG.infof(
-        "Named upstream StreamingChatModel class: %s",
-        upstreamStreamingChatModel.getClass().getName());
+        "Named OpenAI StreamingChatModel class: %s",
+        openAiStreamingChatModel.getClass().getName());
 
     RateLimitChatModel rateLimited =
         assertInstanceOf(
@@ -66,33 +81,49 @@ class RateLimitChatModelWiringIT {
 
     assertNotSame(
         chatModel,
-        upstreamChatModel,
+        openAiChatModel,
         "Unqualified ChatModel must not be the raw named upstream bean");
     assertNotSame(
         streamingChatModel,
-        upstreamStreamingChatModel,
+        openAiStreamingChatModel,
         "Unqualified StreamingChatModel must not be the raw named upstream bean");
     assertFalse(
-        upstreamChatModel instanceof RateLimitChatModel,
+        openAiChatModel instanceof RateLimitChatModel,
         "Named upstream ChatModel must stay unwrapped (OpenAI synthetic / client)");
     assertFalse(
-        upstreamStreamingChatModel instanceof RateLimitStreamingChatModel,
+        openAiStreamingChatModel instanceof RateLimitStreamingChatModel,
         "Named upstream StreamingChatModel must stay unwrapped");
     assertEquals(
         "none",
-        ((OpenAiChatRequestParameters) upstreamStreamingChatModel.defaultRequestParameters())
+        ((OpenAiChatRequestParameters) openAiStreamingChatModel.defaultRequestParameters())
             .reasoningEffort(),
         "Named upstream StreamingChatModel must preserve the configured reasoning effort");
     assertTrue(
-        rateLimited.delegate() == upstreamChatModel
-            || rateLimited.delegate().getClass().equals(upstreamChatModel.getClass()),
+        rateLimited.delegate() == openAiChatModel
+            || rateLimited.delegate().getClass().equals(openAiChatModel.getClass()),
         "RateLimitChatModel must wrap the named upstream ChatModel");
     assertTrue(
-        rateLimitedStreaming.delegate() == upstreamStreamingChatModel
+        rateLimitedStreaming.delegate() == openAiStreamingChatModel
             || rateLimitedStreaming
                 .delegate()
                 .getClass()
-                .equals(upstreamStreamingChatModel.getClass()),
+                .equals(openAiStreamingChatModel.getClass()),
         "RateLimitStreamingChatModel must wrap the named upstream StreamingChatModel");
+  }
+
+  @Test
+  void selectsProviderExplicitlyOrFromTheOfficialAnthropicHost() {
+    assertTrue(
+        RateLimitChatModelProducer.useAnthropic(
+            "auto", "https://api.anthropic.com/v1/"));
+    assertTrue(
+        RateLimitChatModelProducer.useAnthropic(
+            "anthropic", "https://llm-proxy.example/v1/"));
+    assertFalse(
+        RateLimitChatModelProducer.useAnthropic(
+            "openai", "https://api.anthropic.com/v1/"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> RateLimitChatModelProducer.useAnthropic("unknown", "https://example.com/"));
   }
 }

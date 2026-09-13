@@ -8,7 +8,7 @@ import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
-import io.smallrye.mutiny.Context;
+import dev.langchain4j.agent.tool.ToolMemoryId;
 import io.smallrye.mutiny.Multi;
 import java.time.Instant;
 import java.util.List;
@@ -584,7 +584,8 @@ class RequirementBriefToolTest {
   void toolDescriptionDerivesMappingsFromProjectedBusinessInteractions() throws Exception {
     Tool tool =
         RequirementBriefTool.class
-            .getMethod("captureRequirementBrief", RequirementBriefCapture.class)
+            .getMethod(
+                "captureRequirementBrief", RequirementBriefCapture.class, String.class)
             .getAnnotation(Tool.class);
     String description = String.join("\n", tool.value());
 
@@ -602,36 +603,36 @@ class RequirementBriefToolTest {
   }
 
   @Test
-  void captureRequirementBriefOnWorkerAfterPropagateBindingResolvesConversationId()
-      throws Exception {
+  void toolReceivesConversationIdFromMemoryIdParameter() throws Exception {
+    var method =
+        RequirementBriefTool.class.getMethod(
+            "captureRequirementBrief", RequirementBriefCapture.class, String.class);
+    assertTrue(method.getParameters()[1].isAnnotationPresent(ToolMemoryId.class));
+
     ExecutorService worker = Executors.newSingleThreadExecutor();
     worker.submit(ToolSession::clear).get();
-    ToolSession.bind("conv-worker-brief");
-    Context toolContext = ToolSession.attachedContext();
     AtomicReference<String> result = new AtomicReference<>();
     try {
-      ToolSession.propagateBinding(
-              toolContext,
-              Multi.createFrom()
-                  .item("go")
-                  .onItem()
-                  .invoke(
-                      ignored ->
-                          result.set(
-                              tool.captureRequirementBrief(
-                                  new RequirementBriefCapture(
-                                      "Greeting endpoint",
-                                      List.of(),
-                                      List.of(),
-                                      List.of(),
-                                      "summary"))))
-                  .runSubscriptionOn(worker))
+      Multi.createFrom()
+          .item("go")
+          .onItem()
+          .invoke(
+              ignored ->
+                  result.set(
+                      tool.captureRequirementBrief(
+                          new RequirementBriefCapture(
+                              "Greeting endpoint",
+                              List.of(),
+                              List.of(),
+                              List.of(),
+                              "summary"),
+                          "conv-worker-brief")))
+          .runSubscriptionOn(worker)
           .collect()
           .asList()
           .await()
           .indefinitely();
     } finally {
-      ToolSession.clear();
       worker.shutdownNow();
     }
 

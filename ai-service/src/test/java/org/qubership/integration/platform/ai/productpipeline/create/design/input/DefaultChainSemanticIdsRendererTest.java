@@ -55,6 +55,64 @@ class DefaultChainSemanticIdsRendererTest {
   }
 
   @Test
+  void rendersLinearFlowInExecutionOrderInsteadOfEdgeIdOrder() {
+    ChainSemanticRevision revision =
+        new ChainSemanticRevision(
+            CONTRACT.semanticSchemaVersion(),
+            "revision-linear-flow",
+            "OM to Salesforce WFM",
+            CONTRACT.contractVersion(),
+            List.of(
+                new SemanticEntryPoint(
+                    "on-task-start",
+                    "trigger-async",
+                    "request-mapping",
+                    0,
+                    new SemanticProvenance(List.of()),
+                    null)),
+            List.of(
+                new SemanticNode.Trigger(
+                    "trigger-async", "async-api-trigger", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "request-mapping", "script", new SemanticProvenance(List.of())),
+                new SemanticNode.ServiceCall(
+                    "create-task", "create-task", "createTask", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "response-mapping", "script", new SemanticProvenance(List.of())),
+                new SemanticNode.ServiceCall(
+                    "on-task-result",
+                    "on-task-result",
+                    "onTaskResult",
+                    new SemanticProvenance(List.of()))),
+            List.of(),
+            List.of(
+                new SemanticExecutionEdge(
+                    "edge-4", "trigger-async", "request-mapping", null, null, null),
+                new SemanticExecutionEdge(
+                    "edge-3", "request-mapping", "create-task", null, null, null),
+                new SemanticExecutionEdge(
+                    "edge-2", "create-task", "response-mapping", null, null, null),
+                new SemanticExecutionEdge(
+                    "edge-1", "response-mapping", "on-task-result", null, null, null)),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of());
+
+    String markdown = renderer.render(revision, CONTRACT).markdown();
+
+    assertTrue(
+        markdown.contains(
+            "    Client->>CIP: async-api-trigger\n"
+                + "    CIP->>CIP: script\n"
+                + "    CIP->>createTask: createTask\n"
+                + "    CIP->>CIP: script\n"
+                + "    CIP->>onTaskResult: onTaskResult\n"),
+        markdown);
+  }
+
+  @Test
   void conditionLoopRetryAndErrorUseMermaidSequenceSyntax() {
     ChainSemanticRevision revision =
         new ChainSemanticRevision(

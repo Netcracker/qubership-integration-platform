@@ -4,8 +4,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import type { Components } from "react-markdown";
-import { extractMarkdownText, isCollapsibleChainPlanJsonBlock } from "./chatMessageUtils.ts";
+import {
+  extractMarkdownText,
+  isCollapsibleChainPlanJsonBlock,
+} from "./chatMessageUtils.ts";
 import { CollapsibleChainPlanJsonBlock } from "./CollapsibleChainPlanJsonBlock.tsx";
+import { AiMermaidDiagram } from "./AiMermaidDiagram.tsx";
 
 const markdownComponents: Components = {
   code(props) {
@@ -45,9 +49,13 @@ const markdownComponents: Components = {
             Copy
           </Button>
         </div>
-        <SyntaxHighlighter language={language} PreTag="div">
-          {code}
-        </SyntaxHighlighter>
+        {language === "mermaid" ? (
+          <AiMermaidDiagram code={code} />
+        ) : (
+          <SyntaxHighlighter language={language} PreTag="div">
+            {code}
+          </SyntaxHighlighter>
+        )}
       </div>
     );
   },

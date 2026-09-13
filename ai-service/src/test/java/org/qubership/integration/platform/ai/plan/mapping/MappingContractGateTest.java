@@ -269,6 +269,52 @@ class MappingContractGateTest {
   }
 
   @Test
+  void additionalFieldInsideOpenParametersObjectDoesNotBlock() {
+    MappingContract source =
+        contractFrom(
+            """
+            {
+              "type": "object",
+              "properties": { "id": { "type": "string" } }
+            }
+            """);
+    MappingContract target =
+        contractFrom(
+            """
+            {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "parameters": {
+                      "type": "object",
+                      "properties": {}
+                    }
+                  }
+                }
+              ]
+            }
+            """);
+    MappingIntent intent =
+        new MappingIntent(
+            "response-result",
+            "createTask",
+            MappingPort.RESPONSE,
+            "onTaskResult",
+            MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule(
+                    "id",
+                    "parameters.salesforceTaskId",
+                    null,
+                    MappingRuleStatus.PROPOSED)));
+
+    MappingContractEvaluation evaluated = MappingContractGate.evaluate(intent, source, target);
+
+    assertFalse(evaluated.blocked(), evaluated.blockedMessage());
+  }
+
+  @Test
   void scriptEchoOfOffHopSourceDoesNotBlock() {
     MappingContract source =
         contractFrom(

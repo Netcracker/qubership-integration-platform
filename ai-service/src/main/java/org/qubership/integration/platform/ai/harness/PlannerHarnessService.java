@@ -31,7 +31,7 @@ public class PlannerHarnessService {
   public PlannerHarnessService(
       CompilerSkillDocumentService documentService,
       DesignProcessSkillRunner runner,
-      @ConfigProperty(name = "quarkus.langchain4j.openai.upstream.chat-model.model-name")
+      @ConfigProperty(name = "qip.ai.llm.model-name")
           String modelName) {
     this.documentService = documentService;
     this.runner = runner;

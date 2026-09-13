@@ -387,6 +387,42 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
+  void initialAnalysisDoesNotReapplySeedAsMappingEdit() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    AtomicInteger mappingTurns = new AtomicInteger();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null,
+            null,
+            null,
+            ctx -> coveringBrief(approved, "Greetings"),
+            null,
+            null,
+            null,
+            null,
+            null,
+            (brief, text) -> {
+              mappingTurns.incrementAndGet();
+              return MappingTurnResult.changes();
+            },
+            null);
+
+    CapabilitySignal.Completed completed =
+        runWithUserText(
+            capability,
+            approved,
+            "conv-initial-mapping-seed",
+            "Request mapping from greetings OUTPUT to script: body = Hello world!");
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(0, mappingTurns.get());
+  }
+
+  @Test
   void paraphrasedMappingUserTextDoesNotNeedEnglishControlPhrases() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     String userText = "Copy the greeting name onto the script body.";

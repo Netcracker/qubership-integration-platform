@@ -296,6 +296,37 @@ class RequirementDraftImportIntentTest {
     assertTrue(draft.selectedImportCallAlreadyBound());
   }
 
+  @Test
+  void bindingFinalInteractionPreservesUnrelatedOpenQuestion() {
+    RequirementDraft base = omWfmDraft();
+    RequirementDraft draft =
+        new RequirementDraft(
+            false,
+            base.assembledText(),
+            DraftDecision.NEEDS_INPUT,
+            List.of("Which error response should the chain return?"),
+            base.sourceSkillId(),
+            base.sourceSkillVersion(),
+            base.sourceSkillHash(),
+            null,
+            false,
+            base.facts(),
+            false,
+            null,
+            null,
+            base.flow(),
+            List.of(restHint("create-salesforce-task")),
+            null);
+
+    RequirementDraft bound =
+        draft.withBoundServiceCall("return-task-result", restHint("return-task-result"));
+
+    assertEquals(DraftDecision.NEEDS_INPUT, bound.decision());
+    assertEquals(List.of("Which error response should the chain return?"), bound.openQuestions());
+    assertFalse(bound.readyForPlan());
+    assertEquals(2, bound.catalogBindings().size());
+  }
+
   private static RequirementDraft omWfmDraft() {
     return new RequirementDraft(
             true, "OM to Salesforce WFM", DraftDecision.READY_FOR_PLAN, List.of(), "brainstorming", "1")

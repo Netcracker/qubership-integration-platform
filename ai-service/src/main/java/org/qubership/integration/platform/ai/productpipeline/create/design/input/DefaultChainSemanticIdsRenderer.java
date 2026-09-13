@@ -30,7 +30,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Canon
 @ApplicationScoped
 public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer {
 
-  static final String RENDERER_VERSION = "chain-semantic-ids-renderer@1";
+  static final String RENDERER_VERSION = "chain-semantic-ids-renderer@2";
 
   @Override
   public IdsDocument render(ChainSemanticRevision revision, CompilerContract contract) {
@@ -77,11 +77,12 @@ public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer
       Map<String, SemanticNode> nodes,
       Map<String, List<SemanticExecutionEdge>> outgoing) {
     Set<String> reachable = reachable(entry.triggerNodeId(), outgoing);
+    List<SemanticExecutionEdge> edges = executionOrder(entry.triggerNodeId(), outgoing);
     LinkedHashSet<String> participants = new LinkedHashSet<>();
     participants.add("Client");
     participants.add("CIP");
-    for (String nodeId : reachable) {
-      SemanticNode node = nodes.get(nodeId);
+    for (SemanticExecutionEdge edge : edges) {
+      SemanticNode node = nodes.get(edge.targetNodeId());
       if (node instanceof SemanticNode.ServiceCall call) {
         participants.add(participantId(call.operation()));
       }
@@ -99,18 +100,32 @@ public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer
       }
       appendRegion(body, region, nodes);
     }
-    List<SemanticExecutionEdge> edges = new ArrayList<>(revision.executionEdges());
-    edges.sort(Comparator.comparing(SemanticExecutionEdge::edgeId));
     for (SemanticExecutionEdge edge : edges) {
-      if (!reachable.contains(edge.sourceNodeId()) || !reachable.contains(edge.targetNodeId())) {
-        continue;
-      }
       if (edge.regionId() != null) {
         continue;
       }
       SemanticNode target = nodes.get(edge.targetNodeId());
       appendMessage(body, target);
     }
+  }
+
+  private static List<SemanticExecutionEdge> executionOrder(
+      String start, Map<String, List<SemanticExecutionEdge>> outgoing) {
+    List<SemanticExecutionEdge> ordered = new ArrayList<>();
+    List<String> queue = new ArrayList<>();
+    Set<String> expanded = new HashSet<>();
+    queue.add(start);
+    for (int index = 0; index < queue.size(); index++) {
+      String sourceNodeId = queue.get(index);
+      if (!expanded.add(sourceNodeId)) {
+        continue;
+      }
+      for (SemanticExecutionEdge edge : outgoing.getOrDefault(sourceNodeId, List.of())) {
+        ordered.add(edge);
+        queue.add(edge.targetNodeId());
+      }
+    }
+    return ordered;
   }
 
   private static void appendRegion(
