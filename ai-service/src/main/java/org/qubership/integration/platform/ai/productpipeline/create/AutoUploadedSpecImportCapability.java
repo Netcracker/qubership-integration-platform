@@ -7,6 +7,7 @@ import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -417,7 +418,8 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         operationQuery = parsed.operationId() + " " + parsed.channel();
       }
       CatalogBindingMatcher.MatchResult match =
-          matchImportedSpecs(operationQuery, conversationId, imported);
+          matchImportedSpecs(
+              operationQuery, factBindingEvidence(call), conversationId, imported);
       LOG.infof(
           "auto-uploaded-spec-import: probing fact factId=%s service=%s query=%s match=%s",
           call.sourceFactId(),
@@ -452,7 +454,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
               catalogHint(call, hit, boundText),
               List.of()));
     }
-    addFlowBindingHints(draft.flow(), hints, conversationId, imported);
+    addFlowBindingHints(draft.flow(), facts, hints, conversationId, imported);
     RequirementDraft rewritten = draft.withFacts(List.copyOf(rewrittenFacts));
     for (ArtifactCandidate candidate : hints) {
       if (!(candidate.payload() instanceof CatalogBindingHint hint)) {
@@ -465,6 +467,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
 
   private void addFlowBindingHints(
       RequirementFlow flow,
+      List<RequirementFact> facts,
       List<ArtifactCandidate> hints,
       String conversationId,
       List<UploadedSpecImportOutcome> imported) {
@@ -484,7 +487,11 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         continue;
       }
       CatalogBindingMatcher.MatchResult match =
-          matchImportedSpecs(operationQuery, conversationId, imported);
+          matchImportedSpecs(
+              operationQuery,
+              flowBindingEvidence(interaction, facts),
+              conversationId,
+              imported);
       LOG.infof(
           "auto-uploaded-spec-import: probing flow interactionId=%s service=%s query=%s match=%s",
           interaction.interactionId(),
@@ -514,11 +521,13 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
 
   private CatalogBindingMatcher.MatchResult matchImportedSpecs(
       String operationQuery,
+      String operationEvidence,
       String conversationId,
       List<UploadedSpecImportOutcome> imported) {
     if (imported == null || imported.isEmpty()) {
       return new CatalogBindingMatcher.MatchResult.None();
     }
+    List<CatalogMatch> matches = new ArrayList<>();
     for (UploadedSpecImportOutcome outcome : imported) {
       if (outcome == null) {
         continue;
@@ -531,11 +540,55 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
               outcome.specificationId(),
               operationQuery,
               conversationId);
-      if (match instanceof CatalogBindingMatcher.MatchResult.Exact) {
-        return match;
+      if (match instanceof CatalogBindingMatcher.MatchResult.Exact exact) {
+        matches.add(exact.match());
+      } else if (match instanceof CatalogBindingMatcher.MatchResult.Ambiguous ambiguous) {
+        matches.addAll(ambiguous.matches());
       }
     }
-    return new CatalogBindingMatcher.MatchResult.None();
+    if (matches.isEmpty()) {
+      return new CatalogBindingMatcher.MatchResult.None();
+    }
+    if (matches.size() == 1) {
+      return new CatalogBindingMatcher.MatchResult.Exact(matches.getFirst());
+    }
+    List<CatalogMatch> evidenceMatches =
+        matches.stream()
+            .filter(match -> operationEvidenceAgrees(operationEvidence, match))
+            .toList();
+    if (evidenceMatches.size() == 1) {
+      return new CatalogBindingMatcher.MatchResult.Exact(evidenceMatches.getFirst());
+    }
+    return new CatalogBindingMatcher.MatchResult.Ambiguous(List.copyOf(matches));
+  }
+
+  private static String factBindingEvidence(RequirementFact fact) {
+    return String.join(
+        "\n",
+        fact.text(),
+        fact.httpMethod() + " " + fact.path());
+  }
+
+  private static String flowBindingEvidence(
+      RequirementFlow.Interaction interaction, List<RequirementFact> facts) {
+    StringBuilder evidence = new StringBuilder(interaction.description());
+    for (RequirementFact fact : facts) {
+      if (fact != null && interaction.interactionId().equals(fact.sourceFactId())) {
+        evidence.append('\n').append(fact.text());
+      }
+    }
+    return evidence.toString();
+  }
+
+  private static boolean operationEvidenceAgrees(String evidence, CatalogMatch match) {
+    String method = blankToNull(match.method());
+    String path = blankToNull(match.path());
+    if (evidence == null || method == null || path == null) {
+      return false;
+    }
+    String normalizedEvidence = evidence.toLowerCase(Locale.ROOT);
+    return normalizedEvidence.contains((method + " " + path).toLowerCase(Locale.ROOT))
+        || normalizedEvidence.contains(path.toLowerCase(Locale.ROOT));
   }
 
   private static boolean alreadyBound(List<ArtifactCandidate> hints, String interactionId) {

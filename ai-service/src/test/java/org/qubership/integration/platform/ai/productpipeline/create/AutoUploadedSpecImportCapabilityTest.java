@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
@@ -713,7 +714,7 @@ class AutoUploadedSpecImportCapabilityTest {
   }
 
   @Test
-  void bindsFlowInteractionsByImportedSystemIdsWhenParticipantNamesDiffer() {
+  void bindsDuplicateOperationIdsByCatalogPathWhenParticipantNamesDiffer() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     ConversationService conversationService = mock(ConversationService.class);
     ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
@@ -734,21 +735,52 @@ class AutoUploadedSpecImportCapabilityTest {
                         new Interaction(
                             "salesforce-create-task",
                             Direction.OUTBOUND,
-                            "Salesforce WFM – Auth & Task API",
-                            "createTask",
-                            ""),
+                            "Salesforce Task Service",
+                            "processTask",
+                            "Create the task"),
                         new Interaction(
                             "wfms-task-result",
                             Direction.OUTBOUND,
-                            "WFMS Create Work Order",
-                            "onTaskResult",
-                            "")),
+                            "WFMS Work Order API",
+                            "processTask",
+                            "Return the task result"),
+                        new Interaction(
+                            "ambiguous-task",
+                            Direction.OUTBOUND,
+                            "Task Processing API",
+                            "processTask",
+                            "Process another task")),
                     List.of(
                         new Transition("on-task-start", "salesforce-create-task"),
-                        new Transition("salesforce-create-task", "wfms-task-result"))))
+                        new Transition("salesforce-create-task", "wfms-task-result"),
+                        new Transition("wfms-task-result", "ambiguous-task"))))
             .withFacts(
                 List.of(
-                    RequirementFactFixtures.httpTriggerFact("on-task-start", "POST", "/tasks")));
+                    RequirementFactFixtures.httpTriggerFact("on-task-start", "POST", "/tasks"),
+                    new RequirementFact(
+                        "salesforce-create-task",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.GOAL,
+                        "",
+                        "Uploaded OPENAPI spec Salesforce WFM Auth Task API operation processTask channel /sobjects/Task",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        ""),
+                    new RequirementFact(
+                        "wfms-task-result",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.GOAL,
+                        "",
+                        "Uploaded OPENAPI spec WFMS Create Work Order operation processTask channel /task-result",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "")));
     CompilationArtifacts.Reference draftRef = requirementDraftRef();
     stubRequirementDraft(artifactStore, draftRef, draft);
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
@@ -775,7 +807,7 @@ class AutoUploadedSpecImportCapabilityTest {
             invocation -> {
               String systemId = invocation.getArgument(1);
               String query = invocation.getArgument(4);
-              if ("sys-sf".equals(systemId) && "createTask".equals(query)) {
+              if ("sys-sf".equals(systemId) && "processTask".equals(query)) {
                 return new CatalogBindingMatcher.MatchResult.Exact(
                     new CatalogMatch(
                         "sys-sf",
@@ -786,10 +818,10 @@ class AutoUploadedSpecImportCapabilityTest {
                         "http",
                         "POST",
                         "/sobjects/Task",
-                        "createTask",
+                        "processTask",
                         "catalog-read:sys-sf/spec-sf/op-create-task"));
               }
-              if ("sys-wfms".equals(systemId) && "onTaskResult".equals(query)) {
+              if ("sys-wfms".equals(systemId) && "processTask".equals(query)) {
                 return new CatalogBindingMatcher.MatchResult.Exact(
                     new CatalogMatch(
                         "sys-wfms",
@@ -800,7 +832,7 @@ class AutoUploadedSpecImportCapabilityTest {
                         "rest",
                         "POST",
                         "/task-result",
-                        "onTaskResult",
+                        "processTask",
                         "catalog-read:sys-wfms/spec-wfms/op-task-result"));
               }
               return new CatalogBindingMatcher.MatchResult.None();
@@ -818,29 +850,19 @@ class AutoUploadedSpecImportCapabilityTest {
                 .findFirst()
                 .orElseThrow()
                 .payload();
-    assertTrue(updated.readyForPlan());
+    assertFalse(updated.readyForPlan());
     assertEquals(2, updated.catalogBindings().size());
+    assertEquals(
+        List.of("sys-sf", "sys-wfms"),
+        updated.catalogBindings().stream().map(CatalogBindingHint::systemId).toList());
+    assertTrue(
+        updated.catalogBindings().stream()
+            .noneMatch(binding -> "ambiguous-task".equals(binding.interactionId())));
     verify(matcher, never()).match(any(), any(), any(), any());
-    verify(matcher)
-        .matchImported(
-            eq("service-call"),
-            eq("sys-sf"),
-            eq("group-sf"),
-            eq("spec-sf"),
-            eq("createTask"),
-            eq("conv-1"));
-    verify(matcher)
-        .matchImported(
-            eq("service-call"),
-            eq("sys-wfms"),
-            eq("group-wfms"),
-            eq("spec-wfms"),
-            eq("onTaskResult"),
-            eq("conv-1"));
   }
 
   @Test
-  void emitsCatalogBindingHintsForTwoUploadedSpecs() {
+  void importsInternalAndExternalSpecsAndBindsEachService() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     ConversationService conversationService = mock(ConversationService.class);
     ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
@@ -852,66 +874,107 @@ class AutoUploadedSpecImportCapabilityTest {
         new AutoUploadedSpecImportCapability(
             gateway, conversationService, artifactStore, handler, matcher, draftStore);
 
-    RequirementFact openApiFact =
-        RequirementFact.of(
+    RequirementFact internalCall =
+        new RequirementFact(
+            "orders-call",
             RequirementFactPolarity.POSITIVE,
             RequirementFactKind.SERVICE_CALL,
-            "stub-openapi",
-            "Uploaded OPENAPI spec Stub OpenAPI Service operation stubOperation path POST /stub/path");
-    RequirementFact asyncFact =
-        RequirementFact.of(
+            "",
+            "Call createOrder",
+            "Orders API",
+            "createOrder",
+            "",
+            "",
+            "",
+            "orders-call");
+    RequirementFact externalCall =
+        new RequirementFact(
+            "partner-call",
             RequirementFactPolarity.POSITIVE,
             RequirementFactKind.SERVICE_CALL,
-            "stub-asyncapi",
-            "Uploaded ASYNCAPI spec Stub AsyncAPI Service operation stubAsyncOperation channel stub-channel");
-    RequirementDraft draft = draft().withFacts(List.of(openApiFact, asyncFact));
+            "",
+            "Call sendPartnerOrder",
+            "Partner API",
+            "sendPartnerOrder",
+            "",
+            "",
+            "",
+            "partner-call");
+    RequirementDraft draft = draft().withFacts(List.of(internalCall, externalCall));
 
     CompilationArtifacts.Reference draftRef = requirementDraftRef();
     stubRequirementDraft(artifactStore, draftRef, draft);
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
-        .thenReturn(List.of("uploads/stub-openapi.yaml", "uploads/stub-asyncapi.yaml"));
+        .thenReturn(List.of("uploads/orders-api.yaml", "uploads/partner-api.yaml"));
     when(gateway.importUploadedSpec(
-            eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
-        .thenReturn(
-            Uni.createFrom()
-                .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
-    when(matcher.matchImported(
-            eq("service-call"), eq("sys"), eq("group"), eq("spec"), any(), eq("conv-1")))
+            eq("conv-1"), any(UploadedSpecAttachment.class), any()))
         .thenAnswer(
             invocation -> {
-              String q = invocation.getArgument(4);
-              if (q != null && q.contains("POST /stub/path")) {
+              UploadedSpecAttachment attachment = invocation.getArgument(1);
+              if (attachment.s3Key().contains("orders-api")) {
+                return Uni.createFrom()
+                    .item(
+                        new UploadedSpecImportOutcome(
+                            attachment.s3Key(),
+                            "orders-system",
+                            "orders-group",
+                            "orders-spec",
+                            false));
+              }
+              return Uni.createFrom()
+                  .item(
+                      new UploadedSpecImportOutcome(
+                          attachment.s3Key(),
+                          "partner-system",
+                          "partner-group",
+                          "partner-spec",
+                          false));
+            });
+    when(matcher.matchImported(
+            eq("service-call"), any(), any(), any(), any(), eq("conv-1")))
+        .thenAnswer(
+            invocation -> {
+              String systemId = invocation.getArgument(1);
+              String query = invocation.getArgument(4);
+              if ("orders-system".equals(systemId) && "createOrder".equals(query)) {
                 return new CatalogBindingMatcher.MatchResult.Exact(
                     new CatalogMatch(
-                        "sys",
-                        "group",
-                        "spec",
-                        "op-stub-operation",
-                        "Stub OpenAPI Service",
+                        "orders-system",
+                        "orders-group",
+                        "orders-spec",
+                        "create-order-operation",
+                        "Orders API",
                         "rest",
                         "POST",
-                        "/stub/path",
-                        "stubOperation",
-                        "catalog-read:sys/spec/op-stub-operation"));
+                        "/orders",
+                        "createOrder",
+                        "catalog-read:orders-system/orders-spec/create-order-operation"));
               }
-              if (q != null && q.contains("stub-channel")) {
+              if ("partner-system".equals(systemId) && "sendPartnerOrder".equals(query)) {
                 return new CatalogBindingMatcher.MatchResult.Exact(
                     new CatalogMatch(
-                        "sys",
-                        "group",
-                        "spec",
-                        "op-stub-async-operation",
-                        "Stub AsyncAPI Service",
-                        "kafka",
-                        "SUBSCRIBE",
-                        "stub-channel",
-                        "stubAsyncOperation",
-                        "catalog-read:sys/spec/op-stub-async-operation"));
+                        "partner-system",
+                        "partner-group",
+                        "partner-spec",
+                        "send-partner-order-operation",
+                        "Partner API",
+                        "rest",
+                        "POST",
+                        "/partner/orders",
+                        "sendPartnerOrder",
+                        "catalog-read:partner-system/partner-spec/send-partner-order-operation"));
               }
               return new CatalogBindingMatcher.MatchResult.None();
             });
     CompilationArtifacts.Reference approvalRef = approvalRef();
-    stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
+    stubApprovedRecord(
+        artifactStore,
+        approvalRef,
+        handler.attachmentHash("conv-1"),
+        List.of(),
+        Map.of(
+            "uploads/orders-api.yaml", "INTERNAL",
+            "uploads/partner-api.yaml", "EXTERNAL"));
 
     CapabilitySignal.Completed completed =
         run(capability, draft, List.of(draftRef, approvalRef));
@@ -922,12 +985,37 @@ class AutoUploadedSpecImportCapabilityTest {
             .filter(c -> c.kind() == CompilationArtifacts.Kind.CATALOG_BINDING_HINT)
             .toList();
     assertEquals(2, hints.size(), "expected one hint per uploaded spec fact");
+    CatalogBindingHint ordersHint = (CatalogBindingHint) hints.get(0).payload();
+    CatalogBindingHint partnerHint = (CatalogBindingHint) hints.get(1).payload();
+    assertEquals("orders-call", ordersHint.interactionId());
+    assertEquals("orders-system", ordersHint.systemId());
+    assertEquals("orders-spec", ordersHint.specificationId());
+    assertEquals("create-order-operation", ordersHint.integrationOperationId());
+    assertEquals("partner-call", partnerHint.interactionId());
+    assertEquals("partner-system", partnerHint.systemId());
+    assertEquals("partner-spec", partnerHint.specificationId());
     assertEquals(
-        "op-stub-operation",
-        ((CatalogBindingHint) hints.get(0).payload()).integrationOperationId());
+        "send-partner-order-operation", partnerHint.integrationOperationId());
+    RequirementDraft updated =
+        (RequirementDraft)
+            completed.outcome().candidates().stream()
+                .filter(c -> c.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT)
+                .findFirst()
+                .orElseThrow()
+                .payload();
     assertEquals(
-        "op-stub-async-operation",
-        ((CatalogBindingHint) hints.get(1).payload()).integrationOperationId());
+        List.of("orders-system", "partner-system"),
+        updated.catalogBindings().stream().map(CatalogBindingHint::systemId).toList());
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("INTERNAL"));
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/partner-api.yaml", "partner-api.yaml")),
+            eq("EXTERNAL"));
   }
 
   private static CapabilitySignal.Completed run(
