@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -38,6 +39,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 class DefaultChainSemanticGraphCompilerTest {
@@ -45,10 +47,10 @@ class DefaultChainSemanticGraphCompilerTest {
   private static final CompilerContract CONTRACT =
       new ClasspathCompilerContractRepository().require(CompilerContract.V1);
 
+  private final DeterministicElementSchemaService schemaService =
+      DeterministicElementSchemaService.createForUnitTests(new ObjectMapper());
   private final ChainSemanticGraphCompiler compiler =
-      new DefaultChainSemanticGraphCompiler(
-          new DefaultChainSemanticRevisionValidator(),
-          DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()));
+      new DefaultChainSemanticGraphCompiler(new DefaultChainSemanticRevisionValidator(), schemaService);
 
   @Test
   void compilesConditionReconvergenceAsIndependentInvocations() {
@@ -118,6 +120,33 @@ class DefaultChainSemanticGraphCompilerTest {
     assertEquals("NONE", property(node(graph, "trigger-http"), "accessControlType"));
     assertEquals("0", property(node(graph, "call-1"), "retryCount"));
     assertEquals("5000", property(node(graph, "call-1"), "retryDelay"));
+  }
+
+  @Test
+  void projectsApprovedHttpEndpointPropertiesOntoTrigger() {
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Orders",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "summary",
+            null,
+            "",
+            List.of(),
+            List.of(
+                new RequirementEntryPoint(
+                    "http-in", "", "http-trigger", "", "POST", "/orders", "")),
+            List.of(),
+            List.of(),
+            List.of());
+
+    ChainPlanGraph graph = compiler.compile(conditionRevision(), CONTRACT, List.of(), brief);
+
+    ChainPlanNode trigger = node(graph, "trigger-http");
+    assertEquals("/orders", property(trigger, "contextPath"));
+    assertEquals("POST", property(trigger, "httpMethodRestrict"));
   }
 
   @Test
@@ -205,12 +234,21 @@ class DefaultChainSemanticGraphCompilerTest {
     ChainPlanGraph graph = compiler.compile(errorScopeRevision(), CONTRACT, List.of());
 
     assertEquals("try-catch-finally-2", node(graph, "try-catch-1").type());
-    assertEquals("try-catch-1", node(graph, "try-body").parentNodeId());
-    assertEquals("try-catch-1", node(graph, "catch-body").parentNodeId());
-    assertEquals("try-catch-1", node(graph, "finally-script").parentNodeId());
-    assertNull(property(node(graph, "catch-body"), "exception"));
-    assertNull(property(node(graph, "catch-body"), "priority"));
+    assertEquals("try-2", node(graph, "try-catch-1-try").type());
+    assertEquals("catch-2", node(graph, "try-catch-1-catch-catch-all").type());
+    assertEquals("finally-2", node(graph, "try-catch-1-finally").type());
+    assertEquals("try-catch-1-try", node(graph, "try-body").parentNodeId());
+    assertEquals("try-catch-1-catch-catch-all", node(graph, "catch-body").parentNodeId());
+    assertEquals("try-catch-1-finally", node(graph, "finally-script").parentNodeId());
+    assertEquals(
+        "java.lang.Exception",
+        property(node(graph, "try-catch-1-catch-catch-all"), "exception"));
+    assertEquals("0", property(node(graph, "try-catch-1-catch-catch-all"), "priority"));
+    assertEquals("try-catch-1-try", edge(graph, "edge-try").fromNodeId());
+    assertEquals("try-catch-1-catch-catch-all", edge(graph, "edge-catch").fromNodeId());
+    assertEquals("try-catch-1-finally", edge(graph, "edge-finally").fromNodeId());
     assertEquals("try-catch-1", edge(graph, "edge-catch").scopeNodeId());
+    assertTrue(new ChainPlanGraphValidator(schemaService).validate(graph).isEmpty());
   }
 
   @Test

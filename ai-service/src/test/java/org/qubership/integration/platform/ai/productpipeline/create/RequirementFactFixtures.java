@@ -150,8 +150,34 @@ public final class RequirementFactFixtures {
         List.of());
   }
 
+  /** Native HTTP trigger fact for an inbound interaction. Without it the entry point has no
+   * capability key and the draft never reaches READY_FOR_PLAN. */
+  public static RequirementFact httpTriggerFact(String interactionId, String method, String path) {
+    return new RequirementFact(
+        interactionId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CAPABILITY,
+        "http-trigger",
+        method + " " + path,
+        "",
+        "",
+        "",
+        method,
+        path);
+  }
+
   public static RequirementDraft readyDraft(String assembledText) {
-    return new RequirementDraft(true, assembledText)
+    return new RequirementDraft(
+            true,
+            assembledText,
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            "brainstorming",
+            "1",
+            null,
+            null,
+            false,
+            List.of(httpTriggerFact("http-in", "GET", "/")))
         .withFlow(nativeHttpInbound("http-in", "GET /"));
   }
 

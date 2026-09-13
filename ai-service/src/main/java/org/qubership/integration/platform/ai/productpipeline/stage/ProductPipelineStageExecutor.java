@@ -973,6 +973,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     String evidence = evidenceText(outcomeClass, message, doc.run().runId());
     RecoveryCause cause =
         recoveryCause == null ? RecoveryCause.fromHalt(outcomeClass, candidates) : recoveryCause;
+    String mappingBoundaries = cause.mappingBoundaries();
+    if (!mappingBoundaries.isBlank()) {
+      evidence += "\nMapping boundaries:\n" + mappingBoundaries;
+    }
     String findings = FailureNarrative.findingsText(candidates);
     if (findings.isBlank()) {
       findings = cause.formattedFindings();
@@ -2237,11 +2241,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (snapshot.approvedArtifactId() != null && !snapshot.approvedArtifactId().isBlank()) {
       return true;
     }
+    boolean succeededWithOutputs =
+        snapshot.status() == StageStatus.SUCCEEDED
+            && snapshot.outputRefs() != null
+            && !snapshot.outputRefs().isEmpty();
     return cause != null
-        && cause.isBindingIdentityMismatch()
-        && snapshot.status() == StageStatus.SUCCEEDED
-        && snapshot.outputRefs() != null
-        && !snapshot.outputRefs().isEmpty();
+        && succeededWithOutputs
+        && (cause.isBindingIdentityMismatch()
+            || (cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
+                && "materialization".equals(doc.run().currentStageId())
+                && "design-execution".equals(owner)));
   }
 
   private HaltRecoveryGuard diagnoseAutomaticReopenRefusal(
@@ -3169,7 +3178,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private String approvalPromptFor(String runId, String stageId) {
     if (isBriefRepairApproval(runId, stageId)) {
-      return ProductPipelineRunSupport.BRIEF_REPAIR_APPROVAL_PROMPT;
+      return ProductPipelineRunSupport.withAuthorNote(
+          attributesByRun.get(runId), ProductPipelineRunSupport.BRIEF_REPAIR_APPROVAL_PROMPT);
     }
     RunManifest manifest = manifestsByRun.get(runId);
     String responseLocale = manifest == null ? "en" : manifest.responseLocale();

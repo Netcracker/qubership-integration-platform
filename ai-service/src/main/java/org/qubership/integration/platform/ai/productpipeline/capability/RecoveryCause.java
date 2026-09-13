@@ -45,6 +45,27 @@ public record RecoveryCause(
     return text.toString();
   }
 
+  /** Locates mapping repairs without changing the finding messages used by the recovery ledger. */
+  public String mappingBoundaries() {
+    List<String> boundaries = new ArrayList<>();
+    for (PlanValidationFinding finding : findings) {
+      if (finding == null || finding.mappingDetails().mappingIntentId().isBlank()) {
+        continue;
+      }
+      var mapping = finding.mappingDetails();
+      boundaries.add(
+          "mappingIntentId="
+              + mapping.mappingIntentId()
+              + "; "
+              + mapping.sourceRef() + "/" + mapping.sourcePort()
+              + " -> "
+              + mapping.targetRef() + "/" + mapping.targetPort()
+              + "; targetPath="
+              + mapping.targetPath());
+    }
+    return String.join("\n", boundaries);
+  }
+
   /** Requested fact when execution has no catalog binding hint for an interaction. */
   public static final String MISSING_CATALOG_BINDING_FACT = "missing catalog binding";
 

@@ -16,6 +16,7 @@ import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ElementContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.TopologyContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -621,6 +622,10 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       RequirementBrief brief,
       Index index,
       List<String> errors) {
+    boolean legacyReferences = brief != null && brief.flow().interactions().isEmpty();
+    if (brief != null && !legacyReferences) {
+      RequirementBriefCoverageValidator.validateMappingStructure(brief).ifPresent(errors::add);
+    }
     Map<String, List<SemanticExecutionEdge>> sitesByIntent = new LinkedHashMap<>();
     for (SemanticExecutionEdge edge : revision.executionEdges()) {
       if (edge.mappingId() == null || edge.mappingId().isBlank()) {
@@ -633,8 +638,8 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       if (!intentIds.add(intent.mappingIntentId())) {
         errors.add("Duplicate mapping intent: " + intent.mappingIntentId());
       }
-      if (brief == null) {
-        validateMappingRefs(intent, index, errors);
+      if (legacyReferences) {
+        validateMappingRefs(intent, revision, index, errors);
       }
       validateMappingSite(
           intent.mappingIntentId(),
@@ -837,9 +842,8 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
   }
 
   private static void validateMappingRefs(
-      MappingIntent intent, Index index, List<String> errors) {
-    if (!index.nodes.containsKey(intent.sourceRef())
-        && !index.edges.containsKey(intent.sourceRef())) {
+      MappingIntent intent, ChainSemanticRevision revision, Index index, List<String> errors) {
+    if (!mappingRefExists(intent.sourceRef(), revision, index)) {
       errors.add(
           "Mapping intent '"
               + intent.mappingIntentId()
@@ -847,8 +851,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
               + intent.sourceRef()
               + "' is missing");
     }
-    if (!index.nodes.containsKey(intent.targetRef())
-        && !index.edges.containsKey(intent.targetRef())) {
+    if (!mappingRefExists(intent.targetRef(), revision, index)) {
       errors.add(
           "Mapping intent '"
               + intent.mappingIntentId()
@@ -856,6 +859,32 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
               + intent.targetRef()
               + "' is missing");
     }
+  }
+
+  private static boolean mappingRefExists(
+      String reference, ChainSemanticRevision revision, Index index) {
+    if (index.nodes.containsKey(reference) || index.edges.containsKey(reference)) {
+      return true;
+    }
+    for (SemanticEntryPoint entry : revision.entryPoints()) {
+      if (entry.entryPointId().equals(reference)) {
+        return true;
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (node.provenance().sourceFactIds().contains(reference)) {
+        return true;
+      }
+      if (node instanceof SemanticNode.Trigger trigger
+          && trigger.interactionId().equals(reference)) {
+        return true;
+      }
+      if (node instanceof SemanticNode.ServiceCall call
+          && call.serviceCallId().equals(reference)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static void validateMappingSite(

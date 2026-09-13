@@ -128,7 +128,7 @@ class ConversationPhaseResolverTest {
                 null,
                 null),
             false,
-            List.of(),
+            List.of(RequirementFactFixtures.httpTriggerFact("http-in", "GET", "/proxy")),
             false,
             "call-1")
         .withFlow(flow)

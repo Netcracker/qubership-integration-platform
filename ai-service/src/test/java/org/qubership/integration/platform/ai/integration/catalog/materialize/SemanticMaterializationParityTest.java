@@ -40,6 +40,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /**
@@ -155,8 +156,13 @@ class SemanticMaterializationParityTest {
 
   @Test
   void pinsMappingSiteAndOwnsTheMappedEdge() {
+    ChainSemanticRevision revision = mappedRevision();
+    RequirementBrief brief =
+        new RequirementBrief("Parity", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withMappingIntents(revision.mappingIntents());
     ChainPlanGraph graph =
-        compiler.compile(mappedRevision(), CONTRACT, List.of(binding("call-1", "op-call-1")));
+        compiler.compile(
+            revision, CONTRACT, List.of(binding("call-1", "op-call-1")), brief);
 
     assertEquals("map-body", MappingExecutionSite.mappingIntentId(node(graph, "op-shared")));
     assertEquals("map-body", MappingExecutionSite.mappingId(node(graph, "op-shared")));

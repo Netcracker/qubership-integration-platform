@@ -8,15 +8,29 @@ CASES_FILE="${DIR}/cases.json"
 bash -n "${DIR}/run-planner-eval.sh"
 bash -n "${DIR}/replay-planner-run.sh"
 jq -e '
-  .defaultRequiredPatterns as $defaults
-  | (.cases | length) >= 10
+  . as $manifest
+  | .defaultRequiredPatterns as $defaults
+  | (.defaultInputArtifact | IN("NORMALIZED_DESIGN_FLOW", "IDS_DOCUMENT"))
+  and (.defaultMaxAttempts | type == "number" and . >= 1)
+  and (.cases | length) >= 20
+  and ([.cases[] | select(.tags // [] | index("edge"))] | length) >= 10
   and ([.cases[].id] | length == (unique | length))
   and all(.cases[];
     (.id | type == "string" and length > 0)
     and (.inputFile | type == "string" and length > 0)
     and (.requiredPatterns | type == "array" and length > 0)
     and (.forbiddenPatterns | type == "array")
+    and ((.tags // []) | type == "array")
+    and ((.expectedStatus // "COMPLETED") | IN("COMPLETED", "FAILED"))
+    and ((.inputArtifact // $manifest.defaultInputArtifact)
+      | IN("NORMALIZED_DESIGN_FLOW", "IDS_DOCUMENT"))
+    and ((.maxAttempts // $manifest.defaultMaxAttempts) | type == "number" and . >= 1)
+    and all((.minimumOccurrences // [])[];
+      (.pattern | type == "string" and length > 0)
+      and (.count | type == "number" and . >= 1))
     and all(($defaults + .requiredPatterns + .forbiddenPatterns)[];
+      . as $pattern | (try ("sample" | test($pattern)) catch null) != null)
+    and all((.minimumOccurrences // [])[].pattern;
       . as $pattern | (try ("sample" | test($pattern)) catch null) != null)
   )
 ' "${CASES_FILE}" >/dev/null

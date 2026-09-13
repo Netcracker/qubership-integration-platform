@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
@@ -50,7 +51,8 @@ class RequirementBriefCoverageValidatorTest {
 
     assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
     assertTrue(approved.facts().isEmpty());
-    assertTrue(approved.readyForPlan());
+    // No fact carries the geo-site capability key, so the draft stays short of READY_FOR_PLAN.
+    assertFalse(approved.readyForPlan());
   }
 
   @Test

@@ -37,6 +37,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
@@ -156,6 +157,16 @@ public class DesignInputCapability implements StageCapability {
       return StageOutcome.of(
           StageOutcomeClass.MISSING_MANDATORY_INPUT,
           "design-input requires an approved RequirementBrief");
+    }
+    String blankEntryPoint = entryPointWithoutCapability(brief);
+    if (blankEntryPoint != null) {
+      // Fail before the agent runs: the capture would be rejected anyway, and a typed cause lets
+      // recovery reopen the stage that wrote the field instead of re-projecting the same brief.
+      return StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE,
+          "Entry point " + blankEntryPoint + " has no capability key in the approved brief.",
+          RecoveryCause.missingBriefFacts(
+              List.of("entry point " + blankEntryPoint + " has no capabilityKey")));
     }
     List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
     if (MappingGapCoverage.shouldAsk(uncovered)) {
@@ -353,6 +364,26 @@ public class DesignInputCapability implements StageCapability {
       return AiTraceLog.preview(rejection, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS);
     }
     return MISSING_CAPTURE;
+  }
+
+  /**
+   * First entry point the approved brief left without a capability key. The brief copies that key
+   * from the approved draft, so a blank one means the draft never carried the fact.
+   */
+  static String entryPointWithoutCapability(RequirementBrief brief) {
+    if (brief == null) {
+      return null;
+    }
+    for (RequirementEntryPoint entryPoint : brief.entryPoints()) {
+      if (entryPoint == null) {
+        continue;
+      }
+      String key = entryPoint.capabilityKey();
+      if (key == null || key.isBlank()) {
+        return entryPoint.entryPointId();
+      }
+    }
+    return null;
   }
 
   private static RequirementBrief requirementBrief(StageExecutionContext context) {
