@@ -47,7 +47,7 @@ public class ExecutorHarnessService {
       CompilerContractRepository contractRepository,
       ProductPipelineArtifactStore artifactStore,
       DefaultApprovedCompilerExecutionRunner runner,
-      @ConfigProperty(name = "quarkus.langchain4j.openai.upstream.chat-model.model-name")
+      @ConfigProperty(name = "qip.ai.llm.model-name")
           String modelName) {
     this(
         selectionService,

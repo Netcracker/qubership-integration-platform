@@ -503,11 +503,12 @@ public record RequirementDraft(
     boolean bound =
         !flow.interactions().isEmpty()
             && RequirementFlowValidator.validateBindings(flow, facts, next).isEmpty();
+    boolean ready = bound && openQuestions.isEmpty();
     return new RequirementDraft(
-        bound,
+        ready,
         assembledText,
-        bound ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT,
-        bound ? List.of() : openQuestions,
+        ready ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT,
+        openQuestions,
         sourceSkillId,
         sourceSkillVersion,
         sourceSkillHash,

@@ -51,6 +51,49 @@ class JsonSchemaMappingContractFactoryTest {
   }
 
   @Test
+  void nestedOpenObjectAcceptsAdditionalFields() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            }
+            """);
+
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+
+    assertTrue(contract.field("$.parameters.salesforceTaskId").isPresent());
+  }
+
+  @Test
+  void nestedClosedObjectRejectsAdditionalFields() throws Exception {
+    JsonNode schema =
+        MAPPER.readTree(
+            """
+            {
+              "type": "object",
+              "properties": {
+                "parameters": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                }
+              }
+            }
+            """);
+
+    MappingContract contract = JsonSchemaMappingContractFactory.from(schema);
+
+    assertTrue(contract.field("$.parameters.salesforceTaskId").isEmpty());
+  }
+
+  @Test
   void nullInputIsUnknownContract() {
     assertFalse(JsonSchemaMappingContractFactory.from(null).known());
   }

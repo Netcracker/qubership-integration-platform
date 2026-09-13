@@ -6,22 +6,22 @@ import io.quarkiverse.langchain4j.ModelName;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
+import java.net.URI;
+import java.util.Locale;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 
 /**
  * Produces the unqualified {@link ChatModel} / {@link StreamingChatModel} beans used by {@code
  * @RegisterAiService} agents.
  *
- * <p>OpenAI synthetic beans are configured under the named model {@value #UPSTREAM_MODEL_NAME} so
- * they carry {@link ModelName} and are not disabled by this producer. The producer is the sole
- * unqualified ChatModel — agents inject the rate-limit wrapper without competing with OpenAI
- * {@code @DefaultBean}.
+ * <p>Provider-specific synthetic beans use separate names. The producer selects one at runtime and
+ * remains the sole unqualified ChatModel for registered agents.
  */
 @ApplicationScoped
 public class RateLimitChatModelProducer {
 
-  /** Named OpenAI config key: {@code quarkus.langchain4j.openai.upstream.*}. */
-  public static final String UPSTREAM_MODEL_NAME = "upstream";
+  public static final String OPENAI_UPSTREAM_MODEL_NAME = "openai-upstream";
+  public static final String ANTHROPIC_UPSTREAM_MODEL_NAME = "anthropic-upstream";
 
   private final AppConfig appConfig;
   private final RateLimitBackoffSleeper sleeper;
@@ -34,12 +34,28 @@ public class RateLimitChatModelProducer {
   RateLimitChatModelProducer(
       AppConfig appConfig,
       RateLimitBackoffSleeper sleeper,
-      @ModelName(UPSTREAM_MODEL_NAME) ChatModel upstreamChatModel,
-      @ModelName(UPSTREAM_MODEL_NAME) StreamingChatModel upstreamStreamingChatModel) {
+      @ModelName(OPENAI_UPSTREAM_MODEL_NAME) ChatModel openAiChatModel,
+      @ModelName(OPENAI_UPSTREAM_MODEL_NAME) StreamingChatModel openAiStreamingChatModel,
+      @ModelName(ANTHROPIC_UPSTREAM_MODEL_NAME) ChatModel anthropicChatModel,
+      @ModelName(ANTHROPIC_UPSTREAM_MODEL_NAME) StreamingChatModel anthropicStreamingChatModel) {
     this.appConfig = appConfig;
     this.sleeper = sleeper;
-    this.upstreamChatModel = upstreamChatModel;
-    this.upstreamStreamingChatModel = upstreamStreamingChatModel;
+    boolean useAnthropic = useAnthropic(appConfig.llm().provider(), appConfig.llm().baseUrl());
+    this.upstreamChatModel = useAnthropic ? anthropicChatModel : openAiChatModel;
+    this.upstreamStreamingChatModel =
+        useAnthropic ? anthropicStreamingChatModel : openAiStreamingChatModel;
+  }
+
+  static boolean useAnthropic(String provider, String baseUrl) {
+    String normalized = provider == null ? "auto" : provider.trim().toLowerCase(Locale.ROOT);
+    return switch (normalized) {
+      case "anthropic" -> true;
+      case "openai" -> false;
+      case "auto" -> "api.anthropic.com".equalsIgnoreCase(URI.create(baseUrl).getHost());
+      default ->
+          throw new IllegalArgumentException(
+              "Unsupported LLM provider '" + provider + "'. Use auto, openai, or anthropic.");
+    };
   }
 
   @Produces
