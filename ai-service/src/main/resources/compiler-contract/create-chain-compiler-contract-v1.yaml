@@ -136,7 +136,7 @@ elements:
     materializationRuleId: materialize-catch-2
     runtimeDescriptor:
       type: catch-2
-      container: false
+      container: true
       deprecated: false
 topology:
   split-async-2:

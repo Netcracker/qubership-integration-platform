@@ -95,9 +95,14 @@ jq -e '
     and $s.uniqueChainNamePrefix == "AiRecoveryRevise"
     and $s.recovery.faultStage == "design-execution"
     and $s.recovery.ownerStage == "design-planning"
+    and $s.recovery.automaticOnly == true
+    and $s.recovery.faultPlan == "design-execution=MISSING_REQUIRED_PROPERTY:1"
     and (($s.recovery.followUp | type) == "string" and ($s.recovery.followUp | length) > 0)
 ' "${DIR}/scenarios.json" >/dev/null \
   || fail "recovery scenario must define the injected fault and causal owner"
+[[ "$(jq -r '."product-create-chain-recovery-exhausted-halt".recovery.faultPlan' "${DIR}/scenarios.json")" \
+    == "design-execution=MISSING_REQUIRED_PROPERTY:2" ]] \
+  || fail "exhausted recovery scenario must inject the same defect twice"
 rg -q 'QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX' "${GATE_SH}" \
   || fail "quality gate must scope the recovery fault to the selected chain prefix"
 rg -q -- '--no-build --no-deps --force-recreate qip-ai-service' "${GATE_SH}" \
@@ -113,6 +118,28 @@ rg -q 'causal reopen of' "${SCENARIO_SH}" \
 rg -q 'MATERIALIZATION_REQUEST.*MATERIALIZATION_RESULT.*CATALOG_CHAIN_SNAPSHOT' "${SCENARIO_SH}" \
   || fail "product runner must reject materialization artifacts before revision"
 pass "recovery scenario contract"
+
+echo "=== recovery verifier keeps the detector after reopening its owner ==="
+rg -q 'stageErrorFailedStageId == \$fault' "${SCENARIO_SH}" \
+  || fail "recovery verifier must read the original detector from structured failure evidence"
+jq -e --arg fault "design-execution" '
+  any(.attempts[]?;
+    ((.failureEvidence // "") | contains("E2E recovery fault"))
+    and (
+      .stageId == $fault
+      or (try ((.failureEvidence // "") | fromjson | .stageErrorFailedStageId == $fault)
+          catch false)))
+' <<'EOF' >/dev/null
+{
+  "attempts": [
+    {
+      "stageId": "design-input",
+      "failureEvidence": "{\"stageErrorContext\":\"E2E recovery fault\",\"stageErrorFailedStageId\":\"design-execution\"}"
+    }
+  ]
+}
+EOF
+pass "recovery detector evidence contract"
 
 echo "=== exhausted halt scenario is expressible and skipped from the default gate ==="
 jq -e '
@@ -542,7 +569,7 @@ jq '
   | .committedArtifactKinds = ["REQUIREMENT_BRIEF", "IMPLEMENTATION_PLAN", "PLAN_VALIDATION_RESULT", "APPROVAL_RECORD"]
   | .transitions = [{
       "toStatus": "WAITING_FOR_INPUT",
-      "reason": "__GATE:stage-escalated__That stage is not a candidate for this defect. Allowed stages: design-planning.__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
+      "reason": "__GATE:recovery-repeated__That stage is not a candidate for this defect. Allowed stages: design-planning.__GUARD__NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
     }]
 ' "${ev}" >"${halt_ev}"
 python3 "${BUILD_PY}" \
@@ -555,7 +582,7 @@ python3 "${BUILD_PY}" \
   --out "${TMP}/halt-report.json"
 jq -e '
   .terminalState == "WAITING_FOR_INPUT"
-  and .haltGate == "stage-escalated"
+  and .haltGate == "recovery-repeated"
   and .haltGuard == "NAMED_STAGE_OUTSIDE_CANDIDATE_SET"
   and (.haltPrompt | contains("That stage is not a candidate for this defect."))
   and (.haltActions | index("stop-with-report") != null)
@@ -642,6 +669,38 @@ rg -q 'ai-e2e' "${GATE_SH}" \
 rg -q 'qip-e2e-evaluator' "${GATE_SH}" \
   || fail "run-quality-gate.sh must start qip-e2e-evaluator when auto-resolving URL"
 pass "quality gate evaluator URL precedence markers"
+
+echo "=== quality gate fails closed on semantic rejection ==="
+rg -q '\(\$semantic.failed // false\) != true' "${GATE_SH}" \
+  || fail "quality-gate verdict must reject semantic.failed=true"
+pass "quality gate fails closed on semantic rejection"
+
+echo "=== quality gate returns FAIL for low semantic scores ==="
+cat >"${TMP}/low-semantic-score.json" <<'EOF'
+{
+  "intentFidelity": 4,
+  "completeness": 2,
+  "executability": 2,
+  "unnecessaryComplexity": 4,
+  "evidence": ["required endpoint is missing"]
+}
+EOF
+set +e
+PRODUCT_PIPELINE_STUB_MODE=1 \
+PRODUCT_PIPELINE_STUB_SCORE_FILE="${TMP}/low-semantic-score.json" \
+bash "${GATE_SH}" \
+  --runs 1 \
+  --scenario product-create-chain-greetings \
+  --report-dir "${TMP}/low-semantic-gate" \
+  --base-url "http://127.0.0.1:9" >/dev/null 2>&1
+low_semantic_rc=$?
+set -e
+[[ "${low_semantic_rc}" -ne 0 ]] \
+  || fail "quality gate must exit nonzero for low semantic scores"
+jq -e '.verdict == "FAIL" and .semantic.failed == true' \
+  "${TMP}/low-semantic-gate/summary.json" >/dev/null \
+  || fail "quality gate must record semantic failure in its summary"
+pass "quality gate rejects low semantic scores"
 
 echo "=== run-product-scenario still requires --evaluator-url ==="
 set +e
@@ -933,6 +992,8 @@ rg -q 'E2E_CHAT_ATTACHMENT' "${DIR}/scripts/chat-turn.sh" \
   || fail "chat-turn.sh must send E2E_CHAT_ATTACHMENT"
 rg -q 'E2E_CHAT_DECISION_JSON' "${DIR}/scripts/chat-turn.sh" \
   || fail "chat-turn.sh must send E2E_CHAT_DECISION_JSON"
+rg -q 'E2E_CHAT_ATTACHMENT_KEYS_JSON' "${DIR}/scripts/chat-turn.sh" \
+  || fail "chat-turn.sh must send uploaded attachmentObjectKeys"
 rg -q 'e2e_extract_apply_chain_patch_decision' "${DIR}/scripts/lib.sh" \
   || fail "lib.sh must extract apply-chain-patch decision cards"
 rg -q 'compare-and-patch' "${GATE_SH}" \
@@ -941,7 +1002,7 @@ rg -q 'run-patch-scenario.sh' "${GATE_SH}" \
   || fail "run-quality-gate.sh must invoke run-patch-scenario.sh"
 jq -e '
   [to_entries[] | select((.value.status // "active") == "active" and .value.pipeline == "compare-and-patch")]
-  | length == 4
+  | length == 6
   and all(
     .value.terminalState == "CHAIN_PATCHED"
     and .value.retainCatalogChain == true
@@ -950,13 +1011,13 @@ jq -e '
     and ((.value.seed.elements | type) == "array" and (.value.seed.elements | length) > 0)
   )
 ' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "exactly four active compare-and-patch CHAIN_PATCHED retain scenarios required"
+  || fail "exactly six active compare-and-patch CHAIN_PATCHED retain scenarios required"
 jq -e '."product-patch-chain-multi-turn".prompts | length == 2' "${SCENARIOS_FILE}" >/dev/null \
   || fail "multi-turn patch scenario must send two separate prompts"
 jq -e '."product-patch-chain-try-catch".status == "active"' "${SCENARIOS_FILE}" >/dev/null \
   || fail "try-catch wrap patch must stay active after live validation"
-jq -e '."product-patch-chain-replace-subgraph".status == "inactive"' "${SCENARIOS_FILE}" >/dev/null \
-  || fail "replace-subgraph patch stays inactive beside the wrap scenario until that wrap run is green"
+jq -e '."product-patch-chain-replace-subgraph".status == "active"' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "replace-subgraph patch must stay active after the wrap scenario passed"
 jq -e '."product-patch-chain-replace-subgraph".catalog.minTypeCounts.script == 2' "${SCENARIOS_FILE}" >/dev/null \
   || fail "replace-subgraph patch must require two scripts after the swap"
 jq -e '
@@ -989,15 +1050,67 @@ jq -e '.action == "apply-chain-patch" and .artifactHash == "sha256:abc" and .art
   || fail "extractor must bind apply-chain-patch to the card hash"
 pass "apply-chain-patch decision extraction"
 
-echo "=== chat-turn payload includes attachment and decision ==="
+echo "=== uploaded specification decision extraction ==="
+sse_upload="${TMP}/uploaded-spec-decision.sse"
+cat >"${sse_upload}" <<'EOF'
+event: decision
+data: {"revision":12,"actions":["import-specification","cancel"],"artifactType":"uploaded-specs-import-proposal","artifactHash":"sha256:upload"}
+
+event: done
+data: conv-upload
+EOF
+if ! upload_decision="$(e2e_extract_uploaded_spec_import_decision \
+    "${sse_upload}" "e2e/orders.yaml" "EXTERNAL")"; then
+  fail "extractor missed uploaded specification import card"
+fi
+jq -e '
+  .action == "import-specification"
+  and .artifactType == "uploaded-specs-import-proposal"
+  and .artifactHash == "sha256:upload"
+  and .revision == 12
+  and .specSystemTypes["e2e/orders.yaml"] == "EXTERNAL"
+' <<<"${upload_decision}" >/dev/null \
+  || fail "extractor must bind the uploaded object key and system type to the card"
+pass "uploaded specification decision extraction"
+
+echo "=== uploaded OpenAPI scenario covers import, binding, mapping, and materialization ==="
+jq -e '
+  .["product-create-chain-uploaded-openapi-mapping"] as $s
+  | $s.status == "active"
+    and $s.pipeline == "create-chain-v1"
+    and $s.profileId == "create-chain"
+    and $s.profileVersion == "2"
+    and $s.terminalState == "CHAIN_MATERIALIZED"
+    and $s.retainCatalogChain == true
+    and $s.uploadedSpec.fixture == "fixtures/rocky-orders-openapi.yaml"
+    and $s.uploadedSpec.systemType == "EXTERNAL"
+    and ($s.catalog.requiredTypes | index("service-call") != null)
+    and any($s.catalog.properties[];
+      .type == "service-call" and .key == "integrationOperationId" and .nonBlank == true)
+    and any($s.catalog.properties[];
+      .type == "service-call" and .key == "integrationOperationPath" and .equals == "/orders")
+    and any($s.catalog.properties[];
+      .type == "script" and .key == "script" and .contains == "customerId")
+' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "uploaded OpenAPI scenario must cover import, catalog binding, field mapping, and materialization"
+rg -q '/api/v1/storage/objects' "${SCENARIO_SH}" \
+  || fail "product runner must upload the OpenAPI fixture through object storage"
+rg -q 'e2e_extract_uploaded_spec_import_decision' "${SCENARIO_SH}" \
+  || fail "product runner must answer the exact import-specification decision card"
+pass "uploaded OpenAPI end-to-end scenario contract"
+
+echo "=== chat-turn payload includes attachment keys, attachment, and decision ==="
 payload_out="${TMP}/chat-payload.json"
 attachment_text='## Current Chain: Demo (ID: chain-42)'
+attachment_keys_text='["e2e/orders.yaml"]'
 decision_text='{"action":"apply-chain-patch","artifactType":"CHAIN_PATCH","artifactHash":"sha256:abc","revision":0}'
-python3 - "-" "change the script" "" "${attachment_text}" "${decision_text}" >"${payload_out}" <<'PY'
+python3 - \
+  "-" "change the script" "" "${attachment_text}" \
+  "${attachment_keys_text}" "${decision_text}" >"${payload_out}" <<'PY'
 import json
 import sys
 
-conv_id, message, hint, attachment, decision_json = sys.argv[1:6]
+conv_id, message, hint, attachment, attachment_keys_json, decision_json = sys.argv[1:7]
 body = {"message": message}
 if conv_id and conv_id != "-":
     body["conversationId"] = conv_id
@@ -1005,18 +1118,21 @@ if hint:
     body["scenarioHint"] = hint
 if attachment:
     body["attachment"] = attachment
+if attachment_keys_json:
+    body["attachmentObjectKeys"] = json.loads(attachment_keys_json)
 if decision_json:
     body["decision"] = json.loads(decision_json)
 print(json.dumps(body))
 PY
 jq -e '
   .attachment == "## Current Chain: Demo (ID: chain-42)"
+  and .attachmentObjectKeys == ["e2e/orders.yaml"]
   and .decision.action == "apply-chain-patch"
   and .decision.artifactHash == "sha256:abc"
   and (has("scenarioHint") | not)
 ' "${payload_out}" >/dev/null \
-  || fail "chat payload must carry attachment and decision without a scenario hint"
-pass "chat-turn attachment and decision payload"
+  || fail "chat payload must carry attachment keys, attachment, and decision without a scenario hint"
+pass "chat-turn attachment keys, attachment, and decision payload"
 
 echo "=== create-chain@1 backward-compat remains loadable ==="
 AI_SVC_ROOT="$(cd "${DIR}/../.." && pwd)"

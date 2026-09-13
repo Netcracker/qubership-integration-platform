@@ -34,6 +34,13 @@ def validate_score(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def stub_score(report: dict[str, Any]) -> dict[str, Any]:
+    score_file = os.environ.get("PRODUCT_PIPELINE_STUB_SCORE_FILE")
+    if score_file:
+        with open(score_file, encoding="utf-8") as handle:
+            score = json.load(handle)
+        if not isinstance(score, dict):
+            raise ValueError("stub score must be a JSON object")
+        return score
     facts = report.get("requiredFacts") or ["CREATE"]
     return {
         "intentFidelity": 4,

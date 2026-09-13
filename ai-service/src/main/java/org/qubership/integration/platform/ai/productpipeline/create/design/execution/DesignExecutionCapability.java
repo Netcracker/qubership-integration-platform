@@ -10,10 +10,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
@@ -35,7 +33,6 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
-import org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningSkillArtifactUnavailableException;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionInputs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
@@ -44,6 +41,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
+import org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard;
 
 /**
  * create-chain@2 design-execution stage. Resolves the implementation {@link ApprovalRecordV2} and
@@ -54,35 +53,23 @@ public class DesignExecutionCapability implements StageCapability {
 
   public static final String CAPABILITY_ID = "design-execution";
 
-  /**
-   * Live recovery injects {@link RecoveryCauseCode#MISSING_REQUIRED_PROPERTY}, which auto-reopens
-   * the owner. A second injection on the same run parks because that owner already reopened.
-   */
-  static final int MAX_E2E_RECOVERY_FAULT_INJECTIONS = 2;
-
   private final ProductPipelineArtifactStore artifactStore;
   private final CipDesignExecutorJavaAdapter adapter;
-  private final String recoveryFaultChainPrefix;
+  private final E2eRecoveryFaultInjector recoveryFaultInjector;
   private final CaptureAttemptFeedbackStore feedbackStore;
-  private final ConcurrentHashMap<String, Integer> recoveryFaultInjections =
-      new ConcurrentHashMap<>();
 
   @Inject
   public DesignExecutionCapability(
       ProductPipelineArtifactStore artifactStore,
       CipDesignExecutorJavaAdapter adapter,
-      AppConfig appConfig,
-      CaptureAttemptFeedbackStore feedbackStore) {
-    this(
-        artifactStore,
-        adapter,
-        appConfig.e2e().recoveryFaultChainPrefix().orElse(""),
-        feedbackStore);
+      CaptureAttemptFeedbackStore feedbackStore,
+      E2eRecoveryFaultInjector recoveryFaultInjector) {
+    this(artifactStore, adapter, recoveryFaultInjector, feedbackStore);
   }
 
   public DesignExecutionCapability(
       ProductPipelineArtifactStore artifactStore, CipDesignExecutorJavaAdapter adapter) {
-    this(artifactStore, adapter, "", null);
+    this(artifactStore, adapter, new E2eRecoveryFaultInjector("", ""), null);
   }
 
   /** Test constructor: sets the recovery-fault chain-name prefix directly. */
@@ -90,7 +77,12 @@ public class DesignExecutionCapability implements StageCapability {
       ProductPipelineArtifactStore artifactStore,
       CipDesignExecutorJavaAdapter adapter,
       String recoveryFaultChainPrefix) {
-    this(artifactStore, adapter, recoveryFaultChainPrefix, null);
+    this(
+        artifactStore,
+        adapter,
+        new E2eRecoveryFaultInjector(
+            recoveryFaultChainPrefix, E2eRecoveryFaultInjector.DEFAULT_PLAN),
+        null);
   }
 
   DesignExecutionCapability(
@@ -98,10 +90,23 @@ public class DesignExecutionCapability implements StageCapability {
       CipDesignExecutorJavaAdapter adapter,
       String recoveryFaultChainPrefix,
       CaptureAttemptFeedbackStore feedbackStore) {
+    this(
+        artifactStore,
+        adapter,
+        new E2eRecoveryFaultInjector(
+            recoveryFaultChainPrefix, E2eRecoveryFaultInjector.DEFAULT_PLAN),
+        feedbackStore);
+  }
+
+  DesignExecutionCapability(
+      ProductPipelineArtifactStore artifactStore,
+      CipDesignExecutorJavaAdapter adapter,
+      E2eRecoveryFaultInjector recoveryFaultInjector,
+      CaptureAttemptFeedbackStore feedbackStore) {
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.adapter = Objects.requireNonNull(adapter, "adapter");
-    this.recoveryFaultChainPrefix =
-        recoveryFaultChainPrefix == null ? "" : recoveryFaultChainPrefix.trim();
+    this.recoveryFaultInjector =
+        Objects.requireNonNull(recoveryFaultInjector, "recoveryFaultInjector");
     this.feedbackStore = feedbackStore;
   }
 
@@ -176,13 +181,18 @@ public class DesignExecutionCapability implements StageCapability {
       if (resolved.error() != null) {
         return completedSignal(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, resolved.error()));
       }
-      if (injectRecoveryFault(context.runId(), resolved.inputs().revision().chainIdentity())) {
+      Optional<RecoveryCauseCode> injected =
+          recoveryFaultInjector.next(
+              context.runId(),
+              resolved.inputs().revision().chainIdentity(),
+              CAPABILITY_ID);
+      if (injected.isPresent()) {
+        RecoveryCauseCode causeCode = injected.orElseThrow();
         return completedSignal(
             StageOutcome.of(
                 StageOutcomeClass.VALIDATION_FAILURE,
-                "E2E recovery fault: the implementation plan is missing required setting "
-                    + "'recovery-check'. Revise design-planning before materialization.",
-                RecoveryCause.of(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY)));
+                recoveryFaultMessage(causeCode),
+                recoveryFaultCause(causeCode)));
       }
       ExecutionResult result =
           adapter.executeAfterApproval(resolved.inputs(), context.attemptId(), skillProgress);
@@ -226,14 +236,18 @@ public class DesignExecutionCapability implements StageCapability {
     }
   }
 
-  private boolean injectRecoveryFault(String runId, String chainName) {
-    if (recoveryFaultChainPrefix.isBlank()
-        || chainName == null
-        || !chainName.startsWith(recoveryFaultChainPrefix)) {
-      return false;
+  private static String recoveryFaultMessage(RecoveryCauseCode causeCode) {
+    if (causeCode == RecoveryCauseCode.MISSING_REQUIRED_PROPERTY) {
+      return "E2E recovery fault: the implementation plan is missing required setting "
+          + "'recovery-check'. Revise design-planning before materialization.";
     }
-    int injected = recoveryFaultInjections.merge(runId, 1, Integer::sum);
-    return injected <= MAX_E2E_RECOVERY_FAULT_INJECTIONS;
+    return "E2E recovery fault: injected " + causeCode + " at design-execution.";
+  }
+
+  private static RecoveryCause recoveryFaultCause(RecoveryCauseCode causeCode) {
+    return causeCode == RecoveryCauseCode.CATALOG_RESOLUTION
+        ? RecoveryCause.bindingIdentityMismatch("e2e-recovery-fault")
+        : RecoveryCause.of(causeCode);
   }
 
   private ResolvedInputs resolveInputs(StageExecutionContext context) {

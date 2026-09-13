@@ -40,6 +40,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -310,6 +311,12 @@ public class RequirementAnalysisCapability implements StageCapability {
    * model does not replace the requirement brief.
    */
   private RequirementBrief applyMappingTurn(StageExecutionContext context, RequirementBrief brief) {
+    // The repair agent already consumed the findings and author correction. Keep its candidate.
+    if (StageRepairEvidence.isRepairTurn(context)
+        && RecoveryCauseCode.MAPPING_CONTRACT.name().equals(
+            context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR))) {
+      return brief;
+    }
     if (mappingTurnAdapter == null) {
       return brief;
     }
@@ -673,7 +680,9 @@ public class RequirementAnalysisCapability implements StageCapability {
       sb.append(
           "Repair the previously approved requirement brief so it addresses the halt findings. "
               + "Call captureRequirementBrief with the updated brief. Do not restart discovery "
-              + "from scratch.\n\n");
+              + "from scratch. For mapping findings, repair the rules on the identified "
+              + "mappingIntentId at the reported source/target ports. Rules on another transition "
+              + "do not resolve the finding.\n\n");
       sb.append(
           "Response language rule: after capture, summarize the changes you made in pinned "
               + "response locale "

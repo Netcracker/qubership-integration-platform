@@ -70,15 +70,15 @@ public final class ChainPatchRemovalClosure {
       }
     }
 
-    Set<String> alreadyRemovedEdgeIds = new LinkedHashSet<>(removedEdgeIds(edgePatches));
+    Set<String> alreadyPatchedEdgeIds = new LinkedHashSet<>(targetedEdgeIds(edgePatches));
     List<EdgePatch> expandedEdges = new ArrayList<>(edgePatches);
     for (ChainPlanEdge edge : incidentEdges(base, closure)) {
-      if (alreadyRemovedEdgeIds.add(edge.edgeId())) {
+      if (alreadyPatchedEdgeIds.add(edge.edgeId())) {
         expandedEdges.add(new EdgePatch(GraphPatchOperation.REMOVE, null, edge.edgeId()));
       }
     }
     for (ChainPlanEdge edge : replacedEdges(base, nodePatches, edgePatches)) {
-      if (alreadyRemovedEdgeIds.add(edge.edgeId())) {
+      if (alreadyPatchedEdgeIds.add(edge.edgeId())) {
         expandedEdges.add(new EdgePatch(GraphPatchOperation.REMOVE, null, edge.edgeId()));
       }
     }
@@ -253,5 +253,15 @@ public final class ChainPatchRemovalClosure {
       }
     }
     return removed;
+  }
+
+  private static Set<String> targetedEdgeIds(List<EdgePatch> edgePatches) {
+    Set<String> targeted = new LinkedHashSet<>();
+    for (EdgePatch edgePatch : edgePatches) {
+      if (edgePatch != null && edgePatch.targetEdgeId() != null) {
+        targeted.add(edgePatch.targetEdgeId());
+      }
+    }
+    return targeted;
   }
 }

@@ -1,0 +1,126 @@
+{
+  "semanticRevision": {
+    "schemaVersion": "chain-semantic-revision/v1",
+    "revisionId": "executor-eval-retry-error-v1",
+    "chainIdentity": "Payment Retry Error Eval",
+    "compilerContractVersion": "create-chain-compiler-contract/v1",
+    "entryPoints": [
+      {
+        "entryPointId": "http-in",
+        "triggerNodeId": "trigger-http",
+        "initialTargetNodeId": "payment-map-script",
+        "order": 0,
+        "provenance": {"sourceFactIds": []},
+        "presentation": {"label": "POST /payments", "description": "Authorize a payment"}
+      }
+    ],
+    "nodes": [
+      {"nodeId": "trigger-http", "kind": "TRIGGER", "interactionId": "http-in", "capabilityKey": "http-trigger", "provenance": {"sourceFactIds": []}},
+      {"nodeId": "payment-map-script", "kind": "OPERATION", "elementType": "script", "provenance": {"sourceFactIds": ["payment-map-fact"]}},
+      {"nodeId": "payment-call", "kind": "SERVICE_CALL", "serviceCallId": "payment-authorize", "operation": "authorizePayment", "provenance": {"sourceFactIds": ["payment-call-fact"]}},
+      {"nodeId": "after-retry-script", "kind": "OPERATION", "elementType": "script", "provenance": {"sourceFactIds": ["after-retry-fact"]}},
+      {"nodeId": "try-catch-1", "kind": "OPERATION", "elementType": "try-catch-finally-2", "provenance": {"sourceFactIds": ["error-scope-fact"]}},
+      {"nodeId": "try-body-script", "kind": "OPERATION", "elementType": "script", "provenance": {"sourceFactIds": ["try-body-fact"]}},
+      {"nodeId": "error-script", "kind": "OPERATION", "elementType": "script", "provenance": {"sourceFactIds": ["error-script-fact"]}}
+    ],
+    "regions": [
+      {
+        "regionId": "error-region",
+        "kind": "ERROR_SCOPE",
+        "ownerNodeId": "try-catch-1",
+        "tryEntryNodeId": "try-body-script",
+        "handlers": [
+          {
+            "handlerId": "catch-all",
+            "exceptionClass": "java.lang.Exception",
+            "entryNodeId": "error-script",
+            "exitNodeIds": ["error-script"]
+          }
+        ],
+        "exitNodeIds": ["after-retry-script", "error-script"]
+      },
+      {
+        "regionId": "retry-region",
+        "kind": "RETRY",
+        "ownerNodeId": "payment-call",
+        "bodyEntryNodeId": "payment-call",
+        "bodyExitNodeIds": ["payment-call"],
+        "exhaustedNodeId": "after-retry-script",
+        "policy": {"retryCount": 3, "retryDelayMillis": 1000}
+      }
+    ],
+    "executionEdges": [
+      {"edgeId": "edge-entry", "sourceNodeId": "trigger-http", "targetNodeId": "payment-map-script", "route": {"kind": "SEQUENCE"}},
+      {"edgeId": "edge-map-scope", "sourceNodeId": "payment-map-script", "targetNodeId": "try-catch-1", "route": {"kind": "SEQUENCE"}, "mappingId": "payment-map"},
+      {"edgeId": "edge-try", "sourceNodeId": "try-catch-1", "targetNodeId": "try-body-script", "regionId": "error-region", "route": {"kind": "TRY_PATH"}},
+      {"edgeId": "edge-retry", "sourceNodeId": "try-body-script", "targetNodeId": "payment-call", "regionId": "retry-region", "route": {"kind": "RETRY_ATTEMPT"}},
+      {"edgeId": "edge-exhausted", "sourceNodeId": "payment-call", "targetNodeId": "after-retry-script", "regionId": "retry-region", "route": {"kind": "RETRY_EXHAUSTED"}},
+      {"edgeId": "edge-catch", "sourceNodeId": "try-catch-1", "targetNodeId": "error-script", "regionId": "error-region", "route": {"kind": "CATCH_PATH", "handlerId": "catch-all"}}
+    ],
+    "containment": [
+      {"parentNodeId": "try-catch-1", "childNodeId": "try-body-script", "role": "try-2"},
+      {"parentNodeId": "try-catch-1", "childNodeId": "error-script", "role": "catch-2"}
+    ],
+    "mappingIntents": [],
+    "constraints": ["Retry authorizePayment three times", "Catch java.lang.Exception"],
+    "assumptions": [],
+    "citations": []
+  },
+  "requirementBrief": {
+    "goal": "Expose POST /payments, map the request, authorize payment with three attempts, and return a safe error from catch.",
+    "inputs": ["HTTP POST /payments"],
+    "constraints": ["Retry authorizePayment three times", "Catch java.lang.Exception"],
+    "assumptions": [],
+    "citations": [],
+    "summary": "Payment mapping, a catalog service call with retry, and try/catch error handling.",
+    "facts": [
+      {"sourceFactId": "endpoint-fact", "polarity": "POSITIVE", "kind": "ENDPOINT", "capabilityKey": "http-trigger", "text": "Expose POST /payments.", "httpMethod": "POST", "path": "/payments"}
+    ],
+    "entryPoints": [
+      {
+        "entryPointId": "http-in",
+        "sourceFactId": "endpoint-fact",
+        "capabilityKey": "http-trigger",
+        "topic": "",
+        "httpMethod": "POST",
+        "path": "/payments",
+        "operation": ""
+      }
+    ],
+    "serviceCalls": [],
+    "requirements": [],
+    "mappingIntents": [
+      {
+        "mappingIntentId": "payment-map",
+        "sourceRef": "edge-map-scope",
+        "sourcePort": "OUTPUT",
+        "targetRef": "payment-call",
+        "targetPort": "REQUEST",
+        "rules": [
+          {"sourcePath": "amount", "targetPath": "payment.amount", "status": "PROPOSED"}
+        ]
+      }
+    ],
+    "catalogBindings": [],
+    "skippedTransitions": []
+  },
+  "bindings": [
+    {
+      "targetNodeId": "payment-call",
+      "serviceCallId": "payment-authorize",
+      "systemType": "EXTERNAL",
+      "systemId": "payments-service",
+      "specificationGroupId": "payments-api",
+      "specificationId": "payments-api-v1",
+      "operationId": "authorizePayment",
+      "protocolType": "HTTP",
+      "method": "POST",
+      "path": "/payments/authorize",
+      "displayName": "Payments Service.authorizePayment",
+      "source": "EXISTING_CATALOG",
+      "release": "2024.4",
+      "evidenceRef": "executor-eval",
+      "packageId": "payments-package"
+    }
+  ]
+}

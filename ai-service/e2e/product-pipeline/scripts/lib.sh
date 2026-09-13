@@ -217,6 +217,58 @@ print(json.dumps({
 PY
 }
 
+# Print the typed import decision for an uploaded specification card, or fail.
+e2e_extract_uploaded_spec_import_decision() {
+  local sse_file="${1:?sse file}"
+  local object_key="${2:?object key}"
+  local system_type="${3:?system type}"
+  python3 - "$sse_file" "$object_key" "$system_type" <<'PY'
+import json
+import re
+import sys
+
+path, object_key, system_type = sys.argv[1:4]
+text = open(path, errors="replace").read()
+found = None
+for block in re.split(r"\n\n+", text):
+    event = ""
+    data_lines = []
+    for raw in block.splitlines():
+        line = raw.rstrip("\r")
+        if line.startswith("event:"):
+            event = line.split(":", 1)[1].strip()
+        elif line.startswith("data:event:"):
+            event = line.split(":", 2)[2].strip()
+        elif line.startswith("data:"):
+            payload = line[5:]
+            if payload.startswith("data:"):
+                payload = payload[5:]
+            data_lines.append(payload.lstrip())
+    if event != "decision" or not data_lines:
+        continue
+    try:
+        obj = json.loads("\n".join(data_lines))
+    except json.JSONDecodeError:
+        continue
+    actions = obj.get("actions") or []
+    if (
+        "import-specification" in actions
+        and obj.get("artifactType") == "uploaded-specs-import-proposal"
+        and obj.get("artifactHash")
+    ):
+        found = obj
+if found is None:
+    raise SystemExit(1)
+print(json.dumps({
+    "action": "import-specification",
+    "artifactType": found["artifactType"],
+    "artifactHash": found["artifactHash"],
+    "revision": found.get("revision") or 0,
+    "specSystemTypes": {object_key: system_type},
+}))
+PY
+}
+
 e2e_extract_done_conversation_id() {
   local sse_file="$1"
   local conv_id=""

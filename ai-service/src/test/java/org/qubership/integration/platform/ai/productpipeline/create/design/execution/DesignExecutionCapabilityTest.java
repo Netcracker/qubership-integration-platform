@@ -68,6 +68,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
@@ -397,6 +398,28 @@ class DesignExecutionCapabilityTest {
     StageOutcome third = execute(standardInputRefs());
 
     assertEquals(StageOutcomeClass.SUCCEEDED, third.outcomeClass());
+    verify(runner).execute(any(), any(), anyList(), any(), eq("attempt-1"), any());
+  }
+
+  @Test
+  void configuredCatalogMismatchFaultCarriesDesignInputRecoveryEvidenceOnce() {
+    capability =
+        new DesignExecutionCapability(
+            artifactStore,
+            adapter,
+            new E2eRecoveryFaultInjector(
+                "Orders", "design-execution=CATALOG_RESOLUTION:1"),
+            null);
+
+    StageOutcome first = execute(standardInputRefs());
+
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, first.outcomeClass());
+    assertTrue(first.recoveryCause().isBindingIdentityMismatch());
+    verifyNoInteractions(bindingAdapter, runner);
+
+    StageOutcome second = execute(standardInputRefs());
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, second.outcomeClass());
     verify(runner).execute(any(), any(), anyList(), any(), eq("attempt-1"), any());
   }
 

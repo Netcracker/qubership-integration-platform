@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -91,6 +93,34 @@ public final class DesignImplementationPlanRenderer {
       }
       endpointFacts.add(triggerFact);
       body.append('\n').append("## Trigger").append('\n').append("- ").append(triggerFact).append('\n');
+    }
+
+    List<String> approvedRequirementFacts = new ArrayList<>();
+    if (brief != null) {
+      for (var fact : brief.facts()) {
+        if (fact == null
+            || fact.polarity() != RequirementFactPolarity.POSITIVE
+            || fact.text().isBlank()) {
+          continue;
+        }
+        boolean endpoint =
+            fact.kind() == RequirementFactKind.ENDPOINT
+                || (!fact.httpMethod().isBlank() && !fact.path().isBlank());
+        if (endpoint && !endpointFacts.contains(fact.text())) {
+          endpointFacts.add(fact.text());
+          approvedRequirementFacts.add(fact.text());
+        } else if (fact.kind() == RequirementFactKind.BEHAVIOR
+            && !scriptOutcomes.contains(fact.text())) {
+          scriptOutcomes.add(fact.text());
+          approvedRequirementFacts.add(fact.text());
+        }
+      }
+    }
+    if (!approvedRequirementFacts.isEmpty()) {
+      body.append('\n').append("## Approved requirement facts").append('\n');
+      for (String fact : approvedRequirementFacts) {
+        body.append("- ").append(fact).append('\n');
+      }
     }
 
     if (!revision.mappingBodies(brief).isEmpty()) {

@@ -1,0 +1,38 @@
+openapi: 3.0.3
+info:
+  title: Rocky Orders API
+  version: 1.0.0
+paths:
+  /orders:
+    post:
+      operationId: createRockyOrder
+      summary: Create a Rocky order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - customerId
+                - amount
+              properties:
+                customerId:
+                  type: string
+                amount:
+                  type: number
+      responses:
+        "200":
+          description: Order accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - executionId
+                  - status
+                properties:
+                  executionId:
+                    type: string
+                  status:
+                    type: string

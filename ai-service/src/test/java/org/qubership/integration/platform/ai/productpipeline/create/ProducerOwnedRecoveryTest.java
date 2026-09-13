@@ -140,6 +140,46 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
+  void aPreWriteMaterializationInputDefectReopensDesignExecution() {
+    ProducerOwnedRecovery.Route route =
+        ProducerOwnedRecovery.route(
+            new ProducerOwnedRecovery.Request(
+                "materialization",
+                StageOutcomeClass.CONTRACT_FAILURE,
+                RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE),
+                List.of(
+                    new OwnerCandidate("materialization", "materialization-result"),
+                    new OwnerCandidate("design-execution", "materialization-request")),
+                false,
+                0,
+                1,
+                Optional.empty()));
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("design-execution", route.producerStageId());
+  }
+
+  @Test
+  void aPostWriteMaterializationInputDefectDoesNotReopenDesignExecution() {
+    ProducerOwnedRecovery.Route route =
+        ProducerOwnedRecovery.route(
+            new ProducerOwnedRecovery.Request(
+                "materialization",
+                StageOutcomeClass.CONTRACT_FAILURE,
+                RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE),
+                List.of(
+                    new OwnerCandidate("materialization", "materialization-result"),
+                    new OwnerCandidate("design-execution", "materialization-request")),
+                true,
+                0,
+                1,
+                Optional.empty()));
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+    assertEquals("design-execution", route.producerStageId());
+  }
+
+  @Test
   void aMissingCatalogBindingAsksTheBindingProducer() {
     ProducerOwnedRecovery.Route route =
         route(

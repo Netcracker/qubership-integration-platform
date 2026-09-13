@@ -45,6 +45,11 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssem
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionCheckpoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.DesignExecutionPhase;
@@ -53,12 +58,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.OrderedGraphPatches;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ValidatedExecutionBundle;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
-import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
-import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
-import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
-import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
-import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
+import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
+import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 
 @ExtendWith(MockitoExtension.class)
@@ -138,6 +141,31 @@ class MaterializationCapabilityTest {
     CapabilitySignal.Completed completed = completed(capability.execute(context));
 
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
+    verify(materializer, never()).resume(any(), any());
+  }
+
+  @Test
+  void configuredRecoveryFaultStopsBeforeTheFirstCatalogWrite() {
+    PreparedInputs prepared = appendHappyPathInputs();
+    capability =
+        new MaterializationCapability(
+            artifactStore,
+            materializer,
+            factsService,
+            reconcileService,
+            new CanonicalGraphDigest(new ObjectMapper()),
+            designExecutor,
+            new E2eRecoveryFaultInjector(
+                "demo-chain", "materialization=CONTRACT_SHAPE:1"));
+
+    CapabilitySignal.Completed completed =
+        completed(capability.execute(contextWith(prepared, prepared.approvalRef())));
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
+    assertEquals(
+        RecoveryCauseCode.CONTRACT_SHAPE,
+        completed.outcome().recoveryCause().causeCode());
+    assertTrue(completed.outcome().message().contains("E2E recovery fault"));
     verify(materializer, never()).resume(any(), any());
   }
 

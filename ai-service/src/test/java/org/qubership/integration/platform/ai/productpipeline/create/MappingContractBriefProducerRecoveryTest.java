@@ -47,6 +47,7 @@ import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecu
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.plan.PlanCompilationTestSupport;
 import org.qubership.integration.platform.ai.plan.mapping.schema.MappingSchemaSide;
 import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
@@ -155,6 +156,8 @@ class MappingContractBriefProducerRecoveryTest {
   private static final String CATALOG_HASH = "catalog-hash";
   private static final String SKILL_HASH = "skill-hash-script";
   private static final String ADDON_HASH = "addon-hash-script";
+  private static final String RETURN_CORRECTION =
+      "For the result message, take executionId and orderId from the saved request.";
   private static final ObjectMapper MAPPER =
       new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -167,6 +170,7 @@ class MappingContractBriefProducerRecoveryTest {
   private AtomicInteger analysisCalls;
   private AtomicInteger designInputCalls;
   private AtomicReference<RequirementBrief> repairedBrief;
+  private RequirementBrief initialBrief;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -181,6 +185,7 @@ class MappingContractBriefProducerRecoveryTest {
     analysisCalls = new AtomicInteger();
     designInputCalls = new AtomicInteger();
     repairedBrief = new AtomicReference<>();
+    initialBrief = unknownTargetBrief();
     persistSide("trigger-http", MappingPort.OUTPUT, sourceSchema());
     persistSide("call-1", MappingPort.REQUEST, targetSchema());
     persistSide("call-1", MappingPort.RESPONSE, serviceResponseSchema());
@@ -304,6 +309,56 @@ class MappingContractBriefProducerRecoveryTest {
                 .support()
                 .runAttributes(RUN_ID)
                 .get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR)));
+  }
+
+  @Test
+  void missingResponseIdsCanBeCorrectedAtTheAnalysisHaltBeforeApproval() throws Exception {
+    RequirementBrief complete = validContextPreservingBrief();
+    MappingIntent request = complete.mappingIntents().getFirst();
+    MappingIntent response = complete.mappingIntents().getLast();
+    MappingIntentRule commandType = new MappingIntentRule("\"completeTask\"", "$.commandType", null);
+    initialBrief = complete.withMappingIntents(
+        List.of(request, response.withRules(List.of(commandType))));
+    repairedBrief.set(initialBrief);
+    AtomicInteger executions = new AtomicInteger();
+    CreateChainTestOrchestrator runtime = runtime(
+        FakeFailureNarrativeAgent.narrates("unused"),
+        validatingExecution(executions, new AtomicReference<>()));
+    haltAtMappingContract(runtime);
+    applyLifecycle(runtime, execute(runtime, "design-execution"));
+    StageDecision.WaitForInput wait = assertInstanceOf(
+        StageDecision.WaitForInput.class, execute(runtime, "requirement-analysis").decision());
+    assertEquals(PipelineGates.RECOVERY_REVISE_BRIEF, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).size());
+    String evidence = String.valueOf(runtime.support().runAttributes(RUN_ID)
+        .get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
+    String findings = String.valueOf(runtime.support().runAttributes(RUN_ID)
+        .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
+    assertTrue(findings.contains("MAPPING_MISSING_REQUIRED_TARGET"), findings);
+    assertTrue(evidence.contains("call-1/RESPONSE -> result-call/REQUEST"), evidence);
+    assertTrue(evidence.contains("targetPath=$.executionId"), evidence);
+    assertTrue(evidence.contains("targetPath=$.orderId"), evidence);
+
+    List<MappingIntentRule> rules = new java.util.ArrayList<>(response.rules());
+    rules.add(commandType);
+    repairedBrief.set(complete.withMappingIntents(List.of(request, response.withRules(rules))));
+    runtime.acceptInput(new AcceptInputCommand(RUN_ID, RETURN_CORRECTION))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    assertEquals("requirement-analysis", run().run().currentStageId());
+    assertEquals(1, executions.get());
+    assertEquals(RETURN_CORRECTION, runtime.support().haltFollowUpText(RUN_ID).orElseThrow());
+    assertEquals(repairedBrief.get().mappingIntents(),
+        artifactStore.payload(artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow(),
+            RequirementBrief.class).mappingIntents());
+    runtime.approve(new ApproveCommand(RUN_ID,
+        snapshot("requirement-analysis").approvableReference(), run().run().runRevision()))
+        .collect().asList().await().indefinitely();
+
+    assertEquals(RunStatus.PLAN_APPROVED, run().run().status());
+    assertEquals(2, executions.get());
+    assertTrue(artifactStore.latest(RUN_ID, Kind.MATERIALIZATION_RESULT).isEmpty());
   }
 
   @Test
@@ -717,6 +772,11 @@ class MappingContractBriefProducerRecoveryTest {
                 .runAttributes(RUN_ID)
                 .get(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
     assertTrue(findings.contains("MAPPING_UNKNOWN_TARGET"), findings);
+    String evidence = String.valueOf(runtime.support().runAttributes(RUN_ID)
+        .get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
+    assertTrue(evidence.contains("mappingIntentId=salesforce-create-task"), evidence);
+    assertTrue(evidence.contains("trigger-http/OUTPUT -> "), evidence);
+    assertTrue(evidence.contains("/REQUEST; targetPath=$.preserved.executionId"), evidence);
     assertFalse(
         findings.toLowerCase(Locale.ROOT).contains("which target should we add"), findings);
   }
@@ -747,6 +807,11 @@ class MappingContractBriefProducerRecoveryTest {
                     List.of(analysisCapability(), designInputCapability(), execution)),
                 Clock.fixed(FIXED, ZoneOffset.UTC))
             .failureNarrative(new FailureNarrative(agent))
+            .mappingTurnAdapter((brief, text) -> RETURN_CORRECTION.equals(text)
+                ? MappingTurnResult.changes(
+                    new MappingTurnResult.AddRule("return-context", "$.executionId", "$.executionId", null),
+                    new MappingTurnResult.AddRule("return-context", "$.orderId", "$.orderId", null))
+                : MappingTurnResult.changes())
             .mappingRepairCaptureValidator(captureValidator())
             .build();
     return new CreateChainTestOrchestrator(support, runStore);
@@ -765,7 +830,7 @@ class MappingContractBriefProducerRecoveryTest {
                                 new ArtifactCandidate(
                                     Kind.REQUIREMENT_BRIEF,
                                     analysisCalls.incrementAndGet() == 1
-                                        ? unknownTargetBrief()
+                                        ? initialBrief
                                         : repairedBrief.get() == null
                                             ? unknownTargetBrief()
                                             : repairedBrief.get(),
@@ -1293,12 +1358,14 @@ class MappingContractBriefProducerRecoveryTest {
         {
           "type": "object",
           "properties": {
+            "commandType": { "type": "string" },
             "executionId": { "type": "string" },
             "orderId": { "type": "string" },
             "processInstanceId": { "type": "string" },
             "executionNumber": { "type": "string" },
             "taskId": { "type": "string" }
-          }
+          },
+          "required": ["executionId", "orderId"]
         }
         """);
   }

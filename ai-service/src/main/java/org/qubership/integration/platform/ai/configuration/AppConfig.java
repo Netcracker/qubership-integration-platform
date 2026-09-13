@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.configuration;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
+import java.util.Optional;
 
 @ConfigMapping(prefix = "qip.ai")
 public interface AppConfig {
@@ -216,6 +217,9 @@ public interface AppConfig {
     // "" as null for a plain String); Optional is the documented way around it.
     @WithName("recovery-fault-chain-prefix")
     java.util.Optional<String> recoveryFaultChainPrefix();
+
+    @WithName("recovery-fault-plan")
+    java.util.Optional<String> recoveryFaultPlan();
   }
 
   interface ApihubConfig {
@@ -303,6 +307,15 @@ public interface AppConfig {
   interface LlmConfig {
     @WithName("exchange")
     ExchangeConfig exchange();
+
+    @WithName("thinking")
+    ThinkingConfig thinking();
+
+    /** Upper bound on extended thinking for models that otherwise pace themselves. */
+    interface ThinkingConfig {
+      @WithName("budget-tokens")
+      Optional<Integer> budgetTokens();
+    }
 
     @WithName("rate-limit")
     RateLimitConfig rateLimit();

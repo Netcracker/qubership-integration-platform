@@ -7,11 +7,16 @@ import pytest
 from qip_e2e_evaluator.client import (
     EvaluatorClientError,
     LlmSettings,
+    _provider_score_schema,
     evaluate_with_provider,
     normalize_base_url,
     resolve_settings,
 )
-from qip_e2e_evaluator.models import PROVIDER_TIMEOUT_SECONDS, RETRY_PAUSE_SECONDS
+from qip_e2e_evaluator.models import (
+    PROVIDER_TIMEOUT_SECONDS,
+    RETRY_PAUSE_SECONDS,
+    ScoreResponse,
+)
 
 API_KEY = "sk-test-secret-token-12345"
 SETTINGS = LlmSettings(
@@ -120,11 +125,34 @@ def test_valid_chat_completion_returns_score_response():
     assert call["timeout"] == PROVIDER_TIMEOUT_SECONDS
     assert call["json"] == {
         "model": "gpt-test",
-        "temperature": 0,
-        "response_format": {"type": "json_object"},
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "score_response",
+                "strict": True,
+                "schema": _provider_score_schema(),
+            },
+        },
         "messages": MESSAGES,
     }
     assert call["headers"]["Authorization"] == f"Bearer {API_KEY}"
+
+
+def test_provider_schema_omits_unsupported_numeric_constraints():
+    schema = _provider_score_schema()
+
+    for field_name in (
+        "intentFidelity",
+        "completeness",
+        "executability",
+        "unnecessaryComplexity",
+    ):
+        assert "minimum" not in schema["properties"][field_name]
+        assert "maximum" not in schema["properties"][field_name]
+
+    model_field = ScoreResponse.model_json_schema()["properties"]["intentFidelity"]
+    assert model_field["minimum"] == 0
+    assert model_field["maximum"] == 5
 
 
 @pytest.mark.parametrize(

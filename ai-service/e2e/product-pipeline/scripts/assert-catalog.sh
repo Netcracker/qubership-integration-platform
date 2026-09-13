@@ -85,6 +85,7 @@ while IFS= read -r row; do
   prop_key="$(jq -r '.key' <<<"$row")"
   expected="$(jq -r '.equals // empty' <<<"$row")"
   contains="$(jq -r '.contains // empty' <<<"$row")"
+  non_blank="$(jq -r '.nonBlank // false' <<<"$row")"
   actuals_json="$(jq -c --arg t "$elem_type" --arg k "$prop_key" '
     [.. | objects | select(.type? == $t) | .properties[$k] // empty | tostring]
   ' "$elements_json")"
@@ -102,8 +103,14 @@ while IFS= read -r row; do
     fi
     e2e_pass "catalog property ${elem_type}.${prop_key} contains '${contains}'"
   fi
-  if [[ -z "$expected" && -z "$contains" ]]; then
-    e2e_fail "catalog property ${elem_type}.${prop_key}: set equals or contains"
+  if [[ "$non_blank" == "true" ]]; then
+    if ! jq -e 'any(.[]; length > 0)' <<<"$actuals_json" >/dev/null; then
+      e2e_fail "catalog property ${elem_type}.${prop_key}: expected a non-blank value, got ${actuals_json}"
+    fi
+    e2e_pass "catalog property ${elem_type}.${prop_key} is non-blank"
+  fi
+  if [[ -z "$expected" && -z "$contains" && "$non_blank" != "true" ]]; then
+    e2e_fail "catalog property ${elem_type}.${prop_key}: set equals, contains, or nonBlank"
   fi
 done < <(jq -c --arg s "$SCENARIO" '.[$s].catalog.properties[]? // empty' "$SCENARIOS_FILE")
 

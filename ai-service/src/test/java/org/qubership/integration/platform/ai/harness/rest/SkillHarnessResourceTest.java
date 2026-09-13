@@ -17,6 +17,9 @@ import org.qubership.integration.platform.ai.harness.ChainPatchHarnessRequest;
 import org.qubership.integration.platform.ai.harness.ChainPatchRefusal;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessResponse;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessService;
+import org.qubership.integration.platform.ai.harness.ExecutorHarnessRequest;
+import org.qubership.integration.platform.ai.harness.ExecutorHarnessResponse;
+import org.qubership.integration.platform.ai.harness.ExecutorHarnessService;
 import org.qubership.integration.platform.ai.harness.PlannerHarnessRequest;
 import org.qubership.integration.platform.ai.harness.PlannerHarnessResponse;
 import org.qubership.integration.platform.ai.harness.PlannerHarnessService;
@@ -35,6 +38,7 @@ class SkillHarnessResourceTest {
   private SkillHarnessService harnessService;
   private ChainPatchHarnessService chainPatchHarnessService;
   private PlannerHarnessService plannerHarnessService;
+  private ExecutorHarnessService executorHarnessService;
   private SkillHarnessResource resource;
 
   @BeforeEach
@@ -42,8 +46,60 @@ class SkillHarnessResourceTest {
     harnessService = mock(SkillHarnessService.class);
     chainPatchHarnessService = mock(ChainPatchHarnessService.class);
     plannerHarnessService = mock(PlannerHarnessService.class);
+    executorHarnessService = mock(ExecutorHarnessService.class);
     resource =
-        new SkillHarnessResource(harnessService, chainPatchHarnessService, plannerHarnessService);
+        new SkillHarnessResource(
+            harnessService,
+            chainPatchHarnessService,
+            plannerHarnessService,
+            executorHarnessService);
+  }
+
+  @Test
+  void runExecutorReturnsRecordedEvidence() {
+    ExecutorHarnessResponse expected =
+        new ExecutorHarnessResponse(
+            CONVERSATION_ID,
+            SkillHarnessStatus.COMPLETED,
+            "compiled",
+            false,
+            "test-model",
+            List.of("cip-trigger-generator"),
+            List.of("cip-trigger-generator"),
+            List.of(),
+            null,
+            null,
+            null,
+            null,
+            List.of(),
+            java.util.Set.of(),
+            10);
+    when(executorHarnessService.run(any())).thenReturn(expected);
+
+    Response response =
+        resource.runExecutor(
+            new ExecutorHarnessRequest(
+                CONVERSATION_ID,
+                "1. Generate trigger (cip-trigger-generator)",
+                org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures
+                    .linearOrders(),
+                new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+                    "orders", List.of(), List.of(), List.of(), List.of(), "orders"),
+                List.of()));
+
+    assertEquals(Response.Status.OK.getStatusCode(), response.getStatus());
+    assertEquals(expected, response.getEntity());
+    verify(executorHarnessService).run(any());
+  }
+
+  @Test
+  void runExecutorRejectsMissingSavedPlannerResponse() {
+    Response response =
+        resource.runExecutor(new ExecutorHarnessRequest(CONVERSATION_ID, " ", null, null, List.of()));
+
+    assertEquals(Response.Status.BAD_REQUEST.getStatusCode(), response.getStatus());
+    assertTrue(response.getEntity().toString().contains("plannerResponse"));
+    verifyNoInteractions(executorHarnessService);
   }
 
   @Test
