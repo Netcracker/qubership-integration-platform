@@ -2456,6 +2456,114 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void preWriteMaterializationContractShapeReopensSucceededDesignExecution() {
+    ArtifactTypeRef request = new ArtifactTypeRef("materialization-request", 1);
+    StageCapability execution =
+        capability(
+            "execution-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            new StageOutcome(
+                                StageOutcomeClass.SUCCEEDED,
+                                List.of(new ArtifactCandidate(Kind.MATERIALIZATION_REQUEST, "request", List.of())),
+                                "execution complete",
+                                null))));
+    StageCapability materialization =
+        capability(
+            "materialization-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.CONTRACT_FAILURE,
+                                "materialization rejected the execution request",
+                                RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE)))));
+    ProductPipelineProfile profile = executionThenMaterializationProfile(request);
+    CreateChainTestOrchestrator runtime = newRuntime(profile, execution, materialization);
+    startAndRecordInput(runtime, profile);
+    StageExecutionResult executionResult = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Continue.class, executionResult.decision());
+    applyLifecycle(runtime, executionResult);
+
+    StageExecutionResult failed = execute(runtime, "materialization");
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(
+            StageDecision.ReopenProducer.class, failed.decision());
+
+    assertEquals("design-execution", reopen.producerStageId());
+    applyLifecycle(runtime, failed);
+    assertEquals("design-execution", requireRun().run().currentStageId());
+  }
+
+  @Test
+  void repairedUpstreamArtifactCanContinueThroughMaterialization() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("The brief omitted a required fact.", "analysis");
+    ArtifactTypeRef brief = new ArtifactTypeRef("requirement-brief", 1);
+    AtomicInteger materializationCalls = new AtomicInteger();
+    StageCapability materialization =
+        capability(
+            "materialization-cap",
+            context -> {
+              if (materializationCalls.incrementAndGet() == 1) {
+                return Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.DOMAIN_FAILURE,
+                                "The approved brief is missing the destination operation.",
+                                RecoveryCause.missingBriefFacts(
+                                    List.of("destination operation")))));
+              }
+              return Multi.createFrom()
+                  .item(
+                      new CapabilitySignal.Completed(
+                          new StageOutcome(
+                              StageOutcomeClass.SUCCEEDED,
+                              List.of(
+                                  new ArtifactCandidate(
+                                      Kind.CATALOG_CHAIN_SNAPSHOT,
+                                      new ChainCatalogFacts(
+                                          "catalog-chain-1",
+                                          "DemoChain",
+                                          "",
+                                          0,
+                                          0,
+                                          "",
+                                          List.of(),
+                                          List.of(),
+                                          "built_in_catalog"),
+                                      List.of())),
+                              "chain materialized",
+                              null)));
+            });
+    ProductPipelineProfile profile = analysisThenMaterializationProfile(brief);
+    CreateChainTestOrchestrator runtime =
+        newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), materialization);
+    startAndRecordInput(runtime, profile);
+    approveCurrentStage(runtime, "analysis");
+
+    StageExecutionResult failure = execute(runtime, "materialization");
+    assertEquals(
+        "analysis",
+        assertInstanceOf(StageDecision.ReopenProducer.class, failure.decision()).producerStageId());
+    applyLifecycle(runtime, failure);
+    approveCurrentStage(runtime, "analysis");
+
+    StageDecision.Complete complete =
+        assertInstanceOf(
+            StageDecision.Complete.class, execute(runtime, "materialization").decision());
+
+    assertEquals(RunStatus.CHAIN_MATERIALIZED, complete.status());
+    assertEquals(RunStatus.CHAIN_MATERIALIZED, requireRun().run().status());
+    assertEquals(2, materializationCalls.get());
+    assertTrue(runtime.support().latestCatalogChainSnapshot(RUN_ID).isPresent());
+  }
+
+  @Test
   void catalogWriteBlocksCausalReopenAndRetryRepeatsMaterialization() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("The brief is wrong.", "analysis");
@@ -3235,6 +3343,117 @@ class ProductPipelineStageExecutorTest {
 
     assertEquals("design-planning", requireRun().run().currentStageId());
     assertNotEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals(1, executionCalls.get());
+  }
+
+  @Test
+  void sequentialFailuresCanReopenDifferentOwnersAndStillComplete() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
+    AtomicInteger executionCalls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            new FailureNarrative(agent),
+            profile,
+            analysisCandidate(),
+            planningAlwaysCandidate(),
+            executionWithSequentialOwnerFailures(executionCalls));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+
+    StageExecutionResult firstFailure = execute(runtime, "design-execution");
+    StageDecision.ReopenProducer firstReopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, firstFailure.decision());
+    assertEquals("requirement-analysis", firstReopen.producerStageId());
+    applyLifecycle(runtime, firstFailure);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+
+    StageExecutionResult secondFailure = execute(runtime, "design-execution");
+    StageDecision.ReopenProducer secondReopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, secondFailure.decision());
+    assertEquals("design-planning", secondReopen.producerStageId());
+    applyLifecycle(runtime, secondFailure);
+    approveStage(runtime, "design-planning");
+
+    StageDecision.Complete complete =
+        assertInstanceOf(
+            StageDecision.Complete.class, execute(runtime, "design-execution").decision());
+
+    assertEquals(RunStatus.PLAN_APPROVED, complete.status());
+    assertEquals(RunStatus.PLAN_APPROVED, requireRun().run().status());
+    assertEquals(3, executionCalls.get());
+    assertEquals(
+        2,
+        requireRun().transitions().stream()
+            .filter(transition -> RecoveryAttemptLedger.isReopenReason(transition.reason()))
+            .count());
+  }
+
+  @Test
+  void restartAfterReopenRetainsTheOwnerAndDownstreamInvalidation() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
+    AtomicInteger executionCalls = new AtomicInteger();
+    AtomicReference<String> seenError = new AtomicReference<>();
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    StageCapability analysis = analysisCandidate();
+    StageCapability planning =
+        capability(
+            "planning-cap",
+            context -> {
+              seenError.set(
+                  context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
+              return planningAlwaysCandidate().execute(context);
+            });
+    StageCapability execution = executionPlanFillValidationFailure(executionCalls);
+    CreateChainTestOrchestrator first =
+        newRuntime(new FailureNarrative(agent), profile, analysis, planning, execution);
+    startAndRecordInput(first, profile);
+    approveStage(first, "requirement-analysis");
+    approveStage(first, "design-planning");
+    String approvedBriefId = snapshot(requireRun(), "requirement-analysis").approvedArtifactId();
+
+    StageExecutionResult failure = execute(first, "design-execution");
+    assertEquals(
+        "design-planning",
+        assertInstanceOf(StageDecision.ReopenProducer.class, failure.decision()).producerStageId());
+    applyLifecycle(first, failure);
+
+    CreateChainTestOrchestrator restarted =
+        newRuntime(new FailureNarrative(agent), profile, analysis, planning, execution);
+    restarted
+        .startOrResume(new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+    assertEquals("design-planning", requireRun().run().currentStageId());
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-analysis").status());
+    assertEquals(
+        approvedBriefId, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
+    assertEquals(
+        StageStatus.WAITING_FOR_APPROVAL, snapshot(requireRun(), "design-planning").status());
+    assertNull(snapshot(requireRun(), "design-planning").approvedArtifactId());
+    Reference repairedPlan = snapshot(requireRun(), "design-planning").approvableReference();
+    assertNotNull(repairedPlan);
+    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
+    assertNull(snapshot(requireRun(), "design-execution").approvedArtifactId());
+    assertTrue(snapshot(requireRun(), "design-execution").outputRefs().isEmpty());
+    restarted
+        .recordApprove(new ApproveCommand(RUN_ID, repairedPlan, requireRun().run().runRevision()))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertNotNull(seenError.get());
+    assertFalse(seenError.get().isBlank());
     assertEquals(1, executionCalls.get());
   }
 
@@ -4772,6 +4991,32 @@ class ProductPipelineStageExecutorTest {
         });
   }
 
+  private StageCapability executionWithSequentialOwnerFailures(AtomicInteger executionCalls) {
+    return capability(
+        "execution-cap",
+        context -> {
+          int call = executionCalls.incrementAndGet();
+          if (call == 1) {
+            return executionRbacValidationFailure(new AtomicInteger()).execute(context);
+          }
+          if (call == 2) {
+            return executionPlanFillValidationFailure(new AtomicInteger()).execute(context);
+          }
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      new StageOutcome(
+                          StageOutcomeClass.SUCCEEDED,
+                          List.of(
+                              new ArtifactCandidate(
+                                  Kind.PLAN_VALIDATION_RESULT,
+                                  new PlanValidationResult(List.of()),
+                                  List.of())),
+                          "plan validation passed",
+                          null)));
+        });
+  }
+
   private StageCapability executionUnspecifiedDomainFailure(AtomicInteger executionCalls) {
     return capability(
         "execution-cap",
@@ -5284,6 +5529,34 @@ class ProductPipelineStageExecutorTest {
                 new RetryPolicy(0, 1L))),
         new TerminalPolicy("materialization", "CHAIN_MATERIALIZED"),
         List.of("analysis-cap", "materialization-cap"));
+  }
+
+  private static ProductPipelineProfile executionThenMaterializationProfile(
+      ArtifactTypeRef request) {
+    return new ProductPipelineProfile(
+        1,
+        "execution-materialization-recovery",
+        "2",
+        List.of(new ArtifactTypeRef("user-input", 1)),
+        List.of(
+            new ProfileStage(
+                "design-execution",
+                "execution-cap",
+                List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(request),
+                null,
+                null,
+                new RetryPolicy(0, 1L)),
+            new ProfileStage(
+                "materialization",
+                "materialization-cap",
+                List.of(request),
+                List.of(new ArtifactTypeRef("materialization-result", 1)),
+                null,
+                null,
+                new RetryPolicy(0, 1L))),
+        new TerminalPolicy("materialization", "CHAIN_MATERIALIZED"),
+        List.of("design-execution", "materialization"));
   }
 
   private static ProductPipelineProfile retryProfile(

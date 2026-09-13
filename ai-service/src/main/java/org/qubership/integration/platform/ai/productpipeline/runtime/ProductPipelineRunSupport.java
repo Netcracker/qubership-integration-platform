@@ -114,6 +114,9 @@ public final class ProductPipelineRunSupport {
   /** Raw failure evidence for the next attempt of the current unapproved stage. */
   public static final String STAGE_ERROR_CONTEXT_ATTR = "stageErrorContext";
 
+  /** Plain-language reason the run reopened a producer, shown above the approval that follows. */
+  public static final String RECOVERY_AUTHOR_NOTE_ATTR = "recoveryAuthorNote";
+
   /** Outcome class stored with {@link #STAGE_ERROR_CONTEXT_ATTR}. */
   public static final String STAGE_ERROR_OUTCOME_ATTR = "stageErrorOutcomeClass";
 
@@ -1371,6 +1374,11 @@ public final class ProductPipelineRunSupport {
                     && currentRecoveryCause(command.runId()).isMissingCatalogBinding()) {
                   return applyMissingBindingClarification(doc, command);
                 }
+                if (PipelineGates.RECOVERY_REVISE_BRIEF.equals(gate)
+                    && currentRecoveryCause(command.runId()).causeCode()
+                        == RecoveryCauseCode.MAPPING_CONTRACT) {
+                  return applyMappingRepairInput(doc, command);
+                }
                 if (PipelineGates.STAGE_RETRY.equals(gate)
                     || PipelineGates.isContextualRecoveryGate(gate)) {
                   return reemitHaltCard(doc);
@@ -1384,6 +1392,21 @@ public final class ProductPipelineRunSupport {
                   .switchTo(() -> reemitHaltCard(doc));
             })
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+  }
+
+  private Multi<PipelineSignal> applyMappingRepairInput(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    RequirementBrief brief = approvedRequirementBrief(command.runId());
+    if (mappingTurnAdapter == null || brief == null) {
+      return reemitHaltCard(doc);
+    }
+    MappingTurnApplication correction =
+        MappingTurnProcessor.process(brief, command.text(), mappingTurnAdapter);
+    if (!correction.applied()) {
+      return stayAfterMappingTurn(doc, mappingStayMessage(correction));
+    }
+    // A mapping amendment can reopen the brief; rephrasing a retry cannot.
+    return applyDiagnosedOwner(doc, command);
   }
 
   /**
@@ -1866,7 +1889,9 @@ public final class ProductPipelineRunSupport {
       InputOrigin origin,
       RecoveryAttemptLedger.ReopenInitiator initiator) {
     RecoveryCause cause = currentRecoveryCause(doc.run().runId());
-    if (!isEarlierApprovedOwner(doc, owner) && !isCommittedIdentityMismatchOwner(doc, owner, cause)) {
+    if (!isEarlierApprovedOwner(doc, owner)
+        && !isCommittedIdentityMismatchOwner(doc, owner, cause)
+        && !isCommittedMaterializationContractOwner(doc, owner, cause)) {
       return false;
     }
     if (catalogHasBeenWritten(doc.run().runId())) {
@@ -1888,6 +1913,25 @@ public final class ProductPipelineRunSupport {
       return false;
     }
     if (owner == null || owner.isBlank() || owner.equals(doc.run().currentStageId())) {
+      return false;
+    }
+    return doc.run().stages().stream()
+        .filter(stage -> owner.equals(stage.stageId()))
+        .findFirst()
+        .map(
+            stage ->
+                stage.status() == StageStatus.SUCCEEDED
+                    && stage.outputRefs() != null
+                    && !stage.outputRefs().isEmpty())
+        .orElse(false);
+  }
+
+  private boolean isCommittedMaterializationContractOwner(
+      ProductPipelineRunDocument doc, String owner, RecoveryCause cause) {
+    if (cause == null
+        || cause.causeCode() != RecoveryCauseCode.CONTRACT_SHAPE
+        || !"materialization".equals(doc.run().currentStageId())
+        || !"design-execution".equals(owner)) {
       return false;
     }
     return doc.run().stages().stream()
@@ -2714,6 +2758,7 @@ public final class ProductPipelineRunSupport {
         reopen.producerStageId(),
         InputOrigin.TRUSTED,
         RecoveryAttemptLedger.ReopenInitiator.AUTOMATIC)) {
+      rememberAuthorNote(runId, reopen.authorNote());
       return causalReopenOwner(doc, reopen.producerStageId(), null, null)
           .onCompletion()
           .switchTo(() -> Multi.createFrom().iterable(signals));
@@ -3429,7 +3474,7 @@ public final class ProductPipelineRunSupport {
 
   private String approvalPromptFor(String runId, String stageId) {
     if (isBriefRepairApproval(runId, stageId)) {
-      return BRIEF_REPAIR_APPROVAL_PROMPT;
+      return withAuthorNote(attributesByRun.get(runId), BRIEF_REPAIR_APPROVAL_PROMPT);
     }
     return approvalPrompts.stageApprovalPrompt(
         stageId, responseLocaleOf(runId), languageReferenceFor(runId));
@@ -3439,6 +3484,27 @@ public final class ProductPipelineRunSupport {
   private String responseLocaleOf(String runId) {
     RunManifest manifest = manifestsByRun.get(runId);
     return manifest == null ? "en" : manifest.responseLocale();
+  }
+
+  private void rememberAuthorNote(String runId, String note) {
+    if (note == null || note.isBlank()) {
+      return;
+    }
+    attributesByRun
+        .computeIfAbsent(runId, ignored -> new ConcurrentHashMap<>())
+        .put(RECOVERY_AUTHOR_NOTE_ATTR, note);
+  }
+
+  /**
+   * Prefixes an approval prompt with the reason the run came back here. Without it the author is
+   * asked to approve a rebuilt brief with no explanation of what was wrong.
+   */
+  public static String withAuthorNote(Map<String, Object> attributes, String prompt) {
+    Object note = attributes == null ? null : attributes.get(RECOVERY_AUTHOR_NOTE_ATTR);
+    if (note instanceof String text && !text.isBlank()) {
+      return text.trim() + "\n\n" + prompt;
+    }
+    return prompt;
   }
 
   private boolean isBriefRepairApproval(String runId, String stageId) {

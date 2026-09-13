@@ -133,7 +133,8 @@ class RequirementDiscoveryCapabilityTest {
             null,
             false,
             List.of(
-                RequirementFact.of(
+                new RequirementFact(
+                    "hello",
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.ENDPOINT,
                     "http-trigger",
@@ -616,6 +617,7 @@ class RequirementDiscoveryCapabilityTest {
             null,
             false,
             List.of(
+                RequirementFactFixtures.httpTriggerFact("start", "POST", "/start"),
                 RequirementFact.of(
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.GOAL,
@@ -731,6 +733,7 @@ class RequirementDiscoveryCapabilityTest {
             null,
             false,
             List.of(
+                RequirementFactFixtures.httpTriggerFact("start", "POST", "/start"),
                 RequirementFact.of(
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.GOAL,
@@ -808,6 +811,7 @@ class RequirementDiscoveryCapabilityTest {
                 null,
                 false,
                 List.of(
+                    RequirementFactFixtures.httpTriggerFact("start", "POST", "/start"),
                     RequirementFact.of(
                         RequirementFactPolarity.POSITIVE,
                         RequirementFactKind.GOAL,
@@ -898,6 +902,7 @@ class RequirementDiscoveryCapabilityTest {
             null,
             false,
             List.of(
+                RequirementFactFixtures.httpTriggerFact("start", "POST", "/start"),
                 RequirementFact.of(
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.GOAL,
@@ -1011,6 +1016,7 @@ class RequirementDiscoveryCapabilityTest {
                 null,
                 false,
                 List.of(
+                    RequirementFactFixtures.httpTriggerFact("start", "POST", "/start"),
                     RequirementFact.of(
                         RequirementFactPolarity.POSITIVE,
                         RequirementFactKind.GOAL,
@@ -1143,6 +1149,7 @@ class RequirementDiscoveryCapabilityTest {
             null,
             false,
             List.of(
+                RequirementFactFixtures.httpTriggerFact("start", "POST", "/start"),
                 RequirementFact.of(
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.GOAL,
@@ -1294,6 +1301,7 @@ class RequirementDiscoveryCapabilityTest {
             null,
             false,
             List.of(
+                RequirementFactFixtures.httpTriggerFact("start", "POST", "/start"),
                 RequirementFact.of(
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.GOAL,
@@ -1481,6 +1489,7 @@ class RequirementDiscoveryCapabilityTest {
         null,
         false,
         List.of(
+            RequirementFactFixtures.httpTriggerFact("start", "POST", "/start"),
             RequirementFact.of(
                 RequirementFactPolarity.POSITIVE,
                 RequirementFactKind.GOAL,
@@ -1508,6 +1517,7 @@ class RequirementDiscoveryCapabilityTest {
         null,
         false,
         List.of(
+            RequirementFactFixtures.httpTriggerFact("start", "POST", "/start"),
             RequirementFact.of(
                 RequirementFactPolarity.POSITIVE,
                 RequirementFactKind.GOAL,

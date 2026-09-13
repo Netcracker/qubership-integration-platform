@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessa
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
@@ -653,6 +654,30 @@ class RequirementBriefToolTest {
     assertTrue(brief.mappingIntents().isEmpty());
   }
 
+  /**
+   * Adds a native trigger fact for every entry point the caller left without one. The draft only
+   * reaches READY_FOR_PLAN when each inbound interaction carries a capability key.
+   */
+  private static List<RequirementFact> withEntryPointTriggerFacts(
+      List<RequirementFact> facts, RequirementFlow flow) {
+    if (flow == null) {
+      return facts;
+    }
+    List<RequirementFact> merged = new java.util.ArrayList<>();
+    for (Interaction interaction : flow.interactions()) {
+      if (interaction.direction() != Direction.INBOUND
+          || RequirementFlowValidator.hasEntryPointCapabilityFact(
+              interaction.interactionId(), facts)) {
+        continue;
+      }
+      merged.add(
+          RequirementFactFixtures.httpTriggerFact(
+              interaction.interactionId(), "POST", "/" + interaction.interactionId()));
+    }
+    merged.addAll(facts);
+    return List.copyOf(merged);
+  }
+
   private static RequirementDraft readyDraft(
       String assembledText,
       List<RequirementFact> facts,
@@ -668,7 +693,7 @@ class RequirementBriefToolTest {
         null,
         null,
         false,
-        facts,
+        withEntryPointTriggerFacts(facts, flow),
         false,
         null,
         null,

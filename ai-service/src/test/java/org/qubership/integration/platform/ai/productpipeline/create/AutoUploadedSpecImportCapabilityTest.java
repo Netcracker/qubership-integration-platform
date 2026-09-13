@@ -645,6 +645,7 @@ class AutoUploadedSpecImportCapabilityTest {
         draft()
             .withFacts(
                 List.of(
+                    RequirementFactFixtures.httpTriggerFact("on-task-start", "POST", "/tasks"),
                     RequirementFact.of(
                         RequirementFactPolarity.POSITIVE,
                         RequirementFactKind.GOAL,
@@ -744,7 +745,10 @@ class AutoUploadedSpecImportCapabilityTest {
                             "")),
                     List.of(
                         new Transition("on-task-start", "salesforce-create-task"),
-                        new Transition("salesforce-create-task", "wfms-task-result"))));
+                        new Transition("salesforce-create-task", "wfms-task-result"))))
+            .withFacts(
+                List.of(
+                    RequirementFactFixtures.httpTriggerFact("on-task-start", "POST", "/tasks")));
     CompilationArtifacts.Reference draftRef = requirementDraftRef();
     stubRequirementDraft(artifactStore, draftRef, draft);
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
@@ -1024,7 +1028,9 @@ class AutoUploadedSpecImportCapabilityTest {
                         "return-task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
                 List.of(
                     new Transition("on-task-start", "create-salesforce-task"),
-                    new Transition("create-salesforce-task", "return-task-result"))));
+                    new Transition("create-salesforce-task", "return-task-result"))))
+        .withFacts(
+            List.of(RequirementFactFixtures.httpTriggerFact("on-task-start", "POST", "/tasks")));
   }
 
   private static CatalogBindingHint restHint(String interactionId) {

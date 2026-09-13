@@ -482,11 +482,13 @@
     "designInputAnswers": [
       "Pass the data through unchanged. No field mapping and no transformation on any edge."
     ],
-    "recovery": {
-      "faultStage": "design-execution",
-      "ownerStage": "design-planning",
-      "followUp": "Add the required recovery-check setting to the implementation plan."
-    }
+  "recovery": {
+    "automaticOnly": true,
+    "faultStage": "design-execution",
+    "ownerStage": "design-planning",
+    "followUp": "Add the required recovery-check setting to the implementation plan.",
+    "faultPlan": "design-execution=MISSING_REQUIRED_PROPERTY:1"
+  }
   },
   "product-create-chain-recovery-exhausted-halt": {
     "tier": "product-pipeline",
@@ -514,11 +516,132 @@
     "designInputAnswers": [
       "Pass the data through unchanged. No field mapping and no transformation on any edge."
     ],
+  "recovery": {
+    "faultStage": "design-execution",
+    "ownerStage": "design-planning",
+    "followUp": "go back to compiler and add RBAC",
+    "exhaustHalt": true,
+    "faultPlan": "design-execution=MISSING_REQUIRED_PROPERTY:2"
+  }
+  },
+  "product-create-chain-recovery-design-input": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiRecoveryDesignInput",
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives GET on internal route \"/recovery-design\" and returns plain text \"recovered\" from a script. No service calls. No error handling. No MCP. No APIHub.",
+    "requiredFacts": [
+      "GET /recovery-design",
+      "script"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "APIHub",
+      "try-catch-finally-2"
+    ],
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Keep the approved HTTP trigger and script flow unchanged."
+    ],
     "recovery": {
-      "faultStage": "design-execution",
-      "ownerStage": "design-planning",
-      "followUp": "go back to compiler and add RBAC",
-      "exhaustHalt": true
+      "manualOnly": true,
+      "automaticOnly": true,
+      "faultPlan": "design-execution=CATALOG_RESOLUTION:1",
+      "faultStages": [
+        "design-execution"
+      ],
+      "ownerStages": [
+        "design-input"
+      ]
+    }
+  },
+  "product-create-chain-recovery-materialization-execution": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiRecoveryMaterialization",
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives GET on internal route \"/recovery-materialization\" and returns plain text \"recovered\" from a script. No service calls. No error handling. No MCP. No APIHub.",
+    "requiredFacts": [
+      "GET /recovery-materialization",
+      "script"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "APIHub",
+      "try-catch-finally-2"
+    ],
+    "discoveryAnswers": [
+      "Use HTTP 200 with Content-Type text/plain; put the exact text recovered in the response body. Use default values for anything else."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged."
+    ],
+    "recovery": {
+      "manualOnly": true,
+      "automaticOnly": true,
+      "faultPlan": "materialization=CONTRACT_SHAPE:1",
+      "faultStages": [
+        "materialization"
+      ],
+      "ownerStages": [
+        "design-execution"
+      ]
+    }
+  },
+  "product-create-chain-recovery-sequential": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiRecoverySequential",
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives GET on internal route \"/recovery-sequential\" and returns plain text \"recovered\" from a script. No service calls. No error handling. No MCP. No APIHub.",
+    "requiredFacts": [
+      "GET /recovery-sequential",
+      "script"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "APIHub",
+      "try-catch-finally-2"
+    ],
+    "discoveryAnswers": [
+      "Use HTTP 200 with Content-Type text/plain; put the exact text recovered in the response body. Use default values for anything else."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Keep the approved HTTP trigger and script flow unchanged."
+    ],
+    "recovery": {
+      "manualOnly": true,
+      "automaticOnly": true,
+      "faultPlan": "design-execution=CATALOG_RESOLUTION:1,materialization=CONTRACT_SHAPE:1",
+      "faultStages": [
+        "design-execution",
+        "materialization"
+      ],
+      "ownerStages": [
+        "design-input",
+        "design-execution"
+      ]
     }
   },
   "product-create-chain-petstore-service-call": {
@@ -807,13 +930,13 @@
   },
   "product-patch-chain-replace-subgraph": {
     "tier": "product-pipeline",
-    "status": "inactive",
+    "status": "active",
     "pipeline": "compare-and-patch",
     "terminalState": "CHAIN_PATCHED",
     "retainCatalogChain": true,
     "uniqueChainNamePrefix": "AiPatchReplaceSubgraph",
     "prompts": [
-      "On the open catalog chain, replace the Return greeting script with a script that returns the plain text hello mapped, then a second script that returns the plain text hello patched. Do not add a service call."
+      "Replace the Return greeting script with a script that returns the plain text hello mapped, then a second script that returns the plain text hello patched. Do not add a service call."
     ],
     "seed": {
       "description": "HTTP GET /patch-echo plus a greeting script",
@@ -856,7 +979,6 @@
         "script": 2
       },
       "warnings": [
-        "Inactive: live replacement of an element with a subgraph sits beside the wrap scenario and stays off the gate until that wrap run is green.",
         "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
       ]
     }
@@ -936,5 +1058,73 @@
         "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
       ]
     }
+  },
+  "product-create-chain-uploaded-openapi-mapping": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiUploadedOpenApiMapping",
+    "uploadedSpec": {
+      "fixture": "fixtures/rocky-orders-openapi.yaml",
+      "systemType": "EXTERNAL"
+    },
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives POST on internal route /rocky-uploaded-order with JSON fields client and total. Call the uploaded Rocky Orders API operation POST /orders. Map client to customerId and total to amount. Return executionId and status from the service response as JSON. No APIHub. No MCP. No error handling.",
+    "requiredFacts": [
+      "POST /rocky-uploaded-order",
+      "POST /orders",
+      "client",
+      "customerId",
+      "total",
+      "amount",
+      "executionId",
+      "status"
+    ],
+    "forbiddenFacts": [
+      "APIHub",
+      "try-catch-finally-2"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script",
+        "service-call"
+      ],
+      "properties": [
+        { "type": "http-trigger", "key": "contextPath", "equals": "/rocky-uploaded-order" },
+        { "type": "http-trigger", "key": "httpMethodRestrict", "equals": "POST" },
+        { "type": "service-call", "key": "systemType", "equals": "EXTERNAL" },
+        { "type": "service-call", "key": "integrationSystemId", "nonBlank": true },
+        { "type": "service-call", "key": "integrationSpecificationGroupId", "nonBlank": true },
+        { "type": "service-call", "key": "integrationSpecificationId", "nonBlank": true },
+        { "type": "service-call", "key": "integrationOperationId", "nonBlank": true },
+        { "type": "service-call", "key": "integrationOperationMethod", "equals": "POST" },
+        { "type": "service-call", "key": "integrationOperationPath", "equals": "/orders" },
+        { "type": "script", "key": "script", "contains": "client" },
+        { "type": "script", "key": "script", "contains": "customerId" },
+        { "type": "script", "key": "script", "contains": "total" },
+        { "type": "script", "key": "script", "contains": "amount" }
+      ],
+      "skeleton": {
+        "minDependencies": 2,
+        "triggerMustHaveOutgoing": true,
+        "reachableFromTrigger": [
+          "service-call"
+        ]
+      },
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Map request body client to customerId and total to amount before POST /orders. Return response executionId and status as JSON."
+    ]
   }
 }

@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
@@ -58,7 +59,9 @@ public final class RecoveryExecutor {
       return askUser(stageId, summary(decision));
     }
     return switch (action) {
-      case REVISE_BRIEF -> new StageDecision.ReopenProducer(stageId, "requirement-analysis");
+      case REVISE_BRIEF ->
+          new StageDecision.ReopenProducer(
+              stageId, briefRepairOwner(decision, evidence), summary(decision));
       case REGENERATE_ARTIFACT -> regenerate(stageId, decision, failedStage);
       case RETRY_OPERATION -> retry(stageId, failedStage);
       case ASK_USER ->
@@ -88,6 +91,23 @@ public final class RecoveryExecutor {
     return new StageDecision.Retry(stageId, Duration.ofMillis(Math.max(delayMs, 0L)));
   }
 
+  /**
+   * Owner of a brief defect. The brief projects entry point and service call fields from the
+   * approved draft, so when the producer reported missing brief facts the defect belongs to the
+   * stage that wrote the draft: rebuilding the brief from the same draft reproduces it. Every other
+   * brief defect keeps the brief itself as the owner.
+   */
+  static String briefRepairOwner(RecoveryDecision decision, RecoveryEvidence evidence) {
+    if (evidence != null
+        && RecoveryCauseCode.MISSING_BRIEF_FACTS.name().equals(evidence.observedCauseCode())) {
+      return "requirement-discovery";
+    }
+    String producer =
+        producerStageForFault(
+            decision == null ? null : decision.faultArtifactRef(), "requirement-analysis");
+    return "requirement-discovery".equals(producer) ? producer : "requirement-analysis";
+  }
+
   static String producerStageForFault(Reference fault, String failedStageId) {
     if (fault == null || fault.kind() == null) {
       return failedStageId;
@@ -95,6 +115,7 @@ public final class RecoveryExecutor {
     return switch (fault.kind()) {
       case REQUIREMENT_DRAFT -> "requirement-discovery";
       case REQUIREMENT_BRIEF -> "requirement-analysis";
+      case IDS_DOCUMENT, CHAIN_SEMANTIC_REVISION -> "design-input";
       case IMPLEMENTATION_PLAN, DESIGN_PLAN_REPORT, DESIGN_EXECUTION_PLAN -> "design-planning";
       case CHAIN_PLAN_GRAPH,
               GRAPH_PATCH_ARTIFACT,

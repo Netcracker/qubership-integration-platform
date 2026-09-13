@@ -152,6 +152,36 @@ class ChainPatchRemovalClosureTest {
     assertTrue(!survivors.contains("b->c"));
   }
 
+  @Test
+  void keepsAnIncidentEdgeThatThePatchRewiresAwayFromTheRemovedNode() {
+    GraphPatch replacement =
+        new GraphPatch(
+            "p",
+            "chain-patch",
+            List.of(
+                new NodePatch(
+                    GraphPatchOperation.ADD,
+                    new ChainPlanNode(
+                        "replacement", "script", "Replacement", null, null, List.of()),
+                    null),
+                new NodePatch(GraphPatchOperation.REMOVE, null, "a")),
+            List.of(
+                new EdgePatch(
+                    GraphPatchOperation.UPDATE,
+                    new ChainPlanEdge("trigger->a", "trigger", "replacement", null),
+                    "trigger->a")),
+            List.of(),
+            null,
+            List.of(),
+            "replace a");
+
+    ChainPatchRemovalClosure.Expansion expansion =
+        ChainPatchRemovalClosure.expand(pipeline(), replacement);
+
+    assertTrue(expansion.coherent());
+    assertTrue(!removedEdgeIds(expansion.patch()).contains("trigger->a"));
+  }
+
   /** trigger -> a -> b -> c, a flat run with something on either side of every join. */
   private static ChainPlanGraph pipeline() {
     return new ChainPlanGraph(

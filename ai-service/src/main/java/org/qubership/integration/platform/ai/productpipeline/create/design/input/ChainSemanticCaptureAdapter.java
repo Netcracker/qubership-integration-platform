@@ -630,6 +630,7 @@ public class ChainSemanticCaptureAdapter {
                 + site.targetNodeId()
                 + "' has more than one incoming edge. Mapping needs a single-incoming site.");
       }
+      requireApprovedMappingTransition(intent, site, brief.flow(), edges);
       projected.add(projectOntoCarryingEdge(intent, site));
     }
     return List.copyOf(projected);
@@ -671,6 +672,95 @@ public class ChainSemanticCaptureAdapter {
     return node instanceof SemanticNode.Operation operation
         && (MappingExecutionSite.ELEMENT_TYPE.equals(operation.elementType())
             || MappingExecutionSite.SCRIPT_ELEMENT_TYPE.equals(operation.elementType()));
+  }
+
+  private static void requireApprovedMappingTransition(
+      MappingIntent intent,
+      SemanticExecutionEdge site,
+      RequirementFlow flow,
+      List<SemanticExecutionEdge> edges) {
+    if (flow.transitions().isEmpty()) {
+      return;
+    }
+    Set<String> anchors = new LinkedHashSet<>();
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      anchors.add(interaction.interactionId());
+    }
+    Map<String, List<String>> outgoing = adjacency(edges);
+    Set<AnchorEdge> matches = new LinkedHashSet<>();
+    for (RequirementFlow.Transition transition : flow.transitions()) {
+      if (reachableWithinTransition(
+              transition.sourceInteractionId(), site.sourceNodeId(), outgoing, anchors)
+          && reachableWithinTransition(
+              site.targetNodeId(), transition.targetInteractionId(), outgoing, anchors)) {
+        matches.add(
+            new AnchorEdge(
+                transition.sourceInteractionId(), transition.targetInteractionId()));
+      }
+    }
+    AnchorEdge expected = new AnchorEdge(intent.sourceRef(), intent.targetRef());
+    if (matches.size() == 1 && matches.contains(expected)) {
+      return;
+    }
+    if (matches.isEmpty()) {
+      throw new IllegalArgumentException(
+          "Mapping intent '"
+              + intent.mappingIntentId()
+              + "' does not belong to an approved requirement-flow transition");
+    }
+    if (matches.size() > 1) {
+      throw new IllegalArgumentException(
+          "Mapping intent '"
+              + intent.mappingIntentId()
+              + "' has an ambiguous carrying transition: "
+              + matches);
+    }
+    throw new IllegalArgumentException(
+        "Mapping intent '"
+            + intent.mappingIntentId()
+            + "' is placed on transition "
+            + matches.iterator().next()
+            + " but approved for "
+            + expected);
+  }
+
+  private static Map<String, List<String>> adjacency(List<SemanticExecutionEdge> edges) {
+    Map<String, List<String>> adjacent = new LinkedHashMap<>();
+    for (SemanticExecutionEdge edge : edges) {
+      adjacent
+          .computeIfAbsent(edge.sourceNodeId(), ignored -> new ArrayList<>())
+          .add(edge.targetNodeId());
+    }
+    return adjacent;
+  }
+
+  private static boolean reachableWithinTransition(
+      String start,
+      String target,
+      Map<String, List<String>> outgoing,
+      Set<String> anchors) {
+    if (start.equals(target)) {
+      return true;
+    }
+    ArrayDeque<String> pending = new ArrayDeque<>();
+    Set<String> seen = new LinkedHashSet<>();
+    pending.add(start);
+    seen.add(start);
+    while (!pending.isEmpty()) {
+      String current = pending.removeFirst();
+      for (String next : outgoing.getOrDefault(current, List.of())) {
+        if (next.equals(target)) {
+          return true;
+        }
+        if (anchors.contains(next)) {
+          continue;
+        }
+        if (seen.add(next)) {
+          pending.add(next);
+        }
+      }
+    }
+    return false;
   }
 
   // Containment

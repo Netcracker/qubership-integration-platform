@@ -163,7 +163,7 @@ elif [[ "${expected}" == "CHAIN_MATERIALIZED" ]]; then
     fi
   fi
 elif [[ "${expected}" == "WAITING_FOR_INPUT" ]]; then
-  if jq -e '.haltGate == "stage-escalated"' "${REPORT}" >/dev/null; then
+  if jq -e '.haltGate == "recovery-repeated" or .haltGate == "stage-escalated"' "${REPORT}" >/dev/null; then
     for kind in REQUIREMENT_BRIEF IMPLEMENTATION_PLAN; do
       jq -e --arg k "${kind}" '(.committedArtifactKinds // []) | index($k) != null' "${REPORT}" \
         >/dev/null || {

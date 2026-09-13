@@ -124,6 +124,7 @@ active_entries() {
       and (.value.status // "active") == "active"
       and .value.pipeline == $p
       and (.value.recovery.exhaustHalt != true)
+      and (.value.recovery.manualOnly != true)
     ) | .key' \
     "${SCENARIOS_FILE}" | sort
 }
@@ -203,12 +204,16 @@ if [[ "${#CREATE_SCENARIO_IDS[@]}" -gt 0 ]]; then
     }
     if jq -e --arg s "${scenario}" '.[$s].recovery != null' "${SCENARIOS_FILE}" >/dev/null; then
       jq -e --arg s "${scenario}" '
-        .[$s].recovery.faultStage == "design-execution"
-        and .[$s].recovery.ownerStage == "design-planning"
-        and ((.[$s].recovery.followUp | type) == "string" and (.[$s].recovery.followUp | length) > 0)
+        ((.[$s].recovery.faultStages // [.[$s].recovery.faultStage]) | all(type == "string" and length > 0))
+        and ((.[$s].recovery.ownerStages // [.[$s].recovery.ownerStage]) | all(type == "string" and length > 0))
+        and ((.[$s].recovery.faultStages // [.[$s].recovery.faultStage]) | length)
+          == ((.[$s].recovery.ownerStages // [.[$s].recovery.ownerStage]) | length)
+        and ((.[$s].recovery.faultPlan // "design-execution=MISSING_REQUIRED_PROPERTY:2") | length > 0)
+        and (.[$s].recovery.automaticOnly == true
+          or ((.[$s].recovery.followUp | type) == "string" and (.[$s].recovery.followUp | length) > 0))
         and ((.[$s].uniqueChainNamePrefix | type) == "string" and (.[$s].uniqueChainNamePrefix | length) > 0)
       ' "${SCENARIOS_FILE}" >/dev/null || {
-        echo "FAIL: recovery scenario ${scenario} must define fault stage, owner, follow-up, and prefix" >&2
+        echo "FAIL: recovery scenario ${scenario} has an invalid fault plan, owner list, or prefix" >&2
         exit 1
       }
     fi
@@ -261,6 +266,20 @@ if [[ "${recovery_fault_prefix_count}" -gt 1 ]]; then
 fi
 if [[ "${recovery_fault_prefix_count}" -eq 1 ]]; then
   export QIP_E2E_RECOVERY_FAULT_CHAIN_PREFIX="${recovery_fault_prefixes}"
+  recovery_fault_plan="$(
+    for scenario in "${CREATE_SCENARIO_IDS[@]:-}"; do
+      [[ -n "${scenario}" ]] || continue
+      jq -r --arg s "${scenario}" \
+        'select(.[$s].recovery != null) | .[$s].recovery.faultPlan // "design-execution=MISSING_REQUIRED_PROPERTY:2"' \
+        "${SCENARIOS_FILE}"
+    done | awk 'NF' | sort -u
+  )"
+  recovery_fault_plan_count="$(printf '%s\n' "${recovery_fault_plan}" | awk 'NF' | wc -l | tr -d ' ')"
+  if [[ "${recovery_fault_plan_count}" -ne 1 ]]; then
+    echo "FAIL: selected recovery scenarios must use one fault plan per deployment" >&2
+    exit 1
+  fi
+  export QIP_E2E_RECOVERY_FAULT_PLAN="${recovery_fault_plan}"
 fi
 
 wait_for_health() {
@@ -441,7 +460,14 @@ jq -nc \
      reliabilityFailures: $reliability,
      semantic: $semantic,
      compilerPipelineDigests: $digests,
-     verdict: (if ($reliability|length)==0 and $total==$expected then "PASS" else "FAIL" end)
+     verdict: (
+       if ($reliability|length)==0
+          and $total==$expected
+          and (($semantic.failed // false) != true)
+       then "PASS"
+       else "FAIL"
+       end
+     )
    }' >"${REPORT_DIR}/summary.json"
 
 echo "Quality gate summary written to ${REPORT_DIR}/summary.json"

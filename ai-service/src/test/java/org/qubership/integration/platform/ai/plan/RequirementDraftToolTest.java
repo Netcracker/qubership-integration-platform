@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogL
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -59,7 +60,7 @@ class RequirementDraftToolTest {
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
-                sampleFacts(),
+                sampleFactsWithTrigger("orders-http"),
                 null,
                 nativeHttpFlow()));
 
@@ -395,7 +396,7 @@ class RequirementDraftToolTest {
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,
-            sampleFacts(),
+            sampleFactsWithTrigger("orders"),
             null,
             inbound));
 
@@ -407,7 +408,7 @@ class RequirementDraftToolTest {
                 DraftDecision.READY_FOR_PLAN,
                 List.of(),
                 null,
-                sampleFacts(),
+                sampleFactsWithTrigger("orders"),
                 null,
                 inbound));
 
@@ -1859,6 +1860,13 @@ class RequirementDraftToolTest {
         "task.result",
         "onTaskResult",
         "catalog-read:om-result");
+  }
+
+  private static List<RequirementFact> sampleFactsWithTrigger(String interactionId) {
+    List<RequirementFact> facts = new java.util.ArrayList<>();
+    facts.add(RequirementFactFixtures.httpTriggerFact(interactionId, "GET", "/orders"));
+    facts.addAll(sampleFacts());
+    return List.copyOf(facts);
   }
 
   private static List<RequirementFact> sampleFacts() {

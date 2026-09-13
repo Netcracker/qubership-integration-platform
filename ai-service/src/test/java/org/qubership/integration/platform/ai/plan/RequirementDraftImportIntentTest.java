@@ -11,6 +11,7 @@ import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -150,7 +151,8 @@ class RequirementDraftImportIntentTest {
                 new RequirementFlow(
                     List.of(
                         new Interaction("http-in", Direction.INBOUND, "Caller", "GET /", "")),
-                    List.of()));
+                    List.of()))
+            .withFacts(List.of(RequirementFactFixtures.httpTriggerFact("http-in", "GET", "/")));
     assertTrue(original.readyForPlan());
     RequirementDraft next =
         original.withAssembledText("Consume onTaskStart\n\nRequest mapping: Subject = name");
@@ -312,7 +314,9 @@ class RequirementDraftImportIntentTest {
                         "return-task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
                 List.of(
                     new Transition("on-task-start", "create-salesforce-task"),
-                    new Transition("create-salesforce-task", "return-task-result"))));
+                    new Transition("create-salesforce-task", "return-task-result"))))
+        .withFacts(
+            List.of(RequirementFactFixtures.httpTriggerFact("on-task-start", "POST", "/tasks")));
   }
 
   private static CatalogBindingHint restHint(String interactionId) {

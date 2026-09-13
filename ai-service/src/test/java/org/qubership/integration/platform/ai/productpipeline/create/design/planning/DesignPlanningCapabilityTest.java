@@ -34,6 +34,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
@@ -443,6 +446,52 @@ class DesignPlanningCapabilityTest {
     }
     assertTrue(plan.planText().contains(ApprovalPolicy.CATALOG_FIRST_V1));
     assertTrue(plan.scriptOutcomes().isEmpty(), "pass-through mappings do not require scripts");
+  }
+
+  @Test
+  void rendererPreservesApprovedEndpointAndBehaviorFacts() {
+    DesignPlanReport report = new DesignPlanReport("1", validReport());
+    ChainSemanticRevision revision = sampleRevision();
+    DesignExecutionPlan projection =
+        new DesignPlanProjector()
+            .project(
+                report,
+                revision,
+                samplePin(
+                    revision,
+                    sampleDag(),
+                    Map.of(CipDesignPlannerAdapter.SKILL_ID, PINNED_SKILL_HASH),
+                    Map.of(CipDesignPlannerAdapter.SKILL_ID, "addon-hash")));
+    String endpoint = "Expose GET /recovery-materialization as an internal route.";
+    String behavior = "Return plain text recovered from a script.";
+    RequirementBrief brief =
+        sampleBrief()
+            .withFacts(
+                List.of(
+                    new RequirementFact(
+                        "recovery-endpoint",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "http-trigger",
+                        endpoint,
+                        "",
+                        "",
+                        "",
+                        "GET",
+                        "/recovery-materialization"),
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.BEHAVIOR,
+                        "script",
+                        behavior)));
+
+    ImplementationPlan plan =
+        new DesignImplementationPlanRenderer().render(report, projection, revision, brief);
+
+    assertTrue(plan.endpointFacts().contains(endpoint), plan.endpointFacts().toString());
+    assertTrue(plan.scriptOutcomes().contains(behavior), plan.scriptOutcomes().toString());
+    assertTrue(plan.planText().contains(endpoint), plan.planText());
+    assertTrue(plan.planText().contains(behavior), plan.planText());
   }
 
   @Test

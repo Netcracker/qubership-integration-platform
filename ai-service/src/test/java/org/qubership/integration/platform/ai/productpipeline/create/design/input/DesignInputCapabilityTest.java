@@ -38,6 +38,7 @@ import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGate
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
@@ -122,6 +123,43 @@ class DesignInputCapabilityTest {
     assertTrue(ids.markdown().contains("autonumber"));
     assertEquals(CanonicalPayloadHash.sha256Hex(revision), ids.normalizedFlowHash());
     assertEquals(IdsDocument.Mode.DERIVED, ids.mode());
+  }
+
+  @Test
+  void entryPointWithoutCapabilityKeyHaltsBeforeTheAgentRuns() {
+    RequirementBrief approved = ChainSemanticCaptureFixtures.approvedBrief();
+    RequirementEntryPoint blank =
+        new RequirementEntryPoint("http-in", "trigger-1", "", "", "POST", "/orders", "createOrder");
+    RequirementBrief withoutKey =
+        new RequirementBrief(
+            approved.goal(),
+            approved.inputs(),
+            approved.constraints(),
+            approved.assumptions(),
+            approved.citations(),
+            approved.summary(),
+            approved.approvedDraftReference(),
+            approved.approvedDraftText(),
+            approved.facts(),
+            List.of(blank),
+            approved.serviceCalls(),
+            approved.requirements(),
+            approved.mappingIntents(),
+            approved.flow(),
+            approved.catalogBindings());
+
+    StageOutcome prepared =
+        outcome(
+            capturingCapability(),
+            context("design-input", Map.of("requirementBrief", withoutKey)));
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, prepared.outcomeClass());
+    assertTrue(prepared.message().contains("http-in"), prepared.message());
+    assertEquals(
+        RecoveryCauseCode.MISSING_BRIEF_FACTS, prepared.recoveryCause().causeCode());
+    assertTrue(
+        prepared.recoveryCause().formattedFindings().contains("http-in"),
+        prepared.recoveryCause().formattedFindings());
   }
 
   @Test

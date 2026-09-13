@@ -244,6 +244,30 @@ class ProductPipelineRunSupportTest {
         haltJson);
   }
 
+  @Test
+  void approvalPromptCarriesTheReasonTheRunCameBack() {
+    Map<String, Object> attributes =
+        new HashMap<>(
+            Map.of(
+                ProductPipelineRunSupport.RECOVERY_AUTHOR_NOTE_ATTR,
+                "The entry point was captured without its trigger."));
+
+    String prompt =
+        ProductPipelineRunSupport.withAuthorNote(
+            attributes, ProductPipelineRunSupport.BRIEF_REPAIR_APPROVAL_PROMPT);
+
+    assertTrue(prompt.startsWith("The entry point was captured without its trigger."), prompt);
+    assertTrue(prompt.endsWith(ProductPipelineRunSupport.BRIEF_REPAIR_APPROVAL_PROMPT), prompt);
+  }
+
+  @Test
+  void approvalPromptStaysBareWithoutARecordedReason() {
+    assertEquals(
+        ProductPipelineRunSupport.BRIEF_REPAIR_APPROVAL_PROMPT,
+        ProductPipelineRunSupport.withAuthorNote(
+            new HashMap<>(), ProductPipelineRunSupport.BRIEF_REPAIR_APPROVAL_PROMPT));
+  }
+
   private static StageAttempt attempt(String stageId, long revision, StageStatus outcome) {
     return new StageAttempt(
         "attempt-" + revision, stageId, revision, outcome, FIXED, FIXED, List.of(), null);

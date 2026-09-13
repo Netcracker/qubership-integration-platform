@@ -13,6 +13,9 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessRequest;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessResponse;
 import org.qubership.integration.platform.ai.harness.ChainPatchHarnessService;
+import org.qubership.integration.platform.ai.harness.ExecutorHarnessRequest;
+import org.qubership.integration.platform.ai.harness.ExecutorHarnessResponse;
+import org.qubership.integration.platform.ai.harness.ExecutorHarnessService;
 import org.qubership.integration.platform.ai.harness.PlannerHarnessRequest;
 import org.qubership.integration.platform.ai.harness.PlannerHarnessResponse;
 import org.qubership.integration.platform.ai.harness.PlannerHarnessService;
@@ -30,15 +33,40 @@ public class SkillHarnessResource {
   private final SkillHarnessService harnessService;
   private final ChainPatchHarnessService chainPatchHarnessService;
   private final PlannerHarnessService plannerHarnessService;
+  private final ExecutorHarnessService executorHarnessService;
 
   @Inject
   public SkillHarnessResource(
       SkillHarnessService harnessService,
       ChainPatchHarnessService chainPatchHarnessService,
-      PlannerHarnessService plannerHarnessService) {
+      PlannerHarnessService plannerHarnessService,
+      ExecutorHarnessService executorHarnessService) {
     this.harnessService = harnessService;
     this.chainPatchHarnessService = chainPatchHarnessService;
     this.plannerHarnessService = plannerHarnessService;
+    this.executorHarnessService = executorHarnessService;
+  }
+
+  @POST
+  @Path("/executor-run")
+  @Blocking
+  @Consumes(MediaType.APPLICATION_JSON)
+  public Response runExecutor(ExecutorHarnessRequest request) {
+    if (request == null) {
+      return badRequest("Request body is required");
+    }
+    if (isBlank(request.plannerResponse())) {
+      return badRequest("plannerResponse is required");
+    }
+    if (request.semanticRevision() == null) {
+      return badRequest("semanticRevision is required");
+    }
+    if (request.requirementBrief() == null) {
+      return badRequest("requirementBrief is required");
+    }
+
+    ExecutorHarnessResponse response = executorHarnessService.run(request);
+    return Response.ok(response).build();
   }
 
   @POST

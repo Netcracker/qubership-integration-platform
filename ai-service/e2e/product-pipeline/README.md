@@ -68,6 +68,20 @@ ai-service/e2e/product-pipeline/run-quality-gate.sh \
   --base-url http://localhost:8094
 ```
 
+Three manual scenarios cover delayed recovery beyond planning:
+
+- `product-create-chain-recovery-design-input` injects a catalog identity mismatch during
+  execution and expects an automatic reopen of `design-input`.
+- `product-create-chain-recovery-materialization-execution` injects a pre-write contract-shape
+  failure during materialization and expects an automatic reopen of `design-execution`.
+- `product-create-chain-recovery-sequential` injects both defects in one run and checks that each
+  failure reaches its own producer before the chain materializes.
+
+They are excluded from the default gate because each one configures a different chain-scoped fault
+plan. Select each scenario explicitly with `--scenario` and use one run initially. Live execution
+sends the scenario prompt and generated pipeline artifacts to the configured external model
+endpoint, so obtain explicit egress approval before starting these scenarios.
+
 Run only COMPARE_AND_PATCH after the stack is up:
 
 ```bash
@@ -77,6 +91,22 @@ ai-service/e2e/product-pipeline/run-patch-scenario.sh \
   --base-url http://localhost:8094 \
   --report /tmp/ai-service-patch-gate/report.json
 ```
+
+Run the uploaded OpenAPI path against an already running stack:
+
+```bash
+ai-service/e2e/product-pipeline/run-product-scenario.sh \
+  --scenario product-create-chain-uploaded-openapi-mapping \
+  --rep 1 \
+  --base-url http://localhost:8094 \
+  --evaluator-url http://localhost:8100 \
+  --report /tmp/rocky-uploaded-openapi/report.json
+```
+
+The runner uploads `fixtures/rocky-orders-openapi.yaml`, passes its object key on the first chat turn, and answers
+the returned `import-specification` card with the advertised artifact hash and revision. The catalog assertion
+then verifies the imported operation IDs, `POST /orders`, the request mapping script, topology, materialization,
+and reconciliation.
 
 ## Scope
 
@@ -89,8 +119,8 @@ open-chain attachment), and apply the decision card. They do not use
 `ChainEditCompiler`, the same path as the browser.
 
 The gate records runtime failures separately from semantic evaluator results. Deployment packaging
-is outside the scenario boundary. Inactive fixtures (Petstore CREATE, try-catch wrap patch, and
-replace-subgraph patch) are not part of the live gate.
+is outside the scenario boundary. Inactive requirement-flow duplicates are not part of the live
+gate.
 
 Set `PRODUCT_PIPELINE_STUB_MODE=1` to run the orchestration path without Docker or an evaluator.
 Unknown command-line options exit with code 2.

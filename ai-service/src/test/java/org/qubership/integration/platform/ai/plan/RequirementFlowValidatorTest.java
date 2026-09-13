@@ -178,12 +178,52 @@ class RequirementFlowValidatorTest {
   }
 
   @Test
-  void acceptsInboundCallerWithoutNativeFactOrHint() {
+  void reportsEntryPointWithoutBindingOrCapabilityFact() {
     RequirementFlow flow =
         flow(List.of(interaction("orders-http", INBOUND, "Caller", "GET /orders")), List.of());
 
+    Optional<String> message =
+        RequirementFlowValidator.validateBindings(flow, List.of(), List.of());
+    assertTrue(message.isPresent());
+    assertTrue(message.get().contains("entry point orders-http"));
+    assertTrue(message.get().contains("interactionId=orders-http"));
+    assertTrue(message.get().contains("sourceFactId=orders-http"));
+    assertTrue(message.get().contains("http-trigger"));
+  }
+
+  @Test
+  void acceptsEntryPointWithNonNativeCapabilityFact() {
+    RequirementFlow flow =
+        flow(List.of(interaction("task-start", INBOUND, "OM", "onTaskStart")), List.of());
+    RequirementFact asyncTrigger =
+        new RequirementFact(
+            "task-start",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "async-api-trigger",
+            "Consume the OM task.start topic");
+
     assertEquals(
-        Optional.empty(), RequirementFlowValidator.validateBindings(flow, List.of(), List.of()));
+        Optional.empty(),
+        RequirementFlowValidator.validateBindings(flow, List.of(asyncTrigger), List.of()));
+  }
+
+  @Test
+  void reportsEntryPointWhoseFirstFactCarriesNoCapabilityKey() {
+    RequirementFlow flow =
+        flow(List.of(interaction("task-start", INBOUND, "OM", "onTaskStart")), List.of());
+    RequirementFact goal =
+        new RequirementFact(
+            "task-start",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.GOAL,
+            "",
+            "Start the chain on onTaskStart");
+
+    Optional<String> message =
+        RequirementFlowValidator.validateBindings(flow, List.of(goal), List.of());
+    assertTrue(message.isPresent());
+    assertTrue(message.get().contains("entry point task-start"));
   }
 
   @Test

@@ -202,6 +202,11 @@ public final class ProducerOwnedRecovery {
       final String failedStageId,
       final String diagnosedOwner,
       final Optional<String> consumedBriefProducerStageId) {
+    if (causeCode == RecoveryCauseCode.CONTRACT_SHAPE
+        && "materialization".equals(failedStageId)
+        && OwnerCandidateSet.containsStage(candidates, "design-execution")) {
+      return Optional.of("design-execution");
+    }
     if (causeCode == RecoveryCauseCode.MAPPING_CONTRACT) {
       Optional<String> briefProducer =
           OwnerCandidateSet.briefProducerStageId(candidates, failedStageId);

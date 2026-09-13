@@ -11,6 +11,7 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
@@ -24,6 +25,10 @@ class RecoveryExecutorTest {
       new Reference(Kind.CHAIN_PLAN_GRAPH, "graph-1", "graph-hash");
   private static final Reference PLAN_REF =
       new Reference(Kind.IMPLEMENTATION_PLAN, "plan-1", "plan-hash");
+  private static final Reference IDS_REF =
+      new Reference(Kind.IDS_DOCUMENT, "ids-1", "ids-hash");
+  private static final Reference SEMANTIC_REVISION_REF =
+      new Reference(Kind.CHAIN_SEMANTIC_REVISION, "revision-1", "revision-hash");
   private static final ProfileStage FAILED_STAGE =
       new ProfileStage(
           "design-execution",
@@ -89,6 +94,76 @@ class RecoveryExecutorTest {
         assertInstanceOf(StageDecision.ReopenProducer.class, decision);
     assertEquals("design-execution", reopen.stageId());
     assertEquals("requirement-analysis", reopen.producerStageId());
+  }
+
+  @Test
+  void missingBriefFactsReopensTheDraftProducer() {
+    RecoveryDecision decision =
+        decision(
+            RecoveryCauseClass.BRIEF_DEFECT,
+            RecoveryAction.REVISE_BRIEF,
+            "",
+            "The entry point was captured without its trigger.");
+
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(
+            StageDecision.ReopenProducer.class,
+            RecoveryExecutor.execute(
+                decision,
+                evidenceWithCause(RecoveryCauseCode.MISSING_BRIEF_FACTS.name()),
+                null,
+                FAILED_STAGE,
+                false,
+                false));
+
+    assertEquals("requirement-discovery", reopen.producerStageId());
+    assertEquals("The entry point was captured without its trigger.", reopen.authorNote());
+  }
+
+  @Test
+  void otherBriefDefectsStayWithTheBriefProducer() {
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(
+            StageDecision.ReopenProducer.class,
+            RecoveryExecutor.execute(
+                decision(
+                    RecoveryCauseClass.BRIEF_DEFECT, RecoveryAction.REVISE_BRIEF, "", "Fix it."),
+                evidenceWithCause(RecoveryCauseCode.MAPPING_CONTRACT.name()),
+                null,
+                FAILED_STAGE,
+                false,
+                false));
+
+    assertEquals("requirement-analysis", reopen.producerStageId());
+  }
+
+  private static RecoveryEvidence evidenceWithCause(String observedCauseCode) {
+    return new RecoveryEvidence(
+        1,
+        "failure-1",
+        observedCauseCode,
+        "design-execution",
+        BRIEF_REF,
+        null,
+        List.of(BRIEF_REF),
+        List.of(),
+        null,
+        List.of());
+  }
+
+  @Test
+  void reviseBriefCarriesNoNoteWhenTheModelWroteNoSummary() {
+    StageDecision decision =
+        RecoveryExecutor.execute(
+            decision(RecoveryCauseClass.BRIEF_DEFECT, RecoveryAction.REVISE_BRIEF, "", ""),
+            null,
+            FAILED_STAGE,
+            false);
+
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, decision);
+    assertEquals("requirement-analysis", reopen.producerStageId());
+    assertEquals("", reopen.authorNote());
   }
 
   @Test
@@ -171,6 +246,48 @@ class RecoveryExecutorTest {
     assertEquals("design-execution", reopen.stageId());
     assertEquals("design-planning", reopen.producerStageId());
     assertNotEquals("requirement-analysis", reopen.producerStageId());
+  }
+
+  @Test
+  void idsDefectDetectedDuringExecutionReopensDesignInput() {
+    RecoveryEvidence evidence = derivationEvidence(IDS_REF);
+    RecoveryDecision decision =
+        new RecoveryDecision(
+            RecoveryCauseClass.DERIVATION_DEFECT,
+            IDS_REF,
+            List.of(evidence.failureId()),
+            RecoveryAction.REGENERATE_ARTIFACT,
+            List.of(),
+            "",
+            "Regenerate the integration design.");
+
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(
+            StageDecision.ReopenProducer.class,
+            RecoveryExecutor.execute(decision, evidence, null, FAILED_STAGE, false, false));
+
+    assertEquals("design-input", reopen.producerStageId());
+  }
+
+  @Test
+  void semanticRevisionDefectDetectedDuringExecutionReopensDesignInput() {
+    RecoveryEvidence evidence = derivationEvidence(SEMANTIC_REVISION_REF);
+    RecoveryDecision decision =
+        new RecoveryDecision(
+            RecoveryCauseClass.DERIVATION_DEFECT,
+            SEMANTIC_REVISION_REF,
+            List.of(evidence.failureId()),
+            RecoveryAction.REGENERATE_ARTIFACT,
+            List.of(),
+            "",
+            "Regenerate the semantic design.");
+
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(
+            StageDecision.ReopenProducer.class,
+            RecoveryExecutor.execute(decision, evidence, null, FAILED_STAGE, false, false));
+
+    assertEquals("design-input", reopen.producerStageId());
   }
 
   @Test

@@ -1,0 +1,124 @@
+{
+  "cases": [
+    {
+      "id": "mapping",
+      "inputFile": "inputs/mapping.json",
+      "plannerResponseFile": "planner-responses/mapping.md",
+      "requiredPlannedSkills": [
+        "cip-trigger-generator",
+        "cip-script-generator",
+        "cip-service-call-generator",
+        "cip-structure-generator"
+      ],
+      "requiredExecutedSkills": [
+        "cip-script-generator",
+        "cip-service-call-generator"
+      ],
+      "requiredGraphTypes": ["http-trigger", "script", "service-call"],
+      "requiredMappingIntentIds": ["request-map", "response-map"],
+      "expectedCatalogBindings": [
+        {
+          "nodeId": "orders-call",
+          "serviceCallId": "orders-create",
+          "operationId": "createOrder"
+        }
+      ]
+    },
+    {
+      "id": "retry-error-handling",
+      "inputFile": "inputs/retry-error-handling.json",
+      "plannerResponseFile": "planner-responses/retry-error-handling.md",
+      "requiredPlannedSkills": [
+        "cip-trigger-generator",
+        "cip-script-generator",
+        "cip-service-call-generator",
+        "cip-retry-generator",
+        "cip-error-handling-generator",
+        "cip-structure-generator"
+      ],
+      "requiredExecutedSkills": [
+        "cip-script-generator",
+        "cip-service-call-generator",
+        "cip-retry-generator"
+      ],
+      "requiredGraphTypes": [
+        "http-trigger",
+        "script",
+        "service-call",
+        "try-catch-finally-2",
+        "try-2",
+        "catch-2"
+      ],
+      "requiredMappingIntentIds": ["payment-map"],
+      "expectedCatalogBindings": [
+        {
+          "nodeId": "payment-call",
+          "serviceCallId": "payment-authorize",
+          "operationId": "authorizePayment"
+        }
+      ]
+    },
+    {
+      "id": "two-service-calls",
+      "inputFile": "inputs/two-service-calls.json",
+      "plannerResponseFile": "planner-responses/two-service-calls.md",
+      "requiredPlannedSkills": [
+        "cip-trigger-generator",
+        "cip-script-generator",
+        "cip-service-call-generator",
+        "cip-structure-generator"
+      ],
+      "requiredExecutedSkills": [
+        "cip-script-generator",
+        "cip-service-call-generator"
+      ],
+      "requiredGraphTypes": ["http-trigger", "script", "service-call"],
+      "minimumGraphTypeOccurrences": [{"type": "service-call", "count": 2}],
+      "expectedCatalogBindings": [
+        {
+          "nodeId": "orders-call",
+          "serviceCallId": "orders-create",
+          "operationId": "createOrder"
+        },
+        {
+          "nodeId": "inventory-call",
+          "serviceCallId": "inventory-reserve",
+          "operationId": "reserveInventory"
+        }
+      ]
+    },
+    {
+      "id": "repeated-operation-mappings",
+      "inputFile": "inputs/repeated-operation-mappings.json",
+      "plannerResponseFile": "planner-responses/repeated-operation-mappings.md",
+      "requiredPlannedSkills": [
+        "cip-trigger-generator",
+        "cip-script-generator",
+        "cip-service-call-generator",
+        "cip-structure-generator"
+      ],
+      "requiredExecutedSkills": [
+        "cip-script-generator",
+        "cip-service-call-generator"
+      ],
+      "requiredGraphTypes": ["http-trigger", "script", "service-call"],
+      "minimumGraphTypeOccurrences": [
+        {"type": "script", "count": 3},
+        {"type": "service-call", "count": 2}
+      ],
+      "requiredMappingIntentIds": ["map-request", "map-between", "map-response"],
+      "expectedCatalogBindings": [
+        {
+          "nodeId": "orders-call",
+          "serviceCallId": "orders-create",
+          "operationId": "createOrder"
+        },
+        {
+          "nodeId": "inventory-call",
+          "serviceCallId": "inventory-reserve",
+          "operationId": "createOrder"
+        }
+      ]
+    }
+  ]
+}

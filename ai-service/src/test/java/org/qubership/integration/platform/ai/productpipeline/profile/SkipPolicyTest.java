@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -190,7 +191,9 @@ class SkipPolicyTest {
                         "return-task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
                 List.of(
                     new Transition("on-task-start", "create-salesforce-task"),
-                    new Transition("create-salesforce-task", "return-task-result"))));
+                    new Transition("create-salesforce-task", "return-task-result"))))
+        .withFacts(
+            List.of(RequirementFactFixtures.httpTriggerFact("on-task-start", "POST", "/tasks")));
   }
 
   private static CatalogBindingHint restHint(String interactionId) {

@@ -32,6 +32,8 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -43,6 +45,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.OrderedGraphPatches;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ValidatedExecutionBundle;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.skill.orchestration.ReconcileResult;
 
@@ -61,6 +64,7 @@ public class MaterializationCapability implements StageCapability {
   private final ChainReconcileService reconcileService;
   private final CanonicalGraphDigest canonicalGraphDigest;
   private final CipDesignExecutorJavaAdapter designExecutor;
+  private final E2eRecoveryFaultInjector recoveryFaultInjector;
 
   @Inject
   public MaterializationCapability(
@@ -69,7 +73,8 @@ public class MaterializationCapability implements StageCapability {
       ChainCatalogFactsService factsService,
       ChainReconcileService reconcileService,
       CanonicalGraphDigest canonicalGraphDigest,
-      CipDesignExecutorJavaAdapter designExecutor) {
+      CipDesignExecutorJavaAdapter designExecutor,
+      E2eRecoveryFaultInjector recoveryFaultInjector) {
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.materializer = Objects.requireNonNull(materializer, "materializer");
     this.factsService = Objects.requireNonNull(factsService, "factsService");
@@ -77,6 +82,8 @@ public class MaterializationCapability implements StageCapability {
     this.canonicalGraphDigest =
         Objects.requireNonNull(canonicalGraphDigest, "canonicalGraphDigest");
     this.designExecutor = Objects.requireNonNull(designExecutor, "designExecutor");
+    this.recoveryFaultInjector =
+        Objects.requireNonNull(recoveryFaultInjector, "recoveryFaultInjector");
   }
 
   /** Test helper for create-chain@1 paths that do not invoke Phase 6. */
@@ -92,6 +99,25 @@ public class MaterializationCapability implements StageCapability {
     this.canonicalGraphDigest =
         new CanonicalGraphDigest(new com.fasterxml.jackson.databind.ObjectMapper());
     this.designExecutor = null;
+    this.recoveryFaultInjector = new E2eRecoveryFaultInjector("", "");
+  }
+
+  /** Test helper that supplies a Phase 6 executor adapter. */
+  public MaterializationCapability(
+      ProductPipelineArtifactStore artifactStore,
+      ProductChainMaterializer materializer,
+      ChainCatalogFactsService factsService,
+      ChainReconcileService reconcileService,
+      CanonicalGraphDigest canonicalGraphDigest,
+      CipDesignExecutorJavaAdapter designExecutor) {
+    this(
+        artifactStore,
+        materializer,
+        factsService,
+        reconcileService,
+        canonicalGraphDigest,
+        designExecutor,
+        new E2eRecoveryFaultInjector("", ""));
   }
 
   /** Test helper that supplies a Phase 6 executor adapter. */
@@ -108,6 +134,7 @@ public class MaterializationCapability implements StageCapability {
     this.canonicalGraphDigest =
         new CanonicalGraphDigest(new com.fasterxml.jackson.databind.ObjectMapper());
     this.designExecutor = Objects.requireNonNull(designExecutor, "designExecutor");
+    this.recoveryFaultInjector = new E2eRecoveryFaultInjector("", "");
   }
 
   @Override
@@ -124,6 +151,20 @@ public class MaterializationCapability implements StageCapability {
           .item(
               new CapabilitySignal.Completed(
                   StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, resolved.error())));
+    }
+    String chainName =
+        resolved.graph().chain() == null ? null : resolved.graph().chain().name();
+    Optional<RecoveryCauseCode> injected =
+        recoveryFaultInjector.next(context.runId(), chainName, CAPABILITY_ID);
+    if (injected.isPresent()) {
+      RecoveryCauseCode causeCode = injected.orElseThrow();
+      return Multi.createFrom()
+          .item(
+              new CapabilitySignal.Completed(
+                  StageOutcome.of(
+                      StageOutcomeClass.CONTRACT_FAILURE,
+                      "E2E recovery fault: injected " + causeCode + " at materialization.",
+                      RecoveryCause.of(causeCode))));
     }
 
     // Capture the SSE emit consumer on this thread (ToolInvocationSink bound by chat turn), then

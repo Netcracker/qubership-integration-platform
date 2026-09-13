@@ -4,9 +4,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.catalog.binding.ServiceCallCatalogIdentity;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
@@ -23,10 +25,13 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.LoopMode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticBranch;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticContainment;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /**
@@ -76,11 +81,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     }
     List<String> callIds =
         calls.stream().map(SemanticNode.ServiceCall::serviceCallId).toList();
-    ResolvedServiceCallBinding.requireExactOwners(
-        callIds,
-        bindings.stream()
-            .filter(binding -> callIds.contains(binding.serviceCallId()))
-            .toList());
+    validateCatalogBindingOwnership(revision.nodes(), callIds, bindings);
 
     Map<String, String> parentByChild = new LinkedHashMap<>();
     for (SemanticContainment containment : revision.containment()) {
@@ -97,6 +98,9 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       }
       applyRegion(region, nodesById, extraByNode, orderByNode);
     }
+    ErrorScopeProjection errorScopes =
+        projectErrorScopes(revision, nodesById, parentByChild, extraByNode, orderByNode);
+    applyHttpTriggerProperties(revision, brief, nodesById, extraByNode);
     applyMappingSites(revision, nodesById, extraByNode);
     applyServiceCallProperties(revision.revisionId(), calls, extraByNode);
 
@@ -104,9 +108,10 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     for (SemanticNode node : revision.nodes()) {
       planNodes.add(toPlanNode(node, contract, parentByChild, orderByNode, extraByNode));
     }
-    List<ChainPlanEdge> planEdges = new ArrayList<>();
+    planNodes.addAll(errorScopes.shellNodes());
+    List<ChainPlanEdge> planEdges = new ArrayList<>(errorScopes.shellEntryEdges());
     for (SemanticExecutionEdge edge : revision.executionEdges()) {
-      planEdges.add(toPlanEdge(edge, ownerByRegionId));
+      planEdges.add(toPlanEdge(edge, ownerByRegionId, errorScopes.shellByEdgeId()));
     }
     ChainPlanGraph graph =
         new ChainPlanGraph(
@@ -152,10 +157,17 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
   }
 
   private static ChainPlanEdge toPlanEdge(
-      SemanticExecutionEdge edge, Map<String, String> ownerByRegionId) {
+      SemanticExecutionEdge edge,
+      Map<String, String> ownerByRegionId,
+      Map<String, String> shellByEdgeId) {
     String scopeNodeId =
         edge.regionId() == null ? null : ownerByRegionId.get(edge.regionId());
-    return new ChainPlanEdge(edge.edgeId(), edge.sourceNodeId(), edge.targetNodeId(), scopeNodeId);
+    String shellNodeId = shellByEdgeId.get(edge.edgeId());
+    String sourceNodeId =
+        shellNodeId != null && !shellNodeId.equals(edge.targetNodeId())
+            ? shellNodeId
+            : edge.sourceNodeId();
+    return new ChainPlanEdge(edge.edgeId(), sourceNodeId, edge.targetNodeId(), scopeNodeId);
   }
 
   private static String contractType(SemanticNode node) {
@@ -224,18 +236,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
             "retryDelay",
             Integer.toString(retry.policy().retryDelayMillis()));
       }
-      case SemanticRegion.ErrorScope scope -> {
-        int index = 0;
-        for (ErrorHandler handler : scope.handlers()) {
-          SemanticNode entry = nodesById.get(handler.entryNodeId());
-          if ("catch-2".equals(contractType(entry))) {
-            addProperty(extraByNode, handler.entryNodeId(), "exception", handler.exceptionClass());
-            addProperty(extraByNode, handler.entryNodeId(), "priority", Integer.toString(index));
-          }
-          orderByNode.put(handler.entryNodeId(), index);
-          index++;
-        }
-      }
+      case SemanticRegion.ErrorScope ignored -> {}
       default -> throw new IllegalStateException("Unexpected semantic region: " + region);
     }
   }
@@ -254,6 +255,214 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       addProperty(
           extraByNode, siteId, MappingExecutionSite.SEMANTIC_EDGE_ID_PROPERTY, edge.edgeId());
       addProperty(extraByNode, siteId, MappingExecutionSite.MAPPING_ID_PROPERTY, edge.mappingId());
+    }
+  }
+
+  private ErrorScopeProjection projectErrorScopes(
+      ChainSemanticRevision revision,
+      Map<String, SemanticNode> nodesById,
+      Map<String, String> parentByChild,
+      Map<String, List<PlanProperty>> extraByNode,
+      Map<String, Integer> orderByNode) {
+    List<ChainPlanNode> shells = new ArrayList<>();
+    List<ChainPlanEdge> shellEntryEdges = new ArrayList<>();
+    Map<String, String> shellByEdgeId = new LinkedHashMap<>();
+    Set<String> reservedIds = new LinkedHashSet<>(nodesById.keySet());
+    for (SemanticRegion region : revision.regions()) {
+      if (!(region instanceof SemanticRegion.ErrorScope scope)) {
+        continue;
+      }
+      String tryShellId = scope.ownerNodeId() + "-try";
+      addShell(shells, reservedIds, tryShellId, "try-2", scope.ownerNodeId(), null, List.of());
+      addShellEntryEdge(shellEntryEdges, scope.ownerNodeId(), tryShellId);
+      parentBranchMembers(
+          scope.tryEntryNodeId(), scope.exitNodeIds(), revision.executionEdges(), tryShellId, parentByChild);
+      mapBranchEdge(revision.executionEdges(), scope.regionId(), SemanticRoute.TryPath.class, null, tryShellId,
+          shellByEdgeId);
+
+      int priority = 0;
+      for (ErrorHandler handler : scope.handlers()) {
+        SemanticNode entry = nodesById.get(handler.entryNodeId());
+        String catchShellId;
+        if (entry != null && "catch-2".equals(contractType(entry))) {
+          catchShellId = entry.nodeId();
+        } else {
+          catchShellId = scope.ownerNodeId() + "-catch-" + handler.handlerId();
+          addShell(
+              shells,
+              reservedIds,
+              catchShellId,
+              "catch-2",
+              scope.ownerNodeId(),
+              priority,
+              List.of(
+                  new PlanProperty("exception", handler.exceptionClass()),
+                  new PlanProperty("priority", Integer.toString(priority))));
+          addShellEntryEdge(shellEntryEdges, scope.ownerNodeId(), catchShellId);
+          parentBranchMembers(
+              handler.entryNodeId(),
+              handler.exitNodeIds(),
+              revision.executionEdges(),
+              catchShellId,
+              parentByChild);
+        }
+        if (catchShellId.equals(handler.entryNodeId())) {
+          addProperty(extraByNode, catchShellId, "exception", handler.exceptionClass());
+          addProperty(extraByNode, catchShellId, "priority", Integer.toString(priority));
+          orderByNode.put(catchShellId, priority);
+        }
+        mapBranchEdge(
+            revision.executionEdges(),
+            scope.regionId(),
+            SemanticRoute.CatchPath.class,
+            handler.handlerId(),
+            catchShellId,
+            shellByEdgeId);
+        priority++;
+      }
+
+      if (scope.finallyEntryNodeId() != null) {
+        String finallyShellId = scope.ownerNodeId() + "-finally";
+        addShell(
+            shells,
+            reservedIds,
+            finallyShellId,
+            "finally-2",
+            scope.ownerNodeId(),
+            null,
+            List.of());
+        addShellEntryEdge(shellEntryEdges, scope.ownerNodeId(), finallyShellId);
+        parentBranchMembers(
+            scope.finallyEntryNodeId(),
+            scope.exitNodeIds(),
+            revision.executionEdges(),
+            finallyShellId,
+            parentByChild);
+        mapBranchEdge(
+            revision.executionEdges(),
+            scope.regionId(),
+            SemanticRoute.FinallyPath.class,
+            null,
+            finallyShellId,
+            shellByEdgeId);
+      }
+    }
+    return new ErrorScopeProjection(
+        List.copyOf(shells), List.copyOf(shellEntryEdges), Map.copyOf(shellByEdgeId));
+  }
+
+  private static void addShellEntryEdge(
+      List<ChainPlanEdge> edges, String wrapperNodeId, String shellNodeId) {
+    edges.add(
+        new ChainPlanEdge(
+            shellNodeId + "-entry", wrapperNodeId, shellNodeId, wrapperNodeId));
+  }
+
+  private void addShell(
+      List<ChainPlanNode> shells,
+      Set<String> reservedIds,
+      String nodeId,
+      String type,
+      String parentNodeId,
+      Integer order,
+      List<PlanProperty> properties) {
+    if (!reservedIds.add(nodeId)) {
+      throw new IllegalArgumentException("Error-scope shell node id already exists: " + nodeId);
+    }
+    shells.add(
+        new ChainPlanNode(
+            nodeId,
+            type,
+            nodeId,
+            parentNodeId,
+            order,
+            schemaService.withUnconditionalSchemaDefaults(type, properties)));
+  }
+
+  private static void parentBranchMembers(
+      String entryNodeId,
+      List<String> exitNodeIds,
+      List<SemanticExecutionEdge> edges,
+      String shellNodeId,
+      Map<String, String> parentByChild) {
+    Set<String> exits = Set.copyOf(exitNodeIds);
+    Set<String> visited = new LinkedHashSet<>();
+    List<String> pending = new ArrayList<>();
+    pending.add(entryNodeId);
+    for (int index = 0; index < pending.size(); index++) {
+      String nodeId = pending.get(index);
+      if (!visited.add(nodeId)) {
+        continue;
+      }
+      parentByChild.put(nodeId, shellNodeId);
+      if (exits.contains(nodeId)) {
+        continue;
+      }
+      for (SemanticExecutionEdge edge : edges) {
+        if (nodeId.equals(edge.sourceNodeId()) && !isErrorBranchSelection(edge.route())) {
+          pending.add(edge.targetNodeId());
+        }
+      }
+    }
+  }
+
+  private static boolean isErrorBranchSelection(SemanticRoute route) {
+    return route instanceof SemanticRoute.TryPath
+        || route instanceof SemanticRoute.CatchPath
+        || route instanceof SemanticRoute.FinallyPath;
+  }
+
+  private static void mapBranchEdge(
+      List<SemanticExecutionEdge> edges,
+      String regionId,
+      Class<? extends SemanticRoute> routeType,
+      String handlerId,
+      String shellNodeId,
+      Map<String, String> shellByEdgeId) {
+    for (SemanticExecutionEdge edge : edges) {
+      if (!regionId.equals(edge.regionId()) || !routeType.isInstance(edge.route())) {
+        continue;
+      }
+      if (edge.route() instanceof SemanticRoute.CatchPath catchPath
+          && !Objects.equals(handlerId, catchPath.handlerId())) {
+        continue;
+      }
+      shellByEdgeId.put(edge.edgeId(), shellNodeId);
+    }
+  }
+
+  private record ErrorScopeProjection(
+      List<ChainPlanNode> shellNodes,
+      List<ChainPlanEdge> shellEntryEdges,
+      Map<String, String> shellByEdgeId) {}
+
+  private static void applyHttpTriggerProperties(
+      ChainSemanticRevision revision,
+      RequirementBrief brief,
+      Map<String, SemanticNode> nodesById,
+      Map<String, List<PlanProperty>> extraByNode) {
+    if (brief == null) {
+      return;
+    }
+    Map<String, RequirementEntryPoint> approvedById = new LinkedHashMap<>();
+    for (RequirementEntryPoint entryPoint : brief.entryPoints()) {
+      approvedById.put(entryPoint.entryPointId(), entryPoint);
+    }
+    for (SemanticEntryPoint semanticEntryPoint : revision.entryPoints()) {
+      RequirementEntryPoint approved = approvedById.get(semanticEntryPoint.entryPointId());
+      SemanticNode node = nodesById.get(semanticEntryPoint.triggerNodeId());
+      if (approved == null
+          || !(node instanceof SemanticNode.Trigger trigger)
+          || !"http-trigger".equals(trigger.capabilityKey())) {
+        continue;
+      }
+      if (!approved.path().isBlank()) {
+        addProperty(extraByNode, trigger.nodeId(), "contextPath", approved.path());
+      }
+      if (!approved.httpMethod().isBlank()) {
+        addProperty(
+            extraByNode, trigger.nodeId(), "httpMethodRestrict", approved.httpMethod());
+      }
     }
   }
 
@@ -292,6 +501,65 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       addProperty(extraByNode, call.nodeId(), "semanticNodeId", call.nodeId());
       addProperty(extraByNode, call.nodeId(), "semanticRevisionId", revisionId);
     }
+  }
+
+  private static void validateCatalogBindingOwnership(
+      List<SemanticNode> nodes,
+      List<String> requiredServiceCallIds,
+      List<ResolvedServiceCallBinding> bindings) {
+    Map<String, String> serviceCallTargetByOccurrence = new LinkedHashMap<>();
+    Set<String> triggerTargets = new LinkedHashSet<>();
+    for (SemanticNode node : nodes) {
+      if (node instanceof SemanticNode.ServiceCall call) {
+        serviceCallTargetByOccurrence.put(call.serviceCallId(), call.nodeId());
+      } else if (node instanceof SemanticNode.Trigger trigger) {
+        triggerTargets.add(trigger.nodeId());
+      }
+    }
+
+    Map<String, ResolvedServiceCallBinding> bindingByOccurrence = new LinkedHashMap<>();
+    Set<String> boundTargets = new LinkedHashSet<>();
+    for (ResolvedServiceCallBinding binding : bindings) {
+      if (binding == null) {
+        throw new IllegalArgumentException("catalog binding is required");
+      }
+      if (bindingByOccurrence.putIfAbsent(binding.serviceCallId(), binding) != null) {
+        throw new IllegalArgumentException(
+            "duplicate catalog binding for serviceCallId=" + binding.serviceCallId());
+      }
+      String expectedTarget = serviceCallTargetByOccurrence.get(binding.serviceCallId());
+      if (expectedTarget == null && triggerTargets.contains(binding.targetNodeId())) {
+        if (!boundTargets.add(binding.targetNodeId())) {
+          throw new IllegalArgumentException(
+              "duplicate catalog binding targetNodeId=" + binding.targetNodeId());
+        }
+        continue;
+      }
+      if (expectedTarget == null) {
+        throw new IllegalArgumentException(
+            "extra catalog binding for serviceCallId=" + binding.serviceCallId());
+      }
+      if (!expectedTarget.equals(binding.targetNodeId())) {
+        throw new IllegalArgumentException(
+            "catalog binding serviceCallId="
+                + binding.serviceCallId()
+                + " targets node "
+                + binding.targetNodeId()
+                + " but semantic owner is "
+                + expectedTarget);
+      }
+      if (!boundTargets.add(binding.targetNodeId())) {
+        throw new IllegalArgumentException(
+            "duplicate catalog binding targetNodeId=" + binding.targetNodeId());
+      }
+    }
+
+    List<ResolvedServiceCallBinding> requiredBindings =
+        requiredServiceCallIds.stream()
+            .map(bindingByOccurrence::get)
+            .filter(Objects::nonNull)
+            .toList();
+    ResolvedServiceCallBinding.requireExactOwners(requiredServiceCallIds, requiredBindings);
   }
 
   private static void addProperty(

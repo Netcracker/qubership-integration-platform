@@ -140,8 +140,14 @@ def _post_chat_completion(
     headers = {"Authorization": f"Bearer {settings.api_key}"}
     body = {
         "model": settings.model,
-        "temperature": 0,
-        "response_format": {"type": "json_object"},
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "score_response",
+                "strict": True,
+                "schema": _provider_score_schema(),
+            },
+        },
         "messages": messages,
     }
     return client.post(
@@ -150,6 +156,15 @@ def _post_chat_completion(
         headers=headers,
         timeout=PROVIDER_TIMEOUT_SECONDS,
     )
+
+
+def _provider_score_schema() -> dict[str, Any]:
+    schema = ScoreResponse.model_json_schema()
+    for field_schema in schema.get("properties", {}).values():
+        if isinstance(field_schema, dict):
+            field_schema.pop("minimum", None)
+            field_schema.pop("maximum", None)
+    return schema
 
 
 def _parse_score_response(response: httpx.Response) -> ScoreResponse:

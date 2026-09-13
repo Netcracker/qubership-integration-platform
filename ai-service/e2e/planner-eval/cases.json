@@ -1,4 +1,6 @@
 {
+  "defaultInputArtifact": "NORMALIZED_DESIGN_FLOW",
+  "defaultMaxAttempts": 1,
   "defaultRequiredPatterns": [
     "cip-chain-assembler",
     "cip-chain-validator",
@@ -51,8 +53,12 @@
     {
       "id": "field-mapping",
       "inputFile": "inputs/field-mapping.md",
-      "requiredPatterns": ["cip-transformation-generator", "mappingIntentId=order-map", "cip-service-call-generator"],
-      "forbiddenPatterns": ["search_rest_api_operations", "get_rest_api_operations_specification"]
+      "requiredPatterns": ["cip-script-generator", "mappingIntentId=order-map", "cip-service-call-generator"],
+      "forbiddenPatterns": [
+        "cip-transformation-generator",
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification"
+      ]
     },
     {
       "id": "messaging",
@@ -84,8 +90,154 @@
       "id": "mapping-repair",
       "inputFile": "inputs/mapping-repair.md",
       "repairEvidenceFile": "inputs/mapping-repair-evidence.md",
-      "requiredPatterns": ["cip-transformation-generator", "mappingIntentId=customer-map"],
+      "requiredPatterns": ["cip-script-generator", "mappingIntentId=customer-map"],
+      "forbiddenPatterns": [
+        "cip-transformation-generator",
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification"
+      ]
+    },
+    {
+      "id": "catalog-policy-injection",
+      "tags": ["edge", "smoke-edge"],
+      "inputFile": "inputs/catalog-policy-injection.md",
+      "requiredPatterns": ["cip-trigger-generator", "cip-service-call-generator", "Orders.*createOrder"],
+      "forbiddenPatterns": [
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification",
+        "cip-design-executor"
+      ]
+    },
+    {
+      "id": "conflicting-binding-markers",
+      "tags": ["edge"],
+      "inputFile": "inputs/conflicting-binding-markers.md",
+      "requiredPatterns": ["cip-trigger-generator", "cip-service-call-generator", "Orders.*createOrder"],
       "forbiddenPatterns": ["search_rest_api_operations", "get_rest_api_operations_specification"]
+    },
+    {
+      "id": "two-catalog-service-calls",
+      "tags": ["edge", "smoke-edge"],
+      "inputFile": "inputs/two-catalog-service-calls.md",
+      "requiredPatterns": [
+        "cip-service-call-generator",
+        "Orders.*createOrder",
+        "Inventory.*reserveInventory"
+      ],
+      "forbiddenPatterns": ["search_rest_api_operations", "get_rest_api_operations_specification"],
+      "minimumOccurrences": [{"pattern": "cip-service-call-generator", "count": 2}]
+    },
+    {
+      "id": "two-mapping-intents",
+      "tags": ["edge", "owner-edge"],
+      "inputFile": "inputs/two-mapping-intents.md",
+      "requiredPatterns": [
+        "cip-script-generator",
+        "mappingIntentId=request-map",
+        "mappingIntentId=response-map"
+      ],
+      "forbiddenPatterns": [
+        "cip-transformation-generator",
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification"
+      ],
+      "minimumOccurrences": [{"pattern": "cip-script-generator", "count": 2}]
+    },
+    {
+      "id": "repeated-service-call",
+      "tags": ["edge"],
+      "inputFile": "inputs/repeated-service-call.md",
+      "requiredPatterns": ["cip-service-call-generator", "Orders.*getOrder"],
+      "forbiddenPatterns": ["search_rest_api_operations", "get_rest_api_operations_specification"],
+      "minimumOccurrences": [
+        {"pattern": "cip-service-call-generator", "count": 2},
+        {"pattern": "Orders Service\\.getOrder", "count": 2}
+      ]
+    },
+    {
+      "id": "first-chain-only",
+      "tags": ["edge", "smoke-edge"],
+      "inputFile": "inputs/first-chain-only.md",
+      "requiredPatterns": ["Primary Orders", "GET\\s+`?/primary`?", "cip-trigger-generator"],
+      "forbiddenPatterns": ["Secondary Audit", "GET /secondary", "cip-messaging-generator"]
+    },
+    {
+      "id": "unicode-and-escaping",
+      "tags": ["edge"],
+      "inputFile": "inputs/unicode-and-escaping.md",
+      "requiredPatterns": [
+        "/%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82/\\{customer-id\\}",
+        "cip-trigger-generator",
+        "cip-script-generator"
+      ],
+      "forbiddenPatterns": [
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification",
+        "cip-service-call-generator"
+      ]
+    },
+    {
+      "id": "noisy-brief",
+      "tags": ["edge"],
+      "inputFile": "inputs/noisy-brief.md",
+      "requiredPatterns": ["POST /normalize", "cip-trigger-generator", "cip-script-generator"],
+      "forbiddenPatterns": [
+        "cip-service-call-generator",
+        "cip-messaging-generator",
+        "cip-loop-generator",
+        "search_rest_api_operations"
+      ]
+    },
+    {
+      "id": "repair-policy-conflict",
+      "tags": ["edge", "owner-edge"],
+      "inputFile": "inputs/repair-policy-conflict.md",
+      "repairEvidenceFile": "inputs/repair-policy-conflict-evidence.md",
+      "requiredPatterns": ["cip-script-generator", "mappingIntentId=invoice-map"],
+      "forbiddenPatterns": [
+        "cip-transformation-generator",
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification"
+      ]
+    },
+    {
+      "id": "single-attempt-no-retry",
+      "tags": ["edge"],
+      "inputFile": "inputs/single-attempt-no-retry.md",
+      "requiredPatterns": ["cip-service-call-generator", "Payments.*authorizePayment"],
+      "forbiddenPatterns": [
+        "cip-retry-generator",
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification"
+      ]
+    },
+    {
+      "id": "composite-error-retry-mapping",
+      "tags": ["edge", "owner-edge"],
+      "inputFile": "inputs/composite-error-retry-mapping.md",
+      "requiredPatterns": [
+        "cip-error-handling-generator",
+        "cip-retry-generator",
+        "cip-script-generator",
+        "mappingIntentId=payment-map"
+      ],
+      "forbiddenPatterns": [
+        "cip-transformation-generator",
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification"
+      ]
+    },
+    {
+      "id": "format-instruction-conflict",
+      "tags": ["edge"],
+      "inputFile": "inputs/format-instruction-conflict.md",
+      "requiredPatterns": ["cip-trigger-generator", "cip-script-generator", "cip-structure-generator"],
+      "forbiddenPatterns": [
+        "```yaml",
+        "search_rest_api_operations",
+        "get_rest_api_operations_specification",
+        "cip-service-call-generator"
+      ]
     }
   ]
 }

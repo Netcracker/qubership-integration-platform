@@ -228,7 +228,7 @@ def _halt_card(transitions: list[Any]) -> dict[str, Any]:
             cut = idx
     prompt = prompt[:cut].strip()
     actions: list[str] = []
-    if gate == "stage-escalated":
+    if gate in {"recovery-repeated", "stage-escalated"}:
         owners: list[str] = []
         marker = "__OWNER_CANDIDATES__"
         if marker in reason:

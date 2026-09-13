@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
 import org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails;
@@ -81,6 +82,8 @@ class MappingContractExhaustedRecoveryTest {
   private static final RequirementBrief SECOND_BRIEF =
       briefWithTargets("second approved brief", UNKNOWN_TARGETS);
   private static final String WHAT_FAILED = "what failed?";
+  private static final String MAPPING_CORRECTION =
+      "For the result message, take executionId and orderId from the saved request.";
   private static final String FAILURE_ANSWER =
       "The mapping still targets paths absent from the contract.";
   private static final String OMITTED_REQUIRED_API_VALUE =
@@ -159,6 +162,28 @@ class MappingContractExhaustedRecoveryTest {
     assertEquals("requirement-analysis", run().run().currentStageId());
     assertEquals(executions, executionCalls.get());
     assertEquals(3, analysisCalls.get());
+  }
+
+  @Test
+  void typedMappingCorrectionReopensTheBriefAndWaitsForApproval() {
+    CreateChainTestOrchestrator runtime =
+        haltAfterRepeatedMappingFailure(
+            new FailureNarrative(FakeFailureNarrativeAgent.narrates("unused")));
+    int executions = executionCalls.get();
+
+    runtime
+        .acceptInput(new AcceptInputCommand(RUN_ID, MAPPING_CORRECTION))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    assertEquals("requirement-analysis", run().run().currentStageId());
+    assertEquals(3, analysisCalls.get());
+    assertEquals(executions, executionCalls.get());
+    assertEquals(MAPPING_CORRECTION, support.haltFollowUpText(RUN_ID).orElseThrow());
+    assertNoCatalogWrites();
   }
 
   @Test
@@ -386,6 +411,13 @@ class MappingContractExhaustedRecoveryTest {
             new StageCapabilityRegistry(List.of(capabilities)),
             clock)
         .failureNarrative(narrative)
+        .mappingTurnAdapter((brief, text) -> MAPPING_CORRECTION.equals(text)
+            ? MappingTurnResult.changes(
+                new MappingTurnResult.UpdateRule(
+                    "preserved-mapping", "$.preserved.executionId", "$.executionId", "$.executionId", null),
+                new MappingTurnResult.UpdateRule(
+                    "preserved-mapping", "$.preserved.orderId", "$.orderId", "$.orderId", null))
+            : MappingTurnResult.changes())
         .build();
   }
 

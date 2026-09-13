@@ -1,0 +1,15 @@
+1. Analyze requirements and name chain `Payments Service.authorizePayment` (cip-requirement-analyzer + cip-naming-generator)
+2. Generate HTTP Trigger element with interface `POST /payments` (cip-trigger-generator)
+3. Generate Script element to map the request with `mappingIntentId=payment-map` (cip-script-generator)
+4. Configure the existing `Payments Service.authorizePayment` catalog binding (cip-service-call-generator)
+5. Generate retry policy for the service call with up to three attempts (cip-retry-generator)
+6. Generate try/catch structure using `try-2` and `catch-2` (cip-error-handling-generator)
+7. Generate error Script element in `catch-2` (cip-script-generator)
+8. Generate execution structure and element ordering (cip-structure-generator)
+9. Connect HTTP Trigger → request-mapping Script in the execution structure (cip-structure-generator)
+10. Connect request-mapping Script → `Payments Service.authorizePayment` Service Call in `try-2` (cip-structure-generator)
+11. Connect the Service Call retry path → error Script in `catch-2` (cip-structure-generator)
+12. Assemble `generated-chain.cip.yaml` + scripts (cip-chain-assembler)
+13. Validate the assembled chain (cip-chain-validator)
+
+If you agree, reply **Agree** or **Execute plan** to proceed.

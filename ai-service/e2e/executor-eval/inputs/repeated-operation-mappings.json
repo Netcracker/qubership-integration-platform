@@ -1,0 +1,278 @@
+{
+  "semanticRevision": {
+    "schemaVersion": "chain-semantic-revision/v1",
+    "revisionId": "executor-eval-repeated-operation-mappings-v1",
+    "chainIdentity": "Repeated Order Mapping Eval",
+    "compilerContractVersion": "create-chain-compiler-contract/v1",
+    "entryPoints": [
+      {
+        "entryPointId": "http-in",
+        "triggerNodeId": "trigger-http",
+        "initialTargetNodeId": "init-script",
+        "order": 0,
+        "provenance": {
+          "sourceFactIds": []
+        },
+        "presentation": {
+          "label": "POST /orders/replay",
+          "description": "Create and reserve"
+        }
+      }
+    ],
+    "nodes": [
+      {
+        "nodeId": "trigger-http",
+        "kind": "TRIGGER",
+        "interactionId": "http-in",
+        "capabilityKey": "http-trigger",
+        "provenance": {
+          "sourceFactIds": []
+        }
+      },
+      {
+        "nodeId": "init-script",
+        "kind": "OPERATION",
+        "elementType": "script",
+        "provenance": {
+          "sourceFactIds": [
+            "init-fact"
+          ]
+        }
+      },
+      {
+        "nodeId": "orders-call",
+        "kind": "SERVICE_CALL",
+        "serviceCallId": "orders-create",
+        "operation": "createOrder",
+        "provenance": {
+          "sourceFactIds": [
+            "orders-fact"
+          ]
+        }
+      },
+      {
+        "nodeId": "inventory-map-script",
+        "kind": "OPERATION",
+        "elementType": "script",
+        "provenance": {
+          "sourceFactIds": [
+            "inventory-map-fact"
+          ]
+        }
+      },
+      {
+        "nodeId": "inventory-call",
+        "kind": "SERVICE_CALL",
+        "serviceCallId": "inventory-reserve",
+        "operation": "createOrder",
+        "provenance": {
+          "sourceFactIds": [
+            "inventory-fact"
+          ]
+        }
+      },
+      {
+        "nodeId": "response-script",
+        "kind": "OPERATION",
+        "elementType": "script",
+        "provenance": {
+          "sourceFactIds": [
+            "response-fact"
+          ]
+        }
+      }
+    ],
+    "regions": [],
+    "executionEdges": [
+      {
+        "edgeId": "edge-1",
+        "sourceNodeId": "trigger-http",
+        "targetNodeId": "init-script",
+        "route": {
+          "kind": "SEQUENCE"
+        }
+      },
+      {
+        "edgeId": "edge-2",
+        "sourceNodeId": "init-script",
+        "targetNodeId": "orders-call",
+        "route": {
+          "kind": "SEQUENCE"
+        },
+        "mappingId": "map-request"
+      },
+      {
+        "edgeId": "edge-3",
+        "sourceNodeId": "orders-call",
+        "targetNodeId": "inventory-map-script",
+        "route": {
+          "kind": "SEQUENCE"
+        }
+      },
+      {
+        "edgeId": "edge-4",
+        "sourceNodeId": "inventory-map-script",
+        "targetNodeId": "inventory-call",
+        "route": {
+          "kind": "SEQUENCE"
+        },
+        "mappingId": "map-between"
+      },
+      {
+        "edgeId": "edge-5",
+        "sourceNodeId": "inventory-call",
+        "targetNodeId": "response-script",
+        "route": {
+          "kind": "SEQUENCE"
+        },
+        "mappingId": "map-response"
+      }
+    ],
+    "containment": [],
+    "mappingIntents": [],
+    "constraints": [
+      "Use both existing catalog bindings"
+    ],
+    "assumptions": [],
+    "citations": []
+  },
+  "requirementBrief": {
+    "goal": "Expose POST /orders/replay, call the same createOrder operation twice with different occurrence owners, and map request, intermediate, and response payloads.",
+    "inputs": [
+      "HTTP POST /orders"
+    ],
+    "constraints": [
+      "Use both existing catalog bindings"
+    ],
+    "assumptions": [],
+    "citations": [],
+    "summary": "One HTTP trigger, two occurrences of the same catalog operation, and three explicit mapping boundaries.",
+    "facts": [
+      {
+        "sourceFactId": "endpoint-fact",
+        "polarity": "POSITIVE",
+        "kind": "ENDPOINT",
+        "capabilityKey": "http-trigger",
+        "text": "Expose POST /orders.",
+        "httpMethod": "POST",
+        "path": "/orders"
+      },
+      {
+        "sourceFactId": "init-fact",
+        "polarity": "POSITIVE",
+        "kind": "BEHAVIOR",
+        "capabilityKey": "script",
+        "text": "Initialize the request."
+      },
+      {
+        "sourceFactId": "inventory-map-fact",
+        "polarity": "POSITIVE",
+        "kind": "BEHAVIOR",
+        "capabilityKey": "script",
+        "text": "Convert the order result into an inventory reservation request."
+      },
+      {
+        "sourceFactId": "response-fact",
+        "polarity": "POSITIVE",
+        "kind": "BEHAVIOR",
+        "capabilityKey": "script",
+        "text": "Build the HTTP response."
+      }
+    ],
+    "entryPoints": [
+      {
+        "entryPointId": "http-in",
+        "sourceFactId": "endpoint-fact",
+        "capabilityKey": "http-trigger",
+        "topic": "",
+        "httpMethod": "POST",
+        "path": "/orders/replay",
+        "operation": ""
+      }
+    ],
+    "serviceCalls": [],
+    "requirements": [],
+    "mappingIntents": [
+      {
+        "mappingIntentId": "map-request",
+        "sourceRef": "edge-2",
+        "sourcePort": "OUTPUT",
+        "targetRef": "edge-2",
+        "targetPort": "REQUEST",
+        "rules": [
+          {
+            "sourcePath": "customerId",
+            "targetPath": "customer.id",
+            "status": "PROPOSED"
+          }
+        ]
+      },
+      {
+        "mappingIntentId": "map-between",
+        "sourceRef": "edge-4",
+        "sourcePort": "RESPONSE",
+        "targetRef": "edge-4",
+        "targetPort": "REQUEST",
+        "rules": [
+          {
+            "sourcePath": "orderId",
+            "targetPath": "parentOrderId",
+            "status": "PROPOSED"
+          }
+        ]
+      },
+      {
+        "mappingIntentId": "map-response",
+        "sourceRef": "edge-5",
+        "sourcePort": "RESPONSE",
+        "targetRef": "edge-5",
+        "targetPort": "OUTPUT",
+        "rules": [
+          {
+            "sourcePath": "orderId",
+            "targetPath": "id",
+            "status": "PROPOSED"
+          }
+        ]
+      }
+    ],
+    "catalogBindings": [],
+    "skippedTransitions": []
+  },
+  "bindings": [
+    {
+      "targetNodeId": "orders-call",
+      "serviceCallId": "orders-create",
+      "systemType": "EXTERNAL",
+      "systemId": "orders-service",
+      "specificationGroupId": "orders-api",
+      "specificationId": "orders-api-v1",
+      "operationId": "createOrder",
+      "protocolType": "HTTP",
+      "method": "POST",
+      "path": "/orders",
+      "displayName": "Orders Service.createOrder",
+      "source": "EXISTING_CATALOG",
+      "release": "2024.4",
+      "evidenceRef": "executor-eval",
+      "packageId": "orders-package"
+    },
+    {
+      "targetNodeId": "inventory-call",
+      "serviceCallId": "inventory-reserve",
+      "systemType": "EXTERNAL",
+      "systemId": "orders-service",
+      "specificationGroupId": "orders-api",
+      "specificationId": "orders-api-v1",
+      "operationId": "createOrder",
+      "protocolType": "HTTP",
+      "method": "POST",
+      "path": "/orders",
+      "displayName": "Orders Service.createOrder (second occurrence)",
+      "source": "EXISTING_CATALOG",
+      "release": "2024.4",
+      "evidenceRef": "executor-eval",
+      "packageId": "orders-package"
+    }
+  ]
+}

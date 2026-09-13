@@ -28,6 +28,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
+import org.qubership.integration.platform.ai.plan.MappingTurnResult;
 import org.qubership.integration.platform.ai.plan.RequirementBriefCapture;
 import org.qubership.integration.platform.ai.plan.RequirementBriefTool;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
@@ -217,7 +218,7 @@ class RequirementAnalysisCapabilityTest {
             null,
             null,
             false,
-            List.of(call),
+            List.of(call, RequirementFactFixtures.httpTriggerFact("start", "POST", "/start")),
             false)
             .withFlow(
                 new RequirementFlow(
@@ -480,7 +481,8 @@ class RequirementAnalysisCapabilityTest {
             null,
             false,
             List.of(
-                RequirementFact.of(
+                new RequirementFact(
+                    "http-in",
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.ENDPOINT,
                     "http-trigger",
@@ -530,6 +532,7 @@ class RequirementAnalysisCapabilityTest {
             null,
             false,
             List.of(
+                RequirementFactFixtures.httpTriggerFact("script-out", "POST", "/script"),
                 RequirementFact.of(
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.CONSTRAINT,
@@ -990,6 +993,98 @@ class RequirementAnalysisCapabilityTest {
         (RequirementBrief) completed.outcome().candidates().get(0).payload();
     assertEquals("Greetings with RBAC access control", candidate.goal());
     assertTrue(completed.outcome().message().contains("Approve to rebuild the plan"));
+  }
+
+  @Test
+  void mappingRepairKeepsCapturedResponseRulesInsteadOfReplayingOldRequestText() {
+    RequirementDraft approved =
+        RequirementFactFixtures.readyDraft("Create a task and return its result")
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("http-in", Direction.INBOUND, "http", "POST /", ""),
+                        new Interaction(
+                            "create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+                        new Interaction(
+                            "task-result", Direction.OUTBOUND, "OM", "onTaskResult", "")),
+                    List.of(
+                        new Transition("http-in", "create-task"),
+                        new Transition("create-task", "task-result"))));
+    for (String interactionId : List.of("create-task", "task-result")) {
+      approved =
+          approved.withBoundInteraction(
+              interactionId,
+              new CatalogBindingHint(
+                  "3", interactionId, interactionId, interactionId, "system-" + interactionId,
+                  "group-1", "spec-1", "op-" + interactionId, "http", "POST", "/" + interactionId,
+                  "catalog", Instant.EPOCH, "test"));
+    }
+    assertTrue(approved.readyForPlan());
+    MappingIntent request =
+        new MappingIntent(
+            "request", "http-in", MappingPort.OUTPUT, "create-task", MappingPort.REQUEST,
+            List.of(
+                new MappingIntentRule("$.name", "$.Subject", null),
+                new MappingIntentRule("$.executionId", "$.executionId", null),
+                new MappingIntentRule("$.orderId", "$.orderId", null)));
+    MappingIntent response =
+        new MappingIntent(
+            "response", "create-task", MappingPort.RESPONSE, "task-result", MappingPort.REQUEST,
+            List.of(new MappingIntentRule("\"completeTask\"", "$.commandType", null)));
+    RequirementBrief prior =
+        coveringBrief(approved, "Task integration").withMappingIntents(List.of(request, response));
+    MappingIntent repairedResponse =
+        response.withRules(
+            List.of(
+                response.rules().getFirst(),
+                new MappingIntentRule(
+                    "", "$.executionId", "Read executionId from saved request context"),
+                new MappingIntentRule(
+                    "", "$.orderId", "Read orderId from saved request context")));
+    RequirementBrief repaired = prior.withMappingIntents(List.of(request, repairedResponse));
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    AtomicInteger mappingTurns = new AtomicInteger();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge, knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            null, null, null, ctx -> repaired, null, null, null, null, null,
+            (brief, text) -> {
+              mappingTurns.incrementAndGet();
+              return MappingTurnResult.changes();
+            },
+            null);
+    Map<String, Object> attributes = new java.util.HashMap<>();
+    attributes.put("approvedDraft", approved);
+    attributes.put("requirementBrief", prior);
+    attributes.put(
+        "userText",
+        "Request mapping: Subject = name. Keep executionId and orderId for the response.");
+    attributes.put(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+        "Unresolved required target field $.executionId");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR, "MAPPING_CONTRACT");
+    attributes.put(
+        ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR,
+        "Use the saved request IDs in the result message.");
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-mapping-repair", "conv-mapping-repair", "requirement-analysis", "exec-1",
+            "attempt-1", null, null, List.of(), attributes);
+
+    CapabilitySignal.Completed completed =
+        capability.execute(context).collect().asList().await().indefinitely().stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow();
+
+    assertEquals(
+        StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass(), completed.outcome().message());
+    RequirementBrief candidate =
+        (RequirementBrief) completed.outcome().candidates().getFirst().payload();
+    assertEquals(List.of(request, repairedResponse), candidate.mappingIntents());
+    assertEquals(0, mappingTurns.get());
   }
 
   @Test

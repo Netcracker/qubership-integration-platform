@@ -8,6 +8,7 @@ BASE_URL="${BASE_URL:-http://localhost:8094}"
 RUNS=""
 REPORT_DIR=""
 SELECTED_CASE=""
+SELECTED_TAG=""
 TIMEOUT_SEC="${PLANNER_EVAL_TIMEOUT_SEC:-900}"
 
 usage() {
@@ -16,7 +17,8 @@ Usage: run-planner-eval.sh \
   --runs <positive integer> \
   --report-dir <directory> \
   [--base-url <URL>] \
-  [--case <id>]
+  [--case <id>] \
+  [--tag <tag>]
 EOF
   exit 2
 }
@@ -27,6 +29,7 @@ while [[ $# -gt 0 ]]; do
     --report-dir) REPORT_DIR="${2:?}"; shift 2 ;;
     --base-url) BASE_URL="${2:?}"; shift 2 ;;
     --case) SELECTED_CASE="${2:?}"; shift 2 ;;
+    --tag) SELECTED_TAG="${2:?}"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "Unknown option: $1" >&2; usage ;;
   esac
@@ -37,6 +40,10 @@ done
   echo "FAIL: --runs must be a positive integer" >&2
   exit 2
 }
+[[ -z "${SELECTED_CASE}" || -z "${SELECTED_TAG}" ]] || {
+  echo "FAIL: use either --case or --tag, not both" >&2
+  exit 2
+}
 command -v curl >/dev/null
 command -v jq >/dev/null
 jq -e '.cases | type == "array" and length > 0' "${CASES_FILE}" >/dev/null
@@ -44,6 +51,10 @@ jq -e '.cases | type == "array" and length > 0' "${CASES_FILE}" >/dev/null
 if [[ -n "${SELECTED_CASE}" ]]; then
   jq -e --arg id "${SELECTED_CASE}" '.cases | any(.id == $id)' "${CASES_FILE}" >/dev/null \
     || { echo "FAIL: unknown planner case ${SELECTED_CASE}" >&2; exit 2; }
+fi
+if [[ -n "${SELECTED_TAG}" ]]; then
+  jq -e --arg tag "${SELECTED_TAG}" '.cases | any(.tags // [] | index($tag))' "${CASES_FILE}" \
+    >/dev/null || { echo "FAIL: unknown planner tag ${SELECTED_TAG}" >&2; exit 2; }
 fi
 
 mkdir -p "${REPORT_DIR}/runs"
@@ -53,6 +64,9 @@ results_file="${REPORT_DIR}/results.jsonl"
 case_ids() {
   if [[ -n "${SELECTED_CASE}" ]]; then
     printf '%s\n' "${SELECTED_CASE}"
+  elif [[ -n "${SELECTED_TAG}" ]]; then
+    jq -r --arg tag "${SELECTED_TAG}" '.cases[] | select(.tags // [] | index($tag)) | .id' \
+      "${CASES_FILE}"
   else
     jq -r '.cases[].id' "${CASES_FILE}"
   fi
@@ -67,12 +81,32 @@ while IFS= read -r case_id; do
   )"
   required_patterns="$(
     jq -c --arg id "${case_id}" \
-      '.defaultRequiredPatterns + (.cases[] | select(.id == $id) | .requiredPatterns)' \
+      '(.cases[] | select(.id == $id)) as $case
+      | (if ($case.includeDefaultRequiredPatterns // true)
+          then .defaultRequiredPatterns
+          else []
+        end) + $case.requiredPatterns' \
       "${CASES_FILE}"
   )"
   forbidden_patterns="$(
     jq -c --arg id "${case_id}" \
       '.cases[] | select(.id == $id) | .forbiddenPatterns' "${CASES_FILE}"
+  )"
+  minimum_occurrences="$(
+    jq -c --arg id "${case_id}" \
+      '.cases[] | select(.id == $id) | .minimumOccurrences // []' "${CASES_FILE}"
+  )"
+  expected_status="$(
+    jq -r --arg id "${case_id}" \
+      '.cases[] | select(.id == $id) | .expectedStatus // "COMPLETED"' "${CASES_FILE}"
+  )"
+  max_attempts="$(
+    jq -r --arg id "${case_id}" \
+      '(.cases[] | select(.id == $id) | .maxAttempts) // .defaultMaxAttempts // 2' "${CASES_FILE}"
+  )"
+  input_artifact="$(
+    jq -r --arg id "${case_id}" \
+      '(.cases[] | select(.id == $id) | .inputArtifact) // .defaultInputArtifact' "${CASES_FILE}"
   )"
   [[ -f "${input_path}" ]] || { echo "FAIL: missing planner input ${input_path}" >&2; exit 1; }
 
@@ -89,15 +123,25 @@ while IFS= read -r case_id; do
       [[ -f "${repair_path}" ]] || { echo "FAIL: missing repair evidence ${repair_path}" >&2; exit 1; }
       jq -n \
         --arg conversationId "${conversation_id}" \
+        --arg inputArtifact "${input_artifact}" \
         --rawfile input "${input_path}" \
         --rawfile repairEvidenceText "${repair_path}" \
-        '{conversationId:$conversationId,input:$input,repairEvidenceText:$repairEvidenceText}' \
+        '{
+          conversationId:$conversationId,
+          input:("Input artifact: " + $inputArtifact + "\n\n" + $input),
+          repairEvidenceText:$repairEvidenceText
+        }' \
         >"${request_path}"
     else
       jq -n \
         --arg conversationId "${conversation_id}" \
+        --arg inputArtifact "${input_artifact}" \
         --rawfile input "${input_path}" \
-        '{conversationId:$conversationId,input:$input,repairEvidenceText:""}' \
+        '{
+          conversationId:$conversationId,
+          input:("Input artifact: " + $inputArtifact + "\n\n" + $input),
+          repairEvidenceText:""
+        }' \
         >"${request_path}"
     fi
 
@@ -117,7 +161,10 @@ while IFS= read -r case_id; do
 
     evaluation="$(jq -c \
       --argjson required "${required_patterns}" \
-      --argjson forbidden "${forbidden_patterns}" '
+      --argjson forbidden "${forbidden_patterns}" \
+      --argjson minimumOccurrences "${minimum_occurrences}" \
+      --arg expectedStatus "${expected_status}" \
+      --argjson maxAttempts "${max_attempts}" '
         . as $response
         | ($response.message // "") as $message
         | [$required[] as $pattern
@@ -126,14 +173,29 @@ while IFS= read -r case_id; do
         | [$forbidden[] as $pattern
             | select($message | test($pattern; "i"))
             | $pattern] as $presentForbidden
+        | [$minimumOccurrences[] as $assertion
+            | ([ $message | scan($assertion.pattern; "i") ] | length) as $actual
+            | select($actual < $assertion.count)
+            | {
+                pattern: $assertion.pattern,
+                expectedAtLeast: $assertion.count,
+                actual: $actual
+              }] as $insufficientOccurrences
+        | ($response.attempts | length) as $attemptCount
         | {
-            passed: ($response.status == "COMPLETED"
+            passed: ($response.status == $expectedStatus
               and ($missing | length) == 0
-              and ($presentForbidden | length) == 0),
+              and ($presentForbidden | length) == 0
+              and ($insufficientOccurrences | length) == 0
+              and $attemptCount <= $maxAttempts),
+            expectedStatus: $expectedStatus,
             serviceStatus: $response.status,
-            attempts: ($response.attempts | length),
+            attempts: $attemptCount,
+            maxAttempts: $maxAttempts,
+            tooManyAttempts: ($attemptCount > $maxAttempts),
             missingRequiredPatterns: $missing,
             presentForbiddenPatterns: $presentForbidden,
+            insufficientOccurrences: $insufficientOccurrences,
             skillHash: ($response.skillHash // null),
             modelName: ($response.modelName // null)
           }

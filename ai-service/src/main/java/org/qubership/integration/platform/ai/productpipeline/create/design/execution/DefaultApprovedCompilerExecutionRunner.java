@@ -84,12 +84,71 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     }
     RequirementBrief storedBrief =
         artifactStore.payload(storedBriefRevision, RequirementBrief.class);
+    return executePrepared(
+        approvedPlan,
+        revision,
+        bindings,
+        runManifest,
+        attemptId,
+        repairEvidence,
+        priorGraph,
+        resolveConversationId(runManifest.runId()),
+        storedBrief,
+        storedBriefRevision.reference(),
+        skillProgress);
+  }
+
+  /**
+   * Runs the production compiler DAG from explicit, already saved planning inputs.
+   *
+   * <p>This entry point exists for the executor harness. It deliberately accepts no planner and
+   * therefore cannot spend planner tokens while replaying generator cases.
+   */
+  public CompilerDagExecutionResult executeHarness(
+      DesignExecutionPlan approvedPlan,
+      ChainSemanticRevision revision,
+      List<ResolvedServiceCallBinding> bindings,
+      RunManifest runManifest,
+      String conversationId,
+      RequirementBrief storedBrief,
+      org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference
+          storedBriefRef,
+      BiConsumer<String, String> skillProgress) {
+    Objects.requireNonNull(conversationId, "conversationId");
+    Objects.requireNonNull(storedBrief, "storedBrief");
+    Objects.requireNonNull(storedBriefRef, "storedBriefRef");
+    return executePrepared(
+        approvedPlan,
+        revision,
+        bindings,
+        runManifest,
+        null,
+        null,
+        null,
+        conversationId,
+        storedBrief,
+        storedBriefRef,
+        skillProgress);
+  }
+
+  private CompilerDagExecutionResult executePrepared(
+      DesignExecutionPlan approvedPlan,
+      ChainSemanticRevision revision,
+      List<ResolvedServiceCallBinding> bindings,
+      RunManifest runManifest,
+      String attemptId,
+      StageRepairEvidence repairEvidence,
+      ChainPlanGraph priorGraph,
+      String conversationId,
+      RequirementBrief storedBrief,
+      org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference
+          storedBriefRef,
+      BiConsumer<String, String> skillProgress) {
     BiConsumer<String, String> progress =
         skillProgress == null ? (skillId, status) -> {} : skillProgress;
     CompilerRunPin pin = requirePin(runManifest);
     List<String> approvedOwningSkillIds = orderedOwningSkillIds(approvedPlan);
     ResolvedCompilerDag executionDag = scopeDag(pin.resolvedDag(), approvedOwningSkillIds);
-    String conversationId = resolveConversationId(runManifest.runId());
     List<ResolvedServiceCallBinding> resolvedBindings =
         bindings == null ? List.of() : List.copyOf(bindings);
     CompilerContract contract =
@@ -115,7 +174,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
             revision,
             executionDag,
             approvedOwningSkillIds,
-            List.of(storedBriefRevision.reference()),
+            List.of(storedBriefRef),
             seed);
     return engine.execute(request, attemptId, progress).await().indefinitely();
   }
@@ -140,7 +199,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     return conversationId;
   }
 
-  static List<String> orderedOwningSkillIds(DesignExecutionPlan plan) {
+  public static List<String> orderedOwningSkillIds(DesignExecutionPlan plan) {
     LinkedHashSet<String> ordered = new LinkedHashSet<>();
     for (DesignExecutionPlan.Step step : plan.steps()) {
       if (step.ownerKind() != DesignExecutionPlan.OwnerKind.SKILL) {

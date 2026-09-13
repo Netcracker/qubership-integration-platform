@@ -197,6 +197,28 @@ public final class RequirementFlowValidator {
                 + catalogDirection.get());
       }
     }
+
+    for (Interaction interaction : flow.interactions()) {
+      String interactionId = interaction.interactionId();
+      if (interaction.direction() != Direction.INBOUND
+          || byInteraction.containsKey(interactionId)
+          || hasEntryPointCapabilityFact(interactionId, factList)) {
+        continue;
+      }
+      return Optional.of(
+          "entry point "
+              + interactionId
+              + " has neither a catalog binding nor a capability fact ("
+              + interaction.participant()
+              + " "
+              + interaction.operation()
+              + "). The brief would carry an empty capability key and design-input rejects that."
+              + " Call resolveApiOperation with interactionId="
+              + interactionId
+              + ", or capture a CAPABILITY fact with sourceFactId="
+              + interactionId
+              + " and capabilityKey=http-trigger or kafka-trigger-2.");
+    }
     return Optional.empty();
   }
 
@@ -207,6 +229,19 @@ public final class RequirementFlowValidator {
   @SuppressWarnings("java:S1172")
   static boolean requiresCatalogBinding(Interaction interaction, List<RequirementFact> facts) {
     return interaction.direction() == Direction.OUTBOUND;
+  }
+
+  /**
+   * Mirrors the brief projector: the entry point takes its capability key from the first fact that
+   * carries the interaction id. A blank key there leaves the approved brief unusable downstream.
+   */
+  static boolean hasEntryPointCapabilityFact(String interactionId, List<RequirementFact> facts) {
+    for (RequirementFact fact : facts) {
+      if (fact != null && interactionId.equals(fact.sourceFactId())) {
+        return fact.capabilityKey() != null && !fact.capabilityKey().isBlank();
+      }
+    }
+    return false;
   }
 
   static boolean hasNativeInboundTriggerFact(

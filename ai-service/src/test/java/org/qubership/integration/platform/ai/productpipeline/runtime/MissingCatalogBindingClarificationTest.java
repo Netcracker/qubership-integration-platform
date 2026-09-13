@@ -400,7 +400,8 @@ class MissingCatalogBindingClarificationTest {
         null,
         false,
         List.of(
-            RequirementFact.of(
+            new RequirementFact(
+                "http-in",
                 RequirementFactPolarity.POSITIVE,
                 RequirementFactKind.ENDPOINT,
                 "http-trigger",
