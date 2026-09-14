@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
 import io.smallrye.mutiny.Multi;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -43,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -172,6 +174,24 @@ public class DeployChainScenario implements ScenarioHandler {
 
   @Override
   public Multi<ChatEvent> handle(
+      ChatRequest request, String conversationId, ScenarioType scenarioType) {
+    return streamOnWorker(() -> dispatch(request, conversationId, scenarioType));
+  }
+
+  private static Multi<ChatEvent> streamOnWorker(Supplier<Multi<ChatEvent>> work) {
+    return Multi.createFrom()
+        .<ChatEvent>emitter(
+            emitter -> {
+              try {
+                work.get().subscribe().with(emitter::emit, emitter::fail, emitter::complete);
+              } catch (RuntimeException failure) {
+                emitter.fail(failure);
+              }
+            })
+        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+  }
+
+  private Multi<ChatEvent> dispatch(
       ChatRequest request, String conversationId, ScenarioType scenarioType) {
     ChatDecisionCommand decision = request == null ? null : request.getDecision();
     Multi<ChatEvent> answered = answerCard(request, conversationId, decision);
