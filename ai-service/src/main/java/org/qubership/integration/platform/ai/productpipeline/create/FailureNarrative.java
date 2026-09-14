@@ -64,6 +64,9 @@ public final class FailureNarrative {
   /** Verdict token that reads a message at a pause as a question rather than an instruction. */
   private static final String QUESTION_VERDICT = "QUESTION";
 
+  /** Verdict token for an instruction that adds facts or changes the requested result. */
+  private static final String CORRECTION_VERDICT = "CORRECTION";
+
   /** Answer-cache namespaces, so a question at one kind of pause never answers for the other. */
   private static final String HALT_PAUSE = "halt";
 
@@ -82,7 +85,7 @@ public final class FailureNarrative {
    * on purpose: losing it on a restart costs one model call, not correctness, so it does not earn a
    * journal write per question.
    */
-  private final ConcurrentMap<String, String> answersByQuestion;
+  private final ConcurrentMap<String, PauseQuestionResult> answersByQuestion;
 
   private volatile ExecutorService workers;
 
@@ -115,7 +118,7 @@ public final class FailureNarrative {
         Caffeine.newBuilder()
             .expireAfterAccess(idle)
             .maximumSize(MAX_CACHED_ANSWERS)
-            .<String, String>build()
+            .<String, PauseQuestionResult>build()
             .asMap();
   }
 
@@ -370,17 +373,15 @@ public final class FailureNarrative {
 
   /**
    * Serves a remembered answer or spends one bounded question turn on a fresh one. A verdict of
-   * INSTRUCTION is remembered as not-a-question, because it is as durable a reading of the message
-   * as an answer is. A turn that failed is not remembered at all, since freezing a transient outage
-   * into a permanent verdict would silence every later ask.
+   * An instruction verdict is remembered with its correction/retry distinction, because it is as
+   * durable a reading of the message as an answer is. A failed turn is not remembered, since
+   * freezing a transient outage into a permanent verdict would silence every later ask.
    */
   private PauseQuestionResult answeredOnce(
       String runId, String turnName, String key, Supplier<HaltQuestionDraft> turn) {
-    String remembered = answersByQuestion.get(key);
+    PauseQuestionResult remembered = answersByQuestion.get(key);
     if (remembered != null) {
-      return remembered.isEmpty()
-          ? PauseQuestionResult.notAQuestion()
-          : PauseQuestionResult.answer(remembered);
+      return remembered;
     }
     HaltQuestionDraft draft = runQuestionTurn(runId, turnName, turn);
     if (draft == null) {
@@ -392,12 +393,19 @@ public final class FailureNarrative {
       if (answer.isEmpty()) {
         return PauseQuestionResult.unanswerable();
       }
-      answersByQuestion.put(key, answer);
-      return PauseQuestionResult.answer(answer);
+      PauseQuestionResult result = PauseQuestionResult.answer(answer);
+      answersByQuestion.put(key, result);
+      return result;
     }
-    if ("INSTRUCTION".equalsIgnoreCase(verdict)) {
-      answersByQuestion.put(key, "");
-      return PauseQuestionResult.notAQuestion();
+    if (CORRECTION_VERDICT.equalsIgnoreCase(verdict)) {
+      PauseQuestionResult result = PauseQuestionResult.repairInstruction();
+      answersByQuestion.put(key, result);
+      return result;
+    }
+    if ("INSTRUCTION".equalsIgnoreCase(verdict) || "RETRY".equalsIgnoreCase(verdict)) {
+      PauseQuestionResult result = PauseQuestionResult.notAQuestion();
+      answersByQuestion.put(key, result);
+      return result;
     }
     return PauseQuestionResult.unanswerable();
   }

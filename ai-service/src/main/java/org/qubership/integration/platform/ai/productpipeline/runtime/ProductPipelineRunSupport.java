@@ -1396,6 +1396,19 @@ public final class ProductPipelineRunSupport {
                 }
                 if (PipelineGates.STAGE_RETRY.equals(gate)
                     || PipelineGates.isContextualRecoveryGate(gate)) {
+                  if (!asked.isRepairInstruction()) {
+                    return reemitHaltCard(doc);
+                  }
+                  if (diagnosedOwnerOf(command.runId()).isBlank()
+                      && isCurrentUnapprovedOwner(doc, doc.run().currentStageId())) {
+                    attributesByRun
+                        .computeIfAbsent(
+                            command.runId(), ignored -> new ConcurrentHashMap<>())
+                        .put(DIAGNOSED_OWNER_STAGE_ATTR, doc.run().currentStageId());
+                  }
+                  if (!diagnosedOwnerOf(command.runId()).isBlank()) {
+                    return applyDiagnosedOwner(doc, command);
+                  }
                   return reemitHaltCard(doc);
                 }
                 return applyDiagnosedOwner(doc, command);

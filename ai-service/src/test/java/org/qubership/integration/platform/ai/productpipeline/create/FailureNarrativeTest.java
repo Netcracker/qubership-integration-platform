@@ -560,6 +560,18 @@ class FailureNarrativeTest {
   }
 
   @Test
+  void aCorrectionVerdictCarriesRepairInformationToTheCaller() {
+    FakeFailureNarrativeAgent agent =
+        FakeFailureNarrativeAgent.narrates("").answeringUnder("CORRECTION", "");
+
+    PauseQuestionResult result =
+        ask(new FailureNarrative(agent), "run-1", "Use a different scheduler.");
+
+    assertTrue(result.isNotAQuestion());
+    assertTrue(result.isRepairInstruction());
+  }
+
+  @Test
   void aVerdictOutsideTheClosedPairIsUnanswerable() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.narrates("").answeringUnder("MAYBE", "Half an answer.");
