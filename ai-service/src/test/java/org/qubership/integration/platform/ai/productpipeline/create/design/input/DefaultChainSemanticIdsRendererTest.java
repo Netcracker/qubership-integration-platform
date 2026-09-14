@@ -72,7 +72,10 @@ class DefaultChainSemanticIdsRendererTest {
                     null)),
             List.of(
                 new SemanticNode.Trigger(
-                    "trigger-async", "async-api-trigger", new SemanticProvenance(List.of())),
+                    "trigger-async",
+                    "task-start",
+                    "async-api-trigger",
+                    new SemanticProvenance(List.of())),
                 new SemanticNode.Operation(
                     "request-mapping", "script", new SemanticProvenance(List.of())),
                 new SemanticNode.ServiceCall(
@@ -81,7 +84,7 @@ class DefaultChainSemanticIdsRendererTest {
                     "response-mapping", "script", new SemanticProvenance(List.of())),
                 new SemanticNode.ServiceCall(
                     "on-task-result",
-                    "on-task-result",
+                    "task-result",
                     "onTaskResult",
                     new SemanticProvenance(List.of()))),
             List.of(),
@@ -100,15 +103,19 @@ class DefaultChainSemanticIdsRendererTest {
             List.of(),
             List.of());
 
-    String markdown = renderer.render(revision, CONTRACT).markdown();
+    String markdown =
+        renderer.render(revision, CONTRACT, ChainSemanticCaptureFixtures.rockyBrief()).markdown();
 
     assertTrue(
         markdown.contains(
-            "    Client->>CIP: async-api-trigger\n"
+            "    participant Service1 as OM\n"
+                + "    participant CIP\n"
+                + "    participant Service2 as Salesforce\n"
+                + "    Service1->>CIP: onTaskStart\n"
                 + "    CIP->>CIP: script\n"
-                + "    CIP->>createTask: createTask\n"
+                + "    CIP->>Service2: createTask\n"
                 + "    CIP->>CIP: script\n"
-                + "    CIP->>onTaskResult: onTaskResult\n"),
+                + "    CIP->>Service1: onTaskResult\n"),
         markdown);
   }
 
