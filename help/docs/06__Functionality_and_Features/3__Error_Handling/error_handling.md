@@ -27,7 +27,7 @@ Each notification consists of next parts:
 - **Description:** mandatory text for the user, that contains explanation of what happened and what could be done to resolve the issue (if known).
 - **Show Details:** optional details that available via "Show Details" link, where CIP contains details for developers.
 
-![Error notification example](..\..\..\..\..\..\attachments\2516708063.png)
+![Error notification example]
 
 Each page with error details consists from next parts:
 

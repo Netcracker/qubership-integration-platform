@@ -49,7 +49,7 @@ The process will be initialized by login to UI application under particular tena
 
 ---
 
-The user have to input tenant name on the ***"Log in to Cloud Integration Platform"*** page. In case of successful login you can click the icon ![tenant details icon](..\..\..\..\..\..\attachments\2516708045.png) to see current tenant details.
+The user have to input tenant name on the ***"Log in to Cloud Integration Platform"*** page. In case of successful login you can click the icon ![tenant details icon] to see current tenant details.
 
 ## Data storage
 

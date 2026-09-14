@@ -43,7 +43,7 @@ The 3rd diagram shows process of session retry by support team from *Checkpoint 
 > - When the retry will be initiated, new exchange property ***checkpointOriginalSessionId*** with id of failed session will be created.
 > - Checkpoint cannot be processed within the sub-chain (chain with start element [Chain Trigger]).
 > - Checkpoint cannot be processed within the [Loop] element.
-> - Retry mechanism restores objects of the original classes if these classes implement **serializable interface**, for example: public class **ObjectNode** implements **[java.io](http://java.io).Serializable** {...}.
+> - Retry mechanism restores objects of the original classes if these classes implement **serializable interface**, for example: public class **ObjectNode** implements **java.io.Serializable** {...}.
 > - Properties of object type won't be restored as part of Retry process, if the classes for such properties were defined via scripts.
 
 ## Process Initialization

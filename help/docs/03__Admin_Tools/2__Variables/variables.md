@@ -36,10 +36,10 @@ It is possible to configure **runtime variables**, so the chain will always pick
 
 - For **Scripts** (that use Groovy language):
 
-  ```groovy
+```groovy
   exchange.getProperty("variables").get("variable_name")
   exchange.getProperty("variables").get("secret_name:variable_name") //only for secured variables, stored in non-default secrets.
-  ```
+ ```
 ### Default Variables
 There are currently two default variables, that are being specified as part of the installation:
 - namespace
@@ -152,7 +152,7 @@ Variable's values **will override** the ones that are currently available in the
 
 Each common variables are stored in Consul by the following path:
 
-```
+```text
 config/{namespace}/cip-engine-configurations/variables/common/{variableName}
 ```
 
