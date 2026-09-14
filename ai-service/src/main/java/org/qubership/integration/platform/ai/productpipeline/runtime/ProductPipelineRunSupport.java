@@ -129,6 +129,14 @@ public final class ProductPipelineRunSupport {
   /** Content hash of the durable recovery evidence for the current validation halt. */
   public static final String RECOVERY_EVIDENCE_REF_ATTR = "recoveryEvidenceRef";
 
+  /** Recovery evidence whose design-input retry must start from a clean model turn. */
+  public static final String DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR =
+      "designInputCleanRebuildEvidenceRef";
+
+  /** Recovery evidence whose design-planning retry must start from a clean model turn. */
+  public static final String DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR =
+      "designPlanCleanRebuildEvidenceRef";
+
   /** Typed brief corrections proposed by recovery for the next requirement-analysis repair turn. */
   public static final String PROPOSED_BRIEF_CHANGES_ATTR = "proposedBriefChanges";
 
@@ -151,6 +159,7 @@ public final class ProductPipelineRunSupport {
           Kind.GRAPH_PATCH_ARTIFACT,
           Kind.GRAPH_ASSEMBLY_RESULT,
           Kind.COMPILER_VALIDATION_BUNDLE,
+          Kind.DESIGN_PLAN_CONTRACT,
           Kind.DESIGN_EXECUTION_PLAN,
           Kind.ORDERED_GRAPH_PATCHES,
           Kind.MAPPING_ENVELOPE);
@@ -3209,6 +3218,8 @@ public final class ProductPipelineRunSupport {
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_REQUESTED_FACT_ATTR);
     copyHaltAttribute(attributes, evidence, DIAGNOSED_OWNER_STAGE_ATTR);
     copyHaltAttribute(attributes, evidence, RECOVERY_EVIDENCE_REF_ATTR);
+    copyHaltAttribute(attributes, evidence, DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    copyHaltAttribute(attributes, evidence, DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
     if (priorCandidate != null && !priorCandidate.isBlank()) {
       evidence.put(PRIOR_CANDIDATE_ATTR, priorCandidate);
     }
@@ -3236,6 +3247,8 @@ public final class ProductPipelineRunSupport {
         STAGE_ERROR_REQUESTED_FACT_ATTR,
         DIAGNOSED_OWNER_STAGE_ATTR,
         RECOVERY_EVIDENCE_REF_ATTR,
+        DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+        DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
         PRIOR_CANDIDATE_ATTR)) {
       attributes.remove(key);
     }

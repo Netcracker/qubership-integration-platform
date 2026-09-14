@@ -46,6 +46,9 @@ public final class PipelineGates {
   /** An incomplete or contradictory requirement brief that the author can repair. */
   public static final String RECOVERY_REVISE_BRIEF = "recovery-revise-brief";
 
+  /** A defective semantic design that can be rebuilt from the approved brief. */
+  public static final String RECOVERY_REBUILD_DESIGN = "recovery-rebuild-design";
+
   /** A defective implementation plan that can be rebuilt from the approved brief. */
   public static final String RECOVERY_REBUILD_PLAN = "recovery-rebuild-plan";
 
@@ -177,6 +180,7 @@ public final class PipelineGates {
     return RECOVERY_RETRY_TECHNICAL.equals(gateId)
         || RECOVERY_REGENERATE_EXECUTION.equals(gateId)
         || RECOVERY_REVISE_BRIEF.equals(gateId)
+        || RECOVERY_REBUILD_DESIGN.equals(gateId)
         || RECOVERY_REBUILD_PLAN.equals(gateId)
         || RECOVERY_ENVIRONMENT.equals(gateId)
         || RECOVERY_INTERNAL.equals(gateId)

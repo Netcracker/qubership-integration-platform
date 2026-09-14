@@ -28,6 +28,8 @@ public final class RecoveryAttemptLedger {
   public static final String AUTHOR_REOPEN_REASON_PREFIX = "author-reopen:";
   public static final String AUTOMATIC_REOPEN_REASON_PREFIX = "automatic-reopen:";
   public static final String CORRECTION_REASON_PREFIX = "recovery-correction:";
+  public static final String CLEAN_REBUILD_REASON_PREFIX = "recovery-clean-rebuild:";
+  public static final int MAX_CLEAN_REBUILDS_PER_DEFECT = 1;
 
   /**
    * Absolute per-run backstop. Same default as {@code
@@ -188,6 +190,17 @@ public final class RecoveryAttemptLedger {
     }
     return ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX
         + payload(key, nvl(inputArtifactIdentity));
+  }
+
+  /** A clean rebuild has its own one-shot budget and does not consume the local repair budget. */
+  public boolean mayCleanRebuild(List<RunTransition> transitions, RecoveryAttemptKey key) {
+    return key != null
+        && !ceilingReached(transitions)
+        && cleanRebuildsUsed(transitions, key) < MAX_CLEAN_REBUILDS_PER_DEFECT;
+  }
+
+  public String recordCleanRebuild(RecoveryAttemptKey key, String inputArtifactIdentity) {
+    return CLEAN_REBUILD_REASON_PREFIX + payload(key, nvl(inputArtifactIdentity));
   }
 
   /**
@@ -394,6 +407,7 @@ public final class RecoveryAttemptLedger {
         continue;
       }
       if (reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)
+          || reason.startsWith(CLEAN_REBUILD_REASON_PREFIX)
           || isReopenReason(reason)) {
         spent++;
       }
@@ -417,6 +431,25 @@ public final class RecoveryAttemptLedger {
     }
     int index = current.isEmpty() ? seen.size() - 1 : seen.indexOf(current);
     return Math.max(0, index);
+  }
+
+  private int cleanRebuildsUsed(
+      List<RunTransition> transitions, RecoveryAttemptKey key) {
+    if (transitions == null) {
+      return 0;
+    }
+    int used = 0;
+    for (RunTransition transition : transitions) {
+      String reason = transition == null ? null : transition.reason();
+      if (reason == null || !reason.startsWith(CLEAN_REBUILD_REASON_PREFIX)) {
+        continue;
+      }
+      Parsed parsed = parse(reason);
+      if (parsed != null && matchesDefect(parsed, key)) {
+        used++;
+      }
+    }
+    return used;
   }
 
   private List<String> observedArtifacts(
@@ -482,6 +515,8 @@ public final class RecoveryAttemptLedger {
       rest = reason.substring(AUTOMATIC_REOPEN_REASON_PREFIX.length());
     } else if (reason.startsWith(CORRECTION_REASON_PREFIX)) {
       rest = reason.substring(CORRECTION_REASON_PREFIX.length());
+    } else if (reason.startsWith(CLEAN_REBUILD_REASON_PREFIX)) {
+      rest = reason.substring(CLEAN_REBUILD_REASON_PREFIX.length());
     } else if (reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)) {
       rest = reason.substring(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX.length());
     } else {

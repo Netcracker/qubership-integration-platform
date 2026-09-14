@@ -38,7 +38,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.execu
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanProjector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
@@ -253,6 +255,7 @@ public class DesignExecutionCapability implements StageCapability {
   private ResolvedInputs resolveInputs(StageExecutionContext context) {
     Optional<Reference> idsRef = findSingle(context.inputRefs(), Kind.IDS_DOCUMENT);
     Optional<Reference> revisionRef = findSingle(context.inputRefs(), Kind.CHAIN_SEMANTIC_REVISION);
+    Optional<Reference> contractRef = findSingle(context.inputRefs(), Kind.DESIGN_PLAN_CONTRACT);
     Optional<Reference> reportRef = findSingle(context.inputRefs(), Kind.DESIGN_PLAN_REPORT);
     Optional<Reference> planRef = findSingle(context.inputRefs(), Kind.DESIGN_EXECUTION_PLAN);
     Optional<Reference> implementationRef =
@@ -273,7 +276,11 @@ public class DesignExecutionCapability implements StageCapability {
 
     MatchingApproval matching =
         findImplementationApproval(
-            context.runId(), context.inputRefs(), implementationRef.get(), planRef.get());
+            context.runId(),
+            context.inputRefs(),
+            implementationRef.get(),
+            contractRef.orElse(null),
+            planRef.get());
     if (matching.error() != null) {
       return ResolvedInputs.error(matching.error());
     }
@@ -282,6 +289,13 @@ public class DesignExecutionCapability implements StageCapability {
     ChainSemanticRevision revision =
         attributeOrLoad(
             context, "chainSemanticRevision", revisionRef.get(), ChainSemanticRevision.class);
+    DesignPlanContract contract =
+        contractRef
+            .map(
+                ref ->
+                    attributeOrLoad(
+                        context, "designPlanContract", ref, DesignPlanContract.class))
+            .orElse(null);
     DesignPlanReport report =
         attributeOrLoad(context, "designPlanReport", reportRef.get(), DesignPlanReport.class);
     DesignExecutionPlan plan =
@@ -307,6 +321,25 @@ public class DesignExecutionCapability implements StageCapability {
             "Required artifact CHAIN_SEMANTIC_REVISION is missing for design-execution");
       }
       return ResolvedInputs.error("design execution payloads are missing");
+    }
+    if (contractRef.isPresent()) {
+      if (contract == null) {
+        return ResolvedInputs.error("design plan contract payload is missing");
+      }
+      String contractHash = DesignPlanProjector.contractHash(contract);
+      boolean legacyRenderedReport =
+          contract.schemaVersion().equals("design-plan-contract/legacy")
+              && report.contractId().isBlank()
+              && report.contractHash().isBlank();
+      if ((!legacyRenderedReport
+              && (!contract.contractId().equals(report.contractId())
+                  || !contractHash.equals(report.contractHash())))
+          || !contract.contractId().equals(plan.sourceContractId())
+          || !contractHash.equals(plan.sourceContractHash())
+          || !contract.semanticRevisionId().equals(revision.revisionId())) {
+        return ResolvedInputs.error(
+            "design plan contract, report, projection, and semantic revision do not match");
+      }
     }
 
     List<CatalogBindingHint> hints = loadBindingHints(context);
@@ -375,6 +408,7 @@ public class DesignExecutionCapability implements StageCapability {
       String runId,
       List<Reference> inputRefs,
       Reference implementationRef,
+      Reference contractRef,
       Reference planRef) {
     List<Reference> approvalRefs =
         inputRefs == null
@@ -403,6 +437,9 @@ public class DesignExecutionCapability implements StageCapability {
       // Projection must be in the candidate set; report hash is verified later against the live
       // DESIGN_PLAN_REPORT input so a stale report surfaces as a report-hash contract failure.
       if (!approval.approvedCandidates().contains(planRef)) {
+        continue;
+      }
+      if (contractRef != null && !approval.approvedCandidates().contains(contractRef)) {
         continue;
       }
       boolean hasReportCandidate =

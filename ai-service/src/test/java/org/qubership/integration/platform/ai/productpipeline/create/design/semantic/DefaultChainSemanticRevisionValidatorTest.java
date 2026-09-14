@@ -120,6 +120,27 @@ class DefaultChainSemanticRevisionValidatorTest {
   }
 
   @Test
+  void acceptsQuartzSchedulerTriggerDeclaredByTheCompilerContract() {
+    ChainSemanticRevision linear = linearRevision();
+    List<SemanticNode> nodes = new ArrayList<>(linear.nodes());
+    nodes.set(
+        0,
+        new SemanticNode.Trigger(
+            "trigger-http", "quartz-scheduler", new SemanticProvenance(List.of())));
+    ChainSemanticRevision scheduled =
+        copy(
+            linear,
+            linear.entryPoints(),
+            nodes,
+            linear.regions(),
+            linear.executionEdges(),
+            linear.containment(),
+            linear.mappingIntents());
+
+    assertDoesNotThrow(() -> validate(scheduled));
+  }
+
+  @Test
   void acceptsTypedReconvergenceAndSyncSplit() {
     assertDoesNotThrow(() -> validate(typedReconvergeRevision()));
     assertDoesNotThrow(() -> validate(syncSplitRevision()));

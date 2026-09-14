@@ -21,6 +21,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRu
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
@@ -155,6 +156,156 @@ public final class DesignPlanProjector {
         pin.addonSha256ById() == null ? Map.of() : pin.addonSha256ById(),
         compilerCatalogHash,
         BINDING_RESOLUTION_POLICY_HASH);
+  }
+
+  /** Projects the typed planning contract without reading report wording or presentation order. */
+  public DesignExecutionPlan project(
+      DesignPlanContract contract,
+      DesignPlanReport report,
+      ChainSemanticRevision revision,
+      CompilerRunPin pin,
+      RequirementBrief brief) {
+    Objects.requireNonNull(contract, "contract");
+    Objects.requireNonNull(report, "report");
+    Objects.requireNonNull(revision, "revision");
+    Objects.requireNonNull(pin, "pin");
+    if (!revision.revisionId().equals(contract.semanticRevisionId())) {
+      throw new PlannerContractException("design plan contract names a different semantic revision");
+    }
+    if (!pin.subjectSha256().equals(contract.semanticRevisionHash())) {
+      throw new PlannerContractException("design plan contract has a stale semantic revision hash");
+    }
+    String expectedHash = contractHash(contract);
+    if (!contract.contractId().equals(report.contractId())
+        || !expectedHash.equals(report.contractHash())) {
+      throw new PlannerContractException("design plan report does not match its typed contract");
+    }
+    new DesignPlanContractValidator().validate(contract, revision, brief, pin);
+
+    Map<String, ResolvedCompilerNode> nodesBySkill = indexNodes(pin.resolvedDag());
+    Set<String> selected = new LinkedHashSet<>();
+    for (DesignPlanContract.Step step : contract.steps()) {
+      if (step.owner().kind() == DesignPlanContract.OwnerKind.SKILL) {
+        selected.addAll(resolveSkillOwners(step.owner().id(), nodesBySkill));
+      }
+    }
+    validateNoCatalogCycles(nodesBySkill, selected);
+
+    List<DesignExecutionPlan.Step> steps = new ArrayList<>();
+    int ordinal = 1;
+    for (DesignPlanContract.Step step : contract.steps()) {
+      List<String> skillOwners =
+          step.owner().kind() == DesignPlanContract.OwnerKind.SKILL
+              ? resolveSkillOwners(step.owner().id(), nodesBySkill)
+              : List.of();
+      List<String> toolOwners =
+          step.owner().kind() == DesignPlanContract.OwnerKind.APIHUB_TOOL
+              ? List.of(step.owner().id())
+              : List.of();
+      ParsedPlannerReport.Step artifactStep =
+          new ParsedPlannerReport.Step(
+              ordinal,
+              step.summary(),
+              step.owner().kind() == DesignPlanContract.OwnerKind.APIHUB_TOOL
+                  ? ParsedPlannerReport.OwnerKind.APIHUB_TOOL
+                  : ParsedPlannerReport.OwnerKind.SKILL,
+              skillOwners,
+              toolOwners,
+              List.of(),
+              List.of(),
+              firstTarget(step, DesignPlanContract.TargetKind.MAPPING_INTENT),
+              firstTarget(step, DesignPlanContract.TargetKind.SERVICE_CALL),
+              ParsedPlannerReport.ServiceCallRole.NONE,
+              firstTarget(step, DesignPlanContract.TargetKind.REGION));
+      steps.add(
+          new DesignExecutionPlan.Step(
+              step.stepId(),
+              ordinal++,
+              step.summary(),
+              step.owner().kind() == DesignPlanContract.OwnerKind.APIHUB_TOOL
+                  ? DesignExecutionPlan.OwnerKind.APIHUB_TOOL
+                  : DesignExecutionPlan.OwnerKind.SKILL,
+              skillOwners,
+              toolOwners,
+              List.of(),
+              List.of(),
+              step.dependsOnStepIds(),
+              deriveRequiredArtifacts(artifactStep, nodesBySkill),
+              deriveProducedArtifacts(artifactStep, nodesBySkill),
+              firstTarget(step, DesignPlanContract.TargetKind.MAPPING_INTENT),
+              firstTarget(step, DesignPlanContract.TargetKind.SERVICE_CALL),
+              firstTarget(step, DesignPlanContract.TargetKind.REGION),
+              step.claims()));
+    }
+    return new DesignExecutionPlan(
+        "2",
+        contract.semanticRevisionId(),
+        CipDesignPlannerAdapter.SKILL_ID,
+        "chain-semantic-revision/" + contract.semanticRevisionId(),
+        contract.semanticRevisionHash(),
+        contract.apiRelease(),
+        BINDING_RESOLUTION_POLICY,
+        steps,
+        "design-plan-report",
+        sha256(report.markdown()),
+        pin.skillSha256ById() == null ? Map.of() : pin.skillSha256ById(),
+        pin.addonSha256ById() == null ? Map.of() : pin.addonSha256ById(),
+        pin.pipelineIndexDigest(),
+        BINDING_RESOLUTION_POLICY_HASH,
+        contract.contractId(),
+        expectedHash);
+  }
+
+  private static List<String> resolveSkillOwners(
+      String ownerId, Map<String, ResolvedCompilerNode> nodesBySkill) {
+    if (CHAIN_VALIDATOR_SKILL_ID.equals(ownerId)
+        && !nodesBySkill.containsKey(CHAIN_VALIDATOR_SKILL_ID)) {
+      List<String> validation = pinnedValidationSkillIds(nodesBySkill);
+      if (!validation.isEmpty()) {
+        return validation;
+      }
+    }
+    return List.of(ownerId);
+  }
+
+  private static String firstTarget(
+      DesignPlanContract.Step step, DesignPlanContract.TargetKind kind) {
+    return step.claims().stream()
+        .filter(claim -> claim.targetKind() == kind)
+        .map(DesignPlanContract.Claim::targetId)
+        .findFirst()
+        .orElse("");
+  }
+
+  public static String contractHash(DesignPlanContract contract) {
+    Objects.requireNonNull(contract, "contract");
+    StringBuilder canonical = new StringBuilder();
+    appendField(canonical, contract.schemaVersion());
+    appendField(canonical, contract.contractId());
+    appendField(canonical, contract.semanticRevisionId());
+    appendField(canonical, contract.semanticRevisionHash());
+    appendField(canonical, contract.apiRelease());
+    for (DesignPlanContract.Step step : contract.steps()) {
+      appendField(canonical, step.stepId());
+      appendField(canonical, step.summary());
+      appendField(canonical, step.owner().kind().name());
+      appendField(canonical, step.owner().id());
+      for (DesignPlanContract.Claim claim : step.claims()) {
+        appendField(canonical, claim.targetKind().name());
+        appendField(canonical, claim.targetId());
+        appendField(canonical, claim.role().name());
+      }
+      canonical.append("claims-end;");
+      for (String dependency : step.dependsOnStepIds()) {
+        appendField(canonical, dependency);
+      }
+      canonical.append("dependencies-end;");
+    }
+    return sha256(canonical.toString());
+  }
+
+  private static void appendField(StringBuilder target, String value) {
+    target.append(value.length()).append(':').append(value).append(';');
   }
 
   private static Map<String, ResolvedCompilerNode> indexNodes(ResolvedCompilerDag dag) {

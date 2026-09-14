@@ -281,6 +281,44 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void semanticRebuildDesignSubmissionMapsToTheInternalReviseCommand() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-design"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-design",
+                    "run-design",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    8L,
+                    new CreateChainPendingAction.Clarify(
+                        "The semantic design cannot be used.",
+                        List.of(),
+                        PipelineGates.RECOVERY_REBUILD_DESIGN,
+                        "CONTRACT_SHAPE: invalid topology",
+                        null,
+                        "run-design",
+                        "design-input"),
+                    "")));
+    when(facade.continueWithInput(any())).thenReturn(Multi.createFrom().empty());
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.REBUILD_DESIGN_ACTION);
+    command.setRevision(8L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-design", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ArgumentCaptor<ContinueCreateChainCommand> input =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(input.capture());
+    assertEquals(PipelineGates.REVISE_ACTION, input.getValue().clarificationText());
+  }
+
+  @Test
   void openDecisionProjectsAContextualEnvironmentFailureFromServerOwnedState() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-env"))

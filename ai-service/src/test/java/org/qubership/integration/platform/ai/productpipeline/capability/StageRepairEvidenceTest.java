@@ -62,6 +62,55 @@ class StageRepairEvidenceTest {
   }
 
   @Test
+  void cleanRebuildAppliesOnlyToTheSelectedRecoveryEvidence() {
+    StageExecutionContext selected =
+        contextWithAttributes(
+            Map.of(
+                ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+                "planner rejected",
+                ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR,
+                "evidence-a",
+                ProductPipelineRunSupport.DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+                "evidence-a"));
+    StageExecutionContext laterFailure =
+        contextWithAttributes(
+            Map.of(
+                ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+                "planner rejected again",
+                ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR,
+                "evidence-b",
+                ProductPipelineRunSupport.DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+                "evidence-a"));
+
+    assertTrue(
+        StageRepairEvidence.isCleanDesignPlanRebuild(
+            selected, StageRepairEvidence.from(selected)));
+    assertFalse(
+        StageRepairEvidence.isCleanDesignPlanRebuild(
+            laterFailure, StageRepairEvidence.from(laterFailure)));
+  }
+
+  @Test
+  void cleanDesignInputRebuildUsesItsOwnSelectedRecoveryEvidence() {
+    StageExecutionContext selected =
+        contextWithAttributes(
+            Map.of(
+                ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+                "semantic design rejected",
+                ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR,
+                "evidence-design",
+                ProductPipelineRunSupport.DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+                "evidence-design"));
+
+    assertTrue(
+        StageRepairEvidence.isCleanDesignInputRebuild(
+            selected, StageRepairEvidence.from(selected)));
+    assertFalse(
+        StageRepairEvidence.isCleanDesignPlanRebuild(
+            selected, StageRepairEvidence.from(selected)));
+  }
+
+  @Test
   void nullContextIsTreatedAsAFirstTurn() {
     assertFalse(StageRepairEvidence.isRepairTurn(null));
   }

@@ -62,10 +62,12 @@ import org.qubership.integration.platform.ai.productpipeline.create.FailureNarra
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningSkillArtifactUnavailableException;
 import org.qubership.integration.platform.ai.productpipeline.create.PlanningPatchLedger;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanProjector;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
@@ -228,6 +230,73 @@ class DesignExecutionCapabilityTest {
 
     assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
     assertTrue(outcome.message().toLowerCase().contains("report"));
+    verifyNoInteractions(runner);
+  }
+
+  @Test
+  void contractInputCannotBypassLineageWithAnUnlinkedExecutionPlan() {
+    DesignPlanContract contract =
+        new DesignPlanContract(
+            "design-plan-contract/v1",
+            "contract-1",
+            revision.revisionId(),
+            "design-input-hash",
+            "2024.4",
+            List.of(
+                new DesignPlanContract.Step(
+                    "trigger",
+                    "Trigger",
+                    new DesignPlanContract.Owner(
+                        DesignPlanContract.OwnerKind.SKILL, "cip-trigger-generator"),
+                    List.of(),
+                    List.of())));
+    String contractHash = DesignPlanProjector.contractHash(contract);
+    Reference contractRef = append(Kind.DESIGN_PLAN_CONTRACT, "1", contract);
+    Reference linkedReportRef =
+        append(
+            Kind.DESIGN_PLAN_REPORT,
+            "2",
+            new DesignPlanReport("2", sampleReportMarkdown(), contract.contractId(), contractHash));
+    Reference approvalRef =
+        append(
+            Kind.APPROVAL_RECORD,
+            "2",
+            new ApprovalRecordV2(
+                implementationRef,
+                implementationRef.contentHash(),
+                List.of(
+                    idsRef,
+                    revisionRef,
+                    contractRef,
+                    linkedReportRef,
+                    planRef,
+                    implementationRef),
+                "tester",
+                "implementation approved",
+                FIXED,
+                ApprovalPolicy.CATALOG_FIRST_V1,
+                ApprovalPolicy.CATALOG_FIRST_V1_HASH,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
+
+    StageOutcome outcome =
+        execute(
+            List.of(
+                idsRef,
+                revisionRef,
+                contractRef,
+                linkedReportRef,
+                planRef,
+                implementationRef,
+                manifestRef,
+                approvalRef));
+
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, outcome.outcomeClass());
+    assertTrue(outcome.message().contains("do not match"), outcome.message());
     verifyNoInteractions(runner);
   }
 

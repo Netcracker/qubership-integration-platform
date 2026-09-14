@@ -180,6 +180,7 @@ class DesignPlanningCapabilityTest {
 
     Reference idsRef = refOf(beforeApproval, Kind.IDS_DOCUMENT);
     Reference revisionRef = refOf(beforeApproval, Kind.CHAIN_SEMANTIC_REVISION);
+    Reference contractRef = refOf(beforeApproval, Kind.DESIGN_PLAN_CONTRACT);
     Reference reportRef = refOf(beforeApproval, Kind.DESIGN_PLAN_REPORT);
     Reference projectionRef = refOf(beforeApproval, Kind.DESIGN_EXECUTION_PLAN);
     Reference implementationPlanRef = refOf(beforeApproval, Kind.IMPLEMENTATION_PLAN);
@@ -200,7 +201,13 @@ class DesignPlanningCapabilityTest {
 
     ApprovalRecordV2 approval = latestApprovalV2();
     assertEquals(
-        Set.of(idsRef, revisionRef, reportRef, projectionRef, implementationPlanRef),
+        Set.of(
+            idsRef,
+            revisionRef,
+            contractRef,
+            reportRef,
+            projectionRef,
+            implementationPlanRef),
         Set.copyOf(approval.approvedCandidates()));
     assertEquals(implementationPlanRef, approval.target());
     assertEquals(ApprovalPolicy.CATALOG_FIRST_V1, approval.bindingResolutionPolicy());
@@ -496,7 +503,7 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
-  void plannerInputRequiresLiteralMappingIntentIdToken() {
+  void plannerInputListsTypedMappingTargetAndExactOwner() {
     String input =
         DesignPlanningCapability.buildPlannerInput(
             sampleIds(),
@@ -505,10 +512,12 @@ class DesignPlanningCapabilityTest {
             sampleBrief()
                 .withMappingIntents(SemanticFixtures.linearOrdersWithMapping().mappingIntents()));
 
-    assertTrue(input.contains("mappingIntentId=<id>"), input);
-    assertTrue(input.contains("mappingIntentId=map-init"), input);
-    assertTrue(input.contains("Do not plan cip-transformation-generator"), input);
-    assertFalse(input.contains("cip-transformation-generator mappingIntentId="), input);
+    assertTrue(
+        input.contains(
+            "targetKind=MAPPING_INTENT targetId=map-init producer=cip-script-generator"),
+        input);
+    assertFalse(input.contains("mappingIntentId=<id>"), input);
+    assertFalse(input.contains("serviceCallRole="), input);
   }
 
   @Test
@@ -526,13 +535,10 @@ class DesignPlanningCapabilityTest {
 
     assertTrue(
         input.contains(
-            "serviceCallId=call-1 operation=createOrder failureMode=PROPAGATE"
-                + " participant=Orders Service"),
+            "targetKind=SERVICE_CALL targetId=call-1 producer=cip-service-call-generator"
+                + " operation=createOrder failureMode=PROPAGATE participant=Orders Service"),
         input);
-    assertTrue(input.contains("serviceCallId=<id>"), input);
-    assertTrue(input.contains("serviceCallRole=PRODUCER"), input);
-    assertTrue(input.contains("serviceCallRole=REFERENCE"), input);
-    assertTrue(input.contains("The same catalog operation may occur more than once"), input);
+    assertFalse(input.contains("serviceCallRole="), input);
     assertTrue(input.contains("Control-flow regions:\n- none"), input);
   }
 
@@ -546,7 +552,7 @@ class DesignPlanningCapabilityTest {
     String input =
         DesignPlanningCapability.buildPlannerInput(sampleIds(), revision, "2024.4", brief);
 
-    assertTrue(input.contains("mappingIntentId=map-init"), input);
+    assertTrue(input.contains("targetKind=MAPPING_INTENT targetId=map-init"), input);
     assertTrue(revision.mappingIntents().isEmpty());
   }
 
@@ -555,8 +561,8 @@ class DesignPlanningCapabilityTest {
     String input =
         DesignPlanningCapability.buildPlannerInput(sampleIds(), sampleRevision(), "2024.4");
 
-    assertTrue(input.contains("No mapping intents. Do not plan mapping scripts."), input);
-    assertFalse(input.contains("behavior-owned"), input);
+    assertTrue(input.contains("Mapping intents: none"), input);
+    assertTrue(input.contains("Behavior-owned script nodes:\n- none"), input);
   }
 
   @Test
@@ -565,10 +571,13 @@ class DesignPlanningCapabilityTest {
         DesignPlanningCapability.buildPlannerInput(
             sampleIds(), SemanticFixtures.linearOrdersWithCompleteTask(), "2024.4");
 
-    assertTrue(input.contains("No mapping intents. Do not plan mapping scripts."), input);
-    assertTrue(input.contains("cip-script-generator"), input);
-    assertTrue(input.contains(SemanticFixtures.COMPLETE_TASK_NODE_ID), input);
-    assertFalse(input.contains("Do not plan mapping scripts.\n\nNodes:"), input);
+    assertTrue(input.contains("Mapping intents: none"), input);
+    assertTrue(
+        input.contains(
+            "targetKind=BEHAVIOR_NODE targetId="
+                + SemanticFixtures.COMPLETE_TASK_NODE_ID
+                + " producer=cip-script-generator"),
+        input);
   }
 
   @Test
@@ -782,6 +791,7 @@ class DesignPlanningCapabilityTest {
                     new ArtifactTypeRef("run-manifest", 1)),
                 List.of(),
                 List.of(
+                    new ArtifactTypeRef("design-plan-contract", 1),
                     new ArtifactTypeRef("design-plan-report", 1),
                     new ArtifactTypeRef("design-execution-plan", 1),
                     new ArtifactTypeRef("implementation-plan", 2)),
@@ -791,6 +801,7 @@ class DesignPlanningCapabilityTest {
                     List.of(
                         new ArtifactTypeRef("ids-document", 1),
                         new ArtifactTypeRef("chain-semantic-revision", 1),
+                        new ArtifactTypeRef("design-plan-contract", 1),
                         new ArtifactTypeRef("design-plan-report", 1),
                         new ArtifactTypeRef("design-execution-plan", 1),
                         new ArtifactTypeRef("implementation-plan", 2)),

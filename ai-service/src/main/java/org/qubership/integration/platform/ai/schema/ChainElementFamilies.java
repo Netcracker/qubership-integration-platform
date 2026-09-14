@@ -9,9 +9,14 @@ public final class ChainElementFamilies {
       "http-trigger",
       "chain-trigger-2",
       "async-api-trigger",
+      "jms-trigger",
       "kafka-trigger-2",
+      "mcp-trigger",
+      "pubsub-trigger",
       "quartz-scheduler",
-      "rabbitmq-trigger-2");
+      "rabbitmq-trigger-2",
+      "sds-trigger",
+      "sftp-trigger-2");
 
   public static final Set<String> ROUTING = Set.of("condition", "choice", "if", "else", "when", "otherwise");
   public static final Set<String> ROUTING_MODERN = Set.of("condition", "if", "else");
