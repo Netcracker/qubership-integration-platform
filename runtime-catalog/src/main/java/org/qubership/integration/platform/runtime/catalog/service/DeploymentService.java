@@ -439,8 +439,17 @@ public class DeploymentService {
                         chainId,
                         SQLUtils.prepareCollectionForHqlNotInClause(excludeDeploymentIds)));
 
+        List<ElementRoute> sameDomainRoutes = mapHttpTriggerRoutes(
+                elementRepository.findElementsForSameDomainTriggerCheck(
+                        triggersToCheck,
+                        domain,
+                        chainId,
+                        SQLUtils.prepareCollectionForHqlNotInClause(excludeDeploymentIds)));
+
         Set<String> gatewayEqualPaths = findSameHttpTriggerPaths(pendingRoutes, allRoutes, true);
         Set<String> otherDomainsEqualPaths = findSameHttpTriggerPaths(pendingRoutes, otherDomainsRoutes, false);
+        // Chains of one domain share the engine servlet, so internal routes collide there too.
+        Set<String> sameDomainEqualPaths = findSameHttpTriggerPaths(pendingRoutes, sameDomainRoutes, false);
 
         if (!gatewayEqualPaths.isEmpty()) {
             throw new EntityExistsException("Found similar triggers paths registered on public/private gateway: "
@@ -448,6 +457,9 @@ public class DeploymentService {
         }
         if (!otherDomainsEqualPaths.isEmpty()) {
             throw new EntityExistsException("Found similar triggers path registered on other domains: " + otherDomainsEqualPaths);
+        }
+        if (!sameDomainEqualPaths.isEmpty()) {
+            throw new EntityExistsException("Found similar triggers paths registered on the same domain: " + sameDomainEqualPaths);
         }
     }
 

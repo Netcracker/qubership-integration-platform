@@ -107,6 +107,26 @@ public interface ElementRepository extends CommonRepository<ChainElement>, JpaRe
     @Query("""
         SELECT e
         FROM elements e
+        WHERE e.type IN :types
+            AND (e.snapshot.id IN (
+                    SELECT d.snapshot.id
+                    FROM deployments d
+                    WHERE
+                        d.domain = :domain
+                        AND d.chain.id <> :excludeChainId
+                        AND (:excludeDeploymentIds IS NULL
+                        OR d.id NOT IN :excludeDeploymentIds)
+                    )
+                )""")
+    List<ChainElement> findElementsForSameDomainTriggerCheck(
+            List<String> types,
+            String domain,
+            String excludeChainId,
+            @Nullable @NotEmpty List<String> excludeDeploymentIds);
+
+    @Query("""
+        SELECT e
+        FROM elements e
             INNER JOIN deployments d ON e.snapshot.id = d.snapshot.id
         WHERE
             e.type IN :types
