@@ -32,7 +32,9 @@ concurrency:
 permissions: {}
 
 jobs:
-  prerequisite_builds:
+  # The snapshot flow builds every module itself, so a module build only gates it:
+  # a module the pull request does not touch is not built again.
+  module_builds:
     name: Wait for module builds
     if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
@@ -41,10 +43,9 @@ jobs:
       actions: read
       pull-requests: read
     steps:
-      - name: Wait for the module builds this pull request triggers
+      - name: Wait
         env:
           GH_TOKEN: ${{ github.token }}
-          MERGE_SHA: ${{ github.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PR_HEAD_REF_JSON: ${{ toJSON(github.event.pull_request.head.ref) }}
           PR_HEAD_REPOSITORY_JSON: ${{ toJSON(github.event.pull_request.head.repo.full_name) }}
@@ -80,51 +81,32 @@ jobs:
             esac
           done <<< "$changed_files"
 
-          lookup_run() {
-            local workflow_file="$1"
-            local previous_sha=""
-            local sha
-            local response
-
-            FOUND_RUN=""
-            # Prefer the exact merge commit and ignore same-SHA runs from older PR events.
-            for sha in "$MERGE_SHA" "$PR_HEAD_SHA"; do
-              if [ "$sha" = "$previous_sha" ]; then
-                continue
-              fi
-              previous_sha="$sha"
-
-              if ! response=$(gh api --method GET \
-                "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs" \
-                -f event=pull_request \
-                -f head_sha="$sha" \
-                -F per_page=100 \
-                --jq "
-                  .workflow_runs
-                  | map(select(
-                      .created_at >= ${PR_UPDATED_AT_JSON}
-                      and (
-                        any(.pull_requests[]?; .number == ${PR_NUMBER})
-                        or (
-                          ((.pull_requests // []) | length) == 0
-                          and .head_branch == ${PR_HEAD_REF_JSON}
-                          and .head_repository.full_name == ${PR_HEAD_REPOSITORY_JSON}
-                        )
+          # Prints "<run id>\t<run url>" of the latest run for this PR, or nothing.
+          # A run from a fork lists no pull requests, so it is matched by its head.
+          find_run() {
+            gh api --method GET \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/$1/runs" \
+              -f event=pull_request \
+              -f head_sha="$PR_HEAD_SHA" \
+              -F per_page=100 \
+              --jq "
+                .workflow_runs
+                | map(select(
+                    .created_at >= ${PR_UPDATED_AT_JSON}
+                    and (
+                      any(.pull_requests[]?; .number == ${PR_NUMBER})
+                      or (
+                        ((.pull_requests // []) | length) == 0
+                        and .head_branch == ${PR_HEAD_REF_JSON}
+                        and .head_repository.full_name == ${PR_HEAD_REPOSITORY_JSON}
                       )
-                    ))
-                  | sort_by(.run_number)
-                  | reverse
-                  | if length == 0 then empty else .[0] | [.id, .html_url] | @tsv end
-                "); then
-                echo "::warning::Could not inspect ${workflow_file} for ${sha}."
-                continue
-              fi
-
-              if [ -n "$response" ]; then
-                FOUND_RUN="$response"
-                return
-              fi
-            done
+                    )
+                  ))
+                | max_by(.run_number)
+                | select(. != null)
+                | [.id, .html_url]
+                | @tsv
+              "
           }
 
           wait_for_run() {
@@ -165,74 +147,50 @@ jobs:
             done
           }
 
-          # The snapshot flow builds every module itself, so a module build only
-          # gates it: a module the pull request does not touch is not built again.
           await_build() {
             local workflow_file="$1"
             local build_name="$2"
             local expected="$3"
-            local attempt
+            local run=""
             local run_id
             local run_url
 
             if [ "$expected" != "true" ]; then
-              BUILD_RESULT="not triggered"
+              echo "| ${build_name} | not triggered |" >> "$GITHUB_STEP_SUMMARY"
               return
             fi
 
-            for attempt in {1..12}; do
-              lookup_run "$workflow_file"
-              if [ -n "$FOUND_RUN" ]; then
-                break
+            for _ in {1..12}; do
+              if ! run=$(find_run "$workflow_file"); then
+                echo "::warning::Could not inspect ${workflow_file}."
+                run=""
               fi
-
-              if [ "$attempt" -lt 12 ]; then
-                echo "Waiting for ${build_name} to be registered (${attempt}/12)."
-                sleep 10
-              fi
+              [ -n "$run" ] && break
+              sleep 10
             done
 
-            if [ -z "$FOUND_RUN" ]; then
+            if [ -z "$run" ]; then
               echo "::warning::${build_name} was not found; the snapshot flow runs without it."
-              BUILD_RESULT="not found"
+              echo "| ${build_name} | not found |" >> "$GITHUB_STEP_SUMMARY"
               return
             fi
 
-            IFS=$'\t' read -r run_id run_url <<< "$FOUND_RUN"
+            IFS=$'\t' read -r run_id run_url <<< "$run"
             echo "Waiting for ${build_name}: ${run_url}"
             wait_for_run "$build_name" "$run_id" "$run_url"
-            BUILD_RESULT="[passed](${run_url})"
+            echo "| ${build_name} | [passed](${run_url}) |" >> "$GITHUB_STEP_SUMMARY"
           }
 
+          printf '### Module builds\n\n| Build | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
           await_build integration-build-pipeline-build.yaml "Integration Build Pipeline Library Build" "$integration_build_pipeline_expected"
-          integration_build_pipeline_result="$BUILD_RESULT"
-
           await_build runtime-catalog-build.yaml "Runtime Catalog Build" "$runtime_catalog_expected"
-          runtime_catalog_result="$BUILD_RESULT"
-
           await_build micro-engine-build.yaml "Micro Engine Build" "$micro_engine_expected"
-          micro_engine_result="$BUILD_RESULT"
-
-          {
-            echo "### Module builds"
-            echo
-            echo "| Build | Result |"
-            echo "| --- | --- |"
-            echo "| Integration Build Pipeline Library Build | ${integration_build_pipeline_result} |"
-            echo "| Runtime Catalog Build | ${runtime_catalog_result} |"
-            echo "| Micro Engine Build | ${micro_engine_result} |"
-          } >> "$GITHUB_STEP_SUMMARY"
 
   snapshot_flow:
     name: Catalog to Micro Engine snapshot flow
-    needs: prerequisite_builds
+    needs: module_builds
     # The wait job runs only for pull requests and is skipped on main.
-    if: >-
-      ${{
-        !cancelled()
-        && (needs.prerequisite_builds.result == 'success'
-          || needs.prerequisite_builds.result == 'skipped')
-      }}
+    if: ${{ !cancelled() && !failure() }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
