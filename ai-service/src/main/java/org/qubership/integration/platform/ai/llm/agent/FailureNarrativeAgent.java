@@ -106,13 +106,15 @@ Structured evidence for the halt (do not invent facts beyond this):
 - priorFollowUp: {followUpText}
 
 Rules:
-- verdict: exactly QUESTION or INSTRUCTION.
+- verdict: exactly QUESTION, CORRECTION, or RETRY.
 - QUESTION when the message asks about the run: why it stopped, what failed, what the evidence \
 means, what would clear it, or what happens next. A question mark is not required.
-- INSTRUCTION when the message tells the run what to change, where to go back to, or what to do \
-next, even when it is phrased politely.
+- CORRECTION when the message adds facts, changes the requested result, reports that an external \
+condition is fixed, or otherwise gives the run new repair information.
+- RETRY when the message only asks to repeat, retry, resume, or continue without new repair \
+information.
 - Read the message in whatever language it is written. Do not treat English phrasing as the only \
-way to ask a question, and do not fall back to INSTRUCTION because the wording is unfamiliar.
+way to ask a question, and do not fall back to RETRY because the wording is unfamiliar.
 - answer: two to four short sentences in the pinned response locale {responseLocale}. This locale \
 is authoritative; do not answer in the language of the evidence and do not answer in the language \
 of the message when the two differ.
@@ -121,7 +123,7 @@ with what the evidence states.
 - When the evidence does not cover what was asked, say so plainly, then name what it does cover. \
 Never guess at a fact the evidence does not hold.
 - Do not tell the reader which button to click or which word to type.
-- Leave answer empty when verdict is INSTRUCTION.
+- Leave answer empty when verdict is CORRECTION or RETRY.
 - Reply with verdict and answer only. No markdown fences, no quotes, no preamble.\
 """)
   HaltQuestionDraft answerHaltQuestion(
