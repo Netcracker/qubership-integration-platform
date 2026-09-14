@@ -60,6 +60,40 @@ const searchClassNameByVariant: Partial<Record<TableToolbarVariant, string>> = {
   "chain-tab": styles.chainTabSearch,
 };
 
+const TableToolbarRefreshButton: React.FC<{
+  refresh: TableToolbarRefresh;
+}> = ({ refresh }) => {
+  const [refreshing, setRefreshing] = useState(false);
+  const notificationService = useNotificationService();
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refresh.onRefresh();
+    } catch (error) {
+      notificationService.requestFailed("Failed to refresh table", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  return (
+    <ProtectedButton
+      require={refresh.require ?? {}}
+      tooltipProps={{ title: "Refresh", placement: "bottom" }}
+      buttonProps={{
+        "aria-label": "Refresh",
+        ...(refresh["data-testid"]
+          ? { "data-testid": refresh["data-testid"] }
+          : {}),
+        iconName: "refresh",
+        loading: refresh.loading || refreshing,
+        disabled: refresh.disabled,
+        onClick: () => void handleRefresh(),
+      }}
+    />
+  );
+};
+
 export const TableToolbar: React.FC<TableToolbarProps> = ({
   variant = "default",
   search,
@@ -74,23 +108,10 @@ export const TableToolbar: React.FC<TableToolbarProps> = ({
   actionsClassName,
   "data-testid": dataTestId,
 }) => {
-  const [refreshing, setRefreshing] = useState(false);
-  const notificationService = useNotificationService();
   const hasLeading = Boolean(leading || middle);
   const hasActions = Boolean(
     refresh || filterButton || columnSettingsButton || actions || trailing,
   );
-  const handleRefresh = async () => {
-    if (!refresh) return;
-    setRefreshing(true);
-    try {
-      await refresh.onRefresh();
-    } catch (error) {
-      notificationService.requestFailed("Failed to refresh table", error);
-    } finally {
-      setRefreshing(false);
-    }
-  };
 
   return (
     <Flex
@@ -138,22 +159,7 @@ export const TableToolbar: React.FC<TableToolbarProps> = ({
             actionsClassName,
           )}
         >
-          {refresh ? (
-            <ProtectedButton
-              require={refresh.require ?? {}}
-              tooltipProps={{ title: "Refresh", placement: "bottom" }}
-              buttonProps={{
-                "aria-label": "Refresh",
-                ...(refresh["data-testid"]
-                  ? { "data-testid": refresh["data-testid"] }
-                  : {}),
-                iconName: "refresh",
-                loading: refresh.loading || refreshing,
-                disabled: refresh.disabled,
-                onClick: () => void handleRefresh(),
-              }}
-            />
-          ) : null}
+          {refresh ? <TableToolbarRefreshButton refresh={refresh} /> : null}
           {filterButton}
           {columnSettingsButton}
           {actions}
