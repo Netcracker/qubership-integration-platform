@@ -1,15 +1,16 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 /**
- * Outcome of one pause-question turn. Three values, not two: an answer, a message that was not a
- * question, and an inability to answer. The last is a timeout, a failed call, or a blank question
- * verdict; it is never treated as an instruction.
+ * Outcome of one pause-question turn. A non-question may carry a concrete correction or only ask
+ * the run to repeat. The distinction lets a halted run consume new repair information without
+ * spending a recovery attempt on a rephrased retry.
  */
 public record PauseQuestionResult(Kind kind, String answer) {
 
   public enum Kind {
     ANSWER,
     NOT_A_QUESTION,
+    REPAIR_INSTRUCTION,
     UNANSWERABLE
   }
 
@@ -30,6 +31,10 @@ public record PauseQuestionResult(Kind kind, String answer) {
     return new PauseQuestionResult(Kind.NOT_A_QUESTION, "");
   }
 
+  public static PauseQuestionResult repairInstruction() {
+    return new PauseQuestionResult(Kind.REPAIR_INSTRUCTION, "");
+  }
+
   public static PauseQuestionResult unanswerable() {
     return new PauseQuestionResult(Kind.UNANSWERABLE, "");
   }
@@ -39,7 +44,11 @@ public record PauseQuestionResult(Kind kind, String answer) {
   }
 
   public boolean isNotAQuestion() {
-    return kind == Kind.NOT_A_QUESTION;
+    return kind == Kind.NOT_A_QUESTION || kind == Kind.REPAIR_INSTRUCTION;
+  }
+
+  public boolean isRepairInstruction() {
+    return kind == Kind.REPAIR_INSTRUCTION;
   }
 
   public boolean isUnanswerable() {

@@ -162,6 +162,34 @@ class ProductPipelineHaltQuestionTest {
         support.haltFollowUpText(RUN_ID).orElseThrow());
   }
 
+  @Test
+  void aNaturalLanguageRepairInstructionResumesTheCurrentUnapprovedProducer() {
+    haltOnPlanningValidation(
+        FakeFailureNarrativeAgent.owner("", "requirement-analysis")
+            .answeringUnder("CORRECTION", ""));
+    String correction = "Use a different scheduler and continue.";
+
+    type(correction);
+
+    assertEquals("planning", run().run().currentStageId());
+    assertEquals(RunStatus.RUNNING, run().run().status());
+    assertEquals(correction, support.haltFollowUpText(RUN_ID).orElseThrow());
+  }
+
+  @Test
+  void aRephrasedRetryWithoutNewInformationKeepsTheRunHalted() {
+    String halted =
+        haltOnPlanningValidation(
+            FakeFailureNarrativeAgent.owner("", "requirement-analysis")
+                .answeringUnder("RETRY", ""));
+
+    List<PipelineSignal> signals = type("Please try again.");
+
+    assertEquals(halted, waitingPrompt(signals));
+    assertEquals("planning", run().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
+  }
+
   /** Drives the run to a recoverable halt at planning and returns the prompt it halted on. */
   private String haltOnPlanningValidation(FakeFailureNarrativeAgent narrativeAgent) {
     agent = narrativeAgent;
