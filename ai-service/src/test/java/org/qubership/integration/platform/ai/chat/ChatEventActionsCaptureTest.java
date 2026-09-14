@@ -78,6 +78,19 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
+  void contextualDesignDefectOffersRebuildDesign() {
+    List<String> actions =
+        ChatEvent.actionsForClarify(
+            new CreateChainPendingAction.Clarify(
+                "The semantic design cannot be used.",
+                List.of(),
+                PipelineGates.RECOVERY_REBUILD_DESIGN));
+
+    assertEquals(
+        List.of(ChatEvent.REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), actions);
+  }
+
+  @Test
   void contextualEnvironmentFailureOffersOnlyEndRun() {
     List<String> actions =
         ChatEvent.actionsForClarify(

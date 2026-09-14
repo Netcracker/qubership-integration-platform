@@ -113,7 +113,11 @@ public final class RecoveryExecutor {
       case REQUIREMENT_DRAFT -> "requirement-discovery";
       case REQUIREMENT_BRIEF -> "requirement-analysis";
       case IDS_DOCUMENT, CHAIN_SEMANTIC_REVISION -> "design-input";
-      case IMPLEMENTATION_PLAN, DESIGN_PLAN_REPORT, DESIGN_EXECUTION_PLAN -> "design-planning";
+      case IMPLEMENTATION_PLAN,
+              DESIGN_PLAN_CONTRACT,
+              DESIGN_PLAN_REPORT,
+              DESIGN_EXECUTION_PLAN ->
+          "design-planning";
       case CHAIN_PLAN_GRAPH,
               GRAPH_PATCH_ARTIFACT,
               GRAPH_ASSEMBLY_RESULT,

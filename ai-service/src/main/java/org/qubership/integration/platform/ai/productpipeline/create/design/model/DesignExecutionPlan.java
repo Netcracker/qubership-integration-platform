@@ -3,9 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.mode
 import java.util.List;
 import java.util.Map;
 
-/**
- * Typed projection of a {@link DesignPlanReport} enriched from the pinned compiler catalog.
- */
+/** Typed projection of a {@link DesignPlanContract} enriched from the pinned compiler catalog. */
 public record DesignExecutionPlan(
     String schemaVersion,
     String semanticRevisionId,
@@ -20,11 +18,47 @@ public record DesignExecutionPlan(
     Map<String, String> pinnedSkillHashes,
     Map<String, String> pinnedAddonHashes,
     String compilerCatalogHash,
-    String bindingResolutionPolicyHash) {
+    String bindingResolutionPolicyHash,
+    String sourceContractId,
+    String sourceContractHash) {
 
   public enum OwnerKind {
     SKILL,
     APIHUB_TOOL
+  }
+
+  public DesignExecutionPlan(
+      String schemaVersion,
+      String semanticRevisionId,
+      String designAuthority,
+      String designInputRef,
+      String designInputHash,
+      String apiRelease,
+      String bindingResolutionPolicy,
+      List<Step> steps,
+      String sourceReportRef,
+      String sourceReportHash,
+      Map<String, String> pinnedSkillHashes,
+      Map<String, String> pinnedAddonHashes,
+      String compilerCatalogHash,
+      String bindingResolutionPolicyHash) {
+    this(
+        schemaVersion,
+        semanticRevisionId,
+        designAuthority,
+        designInputRef,
+        designInputHash,
+        apiRelease,
+        bindingResolutionPolicy,
+        steps,
+        sourceReportRef,
+        sourceReportHash,
+        pinnedSkillHashes,
+        pinnedAddonHashes,
+        compilerCatalogHash,
+        bindingResolutionPolicyHash,
+        "",
+        "");
   }
 
   public DesignExecutionPlan {
@@ -44,6 +78,8 @@ public record DesignExecutionPlan(
     compilerCatalogHash = DesignArtifacts.requireText(compilerCatalogHash, "compilerCatalogHash");
     bindingResolutionPolicyHash =
         DesignArtifacts.requireText(bindingResolutionPolicyHash, "bindingResolutionPolicyHash");
+    sourceContractId = DesignArtifacts.nullableTrimmed(sourceContractId);
+    sourceContractHash = DesignArtifacts.nullableTrimmed(sourceContractHash);
   }
 
   public record Step(
@@ -60,7 +96,41 @@ public record DesignExecutionPlan(
       List<String> producedArtifactTypes,
       String mappingIntentId,
       String serviceCallId,
-      String regionId) {
+      String regionId,
+      List<DesignPlanContract.Claim> claims) {
+
+    public Step(
+        String stepId,
+        int reportOrdinal,
+        String reportText,
+        OwnerKind ownerKind,
+        List<String> owningSkillIds,
+        List<String> toolOperationRefs,
+        List<String> participantRefs,
+        List<String> operationQueryRefs,
+        List<String> dependsOn,
+        List<String> requiredArtifactTypes,
+        List<String> producedArtifactTypes,
+        String mappingIntentId,
+        String serviceCallId,
+        String regionId) {
+      this(
+          stepId,
+          reportOrdinal,
+          reportText,
+          ownerKind,
+          owningSkillIds,
+          toolOperationRefs,
+          participantRefs,
+          operationQueryRefs,
+          dependsOn,
+          requiredArtifactTypes,
+          producedArtifactTypes,
+          mappingIntentId,
+          serviceCallId,
+          regionId,
+          List.of());
+    }
 
     public Step(
         String stepId,
@@ -88,7 +158,8 @@ public record DesignExecutionPlan(
           producedArtifactTypes,
           "",
           "",
-          "");
+          "",
+          List.of());
     }
 
     public Step(
@@ -118,7 +189,8 @@ public record DesignExecutionPlan(
           producedArtifactTypes,
           mappingIntentId,
           "",
-          "");
+          "",
+          List.of());
     }
 
     public Step {
@@ -138,6 +210,7 @@ public record DesignExecutionPlan(
       mappingIntentId = mappingIntentId == null ? "" : mappingIntentId.trim();
       serviceCallId = serviceCallId == null ? "" : serviceCallId.trim();
       regionId = regionId == null ? "" : regionId.trim();
+      claims = DesignArtifacts.copyList(claims);
     }
   }
 }

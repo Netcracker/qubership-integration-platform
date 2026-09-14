@@ -247,6 +247,7 @@ public class ChatDecisionService {
                   UploadedSpecsApprovalHandler.ARTIFACT_TYPE.equals(command.getArtifactType()));
           case ChatEvent.RETRY_CREATION_ACTION -> "Retry chain creation";
           case ChatEvent.EDIT_REQUIREMENTS_ACTION -> "Edit the requirements";
+          case ChatEvent.REBUILD_DESIGN_ACTION -> "Rebuild the design";
           case ChatEvent.REBUILD_PLAN_ACTION -> "Rebuild the plan";
           case PipelineGates.STOP_WITH_REPORT_ACTION -> "End the run and keep its report";
           case ChatEvent.SESSION_LOGGING_OFF_ACTION -> "Set session logging to Off";
@@ -393,6 +394,7 @@ public class ChatDecisionService {
         || ChatEvent.MAPPING_GAP_ACTIONS.contains(action)
         || ChatEvent.RETRY_CREATION_ACTION.equals(action)
         || ChatEvent.EDIT_REQUIREMENTS_ACTION.equals(action)
+        || ChatEvent.REBUILD_DESIGN_ACTION.equals(action)
         || ChatEvent.REBUILD_PLAN_ACTION.equals(action)
         || PipelineGates.STOP_WITH_REPORT_ACTION.equals(action)
         || PipelineGates.isHaltCardAction(action);
@@ -404,6 +406,7 @@ public class ChatDecisionService {
       return PipelineGates.RETRY_ACTION;
     }
     if (ChatEvent.EDIT_REQUIREMENTS_ACTION.equals(action)
+        || ChatEvent.REBUILD_DESIGN_ACTION.equals(action)
         || ChatEvent.REBUILD_PLAN_ACTION.equals(action)) {
       return PipelineGates.REVISE_ACTION;
     }

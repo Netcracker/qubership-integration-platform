@@ -1438,12 +1438,14 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
 
     boolean identicalRejection = false;
+    RecoveryAttemptKey recoveryKey = null;
     List<Reference> priorAttemptRefs = List.of();
     if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
         || accepted.action() == RecoveryAction.REVISE_BRIEF) {
       String briefIdentity = briefRevisionIdentity(recoveryEvidence);
       RecoveryAttemptKey key =
           recoveryLedger.key(stage.stageId(), budgetCause, briefIdentity, doc.transitions());
+      recoveryKey = key;
       identicalRejection =
           recoveryLedger.repairsUsed(doc.transitions(), key, InputOrigin.TRUSTED) > 0;
       if (!identicalRejection) {
@@ -1514,10 +1516,42 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             stage,
             catalogHasBeenWritten(runId),
             identicalRejection);
+    if (identicalRejection
+        && supportsCleanDesignRebuild(stage.stageId())
+        && !catalogHasBeenWritten(runId)
+        && recoveryLedger.mayCleanRebuild(doc.transitions(), recoveryKey)) {
+      putRunAttribute(
+          runId,
+          cleanRebuildEvidenceAttribute(stage.stageId()),
+          storedEvidence.contentHash());
+      recordProducerRepairAttempt(
+          doc,
+          stage,
+          refs,
+          recoveryLedger.recordCleanRebuild(
+              recoveryKey, briefRevisionIdentity(recoveryEvidenceWithPrior)));
+      emitted.add(
+          new PipelineSignal.Progress(
+              stage.stageId(), "Rebuilding the design artifact from a clean model turn"));
+      StageDecision retry =
+          mapped instanceof StageDecision.Retry
+              ? mapped
+              : new StageDecision.Retry(
+                  stage.stageId(),
+                  Duration.ofMillis(
+                      stage.retry() == null ? 0L : stage.retry().defaultDelayMs()));
+      return new StageExecutionResult(retry, emitted);
+    }
     if (identicalRejection) {
       if (offersManualBriefEdit(doc, stage, cause)) {
         return waitEditableBriefRecovery(
             doc, stage, refs, cause, evidenceText, briefOwnerStageId(doc, stage), emitted);
+      }
+      if (supportsCleanDesignRebuild(stage.stageId())) {
+        putRunAttribute(
+            runId,
+            ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
+            stage.stageId());
       }
       if ("design-planning".equals(stage.stageId())) {
         return waitContextualRecovery(
@@ -1525,6 +1559,21 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             stage,
             refs,
             PipelineGates.RECOVERY_REBUILD_PLAN,
+            recoveryWaitBody(accepted, findings, evidenceText),
+            terminalRecoveryDetails(
+                findings.isBlank() ? evidenceText : findings,
+                evidenceText,
+                runId,
+                PROGRESS_NONE),
+            null,
+            emitted);
+      }
+      if ("design-input".equals(stage.stageId())) {
+        return waitContextualRecovery(
+            doc,
+            stage,
+            refs,
+            PipelineGates.RECOVERY_REBUILD_DESIGN,
             recoveryWaitBody(accepted, findings, evidenceText),
             terminalRecoveryDetails(
                 findings.isBlank() ? evidenceText : findings,
@@ -3099,6 +3148,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         .filter(snapshot -> snapshot.stageId().equals(stageId))
         .findFirst()
         .orElseThrow();
+  }
+
+  private static boolean supportsCleanDesignRebuild(String stageId) {
+    return "design-input".equals(stageId) || "design-planning".equals(stageId);
+  }
+
+  private static String cleanRebuildEvidenceAttribute(String stageId) {
+    return "design-input".equals(stageId)
+        ? ProductPipelineRunSupport.DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR
+        : ProductPipelineRunSupport.DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR;
   }
 
   private ProductPipelineRunDocument requireRun(String runId) {

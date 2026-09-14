@@ -69,6 +69,7 @@ stages:
       - { type: chain-semantic-revision, schemaVersion: 1 }
       - { type: run-manifest, schemaVersion: 1 }
     produces:
+      - { type: design-plan-contract, schemaVersion: 1 }
       - { type: design-plan-report, schemaVersion: 1 }
       - { type: design-execution-plan, schemaVersion: 1 }
       - { type: implementation-plan, schemaVersion: 2 }
@@ -79,6 +80,7 @@ stages:
       candidateSet:
         - { type: ids-document, schemaVersion: 1 }
         - { type: chain-semantic-revision, schemaVersion: 1 }
+        - { type: design-plan-contract, schemaVersion: 1 }
         - { type: design-plan-report, schemaVersion: 1 }
         - { type: design-execution-plan, schemaVersion: 1 }
         - { type: implementation-plan, schemaVersion: 2 }
@@ -88,6 +90,7 @@ stages:
     consumes:
       - { type: ids-document, schemaVersion: 1 }
       - { type: chain-semantic-revision, schemaVersion: 1 }
+      - { type: design-plan-contract, schemaVersion: 1 }
       - { type: design-plan-report, schemaVersion: 1 }
       - { type: design-execution-plan, schemaVersion: 1 }
       - { type: implementation-plan, schemaVersion: 2 }

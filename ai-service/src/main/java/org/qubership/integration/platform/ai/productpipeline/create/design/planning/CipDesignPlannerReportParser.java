@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 public final class CipDesignPlannerReportParser {
 
   static final String APPROVAL_SENTENCE =
-      "If you agree, reply **Agree** or **Execute plan** to proceed.";
+      DesignPlanReportRenderer.APPROVAL_SENTENCE;
 
   private static final Pattern STEP_LINE = Pattern.compile("^(\\d+)\\.\\s+(.+)$");
   private static final Pattern SKILL_ID = Pattern.compile("\\b(cip-[a-z0-9-]+)\\b");
