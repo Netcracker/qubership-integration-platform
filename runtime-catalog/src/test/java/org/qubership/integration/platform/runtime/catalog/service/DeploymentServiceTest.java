@@ -25,6 +25,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
+import org.qubership.integration.platform.runtime.catalog.configuration.aspect.DeploymentModificationAspectConfiguration;
+import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentsUpdate;
@@ -34,10 +36,13 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.DeploymentRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.DeploymentBuilderService;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -48,6 +53,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -197,6 +203,36 @@ class DeploymentServiceTest {
 
         assertThat(response.getStatus()).isEqualTo(BulkDeploymentStatus.FAILED_DEPLOY);
         assertThat(response.getErrorMessage()).isEqualTo("db down");
+    }
+
+    @Test
+    void bulkCreateNotifiesTheEnginesOnce() {
+        Snapshot snapshot = snapshotWithChain();
+        when(chainFinderService.findAllById(List.of("chain-1"))).thenReturn(List.of(snapshot.getChain()));
+        when(snapshotService.buildAll(any(), any())).thenReturn(Map.of("chain-1", snapshot));
+        when(chainFinderService.findById("chain-1")).thenReturn(snapshot.getChain());
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of());
+        when(deploymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        runTransactionsImmediately();
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(transactionHandler).runInTransaction(any());
+
+        ConsulService consulService = mock(ConsulService.class);
+        AspectJProxyFactory proxyFactory = new AspectJProxyFactory(service);
+        proxyFactory.addAspect(new DeploymentModificationAspectConfiguration(consulService));
+        DeploymentService proxy = proxyFactory.getProxy();
+
+        var result = proxy.bulkCreate(BulkDeploymentRequest.builder()
+                .chainIds(List.of("chain-1"))
+                .domains(List.of("domainA"))
+                .build());
+
+        assertThat(result.getRight())
+                .extracting(BulkDeploymentResponse::getStatus)
+                .containsExactly(BulkDeploymentStatus.CREATED);
+        verify(consulService, times(1)).updateDeploymentsTimestamp();
     }
 
     @Test
