@@ -128,7 +128,9 @@ public final class DesignPlanProjector {
         for (String tool : parsedStep.toolOperationRefs()) {
           stepsByOwner.computeIfAbsent(tool, key -> new ArrayList<>()).add(stepId);
         }
-      } else if (!isConnectionFollowUp(parsedStep) && !isResolveBindingStep(parsedStep)) {
+      } else if (parsedStep.serviceCallRole()
+              != ParsedPlannerReport.ServiceCallRole.REFERENCE
+          && !isConnectionFollowUp(parsedStep)) {
         for (String skillId : parsedStep.owningSkillIds()) {
           stepsByOwner.computeIfAbsent(skillId, key -> new ArrayList<>()).add(stepId);
         }
@@ -212,6 +214,7 @@ public final class DesignPlanProjector {
               step.operationQueryRefs(),
               step.mappingIntentId(),
               step.serviceCallId(),
+              step.serviceCallRole(),
               step.regionId()));
     }
     return rewritten ? new ParsedPlannerReport(steps, parsed.apiRelease()) : parsed;
@@ -354,6 +357,7 @@ public final class DesignPlanProjector {
                   step.operationQueryRefs(),
                   assigned.mappingIntentId(),
                   step.serviceCallId(),
+                  step.serviceCallRole(),
                   step.regionId()));
           continue;
         }
@@ -378,6 +382,7 @@ public final class DesignPlanProjector {
                 step.operationQueryRefs(),
                 "",
                 step.serviceCallId(),
+                step.serviceCallRole(),
                 step.regionId()));
         continue;
       }
@@ -401,6 +406,7 @@ public final class DesignPlanProjector {
               step.operationQueryRefs(),
               unnamed ? step.mappingIntentId() : "",
               step.serviceCallId(),
+              step.serviceCallRole(),
               step.regionId()));
     }
     if (!changed || steps.isEmpty()) {
@@ -426,6 +432,7 @@ public final class DesignPlanProjector {
         approvedById.put(call.serviceCallId(), call);
       }
     }
+    int defaultProducerOrdinal = defaultServiceCallProducerOrdinal(parsed, calls);
 
     Set<String> produced = new LinkedHashSet<>();
     List<ParsedPlannerReport.Step> projected = new ArrayList<>();
@@ -441,11 +448,11 @@ public final class DesignPlanProjector {
           throw new PlannerContractException(
               "planner step names unknown serviceCallId: " + serviceCallId);
         }
-        if (!isConnectionFollowUp(step)) {
+        if (step.serviceCallRole() != ParsedPlannerReport.ServiceCallRole.REFERENCE) {
           throw new PlannerContractException(
               "serviceCallId="
                   + serviceCallId
-                  + " appears on a step that neither produces nor connects that occurrence");
+                  + " on a non-generator step must declare serviceCallRole=REFERENCE");
         }
         projected.add(step);
         continue;
@@ -464,8 +471,14 @@ public final class DesignPlanProjector {
         throw new PlannerContractException(
             "planner service-call step names unknown serviceCallId: " + serviceCallId);
       }
-      boolean referenceOnly = isResolveBindingStep(step) || isConnectionFollowUp(step);
-      if (!referenceOnly && !produced.add(serviceCallId)) {
+      ParsedPlannerReport.ServiceCallRole role = step.serviceCallRole();
+      if (role == ParsedPlannerReport.ServiceCallRole.NONE) {
+        role =
+            step.reportOrdinal() == defaultProducerOrdinal
+                ? ParsedPlannerReport.ServiceCallRole.PRODUCER
+                : ParsedPlannerReport.ServiceCallRole.REFERENCE;
+      }
+      if (role == ParsedPlannerReport.ServiceCallRole.PRODUCER && !produced.add(serviceCallId)) {
         throw new PlannerContractException(
             "serviceCallId=" + serviceCallId + " has more than one producing step");
       }
@@ -473,7 +486,8 @@ public final class DesignPlanProjector {
       projected.add(
           new ParsedPlannerReport.Step(
               step.reportOrdinal(),
-              canonicalServiceCallText(step, semanticCall, approved, serviceCallId),
+              canonicalServiceCallText(
+                  step, semanticCall, approved, serviceCallId, role),
               step.ownerKind(),
               step.owningSkillIds(),
               step.toolOperationRefs(),
@@ -483,6 +497,7 @@ public final class DesignPlanProjector {
               List.of(semanticCall.operation()),
               step.mappingIntentId(),
               serviceCallId,
+              role,
               step.regionId()));
     }
     for (SemanticNode.ServiceCall call : calls) {
@@ -494,11 +509,42 @@ public final class DesignPlanProjector {
     return new ParsedPlannerReport(projected, parsed.apiRelease());
   }
 
+  /**
+   * Compatibility for old single-occurrence plans that predate the role token. The last untyped
+   * service-call step is the producer; earlier steps are references. Multi-occurrence plans remain
+   * strict because their occurrence ids cannot be inferred.
+   */
+  private static int defaultServiceCallProducerOrdinal(
+      ParsedPlannerReport parsed, List<SemanticNode.ServiceCall> calls) {
+    if (calls.size() != 1) {
+      return -1;
+    }
+    boolean hasDeclaredProducer =
+        parsed.steps().stream()
+            .filter(step -> step.owningSkillIds().contains(SERVICE_CALL_GENERATOR_SKILL_ID))
+            .anyMatch(
+                step ->
+                    step.serviceCallRole()
+                        == ParsedPlannerReport.ServiceCallRole.PRODUCER);
+    if (hasDeclaredProducer) {
+      return -1;
+    }
+    int ordinal = -1;
+    for (ParsedPlannerReport.Step step : parsed.steps()) {
+      if (step.owningSkillIds().contains(SERVICE_CALL_GENERATOR_SKILL_ID)
+          && step.serviceCallRole() == ParsedPlannerReport.ServiceCallRole.NONE) {
+        ordinal = step.reportOrdinal();
+      }
+    }
+    return ordinal;
+  }
+
   private static String canonicalServiceCallText(
       ParsedPlannerReport.Step step,
       SemanticNode.ServiceCall semanticCall,
       RequirementServiceCall approved,
-      String serviceCallId) {
+      String serviceCallId,
+      ParsedPlannerReport.ServiceCallRole role) {
     if (approved == null || approved.participant().isBlank()) {
       return step.reportText();
     }
@@ -508,11 +554,12 @@ public final class DesignPlanProjector {
             + semanticCall.operation()
             + " failureMode="
             + semanticCall.failureMode();
-    if (isResolveBindingStep(step)) {
+    if (role == ParsedPlannerReport.ServiceCallRole.REFERENCE) {
       return "Use the approved catalog binding for "
           + identity
           + " (cip-service-call-generator serviceCallId="
           + serviceCallId
+          + " serviceCallRole=REFERENCE"
           + ")";
     }
     return "Generate Service Call element "
@@ -521,6 +568,7 @@ public final class DesignPlanProjector {
         + identity
         + " (cip-service-call-generator serviceCallId="
         + serviceCallId
+        + " serviceCallRole=PRODUCER"
         + ")";
   }
 
@@ -587,6 +635,7 @@ public final class DesignPlanProjector {
               step.operationQueryRefs(),
               step.mappingIntentId(),
               step.serviceCallId(),
+              step.serviceCallRole(),
               regionId));
     }
     for (String regionId : scopesById.keySet()) {
@@ -789,8 +838,8 @@ public final class DesignPlanProjector {
       return List.copyOf(deps);
     }
 
-    String text = step.reportText().toLowerCase(Locale.ROOT);
-    if (text.startsWith("resolve ") && text.contains("binding")) {
+    if (step.serviceCallRole() == ParsedPlannerReport.ServiceCallRole.REFERENCE
+        && step.owningSkillIds().contains(SERVICE_CALL_GENERATOR_SKILL_ID)) {
       List<String> getSteps = stepsByOwner.get("get_rest_api_operations_specification");
       if (getSteps == null || getSteps.isEmpty()) {
         getSteps = stepsByOwner.get("get_api_operation_specification");
@@ -829,11 +878,6 @@ public final class DesignPlanProjector {
 
   private static boolean isConnectionFollowUp(ParsedPlannerReport.Step step) {
     return step.reportText().toLowerCase(Locale.ROOT).startsWith("connect ");
-  }
-
-  private static boolean isResolveBindingStep(ParsedPlannerReport.Step step) {
-    String text = step.reportText().toLowerCase(Locale.ROOT);
-    return text.startsWith("resolve ") && text.contains("binding");
   }
 
   private static List<String> deriveRequiredArtifacts(

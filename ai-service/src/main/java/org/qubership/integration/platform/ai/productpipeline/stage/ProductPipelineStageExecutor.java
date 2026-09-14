@@ -973,6 +973,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     String evidence = evidenceText(outcomeClass, message, doc.run().runId());
     RecoveryCause cause =
         recoveryCause == null ? RecoveryCause.fromHalt(outcomeClass, candidates) : recoveryCause;
+    RecoveryCause budgetCause = recoveryBudgetCause(cause, evidence);
     String mappingBoundaries = cause.mappingBoundaries();
     if (!mappingBoundaries.isBlank()) {
       evidence += "\nMapping boundaries:\n" + mappingBoundaries;
@@ -1053,7 +1054,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     String artifactIdentity =
         RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
     RecoveryAttemptKey observingKey =
-        recoveryLedger.key(stage.stageId(), cause, artifactIdentity, doc.transitions());
+        recoveryLedger.key(stage.stageId(), budgetCause, artifactIdentity, doc.transitions());
     ProducerOwnedRecovery.Route recovery =
         producerRepairAllowed
             ? ProducerOwnedRecovery.route(
@@ -1081,7 +1082,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId());
       RecoveryAttemptKey key =
           recoveryLedger.key(
-              recovery.producerStageId(), cause, ownerArtifact, doc.transitions());
+              recovery.producerStageId(), budgetCause, ownerArtifact, doc.transitions());
       if (recoveryLedger.mayRepair(doc.transitions(), key, InputOrigin.TRUSTED)) {
         recordProducerRepairAttempt(
             doc, stage, refs, recoveryLedger.recordRepair(key, ownerArtifact));
@@ -1139,7 +1140,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           RecoveryAttemptLedger.inputArtifactIdentity(doc, recovery.producerStageId());
       RecoveryAttemptKey clarificationKey =
           recoveryLedger.key(
-              recovery.producerStageId(), cause, ownerArtifact, doc.transitions());
+              recovery.producerStageId(), budgetCause, ownerArtifact, doc.transitions());
       if (!recoveryLedger.mayRepair(doc.transitions(), clarificationKey, InputOrigin.TRUSTED)) {
         return waitContextualRecovery(
             doc,
@@ -1245,7 +1246,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     String haltIdentity = ToolCallFingerprints.failureSignature(evidence);
     RecoveryAttemptKey parkKey =
-        recoveryLedger.key(stage.stageId(), cause, artifactIdentity, doc.transitions());
+        recoveryLedger.key(stage.stageId(), budgetCause, artifactIdentity, doc.transitions());
     boolean repairsExhausted =
         !internal && !recoveryLedger.mayRepair(doc.transitions(), parkKey, InputOrigin.TRUSTED);
     boolean escalated =
@@ -1365,6 +1366,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       String evidenceText,
       List<PipelineSignal> emitted) {
     String runId = doc.run().runId();
+    RecoveryCause budgetCause = recoveryBudgetCause(cause, evidenceText);
     RunManifest manifest = manifestsByRun.get(runId);
     String locale = manifest == null ? "en" : manifest.responseLocale();
     Revision approvedBriefRevision = artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF).orElse(null);
@@ -1441,15 +1443,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         || accepted.action() == RecoveryAction.REVISE_BRIEF) {
       String briefIdentity = briefRevisionIdentity(recoveryEvidence);
       RecoveryAttemptKey key =
-          recoveryLedger.key(stage.stageId(), cause, briefIdentity, doc.transitions());
+          recoveryLedger.key(stage.stageId(), budgetCause, briefIdentity, doc.transitions());
       identicalRejection =
-          contextualRegenerationAttempted(doc)
-              || recoveryLedger.repairsUsed(doc.transitions(), key, InputOrigin.TRUSTED) > 0;
+          recoveryLedger.repairsUsed(doc.transitions(), key, InputOrigin.TRUSTED) > 0;
       if (!identicalRejection) {
         String observingIdentity =
             RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
         RecoveryAttemptKey observingKey =
-            recoveryLedger.key(stage.stageId(), cause, observingIdentity, doc.transitions());
+            recoveryLedger.key(
+                stage.stageId(), budgetCause, observingIdentity, doc.transitions());
         identicalRejection =
             !recoveryLedger.mayRepair(doc.transitions(), observingKey, InputOrigin.TRUSTED);
       }
@@ -1517,6 +1519,21 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         return waitEditableBriefRecovery(
             doc, stage, refs, cause, evidenceText, briefOwnerStageId(doc, stage), emitted);
       }
+      if ("design-planning".equals(stage.stageId())) {
+        return waitContextualRecovery(
+            doc,
+            stage,
+            refs,
+            PipelineGates.RECOVERY_REBUILD_PLAN,
+            recoveryWaitBody(accepted, findings, evidenceText),
+            terminalRecoveryDetails(
+                findings.isBlank() ? evidenceText : findings,
+                evidenceText,
+                runId,
+                PROGRESS_NONE),
+            null,
+            emitted);
+      }
       return waitContextualRecovery(
           doc,
           stage,
@@ -1568,7 +1585,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             emitted);
       }
       if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
-        recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, cause);
+        recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, budgetCause);
       }
       emitted.add(
           new PipelineSignal.Progress(
@@ -1578,7 +1595,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (mapped instanceof StageDecision.Retry) {
       if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
         if ("design-input".equals(stage.stageId()) || "design-planning".equals(stage.stageId())) {
-          recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, cause);
+          recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, budgetCause);
           emitted.add(new PipelineSignal.Progress(stage.stageId(), "Regenerating rejected artifact"));
           return new StageExecutionResult(mapped, emitted);
         }
@@ -2034,6 +2051,23 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   /**
+   * Gives an unstructured failure a stable ledger identity without using its wording to choose a
+   * recovery action. Typed findings and requested facts remain the primary identity when present.
+   */
+  private static RecoveryCause recoveryBudgetCause(RecoveryCause cause, String evidence) {
+    RecoveryCause typed =
+        cause == null ? RecoveryCause.of(RecoveryCauseCode.VALIDATION_BLOCKER) : cause;
+    if (!typed.findings().isEmpty() || !typed.requestedFact().isBlank()) {
+      return typed;
+    }
+    String signature = ToolCallFingerprints.failureSignature(evidence == null ? "" : evidence);
+    return new RecoveryCause(
+        typed.causeCode(),
+        List.of(new PlanValidationFinding("FAILURE_SIGNATURE", signature, true)),
+        "");
+  }
+
+  /**
    * Structured evidence for the halt. An internal failure carries the run identifier, so the
    * narrative turn has it to quote and the raw-evidence fallback still names it when that turn
    * fails. The runtime supplies the field; the sentence around it stays the model's to write.
@@ -2105,29 +2139,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       return "";
     }
     return evidence.approvedBriefRef().contentHash();
-  }
-
-  private static boolean contextualRegenerationAttempted(ProductPipelineRunDocument doc) {
-    List<RunTransition> transitions = doc.transitions();
-    for (int index = transitions.size() - 1; index > 0; index--) {
-      String reason = transitions.get(index).reason();
-      if (reason == null) {
-        continue;
-      }
-      String previousGate =
-          PipelineGates.gateOf(transitions.get(index - 1).reason()).orElse("");
-      if ((PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(previousGate)
-              || PipelineGates.RECOVERY_REVISE_BRIEF.equals(previousGate))
-          && reason.startsWith(PRODUCER_REPAIR_REASON_PREFIX)) {
-        return true;
-      }
-      if (PipelineGates.RECOVERY_REBUILD_PLAN.equals(previousGate)
-          && (reason.startsWith(PRODUCER_REPAIR_REASON_PREFIX)
-              || reason.startsWith(RecoveryAttemptLedger.AUTHOR_REOPEN_REASON_PREFIX))) {
-        return true;
-      }
-    }
-    return false;
   }
 
   private List<Reference> priorRecoveryEvidenceRefs(String runId) {

@@ -60,7 +60,7 @@ class CipDesignPlannerReportParserTest {
   void extractsOccurrenceAndRegionIdsFromStepText() {
     String report =
         """
-        1. Generate Service Call element (cip-service-call-generator serviceCallId=create-primary)
+        1. Generate Service Call element (cip-service-call-generator serviceCallId=create-primary serviceCallRole=PRODUCER)
         2. Generate error handling (cip-error-handling-generator regionId=errors-primary)
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
@@ -69,7 +69,25 @@ class CipDesignPlannerReportParserTest {
     ParsedPlannerReport parsed = parser.parse(report);
 
     assertEquals("create-primary", parsed.steps().get(0).serviceCallId());
+    assertEquals(
+        ParsedPlannerReport.ServiceCallRole.PRODUCER,
+        parsed.steps().get(0).serviceCallRole());
     assertEquals("errors-primary", parsed.steps().get(1).regionId());
+  }
+
+  @Test
+  void rejectsAnOccurrenceIdWithoutItsDeclaredRole() {
+    String report =
+        """
+        1. Any wording is allowed here (cip-service-call-generator serviceCallId=create-primary)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    PlannerReportFormatException error =
+        assertThrows(PlannerReportFormatException.class, () -> parser.parse(report));
+
+    assertTrue(error.getMessage().contains("serviceCallRole=PRODUCER"), error.getMessage());
   }
 
   @Test

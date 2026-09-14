@@ -12,6 +12,12 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
     APIHUB_TOOL
   }
 
+  public enum ServiceCallRole {
+    NONE,
+    PRODUCER,
+    REFERENCE
+  }
+
   public ParsedPlannerReport {
     steps = DesignArtifacts.copyList(steps);
     if (steps.isEmpty()) {
@@ -30,6 +36,7 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
       List<String> operationQueryRefs,
       String mappingIntentId,
       String serviceCallId,
+      ServiceCallRole serviceCallRole,
       String regionId) {
 
     public Step(
@@ -50,6 +57,7 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
           operationQueryRefs,
           "",
           "",
+          ServiceCallRole.NONE,
           "");
     }
 
@@ -72,6 +80,7 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
           operationQueryRefs,
           mappingIntentId,
           "",
+          ServiceCallRole.NONE,
           "");
     }
 
@@ -87,6 +96,7 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
       operationQueryRefs = DesignArtifacts.copyList(operationQueryRefs);
       mappingIntentId = mappingIntentId == null ? "" : mappingIntentId.trim();
       serviceCallId = serviceCallId == null ? "" : serviceCallId.trim();
+      serviceCallRole = serviceCallRole == null ? ServiceCallRole.NONE : serviceCallRole;
       regionId = regionId == null ? "" : regionId.trim();
     }
 

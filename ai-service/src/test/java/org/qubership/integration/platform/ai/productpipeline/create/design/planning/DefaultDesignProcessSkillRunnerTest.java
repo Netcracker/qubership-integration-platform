@@ -77,6 +77,8 @@ class DefaultDesignProcessSkillRunnerTest {
     assertTrue(prompt.contains("do not repeat the rejected one"));
     assertTrue(prompt.contains("mappingIntentId=<id>"));
     assertTrue(prompt.contains("serviceCallId"));
+    assertTrue(prompt.contains("serviceCallRole=PRODUCER"));
+    assertTrue(prompt.contains("serviceCallRole=REFERENCE"));
     assertTrue(prompt.contains("regionId"));
   }
 
