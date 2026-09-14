@@ -111,6 +111,9 @@ public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner
       body.append(
           "Copy every id named by the evidence as a literal mappingIntentId=<id>, "
               + "serviceCallId=<id>, or regionId=<id> token on the matching generator line.");
+      body.append(
+          " Every line that names serviceCallId=<id> must also declare "
+              + "serviceCallRole=PRODUCER or serviceCallRole=REFERENCE.");
     }
     if (formatFailure.isPresent()) {
       body.append("\n\n## Format failure from previous attempt\n\n");

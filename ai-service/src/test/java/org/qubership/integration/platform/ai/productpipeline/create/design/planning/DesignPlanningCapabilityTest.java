@@ -529,7 +529,9 @@ class DesignPlanningCapabilityTest {
             "serviceCallId=call-1 operation=createOrder failureMode=PROPAGATE"
                 + " participant=Orders Service"),
         input);
-    assertTrue(input.contains("serviceCallId=<id> token"), input);
+    assertTrue(input.contains("serviceCallId=<id>"), input);
+    assertTrue(input.contains("serviceCallRole=PRODUCER"), input);
+    assertTrue(input.contains("serviceCallRole=REFERENCE"), input);
     assertTrue(input.contains("The same catalog operation may occur more than once"), input);
     assertTrue(input.contains("Control-flow regions:\n- none"), input);
   }

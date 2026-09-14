@@ -424,9 +424,12 @@ public class DesignPlanningCapability implements StageCapability {
       text.append('\n');
     }
     text.append(
-        "Each service-call resolve or generation line must include its literal "
-            + "serviceCallId=<id> token. The same catalog operation may occur more than once; "
-            + "keep the distinct serviceCallId of each occurrence.\n");
+        "Every line that names a service call must include its literal serviceCallId=<id> and "
+            + "serviceCallRole=PRODUCER or serviceCallRole=REFERENCE tokens. Use PRODUCER only "
+            + "for the line that creates the occurrence and REFERENCE for catalog preparation "
+            + "or structural references. Each serviceCallId must have exactly one PRODUCER line. "
+            + "The same catalog operation may occur more than once; keep the distinct "
+            + "serviceCallId of each occurrence.\n");
 
     text.append("\nControl-flow regions:\n");
     if (revision.regions().isEmpty()) {

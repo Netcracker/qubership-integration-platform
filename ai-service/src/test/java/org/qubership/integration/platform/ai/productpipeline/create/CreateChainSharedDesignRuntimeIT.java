@@ -1432,11 +1432,11 @@ class CreateChainSharedDesignRuntimeIT {
   private static String omWfmPlannerReport() {
     return """
         1. Analyze requirements and name chain OM to Salesforce WFM (cip-requirement-analyzer + cip-naming-generator)
-        2. Resolve External integration target Order Management from the retrieved spec (binding for cip-service-call-generator serviceCallId=call-om-result)
-        3. Resolve External integration target Salesforce WFM from the retrieved spec (binding for cip-service-call-generator serviceCallId=call-wfm-create-task)
+        2. Resolve External integration target Order Management from the retrieved spec (binding for cip-service-call-generator serviceCallId=call-om-result serviceCallRole=REFERENCE)
+        3. Resolve External integration target Salesforce WFM from the retrieved spec (binding for cip-service-call-generator serviceCallId=call-wfm-create-task serviceCallRole=REFERENCE)
         4. Generate HTTP Trigger element with interface HTTP (cip-trigger-generator)
-        5. Generate Service Call element for Order Management.onTaskResult bound to the retrieved spec (cip-service-call-generator serviceCallId=call-om-result)
-        6. Generate Service Call element for Salesforce WFM.createTask bound to the retrieved spec (cip-service-call-generator serviceCallId=call-wfm-create-task)
+        5. Generate Service Call element for Order Management.onTaskResult bound to the retrieved spec (cip-service-call-generator serviceCallId=call-om-result serviceCallRole=PRODUCER)
+        6. Generate Service Call element for Salesforce WFM.createTask bound to the retrieved spec (cip-service-call-generator serviceCallId=call-wfm-create-task serviceCallRole=PRODUCER)
         7. Generate execution structure and element ordering (cip-structure-generator)
         8. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
         9. Validate the assembled chain (cip-chain-validator)
