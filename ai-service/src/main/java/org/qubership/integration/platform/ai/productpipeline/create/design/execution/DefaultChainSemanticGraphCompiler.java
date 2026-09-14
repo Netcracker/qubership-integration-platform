@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
@@ -500,6 +501,9 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     for (SemanticNode.ServiceCall call : calls) {
       addProperty(extraByNode, call.nodeId(), "semanticNodeId", call.nodeId());
       addProperty(extraByNode, call.nodeId(), "semanticRevisionId", revisionId);
+      if (call.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE) {
+        addProperty(extraByNode, call.nodeId(), "errorThrowing", "false");
+      }
     }
   }
 

@@ -28,7 +28,9 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
       List<String> toolOperationRefs,
       List<String> participantRefs,
       List<String> operationQueryRefs,
-      String mappingIntentId) {
+      String mappingIntentId,
+      String serviceCallId,
+      String regionId) {
 
     public Step(
         int reportOrdinal,
@@ -46,6 +48,30 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
           toolOperationRefs,
           participantRefs,
           operationQueryRefs,
+          "",
+          "",
+          "");
+    }
+
+    public Step(
+        int reportOrdinal,
+        String reportText,
+        OwnerKind ownerKind,
+        List<String> owningSkillIds,
+        List<String> toolOperationRefs,
+        List<String> participantRefs,
+        List<String> operationQueryRefs,
+        String mappingIntentId) {
+      this(
+          reportOrdinal,
+          reportText,
+          ownerKind,
+          owningSkillIds,
+          toolOperationRefs,
+          participantRefs,
+          operationQueryRefs,
+          mappingIntentId,
+          "",
           "");
     }
 
@@ -60,6 +86,8 @@ public record ParsedPlannerReport(List<Step> steps, String apiRelease) {
       participantRefs = DesignArtifacts.copyList(participantRefs);
       operationQueryRefs = DesignArtifacts.copyList(operationQueryRefs);
       mappingIntentId = mappingIntentId == null ? "" : mappingIntentId.trim();
+      serviceCallId = serviceCallId == null ? "" : serviceCallId.trim();
+      regionId = regionId == null ? "" : regionId.trim();
     }
 
     DesignExecutionPlan.OwnerKind toPlanOwnerKind() {

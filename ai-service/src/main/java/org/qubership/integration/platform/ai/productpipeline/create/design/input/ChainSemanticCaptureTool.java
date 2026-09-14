@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
+import dev.langchain4j.agent.tool.ReturnBehavior;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -64,7 +65,7 @@ public class ChainSemanticCaptureTool {
     this.descriptorLoader = Objects.requireNonNull(descriptorLoader, "descriptorLoader");
   }
 
-  @Tool("""
+  @Tool(value = """
       Capture the chain topology for this design-input turn.
       Do not pass conversationId. The server binds capture to the current design session.
       Copy sourceFactIds and mappingIntentId from the approved requirement brief. Do not mint
@@ -76,7 +77,9 @@ public class ChainSemanticCaptureTool {
       and compiler contract versions, and leave out catalog values it reads from the brief.
       List each internal node you do author under operations, and each control-flow region
       under the list that matches its kind; omit the region lists when the chain is linear.
-      Call this once, then finish the turn.""")
+      Submit one candidate per runtime attempt, then finish the turn. If rejected, return
+      the findings; the runtime supplies them on a bounded regeneration attempt.""",
+      returnBehavior = ReturnBehavior.IMMEDIATE)
   public String captureChainSemanticRevision(ChainSemanticCapture capture) {
     long startMs = System.currentTimeMillis();
     String conversationId = ToolSession.resolveConversationId();

@@ -22,6 +22,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 class DefaultChainSemanticRevisionValidatorTest {
 
@@ -136,6 +138,64 @@ class DefaultChainSemanticRevisionValidatorTest {
             IllegalArgumentException.class,
             () -> validate(revisionWithDuplicateServiceCallId()));
     assertTrue(error.getMessage().contains("Duplicate serviceCallId: call-1"), error.getMessage());
+  }
+
+  @Test
+  void rejectsFailureModeThatConflictsWithTheApprovedOccurrence() {
+    ChainSemanticRevision revision = linearRevision();
+    RequirementBrief brief =
+        briefFrom(revision)
+            .withServiceCalls(
+                List.of(
+                    new RequirementServiceCall(
+                        "call-1",
+                        "fact-call",
+                        "Orders Service",
+                        "getOrder",
+                        null,
+                        ServiceCallFailureMode.INLINE_RESPONSE)));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> validator.validate(revision, CONTRACT, brief));
+
+    assertTrue(
+        error.getMessage().contains("conflicts with approved failureMode=INLINE_RESPONSE"),
+        error.getMessage());
+  }
+
+  @Test
+  void rejectsErrorScopeModeWhenTheOccurrenceIsOutsideAnErrorScope() {
+    ChainSemanticRevision base = linearRevision();
+    List<SemanticNode> nodes = new ArrayList<>();
+    for (SemanticNode node : base.nodes()) {
+      if (node instanceof SemanticNode.ServiceCall call) {
+        nodes.add(
+            new SemanticNode.ServiceCall(
+                call.nodeId(),
+                call.serviceCallId(),
+                call.operation(),
+                ServiceCallFailureMode.ERROR_SCOPE,
+                call.provenance()));
+      } else {
+        nodes.add(node);
+      }
+    }
+    ChainSemanticRevision revision =
+        copy(
+            base,
+            base.entryPoints(),
+            nodes,
+            base.regions(),
+            base.executionEdges(),
+            base.containment(),
+            base.mappingIntents());
+
+    IllegalArgumentException error =
+        assertThrows(IllegalArgumentException.class, () -> validate(revision));
+
+    assertTrue(error.getMessage().contains("is not inside an ErrorScope try path"), error.getMessage());
   }
 
   @Test

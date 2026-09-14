@@ -40,6 +40,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 class DefaultChainSemanticGraphCompilerTest {
@@ -290,6 +291,37 @@ class DefaultChainSemanticGraphCompilerTest {
     assertEquals("5000", property(call, "retryDelay"));
     assertEquals("call-1", call.semanticNodeId().orElseThrow());
     assertEquals("sys-1", property(call, "integrationSystemId"));
+  }
+
+  @Test
+  void disablesServiceCallExceptionThrowingForInlineFailureResponses() {
+    ChainSemanticRevision base = linearMappedRevision();
+    List<SemanticNode> nodes = new java.util.ArrayList<>();
+    for (SemanticNode node : base.nodes()) {
+      if (node instanceof SemanticNode.ServiceCall call) {
+        nodes.add(
+            new SemanticNode.ServiceCall(
+                call.nodeId(),
+                call.serviceCallId(),
+                call.operation(),
+                ServiceCallFailureMode.INLINE_RESPONSE,
+                call.provenance()));
+      } else {
+        nodes.add(node);
+      }
+    }
+    ChainSemanticRevision inlineFailure =
+        revision(
+            base.entryPoints(),
+            nodes,
+            base.regions(),
+            base.executionEdges(),
+            base.containment(),
+            base.mappingIntents());
+
+    ChainPlanGraph graph = compileMapped(inlineFailure, List.of(binding("call-1")));
+
+    assertEquals("false", property(node(graph, "call-1"), "errorThrowing"));
   }
 
   @Test

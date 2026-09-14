@@ -34,8 +34,11 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 /**
  * Shared create-chain design-planning capability. Runs the pinned planner, projects the catalog
@@ -399,11 +402,45 @@ public class DesignPlanningCapability implements StageCapability {
         text.append(" serviceCallId=")
             .append(call.serviceCallId())
             .append(" operation=")
-            .append(call.operation());
+            .append(call.operation())
+            .append(" failureMode=")
+            .append(call.failureMode());
+        RequirementServiceCall approved = serviceCall(brief, call.serviceCallId());
+        if (approved != null) {
+          text.append(" participant=").append(approved.participant());
+          CatalogBindingHint binding = approved.catalogBinding();
+          if (binding != null) {
+            text.append(" systemId=")
+                .append(binding.systemId())
+                .append(" specificationId=")
+                .append(binding.specificationId())
+                .append(" integrationOperationId=")
+                .append(binding.integrationOperationId());
+          }
+        }
       } else if (node instanceof SemanticNode.Trigger trigger) {
         text.append(" capability=").append(trigger.capabilityKey());
       }
       text.append('\n');
+    }
+    text.append(
+        "Each service-call resolve or generation line must include its literal "
+            + "serviceCallId=<id> token. The same catalog operation may occur more than once; "
+            + "keep the distinct serviceCallId of each occurrence.\n");
+
+    text.append("\nControl-flow regions:\n");
+    if (revision.regions().isEmpty()) {
+      text.append("- none. Do not plan a control-flow generator.\n");
+    } else {
+      for (SemanticRegion region : revision.regions()) {
+        text.append("- regionId=")
+            .append(region.regionId())
+            .append(" kind=")
+            .append(region.kind())
+            .append('\n');
+      }
+      text.append(
+          "Each error-handling line must include the literal regionId=<id> of its ERROR_SCOPE.\n");
     }
 
     if (revision.mappingBodies(brief).isEmpty()) {
@@ -445,6 +482,18 @@ public class DesignPlanningCapability implements StageCapability {
       }
     }
     return text.toString();
+  }
+
+  private static RequirementServiceCall serviceCall(RequirementBrief brief, String serviceCallId) {
+    if (brief == null) {
+      return null;
+    }
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      if (serviceCallId.equals(call.serviceCallId())) {
+        return call;
+      }
+    }
+    return null;
   }
 
   private static String mappingGeneratorSkill(MappingIntent mapping) {

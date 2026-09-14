@@ -446,7 +446,8 @@ public final class RequirementBriefProjector {
                   interactionId,
                   interaction.participant(),
                   interaction.operation(),
-                  hint)));
+                  hint,
+                  interaction.failureMode())));
     }
     return List.copyOf(calls);
   }

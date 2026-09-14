@@ -1338,33 +1338,6 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         body);
   }
 
-  private static RecoveryDecision captureReviseBriefDecision(
-      RecoveryEvidence evidence, String summary) {
-    Reference fault =
-        evidence.rejectedArtifactRefs().isEmpty()
-            ? null
-            : evidence.rejectedArtifactRefs().getFirst();
-    return new RecoveryDecision(
-        RecoveryCauseClass.BRIEF_DEFECT,
-        fault,
-        List.of(evidence.failureId()),
-        RecoveryAction.REVISE_BRIEF,
-        List.of(),
-        "",
-        contractShapeOperatorSummary(summary));
-  }
-
-  static String contractShapeOperatorSummary(String findings) {
-    String body = findings == null ? "" : findings.strip();
-    String guidance =
-        "Edit the requirements if this node or path is wrong. Retrying the same capture will not"
-            + " change this classification.";
-    if (body.isBlank()) {
-      return "The captured topology was rejected. " + guidance;
-    }
-    return body + " " + guidance;
-  }
-
   static String unclassifiedRecoverySummary(String details) {
     if (details == null || details.isBlank()) {
       return UNCLASSIFIED_RECOVERY_SUMMARY;
@@ -1438,13 +1411,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     RecoveryEvidence recoveryEvidence = acceptedRecovery.evidence();
     RecoveryDecision accepted = acceptedRecovery.decision();
     if (accepted == null) {
-      if ("design-input".equals(stage.stageId())
-          && cause != null
-          && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE) {
-        accepted =
-            captureReviseBriefDecision(
-                recoveryEvidence, findings.isBlank() ? evidenceText : findings);
-      } else if ("design-input".equals(stage.stageId()) || "design-planning".equals(stage.stageId())) {
+      if ("design-input".equals(stage.stageId()) || "design-planning".equals(stage.stageId())) {
         accepted =
             captureRegenerateDecision(
                 recoveryEvidence, findings.isBlank() ? evidenceText : findings);
@@ -1461,35 +1428,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       }
     }
     if (accepted.action() == RecoveryAction.ASK_USER
+        && accepted.causeClass() == RecoveryCauseClass.DERIVATION_DEFECT
         && usesStructuredContractRecovery(stage, StageOutcomeClass.CONTRACT_FAILURE, cause)) {
-      if ("design-input".equals(stage.stageId())
-          && cause != null
-          && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE) {
-        accepted =
-            captureReviseBriefDecision(
-                recoveryEvidence,
-                accepted.userSummary() == null || accepted.userSummary().isBlank()
-                    ? (findings.isBlank() ? evidenceText : findings)
-                    : accepted.userSummary());
-      } else {
-        accepted =
-            captureRegenerateDecision(
-                recoveryEvidence,
-                accepted.userSummary() == null || accepted.userSummary().isBlank()
-                    ? (findings.isBlank() ? evidenceText : findings)
-                    : accepted.userSummary());
-      }
-    }
-    if ("design-input".equals(stage.stageId())
-        && cause != null
-        && cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
-        && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
       accepted =
-          captureReviseBriefDecision(
-              recoveryEvidence,
-              accepted.userSummary() == null || accepted.userSummary().isBlank()
-                  ? (findings.isBlank() ? evidenceText : findings)
-                  : accepted.userSummary());
+          captureRegenerateDecision(
+              recoveryEvidence, findings.isBlank() ? evidenceText : findings);
     }
 
     boolean identicalRejection = false;
@@ -1634,6 +1577,11 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (mapped instanceof StageDecision.Retry) {
       if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT) {
+        if ("design-input".equals(stage.stageId()) || "design-planning".equals(stage.stageId())) {
+          recordRegenerateAttempt(doc, stage, refs, recoveryEvidenceWithPrior, cause);
+          emitted.add(new PipelineSignal.Progress(stage.stageId(), "Regenerating rejected artifact"));
+          return new StageExecutionResult(mapped, emitted);
+        }
         return waitContextualRecovery(
             doc,
             stage,

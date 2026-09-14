@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 class RequirementBriefProjectorTest {
 
@@ -41,6 +42,36 @@ class RequirementBriefProjectorTest {
     assertEquals(MappingPort.RESPONSE, mapping.sourcePort());
     assertEquals("task-result", mapping.targetRef());
     assertEquals(MappingPort.REQUEST, mapping.targetPort());
+  }
+
+  @Test
+  void preservesTheFailureModeOfEachOutboundOccurrence() {
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("start", Direction.INBOUND, "Caller", "start", ""),
+                new Interaction(
+                    "create-primary",
+                    Direction.OUTBOUND,
+                    "Salesforce",
+                    "createTask",
+                    "",
+                    ServiceCallFailureMode.INLINE_RESPONSE),
+                new Interaction(
+                    "create-audit",
+                    Direction.OUTBOUND,
+                    "Salesforce",
+                    "createTask",
+                    "",
+                    ServiceCallFailureMode.PROPAGATE)),
+            List.of(
+                new Transition("start", "create-primary"),
+                new Transition("create-primary", "create-audit")));
+
+    List<RequirementServiceCall> calls = RequirementBriefProjector.serviceCallsFrom(flow, java.util.Map.of());
+
+    assertEquals(ServiceCallFailureMode.INLINE_RESPONSE, calls.get(0).failureMode());
+    assertEquals(ServiceCallFailureMode.PROPAGATE, calls.get(1).failureMode());
   }
 
   @Test

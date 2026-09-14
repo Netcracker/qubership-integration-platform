@@ -246,6 +246,7 @@ public class ChainSemanticCaptureAdapter {
               serviceCallId,
               serviceCallId,
               approved.operation(),
+              approved.failureMode(),
               new SemanticProvenance(provenance)));
     }
     for (ChainSemanticCapture.CapturedOperation operation : capture.operations()) {
@@ -265,7 +266,8 @@ public class ChainSemanticCaptureAdapter {
                 + nodeId
                 + "' uses elementType '"
                 + elementType
-                + "', which the compiler contract does not declare");
+                + "', which the compiler contract does not declare. Allowed elementType values: "
+                + String.join(", ", contract.elements().keySet().stream().sorted().toList()));
       }
       requireFacts(operation.sourceFactIds(), factIds, "operation node '" + nodeId + "'");
       nodes.add(

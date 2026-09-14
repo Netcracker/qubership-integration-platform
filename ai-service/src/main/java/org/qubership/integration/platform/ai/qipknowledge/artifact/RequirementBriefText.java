@@ -45,7 +45,9 @@ public final class RequirementBriefText {
           .append(" participant=")
           .append(interaction.participant())
           .append(" operation=")
-          .append(interaction.operation());
+          .append(interaction.operation())
+          .append(" failureMode=")
+          .append(interaction.failureMode());
     }
     if (flow.transitions().isEmpty()) {
       return;
@@ -88,7 +90,11 @@ public final class RequirementBriefText {
     }
     body.append("Service calls:");
     for (var serviceCall : serviceCalls) {
-      body.append('\n').append("- serviceCallId=").append(serviceCall.serviceCallId());
+      body.append('\n')
+          .append("- serviceCallId=")
+          .append(serviceCall.serviceCallId())
+          .append(" failureMode=")
+          .append(serviceCall.failureMode());
       if (!serviceCall.participant().isBlank() || !serviceCall.operation().isBlank()) {
         body.append(' ')
             .append(serviceCall.participant())

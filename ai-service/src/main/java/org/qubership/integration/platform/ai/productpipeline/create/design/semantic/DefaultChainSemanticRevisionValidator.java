@@ -22,6 +22,8 @@ import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 /**
  * One validation pass over a semantic revision. Wrong input fails closed; values are not
@@ -56,6 +58,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     validateReachability(revision, index, errors);
     validateContainment(revision, contract, index, errors);
     validateRegions(revision, contract, index, errors);
+    validateServiceCallFailureModes(revision, brief, errors);
     validateHiddenJoins(revision, index, errors);
     validateMappings(revision, brief, index, errors);
     validateScriptOwnership(revision, index, brief, errors);
@@ -590,6 +593,67 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
         requireNode(exitNodeId, "Error handler exit", index, errors);
       }
     }
+  }
+
+  private static void validateServiceCallFailureModes(
+      ChainSemanticRevision revision, RequirementBrief brief, List<String> errors) {
+    Map<String, ServiceCallFailureMode> approvedModes = new LinkedHashMap<>();
+    if (brief != null) {
+      for (RequirementServiceCall call : brief.serviceCalls()) {
+        approvedModes.put(call.serviceCallId(), call.failureMode());
+      }
+    }
+    Set<String> errorScopeOwners = new LinkedHashSet<>();
+    for (SemanticRegion region : revision.regions()) {
+      if (region instanceof SemanticRegion.ErrorScope scope) {
+        errorScopeOwners.add(scope.ownerNodeId());
+      }
+    }
+    Map<String, String> parentByChild = new LinkedHashMap<>();
+    for (SemanticContainment relation : revision.containment()) {
+      parentByChild.put(relation.childNodeId(), relation.parentNodeId());
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (!(node instanceof SemanticNode.ServiceCall call)) {
+        continue;
+      }
+      ServiceCallFailureMode approved = approvedModes.get(call.serviceCallId());
+      if (approved != null && approved != call.failureMode()) {
+        errors.add(
+            "Service call '"
+                + call.serviceCallId()
+                + "' failureMode="
+                + call.failureMode()
+                + " conflicts with approved failureMode="
+                + approved);
+      }
+      boolean insideErrorScope = hasAncestor(call.nodeId(), errorScopeOwners, parentByChild);
+      if (call.failureMode() == ServiceCallFailureMode.ERROR_SCOPE && !insideErrorScope) {
+        errors.add(
+            "Service call '"
+                + call.serviceCallId()
+                + "' uses failureMode=ERROR_SCOPE but is not inside an ErrorScope try path");
+      } else if (call.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE && insideErrorScope) {
+        errors.add(
+            "Service call '"
+                + call.serviceCallId()
+                + "' is inside an ErrorScope but uses failureMode="
+                + call.failureMode());
+      }
+    }
+  }
+
+  private static boolean hasAncestor(
+      String nodeId, Set<String> candidates, Map<String, String> parentByChild) {
+    Set<String> visited = new HashSet<>();
+    String current = parentByChild.get(nodeId);
+    while (current != null && visited.add(current)) {
+      if (candidates.contains(current)) {
+        return true;
+      }
+      current = parentByChild.get(current);
+    }
+    return false;
   }
 
   private static void validateHiddenJoins(

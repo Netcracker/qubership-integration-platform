@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 /**
  * Structural contract for {@link RequirementFlow}. Returns the first deterministic violation so
@@ -92,6 +93,17 @@ public final class RequirementFlowValidator {
         return Optional.of("requirement flow contains duplicate transition: " + edge(sourceId, targetId));
       }
       adjacency.get(sourceId).add(targetId);
+    }
+
+    for (Interaction interaction : interactions) {
+      if (interaction.direction() == Direction.OUTBOUND
+          && interaction.failureMode() == ServiceCallFailureMode.INLINE_RESPONSE
+          && adjacency.getOrDefault(interaction.interactionId(), List.of()).isEmpty()) {
+        return Optional.of(
+            "requirement flow interaction "
+                + interaction.interactionId()
+                + " uses INLINE_RESPONSE but has no successor response interaction");
+      }
     }
 
     boolean hasInbound =

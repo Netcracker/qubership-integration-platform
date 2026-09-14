@@ -2,10 +2,18 @@
 
 Capture the chain topology from the approved requirement brief.
 
-Call `captureChainSemanticRevision` once in this turn. Copy `sourceFactIds` and `mappingIntentId`
-from the approved brief. Do not mint occurrence ids. Do not send an `entryPoints` list: the server
-joins each brief entry point to the trigger nodes you list and to the unique outgoing edge from
-that trigger.
+Submit one candidate with `captureChainSemanticRevision` per runtime attempt. If capture is rejected,
+return the validator findings and finish the attempt. The runtime owns the bounded regeneration budget
+and supplies those findings on the next attempt. A rejected topology does not by itself require changing
+the approved brief. After accepted capture, finish without further tool calls.
+
+Copy `sourceFactIds` and `mappingIntentId` from the approved brief. Do not mint occurrence ids.
+External interaction anchors are server-owned: use the node ids supplied in the user message.
+Do not author entry points, triggers, or service-call nodes.
+
+Each outbound anchor includes its approved `failureMode`. `PROPAGATE` and `INLINE_RESPONSE` do not
+create an error scope. Create an `errorScopeRegion` only for an occurrence whose failure mode is
+`ERROR_SCOPE`, and place that occurrence inside the try path.
 
 The brief labels each of these, so copy the value after the matching `=` sign and nothing else. A
 fact renders as `- [POSITIVE] <text> sourceFactId=<id>`, and a service call as
@@ -15,9 +23,8 @@ The server owns everything it can derive. Leave out revision ids, edge ids, the 
 version, and the compiler contract version. Leave out the catalog capability behind an entry point
 and the catalog operation behind a service call: the server reads both from the brief.
 
-List each node under the list that matches its kind — `triggers` or `operations` —
-and give every node a local `nodeId` that the edges reference. Set `elementType` on an operation
-node to a compiler element type such as `script`, `mapper-2`, `condition`, `split`, or `loop`.
+List internal processing nodes under `operations` and give each one a local `nodeId` that edges reference.
+Copy `elementType` from the allowed values in the user message. Region kind names are not element types.
 
 List each control-flow region under the list that matches its kind: `sequenceRegions`,
 `conditionRegions`, `splitRegions`, `loopRegions`, `retryRegions`, or `errorScopeRegions`. Omit
@@ -28,7 +35,11 @@ Connect the nodes with `edges`. An edge carries `sourceNodeId`, `targetNodeId`, 
 the brief on exactly one edge through `mappingIntentId`, and keep a `mapper-2` or `script` node next
 to that edge.
 
-After a successful capture, stop. Do not call the tool again.
+Scoped routes must reference their owning region. A `CATCH_PATH` names a handler declared in that
+error scope. Represent required error handling with `errorScopeRegions`, its try and catch paths,
+and the finally path when needed. Keep the approved error behavior and mappings when repairing topology.
+Do not merge ordinary paths by giving a node multiple incoming edges: supported branch reconvergence
+uses `RECONVERGE` with the owning region and branch ids. Plain sequence edges outside a region need no region id.
 
 Do not author IDS markdown as compiler input. The server renders IDS from the captured revision.
 

@@ -71,6 +71,12 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void recoveryKeepsFindingsBeyondTheLogPreviewLimit() {
+    String rejection = "Invalid scoped route. ".repeat(500) + "Missing handler at the final edge.";
+    assertEquals(rejection, DesignInputCapability.captureFailureMessage(rejection));
+  }
+
+  @Test
   void sharedCapabilitySelectsEnterRouteAndPrepareDesignByStageId() {
     DesignInputCapability capability = capturingCapability();
     StageOutcome entry = outcome(capability, context("ids-entry", Map.of("userText", VALID_IDS)));
@@ -401,6 +407,8 @@ class DesignInputCapabilityTest {
         "Treat onTaskResult as a Kafka produce, not a trigger");
     outcome(capability, context("design-input", attributes));
     String prompt = seenPrompt.get();
+    assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
+    assertTrue(prompt.contains("try-catch-finally-2"), prompt);
     assertTrue(prompt.contains(rejection));
     assertTrue(prompt.contains("Treat onTaskResult as a Kafka produce, not a trigger"));
     assertTrue(prompt.contains("Rebuild the topology so this rejection cannot recur"));

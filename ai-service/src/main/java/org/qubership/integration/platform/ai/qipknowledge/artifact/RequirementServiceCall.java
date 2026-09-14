@@ -10,19 +10,43 @@ public record RequirementServiceCall(
     String sourceFactId,
     String participant,
     String operation,
-    CatalogBindingHint catalogBinding) {
+    CatalogBindingHint catalogBinding,
+    ServiceCallFailureMode failureMode) {
 
   public RequirementServiceCall {
     serviceCallId = blankToEmpty(serviceCallId);
     sourceFactId = blankToEmpty(sourceFactId);
     participant = blankToEmpty(participant);
     operation = blankToEmpty(operation);
+    failureMode = failureMode == null ? ServiceCallFailureMode.PROPAGATE : failureMode;
+  }
+
+  /** Compatibility constructor used before each call carried a failure mode. */
+  public RequirementServiceCall(
+      String serviceCallId,
+      String sourceFactId,
+      String participant,
+      String operation,
+      CatalogBindingHint catalogBinding) {
+    this(
+        serviceCallId,
+        sourceFactId,
+        participant,
+        operation,
+        catalogBinding,
+        ServiceCallFailureMode.PROPAGATE);
   }
 
   /** Compatibility constructor used before each call owned a catalog binding. */
   public RequirementServiceCall(
       String serviceCallId, String sourceFactId, String participant, String operation) {
-    this(serviceCallId, sourceFactId, participant, operation, null);
+    this(
+        serviceCallId,
+        sourceFactId,
+        participant,
+        operation,
+        null,
+        ServiceCallFailureMode.PROPAGATE);
   }
 
   private static String blankToEmpty(String value) {

@@ -28,6 +28,9 @@ public final class CipDesignPlannerReportParser {
       Pattern.compile("\\binterface\\s+([A-Za-z0-9][A-Za-z0-9 /_-]{0,40})");
   private static final Pattern MAPPING_INTENT_ID =
       Pattern.compile("mappingIntentId=([A-Za-z0-9_-]+)");
+  private static final Pattern SERVICE_CALL_ID =
+      Pattern.compile("serviceCallId=([A-Za-z0-9_-]+)");
+  private static final Pattern REGION_ID = Pattern.compile("regionId=([A-Za-z0-9_-]+)");
 
   public ParsedPlannerReport parse(String markdown) {
     if (markdown == null || markdown.isBlank()) {
@@ -89,7 +92,9 @@ public final class CipDesignPlannerReportParser {
               toolOps,
               List.of(),
               extractOperationQueryHints(reportText),
-              extractMappingIntentId(reportText)));
+              extractMappingIntentId(reportText),
+              extractToken(SERVICE_CALL_ID, reportText),
+              extractToken(REGION_ID, reportText)));
     }
     if (steps.isEmpty()) {
       throw new PlannerReportFormatException("planner report has no numbered steps");
@@ -129,7 +134,11 @@ public final class CipDesignPlannerReportParser {
   }
 
   private static String extractMappingIntentId(String reportText) {
-    Matcher matcher = MAPPING_INTENT_ID.matcher(reportText);
+    return extractToken(MAPPING_INTENT_ID, reportText);
+  }
+
+  private static String extractToken(Pattern pattern, String reportText) {
+    Matcher matcher = pattern.matcher(reportText);
     return matcher.find() ? matcher.group(1) : "";
   }
 }
