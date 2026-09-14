@@ -87,19 +87,14 @@ public interface ElementRepository extends CommonRepository<ChainElement>, JpaRe
             @Nullable @NotEmpty List<String> excludeDeploymentIds);
 
     @Query("""
-        SELECT e
+        SELECT e, d.domain
         FROM elements e
+            INNER JOIN deployments d ON e.snapshot.id = d.snapshot.id
         WHERE e.type IN :types
-            AND (e.snapshot.id IN (
-                    SELECT d.snapshot.id
-                    FROM deployments d
-                    WHERE
-                        d.chain.id <> :excludeChainId
-                        AND (:excludeDeploymentIds IS NULL
-                        OR d.id NOT IN :excludeDeploymentIds)
-                    )
-                )""")
-    List<ChainElement> findElementsForTriggerCheck(
+            AND d.chain.id <> :excludeChainId
+            AND (:excludeDeploymentIds IS NULL
+            OR d.id NOT IN :excludeDeploymentIds)""")
+    List<Object[]> findElementsForTriggerCheck(
             List<String> types,
             String excludeChainId,
             @Nullable @NotEmpty List<String> excludeDeploymentIds);
