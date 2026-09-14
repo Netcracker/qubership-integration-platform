@@ -410,7 +410,7 @@ public class DeploymentService {
 
         Set<String> domainEqualJobIds = findSameSdsTriggerJobIds(pendingJobIds, domainJobIds);
         if (!domainEqualJobIds.isEmpty()) {
-            throw new EntityExistsException("Found similar Job Ids registered on scheduling-service (SDS) on the same domain: "
+            throw new EntityExistsException("Found similar Job Ids registered on scheduling-service (SDS) on other domains or by other chains on this domain: "
                     + domainEqualJobIds);
         }
     }
@@ -426,15 +426,11 @@ public class DeploymentService {
             return;
         }
 
-        // Each row is an element and the domain of a deployment of its snapshot.
-        List<Object[]> otherChainsTriggers = elementRepository.findElementsForTriggerCheck(
-                triggersToCheck,
-                chainId,
-                SQLUtils.prepareCollectionForHqlNotInClause(excludeDeploymentIds));
         List<ElementRoute> allRoutes = mapHttpTriggerRoutes(
-                otherChainsTriggers.stream().map(row -> (ChainElement) row[0]).toList());
-        List<ElementRoute> sameDomainRoutes = mapHttpTriggerRoutes(
-                otherChainsTriggers.stream().filter(row -> Objects.equals(domain, row[1])).map(row -> (ChainElement) row[0]).toList());
+                elementRepository.findElementsForTriggerCheck(
+                        triggersToCheck,
+                        chainId,
+                        SQLUtils.prepareCollectionForHqlNotInClause(excludeDeploymentIds)));
 
         List<ElementRoute> otherDomainsRoutes = mapHttpTriggerRoutes(
                 elementRepository.findElementsForDomainTriggerCheck(
@@ -445,18 +441,14 @@ public class DeploymentService {
 
         Set<String> gatewayEqualPaths = findSameHttpTriggerPaths(pendingRoutes, allRoutes, true);
         Set<String> otherDomainsEqualPaths = findSameHttpTriggerPaths(pendingRoutes, otherDomainsRoutes, false);
-        // Chains of one domain share its engine servlet, so internal routes collide there too.
-        Set<String> sameDomainEqualPaths = findSameHttpTriggerPaths(pendingRoutes, sameDomainRoutes, false);
 
         if (!gatewayEqualPaths.isEmpty()) {
             throw new EntityExistsException("Found similar triggers paths registered on public/private gateway: "
                     + gatewayEqualPaths);
         }
         if (!otherDomainsEqualPaths.isEmpty()) {
-            throw new EntityExistsException("Found similar triggers path registered on other domains: " + otherDomainsEqualPaths);
-        }
-        if (!sameDomainEqualPaths.isEmpty()) {
-            throw new EntityExistsException("Found similar triggers paths registered on the same domain: " + sameDomainEqualPaths);
+            throw new EntityExistsException("Found similar triggers paths registered on other domains or by other chains on this domain: "
+                    + otherDomainsEqualPaths);
         }
     }
 

@@ -51,8 +51,6 @@ import java.util.function.BiConsumer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -261,68 +259,55 @@ class DeploymentServiceTest {
     }
 
     @Test
-    void createRefusesAnInternalTriggerPathAnotherChainUsesInTheSameDomain() {
-        Snapshot snapshot = snapshotWithChain();
-        ReflectionTestUtils.setField(service, "triggersCheckEnabled", true);
-        runTransactionsImmediately();
-        stubHttpTriggers(internalTrigger("POST"), internalTrigger("POST"), "domainA");
-        Deployment deployment = new Deployment();
-        deployment.setDomain("domainA");
+    void createRefusesAnHttpTriggerPathFoundByTheDomainCheck() {
+        Deployment deployment = deploymentWithTriggerCheck();
+        stubTriggers(CamelNames.HTTP_TRIGGER_COMPONENT, httpTrigger("POST"), httpTrigger("POST"));
 
-        assertThatThrownBy(() -> service.create(deployment, snapshot.getChain(), snapshot, null))
+        assertThatThrownBy(() -> service.create(deployment, chain(), snapshotWithChain(), null))
                 .isInstanceOf(EntityExistsException.class)
-                .hasMessage("Found similar triggers paths registered on the same domain: [shared]");
+                .hasMessage("Found similar triggers paths registered on other domains or by other chains on this domain: [shared]");
         verify(deploymentRepository, never()).save(any());
     }
 
     @Test
-    void createAllowsAnInternalTriggerPathAnotherChainUsesWithOtherMethods() {
-        stubSuccessfulCreate();
-        Snapshot snapshot = snapshotWithChain();
-        stubHttpTriggers(internalTrigger("POST"), internalTrigger("GET"), "domainA");
-        Deployment deployment = new Deployment();
-        deployment.setDomain("domainA");
-
-        assertThat(service.create(deployment, snapshot.getChain(), snapshot, null)).isSameAs(deployment);
-    }
-
-    @Test
-    void createAllowsAnInternalTriggerPathAnotherChainUsesInAnotherDomain() {
-        stubSuccessfulCreate();
-        Snapshot snapshot = snapshotWithChain();
-        stubHttpTriggers(internalTrigger("POST"), internalTrigger("POST"), "domainB");
-        Deployment deployment = new Deployment();
-        deployment.setDomain("domainA");
-
-        assertThat(service.create(deployment, snapshot.getChain(), snapshot, null)).isSameAs(deployment);
-    }
-
-    @Test
-    void createWithoutDomainDoesNotFailOnTriggersOfOtherChains() {
-        stubSuccessfulCreate();
-        Snapshot snapshot = snapshotWithChain();
-        stubHttpTriggers(internalTrigger("POST"), internalTrigger("POST"), "domainB");
-        Deployment deployment = new Deployment();
-
-        assertThat(service.create(deployment, snapshot.getChain(), snapshot, null)).isSameAs(deployment);
-    }
-
-    private void stubSuccessfulCreate() {
-        ReflectionTestUtils.setField(service, "triggersCheckEnabled", true);
-        runTransactionsImmediately();
+    void createAllowsAnHttpTriggerPathFoundByTheDomainCheckWithOtherMethods() {
+        Deployment deployment = deploymentWithTriggerCheck();
+        stubTriggers(CamelNames.HTTP_TRIGGER_COMPONENT, httpTrigger("POST"), httpTrigger("GET"));
         when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of());
         when(deploymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.create(deployment, chain(), snapshotWithChain(), null)).isSameAs(deployment);
     }
 
-    private void stubHttpTriggers(ChainElement pending, ChainElement otherChain, String otherChainDomain) {
-        List<String> types = List.of(CamelNames.HTTP_TRIGGER_COMPONENT);
+    @Test
+    void createRefusesAnSdsJobIdFoundByTheDomainCheck() {
+        Deployment deployment = deploymentWithTriggerCheck();
+        when(elementRepository.findAllBySnapshotIdAndTypeIn("snap-1", List.of(CamelNames.HTTP_TRIGGER_COMPONENT)))
+                .thenReturn(List.of());
+        stubTriggers(CamelNames.SDS_TRIGGER_COMPONENT, sdsTrigger(), sdsTrigger());
+
+        assertThatThrownBy(() -> service.create(deployment, chain(), snapshotWithChain(), null))
+                .isInstanceOf(EntityExistsException.class)
+                .hasMessage("Found similar Job Ids registered on scheduling-service (SDS) on other domains or by other chains on this domain: [job-1]");
+        verify(deploymentRepository, never()).save(any());
+    }
+
+    private Deployment deploymentWithTriggerCheck() {
+        ReflectionTestUtils.setField(service, "triggersCheckEnabled", true);
+        runTransactionsImmediately();
+        Deployment deployment = new Deployment();
+        deployment.setDomain("domainA");
+        return deployment;
+    }
+
+    private void stubTriggers(String type, ChainElement pending, ChainElement foundByDomainCheck) {
+        List<String> types = List.of(type);
         when(elementRepository.findAllBySnapshotIdAndTypeIn("snap-1", types)).thenReturn(List.of(pending));
-        List<Object[]> otherChainsTriggers = List.<Object[]>of(new Object[] {otherChain, otherChainDomain});
-        when(elementRepository.findElementsForTriggerCheck(eq(types), eq("chain-1"), isNull()))
-                .thenReturn(otherChainsTriggers);
+        when(elementRepository.findElementsForDomainTriggerCheck(types, "domainA", "chain-1", null))
+                .thenReturn(List.of(foundByDomainCheck));
     }
 
-    private static ChainElement internalTrigger(String methods) {
+    private static ChainElement httpTrigger(String methods) {
         return ChainElement.builder()
                 .type(CamelNames.HTTP_TRIGGER_COMPONENT)
                 .properties(Map.of(
@@ -330,6 +315,13 @@ class DeploymentServiceTest {
                         "httpMethodRestrict", methods,
                         "externalRoute", false,
                         "privateRoute", false))
+                .build();
+    }
+
+    private static ChainElement sdsTrigger() {
+        return ChainElement.builder()
+                .type(CamelNames.SDS_TRIGGER_COMPONENT)
+                .properties(Map.of("jobId", "job-1"))
                 .build();
     }
 
