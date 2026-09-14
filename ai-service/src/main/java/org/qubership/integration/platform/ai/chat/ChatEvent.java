@@ -81,6 +81,9 @@ public sealed interface ChatEvent {
   /** Reopens requirement analysis for a defective requirement brief. */
   String EDIT_REQUIREMENTS_ACTION = "edit-requirements";
 
+  /** Reopens semantic design for a defective topology. */
+  String REBUILD_DESIGN_ACTION = "rebuild-design";
+
   /** Reopens design planning for a defective implementation plan. */
   String REBUILD_PLAN_ACTION = "rebuild-plan";
 
@@ -572,6 +575,8 @@ public sealed interface ChatEvent {
           List.of(RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REVISE_BRIEF ->
           List.of(EDIT_REQUIREMENTS_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+      case PipelineGates.RECOVERY_REBUILD_DESIGN ->
+          List.of(REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REBUILD_PLAN ->
           List.of(REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_ENVIRONMENT,
@@ -598,6 +603,7 @@ public sealed interface ChatEvent {
       case PipelineGates.RECOVERY_RETRY_TECHNICAL -> "temporary-technical-failure";
       case PipelineGates.RECOVERY_REGENERATE_EXECUTION -> "regeneratable-execution-failure";
       case PipelineGates.RECOVERY_REVISE_BRIEF -> "requirement-brief-defect";
+      case PipelineGates.RECOVERY_REBUILD_DESIGN -> "design-artifact-defect";
       case PipelineGates.RECOVERY_REBUILD_PLAN -> "plan-artifact-defect";
       case PipelineGates.RECOVERY_ENVIRONMENT -> "permanent-environment-failure";
       case PipelineGates.RECOVERY_INTERNAL -> "internal-service-failure";
@@ -627,6 +633,10 @@ public sealed interface ChatEvent {
       case PipelineGates.RECOVERY_REVISE_BRIEF -> {
         title = "Requirements need correction";
         preservedWork = "Your approved product facts stay available.";
+      }
+      case PipelineGates.RECOVERY_REBUILD_DESIGN -> {
+        title = "The design cannot be used";
+        preservedWork = "Your approved requirements stay unchanged.";
       }
       case PipelineGates.RECOVERY_REBUILD_PLAN -> {
         title = "The plan cannot be used";

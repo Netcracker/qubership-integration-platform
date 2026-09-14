@@ -179,10 +179,11 @@ public class DesignInputCapability implements StageCapability {
     }
     AtomicReference<ChainSemanticRevision> captured = new AtomicReference<>();
     AtomicReference<String> rejection = new AtomicReference<>();
-    ToolSession.bind(context.conversationId());
+    String captureConversationId = captureConversationId(context);
+    ToolSession.bind(captureConversationId);
     ProductCapabilityCaptureContext.bindDesign(
         context.runId(),
-        context.conversationId(),
+        captureConversationId,
         brief,
         payload -> {
           if (payload instanceof ChainSemanticRevision revision) {
@@ -193,12 +194,12 @@ public class DesignInputCapability implements StageCapability {
     String agentText;
     try {
       agentText =
-          runDesignAgent(context.conversationId(), authoringPrompt(brief, contract, context));
-      ProductCapabilityCaptureContext.designBinding(context.conversationId())
+          runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context));
+      ProductCapabilityCaptureContext.designBinding(captureConversationId)
           .map(binding -> binding.captureRejection().get())
           .ifPresent(rejection::set);
     } finally {
-      ProductCapabilityCaptureContext.unbind(context.conversationId());
+      ProductCapabilityCaptureContext.unbind(captureConversationId);
       ToolSession.clear();
     }
     ChainSemanticRevision revision = captured.get();
@@ -207,7 +208,7 @@ public class DesignInputCapability implements StageCapability {
       LOG.warnf(
           "design-input captured nothing: runId=%s, conversationId=%s, agentText=%s",
           context.runId(),
-          context.conversationId(),
+          captureConversationId,
           AiTraceLog.previewOneLine(agentText, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS));
       // The stage recovery ledger bounds regeneration of rejected topology.
       // A rejected capture alone does not establish a defect in the approved brief.
@@ -346,7 +347,9 @@ public class DesignInputCapability implements StageCapability {
 
   private static String repairSection(StageExecutionContext context) {
     StageRepairEvidence repair = StageRepairEvidence.from(context);
-    if (repair == null || !repair.hasEvidence()) {
+    if (repair == null
+        || !repair.hasEvidence()
+        || StageRepairEvidence.isCleanDesignInputRebuild(context, repair)) {
       return "";
     }
     String rejection =
@@ -362,6 +365,14 @@ public class DesignInputCapability implements StageCapability {
         "\nRebuild the topology so this rejection cannot recur. Call captureChainSemanticRevision"
             + " once.");
     return extra.toString();
+  }
+
+  private static String captureConversationId(StageExecutionContext context) {
+    StageRepairEvidence repair = StageRepairEvidence.from(context);
+    if (StageRepairEvidence.isCleanDesignInputRebuild(context, repair)) {
+      return context.conversationId() + "-clean-design-" + context.attemptId();
+    }
+    return context.conversationId();
   }
 
   static String captureFailureMessage(String rejection) {

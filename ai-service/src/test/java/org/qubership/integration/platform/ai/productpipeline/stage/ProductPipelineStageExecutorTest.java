@@ -1607,7 +1607,51 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void aRepeatedPlanningContractFailureOffersPlanRebuild() {
+  void aRepeatedDesignInputFailureUsesOneCleanRebuildBeforeOfferingManualRecovery() {
+    StageCapability designInput =
+        capability(
+            "design-input-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.CONTRACT_FAILURE,
+                                "Unknown contract element: quartz-trigger"))));
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(profile, analysisCandidate(), designInput);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+
+    StageExecutionResult localRepair = execute(runtime, "design-input");
+    assertInstanceOf(StageDecision.Retry.class, localRepair.decision());
+    applyLifecycle(runtime, localRepair);
+
+    StageExecutionResult cleanRebuild = execute(runtime, "design-input");
+    assertInstanceOf(StageDecision.Retry.class, cleanRebuild.decision());
+    assertTrue(
+        cleanRebuild.signals().stream()
+            .filter(PipelineSignal.Progress.class::isInstance)
+            .map(PipelineSignal.Progress.class::cast)
+            .anyMatch(progress -> progress.label().contains("clean model turn")));
+    applyLifecycle(runtime, cleanRebuild);
+
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(
+            StageDecision.WaitForInput.class,
+            execute(runtime, "design-input").decision());
+
+    assertEquals(
+        PipelineGates.RECOVERY_REBUILD_DESIGN,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(
+        List.of(ChatEvent.REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REBUILD_DESIGN));
+  }
+
+  @Test
+  void aRepeatedPlanningContractFailureUsesOneCleanRebuildBeforeOfferingManualRecovery() {
     StageCapability planning =
         capability(
             "planning-cap",
@@ -1628,8 +1672,23 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
 
+    StageExecutionResult localRepair = execute(runtime, "design-planning");
+    assertInstanceOf(StageDecision.Retry.class, localRepair.decision());
+    applyLifecycle(runtime, localRepair);
+
+    StageExecutionResult cleanRebuild = execute(runtime, "design-planning");
+    assertInstanceOf(StageDecision.Retry.class, cleanRebuild.decision());
+    assertTrue(
+        cleanRebuild.signals().stream()
+            .filter(PipelineSignal.Progress.class::isInstance)
+            .map(PipelineSignal.Progress.class::cast)
+            .anyMatch(progress -> progress.label().contains("clean model turn")));
+    applyLifecycle(runtime, cleanRebuild);
+
     StageDecision.WaitForInput wait =
-        waitAfterOptionalSemanticRepair(runtime, "design-planning");
+        assertInstanceOf(
+            StageDecision.WaitForInput.class,
+            execute(runtime, "design-planning").decision());
 
     assertEquals(
         PipelineGates.RECOVERY_REBUILD_PLAN,
@@ -1637,6 +1696,66 @@ class ProductPipelineStageExecutorTest {
     assertEquals(
         List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REBUILD_PLAN));
+  }
+
+  @Test
+  void aRepeatedPlanningFailureDoesNotAutoRebuildAfterCatalogWrite() {
+    StageCapability planning =
+        capability(
+            "planning-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.CONTRACT_FAILURE,
+                                "planner report missing producing step for serviceCallId=create-task"))));
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            profile,
+            analysisCandidate(),
+            planning,
+            succeeding("execution-cap", new AtomicInteger()));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+
+    StageExecutionResult localRepair = execute(runtime, "design-planning");
+    assertInstanceOf(StageDecision.Retry.class, localRepair.decision());
+    applyLifecycle(runtime, localRepair);
+    artifactStore.append(
+        new CompilationArtifacts.AppendCommand(
+            RUN_ID,
+            Kind.CATALOG_CHAIN_SNAPSHOT,
+            "1",
+            "test-materializer",
+            "1",
+            new ChainCatalogFacts(
+                "written-chain", "Orders", "", 0, 0, "", List.of(), List.of(), "catalog"),
+            List.of(),
+            null,
+            new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+                RUN_ID,
+                "materialization",
+                profile.profileId(),
+                profile.profileVersion(),
+                "sha",
+                "materialization",
+                "1",
+                "sha")));
+
+    StageExecutionResult repeated = execute(runtime, "design-planning");
+    StageDecision.WaitForInput wait =
+        assertInstanceOf(StageDecision.WaitForInput.class, repeated.decision());
+
+    assertEquals(
+        PipelineGates.RECOVERY_REBUILD_PLAN,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertFalse(
+        repeated.signals().stream()
+            .filter(PipelineSignal.Progress.class::isInstance)
+            .map(PipelineSignal.Progress.class::cast)
+            .anyMatch(progress -> progress.label().contains("clean model turn")));
   }
 
   @Test
@@ -3141,7 +3260,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void missingRecoveryDecisionOnCaptureContractShapeRetriesThenParks() {
+  void missingRecoveryDecisionOnCaptureContractShapeOffersManualRebuild() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger captureCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
@@ -3174,9 +3293,9 @@ class ProductPipelineStageExecutorTest {
 
     StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
 
-    assertEquals(2, captureCalls.get());
+    assertEquals(3, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REPEATED,
+        PipelineGates.RECOVERY_REBUILD_DESIGN,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertFalse(
         ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow())
@@ -3251,7 +3370,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void spentDesignInputCaptureRepairParksInsteadOfEscalatingOwners() {
+  void spentDesignInputCaptureRepairOffersRebuildWithoutEscalatingOwners() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger captureCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
@@ -3286,16 +3405,16 @@ class ProductPipelineStageExecutorTest {
 
     StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
 
-    assertEquals(2, captureCalls.get());
+    assertEquals(3, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REPEATED,
+        PipelineGates.RECOVERY_REBUILD_DESIGN,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
     assertFalse(PipelineGates.strip(wait.prompt()).contains("requirement-analysis"));
   }
 
   @Test
-  void retryCannotBypassTheExhaustedDesignInputBudget() {
+  void manualRebuildReopensDesignInputAfterAutomaticRecoveryIsExhausted() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger captureCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
@@ -3331,16 +3450,16 @@ class ProductPipelineStageExecutorTest {
     applyLifecycle(runtime, new StageExecutionResult(first, List.of()));
 
     runtime
-        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
+        .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.REVISE_ACTION))
         .collect()
         .asList()
         .await()
         .indefinitely();
 
     assertEquals("design-input", requireRun().run().currentStageId());
-    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
-    assertEquals(StageStatus.WAITING_FOR_INPUT, snapshot(requireRun(), "design-input").status());
-    assertEquals(2, captureCalls.get());
+    assertEquals(RunStatus.RUNNING, requireRun().run().status());
+    assertEquals(StageStatus.RUNNING, snapshot(requireRun(), "design-input").status());
+    assertEquals(3, captureCalls.get());
   }
 
   @Test
@@ -4564,16 +4683,20 @@ class ProductPipelineStageExecutorTest {
   }
 
   /**
-   * Contract failures spend one semantic repair (Retry at delay zero) before the card. Other
+   * Contract failures may spend a local repair and one clean rebuild before the card. Other
    * outcomes park on the first halt.
    */
   private StageDecision.WaitForInput waitAfterOptionalSemanticRepair(
       CreateChainTestOrchestrator runtime, String stageId) {
     StageExecutionResult result = execute(runtime, stageId);
-    if (result.decision() instanceof StageDecision.Retry retry) {
-      assertEquals(Duration.ZERO, retry.delay());
+    int retries = 0;
+    while (result.decision() instanceof StageDecision.Retry retry) {
+      if (retries == 0) {
+        assertEquals(Duration.ZERO, retry.delay());
+      }
       applyLifecycle(runtime, result);
       result = execute(runtime, stageId);
+      assertTrue(++retries <= 2, "recovery exceeded its bounded automatic retries");
     }
     return assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
   }

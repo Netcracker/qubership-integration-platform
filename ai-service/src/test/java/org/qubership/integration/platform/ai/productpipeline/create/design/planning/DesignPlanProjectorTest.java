@@ -15,6 +15,13 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRu
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.Claim;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.ClaimRole;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.Owner;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.OwnerKind;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.Step;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
@@ -31,6 +38,282 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 class DesignPlanProjectorTest {
 
   private final DesignPlanProjector projector = new DesignPlanProjector();
+
+  @Test
+  void typedProjectionUsesOwnersClaimsAndDependenciesRegardlessOfSummaryWording() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrders();
+    CompilerRunPin pin = samplePin(revision, sampleDag());
+    DesignPlanContract contract =
+        new DesignPlanContract(
+            DesignPlanCaptureAdapter.SCHEMA_VERSION,
+            "plan-orders",
+            revision.revisionId(),
+            pin.subjectSha256(),
+            "2024.4",
+            List.of(
+                typedStep(
+                    "trigger",
+                    "Resolve and connect the public endpoint",
+                    "cip-trigger-generator",
+                    List.of(new Claim(TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),
+                    List.of()),
+                typedStep(
+                    "call",
+                    "Whatever wording the planner chooses",
+                    "cip-service-call-generator",
+                    List.of(new Claim(TargetKind.SERVICE_CALL, "call-1", ClaimRole.PRODUCER)),
+                    List.of("trigger")),
+                typedStep(
+                    "structure",
+                    "Resolve links",
+                    "cip-structure-generator",
+                    List.of(new Claim(TargetKind.SERVICE_CALL, "call-1", ClaimRole.REFERENCE)),
+                    List.of("call")),
+                typedStep(
+                    "assemble",
+                    "Build",
+                    "cip-chain-assembler",
+                    List.of(),
+                    List.of("structure")),
+                typedStep(
+                    "validate",
+                    "Check",
+                    "cip-chain-validator",
+                    List.of(),
+                    List.of("assemble"))));
+    DesignPlanReport report = new DesignPlanReportRenderer().render(contract);
+
+    DesignExecutionPlan projected =
+        projector.project(contract, report, revision, pin, briefFrom(revision));
+
+    assertEquals(List.of("trigger"), projected.steps().get(1).dependsOn());
+    assertEquals(List.of("call"), projected.steps().get(2).dependsOn());
+    assertEquals(
+        List.of("cip-structure-generator"), projected.steps().get(2).owningSkillIds());
+    assertEquals(contract.contractId(), projected.sourceContractId());
+    assertEquals(report.contractHash(), projected.sourceContractHash());
+  }
+
+  @Test
+  void typedContractAllowsRepeatedReferencesButRejectsRepeatedProducers() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrders();
+    CompilerRunPin pin = samplePin(revision, sampleDag());
+    List<Step> steps =
+        new ArrayList<>(
+            List.of(
+                typedStep(
+                    "trigger",
+                    "Trigger",
+                    "cip-trigger-generator",
+                    List.of(new Claim(TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),
+                    List.of()),
+                typedStep(
+                    "call-a",
+                    "Call",
+                    "cip-service-call-generator",
+                    List.of(new Claim(TargetKind.SERVICE_CALL, "call-1", ClaimRole.PRODUCER)),
+                    List.of("trigger")),
+                typedStep(
+                    "ref-a",
+                    "Reference one",
+                    "cip-structure-generator",
+                    List.of(new Claim(TargetKind.SERVICE_CALL, "call-1", ClaimRole.REFERENCE)),
+                    List.of("call-a")),
+                typedStep(
+                    "ref-b",
+                    "Reference two",
+                    "cip-structure-generator",
+                    List.of(new Claim(TargetKind.SERVICE_CALL, "call-1", ClaimRole.REFERENCE)),
+                    List.of("call-a")),
+                typedStep(
+                    "assemble",
+                    "Assemble",
+                    "cip-chain-assembler",
+                    List.of(),
+                    List.of("ref-b")),
+                typedStep(
+                    "validate",
+                    "Validate",
+                    "cip-chain-validator",
+                    List.of(),
+                    List.of("assemble"))));
+    DesignPlanContract references =
+        typedContract(revision, pin, "references", steps);
+    DesignPlanContractValidator validator = new DesignPlanContractValidator();
+    assertTrue(validator.findings(references, revision, briefFrom(revision), pin).isEmpty());
+
+    steps.add(
+        typedStep(
+            "call-b",
+            "Duplicate call",
+            "cip-service-call-generator",
+            List.of(new Claim(TargetKind.SERVICE_CALL, "call-1", ClaimRole.PRODUCER)),
+            List.of("trigger")));
+    List<DesignPlanContractFinding> findings =
+        validator.findings(
+            typedContract(revision, pin, "duplicate", steps),
+            revision,
+            briefFrom(revision),
+            pin);
+    assertTrue(
+        findings.stream()
+            .anyMatch(
+                finding ->
+                    finding.code()
+                        == DesignPlanContractFinding.Code.DUPLICATE_TARGET_PRODUCER));
+  }
+
+  @Test
+  void typedContractKeepsTwoOccurrencesOfTheSameCatalogOperationDistinct() {
+    ChainSemanticRevision revision = twoCallsToTheSameOperation();
+    RequirementBrief brief = briefFrom(revision);
+    CompilerRunPin pin = samplePin(revision, sampleDag());
+    DesignPlanContract contract =
+        typedContract(
+            revision,
+            pin,
+            "same-operation",
+            List.of(
+                typedStep(
+                    "trigger",
+                    "Trigger",
+                    "cip-trigger-generator",
+                    List.of(new Claim(TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),
+                    List.of()),
+                typedStep(
+                    "call-primary",
+                    "First occurrence",
+                    "cip-service-call-generator",
+                    List.of(
+                        new Claim(
+                            TargetKind.SERVICE_CALL, "create-primary", ClaimRole.PRODUCER)),
+                    List.of("trigger")),
+                typedStep(
+                    "call-secondary",
+                    "Second occurrence",
+                    "cip-service-call-generator",
+                    List.of(
+                        new Claim(
+                            TargetKind.SERVICE_CALL, "create-secondary", ClaimRole.PRODUCER)),
+                    List.of("trigger")),
+                typedStep(
+                    "structure",
+                    "Reference both occurrences",
+                    "cip-structure-generator",
+                    List.of(
+                        new Claim(
+                            TargetKind.SERVICE_CALL, "create-primary", ClaimRole.REFERENCE),
+                        new Claim(
+                            TargetKind.SERVICE_CALL, "create-secondary", ClaimRole.REFERENCE)),
+                    List.of("call-primary", "call-secondary")),
+                typedStep(
+                    "assemble",
+                    "Assemble",
+                    "cip-chain-assembler",
+                    List.of(),
+                    List.of("structure")),
+                typedStep(
+                    "validate",
+                    "Validate",
+                    "cip-chain-validator",
+                    List.of(),
+                    List.of("assemble"))));
+
+    assertTrue(new DesignPlanContractValidator().findings(contract, revision, brief, pin).isEmpty());
+    DesignExecutionPlan projected =
+        projector.project(
+            contract, new DesignPlanReportRenderer().render(contract), revision, pin, brief);
+    assertTrue(
+        projected.steps().stream()
+            .flatMap(step -> step.claims().stream())
+            .anyMatch(
+                claim ->
+                    claim.role() == ClaimRole.PRODUCER
+                        && claim.targetId().equals("create-primary")));
+    assertTrue(
+        projected.steps().stream()
+            .flatMap(step -> step.claims().stream())
+            .anyMatch(
+                claim ->
+                    claim.role() == ClaimRole.PRODUCER
+                        && claim.targetId().equals("create-secondary")));
+  }
+
+  @Test
+  void unresolvedServiceCallRequiresAnExactApiHubBindingProducer() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrders();
+    CompilerRunPin pin = samplePin(revision, sampleDag());
+    RequirementBrief brief =
+        briefFrom(revision)
+            .withServiceCalls(
+                List.of(
+                    new RequirementServiceCall(
+                        "call-1", "fact-call", "Orders Service", "createOrder")));
+    List<Step> requiredElements =
+        List.of(
+            typedStep(
+                "trigger",
+                "Trigger",
+                "cip-trigger-generator",
+                List.of(new Claim(TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),
+                List.of()),
+            typedStep(
+                "call",
+                "Call",
+                "cip-service-call-generator",
+                List.of(new Claim(TargetKind.SERVICE_CALL, "call-1", ClaimRole.PRODUCER)),
+                List.of("trigger")),
+            typedStep(
+                "structure",
+                "Structure",
+                "cip-structure-generator",
+                List.of(),
+                List.of("call")),
+            typedStep(
+                "assemble",
+                "Assemble",
+                "cip-chain-assembler",
+                List.of(),
+                List.of("structure")),
+            typedStep(
+                "validate",
+                "Validate",
+                "cip-chain-validator",
+                List.of(),
+                List.of("assemble")));
+    DesignPlanContractValidator validator = new DesignPlanContractValidator();
+
+    List<DesignPlanContractFinding> missing =
+        validator.findings(
+            typedContract(revision, pin, "missing-binding", requiredElements),
+            revision,
+            brief,
+            pin);
+    assertTrue(
+        missing.stream()
+            .anyMatch(
+                finding ->
+                    finding.code()
+                            == DesignPlanContractFinding.Code.MISSING_TARGET_PRODUCER
+                        && finding.targetKind() == TargetKind.CATALOG_BINDING));
+
+    List<Step> withBinding = new ArrayList<>(requiredElements);
+    withBinding.add(
+        new Step(
+            "binding",
+            "Retrieve specification",
+            new Owner(OwnerKind.APIHUB_TOOL, "get_rest_api_operations_specification"),
+            List.of(new Claim(TargetKind.CATALOG_BINDING, "call-1", ClaimRole.PRODUCER)),
+            List.of()));
+    assertTrue(
+        validator
+            .findings(
+                typedContract(revision, pin, "with-binding", withBinding),
+                revision,
+                brief,
+                pin)
+            .isEmpty());
+  }
 
   @Test
   void rejectsTwoProducingStepsForOneOccurrenceWhileTheCatalogOperationMayRepeat() {
@@ -1072,6 +1355,30 @@ class DesignPlanProjectorTest {
 
   private static CompilerRunPin pin(ChainSemanticRevision revision) {
     return samplePin(revision, sampleDag());
+  }
+
+  private static Step typedStep(
+      String id,
+      String summary,
+      String owner,
+      List<Claim> claims,
+      List<String> dependencies) {
+    return new Step(
+        id, summary, new Owner(OwnerKind.SKILL, owner), claims, dependencies);
+  }
+
+  private static DesignPlanContract typedContract(
+      ChainSemanticRevision revision,
+      CompilerRunPin pin,
+      String contractId,
+      List<Step> steps) {
+    return new DesignPlanContract(
+        DesignPlanCaptureAdapter.SCHEMA_VERSION,
+        contractId,
+        revision.revisionId(),
+        pin.subjectSha256(),
+        "2024.4",
+        steps);
   }
 
   private static CompilerRunPin samplePin(

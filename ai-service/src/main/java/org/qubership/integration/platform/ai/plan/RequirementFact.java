@@ -15,7 +15,9 @@ public record RequirementFact(
     String sourceFactId,
     RequirementFactPolarity polarity,
     RequirementFactKind kind,
-    String capabilityKey,
+    @Description(
+            "Inbound capability key. Use http-trigger, kafka-trigger-2, quartz-scheduler, or async-api-trigger")
+        String capabilityKey,
     String text,
     @Description("SERVICE_CALL catalog or system display name, e.g. Petstore Ext")
         String participant,

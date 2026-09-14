@@ -66,6 +66,22 @@ class RecoveryAttemptLedgerTest {
   }
 
   @Test
+  void cleanRebuildHasASeparateOneShotBudgetThatSurvivesRestart() {
+    List<RunTransition> journal = new ArrayList<>();
+    RecoveryAttemptKey key = ledger.key("design-planning", UNKNOWN_PROPERTY, "brief-a", journal);
+    journal.add(transition(ledger.recordRepair(key, "brief-a"), "design-planning"));
+
+    assertFalse(ledger.mayRepair(journal, key, InputOrigin.TRUSTED));
+    assertTrue(ledger.mayCleanRebuild(journal, key));
+    journal.add(
+        transition(ledger.recordCleanRebuild(key, "brief-a"), "design-planning"));
+
+    RecoveryAttemptLedger restarted = new RecoveryAttemptLedger();
+    assertFalse(restarted.mayCleanRebuild(journal, key));
+    assertFalse(restarted.mayRepair(journal, key, InputOrigin.TRUSTED));
+  }
+
+  @Test
   void questionsRetryClicksAndReviseClicksDoNotAdvanceTheEpoch() {
     List<RunTransition> journal = new ArrayList<>();
     RecoveryAttemptKey before = ledger.key("analysis", UNKNOWN_PROPERTY, "brief-a", journal);

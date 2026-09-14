@@ -102,6 +102,7 @@ class ProductPipelineProfileCatalogCutoverTest {
         List.of(
             "ids-document",
             "chain-semantic-revision",
+            "design-plan-contract",
             "design-plan-report",
             "design-execution-plan",
             "implementation-plan"),
@@ -111,6 +112,7 @@ class ProductPipelineProfileCatalogCutoverTest {
     List<String> executionConsumes =
         stage(v2, "design-execution").consumes().stream().map(ArtifactTypeRef::type).toList();
     assertTrue(executionConsumes.contains("chain-semantic-revision"));
+    assertTrue(executionConsumes.contains("design-plan-contract"));
     assertFalse(executionConsumes.contains("normalized-design-flow"));
     assertTrue(v2.stages().stream().allMatch(stage -> stage.retry() != null));
     assertEquals(List.of(2), v2.compilerPipeline().supportedIndexSchemas());

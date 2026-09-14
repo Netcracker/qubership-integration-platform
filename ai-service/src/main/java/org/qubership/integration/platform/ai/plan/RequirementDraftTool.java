@@ -79,6 +79,14 @@ public class RequirementDraftTool {
       "Call resolveApiOperation for each unresolved interactionId, then recapture the same"
           + " RequirementFlow. Do not author topology facts or invent catalog UUIDs.";
 
+  static final String CAPABILITY_SOFT_DOWNGRADE_PREFIX =
+      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): an inbound interaction has"
+          + " an unsupported capability key. ";
+
+  static final String CAPABILITY_SOFT_DOWNGRADE_HINT =
+      "Recapture the same RequirementFlow with the exact supported capabilityKey named in the"
+          + " validation finding.";
+
   static final String CATALOG_BOUND_CAPTURE_HINT =
       " Recapture READY_FOR_PLAN with empty openQuestions when every catalog-backed interaction"
           + " is bound. Do not ask the user for a specification name.";
@@ -341,6 +349,7 @@ public class RequirementDraftTool {
       boolean softDowngradedForFlowCompleteness = false;
       boolean softDowngradedForImport = false;
       boolean softDowngradedForBinding = false;
+      boolean softDowngradedForCapability = false;
       boolean softDowngradedBlockedWithCandidate = false;
       if (decision == DraftDecision.READY_FOR_PLAN && facts.isEmpty()) {
         // Soft-advance: keep the draft instead of rejecting the turn (no CAPTURE_REQUIRED leak).
@@ -457,16 +466,24 @@ public class RequirementDraftTool {
       boolean bindingMissing =
           positiveCalls.isEmpty()
               && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
-      if (decision == DraftDecision.READY_FOR_PLAN
-          && !boundFlow.interactions().isEmpty()
-          && !hasAllowedUploadedSpecs(conversationId)) {
-        Optional<String> bindingError =
-            RequirementFlowValidator.validateBindings(boundFlow, facts, catalogBindings);
-        if (bindingError.isPresent()) {
-          softDowngradedForBinding = true;
+      if (decision == DraftDecision.READY_FOR_PLAN && !boundFlow.interactions().isEmpty()) {
+        Optional<String> capabilityError =
+            RequirementFlowValidator.validateInboundCapabilities(boundFlow, facts);
+        if (capabilityError.isPresent()) {
+          softDowngradedForCapability = true;
           decision = DraftDecision.NEEDS_INPUT;
           if (openQuestions.isEmpty()) {
-            openQuestions = List.of(bindingError.get());
+            openQuestions = List.of(capabilityError.get());
+          }
+        } else if (!hasAllowedUploadedSpecs(conversationId)) {
+          Optional<String> bindingError =
+              RequirementFlowValidator.validateBindings(boundFlow, facts, catalogBindings);
+          if (bindingError.isPresent()) {
+            softDowngradedForBinding = true;
+            decision = DraftDecision.NEEDS_INPUT;
+            if (openQuestions.isEmpty()) {
+              openQuestions = List.of(bindingError.get());
+            }
           }
         }
       }
@@ -559,6 +576,7 @@ public class RequirementDraftTool {
                       || softDowngradedForFlowCompleteness
                       || softDowngradedForImport
                       || softDowngradedForBinding
+                      || softDowngradedForCapability
                       || softDowngradedBlockedWithCandidate
                   ? false
                   : capture.complete(),
@@ -602,6 +620,7 @@ public class RequirementDraftTool {
               + " softDowngradedForFlow=%s"
               + " softDowngradedForFlowCompleteness=%s"
               + " softDowngradedForImport=%s softDowngradedForBinding=%s"
+              + " softDowngradedForCapability=%s"
               + " softDowngradedBlockedWithCandidate=%s",
           conversationId,
           draft.decision(),
@@ -618,6 +637,7 @@ public class RequirementDraftTool {
           softDowngradedForFlowCompleteness,
           softDowngradedForImport,
           softDowngradedForBinding,
+          softDowngradedForCapability,
           softDowngradedBlockedWithCandidate);
       String storedPreview =
           "Requirement draft captured (decision="
@@ -641,6 +661,17 @@ public class RequirementDraftTool {
             startMs,
             IMPORT_PENDING_SOFT_DOWNGRADE_PREFIX
                 + IMPORT_PENDING_SOFT_DOWNGRADE_HINT
+                + " "
+                + storedPreview);
+      }
+      if (softDowngradedForCapability) {
+        return finish(
+            conversationId,
+            startMs,
+            CAPABILITY_SOFT_DOWNGRADE_PREFIX
+                + openQuestions.getFirst()
+                + " "
+                + CAPABILITY_SOFT_DOWNGRADE_HINT
                 + " "
                 + storedPreview);
       }

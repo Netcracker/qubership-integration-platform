@@ -1328,6 +1328,90 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void unknownTriggerKeyCannotBecomeAnApprovedDraft() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction(
+                    "scheduled-run", Direction.INBOUND, "Scheduler", "hourly", "")),
+            List.of());
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Run hourly",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(
+                    new RequirementFact(
+                        "scheduled-run",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "quartz-trigger",
+                        "Run hourly"),
+                    RequirementFact.of(
+                        RequirementFactPolarity.NEGATIVE,
+                        RequirementFactKind.CONSTRAINT,
+                        "",
+                        "Do not call MCP")),
+                null,
+                flow));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, stored.decision());
+    assertFalse(stored.readyForPlan());
+    assertTrue(result.contains("NEEDS_INPUT"), result);
+    assertTrue(stored.openQuestions().getFirst().contains("quartz-trigger"));
+    assertTrue(stored.openQuestions().getFirst().contains("quartz-scheduler"));
+  }
+
+  @Test
+  void uploadedSpecificationsDoNotBypassInboundCapabilityValidation() {
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "draft-conv", List.of("sessions/conv/scheduler-api.json"));
+    RequirementDraftTool tool = RequirementDraftTool.withConversationService(store, conversations);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction(
+                    "scheduled-run", Direction.INBOUND, "Scheduler", "hourly", "")),
+            List.of());
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Run hourly",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            List.of(
+                new RequirementFact(
+                    "scheduled-run",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "quartz-trigger",
+                    "Run hourly"),
+                RequirementFact.of(
+                    RequirementFactPolarity.NEGATIVE,
+                    RequirementFactKind.CONSTRAINT,
+                    "",
+                    "Do not call MCP")),
+            null,
+            flow));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, stored.decision());
+    assertTrue(stored.openQuestions().getFirst().contains("quartz-trigger"));
+  }
+
+  @Test
   void storesBusinessFlowBeforeProjectingTechnicalRoles() {
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
     RequirementDraftTool captureTool = RequirementDraftTool.withResolutions(store, resolutions);

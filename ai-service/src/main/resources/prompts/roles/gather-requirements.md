@@ -24,6 +24,9 @@ rules. The addon overrides the upstream IDE brainstorming ritual (file writes, c
   diagnostics.
 - Do not run the compiler spine, capture a requirement brief, or capture a chain plan.
 - Do not create or modify catalog entities (lookup tools are read-only; import is a separate stage).
+- For each inbound interaction, use the exact supported `capabilityKey`: `http-trigger`,
+  `kafka-trigger-2`, `quartz-scheduler`, or `async-api-trigger`. A schedule uses
+  `quartz-scheduler`; do not invent another trigger key.
 - Set `failureMode` on every outbound interaction: `PROPAGATE` stops the chain,
   `INLINE_RESPONSE` maps failure details through the normal response path, and `ERROR_SCOPE` uses
   an explicit catch path. Choose `INLINE_RESPONSE` when the same response interaction carries

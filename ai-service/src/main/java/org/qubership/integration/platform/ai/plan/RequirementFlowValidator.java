@@ -23,9 +23,15 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
 public final class RequirementFlowValidator {
 
   private static final Set<String> NATIVE_INBOUND_TRIGGER_KEYS =
-      Set.of("http-trigger", "kafka-trigger-2");
+      Set.of("http-trigger", "kafka-trigger-2", "quartz-scheduler");
+  private static final Set<String> SUPPORTED_INBOUND_CAPABILITY_KEYS =
+      Set.of("http-trigger", "kafka-trigger-2", "quartz-scheduler", "async-api-trigger");
 
   private RequirementFlowValidator() {}
+
+  static Set<String> supportedInboundCapabilityKeys() {
+    return SUPPORTED_INBOUND_CAPABILITY_KEYS;
+  }
 
   public static Optional<String> validateStructure(RequirementFlow flow) {
     RequirementFlow checked = flow == null ? RequirementFlow.EMPTY : flow;
@@ -161,6 +167,10 @@ public final class RequirementFlowValidator {
     }
 
     List<RequirementFact> factList = facts == null ? List.of() : facts;
+    Optional<String> capabilityError = validateInboundCapabilities(flow, factList);
+    if (capabilityError.isPresent()) {
+      return capabilityError;
+    }
     for (RequirementFact fact : factList) {
       if (fact == null
           || fact.polarity() != RequirementFactPolarity.POSITIVE
@@ -249,6 +259,26 @@ public final class RequirementFlowValidator {
     return Optional.empty();
   }
 
+  public static Optional<String> validateInboundCapabilities(
+      RequirementFlow flow, List<RequirementFact> facts) {
+    RequirementFlow checked = flow == null ? RequirementFlow.EMPTY : flow;
+    List<RequirementFact> factList = facts == null ? List.of() : facts;
+    for (Interaction interaction : checked.interactions()) {
+      Optional<String> inboundCapability = inboundCapabilityKey(interaction, factList);
+      if (inboundCapability.isPresent()
+          && !SUPPORTED_INBOUND_CAPABILITY_KEYS.contains(inboundCapability.get())) {
+        return Optional.of(
+            "requirement flow entry point "
+                + interaction.interactionId()
+                + " uses unsupported capabilityKey="
+                + inboundCapability.get()
+                + ". Allowed inbound capability keys: "
+                + String.join(", ", SUPPORTED_INBOUND_CAPABILITY_KEYS.stream().sorted().toList()));
+      }
+    }
+    return Optional.empty();
+  }
+
   /**
    * Returns true only for outbound interactions. {@code facts} stays on the signature so existing
    * callers keep compiling; inbound catalog need is not derived from facts.
@@ -269,6 +299,22 @@ public final class RequirementFlowValidator {
       }
     }
     return false;
+  }
+
+  private static Optional<String> inboundCapabilityKey(
+      Interaction interaction, List<RequirementFact> facts) {
+    if (interaction.direction() != Direction.INBOUND) {
+      return Optional.empty();
+    }
+    for (RequirementFact fact : facts) {
+      if (fact != null
+          && interaction.interactionId().equals(fact.sourceFactId())
+          && fact.capabilityKey() != null
+          && !fact.capabilityKey().isBlank()) {
+        return Optional.of(fact.capabilityKey());
+      }
+    }
+    return Optional.empty();
   }
 
   static boolean hasNativeInboundTriggerFact(

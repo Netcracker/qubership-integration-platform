@@ -29,6 +29,16 @@ elements:
       type: async-api-trigger
       container: false
       deprecated: false
+  quartz-scheduler:
+    containmentRoles: {}
+    requiredProperties:
+      - cron
+      - deleteJob
+    materializationRuleId: materialize-quartz-scheduler
+    runtimeDescriptor:
+      type: quartz-scheduler
+      container: false
+      deprecated: false
   service-call:
     containmentRoles: {}
     requiredProperties:

@@ -76,6 +76,7 @@ class ClasspathCompilerContractRepositoryTest {
     assertTrue(contract.elements().containsKey("http-trigger"));
     assertTrue(contract.elements().containsKey("kafka-trigger-2"));
     assertTrue(contract.elements().containsKey("async-api-trigger"));
+    assertTrue(contract.elements().containsKey("quartz-scheduler"));
     assertTrue(contract.elements().containsKey("service-call"));
     assertTrue(contract.elements().containsKey("script"));
     assertTrue(contract.elements().containsKey("mapper-2"));

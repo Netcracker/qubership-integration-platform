@@ -230,7 +230,7 @@ class RecoveryOutcomeMatrixTest {
   }
 
   @Test
-  void designInputContractShapeRetriesThenOffersOnlyTheReport() {
+  void designInputContractShapeOffersARebuildAfterAutomaticRecoveryIsExhausted() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
     CreateChainTestOrchestrator runtime =
@@ -242,12 +242,13 @@ class RecoveryOutcomeMatrixTest {
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
     assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-input").decision());
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-input").decision());
     execute(runtime, "design-input");
 
     RecoveryOutcomeTelemetry.Event presented = presented();
-    assertEquals("repeated-identical-failure", presented.category());
+    assertEquals("design-artifact-defect", presented.category());
     assertEquals(
-        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
+        List.of(ChatEvent.REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
         presented.offeredActions());
     assertFalse(presented.offeredActions().contains("submit"));
     assertFalse(presented.offeredActions().contains("design-input"));
@@ -406,6 +407,7 @@ class RecoveryOutcomeMatrixTest {
     List<String> terminalGates =
         List.of(
             PipelineGates.RECOVERY_REVISE_BRIEF,
+            PipelineGates.RECOVERY_REBUILD_DESIGN,
             PipelineGates.RECOVERY_REBUILD_PLAN,
             PipelineGates.RECOVERY_ENVIRONMENT,
             PipelineGates.RECOVERY_INTERNAL,

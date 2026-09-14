@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.anyString;
@@ -71,7 +72,7 @@ class DesignInputRecoveryTest {
       new ClasspathCompilerContractRepository().require(CompilerContract.V1);
 
   @ParameterizedTest
-  @ValueSource(strings = {"regenerate", "missing", "ask", "invalid"})
+  @ValueSource(strings = {"regenerate", "missing", "ask", "invalid", "zero-budget"})
   void rejectedTopologyReachesPlanningAfterRestartWithoutChangingTheBrief(String decisionMode) {
     verifyRecovery(decisionMode, false);
   }
@@ -83,7 +84,7 @@ class DesignInputRecoveryTest {
   }
 
   @ParameterizedTest
-  @ValueSource(strings = {"brief-question", "brief-revision", "park", "zero-budget"})
+  @ValueSource(strings = {"brief-question", "brief-revision", "park"})
   void explicitRecoveryDecisionsAndDisabledRepairsDoNotRegenerate(String decisionMode) {
     verifyRecovery(decisionMode, false);
   }
@@ -131,11 +132,14 @@ class DesignInputRecoveryTest {
         new DesignInputCapability(
             (conversation, prompt) -> {
               int call = calls.incrementAndGet();
-              if (call > 1) {
+              if (call == 2 && !decisionMode.equals("zero-budget")) {
                 assertTrue(prompt.contains("is missing a region"), prompt);
                 assertTrue(prompt.contains("generic-barrier"), prompt);
                 assertTrue(
                     prompt.contains(brief.mappingIntents().getFirst().mappingIntentId()), prompt);
+              } else if (call > 2 || decisionMode.equals("zero-budget")) {
+                assertFalse(prompt.contains("is missing a region"), prompt);
+                assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
               }
               String result =
                   tool.captureChainSemanticRevision(
@@ -315,15 +319,14 @@ class DesignInputRecoveryTest {
     var before = runs.load(RUN).orElseThrow().run().stages().getFirst();
     var first = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
     if (decisionMode.startsWith("brief-")
-        || decisionMode.equals("park")
-        || decisionMode.equals("zero-budget")) {
+        || decisionMode.equals("park")) {
       var wait = assertInstanceOf(StageDecision.WaitForInput.class, first.decision());
       String expected =
           switch (decisionMode) {
             case "brief-question" -> PipelineGates.STAGE_CLARIFICATION;
             case "brief-revision" -> PipelineGates.RECOVERY_REVISE_BRIEF;
             case "park" -> PipelineGates.RECOVERY_UNCLASSIFIED;
-            default -> PipelineGates.RECOVERY_REPEATED;
+            default -> PipelineGates.RECOVERY_UNCLASSIFIED;
           };
       assertEquals(expected, PipelineGates.gateOf(wait.prompt()).orElseThrow());
       assertEquals(1, calls.get());
@@ -355,9 +358,13 @@ class DesignInputRecoveryTest {
         .indefinitely();
     var second = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
     if (repeatFailure) {
-      var wait = assertInstanceOf(StageDecision.WaitForInput.class, second.decision());
+      assertInstanceOf(StageDecision.Retry.class, second.decision());
+      support.applyStageLifecycle(RUN, second).collect().asList().await().indefinitely();
+      var third = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, third.decision());
       assertEquals(
-          PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+          PipelineGates.RECOVERY_REBUILD_DESIGN,
+          PipelineGates.gateOf(wait.prompt()).orElseThrow());
       assertTrue(artifacts.latest(RUN, Kind.CHAIN_SEMANTIC_REVISION).isEmpty());
     } else {
       assertInstanceOf(StageDecision.Continue.class, second.decision());
@@ -365,7 +372,7 @@ class DesignInputRecoveryTest {
       assertEquals("design-planning", runs.load(RUN).orElseThrow().run().currentStageId());
       assertTrue(artifacts.latest(RUN, Kind.CHAIN_SEMANTIC_REVISION).isPresent());
     }
-    assertEquals(2, calls.get());
+    assertEquals(repeatFailure ? 3 : 2, calls.get());
     assertEquals(before, runs.load(RUN).orElseThrow().run().stages().getFirst());
     assertEquals(1, artifacts.history(RUN, Kind.REQUIREMENT_BRIEF).size());
     assertEquals(

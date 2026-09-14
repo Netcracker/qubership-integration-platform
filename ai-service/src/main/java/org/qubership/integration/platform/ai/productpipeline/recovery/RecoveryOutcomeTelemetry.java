@@ -174,6 +174,7 @@ public class RecoveryOutcomeTelemetry {
   public String semanticAction(String gateId, String pipelineAction) {
     if (ChatEvent.RETRY_CREATION_ACTION.equals(pipelineAction)
         || ChatEvent.EDIT_REQUIREMENTS_ACTION.equals(pipelineAction)
+        || ChatEvent.REBUILD_DESIGN_ACTION.equals(pipelineAction)
         || ChatEvent.REBUILD_PLAN_ACTION.equals(pipelineAction)
         || PipelineGates.STOP_WITH_REPORT_ACTION.equals(pipelineAction)) {
       return pipelineAction;
@@ -186,6 +187,10 @@ public class RecoveryOutcomeTelemetry {
     if (PipelineGates.REVISE_ACTION.equals(pipelineAction)
         && PipelineGates.RECOVERY_REVISE_BRIEF.equals(gateId)) {
       return ChatEvent.EDIT_REQUIREMENTS_ACTION;
+    }
+    if (PipelineGates.REVISE_ACTION.equals(pipelineAction)
+        && PipelineGates.RECOVERY_REBUILD_DESIGN.equals(gateId)) {
+      return ChatEvent.REBUILD_DESIGN_ACTION;
     }
     if (PipelineGates.REVISE_ACTION.equals(pipelineAction)
         && PipelineGates.RECOVERY_REBUILD_PLAN.equals(gateId)) {

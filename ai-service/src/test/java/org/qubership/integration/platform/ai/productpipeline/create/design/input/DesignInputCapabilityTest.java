@@ -416,6 +416,42 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void cleanRebuildUsesAFreshConversationAndOmitsRejectedCapture() {
+    java.util.concurrent.atomic.AtomicReference<String> seenConversationId =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
+        new java.util.concurrent.atomic.AtomicReference<>();
+    DesignInputCapability capability =
+        new DesignInputCapability(
+            (conversationId, prompt) -> {
+              seenConversationId.set(conversationId);
+              seenPrompt.set(prompt);
+              return Multi.createFrom().item("prose without a tool call");
+            },
+            new DefaultChainSemanticIdsRenderer());
+    Map<String, Object> attributes = new LinkedHashMap<>();
+    attributes.put("requirementBrief", ChainSemanticCaptureFixtures.approvedBrief());
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "rejected topology");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "unknown element type");
+    attributes.put(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR, "use another node type");
+    attributes.put(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR, "evidence-design");
+    attributes.put(
+        ProductPipelineRunSupport.DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+        "evidence-design");
+
+    outcome(capability, context("design-input", attributes));
+
+    assertEquals("conv-1-clean-design-attempt-1", seenConversationId.get());
+    String prompt = seenPrompt.get();
+    assertTrue(prompt.contains("Capture one ChainSemanticRevision"), prompt);
+    assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
+    assertFalse(prompt.contains("rejected topology"), prompt);
+    assertFalse(prompt.contains("unknown element type"), prompt);
+    assertFalse(prompt.contains("use another node type"), prompt);
+    assertFalse(prompt.contains("The previous capture was rejected"), prompt);
+  }
+
+  @Test
   void designAgentPromptEscapesQuteBracesFromTheBrief() {
     java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
         new java.util.concurrent.atomic.AtomicReference<>();

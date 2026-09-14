@@ -117,6 +117,33 @@ public record StageRepairEvidence(
         || (findings != null && !findings.isBlank());
   }
 
+  /** True only for the recovery evidence that received the one-shot clean rebuild budget. */
+  public static boolean isCleanDesignPlanRebuild(
+      StageExecutionContext context, StageRepairEvidence evidence) {
+    return isCleanRebuild(
+        context,
+        evidence,
+        ProductPipelineRunSupport.DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+  }
+
+  /** True only for the recovery evidence that received a clean design-input rebuild. */
+  public static boolean isCleanDesignInputRebuild(
+      StageExecutionContext context, StageRepairEvidence evidence) {
+    return isCleanRebuild(
+        context,
+        evidence,
+        ProductPipelineRunSupport.DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+  }
+
+  private static boolean isCleanRebuild(
+      StageExecutionContext context, StageRepairEvidence evidence, String selectedEvidenceAttr) {
+    if (context == null || evidence == null || evidence.recoveryEvidenceRef() == null) {
+      return false;
+    }
+    String selected = context.attributeAsString(selectedEvidenceAttr);
+    return evidence.recoveryEvidenceRef().equals(selected);
+  }
+
   /**
    * The last output of one kind the halted attempt recorded, or empty when the attempt never got
    * that far. The caller resolves the payload through the artifact store it already holds.

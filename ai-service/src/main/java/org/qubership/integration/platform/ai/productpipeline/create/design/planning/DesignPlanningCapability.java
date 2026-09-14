@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPip
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -28,6 +29,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -51,12 +53,25 @@ public class DesignPlanningCapability implements StageCapability {
 
   public static final String CAPABILITY_ID = "design-planning";
 
-  private final CipDesignPlannerAdapter planner;
+  private final TypedCipDesignPlannerAdapter typedPlanner;
+  private final CipDesignPlannerAdapter legacyPlanner;
   private final DesignPlanProjector projector;
+  private final DesignPlanReportRenderer reportRenderer;
   private final DesignImplementationPlanRenderer renderer;
   private final ProductPipelineArtifactStore artifactStore;
 
   @Inject
+  public DesignPlanningCapability(
+      DesignPlanSkillRunner runner, ProductPipelineArtifactStore artifactStore) {
+    this(
+        new TypedCipDesignPlannerAdapter(runner),
+        new DesignPlanProjector(),
+        new DesignPlanReportRenderer(),
+        new DesignImplementationPlanRenderer(),
+        artifactStore);
+  }
+
+  /** Compatibility constructor for deterministic fixtures that return legacy planner Markdown. */
   public DesignPlanningCapability(
       DesignProcessSkillRunner runner, ProductPipelineArtifactStore artifactStore) {
     this(
@@ -67,12 +82,29 @@ public class DesignPlanningCapability implements StageCapability {
   }
 
   DesignPlanningCapability(
+      TypedCipDesignPlannerAdapter planner,
+      DesignPlanProjector projector,
+      DesignPlanReportRenderer reportRenderer,
+      DesignImplementationPlanRenderer renderer,
+      ProductPipelineArtifactStore artifactStore) {
+    this.typedPlanner = Objects.requireNonNull(planner, "planner");
+    this.legacyPlanner = null;
+    this.projector = Objects.requireNonNull(projector, "projector");
+    this.reportRenderer = Objects.requireNonNull(reportRenderer, "reportRenderer");
+    this.renderer = Objects.requireNonNull(renderer, "renderer");
+    this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
+  }
+
+  /** Legacy constructor retained for isolated harness fixtures during the typed cutover. */
+  DesignPlanningCapability(
       CipDesignPlannerAdapter planner,
       DesignPlanProjector projector,
       DesignImplementationPlanRenderer renderer,
       ProductPipelineArtifactStore artifactStore) {
-    this.planner = Objects.requireNonNull(planner, "planner");
+    this.typedPlanner = null;
+    this.legacyPlanner = Objects.requireNonNull(planner, "planner");
     this.projector = Objects.requireNonNull(projector, "projector");
+    this.reportRenderer = new DesignPlanReportRenderer();
     this.renderer = Objects.requireNonNull(renderer, "renderer");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
   }
@@ -130,6 +162,7 @@ public class DesignPlanningCapability implements StageCapability {
     // Held outside the try so a rejection after the planner answered still hands the halt the
     // artifact it is about. Without that, the next attempt reads the complaint and nothing else.
     DesignPlanReport report = null;
+    DesignPlanContract contract = null;
     DesignExecutionPlan projection = null;
     try {
       IdsDocument ids = requireIds(context);
@@ -147,16 +180,31 @@ public class DesignPlanningCapability implements StageCapability {
 
       String release = toApiRelease(runManifest.languageVersion());
       StageRepairEvidence repair = StageRepairEvidence.from(context);
+      boolean cleanRebuild = StageRepairEvidence.isCleanDesignPlanRebuild(context, repair);
       String repairEvidenceText =
-          repair == null ? "" : repairEvidenceText(repair, priorPlanMarkdown(context, repair));
-      report =
-          planner.plan(
-              new PlannerRequest(
-                  context.conversationId(),
-                  buildPlannerInput(ids, revision, release, brief),
-                  pinnedSkillHash,
-                  repairEvidenceText));
-      projection = projector.project(report, revision, pin, brief);
+          repair == null || cleanRebuild
+              ? ""
+              : repairEvidenceText(repair, priorPlanMarkdown(context, repair));
+      PlannerRequest plannerRequest =
+          new PlannerRequest(
+              cleanRebuild
+                  ? context.conversationId() + "-clean-plan-" + context.attemptId()
+                  : context.conversationId(),
+              buildPlannerInput(ids, revision, release, brief),
+              pinnedSkillHash,
+              repairEvidenceText);
+      if (typedPlanner != null) {
+        TypedCipDesignPlannerAdapter.Result result =
+            typedPlanner.plan(plannerRequest, release, revision, brief, pin);
+        contract = result.contract();
+        report = reportRenderer.render(contract);
+        projection = projector.project(contract, report, revision, pin, brief);
+      } else {
+        report = legacyPlanner.plan(plannerRequest);
+        projection = projector.project(report, revision, pin, brief);
+        contract = legacyContract(report, projection, revision, pin);
+        projection = withContractLineage(projection, contract);
+      }
       ImplementationPlan rendering = renderer.render(report, projection, revision, brief);
 
       Reference idsRef = requireInputRef(context.inputRefs(), Kind.IDS_DOCUMENT);
@@ -166,6 +214,11 @@ public class DesignPlanningCapability implements StageCapability {
       candidates.add(new ArtifactCandidate(Kind.IDS_DOCUMENT, ids, List.of(idsRef)));
       candidates.add(
           new ArtifactCandidate(Kind.CHAIN_SEMANTIC_REVISION, revision, List.of(revisionRef)));
+      if (contract != null) {
+        candidates.add(
+            new ArtifactCandidate(
+                Kind.DESIGN_PLAN_CONTRACT, contract, List.of(idsRef, revisionRef)));
+      }
       candidates.add(
           new ArtifactCandidate(Kind.DESIGN_PLAN_REPORT, report, List.of(idsRef, revisionRef)));
       candidates.add(
@@ -185,16 +238,20 @@ public class DesignPlanningCapability implements StageCapability {
       return haltedSignal(
           ex.outcomeClass() == null ? StageOutcomeClass.CONTRACT_FAILURE : ex.outcomeClass(),
           ex.getMessage(),
+          contract,
           report,
-          projection);
+          projection,
+          ex.recoveryCause());
     } catch (RuntimeException ex) {
       return haltedSignal(
           TransientFailures.isTransient(ex)
               ? StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE
               : StageOutcomeClass.CONTRACT_FAILURE,
           ex.getMessage(),
+          contract,
           report,
-          projection);
+          projection,
+          null);
     }
   }
 
@@ -206,9 +263,14 @@ public class DesignPlanningCapability implements StageCapability {
   private static CapabilitySignal.Completed haltedSignal(
       StageOutcomeClass outcomeClass,
       String message,
+      DesignPlanContract contract,
       DesignPlanReport report,
-      DesignExecutionPlan projection) {
+      DesignExecutionPlan projection,
+      RecoveryCause recoveryCause) {
     List<ArtifactCandidate> produced = new ArrayList<>();
+    if (contract != null) {
+      produced.add(new ArtifactCandidate(Kind.DESIGN_PLAN_CONTRACT, contract, List.of()));
+    }
     if (report != null) {
       produced.add(new ArtifactCandidate(Kind.DESIGN_PLAN_REPORT, report, List.of()));
     }
@@ -216,7 +278,59 @@ public class DesignPlanningCapability implements StageCapability {
       produced.add(new ArtifactCandidate(Kind.DESIGN_EXECUTION_PLAN, projection, List.of()));
     }
     return new CapabilitySignal.Completed(
-        new StageOutcome(outcomeClass, List.copyOf(produced), message, null));
+        new StageOutcome(outcomeClass, List.copyOf(produced), message, null, recoveryCause));
+  }
+
+  /** Supplies the new profile artifact to deterministic legacy fixtures during the cutover. */
+  private static DesignPlanContract legacyContract(
+      DesignPlanReport report,
+      DesignExecutionPlan projection,
+      ChainSemanticRevision revision,
+      CompilerRunPin pin) {
+    List<DesignPlanContract.Step> steps =
+        projection.steps().stream()
+            .map(
+                step -> {
+                  DesignPlanContract.Owner owner =
+                      step.ownerKind() == DesignExecutionPlan.OwnerKind.APIHUB_TOOL
+                          ? new DesignPlanContract.Owner(
+                              DesignPlanContract.OwnerKind.APIHUB_TOOL,
+                              step.toolOperationRefs().getFirst())
+                          : new DesignPlanContract.Owner(
+                              DesignPlanContract.OwnerKind.SKILL,
+                              step.owningSkillIds().getFirst());
+                  return new DesignPlanContract.Step(
+                      step.stepId(), step.reportText(), owner, List.of(), step.dependsOn());
+                })
+            .toList();
+    return new DesignPlanContract(
+        "design-plan-contract/legacy",
+        "legacy-" + Integer.toUnsignedString(report.markdown().hashCode(), 16),
+        revision.revisionId(),
+        pin.subjectSha256(),
+        projection.apiRelease(),
+        steps);
+  }
+
+  private static DesignExecutionPlan withContractLineage(
+      DesignExecutionPlan plan, DesignPlanContract contract) {
+    return new DesignExecutionPlan(
+        plan.schemaVersion(),
+        plan.semanticRevisionId(),
+        plan.designAuthority(),
+        plan.designInputRef(),
+        plan.designInputHash(),
+        plan.apiRelease(),
+        plan.bindingResolutionPolicy(),
+        plan.steps(),
+        plan.sourceReportRef(),
+        plan.sourceReportHash(),
+        plan.pinnedSkillHashes(),
+        plan.pinnedAddonHashes(),
+        plan.compilerCatalogHash(),
+        plan.bindingResolutionPolicyHash(),
+        contract.contractId(),
+        DesignPlanProjector.contractHash(contract));
   }
 
   /**
@@ -377,12 +491,14 @@ public class DesignPlanningCapability implements StageCapability {
 
   private static String describeRevision(ChainSemanticRevision revision, RequirementBrief brief) {
     StringBuilder text = new StringBuilder();
-    text.append("Chain semantic revision. The plan is validated against it.\n\n");
+    text.append(
+        "Chain semantic revision. Copy targetKind and targetId values exactly into typed claims.\n\n");
 
     text.append("Entry points:\n");
     for (SemanticEntryPoint entry : revision.entryPoints()) {
-      text.append("- ")
+      text.append("- targetKind=ENTRY_POINT targetId=")
           .append(entry.entryPointId())
+          .append(" producer=cip-trigger-generator")
           .append(" trigger ")
           .append(entry.triggerNodeId())
           .append(" -> ")
@@ -392,15 +508,14 @@ public class DesignPlanningCapability implements StageCapability {
       }
       text.append('\n');
     }
-    text.append("The trigger is not one of the nodes below. Plan a step for it and give that step")
-        .append(" cip-trigger-generator as an owning skill.\n");
 
     text.append("\nNodes:\n");
     for (SemanticNode node : revision.nodes()) {
       text.append("- ").append(node.nodeId()).append(" (").append(node.kind()).append(')');
       if (node instanceof SemanticNode.ServiceCall call) {
-        text.append(" serviceCallId=")
+        text.append(" targetKind=SERVICE_CALL targetId=")
             .append(call.serviceCallId())
+            .append(" producer=cip-service-call-generator")
             .append(" operation=")
             .append(call.operation())
             .append(" failureMode=")
@@ -416,6 +531,14 @@ public class DesignPlanningCapability implements StageCapability {
                 .append(binding.specificationId())
                 .append(" integrationOperationId=")
                 .append(binding.integrationOperationId());
+          } else {
+            text.append(" unresolvedBindingTargetKind=CATALOG_BINDING")
+                .append(" unresolvedBindingTargetId=")
+                .append(call.serviceCallId())
+                .append(" producerOwnerKind=APIHUB_TOOL")
+                .append(
+                    " producerOperation=get_rest_api_operations_specification"
+                        + "|get_api_operation_specification");
           }
         }
       } else if (node instanceof SemanticNode.Trigger trigger) {
@@ -423,60 +546,51 @@ public class DesignPlanningCapability implements StageCapability {
       }
       text.append('\n');
     }
-    text.append(
-        "Every line that names a service call must include its literal serviceCallId=<id> and "
-            + "serviceCallRole=PRODUCER or serviceCallRole=REFERENCE tokens. Use PRODUCER only "
-            + "for the line that creates the occurrence and REFERENCE for catalog preparation "
-            + "or structural references. Each serviceCallId must have exactly one PRODUCER line. "
-            + "The same catalog operation may occur more than once; keep the distinct "
-            + "serviceCallId of each occurrence.\n");
 
     text.append("\nControl-flow regions:\n");
     if (revision.regions().isEmpty()) {
-      text.append("- none. Do not plan a control-flow generator.\n");
+      text.append("- none\n");
     } else {
       for (SemanticRegion region : revision.regions()) {
-        text.append("- regionId=")
+        text.append("- targetKind=REGION targetId=")
             .append(region.regionId())
             .append(" kind=")
             .append(region.kind())
+            .append(" producer=")
+            .append(DesignPlanContractValidator.ownerForRegion(region))
             .append('\n');
       }
-      text.append(
-          "Each error-handling line must include the literal regionId=<id> of its ERROR_SCOPE.\n");
     }
 
     if (revision.mappingBodies(brief).isEmpty()) {
-      text.append("\nNo mapping intents. Do not plan mapping scripts.\n");
-      List<String> behaviorOwned =
-          DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision);
-      if (!behaviorOwned.isEmpty()) {
-        text.append("Plan one cip-script-generator step for these behavior-owned script nodes: ")
-            .append(String.join(", ", behaviorOwned))
-            .append(". Do not invent mappingIntentId.\n");
-      }
+      text.append("\nMapping intents: none\n");
     } else {
-      text.append(
-          "\nMapping intents. Each mapping-generator numbered line must include the literal token "
-              + "mappingIntentId=<id> inside the parentheses with the skill, for example "
-              + "`3. Encode mapping (cip-script-generator mappingIntentId=map-a)`. "
-              + "Naming the skill without that token fails projection. Do not invent ids. "
-              + "Do not plan cip-transformation-generator. Mapper-2 is off; use"
-              + " cip-script-generator.\n");
+      text.append("\nMapping intents:\n");
       for (MappingIntent mapping : revision.mappingBodies(brief)) {
-        text.append("- ")
+        text.append("- targetKind=MAPPING_INTENT targetId=")
             .append(mapping.mappingIntentId())
-            .append(" mappingIntentId=")
-            .append(mapping.mappingIntentId());
+            .append(" producer=");
         String skill = mappingGeneratorSkill(mapping);
         if (!skill.isBlank()) {
-          text.append(' ').append(skill);
+          text.append(skill);
         }
         text.append(' ')
             .append(mapping.sourceRef())
             .append(" -> ")
             .append(mapping.targetRef())
             .append('\n');
+      }
+    }
+    List<String> behaviorOwned =
+        DefaultChainSemanticRevisionValidator.behaviorOwnedScriptNodeIds(revision);
+    text.append("\nBehavior-owned script nodes:\n");
+    if (behaviorOwned.isEmpty()) {
+      text.append("- none\n");
+    } else {
+      for (String nodeId : behaviorOwned) {
+        text.append("- targetKind=BEHAVIOR_NODE targetId=")
+            .append(nodeId)
+            .append(" producer=cip-script-generator\n");
       }
     }
     for (String constraint : revision.constraints()) {

@@ -9,15 +9,31 @@ import static org.qubership.integration.platform.ai.qipknowledge.artifact.Requir
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 class RequirementFlowValidatorTest {
+
+  @Test
+  void supportedInboundKeysMatchTheCompilerContract() {
+    CompilerContract contract =
+        new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+    Set<String> contractTriggers =
+        contract.elements().keySet().stream()
+            .filter(ChainElementFamilies::isTrigger)
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+    assertEquals(contractTriggers, RequirementFlowValidator.supportedInboundCapabilityKeys());
+  }
 
   @Test
   void acceptsLinearBusinessFlow() {
@@ -256,6 +272,43 @@ class RequirementFlowValidatorTest {
     assertEquals(
         Optional.empty(),
         RequirementFlowValidator.validateBindings(flow, List.of(asyncTrigger), List.of()));
+  }
+
+  @Test
+  void rejectsUnknownEntryPointCapabilityBeforeBriefProjection() {
+    RequirementFlow flow =
+        flow(List.of(interaction("scheduled-run", INBOUND, "Scheduler", "hourly")), List.of());
+    RequirementFact inventedTrigger =
+        new RequirementFact(
+            "scheduled-run",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "quartz-trigger",
+            "Run hourly");
+
+    Optional<String> message =
+        RequirementFlowValidator.validateBindings(flow, List.of(inventedTrigger), List.of());
+
+    assertTrue(message.isPresent());
+    assertTrue(message.orElseThrow().contains("quartz-trigger"), message.orElseThrow());
+    assertTrue(message.orElseThrow().contains("quartz-scheduler"), message.orElseThrow());
+  }
+
+  @Test
+  void acceptsCanonicalQuartzSchedulerEntryPoint() {
+    RequirementFlow flow =
+        flow(List.of(interaction("scheduled-run", INBOUND, "Scheduler", "hourly")), List.of());
+    RequirementFact scheduler =
+        new RequirementFact(
+            "scheduled-run",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "quartz-scheduler",
+            "Run hourly");
+
+    assertEquals(
+        Optional.empty(),
+        RequirementFlowValidator.validateBindings(flow, List.of(scheduler), List.of()));
   }
 
   @Test
