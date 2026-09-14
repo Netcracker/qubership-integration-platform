@@ -261,39 +261,65 @@ class DeploymentServiceTest {
     }
 
     @Test
-    void createRefusesAnInternalTriggerPathAnotherChainUses() {
+    void createRefusesAnInternalTriggerPathAnotherChainUsesInTheSameDomain() {
         Snapshot snapshot = snapshotWithChain();
         ReflectionTestUtils.setField(service, "triggersCheckEnabled", true);
         runTransactionsImmediately();
-        stubHttpTriggers(internalTrigger("POST"), internalTrigger("POST"));
+        stubHttpTriggers(internalTrigger("POST"), internalTrigger("POST"), "domainA");
         Deployment deployment = new Deployment();
         deployment.setDomain("domainA");
 
         assertThatThrownBy(() -> service.create(deployment, snapshot.getChain(), snapshot, null))
                 .isInstanceOf(EntityExistsException.class)
-                .hasMessage("Found similar triggers paths registered by other chains: [shared]");
+                .hasMessage("Found similar triggers paths registered on the same domain: [shared]");
         verify(deploymentRepository, never()).save(any());
     }
 
     @Test
     void createAllowsAnInternalTriggerPathAnotherChainUsesWithOtherMethods() {
+        stubSuccessfulCreate();
         Snapshot snapshot = snapshotWithChain();
-        ReflectionTestUtils.setField(service, "triggersCheckEnabled", true);
-        runTransactionsImmediately();
-        stubHttpTriggers(internalTrigger("POST"), internalTrigger("GET"));
-        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of());
-        when(deploymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        stubHttpTriggers(internalTrigger("POST"), internalTrigger("GET"), "domainA");
         Deployment deployment = new Deployment();
         deployment.setDomain("domainA");
 
         assertThat(service.create(deployment, snapshot.getChain(), snapshot, null)).isSameAs(deployment);
     }
 
-    private void stubHttpTriggers(ChainElement pending, ChainElement otherChain) {
+    @Test
+    void createAllowsAnInternalTriggerPathAnotherChainUsesInAnotherDomain() {
+        stubSuccessfulCreate();
+        Snapshot snapshot = snapshotWithChain();
+        stubHttpTriggers(internalTrigger("POST"), internalTrigger("POST"), "domainB");
+        Deployment deployment = new Deployment();
+        deployment.setDomain("domainA");
+
+        assertThat(service.create(deployment, snapshot.getChain(), snapshot, null)).isSameAs(deployment);
+    }
+
+    @Test
+    void createWithoutDomainDoesNotFailOnTriggersOfOtherChains() {
+        stubSuccessfulCreate();
+        Snapshot snapshot = snapshotWithChain();
+        stubHttpTriggers(internalTrigger("POST"), internalTrigger("POST"), "domainB");
+        Deployment deployment = new Deployment();
+
+        assertThat(service.create(deployment, snapshot.getChain(), snapshot, null)).isSameAs(deployment);
+    }
+
+    private void stubSuccessfulCreate() {
+        ReflectionTestUtils.setField(service, "triggersCheckEnabled", true);
+        runTransactionsImmediately();
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of());
+        when(deploymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+    }
+
+    private void stubHttpTriggers(ChainElement pending, ChainElement otherChain, String otherChainDomain) {
         List<String> types = List.of(CamelNames.HTTP_TRIGGER_COMPONENT);
         when(elementRepository.findAllBySnapshotIdAndTypeIn("snap-1", types)).thenReturn(List.of(pending));
+        List<Object[]> otherChainsTriggers = List.<Object[]>of(new Object[] {otherChain, otherChainDomain});
         when(elementRepository.findElementsForTriggerCheck(eq(types), eq("chain-1"), isNull()))
-                .thenReturn(List.of(otherChain));
+                .thenReturn(otherChainsTriggers);
     }
 
     private static ChainElement internalTrigger(String methods) {
