@@ -1,54 +1,49 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.qubership.integration.platform.runtime.catalog.model.deployment.properties.DeploymentRuntimeProperties;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
+import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 
-import java.util.List;
-
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ChainRuntimePropertiesServiceTest {
     @Mock
     ConsulService consulService;
+    @Mock
+    ActionsLogService actionsLogService;
+    @Mock
+    ChainRepository chainRepository;
+    @Mock
+    ChainFinderService chainFinderService;
     @InjectMocks
     ChainRuntimePropertiesService chainRuntimePropertiesService;
 
-    @BeforeEach
-    void startTransaction() {
-        TransactionSynchronizationManager.initSynchronization();
-    }
+    @Test
+    void savesPropertiesOfExistingChain() {
+        DeploymentRuntimeProperties properties = DeploymentRuntimeProperties.getDefaultValues();
+        when(chainFinderService.findById("chain-1")).thenReturn(Chain.builder().id("chain-1").build());
 
-    @AfterEach
-    void endTransaction() {
-        TransactionSynchronizationManager.clearSynchronization();
+        chainRuntimePropertiesService.saveRuntimeProperties("chain-1", properties);
+
+        verify(consulService).updateChainRuntimeConfig("chain-1", properties);
     }
 
     @Test
-    void deletesCustomPropertiesWhenTransactionCommits() {
-        chainRuntimePropertiesService.deleteCustomRuntimePropertiesAfterCommit(List.of("first", "second"));
-        verifyNoInteractions(consulService);
+    void rejectsPropertiesOfMissingChain() {
+        when(chainFinderService.findById("missing")).thenThrow(new EntityNotFoundException("Can't find chain with id: missing"));
 
-        TransactionSynchronizationManager.getSynchronizations().forEach(TransactionSynchronization::afterCommit);
-
-        verify(consulService).deleteChainRuntimeConfig("first");
-        verify(consulService).deleteChainRuntimeConfig("second");
-    }
-
-    @Test
-    void keepsCustomPropertiesWhenTransactionRollsBack() {
-        chainRuntimePropertiesService.deleteCustomRuntimePropertiesAfterCommit(List.of("kept"));
-
-        TransactionSynchronizationManager.getSynchronizations()
-                .forEach(sync -> sync.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
+        assertThrows(EntityNotFoundException.class, () -> chainRuntimePropertiesService.saveRuntimeProperties(
+                "missing", DeploymentRuntimeProperties.getDefaultValues()));
 
         verifyNoInteractions(consulService);
     }
