@@ -17,8 +17,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
@@ -46,9 +49,11 @@ import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
@@ -1454,9 +1459,80 @@ class RequirementDiscoveryCapabilityTest {
               }
             });
 
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
+    assertEquals(
+        PipelineGates.IDS_PATH_CHOICE,
+        PipelineGates.gateOf(completed.get().outcome().message()).orElseThrow());
     assertTrue(
         completed.get().outcome().candidates().stream()
             .noneMatch(candidate -> candidate.kind() == CompilationArtifacts.Kind.IDS_BYPASS));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"yes", "no"})
+  void idsPathChoiceIsStoredWithoutAnotherDiscoveryTurn(String choice) {
+    RequirementDraftStore store = new RequirementDraftStore();
+    AtomicInteger discoveryTurns = new AtomicInteger();
+    RequirementDraft undecided = petstoreServiceCallDraft();
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            null,
+            (conversationId, userText) -> {
+              discoveryTurns.incrementAndGet();
+              store.beginTurn(conversationId);
+              store.put(conversationId, undecided);
+              store.markCaptured(conversationId);
+              ProductCapabilityCaptureContext.offerDraft(undecided);
+              return Multi.createFrom().empty();
+            });
+    ProductPipelineProfile withBypass =
+        discoveryProfile(
+            List.of(new ArtifactTypeRef("requirement-draft", 2)),
+            List.of(new ArtifactTypeRef("ids-bypass", 1)));
+    StageExecutionContext initial =
+        new StageExecutionContext(
+            "run-ids-choice",
+            "conv-ids-choice",
+            "requirement-discovery",
+            "exec-ids-choice-1",
+            "attempt-ids-choice-1",
+            withBypass,
+            null,
+            List.of(),
+            Map.of("userText", "Call Petstore Ext GET /pets for pending pets."));
+    capability.execute(initial).collect().asList().await().indefinitely();
+
+    StageExecutionContext answer =
+        new StageExecutionContext(
+            "run-ids-choice",
+            "conv-ids-choice",
+            "requirement-discovery",
+            "exec-ids-choice-2",
+            "attempt-ids-choice-2",
+            withBypass,
+            null,
+            List.of(),
+            Map.of("userText", choice));
+    List<CapabilitySignal> signals =
+        capability.execute(answer).collect().asList().await().indefinitely();
+    StageOutcome outcome =
+        signals.stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow()
+            .outcome();
+
+    boolean requested = "yes".equals(choice);
+    assertEquals(1, discoveryTurns.get());
+    assertEquals(requested, store.get("conv-ids-choice").orElseThrow().idsRequested());
+    assertEquals(StageOutcomeClass.CANDIDATE, outcome.outcomeClass());
+    assertEquals(
+        !requested,
+        outcome.candidates().stream()
+            .anyMatch(candidate -> candidate.kind() == CompilationArtifacts.Kind.IDS_BYPASS));
   }
 
   private static RequirementDraft petstoreServiceCallDraft() {
