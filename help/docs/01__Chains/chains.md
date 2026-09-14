@@ -6,6 +6,13 @@ Chain is an integration configuration that consists of Apache Camel (or customiz
 A chain can be triggered by any external consumer, so chain configuration starts with a trigger (HTTP Trigger, MCP Trigger, Kafka Trigger, etc.).
 When the chain configuration is complete, it should be deployed on at least one [Engine Domain](../03__Admin_Tools/1__Domains/domains.md) (otherwise, the chain cannot be triggered).
 
+## Process Initialization
+
+---
+
+- In CIP UI: after logging in to the Web UI, user is navigated directly to "Chains" page to start working with the related functionality.
+- In CIP VSCode Extension: once the extension is launched, user should expand 'CIP' section (available on the left side of the window) and then locate "Chains" subsection to start working with all the related functionalities.
+
 ## User Interface
 
 ---
@@ -52,7 +59,7 @@ Each **chain** contains the following parameters in the table:
 - **Actions menu** - list of operations accessed via the menu icon ![more](img/more.svg):
   - **_Copy link_** - copies chain link to clipboard.
   - _**Edit**_ - opens pop-up to update chain name, description, **custom** labels and additional data, required for DDS generation.
-  - _**Export**_ - exports chain from QIP.
+  - _**Export**_ - exports chain from CIP.
   - _**Generate DDS**_ - generates integration design document, based on the chain data.
   - _**Cut**_ - cuts the chain. To paste it, click "paste" ![carry-out](img/carry-out.svg) button, available on top of the screen.
   - _**Copy**_ - copies chain (whole object). To paste copied chain, click "paste" ![carry-out](img/carry-out.svg) button, available on top of the screen.
@@ -77,7 +84,7 @@ Each **folder** contains the following parameters in the table:
 
 <ins>VS Code Extension</ins>
 
-All chains configured using VS Code Extension appears under the "Chains" section, which is located by expanding "QIP" in the left bottom. Under "Chains" section, a list of created chains is available. Expand the chain to view a list of included elements.
+All chains configured using VS Code Extension appears under the "Chains" section, which is located by expanding "CIP" in the left bottom. Under "Chains" section, a list of created chains is available. Expand the chain to view a list of included elements.
 
 ### Chain Details Side Panel
 **`⛔ Not available via VS Code extension`**
@@ -130,9 +137,9 @@ When all necessary parameters are filled, click **"Submit"** button or use the c
 
 To create a chain using VS Code Extension, follow the steps outlined below:
 1. Open "VS Code Extension" in Visual Studio Code.
-2. In the left bottom find QIP section and expand it.
-3. Next to the "Chains" section, click the **"QIP Create a chain in the current directory"** button.
-4. At the top of Visual Studio Code enter the name of the chain and click `Enter`. Next, it opens the QIP Extension UI with the "blueprint-like" environment on the "Graph" tab to design and configure the chain logic.
+2. In the left bottom find CIP section and expand it.
+3. Next to the "Chains" section, click the **"CIP Create a chain in the current directory"** button.
+4. At the top of Visual Studio Code enter the name of the chain and click `Enter`. Next, it opens the CIP Extension UI with the "blueprint-like" environment on the "Graph" tab to design and configure the chain logic.
 
 ### Move Chain or Folder
 **`⛔ Not available via VS Code extension`**
@@ -294,11 +301,31 @@ You can view the comparison in three modes, switchable at any time:
 
 <ins>VS Code Extension</ins>
 
-Chain comparison is available from a chain's Git history: use any Visual Studio Code action that opens a diff for a `*.chain.qip.yaml` file (for example, **Open Changes** or **Compare with...** in the Source Control view). By default, the QIP visual diff opens in place of the built-in text diff and shows the same **Graph** and **Table** views described above, with the **Previous change**/**Next change** controls. The **Text** view is not available, since it duplicates the built-in text diff.
+Chain comparison is available from a chain's Git history: use any Visual Studio Code action that opens a diff for a `*.chain.cip.yaml` file (for example, **Open Changes** or **Compare with...** in the Source Control view). By default, the CIP visual diff opens in place of the built-in text diff and shows the same **Graph** and **Table** views described above, with the **Previous change**/**Next change** controls. The **Text** view is not available, since it duplicates the built-in text diff.
 
-> ℹ️ **Note**: To compare `*.chain.qip.yaml` files with the built-in text diff instead, enable the **"Integration Designer: Use Default Diff View"** VS Code setting.
+> ℹ️ **Note**: To compare `*.chain.cip.yaml` files with the built-in text diff instead, enable the **"Integration Designer: Use Default Diff View"** VS Code setting.
 
 Because the two compared versions are fixed by Git, there is no chain/snapshot selector above the comparison areas. Clicking a chain or element link in either comparison area opens it in a new editor tab within Visual Studio Code instead of a browser tab.
+
+## Data Storage
+
+---
+
+- In CIP UI: during the process of chain creation, both chain and its configuration are stored in the CIP Catalog database. The chains are available for export from UI.
+- In CIP VSCode Extension: chains created via CIP VS Code Extension are stored locally under a project folder or workspace directory configured by user on file system of respective machine.
+
+## Configuration
+
+---
+
+- When chain is being exported with the marked "**Export related services**" checkbox, system reads environment parameter CIP\_EXPORT\_REMOVE\_UNUSED\_SPECS to decide if it shall export every service's specification or only the ones, that are utilized within the chain and sub-chains.
+- While chain is being exported, system reads environment parameter CIP_EXPORT_LEGACY_FORMAT to decide if it shall export the configuration in new export format _(with revised folder structure)_ or legacy export format.
+
+## API Details
+
+---
+
+API details are described in [APIs with BWC support] article.
 
 ### Constraints
 

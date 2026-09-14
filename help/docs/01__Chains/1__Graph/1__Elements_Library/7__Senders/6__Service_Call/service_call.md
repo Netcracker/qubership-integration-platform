@@ -13,7 +13,7 @@ The tab is responsible for choosing service, its API specification and operation
 Service Call supports operations from **Swagger/WSDL/AsyncAPI/GraphQL/Protobuf** specifications.
 
 | Parameter           | Mandatory | Data Type | Description                                                                                                                   | Sample           |
-| ------------------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------- |
+|---------------------|:----------|:----------|-------------------------------------------------------------------------------------------------------------------------------|------------------|
 | Integration Service | M         | List      | List with all services, available to be selected. Services without a single API specification won't be presented in the list. | Petstore         |
 | API Specification   | M         | List      | List with specifications, grouped by specification groups.                                                                    | v1.0.0           |
 | Operation           | M         | List      | List with all operations, available for selected API Specification.                                                           | GET /pet/{petId} |
@@ -23,14 +23,14 @@ Depending on the selected service, specification and operation, additional secti
 - Path Parameters
 
 | Parameter | Mandatory | Data Type | Description                                                                       | Sample                 |
-| --------- | :-------- | :-------- | --------------------------------------------------------------------------------- | ---------------------- |
+|-----------|:----------|:----------|-----------------------------------------------------------------------------------|------------------------|
 | Name      | O         | String    | Path parameter name.                                                              | petId                  |
 | Value     | O         | String    | Path parameter value. Can be specified as exchangeProperty, constant or variable. | ${exchangeProperty.Id} |
 
 - Query Parameters
 
 | Parameter | Mandatory | Data Type | Description                                                                        | Sample |
-| --------- | :-------- | :-------- | ---------------------------------------------------------------------------------- | ------ |
+|-----------|:----------|:----------|------------------------------------------------------------------------------------|--------|
 | Name      | O         | String    | Query parameter name.                                                              | limit  |
 | Value     | O         | String    | Query parameter value. Can be specified as exchangeProperty, constant or variable. | 10     |
 
@@ -44,7 +44,7 @@ Parameters in sections below are either predefined for selected type of service 
 - Additional Parameters
 
 | Parameter                  | Mandatory | Data Type | Description                                                                                                                                                     | Sample |
-| -------------------------- | :-------- | :-------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
+|----------------------------|:----------|:----------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------|
 | connectTimeout             | O         | String    | Determines the timeout in milliseconds until a connection is established.<br>**Default value:** 120000                                                          | 120000 |
 | soTimeout                  | O         | String    | Defines the socket timeout in milliseconds, which is the timeout for waiting for data.<br>**Default value:** 120000                                             | 120000 |
 | connectionRequestTimeout   | O         | String    | The timeout in milliseconds used when requesting a connection from the connection manager.<br>**Default value:** 120000                                         | 120000 |
@@ -56,7 +56,7 @@ Parameters in sections below are either predefined for selected type of service 
 - Kafka Parameters
 
 | Parameter                     | Mandatory | Data Type | Description                                                                                                                                                                                                         | Sample                              |
-| ----------------------------- | :-------- | :-------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+|-------------------------------|:----------|:----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|
 | topic                         | M         | String    | Name of the topic to use. On the consumer you can use comma to separate multiple topics. A producer can only send a message to a single topic.                                                                      | sample-kafka-topic                  |
 | maas.classifier.name          | M         | String    | Topic classifier name. Parameter is only available for MaaS connection type.                                                                                                                                        | topic1-classifier                   |
 | maas.classifier.namespace     | O         | String    | Specifies classifier namespace, that shall be used instead of default one. If left empty, default namespace will be utilized. Only works, when MaaS has a security permission rule to access a different namespace. | newNamespace                        |
@@ -66,7 +66,7 @@ Parameters in sections below are either predefined for selected type of service 
 - gRPC Parameters
 
 | Parameter   | Mandatory | Data Type | Description                                                                | Sample |
-| ----------- | :-------- | :-------- | -------------------------------------------------------------------------- | ------ |
+|-------------|:----------|:----------|----------------------------------------------------------------------------|--------|
 | synchronous | M         | Boolean   | Checkbox, that defines synchronicity of the service.<br>**Default:** false | false  |
 
 > ⚠️ **Warning:** Service call via gRPC does not support sending of any custom headers.
@@ -74,14 +74,14 @@ Parameters in sections below are either predefined for selected type of service 
 - RabbitMQ Parameters
 
 | Parameter            | Mandatory | Data Type | Description                                                                                               | Sample             |
-| -------------------- | :-------- | :-------- | --------------------------------------------------------------------------------------------------------- | ------------------ |
+|----------------------|:----------|:----------|-----------------------------------------------------------------------------------------------------------|--------------------|
 | exchangeName         | M         | String    | The exchange name determines the exchange, produced messages will be sent to.                             | sample-exchange-v1 |
 | maas.classifier.name | M         | String    | Vhost classifier name. Parameter is only available for MaaS connection type.<br>**Default value:** public | public             |
 
 - GraphQL Query
 
 | Parameter      | Mandatory | Data Type | Description                                                                                                                  | Sample        |
-| -------------- | :-------- | :-------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------- |
+|----------------|:----------|:----------|------------------------------------------------------------------------------------------------------------------------------|---------------|
 | Operation Name | O         | String    | The query or mutation name. Optional if query contains a single operation.                                                   | GetTicketById |
 | Query          | M         | String    | GraphQL query, required to be executed.<br><br>ℹ️ **Note:** More than one query or mutation can be entered at the same time. | N/A           |
 | Variables JSON | O         | String    | The JsonObject instance, that contains the operation variables. Camel Exchange variables can also be used.                   | N/A           |
@@ -115,7 +115,7 @@ query getVehicle {
   * **multipart/form-data** - utilizes composite content type, built by specifying multiple pair of fields and their values:
 
 | Parameter | Mandatory | Data Type | Description                                                                                                                       | Sample             |
-| --------- | :-------- | :-------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+|-----------|:----------|:----------|-----------------------------------------------------------------------------------------------------------------------------------|--------------------|
 | Name      | M         | String    | Name of a section/part in the multipart message.                                                                                  | exchangeId         |
 | MIME type | M         | List      | Customizable list with possible options of MIME types. This fields also allows entering the types, that do not exist in the list. | `application/json` |
 | File name | O         | String    | When section contains a file, its name must be specified in this field.                                                           | ${exchangeId}.json |
@@ -124,7 +124,7 @@ query getVehicle {
 * **application/x-www-form-urlencoded** - message is formed as one query string, where name/value pairs are separated by "&".  Generally used for small sized text-based payloads. When this option is selected, system allows to specify key\pair values via table:
 
 | Parameter | Mandatory | Data Type | Description                                                                                                                                                                     | Sample   |
-| --------- | :-------- | :-------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+|-----------|:----------|:----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------|
 | Name      | M         | String    | Specifies key name. Non-alphanumeric characters will be URL encoded.                                                                                                            | FieldOne |
 | Value     | M         | String    | Specifies key-value. Non-alphanumeric characters will be URL encoded.<br><br>ℹ️ **Note:** Large values must not be entered due to technical limitations of the encoding method. | ValueOne |
 
@@ -136,33 +136,33 @@ The tab is responsible for choosing an action on receiving the request. Possible
     > ℹ️ **Note:** **Some element's details are stored in Camel Exchange properties** and available for usage locally via every "Scripting" module under the Service Call. Such properties (specific ones for the protocol) are listed in the next table (click on the expandable section below):
     > <details><summary>Service Call exchange properties</summary>
     >
-    > | Protocol | Property name | Property description |
-    > | --- | --- | --- |
-    > | **HTTP** | serviceCallMethod | HTTP method |
-    > | **HTTP** | serviceCallSkipEmptyQueryParams | Property indicates whether the "Skip empty query parameters" option in Service Call element is checked/unchecked. |
-    > | **HTTP** | serviceCallUrl | Constructed URL for HTTP call<br><br>ℹ️ **Note:** If **"Skip empty query parameters"** option is checked, any query parameters specified will be excluded from the constructed URL.<br> In case above option is unchecked, all specified query parameters *(including parameters having null/empty values)* will be included in the constructed URL. |
-    > | **HTTP** | serviceCallAddress | Address part of an URL, resolved from service environment |
-    > | **HTTP** | serviceCallPath | Path for operation with path parameters placeholders |
-    > | **HTTP** | `serviceCallQueryParameter_<parameter>` | Property for each query parameter, where `<parameter>` substring is a pure query param name (e.g. *serviceCallQueryParameter_limit*) |
-    > | **HTTP** | `serviceCallPathParameter_<parameter>` | Property for each path parameter, where `<parameter>` substring is a pure path param name (e.g. *serviceCallQueryParameter_orders*) |
-    > | **HTTP** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
-    > | **Kafka** | serviceCallMethod | AsyncAPI operation method |
-    > | **Kafka** | serviceCallTopic | Kafka topic name |
-    > | **Kafka** | serviceCallBrokers | Kafka brokers |
-    > | **Kafka** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
-    > | **AMQP** | serviceCallMethod | AsyncAPI operation method |
-    > | **AMQP** | serviceCallExchange | RabbitMQ exchange name |
-    > | **AMQP** | serviceCallAddress | Server addresses |
-    > | **AMQP** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
-    > | **gRPC** | serviceCallMethod | Service method to call |
-    > | **gRPC** | serviceCallService | Service name |
-    > | **gRPC** | serviceCallAddress | Server address |
-    > | **gRPC** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
-    > | **GraphQL** | serviceCallAddress | Server address |
-    > | **GraphQL** | serviceCallMethod | HTTP method |
-    > | **GraphQL** | serviceCallPath | Operation path |
-    > | **GraphQL** | `serviceCallQueryParameter_<parameter>` | Property for each query parameter, where `<parameter>` substring is a pure query param name (e.g. *serviceCallQueryParameter_operationName*) |
-    > | **GraphQL** | `serviceCallParameter_<parameter>` | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*) |
+    > | Protocol    | Property name                           | Property description                                                                                                                                                                                                                                                                                                                                 |
+    > |-------------|-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+    > | **HTTP**    | serviceCallMethod                       | HTTP method                                                                                                                                                                                                                                                                                                                                          |
+    > | **HTTP**    | serviceCallSkipEmptyQueryParams         | Property indicates whether the "Skip empty query parameters" option in Service Call element is checked/unchecked.                                                                                                                                                                                                                                    |
+    > | **HTTP**    | serviceCallUrl                          | Constructed URL for HTTP call<br><br>ℹ️ **Note:** If **"Skip empty query parameters"** option is checked, any query parameters specified will be excluded from the constructed URL.<br> In case above option is unchecked, all specified query parameters *(including parameters having null/empty values)* will be included in the constructed URL. |
+    > | **HTTP**    | serviceCallAddress                      | Address part of an URL, resolved from service environment                                                                                                                                                                                                                                                                                            |
+    > | **HTTP**    | serviceCallPath                         | Path for operation with path parameters placeholders                                                                                                                                                                                                                                                                                                 |
+    > | **HTTP**    | `serviceCallQueryParameter_<parameter>` | Property for each query parameter, where `<parameter>` substring is a pure query param name (e.g. *serviceCallQueryParameter_limit*)                                                                                                                                                                                                                 |
+    > | **HTTP**    | `serviceCallPathParameter_<parameter>`  | Property for each path parameter, where `<parameter>` substring is a pure path param name (e.g. *serviceCallQueryParameter_orders*)                                                                                                                                                                                                                  |
+    > | **HTTP**    | `serviceCallParameter_<parameter>`      | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*)                                                                                                                                                                                        |
+    > | **Kafka**   | serviceCallMethod                       | AsyncAPI operation method                                                                                                                                                                                                                                                                                                                            |
+    > | **Kafka**   | serviceCallTopic                        | Kafka topic name                                                                                                                                                                                                                                                                                                                                     |
+    > | **Kafka**   | serviceCallBrokers                      | Kafka brokers                                                                                                                                                                                                                                                                                                                                        |
+    > | **Kafka**   | `serviceCallParameter_<parameter>`      | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*)                                                                                                                                                                                        |
+    > | **AMQP**    | serviceCallMethod                       | AsyncAPI operation method                                                                                                                                                                                                                                                                                                                            |
+    > | **AMQP**    | serviceCallExchange                     | RabbitMQ exchange name                                                                                                                                                                                                                                                                                                                               |
+    > | **AMQP**    | serviceCallAddress                      | Server addresses                                                                                                                                                                                                                                                                                                                                     |
+    > | **AMQP**    | `serviceCallParameter_<parameter>`      | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*)                                                                                                                                                                                        |
+    > | **gRPC**    | serviceCallMethod                       | Service method to call                                                                                                                                                                                                                                                                                                                               |
+    > | **gRPC**    | serviceCallService                      | Service name                                                                                                                                                                                                                                                                                                                                         |
+    > | **gRPC**    | serviceCallAddress                      | Server address                                                                                                                                                                                                                                                                                                                                       |
+    > | **gRPC**    | `serviceCallParameter_<parameter>`      | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*)                                                                                                                                                                                        |
+    > | **GraphQL** | serviceCallAddress                      | Server address                                                                                                                                                                                                                                                                                                                                       |
+    > | **GraphQL** | serviceCallMethod                       | HTTP method                                                                                                                                                                                                                                                                                                                                          |
+    > | **GraphQL** | serviceCallPath                         | Operation path                                                                                                                                                                                                                                                                                                                                       |
+    > | **GraphQL** | `serviceCallQueryParameter_<parameter>` | Property for each query parameter, where `<parameter>` substring is a pure query param name (e.g. *serviceCallQueryParameter_operationName*)                                                                                                                                                                                                         |
+    > | **GraphQL** | `serviceCallParameter_<parameter>`      | Property for each additional service call parameter, where `<parameter>` substring is a pure parameter name (e.g. *serviceCallQueryParameter_connectTimeout*)                                                                                                                                                                                        |
     >
     > </details>
 

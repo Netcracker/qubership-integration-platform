@@ -9,6 +9,12 @@ Live Exchanges provides real-time monitoring and management of active (unfinishe
 - **Identify resource-intensive exchanges**: detect hung/stuck exchanges consuming system resources.
 - **Terminate unwanted processes**: forcefully stop non-productive exchanges.
 
+## Process Initialization
+
+---
+
+Functionality is available by navigating to **Admin Tools → Live Exchange** window. Only active (ongoing) exchanges will be available there.
+
 ## User Interface
 
 ---
@@ -38,3 +44,21 @@ The control panel is positioned at the top right of the table and provides the f
 To terminate a live exchange, locate the relevant row in the Live Exchanges table, click  ![stop](img/stop.svg) ("Terminate" button) at the far right, and then click the "Yes" button to confirm your choice.
 
 > ℹ️ **Note:** Once the "Terminate" button is clicked, termination occurs only after the current chain element finishes executing (the next element will not start). Ensure the exchange is no longer required before initiating termination.
+
+## Data Storage
+
+---
+
+Live exchanges are temporary data taken from engine domain runtime processing.
+
+## Configuration
+
+---
+
+No configuration option available in CIP UI.
+
+## API Details
+
+---
+
+No specific API for the functionality.

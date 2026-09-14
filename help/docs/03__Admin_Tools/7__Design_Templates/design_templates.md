@@ -8,6 +8,12 @@
 
 This page allows to manage templates, that could be utilized as part of chain document generation process. Every template from the table is available for all system users.
 
+## Process Initialization
+
+---
+
+Custom templates must be manually uploaded via import functionality available on **Admin Tools** → **Design Templates** window.
+
 ## User Interface
 
 ---
@@ -31,3 +37,21 @@ At the top of the table the following options are available:
 
 ### Add Template
 To upload new template, simply click ![plus](img/plus.svg) button, available on the control panel of the table on "**Design Templates**" tab, drag and drop template in **.md** format into specialized area and confirm operation. Uploaded template will be presented in the table and be available for selection during document generation for any chain.
+
+## Data Storage
+
+---
+
+Data is being stored in CIP Database.
+
+## Configuration
+
+---
+
+Configuration is done by utilizing Cloud Integration Platform user interface capabilities.
+
+## API Details
+
+---
+
+No specific API available.

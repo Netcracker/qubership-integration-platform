@@ -7,7 +7,7 @@
 ---
 Chain should be deployed at least on one domain to enable processing of integration flow. Engine domain is a K8S deployment, which has one or more engine pods, so chain, that is deployed on a particular domain correspondingly will be deployed on each Engine (pod) under particular domain.
 
-Qubership Integration Platform is an engine domain orchestrator in inner namespace, hence for Operator's pod (Catalog or other microservice) there should be a service account automatically created in K8S. Through this account all engines are going to be managed.
+Cloud Integration Platform is an engine domain orchestrator in inner namespace, hence for Operator's pod (Catalog or other microservice) there should be a service account automatically created in K8S. Through this account all engines are going to be managed.
 
 Engine domains are of two types:
 - **Classic** - a domain with engine pods pre-configured via the deployment descriptor.
@@ -15,7 +15,7 @@ Engine domains are of two types:
 
 > ℹ️ **Note**: Availability of the **Classic** and **Micro** domain types is controlled independently via configuration of specific environment parameters (for the correct parameter names, contact your system administrator). If a domain type is disabled, no domains of that type are available for deployment.
 
-Qubership Integration Platform provides view-only window where domain's information could be seen:
+Cloud Integration Platform provides view-only window where domain's information could be seen:
 - Increasing the number of **Classic** engine domains is available **only via deployment descriptor during the deployment** (not in runtime). **Micro** domains, in contrast, are created directly from the deployment dialogs — see [Deployments](../../01__Chains/3__Deployments/deployments.md).
 - **Scaling** (increase/decrease count of engines) is available for each domain independently via configuration on K8S side before installation.
 
@@ -26,6 +26,12 @@ Qubership Integration Platform provides view-only window where domain's informat
 > - [API Kubernetes](https://kubernetes.io/ru/docs/concepts/overview/kubernetes-api/)
 > - [Pod Lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)
 
+## Process Initialization
+
+---
+
+Cloud integration Platform provides view-only window where domain's information could be seen. Project team is responsible for settling the number of engines via deployment descriptor during the deployment. For details, please check the following page: [Templates for multiple domains].
+
 ## User Interface
 
 ---
@@ -35,7 +41,7 @@ Qubership Integration Platform provides view-only window where domain's informat
 
 **Domain table** structure:
 - **Domain** - name of the engine domain. Domains of **Micro** type display a **`micro`** tag and a ![delete](img/delete.svg) button next to the name; click the button to delete the micro domain.
-- **Version** - current build of Qubership Integration Platform.
+- **Version** - current build of Cloud Integration Platform.
 - **Desired engines** - count of engines under domain.
 - **Namespace** - K8S namespace.
 - ![20](img/down.svg) - expands/collapses the domain.
@@ -68,3 +74,21 @@ To expand the engine tree and see **chain deployments**, click ![20](img/down.sv
 - **Chain name** - name of the chain deployed on current engine.
 - **Snapshot Name** - name of the deployed [Snapshot](../../01__Chains/2__Snapshots/snapshots.md).
 - **Status** - deployment status. Detailed information is available in [Deployments page](../../01__Chains/3__Deployments/deployments.md).
+
+## Data Storage
+
+---
+
+No specific information is being stored.
+
+## Configuration
+
+---
+
+The scaling is being settled during the CIP installation. No configuration option available in CIP UI.
+
+## API Details
+
+---
+
+No specific API available.

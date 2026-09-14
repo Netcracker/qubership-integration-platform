@@ -12,7 +12,7 @@ Notifications ![bell](img/bell.svg) are implemented to communicate interactively
 ![close-circle](img/close-circle.svg) **Error** - error messages (e.g. chain was not deployed or some required parameter is not filled in chain element).
 
 Each notification has the following structure:
-1. **Service** (optional) - name of the QIP service where the change occurred.
+1. **Service** (optional) - name of the CIP service where the change occurred.
 2. **Message** - the main content of the notifications.
 3. **Stack trace** (optional) - in case of a technical error, provides the stack trace to help identify the root cause.
 4. **Occurred** - date and time of the notification.
@@ -21,23 +21,23 @@ Each notification has the following structure:
 
 The extension uses the standard Visual Studio Code notification structure.
 
-## Qubership Integration Platform Help
-Qubership Integration Platform Help is a UI embedded guide on how to work with QIP. For each UI page or QIP element there is a particular help page.
+## Cloud Integration Platform Help
+Cloud Integration Platform Help is a UI embedded guide on how to work with CIP. For each UI page or CIP element there is a particular help page.
 
-To open QIP Help:
+To open CIP Help:
 
 1. Log in to <ins>Web UI</ins>.
-2. Navigate to some page or popup of some QIP element. Click icon ![question-circle](img/question-circle.svg) (for the page - top-right side, for the QIP element popup - top left side near the element type in curly brackets). The appropriate page opens in a new browser tab.
-3. Use **pages navigation tree** on the left side of QIP Helper to go through the pages and **"Search Documentation... ![search](img/search.svg)"** text field to find particular information by full-text search.
+2. Navigate to some page or popup of some CIP element. Click icon ![question-circle](img/question-circle.svg) (for the page - top-right side, for the CIP element popup - top left side near the element type in curly brackets). The appropriate page opens in a new browser tab.
+3. Use **pages navigation tree** on the left side of CIP Helper to go through the pages and **"Search Documentation... ![search](img/search.svg)"** text field to find particular information by full-text search.
 
 ## Export/Import
 **`⛔ Not available via VS Code extension`**
 
-QIP provides an ability to export ![download](img/cloud-download.svg) and import ![upload](img/cloud-upload.svg) different entities.
-The export function supports both **legacy** and **new** formats for QIP artifacts.
+CIP provides an ability to export ![download](img/cloud-download.svg) and import ![upload](img/cloud-upload.svg) different entities.
+The export function supports both **legacy** and **new** formats for CIP artifacts.
 Switching between legacy and new format option for export is possible via configuration of specific environment parameter
 (for the correct parameter name, contact your system administrator).
-The following tables specify the structure for QIP artifacts in the different supported formats.
+The following tables specify the structure for CIP artifacts in the different supported formats.
 
 <details><summary>Export - New Format</summary>
 
@@ -59,7 +59,7 @@ Project root (git/SVN root, not included in zip-archive)
 │       ├── specification-{specification_id}.yaml                              yaml configuration of the API Specification [0..N]
 │       └── source-{specification_id}/                                         container for specifications of the group [0..N]
 │           └── {specification_name}.{json|yaml|wsdl|xsd}                      swagger | asyncAPI | wsdl specification source file [1..N]
-├── variables/                                                                 common QIP variables [1..1]
+├── variables/                                                                 common CIP variables [1..1]
 │   └── common-variables.yaml                                                  yaml file with list of common variables (will be exported every time if exist at least one variable) [0..1]
 └── import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
 ```
@@ -86,7 +86,7 @@ Project root (git/SVN root, not included in zip-archive)
 │       ├── specification-{specification_id}.yaml                              yaml configuration of the API Specification [0..N]
 │       └── source-{specification_id}/                                         container for specifications of the group [0..N]
 │           └── {specification_name}.{json|yaml|wsdl|xsd}                      swagger | asyncAPI | wsdl specification source file [1..N]
-├── variables/                                                                 common QIP variables [1..1]
+├── variables/                                                                 common CIP variables [1..1]
 │   └── common-variables.yaml                                                  yaml file with list of common variables (will be exported every time if exist at least one variable) [0..1]
 └── import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
 ```
@@ -127,12 +127,12 @@ The tenant is set during login, when you select the domain.
 ## Go to Home Page
 **`⛔ Not available via VS Code extension`**
 
-In the top-left corner, the “QIP” button returns you to the home page, which lists all chains and chain folders.
+In the top-left corner, the “CIP” button returns you to the home page, which lists all chains and chain folders.
 
 ## Switch between Blue and Green versions
 **`⛔ Not available via VS Code extension`**
 
-To switch between Blue and Green configuration versions in QIP, use the selector at the top right of the screen. This selector is only visible on environments, properly configured for Blue/Green approach.
+To switch between Blue and Green configuration versions in CIP, use the selector at the top right of the screen. This selector is only visible on environments, properly configured for Blue/Green approach.
 
 ## Reset UI Configuration
 **`⛔ Not available via VS Code extension`**

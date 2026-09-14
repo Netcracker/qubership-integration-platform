@@ -5,7 +5,13 @@
 ## Description
 
 ---
-**Diagnostic** page provides an ability to identify common issues in the system, present them in the table and provide clear instructions for their resolution. There are several native validations supplied with Qubership Integration Platform, but it is also possible to upload new ones via smartplug.
+**Diagnostic** page provides an ability to identify common issues in the system, present them in the table and provide clear instructions for their resolution. There are several native validations supplied with Cloud Integration Platform, but it is also possible to upload new ones via smartplug.
+
+## Process Initialization
+
+---
+
+Current page is available under the "[Admin Tools]" menu.
 
 ## User Interface
 
@@ -61,3 +67,21 @@ Navigate to Admin Tools and then "Diagnostic page" tab. Select required validati
 - **Unsupported elements found in the chain** - rule allows to find chains with elements that are no longer supported by the system.
 
 > ℹ️ **Note:** **Each validation performed on chain element data relies solely on the current design-time chain configuration.** Chain snapshots or deployments do not affect the results of these validations.
+
+## Data Storage
+
+---
+
+Validation results are stored in CIP DB.
+
+## Configuration
+
+---
+
+Default set of validations is being delivered as part of OOB, custom ones can be uploaded via smartplug.
+
+## API Details
+
+---
+
+No specific API available.

@@ -6,6 +6,11 @@
 
 ---
 Snapshot represents a chain state in the particular moment. In a nutshell, snapshot is a chain XML representation which could be a basis for chain deployment (chain cannot be deployed in intermediate state). Chain could be reverted to any existing snapshot if required.
+## Process Initialization
+
+---
+Snapshot shall be created manually via CIP UI (navigate to "**Snapshots**" tab, available for each chain).
+
 ## User Interface
 
 ---
@@ -13,7 +18,7 @@ Snapshot represents a chain state in the particular moment. In a nutshell, snaps
 There is a **"Snapshots"** tab, available for each particular chain. By navigating to this tab user will be presented with a table, that contains next info and control elements:
 - **Name** - snapshot's name. First snapshot is automatically named "**V1**". Every subsequent snapshot will be named with incremented number (**V2**, **V3**, etc).
     > ℹ️ **Note**: To **change** snapshot's **current version name**, hover the mouse on the version name of suitable snapshot, click on it, type new version name and click **`Enter`**.
-- **Labels** - list of colored snapshot labels, unique within particular snapshot. It might contain **custom** labels, entered on the snapshot by user via Qubership Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Custom** labels can be added or removed clicking on the row respectively. **Technical** labels cannot be updated manually.
+- **Labels** - list of colored snapshot labels, unique within particular snapshot. It might contain **custom** labels, entered on the snapshot by user via Cloud Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Custom** labels can be added or removed clicking on the row respectively. **Technical** labels cannot be updated manually.
 - **Created By** - username of snapshot creation.
 - **Created At** - the datetime of snapshot creation.
 - **Modified By** - username of snapshot modification.
@@ -58,3 +63,18 @@ Sequence diagram could be exported via button **"Export"** with 3 output formats
 Select exactly two snapshots using the checkboxes and click ![diff](img/diff.svg) to open the **Chain compare** dialog.
 
 > ℹ️ **Note**: The dialog reuses the same comparison feature described in the **Compare Chains** section of [Chains](../chains.md) — the **Graph**, **Table**, and **Text** views, the color-coded element states, the **Previous change**/**Next change** navigation, and the fullscreen toggle — applied to the two selected snapshots instead of two chains.
+
+## Data Storage
+
+---
+No specific storage logic available.
+
+## Configuration
+
+---
+No specific configuration available.
+
+## API Details
+
+---
+No specific API available.
