@@ -42,19 +42,6 @@
     <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
   </properties>
 
-  <repositories>
-    <repository>
-      <id>github</id>
-      <url>https://maven.pkg.github.com/netcracker/*</url>
-      <releases>
-        <enabled>true</enabled>
-      </releases>
-      <snapshots>
-        <enabled>true</enabled>
-      </snapshots>
-    </repository>
-  </repositories>
-
   <dependencyManagement>
     <dependencies>
       <!-- BOMs -->
