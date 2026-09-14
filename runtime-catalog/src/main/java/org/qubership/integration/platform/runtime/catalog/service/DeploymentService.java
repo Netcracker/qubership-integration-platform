@@ -426,15 +426,11 @@ public class DeploymentService {
             return;
         }
 
-        // Each row is an element and the domain of a deployment of its snapshot.
-        List<Object[]> otherChainsTriggers = elementRepository.findElementsForTriggerCheck(
-                triggersToCheck,
-                chainId,
-                SQLUtils.prepareCollectionForHqlNotInClause(excludeDeploymentIds));
         List<ElementRoute> allRoutes = mapHttpTriggerRoutes(
-                otherChainsTriggers.stream().map(row -> (ChainElement) row[0]).toList());
-        List<ElementRoute> sameDomainRoutes = mapHttpTriggerRoutes(
-                otherChainsTriggers.stream().filter(row -> Objects.equals(domain, row[1])).map(row -> (ChainElement) row[0]).toList());
+                elementRepository.findElementsForTriggerCheck(
+                        triggersToCheck,
+                        chainId,
+                        SQLUtils.prepareCollectionForHqlNotInClause(excludeDeploymentIds)));
 
         List<ElementRoute> otherDomainsRoutes = mapHttpTriggerRoutes(
                 elementRepository.findElementsForDomainTriggerCheck(
@@ -443,20 +439,15 @@ public class DeploymentService {
                         chainId,
                         SQLUtils.prepareCollectionForHqlNotInClause(excludeDeploymentIds)));
 
-        Set<String> gatewayEqualPaths = findSameHttpTriggerPaths(pendingRoutes, allRoutes, true);
-        Set<String> otherDomainsEqualPaths = findSameHttpTriggerPaths(pendingRoutes, otherDomainsRoutes, false);
-        // Chains of one domain share its engine servlet, so internal routes collide there too.
-        Set<String> sameDomainEqualPaths = findSameHttpTriggerPaths(pendingRoutes, sameDomainRoutes, false);
+        Set<String> otherChainsEqualPaths = findSameHttpTriggerPaths(pendingRoutes, allRoutes);
+        Set<String> otherDomainsEqualPaths = findSameHttpTriggerPaths(pendingRoutes, otherDomainsRoutes);
 
-        if (!gatewayEqualPaths.isEmpty()) {
-            throw new EntityExistsException("Found similar triggers paths registered on public/private gateway: "
-                    + gatewayEqualPaths);
+        if (!otherChainsEqualPaths.isEmpty()) {
+            throw new EntityExistsException("Found similar triggers paths registered by other chains: "
+                    + otherChainsEqualPaths);
         }
         if (!otherDomainsEqualPaths.isEmpty()) {
             throw new EntityExistsException("Found similar triggers path registered on other domains: " + otherDomainsEqualPaths);
-        }
-        if (!sameDomainEqualPaths.isEmpty()) {
-            throw new EntityExistsException("Found similar triggers paths registered on the same domain: " + sameDomainEqualPaths);
         }
     }
 
@@ -481,12 +472,12 @@ public class DeploymentService {
         return listOfObjects.stream().map(ChainElementAdapter::new).map(TriggerUtils::getSdsTriggerJobId).toList();
     }
 
-    private Set<String> findSameHttpTriggerPaths(List<ElementRoute> pendingRoutes, List<ElementRoute> existingRoutes, boolean checkGatewayOnly) {
+    private Set<String> findSameHttpTriggerPaths(List<ElementRoute> pendingRoutes, List<ElementRoute> existingRoutes) {
         Set<String> equalPaths = new HashSet<>();
 
         Map<String, Set<HttpMethod>> pendingPathIntersection = new HashMap<>();
         for (ElementRoute route : pendingRoutes) {
-            if (StringUtils.isNotBlank(route.getPath()) && (!checkGatewayOnly || route.isExternal() || route.isPrivate())) {
+            if (StringUtils.isNotBlank(route.getPath())) {
                 Set<HttpMethod> intersectionMethods = pendingPathIntersection.get(route.getPath());
                 if (intersectionMethods != null) {
                     if (route.getMethods().stream().anyMatch(intersectionMethods::contains)) {
@@ -499,7 +490,7 @@ public class DeploymentService {
         }
 
         for (ElementRoute route : existingRoutes) {
-            if (StringUtils.isNotBlank(route.getPath()) && (!checkGatewayOnly || route.isExternal() || route.isPrivate())) {
+            if (StringUtils.isNotBlank(route.getPath())) {
                 Set<HttpMethod> intersectionMethods = pendingPathIntersection.get(route.getPath());
                 if (intersectionMethods != null) {
                     if (route.getMethods().stream().anyMatch(intersectionMethods::contains)) {
