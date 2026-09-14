@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -200,6 +201,19 @@ public class RequirementDiscoveryCapability implements StageCapability {
               new CapabilitySignal.Completed(
                   StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
     }
+    RequirementDraft current = draftStore.get(conversationId).orElse(null);
+    Boolean idsChoice = idsChoice(userMessage);
+    if (current != null
+        && current.readyForPlan()
+        && current.idsRequested() == null
+        && stageDeclaresIdsBypass(context)
+        && idsChoice != null) {
+      RequirementDraft decided = current.withIdsRequested(idsChoice);
+      draftStore.beginTurn(conversationId);
+      draftStore.put(conversationId, decided);
+      draftStore.markCaptured(conversationId);
+      return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(decided)));
+    }
     AtomicReference<RequirementDraft> captured = new AtomicReference<>();
     ToolSession.bind(conversationId);
     Context toolSessionContext = ToolSession.attachedContext();
@@ -285,6 +299,16 @@ public class RequirementDiscoveryCapability implements StageCapability {
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
     }
+    if (draft.readyForPlan()
+        && draft.idsRequested() == null
+        && stageDeclaresIdsBypass(context)) {
+      return new CapabilitySignal.Completed(
+          StageOutcome.of(
+              StageOutcomeClass.NEEDS_INPUT,
+              PipelineGates.tag(
+                  PipelineGates.IDS_PATH_CHOICE,
+                  "Show the Integration Design Specification (IDS) for review?")));
+    }
     if (draft.facts().isEmpty()) {
       return new CapabilitySignal.Completed(
           StageOutcome.of(
@@ -361,6 +385,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
             stage ->
                 declaresKind(stage.optionalProduces(), CompilationArtifacts.Kind.IDS_BYPASS)
                     || declaresKind(stage.produces(), CompilationArtifacts.Kind.IDS_BYPASS));
+  }
+
+  private static Boolean idsChoice(String userMessage) {
+    String choice = userMessage == null ? "" : userMessage.strip();
+    if (!ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(choice)) {
+      return null;
+    }
+    return "yes".equals(choice);
   }
 
   private static boolean declaresCatalogBindingHintProduce(ProfileStage stage) {

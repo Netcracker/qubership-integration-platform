@@ -252,9 +252,8 @@ public class RequirementDraftTool {
       Do not set decision=READY_FOR_PLAN while an API Hub candidate is pending import.
       Set idsRequested from what the author says about the Integration Design Specification:
       true when they ask for one, false when they say they do not want one. Leave it out while
-      they have not said either way. If it is still unset when the requirements are otherwise
-      ready, ask once whether to produce the specification and record the answer on the next
-      capture; do not ask again after that.
+      they have not said either way. When the requirements are otherwise ready, keep
+      idsRequested unset and set READY_FOR_PLAN. The server then presents the IDS choice.
       After a successful READY_FOR_PLAN capture in this turn, do not call captureRequirementDraft
       again and do not repeat the ready-for-planning assistant text.
       {
