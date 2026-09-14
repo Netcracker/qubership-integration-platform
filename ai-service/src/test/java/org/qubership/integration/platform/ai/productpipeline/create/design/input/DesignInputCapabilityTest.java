@@ -194,6 +194,12 @@ class DesignInputCapabilityTest {
     assertEquals(StageOutcomeClass.SUCCEEDED, prepared.outcomeClass());
     assertEquals(
         Set.of(Kind.CHAIN_SEMANTIC_REVISION, Kind.IDS_DOCUMENT), kinds(prepared));
+    String markdown = idsPayload(prepared).markdown();
+    assertTrue(markdown.contains("participant Service1 as OM"), markdown);
+    assertTrue(markdown.contains("participant Service2 as Salesforce"), markdown);
+    assertTrue(markdown.contains("Service1->>CIP: onTaskStart"), markdown);
+    assertTrue(markdown.contains("CIP->>Service2: createTask"), markdown);
+    assertTrue(markdown.contains("CIP->>Service1: onTaskResult"), markdown);
   }
 
   @Test
