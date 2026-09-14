@@ -39,8 +39,8 @@ class DesignPlanProjectorTest {
     String report =
         """
         1. Generate HTTP Trigger element (cip-trigger-generator)
-        2. Generate Service Call element for Salesforce WFM.createTask (cip-service-call-generator serviceCallId=create-primary)
-        3. Generate Service Call element for Salesforce WFM.createTask again (cip-service-call-generator serviceCallId=create-primary)
+        2. Generate Service Call element for Salesforce WFM.createTask (cip-service-call-generator serviceCallId=create-primary serviceCallRole=PRODUCER)
+        3. Generate Service Call element for Salesforce WFM.createTask again (cip-service-call-generator serviceCallId=create-primary serviceCallRole=PRODUCER)
         4. Generate execution structure (cip-structure-generator)
         5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
         6. Validate the assembled chain (cip-chain-validator)
@@ -64,11 +64,11 @@ class DesignPlanProjectorTest {
     ChainSemanticRevision revision = twoCallsToTheSameOperation();
     String report =
         """
-        1. Resolve catalog binding (cip-service-call-generator serviceCallId=create-primary)
+        1. Resolve catalog binding (cip-service-call-generator serviceCallId=create-primary serviceCallRole=REFERENCE)
         2. Generate HTTP Trigger element (cip-trigger-generator)
-        3. Generate Service Call element (cip-service-call-generator serviceCallId=create-primary)
-        4. Generate Service Call element (cip-service-call-generator serviceCallId=create-secondary)
-        5. Connect create-primary to create-secondary (cip-structure-generator serviceCallId=create-primary)
+        3. Generate Service Call element (cip-service-call-generator serviceCallId=create-primary serviceCallRole=PRODUCER)
+        4. Generate Service Call element (cip-service-call-generator serviceCallId=create-secondary serviceCallRole=PRODUCER)
+        5. Connect create-primary to create-secondary (cip-structure-generator serviceCallId=create-primary serviceCallRole=REFERENCE)
         6. Generate execution structure (cip-structure-generator)
         7. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
         8. Validate the assembled chain (cip-chain-validator)
@@ -90,14 +90,43 @@ class DesignPlanProjectorTest {
   }
 
   @Test
+  void usesTheDeclaredServiceCallRoleInsteadOfPlannerProse() {
+    ChainSemanticRevision revision = twoCallsToTheSameOperation();
+    String report =
+        """
+        1. Inspect the existing catalog choice (cip-service-call-generator serviceCallId=create-primary serviceCallRole=REFERENCE)
+        2. Generate HTTP Trigger element (cip-trigger-generator)
+        3. Materialize the first occurrence (cip-service-call-generator serviceCallId=create-primary serviceCallRole=PRODUCER)
+        4. Materialize the second occurrence (cip-service-call-generator serviceCallId=create-secondary serviceCallRole=PRODUCER)
+        5. Wire the occurrences (cip-structure-generator serviceCallId=create-primary serviceCallRole=REFERENCE)
+        6. Generate execution structure (cip-structure-generator)
+        7. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        8. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    DesignExecutionPlan plan =
+        projector.project(
+            new DesignPlanReport("1", report),
+            revision,
+            samplePin(revision, sampleDag()),
+            repeatedOperationBrief());
+
+    assertEquals("create-primary", plan.steps().get(0).serviceCallId());
+    assertEquals("create-primary", plan.steps().get(2).serviceCallId());
+    assertEquals("create-secondary", plan.steps().get(3).serviceCallId());
+  }
+
+  @Test
   void rejectsUnknownOccurrenceOnAConnectionReference() {
     ChainSemanticRevision revision = twoCallsToTheSameOperation();
     String report =
         """
         1. Generate HTTP Trigger element (cip-trigger-generator)
-        2. Generate Service Call element (cip-service-call-generator serviceCallId=create-primary)
-        3. Generate Service Call element (cip-service-call-generator serviceCallId=create-secondary)
-        4. Connect missing call (cip-structure-generator serviceCallId=create-ghost)
+        2. Generate Service Call element (cip-service-call-generator serviceCallId=create-primary serviceCallRole=PRODUCER)
+        3. Generate Service Call element (cip-service-call-generator serviceCallId=create-secondary serviceCallRole=PRODUCER)
+        4. Connect missing call (cip-structure-generator serviceCallId=create-ghost serviceCallRole=REFERENCE)
         5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
         6. Validate the assembled chain (cip-chain-validator)
         If you agree, reply **Agree** or **Execute plan** to proceed.
@@ -124,8 +153,8 @@ class DesignPlanProjectorTest {
     String report =
         """
         1. Generate HTTP Trigger element (cip-trigger-generator)
-        2. Generate Service Call element for OM.createTask (cip-service-call-generator serviceCallId=create-task)
-        3. Generate Service Call element for Salesforce.onTaskResult (cip-service-call-generator serviceCallId=task-result)
+        2. Generate Service Call element for OM.createTask (cip-service-call-generator serviceCallId=create-task serviceCallRole=PRODUCER)
+        3. Generate Service Call element for Salesforce.onTaskResult (cip-service-call-generator serviceCallId=task-result serviceCallRole=PRODUCER)
         4. Generate execution structure (cip-structure-generator)
         5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
         6. Validate the assembled chain (cip-chain-validator)

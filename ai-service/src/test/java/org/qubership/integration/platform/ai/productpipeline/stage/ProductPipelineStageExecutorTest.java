@@ -1560,11 +1560,83 @@ class ProductPipelineStageExecutorTest {
     StageDecision.WaitForInput second =
         assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
 
-    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(second.prompt()).orElseThrow());
-    assertEquals(ProductPipelineStageExecutor.REPEATED_RECOVERY_SUMMARY, PipelineGates.strip(second.prompt()));
+    assertEquals(PipelineGates.STAGE_REVISE, PipelineGates.gateOf(second.prompt()).orElseThrow());
+  }
+
+  @Test
+  void aChangedPlanningContractFailureGetsAnotherRepairAttempt() {
+    AtomicInteger calls = new AtomicInteger();
+    StageCapability planning =
+        capability(
+            "planning-cap",
+            context -> {
+              int call = calls.incrementAndGet();
+              if (call <= 2) {
+                String message =
+                    call == 1
+                        ? "planner report missing producing step for serviceCallId=create-task"
+                        : "serviceCallId=create-task has more than one producing step";
+                return Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, message)));
+              }
+              return planningAlwaysCandidate().execute(context);
+            });
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            profile,
+            analysisCandidate(),
+            planning,
+            succeeding("execution-cap", new AtomicInteger()));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+
+    StageExecutionResult first = execute(runtime, "design-planning");
+    assertInstanceOf(StageDecision.Retry.class, first.decision());
+    applyLifecycle(runtime, first);
+
+    StageExecutionResult second = execute(runtime, "design-planning");
+    assertInstanceOf(StageDecision.Retry.class, second.decision());
+    applyLifecycle(runtime, second);
+
+    assertInstanceOf(
+        StageDecision.WaitForApproval.class, execute(runtime, "design-planning").decision());
+    assertEquals(3, calls.get());
+  }
+
+  @Test
+  void aRepeatedPlanningContractFailureOffersPlanRebuild() {
+    StageCapability planning =
+        capability(
+            "planning-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.CONTRACT_FAILURE,
+                                "planner report missing producing step for serviceCallId=create-task"))));
+    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    CreateChainTestOrchestrator runtime =
+        newRuntime(
+            profile,
+            analysisCandidate(),
+            planning,
+            succeeding("execution-cap", new AtomicInteger()));
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+
+    StageDecision.WaitForInput wait =
+        waitAfterOptionalSemanticRepair(runtime, "design-planning");
+
     assertEquals(
-        List.of(PipelineGates.STOP_WITH_REPORT_ACTION),
-        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPEATED));
+        PipelineGates.RECOVERY_REBUILD_PLAN,
+        PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertEquals(
+        List.of(ChatEvent.REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REBUILD_PLAN));
   }
 
   @Test

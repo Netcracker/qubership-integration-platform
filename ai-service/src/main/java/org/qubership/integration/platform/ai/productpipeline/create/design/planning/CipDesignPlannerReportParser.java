@@ -30,6 +30,8 @@ public final class CipDesignPlannerReportParser {
       Pattern.compile("mappingIntentId=([A-Za-z0-9_-]+)");
   private static final Pattern SERVICE_CALL_ID =
       Pattern.compile("serviceCallId=([A-Za-z0-9_-]+)");
+  private static final Pattern SERVICE_CALL_ROLE =
+      Pattern.compile("serviceCallRole=(PRODUCER|REFERENCE)");
   private static final Pattern REGION_ID = Pattern.compile("regionId=([A-Za-z0-9_-]+)");
 
   public ParsedPlannerReport parse(String markdown) {
@@ -65,6 +67,22 @@ public final class CipDesignPlannerReportParser {
       String reportText = stepMatcher.group(2).trim();
       List<String> skillIds = extractSkillIds(reportText);
       List<String> toolOps = extractToolOps(reportText);
+      String serviceCallId = extractToken(SERVICE_CALL_ID, reportText);
+      ParsedPlannerReport.ServiceCallRole serviceCallRole = extractServiceCallRole(reportText);
+      if (!serviceCallId.isBlank()
+          && serviceCallRole == ParsedPlannerReport.ServiceCallRole.NONE) {
+        throw new PlannerReportFormatException(
+            "planner report step "
+                + ordinal
+                + " must declare serviceCallRole=PRODUCER or serviceCallRole=REFERENCE");
+      }
+      if (serviceCallId.isBlank()
+          && serviceCallRole != ParsedPlannerReport.ServiceCallRole.NONE) {
+        throw new PlannerReportFormatException(
+            "planner report step "
+                + ordinal
+                + " declares a serviceCallRole without serviceCallId=<id>");
+      }
       ParsedPlannerReport.OwnerKind ownerKind =
           !toolOps.isEmpty() || reportText.toLowerCase(Locale.ROOT).contains("apihub mcp")
               ? ParsedPlannerReport.OwnerKind.APIHUB_TOOL
@@ -93,7 +111,8 @@ public final class CipDesignPlannerReportParser {
               List.of(),
               extractOperationQueryHints(reportText),
               extractMappingIntentId(reportText),
-              extractToken(SERVICE_CALL_ID, reportText),
+              serviceCallId,
+              serviceCallRole,
               extractToken(REGION_ID, reportText)));
     }
     if (steps.isEmpty()) {
@@ -140,5 +159,12 @@ public final class CipDesignPlannerReportParser {
   private static String extractToken(Pattern pattern, String reportText) {
     Matcher matcher = pattern.matcher(reportText);
     return matcher.find() ? matcher.group(1) : "";
+  }
+
+  private static ParsedPlannerReport.ServiceCallRole extractServiceCallRole(String reportText) {
+    String role = extractToken(SERVICE_CALL_ROLE, reportText);
+    return role.isBlank()
+        ? ParsedPlannerReport.ServiceCallRole.NONE
+        : ParsedPlannerReport.ServiceCallRole.valueOf(role);
   }
 }
