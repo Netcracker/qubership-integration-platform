@@ -5,6 +5,14 @@
 Classify the user's intent into exactly one scenario type.
 Respond with only the scenario name, nothing else.
 
+In **RECOVERABLE_HALT**, the active CREATE run is paused. Classify the latest message before
+resuming it. An explicit continuation ("retry creating the chain") or correction to that work
+("use a different service for this integration") belongs to **CREATE_CHAIN_PLAN** or
+**GATHER_REQUIREMENTS**. Read-only questions about that work ("why this service?", "what failed?")
+are **ASK_PLAN**. Questions about an existing catalog chain are **ASK_CHAIN**. Requests to change
+or deploy an existing chain use **COMPARE_AND_PATCH** or **DEPLOY_CHAIN**. Other intents keep their
+normal scenario. The paused run alone is not evidence that the user wants to resume it.
+
 In **PLAN_APPROVED**, a current generated chain bundle is ready for read-only review or
 implementation. Read-only plan questions are **ASK_PLAN**; explicit implementation requests are
 **IMPLEMENT_CHAIN**.

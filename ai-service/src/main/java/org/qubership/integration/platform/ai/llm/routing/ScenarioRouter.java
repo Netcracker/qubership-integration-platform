@@ -119,15 +119,12 @@ public class ScenarioRouter {
   }
 
   public Multi<ChatEvent> route(ChatRequest request, String conversationId) {
+    boolean atRecoverableHalt = false;
     if (createRunSelectionService != null && productPipelineChatAdapter != null) {
       try {
-        if (createRunSelectionService.existing(conversationId).isPresent()
-            && recoverableHalt(conversationId)) {
-          LOG.infof(
-              "Routing conversationId=%s to product CREATE pipeline (halt follow-up)",
-              conversationId);
-          return productPipelineChatAdapter.handle(request, conversationId);
-        }
+        atRecoverableHalt =
+            createRunSelectionService.existing(conversationId).isPresent()
+                && recoverableHalt(conversationId);
       } catch (UnsupportedCreateRunBindingException e) {
         LOG.warnf(
             "Unsupported CREATE binding conversationId=%s errorId=%s",
@@ -141,15 +138,19 @@ public class ScenarioRouter {
     // exists is not the run's to take -- not even mid-run, when the chain in question is the one
     // the run has just built and the reader has moved on to changing it.
     boolean hasChain = hasOpenChain(request, conversationId);
-    RoutingOutcome aboutOpenChain = null;
-    if (hasChain) {
-      aboutOpenChain = resolveRouting(request, conversationId, hasChain);
-      if (!isOpenChainScenario(aboutOpenChain.scenarioType())) {
-        aboutOpenChain = null;
+    RoutingOutcome classifiedOutcome =
+        atRecoverableHalt ? resolveHaltRouting(request, conversationId) : null;
+    if (!atRecoverableHalt && hasChain) {
+      classifiedOutcome = resolveRouting(request, conversationId, hasChain);
+      if (!isOpenChainScenario(classifiedOutcome.scenarioType())) {
+        classifiedOutcome = null;
       }
     }
 
-    if (aboutOpenChain == null && createRunSelectionService != null && productPipelineChatAdapter != null) {
+    if (!atRecoverableHalt
+        && classifiedOutcome == null
+        && createRunSelectionService != null
+        && productPipelineChatAdapter != null) {
       try {
         if (createRunSelectionService.existing(conversationId).isPresent()
             && !createRunFinished(conversationId)) {
@@ -166,7 +167,9 @@ public class ScenarioRouter {
     }
 
     RoutingOutcome outcome =
-        aboutOpenChain != null ? aboutOpenChain : resolveRouting(request, conversationId, hasChain);
+        classifiedOutcome != null
+            ? classifiedOutcome
+            : resolveRouting(request, conversationId, hasChain);
     if (outcome.errorMessage() != null) {
       LOG.warnf(
           "Routing error response conversationId=%s message=%s",
@@ -181,6 +184,12 @@ public class ScenarioRouter {
     }
 
     ScenarioType classified = outcome.scenarioType();
+    if (atRecoverableHalt && isCreateOwnedScenario(classified)) {
+      LOG.infof(
+          "Routing conversationId=%s to product CREATE pipeline (classified halt follow-up)",
+          conversationId);
+      return productPipelineChatAdapter.handle(request, conversationId);
+    }
     final ScenarioType type;
     if (createRunSelectionService != null
         && productPipelineChatAdapter != null
@@ -267,10 +276,7 @@ public class ScenarioRouter {
             .orElse(false);
   }
 
-  /**
-   * True when the bound CREATE run is at a recoverable halt. A typed follow-up stays on that run
-   * and is not a new router classification.
-   */
+  /** True when the bound CREATE run is paused and each typed follow-up needs classification. */
   private boolean recoverableHalt(String conversationId) {
     if (createChainFacade == null) {
       return false;
@@ -284,6 +290,25 @@ public class ScenarioRouter {
         .map(PendingAction.Clarify::gateId)
         .filter(PipelineGates::isRecoverableHaltGate)
         .isPresent();
+  }
+
+  private RoutingOutcome resolveHaltRouting(ChatRequest request, String conversationId) {
+    // Page hints and phase shortcuts cannot tell a recovery instruction from a question.
+    // Keep the raw classification: CREATE fallback or open-chain coercion would change its owner.
+    try {
+      ScenarioType type =
+          routerAgent.classify(
+              buildRouterTranscript(conversationId), "RECOVERABLE_HALT", request.getEffectiveUserText());
+      logRoutingDecision(conversationId, "halt", conversationPhaseResolver.resolve(conversationId), type);
+      if (!isCreateOwnedScenario(type)
+          && !handlers.select(new ForScenarioLiteral(resolveHandlerType(type))).isResolvable()) {
+        return RoutingOutcome.error("No ScenarioHandler registered for scenario: " + type);
+      }
+      return RoutingOutcome.scenario(type);
+    } catch (Exception e) {
+      LOG.warnf(e, "Router classification failed at recoverable halt conversationId=%s", conversationId);
+      return RoutingOutcome.error("Router classification failed: " + e.getMessage());
+    }
   }
 
   private boolean hasOpenChain(ChatRequest request, String conversationId) {
