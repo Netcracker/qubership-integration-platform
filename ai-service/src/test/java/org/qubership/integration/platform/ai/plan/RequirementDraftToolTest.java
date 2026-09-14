@@ -1511,6 +1511,54 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureUsesResolvedCatalogIdentityForTheBoundInteraction() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "task-result",
+            new InteractionAssessment.Intent(
+                "Return the task result", "OM", "onTaskResult", null, null),
+            omResultMatch()));
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withLookup(store, resolutions, rockyCatalogLookup());
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow confusedFlow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+                new Interaction("create-task", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+                new Interaction(
+                    "task-result", Direction.OUTBOUND, "Salesforce", "onTaskStart", "")),
+            List.of(
+                new Transition("task-start", "create-task"),
+                new Transition("create-task", "task-result")));
+
+    captureTool.captureRequirementDraft(
+        flowCapture(true, DraftDecision.READY_FOR_PLAN, confusedFlow));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(
+        "OM", stored.flow().interaction("task-result").orElseThrow().participant());
+    assertEquals(
+        "onTaskResult", stored.flow().interaction("task-result").orElseThrow().operation());
+    assertEquals(
+        "onTaskResult",
+        RequirementBriefProjector.serviceCallsFrom(
+                stored.flow(),
+                stored.catalogBindings().stream()
+                    .collect(
+                        java.util.stream.Collectors.toMap(
+                            CatalogBindingHint::interactionId, hint -> hint)))
+            .stream()
+            .filter(call -> "task-result".equals(call.serviceCallId()))
+            .findFirst()
+            .orElseThrow()
+            .operation());
+  }
+
+  @Test
   void captureRejectsReadyFlowWhenExplicitCatalogOperationWasOmitted() {
     RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");

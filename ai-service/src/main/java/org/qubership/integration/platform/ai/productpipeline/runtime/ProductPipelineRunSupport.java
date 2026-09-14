@@ -1056,8 +1056,14 @@ public final class ProductPipelineRunSupport {
                 return reemitHaltCard(doc);
               }
               if (retryClick
-                  && !PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(haltGate)) {
+                  && !PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(haltGate)
+                  && !PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(haltGate)) {
                 return rewindBeforeGeneration(doc, command);
+              }
+              if (retryClick
+                  && PipelineGates.RECOVERY_REGENERATE_EXECUTION.equals(haltGate)
+                  && catalogHasBeenWritten(doc.run().runId())) {
+                return refuseWithGuard(doc, command, HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN);
               }
               if (retryClick) {
                 HaltRecoveryGuard retryRefusal = diagnoseRetryRefusal(doc, command);

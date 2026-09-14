@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.util.List;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignArtifacts;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 /**
  * Typed semantic node. Catalog occurrence id is {@link ServiceCall#serviceCallId()} or {@link
@@ -65,6 +66,7 @@ public sealed interface SemanticNode
       SemanticNodeKind kind,
       String serviceCallId,
       String operation,
+      ServiceCallFailureMode failureMode,
       SemanticProvenance provenance)
       implements SemanticNode {
 
@@ -75,12 +77,28 @@ public sealed interface SemanticNode
       }
       serviceCallId = DesignArtifacts.requireText(serviceCallId, "serviceCallId");
       operation = DesignArtifacts.requireText(operation, "operation");
+      failureMode = failureMode == null ? ServiceCallFailureMode.PROPAGATE : failureMode;
       provenance = provenance == null ? new SemanticProvenance(List.of()) : provenance;
     }
 
     public ServiceCall(
         String nodeId, String serviceCallId, String operation, SemanticProvenance provenance) {
-      this(nodeId, SemanticNodeKind.SERVICE_CALL, serviceCallId, operation, provenance);
+      this(
+          nodeId,
+          SemanticNodeKind.SERVICE_CALL,
+          serviceCallId,
+          operation,
+          ServiceCallFailureMode.PROPAGATE,
+          provenance);
+    }
+
+    public ServiceCall(
+        String nodeId,
+        String serviceCallId,
+        String operation,
+        ServiceCallFailureMode failureMode,
+        SemanticProvenance provenance) {
+      this(nodeId, SemanticNodeKind.SERVICE_CALL, serviceCallId, operation, failureMode, provenance);
     }
   }
 

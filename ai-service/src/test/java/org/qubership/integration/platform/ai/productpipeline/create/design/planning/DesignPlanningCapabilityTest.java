@@ -61,6 +61,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
@@ -508,6 +509,29 @@ class DesignPlanningCapabilityTest {
     assertTrue(input.contains("mappingIntentId=map-init"), input);
     assertTrue(input.contains("Do not plan cip-transformation-generator"), input);
     assertFalse(input.contains("cip-transformation-generator mappingIntentId="), input);
+  }
+
+  @Test
+  void plannerInputPinsEachServiceCallOccurrenceToItsParticipant() {
+    RequirementBrief brief =
+        sampleBrief()
+            .withServiceCalls(
+                List.of(
+                    new RequirementServiceCall(
+                        "call-1", "fact-call", "Orders Service", "createOrder")));
+
+    String input =
+        DesignPlanningCapability.buildPlannerInput(
+            sampleIds(), sampleRevision(), "2024.4", brief);
+
+    assertTrue(
+        input.contains(
+            "serviceCallId=call-1 operation=createOrder failureMode=PROPAGATE"
+                + " participant=Orders Service"),
+        input);
+    assertTrue(input.contains("serviceCallId=<id> token"), input);
+    assertTrue(input.contains("The same catalog operation may occur more than once"), input);
+    assertTrue(input.contains("Control-flow regions:\n- none"), input);
   }
 
   @Test

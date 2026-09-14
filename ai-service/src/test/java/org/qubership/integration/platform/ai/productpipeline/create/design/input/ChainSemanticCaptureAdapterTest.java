@@ -33,6 +33,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 class ChainSemanticCaptureAdapterTest {
 
@@ -66,6 +67,28 @@ class ChainSemanticCaptureAdapterTest {
       assertEquals(SemanticRouteKind.SEQUENCE, edge.route().kind());
     }
     new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+  }
+
+  @Test
+  void copiesFailureModeFromTheApprovedOccurrence() {
+    RequirementBrief approved = ChainSemanticCaptureFixtures.approvedBrief();
+    RequirementServiceCall call = approved.serviceCalls().getFirst();
+    RequirementBrief inlineFailure =
+        approved.withServiceCalls(
+            List.of(
+                new RequirementServiceCall(
+                    call.serviceCallId(),
+                    call.sourceFactId(),
+                    call.participant(),
+                    call.operation(),
+                    call.catalogBinding(),
+                    ServiceCallFailureMode.INLINE_RESPONSE)));
+
+    ChainSemanticRevision revision = adapt(ChainSemanticCaptureFixtures.linearCapture(), inlineFailure);
+
+    assertEquals(
+        ServiceCallFailureMode.INLINE_RESPONSE,
+        node(revision, SemanticNode.ServiceCall.class).failureMode());
   }
 
   @Test
@@ -470,7 +493,10 @@ class ChainSemanticCaptureAdapterTest {
     ChainSemanticCapture unknown =
         withOperations(
             capture, List.of(new CapturedOperation("op-shared", "quantum-mapper", List.of())));
-    assertTrue(failure(unknown).contains("quantum-mapper"));
+    String rejection = failure(unknown);
+    assertTrue(rejection.contains("quantum-mapper"));
+    assertTrue(rejection.contains("Allowed elementType values:"), rejection);
+    assertTrue(rejection.contains("try-catch-finally-2"), rejection);
   }
 
   @Test

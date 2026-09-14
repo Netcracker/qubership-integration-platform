@@ -74,9 +74,6 @@ public final class RecoveryExecutor {
       String stageId, RecoveryDecision decision, ProfileStage failedStage) {
     String failedStageId = failedStage == null ? stageId : failedStage.stageId();
     String producerStageId = producerStageForFault(decision.faultArtifactRef(), failedStageId);
-    if (producerStageId.equals(failedStageId)) {
-      producerStageId = previousGenerativeStageId(failedStageId);
-    }
     if (producerStageId.equals(failedStageId) || producerStageId.isBlank()) {
       return new StageDecision.Retry(stageId, Duration.ZERO);
     }
@@ -131,21 +128,6 @@ public final class RecoveryExecutor {
               VALIDATED_EXECUTION_BUNDLE,
               MATERIALIZATION_REQUEST ->
           "design-execution";
-      default -> failedStageId;
-    };
-  }
-
-  static String previousGenerativeStageId(String failedStageId) {
-    if (failedStageId == null || failedStageId.isBlank()) {
-      return "";
-    }
-    return switch (failedStageId) {
-      case "design-execution" -> "design-planning";
-      case "design-planning", "planning" -> "requirement-analysis";
-      case "design-input" -> "requirement-analysis";
-      case "requirement-analysis", "analysis" -> "requirement-discovery";
-      case "import-stage", "uploaded-spec-import", "specification-import" ->
-          "requirement-discovery";
       default -> failedStageId;
     };
   }
