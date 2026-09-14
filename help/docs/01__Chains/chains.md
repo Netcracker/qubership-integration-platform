@@ -39,7 +39,7 @@ The screen shows a table of chains (marked with icon ![chain](img/chain.svg)) an
 - ![cloud-upload](img/cloud-upload.svg) - opens a pop-up for chain import. As part of the upload/import operation, the user can additionally select an option to create a snapshot for the imported chain or even deploy it to the selected engine as soon as the import is successfully completed.
 - ![delete](img/delete.svg) - deletes selected chains or folders.
 
-Table settings are saved in the browser's local storage: visible columns, column order and width, sorting, and applied
+Table settings are saved in the browser's localStorage: visible columns, column order and width, sorting, and applied
 filters. They are restored when the table is reopened. Search text and selected rows are not saved.
 For example, enable **Created At** in **Column settings** and sort that column in descending order to keep newer chains
 at the top. **Reset** in **Column settings** restores the default columns and widths and clears sorting and filters.

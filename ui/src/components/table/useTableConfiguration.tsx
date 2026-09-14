@@ -89,7 +89,7 @@ export const useTableConfiguration = <T extends object>(
     [controlledSort, persistedSort],
   );
 
-  const columnsWithResize = useMemo(() => {
+  const columnsWithResize = useMemo<ColumnsType<T>>(() => {
     const resized = attachResizeToColumns(
       orderedColumns,
       columnResize.columnWidths,
