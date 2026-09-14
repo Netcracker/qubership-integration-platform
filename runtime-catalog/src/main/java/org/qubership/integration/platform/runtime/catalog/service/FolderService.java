@@ -63,6 +63,7 @@ public class FolderService {
 
     private final EntityManager entityManager;
     private final ChainFilterSpecificationBuilder chainFilterSpecificationBuilder;
+    private final ChainRuntimePropertiesService chainRuntimePropertiesService;
 
     @Autowired
     public FolderService(FolderRepository folderRepository,
@@ -71,7 +72,8 @@ public class FolderService {
                          DeploymentService deploymentService,
                          AuditingHandler jpaAuditingHandler,
                          EntityManager entityManager,
-                         ChainFilterSpecificationBuilder chainFilterSpecificationBuilder) {
+                         ChainFilterSpecificationBuilder chainFilterSpecificationBuilder,
+                         ChainRuntimePropertiesService chainRuntimePropertiesService) {
         this.folderRepository = folderRepository;
         this.actionLogger = actionLogger;
         this.chainRepository = chainRepository;
@@ -79,6 +81,7 @@ public class FolderService {
         this.auditingHandler = jpaAuditingHandler;
         this.entityManager = entityManager;
         this.chainFilterSpecificationBuilder = chainFilterSpecificationBuilder;
+        this.chainRuntimePropertiesService = chainRuntimePropertiesService;
     }
 
     public List<Folder> findAllInRoot() {
@@ -245,6 +248,10 @@ public class FolderService {
         deleteRuntimeDeployments(folder);
         List<FoldableEntity> nestedEntities = findAllNestedFoldableEntity(folderId);
         folderRepository.deleteById(folderId);
+        chainRuntimePropertiesService.deleteCustomRuntimePropertiesAfterCommit(nestedEntities.stream()
+                .filter(entity -> !(entity instanceof Folder))
+                .map(FoldableEntity::getId)
+                .toList());
 
         for (FoldableEntity entity : nestedEntities) {
             if (!(entity instanceof Folder)) {
@@ -266,6 +273,8 @@ public class FolderService {
         chains.forEach(FoldableEntity::getParentFolder); // To ensure that parent folders are loaded.
         chains.stream().map(Chain::getId).toList().forEach(deploymentService::deleteAllByChainId);
         folderRepository.deleteFolderTree(folderIds);
+        chainRuntimePropertiesService.deleteCustomRuntimePropertiesAfterCommit(
+                chains.stream().map(Chain::getId).toList());
         chains.forEach(chain -> {
             Optional<Folder> folder = Optional.ofNullable(chain.getParentFolder());
             actionLogger.logAction(ActionLog.builder()

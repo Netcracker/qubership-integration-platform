@@ -28,7 +28,10 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.chain.logging.properties.ChainLoggingPropertiesSet;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 
@@ -62,6 +65,16 @@ public class ChainRuntimePropertiesService {
     public void deleteCustomRuntimeProperties(String chainId) {
         consulService.deleteChainRuntimeConfig(chainId);
         logChainAction(chainId, LogOperation.DELETE);
+    }
+
+    // Consul is not transactional: a rolled-back deletion must keep the properties of the chains it restores.
+    public void deleteCustomRuntimePropertiesAfterCommit(Collection<String> chainIds) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                chainIds.forEach(consulService::deleteChainRuntimeConfig);
+            }
+        });
     }
 
     // <useCustomSettings, properties>

@@ -210,6 +210,7 @@ public class ChainService extends ChainBaseService {
             chainRepository.deleteById(chainId);
 
             logChainAction(chain, LogOperation.DELETE);
+            chainRuntimePropertiesService.deleteCustomRuntimePropertiesAfterCommit(List.of(chainId));
         }
 
         return optionalChain;
