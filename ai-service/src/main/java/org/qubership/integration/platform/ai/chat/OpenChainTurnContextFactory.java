@@ -118,6 +118,13 @@ public class OpenChainTurnContextFactory {
     if (request.getDecision() != null) {
       return null;
     }
+    String message = request.getEffectiveUserText();
+    if (message != null
+        && (UserIntentPatterns.matchesDeploymentStatusIntent(message)
+            || UserIntentPatterns.matchesCreateMaasKafkaTopicsIntent(message))) {
+      request.setScenarioHint(ScenarioType.DEPLOY_CHAIN);
+      return null;
+    }
     ScenarioType hint = request.getScenarioHint();
     if (hint == ScenarioType.ASK_CHAIN) {
       return withOperationalReadsForDescription(
