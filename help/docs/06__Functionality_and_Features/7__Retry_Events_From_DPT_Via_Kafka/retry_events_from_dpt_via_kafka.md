@@ -38,7 +38,6 @@ To be able to process large amount of retry events from DPT, it is decided to im
 
 Headers
 ```json
-
 {
 "chainId": "fca94b81-2ecc-466c-af1e-432901e90661",
 "tenant": "fca94b81-2ecc-466c-af1e-432901e90664",
@@ -49,7 +48,7 @@ Headers
 "eventDate": 1623392004283,
 "x-version": "v2",
 "x-version-name": "candidate",
-"x-idempotency-key": "3f9c2b8e-7c41-4e0e-9c0b-1b2a6d4c8f93"
+"x-idempotency-key": "<key_value>"
 }
 ```
 Body
