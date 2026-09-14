@@ -9,6 +9,7 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.deploy.MaasKafkaTopicsFollowUp;
 import org.qubership.integration.platform.ai.chain.deploy.MaasKafkaTopicsFollowUp.TopicPair;
+import org.qubership.integration.platform.ai.chain.deploy.MaasTopicsCreatedStore;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
@@ -41,8 +42,10 @@ import org.qubership.integration.platform.ai.llm.routing.OpenChainTurnPlan.Deplo
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Supplier;
 import java.util.concurrent.TimeUnit;
@@ -99,6 +102,7 @@ public class DeployChainScenario implements ScenarioHandler {
   private final ChainContextExtractor chainContextExtractor;
   private final CatalogRestClient catalogRestClient;
   private final PendingRedeployStore pendingRedeployStore;
+  private final MaasTopicsCreatedStore maasTopicsCreatedStore;
   private final KnownFailureMapper knownFailureMapper;
   private final PinnedFailureStore pinnedFailureStore;
   private final long pollTimeoutMillis;
@@ -110,6 +114,7 @@ public class DeployChainScenario implements ScenarioHandler {
       ChainContextExtractor chainContextExtractor,
       @RestClient CatalogRestClient catalogRestClient,
       PendingRedeployStore pendingRedeployStore,
+      MaasTopicsCreatedStore maasTopicsCreatedStore,
       KnownFailureMapper knownFailureMapper,
       PinnedFailureStore pinnedFailureStore,
       @ConfigProperty(name = "cloud.microservice.namespace") Optional<String> cloudNamespace,
@@ -118,6 +123,7 @@ public class DeployChainScenario implements ScenarioHandler {
         chainContextExtractor,
         catalogRestClient,
         pendingRedeployStore,
+        maasTopicsCreatedStore,
         knownFailureMapper,
         pinnedFailureStore,
         DEFAULT_POLL_TIMEOUT_MS,
@@ -129,6 +135,7 @@ public class DeployChainScenario implements ScenarioHandler {
       ChainContextExtractor chainContextExtractor,
       CatalogRestClient catalogRestClient,
       PendingRedeployStore pendingRedeployStore,
+      MaasTopicsCreatedStore maasTopicsCreatedStore,
       KnownFailureMapper knownFailureMapper,
       PinnedFailureStore pinnedFailureStore,
       long pollTimeoutMillis,
@@ -137,6 +144,7 @@ public class DeployChainScenario implements ScenarioHandler {
         chainContextExtractor,
         catalogRestClient,
         pendingRedeployStore,
+        maasTopicsCreatedStore,
         knownFailureMapper,
         pinnedFailureStore,
         pollTimeoutMillis,
@@ -148,6 +156,7 @@ public class DeployChainScenario implements ScenarioHandler {
       ChainContextExtractor chainContextExtractor,
       CatalogRestClient catalogRestClient,
       PendingRedeployStore pendingRedeployStore,
+      MaasTopicsCreatedStore maasTopicsCreatedStore,
       KnownFailureMapper knownFailureMapper,
       PinnedFailureStore pinnedFailureStore,
       long pollTimeoutMillis,
@@ -156,6 +165,7 @@ public class DeployChainScenario implements ScenarioHandler {
     this.chainContextExtractor = chainContextExtractor;
     this.catalogRestClient = catalogRestClient;
     this.pendingRedeployStore = pendingRedeployStore;
+    this.maasTopicsCreatedStore = maasTopicsCreatedStore;
     this.knownFailureMapper = knownFailureMapper;
     this.pinnedFailureStore = pinnedFailureStore;
     this.pollTimeoutMillis = pollTimeoutMillis;
@@ -256,6 +266,9 @@ public class DeployChainScenario implements ScenarioHandler {
       case UNDEPLOY -> undeployChain(conversationId, chainId, userMessage);
       case DEPLOY -> deployChain(conversationId, chainId, userMessage, !openGraph);
       case NONE -> {
+        if (UserIntentPatterns.matchesCreateMaasKafkaTopicsIntent(userMessage)) {
+          yield createMaasTopicsForDeployment(conversationId, chainId);
+        }
         if (UserIntentPatterns.matchesDeploymentStatusIntent(userMessage)) {
           yield reportStatus(conversationId, chainId);
         }
@@ -748,22 +761,128 @@ public class DeployChainScenario implements ScenarioHandler {
     if (pending.isEmpty()) {
       return Multi.createFrom().item(ChatEvent.token(REDEPLOY_GONE_MESSAGE));
     }
+    PendingRedeploy cancel = pending.get();
     pendingRedeployStore.clear(conversationId);
+    try {
+      List<DeploymentDto> listed = safeList(catalogRestClient.listDeployments(cancel.chainId()));
+      Optional<DeploymentDto> onDomain =
+          listed.stream().filter(item -> isDomain(item, cancel.domain())).findFirst();
+      if (onDomain.isPresent() && STATUS_PROCESSING.equals(catalogStatus(onDomain.get()))) {
+        DeploymentDto deployment = onDomain.get();
+        SnapshotDto snapshot = new SnapshotDto(deployment.snapshotId(), deployment.name());
+        DeploymentObservation observation =
+            pollDeploymentStatus(cancel.chainId(), cancel.domain(), deployment);
+        return deploymentResultAfterTopicsCreated(
+            conversationId,
+            cancel.chainId(),
+            snapshot,
+            cancel.domain(),
+            observation,
+            maasTopicsCreatedStore.find(conversationId));
+      }
+    } catch (RuntimeException error) {
+      return knownOrRethrow(error, CatalogOperation.STATUS, conversationId, cancel.chainId());
+    }
     return Multi.createFrom()
-        .item(ChatEvent.token("The live deployment on domain " + pending.get().domain() + " is unchanged."));
+        .item(
+            ChatEvent.token(
+                "The live deployment on domain " + cancel.domain() + " is unchanged."));
   }
 
   private Multi<ChatEvent> reportStatus(String conversationId, String chainId) {
     LOG.infof("DEPLOY_CHAIN status conversationId=%s chainId=%s", conversationId, chainId);
     try {
-      List<DeploymentDto> listed = catalogRestClient.listDeployments(chainId);
-      if (listed == null || listed.isEmpty()) {
+      List<DeploymentDto> listed = safeList(catalogRestClient.listDeployments(chainId));
+      if (listed.isEmpty()) {
         return Multi.createFrom().item(ChatEvent.token(NOT_DEPLOYED_MESSAGE));
+      }
+      Optional<DeploymentDto> watchTarget = deploymentWatchTarget(listed);
+      if (watchTarget.isPresent()) {
+        DeploymentDto deployment = watchTarget.get();
+        List<String> errors = runtimeErrors(deployment);
+        if (MaasKafkaTopicsFollowUp.isMissingTopicsError(errors)) {
+          SnapshotDto snapshot = new SnapshotDto(deployment.snapshotId(), deployment.name());
+          DeploymentObservation observation =
+              new DeploymentObservation(catalogStatus(deployment), deployment);
+          return deploymentResultAfterTopicsCreated(
+              conversationId,
+              chainId,
+              snapshot,
+              deployment.domain(),
+              observation,
+              maasTopicsCreatedStore.find(conversationId));
+        }
       }
       return Multi.createFrom().item(ChatEvent.token(statusMessage(listed)));
     } catch (RuntimeException e) {
       return knownOrRethrow(e, CatalogOperation.STATUS, conversationId, chainId);
     }
+  }
+
+  private Multi<ChatEvent> createMaasTopicsForDeployment(String conversationId, String chainId) {
+    LOG.infof(
+        "DEPLOY_CHAIN create-maas-topics conversationId=%s chainId=%s",
+        conversationId,
+        chainId);
+    try {
+      List<DeploymentDto> listed = safeList(catalogRestClient.listDeployments(chainId));
+      if (listed.isEmpty()) {
+        return Multi.createFrom().item(ChatEvent.token(NOT_DEPLOYED_MESSAGE));
+      }
+      Optional<DeploymentDto> watchTarget = deploymentWatchTarget(listed);
+      if (watchTarget.isEmpty()) {
+        return Multi.createFrom().item(ChatEvent.token(statusMessage(listed)));
+      }
+      DeploymentDto deployment = watchTarget.get();
+      List<String> errors = runtimeErrors(deployment);
+      if (!MaasKafkaTopicsFollowUp.isMissingTopicsError(errors)) {
+        return Multi.createFrom().item(ChatEvent.token(statusMessage(listed)));
+      }
+      SnapshotDto snapshot = new SnapshotDto(deployment.snapshotId(), deployment.name());
+      MaasKafkaTopicsFollowUp.CollectedTopics offered =
+          offeredTopics(chainId, String.join("\n", errors));
+      offered =
+          filterOutCreatedTopics(offered, maasTopicsCreatedStore.find(conversationId));
+      if (offered.creatable().isEmpty()) {
+        DeploymentObservation observation =
+            new DeploymentObservation(catalogStatus(deployment), deployment);
+        return deploymentResultAfterTopicsCreated(
+            conversationId,
+            chainId,
+            snapshot,
+            deployment.domain(),
+            observation,
+            maasTopicsCreatedStore.find(conversationId));
+      }
+      String operationId = UUID.randomUUID().toString();
+      List<TopicPair> creatable = resolvedMaasTopics(offered.creatable());
+      pendingRedeployStore.put(
+          conversationId,
+          PendingRedeploy.maasTopicsWait(
+              chainId,
+              deployment.domain(),
+              snapshot.id(),
+              operationId,
+              creatable));
+      return applyCreateMaasKafkaTopics(
+          conversationId,
+          maasTopicsDecision(operationId));
+    } catch (RuntimeException e) {
+      return knownOrRethrow(e, CatalogOperation.CREATE_MAAS_KAFKA_TOPIC, conversationId, chainId);
+    }
+  }
+
+  private static Optional<DeploymentDto> deploymentWatchTarget(List<DeploymentDto> listed) {
+    List<DeploymentDto> live = liveDeployments(listed);
+    if (live.isEmpty()) {
+      return Optional.empty();
+    }
+    Optional<DeploymentDto> onDefault =
+        live.stream().filter(item -> isDomain(item, DEFAULT_DOMAIN)).findFirst();
+    if (onDefault.isPresent()) {
+      return onDefault;
+    }
+    return live.size() == 1 ? Optional.of(live.get(0)) : Optional.empty();
   }
 
   private static String statusMessage(List<DeploymentDto> listed) {
@@ -974,11 +1093,23 @@ public class DeployChainScenario implements ScenarioHandler {
       SnapshotDto snapshot = new SnapshotDto(deployment.snapshotId(), deployment.name());
       DeploymentObservation observation =
           pollDeploymentStatus(chainId, deployment.domain(), deployment);
-      return deploymentResult(
-          conversationId, chainId, snapshot, deployment.domain(), observation);
+      return deploymentResultAfterTopicsCreated(
+          conversationId,
+          chainId,
+          snapshot,
+          deployment.domain(),
+          observation,
+          maasTopicsCreatedStore.find(conversationId));
     } catch (RuntimeException error) {
       return knownOrRethrow(error, CatalogOperation.STATUS, conversationId, chainId);
     }
+  }
+
+  private static ChatDecisionCommand maasTopicsDecision(String operationId) {
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION);
+    command.setArtifactHash(operationId);
+    return command;
   }
 
   private Multi<ChatEvent> dismissDeploymentFailure(
@@ -1043,6 +1174,7 @@ public class DeployChainScenario implements ScenarioHandler {
     boolean allCreated = !requested.isEmpty() && created.size() == requested.size();
     if (!created.isEmpty()) {
       events.add(0, ChatEvent.token(createdMaasTopicsText(created)));
+      maasTopicsCreatedStore.remember(conversationId, created);
     }
     if (!remaining.isEmpty()) {
       events.add(offerRemainingMaasTopics(conversationId, wait, remaining));
@@ -1056,7 +1188,7 @@ public class DeployChainScenario implements ScenarioHandler {
     return Multi.createFrom()
         .iterable(events)
         .onCompletion()
-        .switchTo(() -> afterMaasTopicsCreated(conversationId, wait));
+        .switchTo(() -> afterMaasTopicsCreated(conversationId, wait, created));
   }
 
   private ChatEvent offerRemainingMaasTopics(
@@ -1073,7 +1205,8 @@ public class DeployChainScenario implements ScenarioHandler {
     return ChatEvent.maasKafkaTopicsDecision(operationId, maasTopicsQuestion(remaining));
   }
 
-  private Multi<ChatEvent> afterMaasTopicsCreated(String conversationId, PendingRedeploy wait) {
+  private Multi<ChatEvent> afterMaasTopicsCreated(
+      String conversationId, PendingRedeploy wait, List<TopicPair> createdTopics) {
     try {
       List<DeploymentDto> listed = safeList(catalogRestClient.listDeployments(wait.chainId()));
       DeploymentDto onDomain =
@@ -1087,34 +1220,128 @@ public class DeployChainScenario implements ScenarioHandler {
                 ChatEvent.token(
                     "That deployment is no longer present. I did not change the chain."));
       }
-      if (STATUS_DEPLOYED.equals(catalogStatus(onDomain))) {
-        pinnedFailureStore.clear(conversationId, wait.chainId());
-        String snapshotName =
-            onDomain.name() == null || onDomain.name().isBlank()
-                ? onDomain.snapshotId()
-                : onDomain.name();
-        String snapshotId =
-            onDomain.snapshotId() == null || onDomain.snapshotId().isBlank()
-                ? snapshotName
-                : onDomain.snapshotId();
-        return Multi.createFrom()
+      SnapshotDto snapshot =
+          wait.snapshotId() == null || wait.snapshotId().isBlank()
+              ? new SnapshotDto(onDomain.snapshotId(), onDomain.name())
+              : new SnapshotDto(wait.snapshotId(), onDomain.name());
+      DeploymentObservation observation =
+          pollDeploymentStatus(wait.chainId(), wait.domain(), onDomain);
+      return deploymentResultAfterTopicsCreated(
+          conversationId,
+          wait.chainId(),
+          snapshot,
+          wait.domain(),
+          observation,
+          createdTopics);
+    } catch (RuntimeException error) {
+      return knownOrRethrow(error, CatalogOperation.STATUS, conversationId, wait.chainId());
+    }
+  }
+
+  private Multi<ChatEvent> deploymentResultAfterTopicsCreated(
+      String conversationId,
+      String chainId,
+      SnapshotDto snapshot,
+      String domain,
+      DeploymentObservation observation,
+      List<TopicPair> createdTopics) {
+    String snapshotName =
+        snapshot.name() == null || snapshot.name().isBlank() ? snapshot.id() : snapshot.name();
+    String deploymentKey = observation.key(domain);
+    String status = observation.status();
+    List<String> errors = runtimeErrors(observation.deployment());
+    boolean kafkaMiss = MaasKafkaTopicsFollowUp.isMissingTopicsError(errors);
+    MaasKafkaTopicsFollowUp.CollectedTopics offered = emptyCollected();
+    if (kafkaMiss && !STATUS_DEPLOYED.equals(status)) {
+      Set<String> createdClassifiers = createdTopicClassifiers(createdTopics);
+      List<String> namedErrors = MaasKafkaTopicsFollowUp.namedClassifiers(String.join("\n", errors));
+      boolean onlyCreatedClassifiersStillMissing =
+          !namedErrors.isEmpty()
+              && namedErrors.stream().allMatch(createdClassifiers::contains);
+      if (!onlyCreatedClassifiersStillMissing) {
+        try {
+          offered = offeredTopics(chainId, String.join("\n", errors));
+          offered = filterOutCreatedTopics(offered, createdTopics);
+        } catch (RuntimeException error) {
+          return knownOrRethrow(error, CatalogOperation.STATUS, conversationId, chainId);
+        }
+      }
+    }
+    if (!offered.creatable().isEmpty()) {
+      return offerMaasKafkaTopics(
+          conversationId, chainId, snapshot, domain, status, snapshotName, offered);
+    }
+    return switch (status) {
+      case STATUS_DEPLOYED -> {
+        pinnedFailureStore.clear(conversationId, chainId);
+        maasTopicsCreatedStore.clear(conversationId);
+        yield Multi.createFrom()
             .item(
                 ChatEvent.token(
                     "Deployed snapshot "
                         + snapshotName
                         + " (id: "
-                        + snapshotId
+                        + snapshot.id()
                         + ") to domain "
-                        + wait.domain()
+                        + domain
                         + ". Status: DEPLOYED.",
                     LastAssistantTurn.Kind.DEPLOY_OK));
       }
-      SnapshotDto snapshot = new SnapshotDto(onDomain.snapshotId(), onDomain.name());
-      return offerRedeploy(
-          conversationId, wait.chainId(), wait.domain(), snapshot, onDomain);
-    } catch (RuntimeException error) {
-      return knownOrRethrow(error, CatalogOperation.STATUS, conversationId, wait.chainId());
+      case STATUS_FAILED -> {
+        String safeText = failedDeployText(snapshotName, domain);
+        pinnedFailureStore.put(
+            new PinnedFailure(
+                conversationId,
+                chainId,
+                safeText,
+                runtimeDiagnostic(observation.deployment())));
+        yield Multi.createFrom()
+            .items(
+                ChatEvent.token(safeText, LastAssistantTurn.Kind.DEPLOY_FAILED),
+                ChatEvent.deploymentFailureDecision(
+                    deploymentKey, "Would you like me to propose a chain fix?"));
+      }
+      default -> {
+        String safeText = processingDeployText(snapshotName, domain);
+        yield Multi.createFrom()
+            .items(
+                ChatEvent.token(safeText, LastAssistantTurn.Kind.DEPLOY_PROCESSING),
+                ChatEvent.deploymentProcessingDecision(
+                    deploymentKey, "Check the deployment status again?"));
+      }
+    };
+  }
+
+  private static Set<String> createdTopicClassifiers(List<TopicPair> createdTopics) {
+    Set<String> createdClassifiers = new LinkedHashSet<>();
+    if (createdTopics == null) {
+      return createdClassifiers;
     }
+    for (TopicPair pair : createdTopics) {
+      if (pair != null && pair.classifier() != null && !pair.classifier().isBlank()) {
+        createdClassifiers.add(pair.classifier());
+      }
+    }
+    return createdClassifiers;
+  }
+
+  private static MaasKafkaTopicsFollowUp.CollectedTopics filterOutCreatedTopics(
+      MaasKafkaTopicsFollowUp.CollectedTopics offered, List<TopicPair> createdTopics) {
+    if (offered == null || createdTopics == null || createdTopics.isEmpty()) {
+      return offered == null ? emptyCollected() : offered;
+    }
+    Set<String> createdClassifiers = createdTopicClassifiers(createdTopics);
+    List<TopicPair> remaining = new ArrayList<>();
+    for (TopicPair pair : offered.creatable()) {
+      if (pair == null || pair.classifier() == null || pair.classifier().isBlank()) {
+        continue;
+      }
+      if (!createdClassifiers.contains(pair.classifier())) {
+        remaining.add(pair);
+      }
+    }
+    return new MaasKafkaTopicsFollowUp.CollectedTopics(
+        remaining, offered.skippedTenant(), offered.skippedPlaceholder());
   }
 
   private String resolveMaasNamespace(TopicPair pair) {
@@ -1139,7 +1366,7 @@ public class DeployChainScenario implements ScenarioHandler {
   private static String createdMaasTopicsText(List<TopicPair> created) {
     List<String> pairs = new ArrayList<>();
     for (TopicPair pair : created) {
-      pairs.add("`" + pair.classifier() + "` in `" + pair.namespace() + "`");
+      pairs.add(formatMaasTopicPair(pair));
     }
     if (created.size() == 1) {
       return "Created Kafka MaaS topic " + pairs.get(0) + ".";
@@ -1191,6 +1418,7 @@ public class DeployChainScenario implements ScenarioHandler {
     return switch (MaasKafkaTopicsFollowUp.classify(status, kafkaMiss, offered.creatable())) {
       case DEPLOYED -> {
         pinnedFailureStore.clear(conversationId, chainId);
+        maasTopicsCreatedStore.clear(conversationId);
         yield Multi.createFrom()
             .item(
                 ChatEvent.token(
@@ -1241,7 +1469,7 @@ public class DeployChainScenario implements ScenarioHandler {
       String status,
       String snapshotName,
       MaasKafkaTopicsFollowUp.CollectedTopics offered) {
-    List<TopicPair> creatable = offered.creatable();
+    List<TopicPair> creatable = resolvedMaasTopics(offered.creatable());
     String operationId = UUID.randomUUID().toString();
     pendingRedeployStore.put(
         conversationId,
@@ -1264,8 +1492,7 @@ public class DeployChainScenario implements ScenarioHandler {
     MaasKafkaTopicsFollowUp.CollectedTopics collected =
         MaasKafkaTopicsFollowUp.collectTopics(elements, catalogRestClient);
     return new MaasKafkaTopicsFollowUp.CollectedTopics(
-        MaasKafkaTopicsFollowUp.offer(
-            collected.creatable(), MaasKafkaTopicsFollowUp.namedClassifiers(errors)),
+        resolvedMaasTopics(collected.creatable()),
         collected.skippedTenant(),
         collected.skippedPlaceholder());
   }
@@ -1341,12 +1568,31 @@ public class DeployChainScenario implements ScenarioHandler {
     List<String> pairs = new ArrayList<>();
     if (offered != null) {
       for (TopicPair pair : offered) {
-        pairs.add("`" + pair.classifier() + "` in `" + pair.namespace() + "`");
+        pairs.add(formatMaasTopicPair(pair));
       }
     }
     return "Deploy is waiting because these Kafka MaaS topics are missing: "
         + String.join(", ", pairs)
         + ". Create them?";
+  }
+
+  private List<TopicPair> resolvedMaasTopics(List<TopicPair> topics) {
+    if (topics == null || topics.isEmpty()) {
+      return List.of();
+    }
+    List<TopicPair> resolved = new ArrayList<>(topics.size());
+    for (TopicPair pair : topics) {
+      if (pair == null || pair.classifier() == null || pair.classifier().isBlank()) {
+        continue;
+      }
+      resolved.add(new TopicPair(resolveMaasNamespace(pair), pair.classifier()));
+    }
+    return List.copyOf(resolved);
+  }
+
+  private static String formatMaasTopicPair(TopicPair pair) {
+    String namespace = pair.namespace() == null ? "" : pair.namespace();
+    return "`" + pair.classifier() + "` in `" + namespace + "`";
   }
 
   private static String failedDeployText(String snapshotName, String domain) {

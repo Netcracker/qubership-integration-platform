@@ -215,6 +215,30 @@ class OpenChainTurnContextFactoryTest {
   }
 
   @Test
+  void createMaasClassifierSkipsPlannerAndRoutesDeployChain() {
+    when(extractor.resolveChainId(any(), anyString())).thenReturn(Optional.of(CHAIN_A));
+
+    ChatRequest request = request("Create this maas classifier");
+    factory.build(request, CONVERSATION_ID);
+
+    verify(turnPlanner, never()).plan(anyString(), anyString(), anyString());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, request.getScenarioHint());
+    assertNull(request.getOpenChainTurnPlan());
+  }
+
+  @Test
+  void checkDeploymentSkipsPlannerAndRoutesDeployChain() {
+    when(extractor.resolveChainId(any(), anyString())).thenReturn(Optional.of(CHAIN_A));
+
+    ChatRequest request = request("check deployment of this chain");
+    factory.build(request, CONVERSATION_ID);
+
+    verify(turnPlanner, never()).plan(anyString(), anyString(), anyString());
+    assertEquals(ScenarioType.DEPLOY_CHAIN, request.getScenarioHint());
+    assertNull(request.getOpenChainTurnPlan());
+  }
+
+  @Test
   void askChainHintStillLoadsOperationalStateForDescribe() {
     when(extractor.resolveChainId(any(), anyString())).thenReturn(Optional.of(CHAIN_A));
     when(factsService.load(CHAIN_A)).thenReturn(facts(CHAIN_A));

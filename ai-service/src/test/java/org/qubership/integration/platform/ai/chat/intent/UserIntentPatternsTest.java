@@ -124,6 +124,7 @@ class UserIntentPatternsTest {
   @Test
   void deploymentStatusIntentMatchesCompactStatusPhrasing() {
     assertTrue(UserIntentPatterns.matchesDeploymentStatusIntent("deployment status"));
+    assertTrue(UserIntentPatterns.matchesDeploymentStatusIntent("check deployment of this chain"));
     assertTrue(UserIntentPatterns.matchesDeploymentStatusIntent("is it deployed"));
     assertTrue(UserIntentPatterns.matchesDeploymentStatusIntent("is this chain deployed"));
     assertTrue(UserIntentPatterns.matchesDeploymentStatusIntent("where is this chain deployed"));
@@ -132,6 +133,15 @@ class UserIntentPatternsTest {
     assertFalse(UserIntentPatterns.matchesDeploymentStatusIntent("undeploy this chain"));
     assertFalse(UserIntentPatterns.matchesChainQuestion("deployment status"));
     assertFalse(UserIntentPatterns.matchesChainQuestion("is it deployed"));
+  }
+
+  @Test
+  void createMaasKafkaTopicsIntentMatchesCompactCreatePhrasing() {
+    assertTrue(UserIntentPatterns.matchesCreateMaasKafkaTopicsIntent("Create this maas classifier"));
+    assertTrue(UserIntentPatterns.matchesCreateMaasKafkaTopicsIntent("create the missing kafka topics"));
+    assertTrue(UserIntentPatterns.matchesCreateMaasKafkaTopicsIntent("create topics"));
+    assertFalse(UserIntentPatterns.matchesCreateMaasKafkaTopicsIntent("create a snapshot"));
+    assertFalse(UserIntentPatterns.matchesCreateMaasKafkaTopicsIntent("deploy this chain"));
   }
 
   @Test
