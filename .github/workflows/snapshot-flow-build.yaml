@@ -4,7 +4,20 @@ on:
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
-      - '.github/workflows/**'
+      - '.github/workflows/snapshot-flow-build.yaml'
+      - 'integration-build-pipeline/**'
+      - 'runtime-catalog/**'
+      - 'micro-engine/**'
+      - 'scripts/test-micro-engine-snapshots.sh'
+      - 'parent/**'
+      - 'pom.xml'
+  # Two pull requests can each pass while together breaking the catalog-to-engine
+  # contract; the run on main catches that and saves the cache pull requests restore.
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/snapshot-flow-build.yaml'
       - 'integration-build-pipeline/**'
       - 'runtime-catalog/**'
       - 'micro-engine/**'
@@ -13,26 +26,22 @@ on:
       - 'pom.xml'
 
 concurrency:
-  group: snapshot-flow-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  group: snapshot-flow-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
 
 jobs:
   prerequisite_builds:
-    name: Resolve prerequisite builds
+    name: Wait for module builds
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
       actions: read
       pull-requests: read
-    outputs:
-      integration_build_pipeline: ${{ steps.resolve.outputs.integration_build_pipeline }}
-      runtime_catalog: ${{ steps.resolve.outputs.runtime_catalog }}
-      micro_engine: ${{ steps.resolve.outputs.micro_engine }}
     steps:
-      - name: Reuse or schedule module builds
-        id: resolve
+      - name: Wait for the module builds this pull request triggers
         env:
           GH_TOKEN: ${{ github.token }}
           MERGE_SHA: ${{ github.sha }}
@@ -156,7 +165,9 @@ jobs:
             done
           }
 
-          resolve_build() {
+          # The snapshot flow builds every module itself, so a module build only
+          # gates it: a module the pull request does not touch is not built again.
+          await_build() {
             local workflow_file="$1"
             local build_name="$2"
             local expected="$3"
@@ -164,9 +175,8 @@ jobs:
             local run_id
             local run_url
 
-            BUILD_ACTION=run
             if [ "$expected" != "true" ]; then
-              echo "${build_name} was not path-triggered; this workflow will run it."
+              BUILD_RESULT="not triggered"
               return
             fi
 
@@ -183,127 +193,45 @@ jobs:
             done
 
             if [ -z "$FOUND_RUN" ]; then
-              echo "::warning::${build_name} was not found; this workflow will run it."
+              echo "::warning::${build_name} was not found; the snapshot flow runs without it."
+              BUILD_RESULT="not found"
               return
             fi
 
             IFS=$'\t' read -r run_id run_url <<< "$FOUND_RUN"
-            echo "Reusing ${build_name}: ${run_url}"
+            echo "Waiting for ${build_name}: ${run_url}"
             wait_for_run "$build_name" "$run_id" "$run_url"
-            BUILD_ACTION=reuse
+            BUILD_RESULT="[passed](${run_url})"
           }
 
-          resolve_build integration-build-pipeline-build.yaml "Integration Build Pipeline Library Build" "$integration_build_pipeline_expected"
-          integration_build_pipeline_action="$BUILD_ACTION"
+          await_build integration-build-pipeline-build.yaml "Integration Build Pipeline Library Build" "$integration_build_pipeline_expected"
+          integration_build_pipeline_result="$BUILD_RESULT"
 
-          resolve_build runtime-catalog-build.yaml "Runtime Catalog Build" "$runtime_catalog_expected"
-          runtime_catalog_action="$BUILD_ACTION"
+          await_build runtime-catalog-build.yaml "Runtime Catalog Build" "$runtime_catalog_expected"
+          runtime_catalog_result="$BUILD_RESULT"
 
-          resolve_build micro-engine-build.yaml "Micro Engine Build" "$micro_engine_expected"
-          micro_engine_action="$BUILD_ACTION"
-
-          {
-            echo "integration_build_pipeline=${integration_build_pipeline_action}"
-            echo "runtime_catalog=${runtime_catalog_action}"
-            echo "micro_engine=${micro_engine_action}"
-          } >> "$GITHUB_OUTPUT"
+          await_build micro-engine-build.yaml "Micro Engine Build" "$micro_engine_expected"
+          micro_engine_result="$BUILD_RESULT"
 
           {
-            echo "### Prerequisite build plan"
+            echo "### Module builds"
             echo
-            echo "| Build | Action |"
+            echo "| Build | Result |"
             echo "| --- | --- |"
-            echo "| Integration Build Pipeline Library Build | ${integration_build_pipeline_action} |"
-            echo "| Runtime Catalog Build | ${runtime_catalog_action} |"
-            echo "| Micro Engine Build | ${micro_engine_action} |"
+            echo "| Integration Build Pipeline Library Build | ${integration_build_pipeline_result} |"
+            echo "| Runtime Catalog Build | ${runtime_catalog_result} |"
+            echo "| Micro Engine Build | ${micro_engine_result} |"
           } >> "$GITHUB_STEP_SUMMARY"
-
-  integration_build_pipeline_build:
-    name: Integration Build Pipeline Library Build (fallback)
-    needs: prerequisite_builds
-    if: ${{ needs.prerequisite_builds.outputs.integration_build_pipeline == 'run' }}
-    permissions:
-      contents: read
-      packages: read
-    uses: ./.github/workflows/_maven-module-build.yaml
-    with:
-      module: integration-build-pipeline
-      sonar-project-key: ${{ vars.SONAR_INTEGRATION_BUILD_PIPELINE_PROJECT_KEY }}
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-  runtime_catalog_build:
-    name: Runtime Catalog Build (fallback)
-    needs: prerequisite_builds
-    if: ${{ needs.prerequisite_builds.outputs.runtime_catalog == 'run' }}
-    permissions:
-      contents: read
-      packages: read
-    uses: ./.github/workflows/_maven-module-build.yaml
-    with:
-      module: runtime-catalog
-      sonar-project-key: ${{ vars.SONAR_RUNTIME_CATALOG_PROJECT_KEY }}
-      ensure-openapi-spec: true
-      preinstall-integration-build-pipeline-library: true
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-  micro_engine_build:
-    name: Micro Engine Build (fallback)
-    needs: prerequisite_builds
-    if: ${{ needs.prerequisite_builds.outputs.micro_engine == 'run' }}
-    permissions:
-      contents: read
-      packages: read
-    uses: ./.github/workflows/_maven-module-build.yaml
-    with:
-      module: micro-engine
-      sonar-project-key: ${{ vars.SONAR_MICRO_ENGINE_PROJECT_KEY }}
-      force-update: true
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   snapshot_flow:
     name: Catalog to Micro Engine snapshot flow
-    needs:
-      - prerequisite_builds
-      - integration_build_pipeline_build
-      - runtime_catalog_build
-      - micro_engine_build
+    needs: prerequisite_builds
+    # The wait job runs only for pull requests and is skipped on main.
     if: >-
       ${{
         !cancelled()
-        && needs.prerequisite_builds.result == 'success'
-        && (
-          (
-            needs.prerequisite_builds.outputs.integration_build_pipeline == 'reuse'
-            && needs.integration_build_pipeline_build.result == 'skipped'
-          )
-          || (
-            needs.prerequisite_builds.outputs.integration_build_pipeline == 'run'
-            && needs.integration_build_pipeline_build.result == 'success'
-          )
-        )
-        && (
-          (
-            needs.prerequisite_builds.outputs.runtime_catalog == 'reuse'
-            && needs.runtime_catalog_build.result == 'skipped'
-          )
-          || (
-            needs.prerequisite_builds.outputs.runtime_catalog == 'run'
-            && needs.runtime_catalog_build.result == 'success'
-          )
-        )
-        && (
-          (
-            needs.prerequisite_builds.outputs.micro_engine == 'reuse'
-            && needs.micro_engine_build.result == 'skipped'
-          )
-          || (
-            needs.prerequisite_builds.outputs.micro_engine == 'run'
-            && needs.micro_engine_build.result == 'success'
-          )
-        )
+        && (needs.prerequisite_builds.result == 'success'
+          || needs.prerequisite_builds.result == 'skipped')
       }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
@@ -321,7 +249,19 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
-          cache: "maven"
+
+      # Only main saves the cache: a pull request's cache is visible to that pull
+      # request alone, and a copy per pull request fills the repository quota.
+      - name: Restore the Maven repository
+        id: maven-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: maven-${{ runner.os }}-snapshot-flow-${{ hashFiles('**/pom.xml') }}
+          # Until main has a snapshot-flow cache, start from the runtime-catalog one.
+          restore-keys: |
+            maven-${{ runner.os }}-snapshot-flow-
+            maven-${{ runner.os }}-runtime-catalog-
 
       - name: Verify Docker
         run: docker version
@@ -336,6 +276,13 @@ jobs:
           bash scripts/test-micro-engine-snapshots.sh \
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             '-Dquarkus.log.category."org.apache.camel.processor.errorhandler.DefaultErrorHandler".level=OFF'
+
+      - name: Save the Maven repository
+        if: ${{ github.event_name == 'push' && steps.maven-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: ${{ steps.maven-cache.outputs.cache-primary-key }}
 
       - name: Save snapshot test results
         if: ${{ always() }}
