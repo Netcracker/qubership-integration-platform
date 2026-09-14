@@ -23,6 +23,7 @@ import jakarta.persistence.criteria.CriteriaQuery;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
 import org.codehaus.plexus.util.StringUtils;
+import org.qubership.integration.platform.runtime.catalog.events.ChainsDeletedEvent;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.FolderMoveException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
@@ -37,6 +38,7 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.folder.Fol
 import org.qubership.integration.platform.runtime.catalog.rest.v2.dto.ListFolderRequest;
 import org.qubership.integration.platform.runtime.catalog.service.filter.ChainFilterSpecificationBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -63,6 +65,7 @@ public class FolderService {
 
     private final EntityManager entityManager;
     private final ChainFilterSpecificationBuilder chainFilterSpecificationBuilder;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Autowired
     public FolderService(FolderRepository folderRepository,
@@ -71,7 +74,8 @@ public class FolderService {
                          DeploymentService deploymentService,
                          AuditingHandler jpaAuditingHandler,
                          EntityManager entityManager,
-                         ChainFilterSpecificationBuilder chainFilterSpecificationBuilder) {
+                         ChainFilterSpecificationBuilder chainFilterSpecificationBuilder,
+                         ApplicationEventPublisher applicationEventPublisher) {
         this.folderRepository = folderRepository;
         this.actionLogger = actionLogger;
         this.chainRepository = chainRepository;
@@ -79,6 +83,7 @@ public class FolderService {
         this.auditingHandler = jpaAuditingHandler;
         this.entityManager = entityManager;
         this.chainFilterSpecificationBuilder = chainFilterSpecificationBuilder;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     public List<Folder> findAllInRoot() {
@@ -245,6 +250,10 @@ public class FolderService {
         deleteRuntimeDeployments(folder);
         List<FoldableEntity> nestedEntities = findAllNestedFoldableEntity(folderId);
         folderRepository.deleteById(folderId);
+        applicationEventPublisher.publishEvent(new ChainsDeletedEvent(nestedEntities.stream()
+                .filter(entity -> !(entity instanceof Folder))
+                .map(FoldableEntity::getId)
+                .toList()));
 
         for (FoldableEntity entity : nestedEntities) {
             if (!(entity instanceof Folder)) {
@@ -266,6 +275,7 @@ public class FolderService {
         chains.forEach(FoldableEntity::getParentFolder); // To ensure that parent folders are loaded.
         chains.stream().map(Chain::getId).toList().forEach(deploymentService::deleteAllByChainId);
         folderRepository.deleteFolderTree(folderIds);
+        applicationEventPublisher.publishEvent(new ChainsDeletedEvent(chains.stream().map(Chain::getId).toList()));
         chains.forEach(chain -> {
             Optional<Folder> folder = Optional.ofNullable(chain.getParentFolder());
             actionLogger.logAction(ActionLog.builder()
