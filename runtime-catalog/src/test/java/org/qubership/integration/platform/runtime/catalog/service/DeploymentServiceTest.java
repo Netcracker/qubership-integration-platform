@@ -261,7 +261,7 @@ class DeploymentServiceTest {
     }
 
     @Test
-    void createRefusesAnInternalTriggerPathAnotherChainUsesInTheSameDomain() {
+    void createRefusesAnInternalTriggerPathAnotherChainUses() {
         Snapshot snapshot = snapshotWithChain();
         ReflectionTestUtils.setField(service, "triggersCheckEnabled", true);
         runTransactionsImmediately();
@@ -271,12 +271,12 @@ class DeploymentServiceTest {
 
         assertThatThrownBy(() -> service.create(deployment, snapshot.getChain(), snapshot, null))
                 .isInstanceOf(EntityExistsException.class)
-                .hasMessageContaining("[shared]");
+                .hasMessage("Found similar triggers paths registered by other chains: [shared]");
         verify(deploymentRepository, never()).save(any());
     }
 
     @Test
-    void createAllowsAnInternalTriggerPathWithOtherMethodsInTheSameDomain() {
+    void createAllowsAnInternalTriggerPathAnotherChainUsesWithOtherMethods() {
         Snapshot snapshot = snapshotWithChain();
         ReflectionTestUtils.setField(service, "triggersCheckEnabled", true);
         runTransactionsImmediately();
@@ -289,11 +289,11 @@ class DeploymentServiceTest {
         assertThat(service.create(deployment, snapshot.getChain(), snapshot, null)).isSameAs(deployment);
     }
 
-    private void stubHttpTriggers(ChainElement pending, ChainElement sameDomain) {
+    private void stubHttpTriggers(ChainElement pending, ChainElement otherChain) {
         List<String> types = List.of(CamelNames.HTTP_TRIGGER_COMPONENT);
         when(elementRepository.findAllBySnapshotIdAndTypeIn("snap-1", types)).thenReturn(List.of(pending));
-        when(elementRepository.findElementsForSameDomainTriggerCheck(eq(types), eq("domainA"), eq("chain-1"), isNull()))
-                .thenReturn(List.of(sameDomain));
+        when(elementRepository.findElementsForTriggerCheck(eq(types), eq("chain-1"), isNull()))
+                .thenReturn(List.of(otherChain));
     }
 
     private static ChainElement internalTrigger(String methods) {
