@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
@@ -36,6 +37,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
+import org.qubership.integration.platform.ai.chain.deploy.MaasTopicsCreatedStore;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
@@ -73,6 +75,7 @@ class DeployChainScenarioTest {
   private CatalogRestClient catalogRestClient;
   private PinnedFailureStore pinnedFailureStore;
   private PendingRedeployStore pendingRedeployStore;
+  private MaasTopicsCreatedStore maasTopicsCreatedStore;
   private DeployChainScenario scenario;
 
   @BeforeEach
@@ -84,11 +87,13 @@ class DeployChainScenarioTest {
         .thenReturn(new ChainLoggingPropertiesSetDto(null, null, null));
     pinnedFailureStore = new PinnedFailureStore();
     pendingRedeployStore = new PendingRedeployStore();
+    maasTopicsCreatedStore = new MaasTopicsCreatedStore();
     scenario =
         new DeployChainScenario(
             chainContextExtractor,
             catalogRestClient,
             pendingRedeployStore,
+            maasTopicsCreatedStore,
             new KnownFailureMapper(),
             pinnedFailureStore,
             0L,
@@ -656,6 +661,28 @@ class DeployChainScenarioTest {
   }
 
   @Test
+  void cancelRedeployWhileProcessingResumesDeploymentWatch() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.getChain(CHAIN_ID))
+        .thenReturn(
+            new ChainDto(
+                CHAIN_ID, "demo", "Demo", new CurrentSnapshotDto(SNAPSHOT_ID, "V1"), false));
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "PROCESSING")));
+
+    ChatEvent.Decision card = onlyDecision(eventsFrom("deploy this chain"));
+    List<ChatEvent> events = eventsFrom(cancelRequest(card.artifactHash()));
+
+    verify(catalogRestClient, never()).createSnapshot(any());
+    verify(catalogRestClient, never()).createDeployment(any(), any());
+    verify(catalogRestClient, never()).deleteDeployment(any(), any());
+    ChatEvent.Decision refresh = onlyDecision(events);
+    assertEquals(ChatEvent.DEPLOYMENT_FAILURE_ARTIFACT, refresh.artifactType());
+    assertEquals(List.of(ChatEvent.REFRESH_DEPLOYMENT_ACTION), refresh.actions());
+  }
+
+  @Test
   void deployNamedSnapshotV2UsesListedIdWithoutCreateSnapshot() {
     when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
         .thenReturn(Optional.of(CHAIN_ID));
@@ -902,6 +929,70 @@ class DeployChainScenarioTest {
     assertEquals(
         List.of(ChatEvent.DEPLOY_ACTION, ChatEvent.CANCEL_DEPLOY_ACTION), decision.actions());
     assertTrue(decision.question().contains(CATALOG_CHAIN_ID), decision.question());
+  }
+
+  @Test
+  void refreshAfterCreateDoesNotReofferSameTopics() {
+    ChatEvent.Decision card = givenMaasTopicsCard();
+    clearInvocations(catalogRestClient);
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(
+            List.of(
+                deploymentWithError(
+                    "PROCESSING", "Failed to get classifier orders-in from MaaS")));
+
+    List<ChatEvent> created =
+        eventsFrom(
+            decisionRequest(ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION, card.artifactHash()));
+    ChatEvent.Decision refresh =
+        onlyDecision(
+            eventsFrom(
+                refreshRequest(
+                    ((ChatEvent.Decision) created.get(created.size() - 1)).artifactHash())));
+
+    assertEquals(List.of(ChatEvent.REFRESH_DEPLOYMENT_ACTION), refresh.actions());
+    assertFalse(refresh.actions().contains(ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION));
+  }
+
+  @Test
+  void checkDeploymentWithKafkaMissOffersTopicsCard() {
+    stubOpenChain();
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(
+            List.of(
+                deploymentWithError(
+                    "PROCESSING", "Failed to get classifier orders-in from MaaS")));
+    when(catalogRestClient.listElements(CHAIN_ID))
+        .thenReturn(List.of(maasKafkaTrigger("orders-in", "qip-dev")));
+
+    ChatEvent.Decision decision = onlyDecision(eventsFrom("check deployment of this chain"));
+
+    assertEquals(ChatEvent.MAAS_KAFKA_TOPICS_ARTIFACT, decision.artifactType());
+    assertTrue(decision.question().contains("`orders-in` in `qip-dev`"), decision.question());
+  }
+
+  @Test
+  void createMaasClassifierIntentPostsCatalogTopic() {
+    stubOpenChain();
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(
+            List.of(
+                deploymentWithError(
+                    "PROCESSING", "Failed to get classifier orders-in from MaaS")));
+    when(catalogRestClient.listElements(CHAIN_ID))
+        .thenReturn(List.of(maasKafkaTrigger("orders-in", "qip-dev")));
+    clearInvocations(catalogRestClient);
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenReturn(
+            List.of(
+                deploymentWithError(
+                    "PROCESSING", "Failed to get classifier orders-in from MaaS")));
+    when(catalogRestClient.listElements(CHAIN_ID))
+        .thenReturn(List.of(maasKafkaTrigger("orders-in", "qip-dev")));
+
+    eventsFrom("Create this maas classifier");
+
+    verify(catalogRestClient).createMaasKafkaTopic("qip-dev", "orders-in");
   }
 
   @Test
@@ -1467,7 +1558,7 @@ class DeployChainScenarioTest {
     ChatEvent.Decision decision = onlyDecision(eventsAfterSessionLogging("deploy it"));
 
     assertTrue(decision.question().contains("`orders-in` in `qip-dev`"), decision.question());
-    assertFalse(decision.question().contains("orders-out"), decision.question());
+    assertTrue(decision.question().contains("`orders-out` in `qip-dev`"), decision.question());
   }
 
   @Test
@@ -1540,7 +1631,7 @@ class DeployChainScenarioTest {
             "Failed to get classifier wfms-start from MaaS");
 
     assertTrue(named.question().contains("`wfms-start` in `qip-dev`"), named.question());
-    assertFalse(named.question().contains("wfms-result"), named.question());
+    assertTrue(named.question().contains("`wfms-result` in `qip-dev`"), named.question());
   }
 
   @Test
@@ -1593,7 +1684,7 @@ class DeployChainScenarioTest {
     ChatEvent.Decision decision = onlyDecision(eventsAfterSessionLogging("deploy it"));
 
     assertTrue(decision.question().contains("`wfms-start` in `qip-dev`"), decision.question());
-    assertFalse(decision.question().contains("wfms-result"), decision.question());
+    assertTrue(decision.question().contains("`wfms-result` in `qip-dev`"), decision.question());
   }
 
   @Test
@@ -1668,7 +1759,7 @@ class DeployChainScenarioTest {
     InOrder order = inOrder(catalogRestClient);
     order.verify(catalogRestClient).createMaasKafkaTopic("qip-dev", "orders-in");
     order.verify(catalogRestClient).createMaasKafkaTopic("qip-dev", "orders-out");
-    order.verify(catalogRestClient).listDeployments(CHAIN_ID);
+    verify(catalogRestClient, atLeastOnce()).listDeployments(CHAIN_ID);
     verify(catalogRestClient, never()).deleteDeployment(any(), any());
     verify(catalogRestClient, never()).createDeployment(any(), any());
     verify(catalogRestClient, never()).listElements(any());
@@ -1741,7 +1832,7 @@ class DeployChainScenarioTest {
 
   @ParameterizedTest
   @CsvSource({"PROCESSING", "FAILED"})
-  void createMaasKafkaTopicsThenNotDeployedOffersRedeployOnly(String status) {
+  void createMaasKafkaTopicsThenNotDeployedResumesDeploymentWatch(String status) {
     ChatEvent.Decision card = givenMaasTopicsCard();
     clearInvocations(catalogRestClient);
     when(catalogRestClient.getChain(CHAIN_ID))
@@ -1759,18 +1850,17 @@ class DeployChainScenarioTest {
             decisionRequest(ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION, card.artifactHash()));
 
     ChatEvent.Decision decision = onlyDecision(events);
-    assertEquals(ChatEvent.REDEPLOY_ARTIFACT, decision.artifactType());
-    assertEquals(
-        List.of(ChatEvent.REDEPLOY_ACTION, ChatEvent.CANCEL_REDEPLOY_ACTION),
-        decision.actions());
-    assertFalse(decision.actions().contains(ChatEvent.DEPLOY_ACTION));
-    assertFalse(decision.actions().contains(ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION));
+    if ("PROCESSING".equals(status)) {
+      assertEquals(ChatEvent.DEPLOYMENT_FAILURE_ARTIFACT, decision.artifactType());
+      assertEquals(List.of(ChatEvent.REFRESH_DEPLOYMENT_ACTION), decision.actions());
+    } else {
+      assertEquals(ChatEvent.DEPLOYMENT_FAILURE_ARTIFACT, decision.artifactType());
+      assertTrue(decision.actions().contains(ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION));
+    }
     verify(catalogRestClient, never()).listElements(any());
     verify(catalogRestClient, never()).createDeployment(any(), any());
     verify(catalogRestClient, never()).deleteDeployment(any(), any());
-    assertTrue(
-        pendingRedeployStore.find(CONVERSATION_ID).orElseThrow().existingDeploymentId()
-            != null);
+    assertTrue(pendingRedeployStore.find(CONVERSATION_ID).isEmpty());
   }
 
   @Test
@@ -1799,7 +1889,7 @@ class DeployChainScenarioTest {
   }
 
   @Test
-  void createMaasKafkaTopicsThenRedeployStillAsksSessionLoggingBeforeDeploy() {
+  void createMaasKafkaTopicsThenProcessingKeepsRefreshCard() {
     ChatEvent.Decision card = givenMaasTopicsCard();
     clearInvocations(catalogRestClient);
     when(catalogRestClient.getChain(CHAIN_ID))
@@ -1809,14 +1899,14 @@ class DeployChainScenarioTest {
     when(catalogRestClient.listDeployments(CHAIN_ID))
         .thenReturn(List.of(deploymentOnDefault(SNAPSHOT_ID, "PROCESSING")));
 
-    ChatEvent.Decision redeploy =
+    ChatEvent.Decision refresh =
         onlyDecision(
             eventsFrom(
                 decisionRequest(
                     ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION, card.artifactHash())));
-    ChatEvent.Decision logging = onlyDecision(eventsFrom(redeployRequest(redeploy.artifactHash())));
 
-    assertEquals(ChatEvent.SESSION_LOGGING_ARTIFACT, logging.artifactType());
+    assertEquals(ChatEvent.DEPLOYMENT_FAILURE_ARTIFACT, refresh.artifactType());
+    assertEquals(List.of(ChatEvent.REFRESH_DEPLOYMENT_ACTION), refresh.actions());
     verify(catalogRestClient, never()).createDeployment(any(), any());
     verify(catalogRestClient, never()).deleteDeployment(any(), any());
   }
@@ -1847,6 +1937,7 @@ class DeployChainScenarioTest {
             chainContextExtractor,
             catalogRestClient,
             pendingRedeployStore,
+            maasTopicsCreatedStore,
             new KnownFailureMapper(),
             pinnedFailureStore,
             0L,
@@ -2373,6 +2464,10 @@ class DeployChainScenarioTest {
 
   private static ChatRequest cancelUndeployRequest(String artifactHash) {
     return decisionRequest(ChatEvent.CANCEL_UNDEPLOY_ACTION, artifactHash);
+  }
+
+  private static ChatRequest refreshRequest(String artifactHash) {
+    return decisionRequest(ChatEvent.REFRESH_DEPLOYMENT_ACTION, artifactHash);
   }
 
   private static ChatRequest decisionRequest(String action, String artifactHash) {

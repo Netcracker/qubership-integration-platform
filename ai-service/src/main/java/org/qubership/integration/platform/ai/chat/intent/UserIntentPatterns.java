@@ -52,8 +52,16 @@ public final class UserIntentPatterns {
       Pattern.compile(
           "(?isU)\\b("
               + "deployment\\s+status|"
+              + "check\\s+deployment|"
               + "is\\s+(it|this\\s+chain)\\s+deployed|"
               + "where\\s+is\\s+(this\\s+chain\\s+)?deployed"
+              + ")\\b");
+
+  private static final Pattern CREATE_MAAS_KAFKA_TOPICS_INTENT =
+      Pattern.compile(
+          "(?isU)\\b("
+              + "create\\s+(?:(?:the|this|those|these|missing)\\s+)*(?:kafka\\s+)?(?:maas\\s+)?(?:kafka\\s+)?(?:topics?|classifiers?)|"
+              + "create\\s+them"
               + ")\\b");
 
   private static final Pattern UNDEPLOY_INTENT = Pattern.compile("(?isU)\\bundeploy\\b");
@@ -163,6 +171,18 @@ public final class UserIntentPatterns {
     }
     String intent = extractLeadingIntent(text);
     return UNDEPLOY_INTENT.matcher(intent).find();
+  }
+
+  /**
+   * Compact phrasing to create missing Kafka MaaS topics/classifiers during deploy follow-up. Routes
+   * to {@code DEPLOY_CHAIN} catalog actions, not chain patch generators.
+   */
+  public static boolean matchesCreateMaasKafkaTopicsIntent(String text) {
+    if (!isCompactIntentMessage(text)) {
+      return false;
+    }
+    String intent = extractLeadingIntent(text);
+    return CREATE_MAAS_KAFKA_TOPICS_INTENT.matcher(intent).find();
   }
 
   public static String extractLeadingIntent(String userText) {
