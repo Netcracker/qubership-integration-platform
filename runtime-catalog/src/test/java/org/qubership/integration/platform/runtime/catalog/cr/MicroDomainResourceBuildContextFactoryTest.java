@@ -196,12 +196,12 @@ class MicroDomainResourceBuildContextFactoryTest {
     @DisplayName("Stamps the requesting user onto the build, since a micro domain keeps no deployment row to audit")
     @Test
     void buildsContextWithTheCurrentUserAsCreator() {
-        when(auditor.getCurrentAuditor()).thenReturn(Optional.of(new User("user-1", "cpq-admin")));
+        when(auditor.getCurrentAuditor()).thenReturn(Optional.of(new User("user-1", "test-admin")));
 
         ResourceBuildContext<List<Snapshot>> context =
                 factory.createResourceBuildContext(request(options()), false).context();
 
-        assertEquals("cpq-admin", context.getBuildInfo().getCreatedBy());
+        assertEquals("test-admin", context.getBuildInfo().getCreatedBy());
     }
 
     @DisplayName("Leaves the creator unset when there is no current user")

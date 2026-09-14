@@ -42,7 +42,7 @@ class EngineStateBuilderTest {
     private static final String SNAPSHOT_NAME = "V8";
     public static final String DEPLOYMENT_ID = "ab181758-32d9-4743-9201-ff63f48ad452";
     private static final long BUILD_TIMESTAMP_SECONDS = 1_785_916_930L;
-    private static final String CREATED_BY = "cpq-admin";
+    private static final String CREATED_BY = "test-admin";
 
     @Mock
     private EngineInfo engineInfo;
