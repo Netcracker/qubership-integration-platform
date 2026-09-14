@@ -85,9 +85,8 @@
         </sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
-    <!-- Maven queries repositories in this order and Central serves nearly every artifact, so it goes first. -->
     <repositories>
-        <!-- Maven Central repository for release versions -->
+        <!-- Maven Central for release versions. Maven queries repositories in this order, so Central goes first. -->
         <repository>
             <id>central</id>
             <url>https://repo.maven.apache.org/maven2</url>
