@@ -290,8 +290,14 @@ public class DeploymentService {
         }
     }
 
-    @Transactional
+    @DeploymentModification
     public Pair<Boolean, List<BulkDeploymentResponse>> bulkCreate(BulkDeploymentRequest request) {
+        AtomicReference<Pair<Boolean, List<BulkDeploymentResponse>>> result = new AtomicReference<>();
+        transactionHandler.runInTransaction(() -> result.set(bulkCreateInTransaction(request)));
+        return result.get();
+    }
+
+    private Pair<Boolean, List<BulkDeploymentResponse>> bulkCreateInTransaction(BulkDeploymentRequest request) {
         final AtomicReference<Boolean> failed = new AtomicReference<>(false);
         List<BulkDeploymentResponse> statuses = new ArrayList<>();
 
