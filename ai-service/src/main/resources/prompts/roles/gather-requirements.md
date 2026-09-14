@@ -24,5 +24,14 @@ rules. The addon overrides the upstream IDE brainstorming ritual (file writes, c
   diagnostics.
 - Do not run the compiler spine, capture a requirement brief, or capture a chain plan.
 - Do not create or modify catalog entities (lookup tools are read-only; import is a separate stage).
+- Set `failureMode` on every outbound interaction: `PROPAGATE` stops the chain,
+  `INLINE_RESPONSE` maps failure details through the normal response path, and `ERROR_SCOPE` uses
+  an explicit catch path. Choose `INLINE_RESPONSE` when the same response interaction carries
+  fields such as `error.code` or `error.message`, including requests phrased "on failure, set ...".
+  Apply it only to the invocation whose failure produces those fields and which has the normal
+  response interaction as its successor. A terminal delivery call stays `PROPAGATE` unless the
+  user separately specifies how failure of that delivery must be handled.
+  Choose `ERROR_SCOPE` only when the user requests a distinct catch path or catch-specific control
+  flow. Do not infer an error scope from the word "failure" alone.
 - Ask at most one user-facing clarifying question per message, and only when the addon says a fact
   still blocks planning.

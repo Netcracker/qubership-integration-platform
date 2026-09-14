@@ -24,8 +24,11 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 /**
@@ -40,7 +43,9 @@ public final class DesignPlanProjector {
 
   /** Upstream process skill; rewritten onto pinned Validation producers when absent from the DAG. */
   static final String CHAIN_VALIDATOR_SKILL_ID = "cip-chain-validator";
+  static final String ERROR_HANDLING_GENERATOR_SKILL_ID = "cip-error-handling-generator";
   static final String SCRIPT_GENERATOR_SKILL_ID = "cip-script-generator";
+  static final String SERVICE_CALL_GENERATOR_SKILL_ID = "cip-service-call-generator";
   static final String TRANSFORMATION_GENERATOR_SKILL_ID = "cip-transformation-generator";
 
   private final CipDesignPlannerReportParser parser;
@@ -80,9 +85,11 @@ public final class DesignPlanProjector {
     // Upstream design-planner still names cip-chain-validator; the runtime skill catalog
     // decomposed that gate into the pinned Validation producers. Rewrite before catalog checks.
     parsed = rewriteChainValidatorAlias(parsed, nodesBySkill);
-    parsed = projectScriptGeneratorSteps(parsed, revision, brief);
-    validateDisabledTransformationGenerator(parsed);
     validateUnknownSkills(parsed, nodesBySkill);
+    parsed = projectScriptGeneratorSteps(parsed, revision, brief);
+    parsed = projectServiceCallSteps(parsed, revision, brief);
+    parsed = projectErrorHandlingSteps(parsed, revision);
+    validateDisabledTransformationGenerator(parsed);
     validateNoCatalogCycles(nodesBySkill, selectedSkills(parsed));
     validateTriggerCoverage(parsed);
     validateScriptMappingCoverage(parsed, revision, brief);
@@ -112,7 +119,9 @@ public final class DesignPlanProjector {
               dependsOn,
               required,
               produced,
-              parsedStep.mappingIntentId()));
+              parsedStep.mappingIntentId(),
+              parsedStep.serviceCallId(),
+              parsedStep.regionId()));
 
       if (parsedStep.ownerKind() == ParsedPlannerReport.OwnerKind.APIHUB_TOOL) {
         previousApiHubStepId = stepId;
@@ -201,7 +210,9 @@ public final class DesignPlanProjector {
               step.toolOperationRefs(),
               step.participantRefs(),
               step.operationQueryRefs(),
-              step.mappingIntentId()));
+              step.mappingIntentId(),
+              step.serviceCallId(),
+              step.regionId()));
     }
     return rewritten ? new ParsedPlannerReport(steps, parsed.apiRelease()) : parsed;
   }
@@ -341,7 +352,9 @@ public final class DesignPlanProjector {
                   step.toolOperationRefs(),
                   step.participantRefs(),
                   step.operationQueryRefs(),
-                  assigned.mappingIntentId()));
+                  assigned.mappingIntentId(),
+                  step.serviceCallId(),
+                  step.regionId()));
           continue;
         }
       }
@@ -363,7 +376,9 @@ public final class DesignPlanProjector {
                 step.toolOperationRefs(),
                 step.participantRefs(),
                 step.operationQueryRefs(),
-                ""));
+                "",
+                step.serviceCallId(),
+                step.regionId()));
         continue;
       }
       LinkedHashSet<String> owners = new LinkedHashSet<>(step.owningSkillIds());
@@ -384,12 +399,203 @@ public final class DesignPlanProjector {
               step.toolOperationRefs(),
               step.participantRefs(),
               step.operationQueryRefs(),
-              unnamed ? step.mappingIntentId() : ""));
+              unnamed ? step.mappingIntentId() : "",
+              step.serviceCallId(),
+              step.regionId()));
     }
     if (!changed || steps.isEmpty()) {
       return parsed;
     }
     return new ParsedPlannerReport(steps, parsed.apiRelease());
+  }
+
+  private static ParsedPlannerReport projectServiceCallSteps(
+      ParsedPlannerReport parsed, ChainSemanticRevision revision, RequirementBrief brief) {
+    List<SemanticNode.ServiceCall> calls =
+        revision.nodes().stream()
+            .filter(SemanticNode.ServiceCall.class::isInstance)
+            .map(SemanticNode.ServiceCall.class::cast)
+            .toList();
+    Map<String, SemanticNode.ServiceCall> callsById = new LinkedHashMap<>();
+    for (SemanticNode.ServiceCall call : calls) {
+      callsById.put(call.serviceCallId(), call);
+    }
+    Map<String, RequirementServiceCall> approvedById = new LinkedHashMap<>();
+    if (brief != null) {
+      for (RequirementServiceCall call : brief.serviceCalls()) {
+        approvedById.put(call.serviceCallId(), call);
+      }
+    }
+
+    Set<String> produced = new LinkedHashSet<>();
+    List<ParsedPlannerReport.Step> projected = new ArrayList<>();
+    for (ParsedPlannerReport.Step step : parsed.steps()) {
+      boolean ownsGenerator = step.owningSkillIds().contains(SERVICE_CALL_GENERATOR_SKILL_ID);
+      if (!ownsGenerator && step.serviceCallId().isBlank()) {
+        projected.add(step);
+        continue;
+      }
+      String serviceCallId = step.serviceCallId();
+      if (!ownsGenerator) {
+        if (!callsById.containsKey(serviceCallId)) {
+          throw new PlannerContractException(
+              "planner step names unknown serviceCallId: " + serviceCallId);
+        }
+        if (!isConnectionFollowUp(step)) {
+          throw new PlannerContractException(
+              "serviceCallId="
+                  + serviceCallId
+                  + " appears on a step that neither produces nor connects that occurrence");
+        }
+        projected.add(step);
+        continue;
+      }
+      if (serviceCallId.isBlank()) {
+        if (calls.size() != 1) {
+          throw new PlannerContractException(
+              "planner service-call step "
+                  + step.reportOrdinal()
+                  + " is missing serviceCallId=<id>");
+        }
+        serviceCallId = calls.getFirst().serviceCallId();
+      }
+      SemanticNode.ServiceCall semanticCall = callsById.get(serviceCallId);
+      if (semanticCall == null) {
+        throw new PlannerContractException(
+            "planner service-call step names unknown serviceCallId: " + serviceCallId);
+      }
+      boolean referenceOnly = isResolveBindingStep(step) || isConnectionFollowUp(step);
+      if (!referenceOnly && !produced.add(serviceCallId)) {
+        throw new PlannerContractException(
+            "serviceCallId=" + serviceCallId + " has more than one producing step");
+      }
+      RequirementServiceCall approved = approvedById.get(serviceCallId);
+      projected.add(
+          new ParsedPlannerReport.Step(
+              step.reportOrdinal(),
+              canonicalServiceCallText(step, semanticCall, approved, serviceCallId),
+              step.ownerKind(),
+              step.owningSkillIds(),
+              step.toolOperationRefs(),
+              approved == null || approved.participant().isBlank()
+                  ? List.of()
+                  : List.of(approved.participant()),
+              List.of(semanticCall.operation()),
+              step.mappingIntentId(),
+              serviceCallId,
+              step.regionId()));
+    }
+    for (SemanticNode.ServiceCall call : calls) {
+      if (!produced.contains(call.serviceCallId())) {
+        throw new PlannerContractException(
+            "planner report missing producing step for serviceCallId=" + call.serviceCallId());
+      }
+    }
+    return new ParsedPlannerReport(projected, parsed.apiRelease());
+  }
+
+  private static String canonicalServiceCallText(
+      ParsedPlannerReport.Step step,
+      SemanticNode.ServiceCall semanticCall,
+      RequirementServiceCall approved,
+      String serviceCallId) {
+    if (approved == null || approved.participant().isBlank()) {
+      return step.reportText();
+    }
+    String identity =
+        approved.participant()
+            + "."
+            + semanticCall.operation()
+            + " failureMode="
+            + semanticCall.failureMode();
+    if (isResolveBindingStep(step)) {
+      return "Use the approved catalog binding for "
+          + identity
+          + " (cip-service-call-generator serviceCallId="
+          + serviceCallId
+          + ")";
+    }
+    return "Generate Service Call element "
+        + semanticCall.nodeId()
+        + " for "
+        + identity
+        + " (cip-service-call-generator serviceCallId="
+        + serviceCallId
+        + ")";
+  }
+
+  private static ParsedPlannerReport projectErrorHandlingSteps(
+      ParsedPlannerReport parsed, ChainSemanticRevision revision) {
+    Map<String, SemanticRegion.ErrorScope> scopesById = new LinkedHashMap<>();
+    for (SemanticRegion region : revision.regions()) {
+      if (region instanceof SemanticRegion.ErrorScope scope) {
+        scopesById.put(scope.regionId(), scope);
+      }
+    }
+    Set<String> produced = new LinkedHashSet<>();
+    List<ParsedPlannerReport.Step> projected = new ArrayList<>();
+    for (ParsedPlannerReport.Step step : parsed.steps()) {
+      boolean ownsGenerator = step.owningSkillIds().contains(ERROR_HANDLING_GENERATOR_SKILL_ID);
+      if (!ownsGenerator && step.regionId().isBlank()) {
+        projected.add(step);
+        continue;
+      }
+      String regionId = step.regionId();
+      if (!ownsGenerator) {
+        if (!scopesById.containsKey(regionId)) {
+          throw new PlannerContractException("planner step names unknown regionId: " + regionId);
+        }
+        if (!isConnectionFollowUp(step)) {
+          throw new PlannerContractException(
+              "regionId="
+                  + regionId
+                  + " appears on a step that neither produces nor connects that region");
+        }
+        projected.add(step);
+        continue;
+      }
+      if (regionId.isBlank()) {
+        if (scopesById.size() != 1) {
+          throw new PlannerContractException(
+              "planner error-handling step " + step.reportOrdinal() + " is missing regionId=<id>");
+        }
+        regionId = scopesById.keySet().iterator().next();
+      }
+      SemanticRegion.ErrorScope scope = scopesById.get(regionId);
+      if (scope == null) {
+        throw new PlannerContractException(
+            "planner error-handling step names unknown regionId: " + regionId);
+      }
+      if (!produced.add(regionId)) {
+        throw new PlannerContractException(
+            "regionId=" + regionId + " has more than one error-handling producing step");
+      }
+      projected.add(
+          new ParsedPlannerReport.Step(
+              step.reportOrdinal(),
+              "Generate error handling for regionId="
+                  + regionId
+                  + " owned by "
+                  + scope.ownerNodeId()
+                  + " (cip-error-handling-generator regionId="
+                  + regionId
+                  + ")",
+              step.ownerKind(),
+              step.owningSkillIds(),
+              step.toolOperationRefs(),
+              step.participantRefs(),
+              step.operationQueryRefs(),
+              step.mappingIntentId(),
+              step.serviceCallId(),
+              regionId));
+    }
+    for (String regionId : scopesById.keySet()) {
+      if (!produced.contains(regionId)) {
+        throw new PlannerContractException(
+            "planner report missing error-handling step for regionId=" + regionId);
+      }
+    }
+    return new ParsedPlannerReport(projected, parsed.apiRelease());
   }
 
   private static MappingIntent takeNextMatchingIntent(

@@ -57,6 +57,22 @@ class CipDesignPlannerReportParserTest {
   }
 
   @Test
+  void extractsOccurrenceAndRegionIdsFromStepText() {
+    String report =
+        """
+        1. Generate Service Call element (cip-service-call-generator serviceCallId=create-primary)
+        2. Generate error handling (cip-error-handling-generator regionId=errors-primary)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    ParsedPlannerReport parsed = parser.parse(report);
+
+    assertEquals("create-primary", parsed.steps().get(0).serviceCallId());
+    assertEquals("errors-primary", parsed.steps().get(1).regionId());
+  }
+
+  @Test
   void mappingIntentIdDefaultsToEmptyWhenAbsent() {
     String report =
         """

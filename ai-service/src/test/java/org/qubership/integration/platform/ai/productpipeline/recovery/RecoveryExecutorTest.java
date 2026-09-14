@@ -40,6 +40,25 @@ class RecoveryExecutorTest {
           new RetryPolicy(0, 0));
 
   @Test
+  void regenerationStaysWithEachProducerAndParksAfterCatalogWrites() {
+    for (Reference fault : List.of(SEMANTIC_REVISION_REF, IDS_REF, PLAN_REF, GRAPH_REF)) {
+      String owner = RecoveryExecutor.producerStageForFault(fault, "");
+      ProfileStage stage = new ProfileStage(owner, owner, List.of(), List.of(), null, null,
+          new RetryPolicy(0, 0));
+      RecoveryEvidence evidence = derivationEvidence(fault);
+      RecoveryDecision decision = new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT,
+          fault, List.of(evidence.failureId()), RecoveryAction.REGENERATE_ARTIFACT,
+          List.of(), "", "Repair the rejected artifact.");
+      StageDecision.Retry retry = assertInstanceOf(StageDecision.Retry.class,
+          RecoveryExecutor.execute(decision, evidence, null, stage, false, false));
+      assertEquals(owner, retry.stageId());
+      assertEquals(Duration.ZERO, retry.delay());
+      assertInstanceOf(StageDecision.WaitForInput.class,
+          RecoveryExecutor.execute(decision, evidence, null, stage, true, false));
+    }
+  }
+
+  @Test
   void regenerateOnRequirementDraftReopensDiscovery() {
     RecoveryEvidence evidence =
         new RecoveryEvidence(
@@ -202,7 +221,7 @@ class RecoveryExecutorTest {
   }
 
   @Test
-  void derivationDefectRegenerateRewindsToPlanningInsteadOfRetryingGeneratedGraph() {
+  void derivationDefectRegeneratesAtTheGraphProducer() {
     RecoveryEvidence evidence = derivationEvidence(GRAPH_REF);
     RecoveryDecision decision =
         new RecoveryDecision(
@@ -214,14 +233,12 @@ class RecoveryExecutorTest {
             "",
             "Regenerate the graph without changing the brief.");
 
-    StageDecision.ReopenProducer reopen =
+    StageDecision.Retry retry =
         assertInstanceOf(
-            StageDecision.ReopenProducer.class,
+            StageDecision.Retry.class,
             RecoveryExecutor.execute(decision, evidence, null, FAILED_STAGE, false, false));
 
-    assertEquals("design-execution", reopen.stageId());
-    assertEquals("design-planning", reopen.producerStageId());
-    assertNotEquals("requirement-analysis", reopen.producerStageId());
+    assertEquals("design-execution", retry.stageId());
     assertEquals(BRIEF_REF, evidence.approvedBriefRef());
   }
 

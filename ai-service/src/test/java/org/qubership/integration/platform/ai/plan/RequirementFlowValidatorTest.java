@@ -15,6 +15,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 
 class RequirementFlowValidatorTest {
 
@@ -129,6 +130,35 @@ class RequirementFlowValidatorTest {
         Optional.of(
             "requirement flow outbound interaction task-result is unreachable from any inbound"
                 + " interaction"),
+        RequirementFlowValidator.validateStructure(flow));
+  }
+
+  @Test
+  void rejectsInlineResponseOnATerminalServiceCall() {
+    RequirementFlow flow =
+        flow(
+            List.of(
+                interaction("start", INBOUND, "OM", "onTaskStart"),
+                new Interaction(
+                    "create-task",
+                    OUTBOUND,
+                    "Salesforce",
+                    "createTask",
+                    "",
+                    ServiceCallFailureMode.INLINE_RESPONSE),
+                new Interaction(
+                    "task-result",
+                    OUTBOUND,
+                    "OM",
+                    "onTaskResult",
+                    "",
+                    ServiceCallFailureMode.INLINE_RESPONSE)),
+            List.of(edge("start", "create-task"), edge("create-task", "task-result")));
+
+    assertEquals(
+        Optional.of(
+            "requirement flow interaction task-result uses INLINE_RESPONSE but has no successor"
+                + " response interaction"),
         RequirementFlowValidator.validateStructure(flow));
   }
 

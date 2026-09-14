@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -16,15 +17,194 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 class DesignPlanProjectorTest {
 
   private final DesignPlanProjector projector = new DesignPlanProjector();
+
+  @Test
+  void rejectsTwoProducingStepsForOneOccurrenceWhileTheCatalogOperationMayRepeat() {
+    ChainSemanticRevision revision = twoCallsToTheSameOperation();
+    RequirementBrief brief = repeatedOperationBrief();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element for Salesforce WFM.createTask (cip-service-call-generator serviceCallId=create-primary)
+        3. Generate Service Call element for Salesforce WFM.createTask again (cip-service-call-generator serviceCallId=create-primary)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    PlannerContractException error =
+        assertThrows(
+            PlannerContractException.class,
+            () ->
+                projector.project(
+                    new DesignPlanReport("1", report), revision, samplePin(revision, sampleDag()), brief));
+
+    assertTrue(error.getMessage().contains("create-primary"), error.getMessage());
+    assertTrue(error.getMessage().contains("more than one producing step"), error.getMessage());
+  }
+
+  @Test
+  void allowsTwoOccurrencesOfOneCatalogOperationAndRepeatedReferencesToOneOccurrence() {
+    ChainSemanticRevision revision = twoCallsToTheSameOperation();
+    String report =
+        """
+        1. Resolve catalog binding (cip-service-call-generator serviceCallId=create-primary)
+        2. Generate HTTP Trigger element (cip-trigger-generator)
+        3. Generate Service Call element (cip-service-call-generator serviceCallId=create-primary)
+        4. Generate Service Call element (cip-service-call-generator serviceCallId=create-secondary)
+        5. Connect create-primary to create-secondary (cip-structure-generator serviceCallId=create-primary)
+        6. Generate execution structure (cip-structure-generator)
+        7. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        8. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    DesignExecutionPlan plan =
+        projector.project(
+            new DesignPlanReport("1", report),
+            revision,
+            samplePin(revision, sampleDag()),
+            repeatedOperationBrief());
+
+    assertEquals("create-primary", plan.steps().get(0).serviceCallId());
+    assertEquals("create-primary", plan.steps().get(2).serviceCallId());
+    assertEquals("create-secondary", plan.steps().get(3).serviceCallId());
+    assertEquals("create-primary", plan.steps().get(4).serviceCallId());
+  }
+
+  @Test
+  void rejectsUnknownOccurrenceOnAConnectionReference() {
+    ChainSemanticRevision revision = twoCallsToTheSameOperation();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator serviceCallId=create-primary)
+        3. Generate Service Call element (cip-service-call-generator serviceCallId=create-secondary)
+        4. Connect missing call (cip-structure-generator serviceCallId=create-ghost)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    PlannerContractException error =
+        assertThrows(
+            PlannerContractException.class,
+            () ->
+                projector.project(
+                    new DesignPlanReport("1", report),
+                    revision,
+                    samplePin(revision, sampleDag()),
+                    repeatedOperationBrief()));
+
+    assertTrue(error.getMessage().contains("unknown serviceCallId: create-ghost"));
+  }
+
+  @Test
+  void canonicalizesParticipantNamesFromTheOccurrenceContract() {
+    ChainSemanticRevision revision = twoDistinctCalls();
+    RequirementBrief brief = distinctCallBrief();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element for OM.createTask (cip-service-call-generator serviceCallId=create-task)
+        3. Generate Service Call element for Salesforce.onTaskResult (cip-service-call-generator serviceCallId=task-result)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    DesignExecutionPlan plan =
+        projector.project(
+            new DesignPlanReport("1", report), revision, samplePin(revision, sampleDag()), brief);
+
+    assertTrue(plan.steps().get(1).reportText().contains("Salesforce WFM.createTask"));
+    assertTrue(plan.steps().get(2).reportText().contains("OM.onTaskResult"));
+    assertEquals(List.of("Salesforce WFM"), plan.steps().get(1).participantRefs());
+    assertEquals(List.of("OM"), plan.steps().get(2).participantRefs());
+  }
+
+  @Test
+  void requiresOccurrenceIdsWhenMoreThanOneServiceCallIsPlanned() {
+    ChainSemanticRevision revision = twoCallsToTheSameOperation();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Generate Service Call element (cip-service-call-generator)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    PlannerContractException error =
+        assertThrows(
+            PlannerContractException.class,
+            () ->
+                projector.project(
+                    new DesignPlanReport("1", report),
+                    revision,
+                    samplePin(revision, sampleDag()),
+                    repeatedOperationBrief()));
+
+    assertTrue(error.getMessage().contains("missing serviceCallId=<id>"), error.getMessage());
+  }
+
+  @Test
+  void rejectsErrorHandlingThatIsAbsentFromTheSemanticTopology() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrders();
+    ResolvedCompilerDag base = sampleDag();
+    List<ResolvedCompilerNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(
+        node(
+            "cip-error-handling-generator",
+            List.of(SkillArtifactType.GRAPH_PATCH.name()),
+            List.of(SkillArtifactType.GRAPH_PATCH.name()),
+            List.of("cip-service-call-generator"),
+            5));
+    ResolvedCompilerDag dag = new ResolvedCompilerDag(nodes, base.dependencies(), "dag-with-error");
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Generate try/catch/finally error handling (cip-error-handling-generator)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    PlannerContractException error =
+        assertThrows(
+            PlannerContractException.class,
+            () ->
+                projector.project(
+                    new DesignPlanReport("1", report), revision, samplePin(revision, dag)));
+
+    assertTrue(error.getMessage().contains("missing regionId=<id>"), error.getMessage());
+  }
 
   @Test
   void projectsCatalogDerivedDependenciesInReportOrder() {
@@ -786,6 +966,79 @@ class DesignPlanProjectorTest {
   private static RequirementBrief briefFrom(ChainSemanticRevision revision) {
     return new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
         .withMappingIntents(revision.mappingIntents());
+  }
+
+  private static ChainSemanticRevision twoCallsToTheSameOperation() {
+    return twoCalls("create-primary", "createTask", "create-secondary", "createTask");
+  }
+
+  private static ChainSemanticRevision twoDistinctCalls() {
+    return twoCalls("create-task", "createTask", "task-result", "onTaskResult");
+  }
+
+  private static ChainSemanticRevision twoCalls(
+      String firstServiceCallId,
+      String firstOperation,
+      String secondServiceCallId,
+      String secondOperation) {
+    ChainSemanticRevision sample = SemanticFixtures.linearOrders();
+    return new ChainSemanticRevision(
+        sample.schemaVersion(),
+        "revision-repeated-operation",
+        "Repeated operation",
+        sample.compilerContractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "entry-1",
+                "trigger-http",
+                "call-primary",
+                0,
+                new SemanticProvenance(List.of()),
+                null)),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.ServiceCall(
+                "call-primary",
+                firstServiceCallId,
+                firstOperation,
+                new SemanticProvenance(List.of("fact-primary"))),
+            new SemanticNode.ServiceCall(
+                "call-secondary",
+                secondServiceCallId,
+                secondOperation,
+                new SemanticProvenance(List.of("fact-secondary")))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-1", "trigger-http", "call-primary", null, null, null),
+            new SemanticExecutionEdge(
+                "edge-2", "call-primary", "call-secondary", null, null, null)),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  private static RequirementBrief repeatedOperationBrief() {
+    return new RequirementBrief("Tasks", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withServiceCalls(
+            List.of(
+                new RequirementServiceCall(
+                    "create-primary", "fact-primary", "Salesforce WFM", "createTask"),
+                new RequirementServiceCall(
+                    "create-secondary", "fact-secondary", "Salesforce WFM", "createTask")));
+  }
+
+  private static RequirementBrief distinctCallBrief() {
+    return new RequirementBrief("Tasks", List.of(), List.of(), List.of(), List.of(), "summary")
+        .withServiceCalls(
+            List.of(
+                new RequirementServiceCall(
+                    "create-task", "fact-primary", "Salesforce WFM", "createTask"),
+                new RequirementServiceCall(
+                    "task-result", "fact-secondary", "OM", "onTaskResult")));
   }
 
   private static CompilerRunPin pin(ChainSemanticRevision revision) {

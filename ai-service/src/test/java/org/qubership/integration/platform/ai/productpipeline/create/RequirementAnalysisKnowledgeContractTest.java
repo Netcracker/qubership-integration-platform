@@ -44,6 +44,21 @@ class RequirementAnalysisKnowledgeContractTest {
   }
 
   @Test
+  void failureFieldsOnTheSameResponseStayOnTheInlineResponsePath() throws Exception {
+    String skill = Files.readString(resolveSkillMarkdown());
+    String prompt =
+        Files.readString(
+            resolveModule().resolve("src/main/resources/prompts/roles/gather-requirements.md"));
+
+    assertTrue(skill.contains("Failure fields on the same response interaction are inline response"));
+    assertTrue(prompt.contains("Choose `INLINE_RESPONSE` when the same response interaction carries"));
+    assertTrue(prompt.contains("including requests phrased \"on failure, set ...\""));
+    assertTrue(prompt.contains("A terminal delivery call stays `PROPAGATE`"));
+    assertTrue(skill.contains("terminal delivery call stays propagate"));
+    assertTrue(prompt.contains("Choose `ERROR_SCOPE` only when the user requests a distinct catch path"));
+  }
+
+  @Test
   void analysisRequestsOneContextPackageAndRecordsEvidence() {
     FakeKnowledgeClient client = FakeKnowledgeClient.defaultFixture();
     ConversationEvidenceStore store = new ConversationEvidenceStore();
@@ -96,11 +111,7 @@ class RequirementAnalysisKnowledgeContractTest {
   }
 
   private static Path resolveSkillMarkdown() {
-    Path cwd = Path.of(".").toAbsolutePath().normalize();
-    Path module =
-        Files.isRegularFile(cwd.resolve("pom.xml")) && Files.isDirectory(cwd.resolve("src/main/java"))
-            ? cwd
-            : cwd.resolve("ai-service");
+    Path module = resolveModule();
     Path skill =
         module
             .getParent()
@@ -109,5 +120,13 @@ class RequirementAnalysisKnowledgeContractTest {
       throw new IllegalStateException("cip-requirement-analyzer SKILL.md not found at " + skill);
     }
     return skill;
+  }
+
+  private static Path resolveModule() {
+    Path cwd = Path.of(".").toAbsolutePath().normalize();
+    return Files.isRegularFile(cwd.resolve("pom.xml"))
+            && Files.isDirectory(cwd.resolve("src/main/java"))
+        ? cwd
+        : cwd.resolve("ai-service");
   }
 }

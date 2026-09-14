@@ -442,12 +442,14 @@ public class RequirementDraftTool {
       List<RequirementFact> positiveCalls = positiveServiceCalls(facts);
       recordAssessmentsFromListedOperations(positiveCalls, conversationId);
       resolveUnboundFromCatalog(capturedFlow, capturedFacts, conversationId);
+      RequirementFlow boundFlow =
+          canonicalizeResolvedCatalogIdentity(capturedFlow, conversationId);
       List<RequirementServiceCall> reconciledCalls =
           reconcileServiceCalls(facts, previous, conversationId);
       List<CatalogBindingHint> catalogBindings =
-          capturedFlow.interactions().isEmpty()
+          boundFlow.interactions().isEmpty()
               ? hintsFromResolvedCalls(reconciledCalls)
-              : reconcileCatalogBindings(capturedFlow, previous, conversationId);
+              : reconcileCatalogBindings(boundFlow, previous, conversationId);
       List<RequirementServiceCall> unresolvedCalls =
           reconciledCalls.stream().filter(call -> call.catalogBinding() == null).toList();
       // Assessments decide whenever the draft names its service calls. The catalog-cache heuristic
@@ -456,10 +458,10 @@ public class RequirementDraftTool {
           positiveCalls.isEmpty()
               && requiresResolvedCatalogBinding(facts, catalogCache, conversationId);
       if (decision == DraftDecision.READY_FOR_PLAN
-          && !capturedFlow.interactions().isEmpty()
+          && !boundFlow.interactions().isEmpty()
           && !hasAllowedUploadedSpecs(conversationId)) {
         Optional<String> bindingError =
-            RequirementFlowValidator.validateBindings(capturedFlow, facts, catalogBindings);
+            RequirementFlowValidator.validateBindings(boundFlow, facts, catalogBindings);
         if (bindingError.isPresent()) {
           softDowngradedForBinding = true;
           decision = DraftDecision.NEEDS_INPUT;
@@ -470,7 +472,7 @@ public class RequirementDraftTool {
       }
 
       if (decision == DraftDecision.READY_FOR_PLAN
-          && !capturedFlow.interactions().isEmpty()) {
+          && !boundFlow.interactions().isEmpty()) {
         List<CatalogRestClient.OperationDto> missingOperations =
             missingExplicitCatalogOperations(
                 conversationId, capture.assembledText(), facts, catalogBindings);
@@ -501,7 +503,7 @@ public class RequirementDraftTool {
       if (decision == DraftDecision.READY_FOR_PLAN
           && (!unresolvedCalls.isEmpty() || bindingMissing)
           && !hasAllowedUploadedSpecs(conversationId)
-          && capturedFlow.interactions().isEmpty()) {
+          && boundFlow.interactions().isEmpty()) {
         softDowngradedForBinding = true;
         decision = DraftDecision.NEEDS_INPUT;
         if (openQuestions.isEmpty()) {
@@ -515,7 +517,7 @@ public class RequirementDraftTool {
       }
 
       boolean catalogBindCheckpoint =
-          catalogBindCheckpoint(capturedFlow, capturedFacts, conversationId);
+          catalogBindCheckpoint(boundFlow, capturedFacts, conversationId);
       String invalidDecision =
           validateDecision(decision, openQuestions, candidate, catalogBindCheckpoint);
       if (invalidDecision != null) {
@@ -531,9 +533,9 @@ public class RequirementDraftTool {
       if (candidate != null) {
         if (previous != null && previous.apiHubCandidateInteractionId() != null) {
           owningInteractionId = previous.apiHubCandidateInteractionId();
-        } else if (!capturedFlow.interactions().isEmpty()) {
+        } else if (!boundFlow.interactions().isEmpty()) {
           List<String> unresolved =
-              capturedFlow.interactions().stream()
+              boundFlow.interactions().stream()
                   .filter(
                       interaction ->
                           RequirementFlowValidator.requiresCatalogBinding(interaction, capturedFacts))
@@ -572,15 +574,15 @@ public class RequirementDraftTool {
               importIntent,
               owningInteractionId,
               idsRequested(capture, previous),
-              capturedFlow,
+              boundFlow,
               catalogBindings,
               previous != null ? previous.preferredSystemType() : null);
       store.put(conversationId, draft);
       store.markCaptured(conversationId);
       if (resolutions != null) {
         Set<String> retained = new LinkedHashSet<>();
-        if (!capturedFlow.interactions().isEmpty()) {
-          for (RequirementFlow.Interaction interaction : capturedFlow.interactions()) {
+        if (!boundFlow.interactions().isEmpty()) {
+          for (RequirementFlow.Interaction interaction : boundFlow.interactions()) {
             retained.add(interaction.interactionId());
           }
         } else {
@@ -647,10 +649,10 @@ public class RequirementDraftTool {
             conversationId,
             startMs,
             BINDING_SOFT_DOWNGRADE_PREFIX
-                + (capturedFlow.interactions().isEmpty()
+                + (boundFlow.interactions().isEmpty()
                     ? describeUnresolvedCalls(unresolvedCalls)
                     : describeUnresolvedInteractions(
-                        capturedFlow, facts, catalogBindings))
+                        boundFlow, facts, catalogBindings))
                 + BINDING_SOFT_DOWNGRADE_HINT
                 + " "
                 + storedPreview);
@@ -682,9 +684,9 @@ public class RequirementDraftTool {
             FACTS_SOFT_DOWNGRADE_PREFIX + FACTS_SOFT_DOWNGRADE_HINT + " " + storedPreview);
       }
       String unresolved =
-          capturedFlow.interactions().isEmpty() || hasAllowedUploadedSpecs(conversationId)
+          boundFlow.interactions().isEmpty() || hasAllowedUploadedSpecs(conversationId)
               ? ""
-              : describeUnresolvedInteractions(capturedFlow, capturedFacts, catalogBindings);
+              : describeUnresolvedInteractions(boundFlow, capturedFacts, catalogBindings);
       if (!catalogBindings.isEmpty() || !unresolved.isEmpty()) {
         StringBuilder body = new StringBuilder();
         if (!catalogBindings.isEmpty()) {
@@ -1435,6 +1437,58 @@ public class RequirementDraftTool {
           conversationId,
           InteractionAssessment.resolved(interaction.interactionId(), intent, exact.match()));
     }
+  }
+
+  /**
+   * Uses the resolved catalog identity for each occurrence. The model may repeat or confuse an
+   * operation name while recapturing the flow; the binding selected for that interaction id is the
+   * authoritative participant and operation passed to planning.
+   */
+  private RequirementFlow canonicalizeResolvedCatalogIdentity(
+      RequirementFlow flow, String conversationId) {
+    if (resolutions == null || flow.interactions().isEmpty()) {
+      return flow;
+    }
+    boolean changed = false;
+    List<RequirementFlow.Interaction> interactions = new ArrayList<>(flow.interactions().size());
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      InteractionAssessment assessment =
+          resolutions.forInteraction(conversationId, interaction.interactionId()).orElse(null);
+      CatalogMatch match =
+          assessment != null && assessment.isResolved() ? assessment.binding() : null;
+      if (match == null) {
+        interactions.add(interaction);
+        continue;
+      }
+      String participant =
+          match.systemName() == null || match.systemName().isBlank()
+              ? interaction.participant()
+              : match.systemName().trim();
+      String operation =
+          match.operationName() == null || match.operationName().isBlank()
+              ? interaction.operation()
+              : match.operationName().trim();
+      if (!participant.equals(interaction.participant())
+          || !operation.equals(interaction.operation())) {
+        changed = true;
+        LOG.warnf(
+            "captureRequirementDraft: replaced interaction identity from catalog"
+                + " conversationId=%s interactionId=%s participant=%s operation=%s",
+            conversationId,
+            interaction.interactionId(),
+            participant,
+            operation);
+      }
+      interactions.add(
+          new RequirementFlow.Interaction(
+              interaction.interactionId(),
+              interaction.direction(),
+              participant,
+              operation,
+              interaction.description(),
+              interaction.failureMode()));
+    }
+    return changed ? new RequirementFlow(interactions, flow.transitions()) : flow;
   }
 
   private List<CatalogBindingHint> reconcileCatalogBindings(

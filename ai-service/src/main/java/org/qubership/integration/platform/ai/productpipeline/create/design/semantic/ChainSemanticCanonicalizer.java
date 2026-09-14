@@ -101,7 +101,11 @@ public class ChainSemanticCanonicalizer {
               trigger.nodeId(), trigger.interactionId(), trigger.capabilityKey(), provenance);
       case SemanticNode.ServiceCall call ->
           new SemanticNode.ServiceCall(
-              call.nodeId(), call.serviceCallId(), call.operation(), provenance);
+              call.nodeId(),
+              call.serviceCallId(),
+              call.operation(),
+              call.failureMode(),
+              provenance);
       case SemanticNode.Operation operation ->
           new SemanticNode.Operation(operation.nodeId(), operation.elementType(), provenance);
     };

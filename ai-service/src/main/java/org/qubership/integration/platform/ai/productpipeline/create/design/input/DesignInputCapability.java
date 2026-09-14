@@ -209,8 +209,8 @@ public class DesignInputCapability implements StageCapability {
           context.runId(),
           context.conversationId(),
           AiTraceLog.previewOneLine(agentText, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS));
-      // CONTRACT_FAILURE, not NEEDS_INPUT: the reader cannot type a revision. Recovery retries
-      // this stage once, then can reopen requirement-analysis with this message as halt evidence.
+      // The stage recovery ledger bounds regeneration of rejected topology.
+      // A rejected capture alone does not establish a defect in the approved brief.
       return StageOutcome.of(
           StageOutcomeClass.CONTRACT_FAILURE,
           message,
@@ -241,7 +241,8 @@ public class DesignInputCapability implements StageCapability {
     if (designRunner != null) {
       stream = designRunner.apply(conversationId, safePrompt);
     } else if (designAgent != null) {
-      stream = designAgent.chat(conversationId, safePrompt);
+      // Capture returns directly so only the stage ledger can authorize another model attempt.
+      return designAgent.chat(conversationId, safePrompt).content();
     } else {
       stream = Multi.createFrom().empty();
     }
@@ -273,6 +274,8 @@ public class DesignInputCapability implements StageCapability {
         .append(contract.contractVersion())
         .append("\nSemantic schema version: ")
         .append(contract.semanticSchemaVersion())
+        .append("\nAllowed operation elementType values: ")
+        .append(String.join(", ", contract.elements().keySet().stream().sorted().toList()))
         .append(
             "\n\nExternal interaction anchors are server-owned. Reference these node ids from"
                 + " edges:");
@@ -298,6 +301,8 @@ public class DesignInputCapability implements StageCapability {
           .append(call.serviceCallId())
           .append(" role=OUTBOUND operation=")
           .append(call.operation())
+          .append(" failureMode=")
+          .append(call.failureMode())
           .append(" integrationOperationId=")
           .append(hint.integrationOperationId());
     }
@@ -361,7 +366,7 @@ public class DesignInputCapability implements StageCapability {
 
   static String captureFailureMessage(String rejection) {
     if (rejection != null && !rejection.isBlank()) {
-      return AiTraceLog.preview(rejection, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS);
+      return rejection;
     }
     return MISSING_CAPTURE;
   }

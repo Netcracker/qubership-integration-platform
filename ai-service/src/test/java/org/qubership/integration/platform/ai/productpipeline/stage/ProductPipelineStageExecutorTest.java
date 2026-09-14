@@ -33,6 +33,8 @@ import java.util.stream.Collectors;
 import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -2271,8 +2273,9 @@ class ProductPipelineStageExecutorTest {
     assertNotEquals("planning", graphFinding.occurrenceId());
   }
 
-  @Test
-  void identicalRegenerateValidationHaltAsksWithPriorAttemptRefs() {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void executionRegenerationRetriesItsProducerUnlessCatalogWasWritten(boolean catalogWritten) {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger executionCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
@@ -2293,12 +2296,22 @@ class ProductPipelineStageExecutorTest {
         assertInstanceOf(
             StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
     assertEquals(
-        PipelineGates.RECOVERY_REBUILD_PLAN,
+        PipelineGates.RECOVERY_REGENERATE_EXECUTION,
         PipelineGates.gateOf(firstWait.prompt()).orElseThrow());
     assertTrue(
-        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REBUILD_PLAN)
-            .contains(ChatEvent.REBUILD_PLAN_ACTION));
+        ChatEvent.actionsForGate(PipelineGates.RECOVERY_REGENERATE_EXECUTION)
+            .contains(ChatEvent.RETRY_CREATION_ACTION));
     assertEquals(1, executionCalls.get());
+
+    if (catalogWritten) {
+      artifactStore.append(new CompilationArtifacts.AppendCommand(
+          RUN_ID, Kind.CATALOG_CHAIN_SNAPSHOT, "1", "test-materializer", "1",
+          new ChainCatalogFacts("written-chain", "Orders", "", 0, 0, "", List.of(), List.of(), "catalog"),
+          List.of(), null,
+          new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+              RUN_ID, "materialization", profile.profileId(), profile.profileVersion(), "sha",
+              "materialization", "1", "sha")));
+    }
 
     runtime
         .recordInput(new AcceptInputCommand(RUN_ID, PipelineGates.RETRY_ACTION))
@@ -2307,9 +2320,17 @@ class ProductPipelineStageExecutorTest {
         .await()
         .indefinitely();
 
-    assertEquals("design-planning", requireRun().run().currentStageId());
-    assertEquals(RunStatus.RUNNING, requireRun().run().status());
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals(catalogWritten ? RunStatus.WAITING_FOR_INPUT : RunStatus.RUNNING,
+        requireRun().run().status());
+    if (catalogWritten) {
+      String reason = requireRun().transitions().getLast().reason();
+      assertEquals(HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN.name(),
+          PipelineGates.guardOf(reason).orElseThrow());
+    } else {
+      assertEquals(StageStatus.RUNNING, snapshot(requireRun(), "design-execution").status());
+    }
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
     assertEquals(1, executionCalls.get());
   }
 
@@ -3048,7 +3069,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void missingRecoveryDecisionOnCaptureContractShapeOffersEditRequirements() {
+  void missingRecoveryDecisionOnCaptureContractShapeRetriesThenParks() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger captureCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
@@ -3081,14 +3102,14 @@ class ProductPipelineStageExecutorTest {
 
     StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
 
-    assertEquals(1, captureCalls.get());
+    assertEquals(2, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REVISE_BRIEF,
+        PipelineGates.RECOVERY_REPEATED,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
-    assertTrue(
+    assertFalse(
         ChatEvent.actionsForGate(PipelineGates.gateOf(wait.prompt()).orElseThrow())
             .contains(ChatEvent.EDIT_REQUIREMENTS_ACTION));
-    assertTrue(
+    assertFalse(
         PipelineGates.strip(wait.prompt())
             .contains("Edit the requirements if this node or path is wrong"));
     assertFalse(PipelineGates.strip(wait.prompt()).contains("design-input"));
@@ -3158,7 +3179,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void spentDesignInputCaptureRepairAsksInsteadOfEscalatingOwners() {
+  void spentDesignInputCaptureRepairParksInsteadOfEscalatingOwners() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger captureCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
@@ -3193,16 +3214,16 @@ class ProductPipelineStageExecutorTest {
 
     StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
 
-    assertEquals(1, captureCalls.get());
+    assertEquals(2, captureCalls.get());
     assertEquals(
-        PipelineGates.RECOVERY_REVISE_BRIEF,
+        PipelineGates.RECOVERY_REPEATED,
         PipelineGates.gateOf(wait.prompt()).orElseThrow());
     assertTrue(PipelineGates.ownerCandidatesOf(wait.prompt()).isEmpty());
     assertFalse(PipelineGates.strip(wait.prompt()).contains("requirement-analysis"));
   }
 
   @Test
-  void clarificationAnswerRetriesDesignInputInsteadOfEscalatingOwners() {
+  void retryCannotBypassTheExhaustedDesignInputBudget() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger captureCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
@@ -3244,10 +3265,10 @@ class ProductPipelineStageExecutorTest {
         .await()
         .indefinitely();
 
-    assertEquals("requirement-analysis", requireRun().run().currentStageId());
-    assertEquals(RunStatus.RUNNING, requireRun().run().status());
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-input").status());
-    assertEquals(1, captureCalls.get());
+    assertEquals("design-input", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(StageStatus.WAITING_FOR_INPUT, snapshot(requireRun(), "design-input").status());
+    assertEquals(2, captureCalls.get());
   }
 
   @Test
