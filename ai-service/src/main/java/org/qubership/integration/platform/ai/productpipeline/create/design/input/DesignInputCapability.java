@@ -220,7 +220,7 @@ public class DesignInputCapability implements StageCapability {
               List.of(new PlanValidationFinding("CONTRACT_SHAPE", message, true)),
               ""));
     }
-    IdsDocument ids = idsRenderer.render(revision, contract);
+    IdsDocument ids = idsRenderer.render(revision, contract, brief);
     // The stage carries no approval policy of its own: the topology is approved together with the
     // implementation plan, so design-input completes instead of opening a gate. The IDS document
     // stays a planner input either way; whether a reader sees it is decided at the plan gate.
