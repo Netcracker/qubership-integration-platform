@@ -54,5 +54,5 @@ export const useLiveExchangeFilters = (): {
     ],
     [],
   );
-  return useFilter(filterColumns);
+  return useFilter(filterColumns, "liveExchangesTable");
 };

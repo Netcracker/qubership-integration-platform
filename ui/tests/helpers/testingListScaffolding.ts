@@ -31,6 +31,7 @@ export const mockListScaffolding = {
   },
 
   reset(): void {
+    localStorage.clear();
     mockListScaffolding.columns = [];
     mockListScaffolding.confirm = undefined;
   },

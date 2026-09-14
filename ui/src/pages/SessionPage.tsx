@@ -1,6 +1,7 @@
+import { Table } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router";
-import { Button, Table, Tag, Tooltip } from "antd";
+import { Button, Tag, Tooltip } from "antd";
 import { TableProps } from "antd/lib/table";
 import { ExecutionStatus, Session, SessionElement } from "../api/apiTypes.ts";
 import { formatDuration, PLACEHOLDER } from "../misc/format-utils.ts";
@@ -13,7 +14,7 @@ import { downloadFile } from "../misc/download-utils.ts";
 import { useNotificationService } from "../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../icons/IconProvider.tsx";
 import { buildGraphUrl } from "../misc/session-graph-utils.ts";
-import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
 import { useRegisterChainHeaderActions } from "./ChainHeaderActionsContext.tsx";
@@ -200,7 +201,9 @@ export const SessionPage: React.FC = () => {
             {session?.chainId && element.chainElementId ? (
               <OverridableIcon
                 name="link"
-                onClick={() => window.open(buildGraphUrl(element, session), "_blank")}
+                onClick={() =>
+                  window.open(buildGraphUrl(element, session), "_blank")
+                }
               />
             ) : null}
           </>
@@ -250,20 +253,25 @@ export const SessionPage: React.FC = () => {
       tableColumnDefinitions,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        elementName: 280,
-        snapshot: 80,
-        executionStatus: 140,
-        duration: 120,
-        camelName: 160,
-      },
-      {
-        expandColumnWidth: SESSION_ELEMENT_EXPAND_COLUMN_WIDTH,
-      },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      elementName: 280,
+      snapshot: 80,
+      executionStatus: 140,
+      duration: 120,
+      camelName: 160,
+    },
+    {
+      expandColumnWidth: SESSION_ELEMENT_EXPAND_COLUMN_WIDTH,
+    },
+    sessionElementsColumnSettingsKey,
+  );
 
   const expandAllRows = useCallback(() => {
     setExpandedRowKeys(collectAllExpandableRowKeys(session?.sessionElements));
@@ -382,6 +390,7 @@ export const SessionPage: React.FC = () => {
         style={{ flex: 1, minHeight: 0 }}
         scroll={tableScroll(scrollX, filteredSessionElements?.length ?? 0)}
         components={components}
+        onChange={handleConfiguredTableChange}
         expandable={{
           expandIcon: ({ record, ...rest }) => {
             const hideArrow = !record.children?.length;

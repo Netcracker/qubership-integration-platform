@@ -145,6 +145,10 @@ jest.mock("../../../src/components/admin_tools/CommonStyle.module.css", () => ({
   actions: "actions",
 }));
 
+jest.mock("../../../src/hooks/useNotificationService", () => ({
+  useNotificationService: () => ({ requestFailed: jest.fn() }),
+}));
+
 // ====== TEST DATA ======
 const logsData = [
   {
@@ -235,7 +239,7 @@ describe("ActionsLog() ActionsLog method", () => {
     it("renders the refresh and export buttons", () => {
       // Test: The refresh and export buttons are rendered
       render(<ActionsLog />);
-      expect(screen.getByTestId("icon-refresh")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
       expect(screen.getByTestId("icon-cloudDownload")).toBeInTheDocument();
     });
 
@@ -270,7 +274,7 @@ describe("ActionsLog() ActionsLog method", () => {
         refresh: refreshMock,
       });
       render(<ActionsLog />);
-      fireEvent.click(screen.getByTestId("icon-refresh").closest("button")!);
+      fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
       expect(refreshMock).toHaveBeenCalled();
     });
 

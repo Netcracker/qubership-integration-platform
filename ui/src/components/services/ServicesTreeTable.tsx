@@ -1,3 +1,4 @@
+import { Table } from "antd";
 import React, {
   ReactNode,
   useCallback,
@@ -5,7 +6,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
-import { Table, Button } from "antd";
+import { Button } from "antd";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
 import type {
   FilterDropdownProps,
@@ -46,7 +47,7 @@ import { ProtectedDropdown } from "../../permissions/ProtectedDropdown.tsx";
 import { ColumnSettingsButton } from "../table/ColumnSettingsButton.tsx";
 import type { ActionConfig } from "./serviceRowActions";
 import type { ColumnsType } from "antd/lib/table";
-import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { DEFAULT_ACTIONS_COLUMN_WIDTH } from "../table/actionsColumn.ts";
 
 /** rc-table expand icon column; not in `columns` but affects horizontal layout. */
@@ -629,20 +630,25 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
     );
   }, [finalColumns, urlColumnTitle]);
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      finalColumnsWithUrlTitle as ColumnsType<T>,
-      serviceTreeResizeWidths,
-      {
-        selectionColumnWidth: enableSelection
-          ? SERVICES_TREE_SELECTION_COLUMN_WIDTH
-          : undefined,
-        expandColumnWidth: expandable
-          ? SERVICES_TREE_EXPAND_COLUMN_WIDTH
-          : undefined,
-        applyDisableResizeBeforeActions: false,
-      },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    finalColumnsWithUrlTitle as ColumnsType<T>,
+    serviceTreeResizeWidths,
+    {
+      selectionColumnWidth: enableSelection
+        ? SERVICES_TREE_SELECTION_COLUMN_WIDTH
+        : undefined,
+      expandColumnWidth: expandable
+        ? SERVICES_TREE_EXPAND_COLUMN_WIDTH
+        : undefined,
+      applyDisableResizeBeforeActions: false,
+    },
+    storageKey,
+  );
 
   const mergedScroll = useMemo(
     () => tableScroll(scrollX, dataSource.length),
@@ -705,6 +711,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
         tableLayout="fixed"
         scroll={mergedScroll}
         components={components}
+        onChange={handleConfiguredTableChange}
         className={className}
         style={tableStyle}
         rowClassName={rowClassName}
@@ -726,6 +733,7 @@ export function useServicesTreeTable<T extends ServiceEntity = ServiceEntity>({
       rowClassName,
       onRowHandler,
       rowSelection,
+      handleConfiguredTableChange,
     ],
   );
 

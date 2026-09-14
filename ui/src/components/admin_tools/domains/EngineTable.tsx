@@ -6,10 +6,12 @@ import { DeploymentsTable } from "./DeploymentsTable";
 import { treeExpandIcon } from "../../table/TreeExpandIcon";
 import { useDeploymentsForEngine } from "./hooks/useDeploymentsForEngine";
 import { RunningStatusValue } from "./RunningStatusValue.tsx";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
+import { TableToolbar } from "../../table/TableToolbar";
 import layoutStyles from "./DomainsTablesLayout.module.css";
 
 interface Props {
+  onRefresh?: () => Promise<void>;
   engines: Engine[];
   isLoading?: boolean;
   domainName: string;
@@ -82,12 +84,13 @@ const DeploymentsForEngine: React.FC<{
 
 export const EngineTable: React.FC<Props> = ({
   engines,
+  onRefresh,
   isLoading = false,
   domainName,
 }) => {
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
-  const { columnsWithResize, components } = useColumnsWithResizeAndScroll(
+  const { columnsWithResize, components } = useTableConfiguration(
     columns,
     {
       name: 220,
@@ -95,10 +98,15 @@ export const EngineTable: React.FC<Props> = ({
       runningStatus: 160,
       ready: 140,
     },
+    {},
+    "enginesTable",
   );
 
   return (
     <div className={layoutStyles.nestedTableHost}>
+      <TableToolbar
+        refresh={onRefresh ? { onRefresh, loading: isLoading } : undefined}
+      />
       <Spin spinning={isLoading}>
         <Table
           rowKey="id"

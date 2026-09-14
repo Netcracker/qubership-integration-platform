@@ -156,7 +156,7 @@ jest.mock("../../src/permissions/ProtectedButton.tsx", () => ({
     buttonProps: Record<string, unknown> & { onClick?: () => void };
     tooltipProps: { title: string };
   }) => {
-    const { iconName: _i, icon: _n, ...rest } = buttonProps;
+    const { iconName: _i, icon: _n, loading: _l, ...rest } = buttonProps;
     return (
       <button
         type="button"
@@ -293,6 +293,14 @@ describe("ServicesListPage", () => {
     render(<ServicesList tab="implemented" />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
     expect(screen.getByText("Implemented Services")).toBeInTheDocument();
+  });
+
+  it("should reload services when Refresh is clicked", async () => {
+    jest.useRealTimers();
+    render(<ServicesList tab="external" />);
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByTestId("svc-action-refresh"));
+    await waitFor(() => expect(mockGetServices).toHaveBeenCalledTimes(2));
   });
 
   it("calls showModal when Upload services is clicked", async () => {

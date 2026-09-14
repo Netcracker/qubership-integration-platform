@@ -1,12 +1,18 @@
-import React, { ReactNode, useCallback, useState } from "react";
+import React, { ReactNode, useCallback, useMemo } from "react";
+import { useTableSetting } from "../useTableSetting";
 import { FilterItemState } from "./FilterItem";
 import { Filter } from "./Filter.tsx";
 import { useModalsContext } from "../../../Modals";
 import { FilterButton } from "./FilterButton";
-import { EntityFilterModel, FilterColumn, FilterCondition } from "./filterTypes";
+import {
+  EntityFilterModel,
+  FilterColumn,
+  FilterCondition,
+} from "./filterTypes";
 
 export const useFilter = (
   filterColumns: FilterColumn[],
+  storageKey?: string,
 ): {
   filters: EntityFilterModel[];
   filterButton: ReactNode;
@@ -18,9 +24,19 @@ export const useFilter = (
   matchFilters: (object: unknown) => boolean;
 } => {
   const { showModal } = useModalsContext();
-  const [filters, setFilters] = useState<EntityFilterModel[]>([]);
-  const [filterItemStates, setFilterItemStates] = useState<FilterItemState[]>(
-    [],
+  const [filterItemStates, setFilterItemStates] = useTableSetting<
+    FilterItemState[]
+  >(storageKey, "filters", []);
+  const filters = useMemo(
+    () =>
+      filterItemStates.map(
+        (item): EntityFilterModel => ({
+          column: item.columnValue!,
+          condition: item.conditionValue!,
+          value: item.value,
+        }),
+      ),
+    [filterItemStates],
   );
   const addFilter = () => {
     showModal({
@@ -36,15 +52,6 @@ export const useFilter = (
 
   const applyFilters = (filterItems: FilterItemState[]) => {
     setFilterItemStates(filterItems);
-
-    const f = filterItems.map(
-      (filterItem): EntityFilterModel => ({
-        column: filterItem.columnValue!,
-        condition: filterItem.conditionValue!,
-        value: filterItem.value,
-      }),
-    );
-    setFilters(f);
   };
 
   const filterButton = (
@@ -56,18 +63,20 @@ export const useFilter = (
   );
 
   const resetFilters = () => {
-    setFilters([]);
     setFilterItemStates([]);
   };
 
-  const matchFilters = useCallback((object: unknown): boolean => {
-    return filters.every((filter) =>
-      FilterCondition.getById(filter.condition)?.func(
-        filter.value,
-        (object as Record<string, unknown>)[filter.column]?.toString(),
-      ),
-    );
-  }, [filters]);
+  const matchFilters = useCallback(
+    (object: unknown): boolean => {
+      return filters.every((filter) =>
+        FilterCondition.getById(filter.condition)?.func(
+          filter.value,
+          (object as Record<string, unknown>)[filter.column]?.toString(),
+        ),
+      );
+    },
+    [filters],
+  );
 
   return {
     filters,

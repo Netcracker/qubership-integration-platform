@@ -59,5 +59,5 @@ export const useDiagnosticValidationFilters = (): {
     ],
     [buildFilterValues],
   );
-  return useFilter(filterColumns);
+  return useFilter(filterColumns, "diagnosticTable");
 };

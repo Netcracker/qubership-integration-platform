@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Badge, Collapse, Table } from "antd";
 import { TableProps } from "antd/lib/table";
-import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import tableStyles from "../admin_tools/domains/Tables.module.css";
 
 type KeyValuePropertiesTableProps = {
@@ -33,7 +33,7 @@ export const KeyValuePropertiesTable: React.FC<
     [],
   );
 
-  const { columnsWithResize, components } = useColumnsWithResizeAndScroll(
+  const { columnsWithResize, components } = useTableConfiguration(
     columns,
     {
       key: 180,

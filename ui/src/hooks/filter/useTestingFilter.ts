@@ -458,11 +458,12 @@ export function buildTestingFilters(
 export const useTestingFilter = (
   kind: TestingEntityKind,
   chainId?: string,
+  storageKey?: string,
 ): { filters: EntityFilterModel[]; filterButton: ReactNode } => {
   const filterColumns = useMemo(
     () => getTestingFilterColumns(kind, chainId),
     [kind, chainId],
   );
-  const { filters, filterButton } = useFilter(filterColumns);
+  const { filters, filterButton } = useFilter(filterColumns, storageKey);
   return { filters, filterButton };
 };

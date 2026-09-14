@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState, type SyntheticEvent } from "react";
+import { useCallback, useMemo, type SyntheticEvent } from "react";
+import { useTableSetting } from "./useTableSetting";
 import { flushSync } from "react-dom";
 import type { ResizeCallbackData, ResizableProps } from "react-resizable";
 import "react-resizable/css/styles.css";
@@ -118,7 +119,10 @@ export function sumScrollXForColumns<T>(
  * Table column resize: forwardRef header cell, min constraints,
  * attachResizeToColumns merges existing onHeaderCell (header cell component: ResizableTitle).
  */
-export function useTableColumnResize(initialWidths: ColumnWidthsState): {
+export function useTableColumnResize(
+  initialWidths: ColumnWidthsState,
+  storageKey?: string,
+): {
   columnWidths: ColumnWidthsState;
   createResizeHandlers: CreateColumnResizeHandlers;
   totalColumnsWidth: number;
@@ -126,8 +130,11 @@ export function useTableColumnResize(initialWidths: ColumnWidthsState): {
     header: { cell: typeof ResizableTitle };
   };
 } {
-  const [columnWidths, setColumnWidths] =
-    useState<ColumnWidthsState>(initialWidths);
+  const [columnWidths, setColumnWidths] = useTableSetting<ColumnWidthsState>(
+    storageKey,
+    "widths",
+    initialWidths,
+  );
 
   const createResizeHandlers = useCallback<CreateColumnResizeHandlers>(
     (columnKey, nextColumnKey, minColumnWidth) => {
@@ -146,7 +153,7 @@ export function useTableColumnResize(initialWidths: ColumnWidthsState): {
       };
       return { onResize: run, onResizeStop: run };
     },
-    [],
+    [setColumnWidths],
   );
 
   const totalColumnsWidth = useMemo(

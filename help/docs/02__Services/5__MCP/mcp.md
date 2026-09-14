@@ -31,6 +31,7 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 
 At the top of the table the following options are available:
   - **Search services** - search box, provides ability to find respective data in the table.
+  - ![refresh](img/refresh.svg) - reloads the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
   - ![cloud-download](img/cloud-download.svg) - exports the service.

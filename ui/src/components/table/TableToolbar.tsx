@@ -1,7 +1,14 @@
-import React, { type CSSProperties, type ReactNode } from "react";
+import React, {
+  type ComponentProps,
+  type CSSProperties,
+  type ReactNode,
+  useState,
+} from "react";
 import { Flex } from "antd";
 import clsx from "clsx";
 import { CompactSearch, type CompactSearchProps } from "./CompactSearch.tsx";
+import { useNotificationService } from "../../hooks/useNotificationService";
+import { ProtectedButton } from "../../permissions/ProtectedButton";
 import styles from "./TableToolbar.module.css";
 
 export type TableToolbarVariant = "admin" | "chain-tab" | "default";
@@ -19,7 +26,16 @@ export type TableToolbarSearch = Pick<
   style?: CSSProperties;
 };
 
+export type TableToolbarRefresh = {
+  onRefresh: () => unknown;
+  loading?: boolean;
+  disabled?: boolean;
+  require?: ComponentProps<typeof ProtectedButton>["require"];
+  "data-testid"?: string;
+};
+
 export type TableToolbarProps = {
+  refresh?: TableToolbarRefresh;
   variant?: TableToolbarVariant;
   search?: TableToolbarSearch;
   filterButton?: ReactNode;
@@ -47,6 +63,7 @@ const searchClassNameByVariant: Partial<Record<TableToolbarVariant, string>> = {
 export const TableToolbar: React.FC<TableToolbarProps> = ({
   variant = "default",
   search,
+  refresh,
   columnSettingsButton,
   filterButton,
   actions,
@@ -57,8 +74,23 @@ export const TableToolbar: React.FC<TableToolbarProps> = ({
   actionsClassName,
   "data-testid": dataTestId,
 }) => {
+  const [refreshing, setRefreshing] = useState(false);
+  const notificationService = useNotificationService();
   const hasLeading = Boolean(leading || middle);
-  const hasActions = Boolean(filterButton || columnSettingsButton || actions || trailing);
+  const hasActions = Boolean(
+    refresh || filterButton || columnSettingsButton || actions || trailing,
+  );
+  const handleRefresh = async () => {
+    if (!refresh) return;
+    setRefreshing(true);
+    try {
+      await refresh.onRefresh();
+    } catch (error) {
+      notificationService.requestFailed("Failed to refresh table", error);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   return (
     <Flex
@@ -106,6 +138,22 @@ export const TableToolbar: React.FC<TableToolbarProps> = ({
             actionsClassName,
           )}
         >
+          {refresh ? (
+            <ProtectedButton
+              require={refresh.require ?? {}}
+              tooltipProps={{ title: "Refresh", placement: "bottom" }}
+              buttonProps={{
+                "aria-label": "Refresh",
+                ...(refresh["data-testid"]
+                  ? { "data-testid": refresh["data-testid"] }
+                  : {}),
+                iconName: "refresh",
+                loading: refresh.loading || refreshing,
+                disabled: refresh.disabled,
+                onClick: () => void handleRefresh(),
+              }}
+            />
+          ) : null}
           {filterButton}
           {columnSettingsButton}
           {actions}

@@ -94,7 +94,6 @@ export const TestingListActions: React.FC<TestingListActionsProps> = ({
           require={permissions[shape.right]}
           tooltipProps={{
             title: shape.title(entityLabel, createLabel),
-            // Refresh sits leftmost, where a tooltip above would cover the toolbar.
             ...(kind === "refresh" ? { placement: "bottom" as const } : {}),
           }}
           buttonProps={{

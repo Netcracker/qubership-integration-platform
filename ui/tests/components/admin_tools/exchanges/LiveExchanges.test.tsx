@@ -146,11 +146,8 @@ describe("LiveExchanges", () => {
     );
     const callsBefore = mockGetAndFilterExchanges.mock.calls.length;
 
-    const refreshIcon = screen.getByTestId("icon-refresh");
-    const refreshBtn = refreshIcon.closest("button");
-    if (!refreshBtn) {
-      throw new Error("refresh button not found");
-    }
+    const refreshBtn = screen.getByRole("button", { name: "Refresh" });
+    await waitFor(() => expect(refreshBtn).toBeEnabled());
     fireEvent.click(refreshBtn);
 
     await waitFor(() => {
