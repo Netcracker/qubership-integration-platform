@@ -80,8 +80,8 @@ jest.mock("../../../../src/web/services/ProjectConfigService", () => ({
         service: ".service.qip.yaml",
         contextService: ".context-service.qip.yaml",
         mcpService: ".mcp-service.qip.yaml",
-        specificationGroup: ".spec-group.yaml",
-        specification: ".spec.yaml",
+        specificationGroup: ".specification-group.qip.yaml",
+        specification: ".specification.qip.yaml",
       },
       schemaUrls: {},
       cache: { ttl: 60000 },
@@ -357,14 +357,19 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
   });
 
   describe("getDirectoriesToRemove", () => {
-    test("returns [] when file type is not CHAIN", async () => {
+    test("returns [resources, serviceDirectory] for SERVICE not at workspace root", async () => {
       const svcUri = createMockUri("/workspace/service/service.service.qip.yaml");
+      const serviceDir = createMockUri("/workspace/service");
+      const resourcesDir = createMockUri("/workspace/service/resources");
       jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.SERVICE);
-      jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(createMockUri("/workspace/service"));
+      jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(serviceDir);
+      jest.spyOn(api, "getRootDirectory").mockReturnValue(createMockUri("/workspace"));
+      mockJoinPath.mockReturnValue(resourcesDir);
 
       const result = await api.getDirectoriesToRemove(svcUri);
 
-      expect(result).toEqual([]);
+      expect(mockJoinPath).toHaveBeenCalledWith(serviceDir, "resources");
+      expect(result).toEqual([resourcesDir, serviceDir]);
     });
 
     test("returns [] when file type is UNKNOWN", async () => {
@@ -423,6 +428,32 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
 
       expect(getParentSpy).toHaveBeenCalledWith(chainFileUri);
       expect(api.getRootDirectory).toHaveBeenCalled();
+    });
+
+    test("returns [directory] for CONTEXT_SERVICE not at workspace root (without resources)", async () => {
+      const svcUri = createMockUri("/workspace/context/my-ctx.context-service.qip.yaml");
+      const serviceDir = createMockUri("/workspace/context/my-ctx");
+      jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.CONTEXT_SERVICE);
+      jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(serviceDir);
+      jest.spyOn(api, "getRootDirectory").mockReturnValue(createMockUri("/workspace"));
+
+      const result = await api.getDirectoriesToRemove(svcUri);
+
+      expect(mockJoinPath).not.toHaveBeenCalled();
+      expect(result).toEqual([serviceDir]);
+    });
+
+    test("returns [directory] for MCP_SERVICE not at workspace root (without resources)", async () => {
+      const svcUri = createMockUri("/workspace/mcp/my-mcp.mcp-service.qip.yaml");
+      const serviceDir = createMockUri("/workspace/mcp/my-mcp");
+      jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.MCP_SERVICE);
+      jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(serviceDir);
+      jest.spyOn(api, "getRootDirectory").mockReturnValue(createMockUri("/workspace"));
+
+      const result = await api.getDirectoriesToRemove(svcUri);
+
+      expect(mockJoinPath).not.toHaveBeenCalled();
+      expect(result).toEqual([serviceDir]);
     });
   });
 });

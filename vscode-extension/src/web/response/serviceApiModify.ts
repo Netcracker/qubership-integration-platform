@@ -22,7 +22,7 @@ import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { ProjectConfigService } from "../services/ProjectConfigService";
 import { ContextSystem, MCPSystem } from "@netcracker/qip-ui";
-import { validateAllowedSystemProtocol } from "./serviceApiUtils";
+import { QipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
 
 export async function updateContextService(
   serviceFileUri: Uri,
@@ -653,6 +653,7 @@ async function deleteSourceFilesFromSpecificationSources(
 export async function deleteSpecificationGroup(
   serviceFileUri: Uri,
   groupId: string,
+  silent = false,
 ): Promise<void> {
   try {
     const { groupFile, groupInfo, specificationFiles } =
@@ -693,14 +694,18 @@ export async function deleteSpecificationGroup(
     const groupFileUri = vscode.Uri.joinPath(serviceFolderUri, groupFile);
     await fileApi.deleteFile(groupFileUri);
 
-    vscode.window.showInformationMessage(
-      `Specification group "${groupInfo.name}" has been deleted successfully!`,
-    );
+    if (!silent) {
+      vscode.window.showInformationMessage(
+        `Specification group "${groupInfo.name}" has been deleted successfully!`,
+      );
+    }
   } catch (error) {
     console.error("deleteSpecificationGroup: Error:", error);
-    vscode.window.showErrorMessage(
-      `Failed to delete specification group: ${error}`,
-    );
+    if (!silent) {
+      vscode.window.showErrorMessage(
+        `Failed to delete specification group: ${error}`,
+      );
+    }
     throw error;
   }
 }
@@ -732,6 +737,34 @@ export async function deleteSpecificationModel(
     console.error("[deleteSpecificationModel] Error:", error);
     vscode.window.showErrorMessage(`Failed to delete specification: ${error}`);
     throw error;
+  }
+}
+
+export async function deleteService(serviceFileUri: Uri): Promise<void> {
+  try {
+    const fileType = await fileApi.getFileType(serviceFileUri).catch(() => QipFileType.UNKNOWN);
+    if ((fileType as unknown as QipFileType) === QipFileType.SERVICE) {
+      const groupFiles = await fileApi.getSpecificationGroupFiles(serviceFileUri).catch(() => [] as string[]);
+      for (const groupFile of groupFiles) {
+        try {
+          const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
+          const groupFileUri = vscode.Uri.joinPath(serviceFolderUri, groupFile);
+          const groupFileContent = await ContentParser.parseContentFromFile(groupFileUri).catch(() => null);
+          if (groupFileContent?.id) {
+            await deleteSpecificationGroup(serviceFileUri, groupFileContent.id, true);
+          }
+        } catch {}
+      }
+    }
+  } catch (e) {
+    console.error("Failed to cleanup resources before deleting service", e);
+  }
+  const directoriesToRemove = await fileApi.getDirectoriesToRemove(serviceFileUri);
+  await fileApi.deleteFile(serviceFileUri);
+  for (const dirToRemove of directoriesToRemove) {
+    try {
+      await fileApi.deleteFile(dirToRemove);
+    } catch {}
   }
 }
 

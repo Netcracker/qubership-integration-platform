@@ -53,7 +53,7 @@
     <commons-beanutils.version>1.11.0</commons-beanutils.version>
     <jose4j.version>0.9.6</jose4j.version>
     <grpc.version>1.54.2</grpc.version>
-    <protobuf-java.version>3.25.9</protobuf-java.version>
+    <protobuf-java.version>4.33.2</protobuf-java.version>
     <okhttp-bom.version>5.3.2</okhttp-bom.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
     <!-- Newest versions requires commons-io 2.15! -->
@@ -339,6 +339,11 @@
       </exclusions>
     </dependency>
     <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
       <groupId>org.springdoc</groupId>
       <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
     </dependency>
@@ -563,6 +568,26 @@
     <plugins>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.1</version>
+        <executions>
+          <execution>
+            <id>snapshot-bundle-test-sources</id>
+            <!-- Register test sources before the compile-phase Checkstyle check. -->
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.basedir}/../integration-build-pipeline/src/test-support/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
         <artifactId>flatten-maven-plugin</artifactId>
       </plugin>
       <plugin>
@@ -606,6 +631,13 @@
             </goals>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <groups>!component</groups>
+        </configuration>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -688,8 +720,42 @@
         <directory>${pom.basedir}/src/test/resources</directory>
       </testResource>
       <testResource>
+        <directory>${project.basedir}/../integration-build-pipeline/src/test/resources</directory>
+        <includes>
+          <include>testConfigurations/**</include>
+        </includes>
+      </testResource>
+      <testResource>
         <directory>${pom.basedir}/src/main/resources</directory>
       </testResource>
     </testResources>
   </build>
+  <profiles>
+    <profile>
+      <id>snapshotTests</id>
+      <properties>
+        <snapshot.bundle.directory>
+          ${maven.multiModuleProjectDirectory}/runtime-catalog/target/snapshotbundle
+        </snapshot.bundle.directory>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <groups>component</groups>
+              <includes combine.self="override">
+                <include>**/SnapshotBundleProducerIntegrationTest.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <snapshot.bundle.generate>true</snapshot.bundle.generate>
+                <snapshot.bundle.output>${snapshot.bundle.directory}</snapshot.bundle.output>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

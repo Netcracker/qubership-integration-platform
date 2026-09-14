@@ -1,0 +1,62 @@
+---
+id: "0b3a9c88-b635-4015-9a3e-13b3bf9c032d"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "graphql-sender"
+content:
+  labels: []
+  elements:
+  - id: "28f2ed0d-ac14-4154-96ad-ac2adfdd7f21"
+    name: "GraphQL Sender No Auth"
+    type: "graphql-sender"
+    properties:
+      isExternalCall: false
+      m2m: false
+      operationName: "GreetingNoAuth"
+      propagateContext: true
+      query: "query GreetingNoAuth($name: String!) { greeting(name: $name) { message recipient\
+        \ } }"
+      queryHeader: "CamelGraphQLQuery"
+      receiveCorrelationId: false
+      reuseEstablishedConnection: true
+      uri: "http://graphql-mock:8080/graphql"
+      variablesHeader: "CamelGraphQLVariables"
+      variablesJSON: "{\"name\":\"QIP\"}"
+  - id: "29f44c03-2324-42bb-b760-68cf6063b431"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-29f44c03-2324-42bb-b760-68cf6063b431.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "b855fa07-94b9-49e0-89e3-f0fffcd59f4c"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "b855fa07-94b9-49e0-89e3-f0fffcd59f4c"
+  - id: "ed2f1f36-abee-4d88-bfce-757101d2bba5"
+    name: "GraphQL Sender Bearer"
+    type: "graphql-sender"
+    properties:
+      isExternalCall: false
+      m2m: false
+      operationName: "Greeting"
+      propagateContext: true
+      query: "query Greeting($name: String!) { greeting(name: $name) { message recipient\
+        \ } }"
+      queryHeader: "CamelGraphQLQuery"
+      receiveCorrelationId: false
+      reuseEstablishedConnection: true
+      uri: "http://graphql-mock:8080/graphql"
+      variablesHeader: "CamelGraphQLVariables"
+      variablesJSON: "{\"name\":\"QIP\"}"
+  dependencies:
+  - from: "b855fa07-94b9-49e0-89e3-f0fffcd59f4c"
+    to: "28f2ed0d-ac14-4154-96ad-ac2adfdd7f21"
+  - from: "b855fa07-94b9-49e0-89e3-f0fffcd59f4c"
+    to: "29f44c03-2324-42bb-b760-68cf6063b431"
+  - from: "29f44c03-2324-42bb-b760-68cf6063b431"
+    to: "ed2f1f36-abee-4d88-bfce-757101d2bba5"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

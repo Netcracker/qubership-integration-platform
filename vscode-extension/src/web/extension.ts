@@ -10,7 +10,7 @@ import {
   Webview,
   WebviewPanel,
 } from "vscode";
-import { CHAIN_DIFF_PATH, deleteChain, getApiResponse, listChainExportTargets } from "./response";
+import { CHAIN_DIFF_PATH, deleteChain, deleteService, getApiResponse, listChainExportTargets } from "./response";
 import {
   setPendingExportImagesRequest,
   startExportImagesProgress,
@@ -535,62 +535,6 @@ async function enrichWebview(
   });
 }
 
-async function deleteServiceWithRelatedFiles(
-  serviceFileUri: Uri,
-  serviceName: string,
-): Promise<void> {
-  const serviceFolderUri = vscode.Uri.joinPath(serviceFileUri, "..");
-  const rootUri = vscode.workspace.workspaceFolders?.[0]?.uri;
-  const cacheService = FileCacheService.getInstance();
-
-  try {
-    const entries = await vscode.workspace.fs.readDirectory(serviceFolderUri);
-    const ext = getExtensionsForUri(serviceFileUri);
-
-    const filesToDelete: Uri[] = [];
-
-    for (const [fileName, fileType] of entries) {
-      if (fileType === vscode.FileType.File) {
-        if (
-          fileName.endsWith(ext.specificationGroup) ||
-          fileName.endsWith(ext.specification) ||
-          fileName.endsWith(ext.service) ||
-          fileName.endsWith(ext.contextService) ||
-          fileName.endsWith(ext.mcpService)
-        ) {
-          filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
-        }
-      } else if (
-        fileType === vscode.FileType.Directory &&
-        fileName === "resources"
-      ) {
-        filesToDelete.push(vscode.Uri.joinPath(serviceFolderUri, fileName));
-      }
-    }
-
-    for (const fileUri of filesToDelete) {
-      await vscode.workspace.fs.delete(fileUri, { recursive: true });
-      cacheService.invalidateByUri(fileUri);
-    }
-
-    const isRootFolder = rootUri && serviceFolderUri.fsPath === rootUri.fsPath;
-
-    if (!isRootFolder) {
-      const remainingEntries =
-        await vscode.workspace.fs.readDirectory(serviceFolderUri);
-      if (remainingEntries.length === 0) {
-        await vscode.workspace.fs.delete(serviceFolderUri, { recursive: true });
-      }
-    }
-
-    vscode.window.showInformationMessage(
-      `Service "${serviceName}" and all related files deleted successfully`,
-    );
-  } catch (error) {
-    throw error;
-  }
-}
-
 async function setupFileWatchers(context: ExtensionContext): Promise<void> {
   const cacheService = FileCacheService.getInstance();
 
@@ -954,8 +898,11 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
         );
         if (result === "Delete") {
           try {
-            await deleteServiceWithRelatedFiles(item.fileUri, item.label);
+            await deleteService(item.fileUri);
             qipProvider.refresh();
+            vscode.window.showInformationMessage(
+              `Service "${item.label}" deleted successfully`,
+            );
           } catch (error) {
             vscode.window.showErrorMessage(
               `Failed to delete service: ${error}`,

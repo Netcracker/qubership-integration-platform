@@ -1,0 +1,24 @@
+---
+id: "f72b663c-a7e7-4b49-8650-5375675b30bc"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "file-read"
+content:
+  labels: []
+  elements:
+  - id: "829a3f22-ec58-4ca1-8734-de2bf7ae1449"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "829a3f22-ec58-4ca1-8734-de2bf7ae1449"
+  - id: "9a120de5-ea40-4197-947b-a0566a98d279"
+    name: "File Read"
+    type: "file-read"
+    properties:
+      antInclude: "source.txt"
+  dependencies:
+  - from: "829a3f22-ec58-4ca1-8734-de2bf7ae1449"
+    to: "9a120de5-ea40-4197-947b-a0566a98d279"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

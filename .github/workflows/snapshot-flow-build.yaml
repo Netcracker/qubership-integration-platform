@@ -1,0 +1,348 @@
+name: Snapshot Flow Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - '.github/workflows/**'
+      - 'integration-build-pipeline/**'
+      - 'runtime-catalog/**'
+      - 'micro-engine/**'
+      - 'scripts/test-micro-engine-snapshots.sh'
+      - 'parent/**'
+      - 'pom.xml'
+
+concurrency:
+  group: snapshot-flow-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  prerequisite_builds:
+    name: Resolve prerequisite builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      actions: read
+      pull-requests: read
+    outputs:
+      integration_build_pipeline: ${{ steps.resolve.outputs.integration_build_pipeline }}
+      runtime_catalog: ${{ steps.resolve.outputs.runtime_catalog }}
+      micro_engine: ${{ steps.resolve.outputs.micro_engine }}
+    steps:
+      - name: Reuse or schedule module builds
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ github.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_HEAD_REF_JSON: ${{ toJSON(github.event.pull_request.head.ref) }}
+          PR_HEAD_REPOSITORY_JSON: ${{ toJSON(github.event.pull_request.head.repo.full_name) }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_UPDATED_AT_JSON: ${{ toJSON(github.event.pull_request.updated_at) }}
+        run: |
+          set -euo pipefail
+
+          changed_files=$(gh api --paginate \
+            "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+            --jq '.[].filename')
+
+          integration_build_pipeline_expected=false
+          runtime_catalog_expected=false
+          micro_engine_expected=false
+
+          # Keep these patterns aligned with the standalone module workflows.
+          while IFS= read -r changed_file; do
+            case "$changed_file" in
+              integration-build-pipeline/*|parent/*|pom.xml)
+                integration_build_pipeline_expected=true
+                ;;
+            esac
+            case "$changed_file" in
+              integration-build-pipeline/*|runtime-catalog/*|parent/*|pom.xml)
+                runtime_catalog_expected=true
+                ;;
+            esac
+            case "$changed_file" in
+              micro-engine/*|pom.xml)
+                micro_engine_expected=true
+                ;;
+            esac
+          done <<< "$changed_files"
+
+          lookup_run() {
+            local workflow_file="$1"
+            local previous_sha=""
+            local sha
+            local response
+
+            FOUND_RUN=""
+            # Prefer the exact merge commit and ignore same-SHA runs from older PR events.
+            for sha in "$MERGE_SHA" "$PR_HEAD_SHA"; do
+              if [ "$sha" = "$previous_sha" ]; then
+                continue
+              fi
+              previous_sha="$sha"
+
+              if ! response=$(gh api --method GET \
+                "repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow_file}/runs" \
+                -f event=pull_request \
+                -f head_sha="$sha" \
+                -F per_page=100 \
+                --jq "
+                  .workflow_runs
+                  | map(select(
+                      .created_at >= ${PR_UPDATED_AT_JSON}
+                      and (
+                        any(.pull_requests[]?; .number == ${PR_NUMBER})
+                        or (
+                          ((.pull_requests // []) | length) == 0
+                          and .head_branch == ${PR_HEAD_REF_JSON}
+                          and .head_repository.full_name == ${PR_HEAD_REPOSITORY_JSON}
+                        )
+                      )
+                    ))
+                  | sort_by(.run_number)
+                  | reverse
+                  | if length == 0 then empty else .[0] | [.id, .html_url] | @tsv end
+                "); then
+                echo "::warning::Could not inspect ${workflow_file} for ${sha}."
+                continue
+              fi
+
+              if [ -n "$response" ]; then
+                FOUND_RUN="$response"
+                return
+              fi
+            done
+          }
+
+          wait_for_run() {
+            local build_name="$1"
+            local run_id="$2"
+            local run_url="$3"
+            local run_state
+            local status
+            local conclusion
+            local status_read_failures=0
+
+            while :; do
+              if ! run_state=$(gh api \
+                "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" \
+                --jq '[.status, (.conclusion // "")] | @tsv'); then
+                status_read_failures=$((status_read_failures + 1))
+                if [ "$status_read_failures" -ge 3 ]; then
+                  echo "::error::Could not read ${build_name} status after three attempts: ${run_url}"
+                  exit 1
+                fi
+                echo "::warning::Could not read ${build_name} status; retrying."
+                sleep 20
+                continue
+              fi
+              status_read_failures=0
+
+              IFS=$'\t' read -r status conclusion <<< "$run_state"
+              if [ "$status" = "completed" ]; then
+                if [ "$conclusion" != "success" ]; then
+                  echo "::error::${build_name} did not complete successfully: ${run_url}"
+                  exit 1
+                fi
+                return
+              fi
+
+              echo "Waiting for ${build_name} to complete (status: ${status})."
+              sleep 20
+            done
+          }
+
+          resolve_build() {
+            local workflow_file="$1"
+            local build_name="$2"
+            local expected="$3"
+            local attempt
+            local run_id
+            local run_url
+
+            BUILD_ACTION=run
+            if [ "$expected" != "true" ]; then
+              echo "${build_name} was not path-triggered; this workflow will run it."
+              return
+            fi
+
+            for attempt in {1..12}; do
+              lookup_run "$workflow_file"
+              if [ -n "$FOUND_RUN" ]; then
+                break
+              fi
+
+              if [ "$attempt" -lt 12 ]; then
+                echo "Waiting for ${build_name} to be registered (${attempt}/12)."
+                sleep 10
+              fi
+            done
+
+            if [ -z "$FOUND_RUN" ]; then
+              echo "::warning::${build_name} was not found; this workflow will run it."
+              return
+            fi
+
+            IFS=$'\t' read -r run_id run_url <<< "$FOUND_RUN"
+            echo "Reusing ${build_name}: ${run_url}"
+            wait_for_run "$build_name" "$run_id" "$run_url"
+            BUILD_ACTION=reuse
+          }
+
+          resolve_build integration-build-pipeline-build.yaml "Integration Build Pipeline Library Build" "$integration_build_pipeline_expected"
+          integration_build_pipeline_action="$BUILD_ACTION"
+
+          resolve_build runtime-catalog-build.yaml "Runtime Catalog Build" "$runtime_catalog_expected"
+          runtime_catalog_action="$BUILD_ACTION"
+
+          resolve_build micro-engine-build.yaml "Micro Engine Build" "$micro_engine_expected"
+          micro_engine_action="$BUILD_ACTION"
+
+          {
+            echo "integration_build_pipeline=${integration_build_pipeline_action}"
+            echo "runtime_catalog=${runtime_catalog_action}"
+            echo "micro_engine=${micro_engine_action}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Prerequisite build plan"
+            echo
+            echo "| Build | Action |"
+            echo "| --- | --- |"
+            echo "| Integration Build Pipeline Library Build | ${integration_build_pipeline_action} |"
+            echo "| Runtime Catalog Build | ${runtime_catalog_action} |"
+            echo "| Micro Engine Build | ${micro_engine_action} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  integration_build_pipeline_build:
+    name: Integration Build Pipeline Library Build (fallback)
+    needs: prerequisite_builds
+    if: ${{ needs.prerequisite_builds.outputs.integration_build_pipeline == 'run' }}
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_maven-module-build.yaml
+    with:
+      module: integration-build-pipeline
+      sonar-project-key: ${{ vars.SONAR_INTEGRATION_BUILD_PIPELINE_PROJECT_KEY }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  runtime_catalog_build:
+    name: Runtime Catalog Build (fallback)
+    needs: prerequisite_builds
+    if: ${{ needs.prerequisite_builds.outputs.runtime_catalog == 'run' }}
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_maven-module-build.yaml
+    with:
+      module: runtime-catalog
+      sonar-project-key: ${{ vars.SONAR_RUNTIME_CATALOG_PROJECT_KEY }}
+      ensure-openapi-spec: true
+      preinstall-integration-build-pipeline-library: true
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  micro_engine_build:
+    name: Micro Engine Build (fallback)
+    needs: prerequisite_builds
+    if: ${{ needs.prerequisite_builds.outputs.micro_engine == 'run' }}
+    permissions:
+      contents: read
+      packages: read
+    uses: ./.github/workflows/_maven-module-build.yaml
+    with:
+      module: micro-engine
+      sonar-project-key: ${{ vars.SONAR_MICRO_ENGINE_PROJECT_KEY }}
+      force-update: true
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+  snapshot_flow:
+    name: Catalog to Micro Engine snapshot flow
+    needs:
+      - prerequisite_builds
+      - integration_build_pipeline_build
+      - runtime_catalog_build
+      - micro_engine_build
+    if: >-
+      ${{
+        !cancelled()
+        && needs.prerequisite_builds.result == 'success'
+        && (
+          (
+            needs.prerequisite_builds.outputs.integration_build_pipeline == 'reuse'
+            && needs.integration_build_pipeline_build.result == 'skipped'
+          )
+          || (
+            needs.prerequisite_builds.outputs.integration_build_pipeline == 'run'
+            && needs.integration_build_pipeline_build.result == 'success'
+          )
+        )
+        && (
+          (
+            needs.prerequisite_builds.outputs.runtime_catalog == 'reuse'
+            && needs.runtime_catalog_build.result == 'skipped'
+          )
+          || (
+            needs.prerequisite_builds.outputs.runtime_catalog == 'run'
+            && needs.runtime_catalog_build.result == 'success'
+          )
+        )
+        && (
+          (
+            needs.prerequisite_builds.outputs.micro_engine == 'reuse'
+            && needs.micro_engine_build.result == 'skipped'
+          )
+          || (
+            needs.prerequisite_builds.outputs.micro_engine == 'run'
+            && needs.micro_engine_build.result == 'success'
+          )
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Verify Docker
+        run: docker version
+
+      - name: Verify generated micro-engine snapshots
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          SNAPSHOT_BUNDLE_DIRECTORY: ${{ runner.temp }}/snapshotbundle
+          ROOT_LOG_LEVEL: WARN
+        run: |
+          bash scripts/test-micro-engine-snapshots.sh \
+            -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
+            '-Dquarkus.log.category."org.apache.camel.processor.errorhandler.DefaultErrorHandler".level=OFF'
+
+      - name: Save snapshot test results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: micro-engine-snapshot-results
+          path: |
+            ${{ runner.temp }}/snapshotbundle
+            runtime-catalog/target/surefire-reports
+            micro-engine/target/surefire-reports

@@ -1,0 +1,44 @@
+---
+id: "134b4248-dff0-48c5-9cab-1e1577631857"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "nested-async-parent"
+content:
+  labels: []
+  elements:
+  - id: "14a39104-0635-459e-9132-67267ee81748"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "14a39104-0635-459e-9132-67267ee81748"
+  - id: "de8398dc-9208-436d-8e4b-a21a12ab54f4"
+    name: "Split Async"
+    type: "split-async-2"
+    children:
+    - id: "e6278029-a123-422e-913d-6f123e584248"
+      name: "Parent Async Branch"
+      type: "async-split-element-2"
+      children:
+      - id: "e74bc021-5664-4092-ad36-7caacebcb5ed"
+        name: "Call Child Chain"
+        type: "chain-call-2"
+        properties:
+          block: true
+          elementId: "4d1db1f2-03ee-4910-a12b-6c6a752fc659"
+          failIfNoConsumers: false
+          timeout: 30000
+      - id: "d24e538e-e474-4f2f-9c2a-8268b86b4dd3"
+        name: "Complete Parent Branch"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-d24e538e-e474-4f2f-9c2a-8268b86b4dd3.groovy"
+          propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "14a39104-0635-459e-9132-67267ee81748"
+    to: "de8398dc-9208-436d-8e4b-a21a12ab54f4"
+  - from: "e74bc021-5664-4092-ad36-7caacebcb5ed"
+    to: "d24e538e-e474-4f2f-9c2a-8268b86b4dd3"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

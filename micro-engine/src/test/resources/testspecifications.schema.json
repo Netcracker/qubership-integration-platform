@@ -1,0 +1,980 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Micro-engine snapshot test specification",
+  "description": "Editor assistance for manifest structure. Java validates deployment references, providers, selectors, matchers, and execution semantics.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "subject": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/nonblankString"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "deployments": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/deployment"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resources": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/resource"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "fixtures": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/fixture"
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/scenario"
+      },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "scenarios"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "required": [
+          "deployments"
+        ],
+        "properties": {
+          "deployments": {
+            "type": "array",
+            "minItems": 1
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "subject"
+        ],
+        "properties": {
+          "subject": {
+            "$ref": "#/definitions/nonblankString"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "subject": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ],
+  "definitions": {
+    "nonblankString": {
+      "type": "string",
+      "pattern": "\\S"
+    },
+    "valueMap": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": true
+    },
+    "headerNames": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "$ref": "#/definitions/nonblankString"
+      }
+    },
+    "deployment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/nonblankString"
+        },
+        "route": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            }
+          ],
+          "description": "Chain name in the generated snapshot bundle."
+        },
+        "dependsOn": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/nonblankString"
+          }
+        }
+      },
+      "required": [
+        "id",
+        "route"
+      ]
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "$ref": "#/definitions/nonblankString"
+        },
+        "target": {
+          "$ref": "#/definitions/nonblankString"
+        }
+      },
+      "required": [
+        "source",
+        "target"
+      ]
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/nonblankString"
+        },
+        "provider": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            }
+          ],
+          "description": "Fixture provider identifier. Available providers are registered in Java."
+        },
+        "deployment": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "nodeId": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceElementId": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "provider"
+      ]
+    },
+    "driver": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            }
+          ],
+          "description": "Driver provider identifier, such as http-trigger, file-read, or route-selector."
+        },
+        "sourceElementId": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parameters": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/valueMap"
+            }
+          ],
+          "description": "Provider-specific parameters. Java validates their names and values."
+        }
+      },
+      "required": [
+        "provider"
+      ]
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/nonblankString"
+        },
+        "endpointUri": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Camel endpoint URI. Set this or driver, not both."
+        },
+        "driver": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/driver"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "body": {
+          "description": "Input payload. Strings, structured values, and null are supported."
+        },
+        "headers": {
+          "$ref": "#/definitions/valueMap"
+        },
+        "properties": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/valueMap"
+            }
+          ],
+          "description": "Input Camel exchange properties. The HTTP driver does not accept these."
+        },
+        "expectedBody": {
+          "description": "Expected body or matcher. Omit to skip the assertion; null asserts a null body."
+        },
+        "expectedHeaders": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/valueMap"
+            }
+          ],
+          "description": "Result headers. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
+        },
+        "expectedAbsentHeaders": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/headerNames"
+            }
+          ],
+          "description": "Headers that must be absent from the result. HTTP assertions inspect the received response."
+        },
+        "expectedExchangeHeaders": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/valueMap"
+            }
+          ],
+          "description": "Internal Camel exchange headers, separate from HTTP response headers."
+        },
+        "expectedAbsentExchangeHeaders": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/headerNames"
+            }
+          ],
+          "description": "Headers that must be absent from the internal Camel exchange."
+        },
+        "expectedProperties": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/valueMap"
+            }
+          ],
+          "description": "Expected internal Camel exchange properties."
+        },
+        "interactions": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/interaction"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "invocations": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/invocation"
+              },
+              "minItems": 1,
+              "description": "Ordered invocations sharing one scenario runtime and fixture state."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "endpointUri"
+              ],
+              "properties": {
+                "endpointUri": {
+                  "$ref": "#/definitions/nonblankString"
+                },
+                "driver": {
+                  "type": "null"
+                }
+              }
+            },
+            {
+              "required": [
+                "driver"
+              ],
+              "properties": {
+                "driver": {
+                  "$ref": "#/definitions/driver"
+                },
+                "endpointUri": {
+                  "type": "null"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "if": {
+            "required": [
+              "invocations"
+            ],
+            "properties": {
+              "invocations": {
+                "type": "array"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "body": {
+                "type": "null"
+              },
+              "headers": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "maxProperties": 0
+                  }
+                ]
+              },
+              "properties": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "maxProperties": 0
+                  }
+                ]
+              },
+              "expectedHeaders": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "maxProperties": 0
+                  }
+                ]
+              },
+              "expectedProperties": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "maxProperties": 0
+                  }
+                ]
+              },
+              "expectedExchangeHeaders": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "maxProperties": 0
+                  }
+                ]
+              },
+              "expectedAbsentHeaders": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "array",
+                    "maxItems": 0
+                  }
+                ]
+              },
+              "expectedAbsentExchangeHeaders": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "array",
+                    "maxItems": 0
+                  }
+                ]
+              },
+              "interactions": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "array",
+                    "maxItems": 0
+                  }
+                ]
+              }
+            },
+            "not": {
+              "required": [
+                "expectedBody"
+              ]
+            },
+            "description": "Put input, expectations, and interactions inside each explicit invocation."
+          }
+        }
+      ]
+    },
+    "invocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "$ref": "#/definitions/nonblankString"
+        },
+        "endpointUri": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Camel endpoint URI. Set this or driver, not both."
+        },
+        "driver": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/driver"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "body": {
+          "description": "Input payload. Strings, structured values, and null are supported."
+        },
+        "headers": {
+          "$ref": "#/definitions/valueMap"
+        },
+        "properties": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/valueMap"
+            }
+          ],
+          "description": "Input Camel exchange properties. The HTTP driver does not accept these."
+        },
+        "expectedBody": {
+          "description": "Expected body or matcher. Omit to skip the assertion; null asserts a null body."
+        },
+        "expectedHeaders": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/valueMap"
+            }
+          ],
+          "description": "Result headers. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
+        },
+        "expectedAbsentHeaders": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/headerNames"
+            }
+          ],
+          "description": "Headers that must be absent from the result. HTTP assertions inspect the received response."
+        },
+        "expectedExchangeHeaders": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/valueMap"
+            }
+          ],
+          "description": "Internal Camel exchange headers, separate from HTTP response headers."
+        },
+        "expectedAbsentExchangeHeaders": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/headerNames"
+            }
+          ],
+          "description": "Headers that must be absent from the internal Camel exchange."
+        },
+        "expectedProperties": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/valueMap"
+            }
+          ],
+          "description": "Expected internal Camel exchange properties."
+        },
+        "interactions": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/interaction"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "repeat": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "default": 1
+        },
+        "expectedFailure": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/failure"
+            }
+          ],
+          "description": "Exact exception type, message, and complete cause chain. Omit when execution must succeed."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "not": {
+        "required": [
+          "endpointUri",
+          "driver"
+        ],
+        "properties": {
+          "endpointUri": {
+            "type": "string"
+          },
+          "driver": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "$ref": "#/definitions/nonblankString"
+        },
+        "message": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cause": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/failure"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "message",
+        "cause"
+      ]
+    },
+    "interaction": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fixture": {
+          "$ref": "#/definitions/nonblankString"
+        },
+        "response": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/response"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedRequest": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/request"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedLogs": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/log"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedExchanges": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/exchange"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "transitionToState": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "expectedState": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "fixture"
+      ],
+      "anyOf": [
+        {
+          "required": [
+            "response"
+          ],
+          "properties": {
+            "response": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "required": [
+            "expectedRequest"
+          ],
+          "properties": {
+            "expectedRequest": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "required": [
+            "expectedLogs"
+          ],
+          "properties": {
+            "expectedLogs": {
+              "type": "array"
+            }
+          }
+        },
+        {
+          "required": [
+            "expectedExchanges"
+          ],
+          "properties": {
+            "expectedExchanges": {
+              "type": "array"
+            }
+          }
+        },
+        {
+          "required": [
+            "transitionToState"
+          ],
+          "properties": {
+            "transitionToState": {
+              "type": "string"
+            }
+          }
+        },
+        {
+          "required": [
+            "expectedState"
+          ],
+          "properties": {
+            "expectedState": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 100,
+          "maximum": 599,
+          "default": 200
+        },
+        "body": {},
+        "headers": {
+          "$ref": "#/definitions/valueMap"
+        },
+        "properties": {
+          "$ref": "#/definitions/valueMap"
+        }
+      }
+    },
+    "request": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "default": 1
+        },
+        "method": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "path": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "query": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "destination": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "key": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "body": {
+          "description": "Expected request body or matcher. Omit to skip; null asserts a null body."
+        },
+        "headers": {
+          "$ref": "#/definitions/valueMap"
+        },
+        "properties": {
+          "$ref": "#/definitions/valueMap"
+        }
+      }
+    },
+    "exchange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "default": 1
+        },
+        "body": {
+          "description": "Expected captured body or matcher. Omit to skip; null asserts a null body."
+        },
+        "headers": {
+          "$ref": "#/definitions/valueMap"
+        },
+        "properties": {
+          "$ref": "#/definitions/valueMap"
+        }
+      }
+    },
+    "log": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "default": 1
+        },
+        "level": {
+          "type": "string",
+          "pattern": "^([Ee][Rr][Rr][Oo][Rr]|[Ii][Nn][Ff][Oo]|[Ww][Aa][Rr][Nn])$",
+          "examples": [
+            "ERROR",
+            "INFO",
+            "WARN"
+          ]
+        },
+        "message": {
+          "type": "string"
+        },
+        "mdc": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "propertyNames": {
+            "$ref": "#/definitions/nonblankString"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "level",
+        "message"
+      ]
+    }
+  }
+}

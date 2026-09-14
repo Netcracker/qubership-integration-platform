@@ -1,0 +1,47 @@
+---
+id: "f547313a-c234-41c7-aae6-60d2c18109c6"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "service-call"
+content:
+  labels: []
+  elements:
+  - id: "50e02ff9-e6fe-477f-9d11-ac139cfa7b60"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "50e02ff9-e6fe-477f-9d11-ac139cfa7b60"
+  - id: "ae97ad83-4030-4287-a855-dfa4ba1b4fa8"
+    name: "Service Call"
+    type: "service-call"
+    properties:
+      afterValidation: []
+      authorizationConfiguration:
+        type: "inherit"
+      before:
+        type: "none"
+      errorThrowing: false
+      handleValidationAction: "default"
+      integrationOperationId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744-petstore-1.0.7-getPetById"
+      integrationOperationMethod: "GET"
+      integrationOperationPath: "/pet/{petId}"
+      integrationOperationPathParameters:
+        petId: "1"
+      integrationOperationProtocolType: "http"
+      integrationOperationQueryParameters:
+        trace: "snapshot"
+      integrationOperationSkipEmptyQueryParameters: false
+      integrationSpecificationGroupId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744-petstore"
+      integrationSpecificationId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744-petstore-1.0.7"
+      integrationSystemId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744"
+      propagateContext: true
+      receiveCorrelationId: false
+      retryCount: 1
+      retryDelay: 0
+      systemType: "INTERNAL"
+  dependencies:
+  - from: "50e02ff9-e6fe-477f-9d11-ac139cfa7b60"
+    to: "ae97ad83-4030-4287-a855-dfa4ba1b4fa8"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"
