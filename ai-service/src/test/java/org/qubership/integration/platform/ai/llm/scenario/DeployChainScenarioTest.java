@@ -2,6 +2,8 @@ package org.qubership.integration.platform.ai.llm.scenario;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -13,6 +15,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.helpers.test.AssertSubscriber;
 import jakarta.ws.rs.ProcessingException;
 import jakarta.ws.rs.WebApplicationException;
@@ -22,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
@@ -1668,6 +1672,46 @@ class DeployChainScenarioTest {
     verify(catalogRestClient, never()).deleteDeployment(any(), any());
     verify(catalogRestClient, never()).createDeployment(any(), any());
     verify(catalogRestClient, never()).listElements(any());
+  }
+
+  @Test
+  void readsTheCatalogOffTheSseSubscriptionThreadAfterMaasTopics() {
+    ChatEvent.Decision card = givenMaasTopicsCard();
+    clearInvocations(catalogRestClient);
+    String subscriberThread = Thread.currentThread().getName();
+    AtomicReference<String> listDeploymentsThread = new AtomicReference<>();
+    when(catalogRestClient.listDeployments(CHAIN_ID))
+        .thenAnswer(
+            invocation -> {
+              listDeploymentsThread.set(Thread.currentThread().getName());
+              return List.of(deploymentOnDefault(SNAPSHOT_ID, "DEPLOYED"));
+            });
+
+    AssertSubscriber<ChatEvent> sub =
+        Multi.createFrom()
+            .<ChatEvent>emitter(
+                emitter ->
+                    scenario
+                        .handle(
+                            decisionRequest(
+                                ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION, card.artifactHash()),
+                            CONVERSATION_ID,
+                            ScenarioType.DEPLOY_CHAIN)
+                        .subscribe()
+                        .with(emitter::emit, emitter::fail, emitter::complete))
+            .subscribe()
+            .withSubscriber(AssertSubscriber.create(Long.MAX_VALUE));
+    sub.awaitCompletion();
+
+    assertNotNull(listDeploymentsThread.get(), "listDeployments did not run");
+    assertNotEquals(
+        subscriberThread,
+        listDeploymentsThread.get(),
+        "listDeployments must leave the SSE subscriber thread, was: "
+            + listDeploymentsThread.get());
+    assertFalse(
+        listDeploymentsThread.get().contains("eventloop"),
+        "listDeployments must not run on a Vert.x event loop: " + listDeploymentsThread.get());
   }
 
   @Test
