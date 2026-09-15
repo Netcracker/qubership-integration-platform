@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.service.variables;
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import jakarta.persistence.EntityExistsException;
+import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,9 +27,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.variable.ImportVariableResult;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.variable.VariablesFileResponse;
 import org.qubership.integration.platform.runtime.catalog.service.ActionsLogService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.instructions.ImportInstructionsService;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -128,5 +131,28 @@ class CommonVariablesServiceTest {
 
         verify(securedVariableService).getVariablesForDefaultSecret(false);
         verify(consulService, never()).updateCommonVariables(any());
+    }
+
+    @Test
+    @DisplayName("Export of named variables answers not found naming every absent one")
+    void exportVariablesShouldNameMissingVariables() {
+        when(consulService.getAllCommonVariables()).thenReturn(Map.of("present", "value"));
+
+        EntityNotFoundException exception = assertThrows(
+                EntityNotFoundException.class,
+                () -> commonVariablesService.exportVariables(List.of("present", "absent", "gone"), false));
+
+        assertThat(exception.getMessage(), equalTo("Can't find common variables: absent, gone"));
+    }
+
+    @Test
+    @DisplayName("Export of named variables contains only the requested ones")
+    void exportVariablesShouldExportOnlyRequestedVariables() throws Exception {
+        when(consulService.getAllCommonVariables()).thenReturn(Map.of("wanted", "value", "other", "skipped"));
+        when(yamlMapper.writeValueAsString(any())).thenAnswer(invocation -> invocation.getArgument(0).toString());
+
+        VariablesFileResponse response = commonVariablesService.exportVariables(List.of("wanted"), false);
+
+        assertThat(new String(response.getContent(), StandardCharsets.UTF_8), equalTo("{wanted=value}"));
     }
 }
