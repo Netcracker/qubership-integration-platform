@@ -18,9 +18,11 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsAgentCall;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
+import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.IdsBypass;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
@@ -293,6 +295,21 @@ public class RequirementDiscoveryCapability implements StageCapability {
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
     boolean pendingUploadedSpecHandoff =
         hasAllowedUploadedSpecs(conversationId) && !draft.facts().isEmpty();
+    if (draft.decision() == DraftDecision.NEEDS_INPUT
+        && draft.idsRequested() == null
+        && draft.openQuestions().isEmpty()
+        && !draft.facts().isEmpty()
+        && !draft.flow().interactions().isEmpty()
+        && RequirementFlowValidator.validateBindings(
+                draft.flow(), draft.facts(), draft.catalogBindings())
+            .isEmpty()
+        && !pendingImportHandoff
+        && !pendingUploadedSpecHandoff) {
+      return new CapabilitySignal.Completed(
+          StageOutcome.of(
+              StageOutcomeClass.NEEDS_INPUT,
+              PipelineGates.tag(PipelineGates.IDS_PATH_CHOICE, "")));
+    }
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
       // Blank on purpose: the gather agent already streamed the clarifying question. Emitting an
       // internal draft-state sentence glued it to that text and leaked READY_FOR_PLAN into chat.
