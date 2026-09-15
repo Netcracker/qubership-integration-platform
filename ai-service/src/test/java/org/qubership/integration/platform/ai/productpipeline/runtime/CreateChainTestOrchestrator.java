@@ -91,6 +91,23 @@ public final class CreateChainTestOrchestrator implements CreateChainOrchestrato
   }
 
   @Override
+  public List<RestartCheckpoint> availableRestartCheckpoints(String conversationId) {
+    return support.availableRestartCheckpoints(conversationId);
+  }
+
+  @Override
+  public Multi<PipelineSignal> restart(RestartRunCommand command) {
+    return Multi.createFrom()
+        .deferred(
+            () -> {
+              support.prepareCheckpointRestart(command, "test-flow-" + command.childRunId());
+              runStore.replaceConversationBinding(
+                  command.conversationId(), command.parentRunId(), command.childRunId());
+              return loop(command.childRunId());
+            });
+  }
+
+  @Override
   public Multi<PipelineSignal> acceptInput(AcceptInputCommand command) {
     return support.recordInput(command).onCompletion().switchTo(() -> loop(command.runId()));
   }

@@ -251,6 +251,75 @@ class ProductPipelineRunStoreTest {
     assertNotEquals(0, byId.blobVersion().length());
   }
 
+  @Test
+  void createsUnboundRunWithoutChangingActiveConversation() {
+    ProductPipelineRunDocument parent =
+        runStore.create(sampleSnapshot(1L, RunStatus.WAITING_FOR_INPUT));
+    RunSnapshot child =
+        new RunSnapshot(
+            "run-child",
+            CONVERSATION_ID,
+            1L,
+            RunStatus.RUNNING,
+            "collect",
+            List.of(new StageSnapshot("collect", StageStatus.RUNNING, List.of(), null)),
+            null);
+
+    ProductPipelineRunDocument created =
+        runStore.createUnbound(child, "restart-1", "payload-1");
+
+    assertEquals("run-child", created.run().runId());
+    assertEquals(
+        parent.run().runId(),
+        runStore.loadByConversation(CONVERSATION_ID).orElseThrow().run().runId());
+    assertTrue(created.appliedCommand("restart-1", "payload-1").isPresent());
+  }
+
+  @Test
+  void compareAndSetConversationBindingActivatesPreparedChild() {
+    runStore.create(sampleSnapshot(1L, RunStatus.WAITING_FOR_INPUT));
+    RunSnapshot child =
+        new RunSnapshot(
+            "run-child",
+            CONVERSATION_ID,
+            1L,
+            RunStatus.RUNNING,
+            "collect",
+            List.of(new StageSnapshot("collect", StageStatus.RUNNING, List.of(), null)),
+            null);
+    runStore.createUnbound(child, "restart-1", "payload-1");
+
+    runStore.replaceConversationBinding(CONVERSATION_ID, "run-1", "run-child");
+
+    assertEquals(
+        "run-child",
+        runStore.loadByConversation(CONVERSATION_ID).orElseThrow().run().runId());
+  }
+
+  @Test
+  void staleConversationBindingDoesNotReplaceActiveRun() {
+    runStore.create(sampleSnapshot(1L, RunStatus.WAITING_FOR_INPUT));
+    RunSnapshot child =
+        new RunSnapshot(
+            "run-child",
+            CONVERSATION_ID,
+            1L,
+            RunStatus.RUNNING,
+            "collect",
+            List.of(new StageSnapshot("collect", StageStatus.RUNNING, List.of(), null)),
+            null);
+    runStore.createUnbound(child, "restart-1", "payload-1");
+
+    assertThrows(
+        StaleBlobVersionException.class,
+        () ->
+            runStore.replaceConversationBinding(
+                CONVERSATION_ID, "another-parent", "run-child"));
+
+    assertEquals(
+        "run-1", runStore.loadByConversation(CONVERSATION_ID).orElseThrow().run().runId());
+  }
+
   private void advanceToRevision(ProductPipelineRunDocument created, long targetRevision) {
     AtomicReference<ProductPipelineRunDocument> current = new AtomicReference<>(created);
     while (current.get().run().runRevision() < targetRevision) {

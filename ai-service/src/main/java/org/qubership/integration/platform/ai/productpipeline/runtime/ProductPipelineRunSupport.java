@@ -513,6 +513,448 @@ public final class ProductPipelineRunSupport {
     return runStore.create(snapshot);
   }
 
+  /** Returns restart points backed by the current run's durable approval evidence. */
+  public List<RestartCheckpoint> availableRestartCheckpoints(String conversationId) {
+    ProductPipelineRunDocument doc =
+        runStore
+            .loadByConversation(conversationId)
+            .orElseThrow(
+                () -> new IllegalArgumentException("unknown conversation: " + conversationId));
+    List<RestartCheckpoint> available = new ArrayList<>();
+    available.add(RestartCheckpoint.BEGINNING);
+    if (hasCurrentApproval(doc, RestartCheckpoint.APPROVED_REQUIREMENTS)) {
+      available.add(RestartCheckpoint.APPROVED_REQUIREMENTS);
+    }
+    if (hasCurrentApproval(doc, RestartCheckpoint.APPROVED_PLAN)) {
+      available.add(RestartCheckpoint.APPROVED_PLAN);
+    }
+    return List.copyOf(available);
+  }
+
+  /**
+   * Clones a checkpoint into an unbound child run. The caller starts the fresh Flow instance and
+   * owns the conversation-pointer CAS.
+   */
+  public PreparedRestart prepareCheckpointRestart(
+      RestartRunCommand command, String flowInstanceId) {
+    Objects.requireNonNull(command, "command");
+    if (flowInstanceId == null || flowInstanceId.isBlank()) {
+      throw new IllegalArgumentException("flowInstanceId is required");
+    }
+    ProductPipelineRunDocument parent =
+        runStore
+            .load(command.parentRunId())
+            .orElseThrow(
+                () ->
+                    new IllegalArgumentException(
+                        "unknown parent run: " + command.parentRunId()));
+    if (!command.conversationId().equals(parent.run().conversationId())) {
+      throw new IllegalArgumentException("parent run belongs to another conversation");
+    }
+    if (parent.run().runRevision() != command.parentRunRevision()) {
+      throw new org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionException(
+          "expected parent runRevision "
+              + command.parentRunRevision()
+              + " but was "
+              + parent.run().runRevision());
+    }
+    Optional<ProductPipelineRunDocument> prepared = runStore.load(command.childRunId());
+    if (prepared.isPresent()) {
+      ProductPipelineRunDocument child = prepared.orElseThrow();
+      child.appliedCommand(command.commandId(), command.commandPayloadHash());
+      return new PreparedRestart(child, loadRunManifest(child));
+    }
+    if (command.checkpoint() != RestartCheckpoint.BEGINNING
+        && !hasCurrentApproval(parent, command.checkpoint())) {
+      throw new IllegalArgumentException(
+          "restart checkpoint is not available: " + command.checkpoint());
+    }
+
+    RunManifest parentManifest = loadRunManifest(parent);
+    RunManifest childManifest =
+        new RunManifest(
+            command.childRunId(),
+            parent.run().runId(),
+            List.of(),
+            parentManifest.runtimeSelection(),
+            parentManifest.profileId(),
+            parentManifest.profileVersion(),
+            parentManifest.profileDigest(),
+            parentManifest.referenceBaselineId(),
+            parentManifest.referenceBaselineDigest(),
+            parentManifest.dependencyClosure(),
+            parentManifest.dependencyClosureDigest(),
+            parentManifest.knowledgePackage(),
+            parentManifest.languageVersion(),
+            parentManifest.artifactSchemaVersions(),
+            parentManifest.compilerRunPin(),
+            parentManifest.responseLocale());
+    Revision childManifestRevision =
+        artifactStore.append(
+            new AppendCommand(
+                command.childRunId(),
+                Kind.RUN_MANIFEST,
+                "1",
+                "product-pipeline-restart",
+                "1",
+                childManifest,
+                List.of(),
+                null,
+                restartProvenance(command, parentManifest, "bootstrap")));
+
+    Map<String, Revision> sourceRevisions = sourceRevisions(parent.run().runId());
+    Set<String> selectedIds = selectedArtifactIds(parent, command.checkpoint(), sourceRevisions);
+    parentManifest.sourceReferences().stream()
+        .map(Reference::artifactId)
+        .forEach(selectedIds::add);
+    includeInputClosure(selectedIds, sourceRevisions);
+    Map<String, Reference> copied = new LinkedHashMap<>();
+    if (parent.run().runManifestRef() != null) {
+      copied.put(parent.run().runManifestRef().artifactId(), childManifestRevision.reference());
+    }
+    sourceRevisions.values().stream()
+        .filter(revision -> selectedIds.contains(revision.artifactId()))
+        .filter(revision -> revision.kind() != Kind.RUN_MANIFEST)
+        .sorted(java.util.Comparator.comparingLong(Revision::sequence))
+        .forEach(
+            revision ->
+                copied.put(
+                    revision.artifactId(),
+                    copyRestartArtifact(command, parentManifest, revision, copied).reference()));
+
+    List<Reference> childSourceReferences =
+        parentManifest.sourceReferences().stream()
+            .map(reference -> requireCopied(reference, copied))
+            .toList();
+    childManifest = copyManifestWithSources(childManifest, childSourceReferences);
+    Revision finalManifestRevision =
+        artifactStore.append(
+            new AppendCommand(
+                command.childRunId(),
+                Kind.RUN_MANIFEST,
+                "1",
+                "product-pipeline-restart",
+                "1",
+                childManifest,
+                childSourceReferences,
+                childManifestRevision.artifactId(),
+                restartProvenance(command, parentManifest, "checkpoint")));
+
+    String resumeStageId = resumeStageId(command.profile(), command.checkpoint());
+    List<StageSnapshot> stages =
+        restartedStages(parent, command.profile(), command.checkpoint(), resumeStageId, copied);
+    RunSnapshot snapshot =
+        new RunSnapshot(
+            command.childRunId(),
+            command.conversationId(),
+            1L,
+            RunStatus.RUNNING,
+            resumeStageId,
+            stages,
+            finalManifestRevision.reference(),
+            flowInstanceId);
+    ProductPipelineRunDocument child =
+        runStore.createUnbound(
+            snapshot, command.commandId(), command.commandPayloadHash());
+    hydrateCaches(
+        child,
+        new StartOrResumeCommand(
+            command.conversationId(),
+            command.childRunId(),
+            command.profile(),
+            childManifest));
+    verifyCompilerPin(childManifest);
+    return new PreparedRestart(child, childManifest);
+  }
+
+  private static RunManifest copyManifestWithSources(
+      RunManifest manifest, List<Reference> sourceReferences) {
+    return new RunManifest(
+        manifest.runId(),
+        manifest.parentRunId(),
+        sourceReferences,
+        manifest.runtimeSelection(),
+        manifest.profileId(),
+        manifest.profileVersion(),
+        manifest.profileDigest(),
+        manifest.referenceBaselineId(),
+        manifest.referenceBaselineDigest(),
+        manifest.dependencyClosure(),
+        manifest.dependencyClosureDigest(),
+        manifest.knowledgePackage(),
+        manifest.languageVersion(),
+        manifest.artifactSchemaVersions(),
+        manifest.compilerRunPin(),
+        manifest.responseLocale());
+  }
+
+  private RunManifest loadRunManifest(ProductPipelineRunDocument doc) {
+    Reference ref = doc.run().runManifestRef();
+    return Optional.ofNullable(ref)
+        .flatMap(reference -> artifactStore.get(doc.run().runId(), reference))
+        .or(() -> artifactStore.latest(doc.run().runId(), Kind.RUN_MANIFEST))
+        .map(revision -> artifactStore.payload(revision, RunManifest.class))
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    "RUN_MANIFEST is missing for " + doc.run().runId()));
+  }
+
+  private boolean hasCurrentApproval(
+      ProductPipelineRunDocument doc, RestartCheckpoint checkpoint) {
+    String stageId = checkpoint.checkpointStageId();
+    if (stageId == null) {
+      return true;
+    }
+    StageSnapshot stage =
+        doc.run().stages().stream()
+            .filter(candidate -> stageId.equals(candidate.stageId()))
+            .findFirst()
+            .orElse(null);
+    if (stage == null
+        || stage.status() != StageStatus.SUCCEEDED
+        || stage.approvedArtifactId() == null
+        || stage.approvedArtifactId().isBlank()) {
+      return false;
+    }
+    Reference approved =
+        java.util.stream.Stream.concat(
+                stage.outputRefs().stream(), stage.candidateReferences().stream())
+            .filter(ref -> stage.approvedArtifactId().equals(ref.artifactId()))
+            .findFirst()
+            .orElse(stage.approvableReference());
+    if (approved == null || !stage.approvedArtifactId().equals(approved.artifactId())) {
+      return false;
+    }
+    return stage.outputRefs().stream()
+        .filter(ref -> ref.kind() == Kind.APPROVAL_RECORD)
+        .map(ref -> artifactStore.get(doc.run().runId(), ref))
+        .flatMap(Optional::stream)
+        .anyMatch(revision -> approvalTargets(revision, approved));
+  }
+
+  private boolean approvalTargets(Revision revision, Reference expected) {
+    if ("2".equals(revision.schemaVersion())) {
+      ApprovalRecordV2 record = artifactStore.payload(revision, ApprovalRecordV2.class);
+      return expected.equals(record.target())
+          && expected.contentHash().equals(record.targetContentHash());
+    }
+    ApprovalRecord record = artifactStore.payload(revision, ApprovalRecord.class);
+    return expected.equals(record.target())
+        && expected.contentHash().equals(record.targetContentHash());
+  }
+
+  private Map<String, Revision> sourceRevisions(String runId) {
+    Map<String, Revision> revisions = new LinkedHashMap<>();
+    for (Kind kind : Kind.values()) {
+      for (Revision revision : artifactStore.history(runId, kind)) {
+        revisions.put(revision.artifactId(), revision);
+      }
+    }
+    return revisions;
+  }
+
+  private Set<String> selectedArtifactIds(
+      ProductPipelineRunDocument parent,
+      RestartCheckpoint checkpoint,
+      Map<String, Revision> revisions) {
+    Set<String> selected = new java.util.LinkedHashSet<>();
+    if (checkpoint == RestartCheckpoint.BEGINNING) {
+      revisions.values().stream()
+          .filter(revision -> revision.kind() == Kind.USER_INPUT)
+          .min(java.util.Comparator.comparingLong(Revision::sequence))
+          .map(Revision::artifactId)
+          .ifPresent(selected::add);
+      return selected;
+    }
+    for (StageSnapshot stage : parent.run().stages()) {
+      addReferenceIds(selected, stage.outputRefs());
+      addReferenceIds(selected, stage.candidateReferences());
+      if (stage.approvableReference() != null) {
+        selected.add(stage.approvableReference().artifactId());
+      }
+      if (checkpoint.checkpointStageId().equals(stage.stageId())) {
+        break;
+      }
+    }
+    return selected;
+  }
+
+  private static void addReferenceIds(Set<String> selected, List<Reference> references) {
+    references.stream().map(Reference::artifactId).forEach(selected::add);
+  }
+
+  private static void includeInputClosure(
+      Set<String> selected, Map<String, Revision> revisions) {
+    java.util.ArrayDeque<String> pending = new java.util.ArrayDeque<>(selected);
+    while (!pending.isEmpty()) {
+      Revision revision = revisions.get(pending.removeFirst());
+      if (revision == null) {
+        continue;
+      }
+      for (Reference input : revision.inputs()) {
+        if (selected.add(input.artifactId())) {
+          pending.addLast(input.artifactId());
+        }
+      }
+    }
+  }
+
+  private Revision copyRestartArtifact(
+      RestartRunCommand command,
+      RunManifest parentManifest,
+      Revision source,
+      Map<String, Reference> copied) {
+    List<Reference> inputs = source.inputs().stream().map(ref -> requireCopied(ref, copied)).toList();
+    Object payload = source.payload();
+    if (source.kind() == Kind.APPROVAL_RECORD) {
+      payload = copyApprovalRecord(source, copied);
+    }
+    return artifactStore.append(
+        new AppendCommand(
+            command.childRunId(),
+            source.kind(),
+            source.schemaVersion(),
+            "product-pipeline-restart",
+            "1",
+            payload,
+            inputs,
+            null,
+            restartProvenance(
+                command,
+                parentManifest,
+                source.provenance() == null ? "checkpoint" : source.provenance().stageId())));
+  }
+
+  private Object copyApprovalRecord(Revision source, Map<String, Reference> copied) {
+    if ("2".equals(source.schemaVersion())) {
+      ApprovalRecordV2 record = artifactStore.payload(source, ApprovalRecordV2.class);
+      return new ApprovalRecordV2(
+          requireCopied(record.target(), copied),
+          record.targetContentHash(),
+          record.approvedCandidates().stream().map(ref -> requireCopied(ref, copied)).toList(),
+          record.actor(),
+          record.comment(),
+          record.approvedAt(),
+          record.bindingResolutionPolicy(),
+          record.bindingResolutionPolicyHash(),
+          record.subjectArtifactKind(),
+          record.subjectSchemaVersion(),
+          record.subjectRevisionId(),
+          record.subjectSha256(),
+          record.compilerContractVersion(),
+          record.compilerContractSha256(),
+          record.attachmentKeys(),
+          record.specSystemTypes());
+    }
+    ApprovalRecord record = artifactStore.payload(source, ApprovalRecord.class);
+    Reference target = requireCopied(record.target(), copied);
+    return new ApprovalRecord(
+        target, target.contentHash(), record.actor(), record.comment(), record.approvedAt());
+  }
+
+  private static Reference requireCopied(Reference source, Map<String, Reference> copied) {
+    Reference mapped = copied.get(source.artifactId());
+    if (mapped == null) {
+      throw new IllegalStateException(
+          "restart artifact input was not copied: " + source.artifactId());
+    }
+    return mapped;
+  }
+
+  private static List<StageSnapshot> restartedStages(
+      ProductPipelineRunDocument parent,
+      ProductPipelineProfile profile,
+      RestartCheckpoint checkpoint,
+      String resumeStageId,
+      Map<String, Reference> copied) {
+    int checkpointIndex =
+        checkpoint.checkpointStageId() == null
+            ? -1
+            : indexOfStage(profile, checkpoint.checkpointStageId());
+    List<StageSnapshot> restarted = new ArrayList<>();
+    for (int index = 0; index < profile.stages().size(); index++) {
+      ProfileStage profileStage = profile.stages().get(index);
+      if (index <= checkpointIndex) {
+        StageSnapshot source =
+            parent.run().stages().stream()
+                .filter(stage -> profileStage.stageId().equals(stage.stageId()))
+                .findFirst()
+                .orElseThrow();
+        List<Reference> outputs = copyReferences(source.outputRefs(), copied);
+        List<Reference> candidates = copyReferences(source.candidateReferences(), copied);
+        Reference approvable =
+            source.approvableReference() == null
+                ? null
+                : requireCopied(source.approvableReference(), copied);
+        Reference approved =
+            source.approvedArtifactId() == null
+                ? null
+                : copied.get(source.approvedArtifactId());
+        restarted.add(
+            new StageSnapshot(
+                source.stageId(),
+                StageStatus.SUCCEEDED,
+                outputs,
+                approved == null ? null : approved.artifactId(),
+                candidates,
+                approvable,
+                source.candidateRevision()));
+      } else if (profileStage.stageId().equals(resumeStageId)) {
+        restarted.add(
+            new StageSnapshot(
+                profileStage.stageId(), StageStatus.RUNNING, List.of(), null));
+      } else {
+        restarted.add(
+            new StageSnapshot(
+                profileStage.stageId(), StageStatus.PENDING, List.of(), null));
+      }
+    }
+    return List.copyOf(restarted);
+  }
+
+  private static String resumeStageId(
+      ProductPipelineProfile profile, RestartCheckpoint checkpoint) {
+    if (checkpoint == RestartCheckpoint.BEGINNING) {
+      if (profile.stages().isEmpty()) {
+        throw new IllegalArgumentException("profile has no stages");
+      }
+      return profile.stages().get(0).stageId();
+    }
+    indexOfStage(profile, checkpoint.resumeStageId());
+    return checkpoint.resumeStageId();
+  }
+
+  private static int indexOfStage(ProductPipelineProfile profile, String stageId) {
+    for (int index = 0; index < profile.stages().size(); index++) {
+      if (stageId.equals(profile.stages().get(index).stageId())) {
+        return index;
+      }
+    }
+    throw new IllegalArgumentException("profile does not contain stage " + stageId);
+  }
+
+  private static List<Reference> copyReferences(
+      List<Reference> references, Map<String, Reference> copied) {
+    return references.stream()
+        .map(reference -> copied.get(reference.artifactId()))
+        .filter(Objects::nonNull)
+        .toList();
+  }
+
+  private static ArtifactProvenance restartProvenance(
+      RestartRunCommand command, RunManifest manifest, String stageId) {
+    return new ArtifactProvenance(
+        command.childRunId(),
+        stageId == null || stageId.isBlank() ? "checkpoint" : stageId,
+        manifest.profileId(),
+        manifest.profileVersion(),
+        manifest.profileDigest(),
+        "checkpoint-restart",
+        "1",
+        manifest.dependencyClosureDigest());
+  }
+
   /**
    * Applies Continue, Retry, and Reopen without recursive stage selection. Wait, fail, and complete
    * decisions already committed their evidence in the stage module.

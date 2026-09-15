@@ -87,6 +87,13 @@ public sealed interface ChatEvent {
   /** Reopens design planning for a defective implementation plan. */
   String REBUILD_PLAN_ACTION = "rebuild-plan";
 
+  String RESTART_FROM_BEGINNING_ACTION = "restart-from-beginning";
+
+  String RESTART_FROM_APPROVED_REQUIREMENTS_ACTION =
+      "restart-from-approved-requirements";
+
+  String RESTART_FROM_APPROVED_PLAN_ACTION = "restart-from-approved-plan";
+
   /** Replaces a live deployment after the reader confirms: irreversible, so never a model's. */
   String REDEPLOY_ACTION = "redeploy-chain";
 

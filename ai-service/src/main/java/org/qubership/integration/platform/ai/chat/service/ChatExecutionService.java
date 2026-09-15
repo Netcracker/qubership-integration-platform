@@ -176,6 +176,12 @@ public class ChatExecutionService {
     // Repair dangling tool_calls left by prior ToolArgumentsException / aborted tool turns so the
     // next OpenAI request is well-formed (invalid_request_error otherwise).
     chatMemorySanitizer.repairDanglingToolCalls(conversationId);
+    if (request.getDecision() == null) {
+      request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
+      decisionService
+          .restartCommandForMessage(conversationId, request.getEffectiveUserText())
+          .ifPresent(request::setDecision);
+    }
     if (request.getDecision() != null) {
       // A typed answer needs no attachment or memory resolution: the marker is what the model reads.
       String domain =
@@ -188,7 +194,6 @@ public class ChatExecutionService {
       applyScenarioHint(request);
       decisionService.rememberImportChoice(conversationId, request.getDecision());
     } else {
-      request.setResolvedEffectiveUserText(effectiveUserTextService.resolve(request, conversationId));
       if (pendingRedeployStore
           .find(conversationId)
           .filter(PendingRedeploy::waitingForDomain)

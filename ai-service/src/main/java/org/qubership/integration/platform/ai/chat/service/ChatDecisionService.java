@@ -4,6 +4,7 @@ import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,12 +25,14 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainEvent;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPublicArtifactTypes;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.RestartCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.ExecutionSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.facade.PendingAction;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RestartCheckpoint;
 
 /**
  * Runs a typed answer to a decision card against the same facade command the A2A transport uses.
@@ -88,7 +91,7 @@ public class ChatDecisionService {
                                         pending,
                                         snapshot.revision(),
                                         storedQuestion(conversationId, pending),
-                                        actionsFor(pending))));
+                                        actionsFor(conversationId, pending))));
     if (waiting.isPresent()) {
       return waiting;
     }
@@ -98,6 +101,44 @@ public class ChatDecisionService {
     }
     Optional<ChatEvent.Decision> uploaded = uploadedSpecsDecision(conversationId);
     return uploaded.isPresent() ? uploaded : importDecision(conversationId);
+  }
+
+  /** Converts an unambiguous typed restart request into the same command used by the UI menu. */
+  public Optional<ChatDecisionCommand> restartCommandForMessage(
+      String conversationId, String message) {
+    if (message == null || message.isBlank()) {
+      return Optional.empty();
+    }
+    String normalized =
+        message
+            .strip()
+            .toLowerCase(Locale.ROOT)
+            .replaceAll("[.!?]+$", "")
+            .replaceAll("\\s+", " ");
+    String action =
+        switch (normalized) {
+          case "restart from the beginning", "restart from beginning", "start over" ->
+              ChatEvent.RESTART_FROM_BEGINNING_ACTION;
+          case "restart from approved requirements", "go back to approved requirements" ->
+              ChatEvent.RESTART_FROM_APPROVED_REQUIREMENTS_ACTION;
+          case "restart from approved plan", "go back to approved plan" ->
+              ChatEvent.RESTART_FROM_APPROVED_PLAN_ACTION;
+          default -> "";
+        };
+    if (action.isEmpty()) {
+      return Optional.empty();
+    }
+    return openDecision(conversationId)
+        .filter(decision -> decision.actions().contains(action))
+        .map(
+            decision -> {
+              ChatDecisionCommand command = new ChatDecisionCommand();
+              command.setAction(action);
+              command.setArtifactType(decision.artifactType());
+              command.setArtifactHash(decision.artifactHash());
+              command.setRevision(decision.revision());
+              return command;
+            });
   }
 
   /**
@@ -179,28 +220,64 @@ public class ChatDecisionService {
     return facade
         .pendingCreationHash(conversationId)
         .map(
-            hash ->
-                (ChatEvent.Decision)
-                    ChatEvent.createChainDecision(
-                        CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN,
-                        hash,
-                        facade.snapshot(conversationId).map(ExecutionSnapshot::revision).orElse(0L),
-                        approvalQuestions.find(conversationId, hash).orElse("")));
+            hash -> {
+              ChatEvent.Decision base =
+                  (ChatEvent.Decision)
+                      ChatEvent.createChainDecision(
+                          CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN,
+                          hash,
+                          facade
+                              .snapshot(conversationId)
+                              .map(ExecutionSnapshot::revision)
+                              .orElse(0L),
+                          approvalQuestions.find(conversationId, hash).orElse(""));
+              return withActions(base, restartActions(conversationId, base.actions()));
+            });
   }
 
   /**
    * Actions a gate offers. The plan gate keeps the happy path at one click by sending approval and
    * creation together; every other gate has nothing to create.
    */
-  private static List<String> actionsFor(PendingAction pending) {
+  private List<String> actionsFor(String conversationId, PendingAction pending) {
+    List<String> actions;
     if (pending instanceof PendingAction.Approve approve
         && CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN.equals(approve.artifactType())) {
-      return List.of(ChatEvent.APPROVE_AND_CREATE_ACTION, ChatEvent.REQUEST_CHANGES_ACTION);
+      actions = List.of(ChatEvent.APPROVE_AND_CREATE_ACTION, ChatEvent.REQUEST_CHANGES_ACTION);
+    } else if (pending instanceof PendingAction.Clarify clarify) {
+      List<String> clarifyActions = ChatEvent.actionsForClarify(clarify);
+      actions = clarifyActions == null ? List.of() : clarifyActions;
+    } else {
+      actions = List.of();
     }
-    if (pending instanceof PendingAction.Clarify clarify) {
-      return ChatEvent.actionsForClarify(clarify);
-    }
-    return null;
+    return restartActions(conversationId, actions);
+  }
+
+  private List<String> restartActions(String conversationId, List<String> actions) {
+    List<RestartCheckpoint> checkpoints = facade.restartCheckpoints(conversationId);
+    List<String> available =
+        (checkpoints == null ? List.<RestartCheckpoint>of() : checkpoints).stream()
+            .map(RestartCheckpoint::actionId)
+            .toList();
+    return java.util.stream.Stream.concat(actions.stream(), available.stream())
+        .distinct()
+        .toList();
+  }
+
+  private static ChatEvent.Decision withActions(
+      ChatEvent.Decision decision, List<String> actions) {
+    return new ChatEvent.Decision(
+        decision.id(),
+        decision.kind(),
+        decision.question(),
+        decision.artifactType(),
+        decision.artifactHash(),
+        decision.revision(),
+        decision.reason(),
+        decision.missingEvidence(),
+        actions,
+        decision.recovery(),
+        decision.specs());
   }
 
   private String storedQuestion(String conversationId, PendingAction pending) {
@@ -249,6 +326,10 @@ public class ChatDecisionService {
           case ChatEvent.EDIT_REQUIREMENTS_ACTION -> "Edit the requirements";
           case ChatEvent.REBUILD_DESIGN_ACTION -> "Rebuild the design";
           case ChatEvent.REBUILD_PLAN_ACTION -> "Rebuild the plan";
+          case ChatEvent.RESTART_FROM_BEGINNING_ACTION -> "Restart from the beginning";
+          case ChatEvent.RESTART_FROM_APPROVED_REQUIREMENTS_ACTION ->
+              "Restart from approved requirements";
+          case ChatEvent.RESTART_FROM_APPROVED_PLAN_ACTION -> "Restart from approved plan";
           case PipelineGates.STOP_WITH_REPORT_ACTION -> "End the run and keep its report";
           case ChatEvent.SESSION_LOGGING_OFF_ACTION -> "Set session logging to Off";
           case ChatEvent.SESSION_LOGGING_ERROR_ACTION -> "Set session logging to Error";
@@ -281,6 +362,11 @@ public class ChatDecisionService {
     Objects.requireNonNull(conversationId, "conversationId");
     Objects.requireNonNull(command, "command");
     String action = command.getAction() == null ? "" : command.getAction();
+    Optional<RestartCheckpoint> restartCheckpoint = RestartCheckpoint.fromActionId(action);
+    if (restartCheckpoint.isPresent()) {
+      return restartFromCheckpoint(
+          conversationId, command, restartCheckpoint.orElseThrow());
+    }
     if (isPipelineInputAction(action) || isOpenClarifyChoice(conversationId, action)) {
       return continuePipelineInput(conversationId, command, action);
     }
@@ -318,6 +404,33 @@ public class ChatDecisionService {
       return approved.onCompletion().switchTo(() -> openGateEvents(conversationId));
     }
     return approved.onCompletion().switchTo(() -> createAfterApproval(conversationId));
+  }
+
+  private Multi<ChatEvent> restartFromCheckpoint(
+      String conversationId,
+      ChatDecisionCommand command,
+      RestartCheckpoint checkpoint) {
+    Optional<ChatEvent.Decision> open = openDecision(conversationId);
+    if (open.isEmpty()
+        || !open.get().actions().contains(checkpoint.actionId())
+        || command.getRevision() != open.get().revision()) {
+      return openGateEvents(conversationId);
+    }
+    String commandId =
+        "restart:"
+            + conversationId
+            + ":"
+            + command.getRevision()
+            + ":"
+            + checkpoint.actionId();
+    return facade
+        .restart(
+            new RestartCreateChainCommand(
+                conversationId, command.getRevision(), checkpoint, commandId))
+        .onItem()
+        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
+        .onCompletion()
+        .switchTo(() -> openGateEvents(conversationId));
   }
 
   /**
@@ -509,7 +622,7 @@ public class ChatDecisionService {
                   waiting.pendingAction(),
                   revisionOf(conversationId, waiting),
                   "",
-                  actionsFor(waiting.pendingAction())));
+                  actionsFor(conversationId, waiting.pendingAction())));
     }
     if (event instanceof CreateChainEvent.Failed failed) {
       return Multi.createFrom().item(ChatEvent.token(failed.message()));
