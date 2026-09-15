@@ -1141,6 +1141,39 @@ rg -q 'distinctProperties' "${SCRIPTS_DIR}/assert-catalog.sh" \
   || fail "catalog assertions must prove separate imported specifications"
 pass "two uploaded OpenAPI specifications keep distinct operation bindings"
 
+echo "=== three uploaded OpenAPI specifications keep distinct operation bindings ==="
+jq -e '
+  .["product-create-chain-three-uploaded-openapi-mapping"] as $s
+  | $s.status == "active"
+    and $s.pipeline == "create-chain-v1"
+    and $s.profileId == "create-chain"
+    and $s.profileVersion == "2"
+    and $s.terminalState == "CHAIN_MATERIALIZED"
+    and $s.retainCatalogChain == true
+    and ($s.uploadedSpecs | length) == 3
+    and ($s.uploadedSpecs | map(.fixture) | index("fixtures/rocky-orders-openapi.yaml") != null)
+    and ($s.uploadedSpecs | map(.fixture) | index("fixtures/rocky-payments-openapi.yaml") != null)
+    and ($s.uploadedSpecs | map(.fixture) | index("fixtures/rocky-fulfillment-openapi.yaml") != null)
+    and $s.catalog.minTypeCounts["service-call"] == 3
+    and any($s.catalog.propertySets[];
+      .properties.serviceCallId == "create-rocky-order"
+      and .containsProperties.integrationOperationId == "createRockyOrder"
+      and .properties.integrationOperationPath == "/orders")
+    and any($s.catalog.propertySets[];
+      .properties.serviceCallId == "authorize-rocky-payment"
+      and .containsProperties.integrationOperationId == "authorizeRockyPayment"
+      and .properties.integrationOperationPath == "/payments")
+    and any($s.catalog.propertySets[];
+      .properties.serviceCallId == "create-rocky-fulfillment"
+      and .containsProperties.integrationOperationId == "createRockyFulfillment"
+      and .properties.integrationOperationPath == "/fulfillments")
+    and ($s.catalog.distinctProperties | all(.minDistinct == 3))
+' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "three-spec scenario must assert three distinct specifications and exact operation/path pairs"
+[[ -f "${DIR}/fixtures/rocky-fulfillment-openapi.yaml" ]] \
+  || fail "missing Rocky Fulfillment OpenAPI fixture"
+pass "three uploaded OpenAPI specifications keep distinct operation bindings"
+
 echo "=== chat-turn payload includes attachment keys, attachment, and decision ==="
 payload_out="${TMP}/chat-payload.json"
 attachment_text='## Current Chain: Demo (ID: chain-42)'

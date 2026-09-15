@@ -1,7 +1,11 @@
 package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -18,13 +22,13 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 
 /**
  * Imports a single uploaded API specification into the runtime catalog. The import is idempotent by
- * system/specification-group name: a matching existing specification is reused instead of creating a
- * duplicate.
+ * document content: an existing specification with the same parsed JSON or YAML tree is reused.
  */
 @ApplicationScoped
 public class UploadedSpecAutoImporter {
 
   private static final Logger LOG = Logger.getLogger(UploadedSpecAutoImporter.class);
+  private static final ObjectMapper DOCUMENT_MAPPER = new YAMLMapper();
   private static final String DEFAULT_ENVIRONMENT = "default";
   private static final String SYSTEM_TYPE_INTERNAL = "INTERNAL";
 
@@ -81,10 +85,16 @@ public class UploadedSpecAutoImporter {
     if (existingGroup.isPresent()) {
       specificationGroupId = existingGroup.get().id();
       Optional<CatalogRestClient.SpecificationDto> existingSpec =
-          findExistingSpecificationInGroup(system.id(), specificationGroupId);
+          findMatchingSpecificationInGroup(system.id(), specificationGroupId, content);
       if (existingSpec.isPresent()) {
         specificationId = existingSpec.get().id();
         reused = true;
+        LOG.infof(
+            "Reused matching uploaded specification conversationId=%s systemId=%s modelId=%s s3Key=%s",
+            conversationId,
+            system.id(),
+            specificationId,
+            attachment.s3Key());
       } else {
         CatalogSpecificationImporter.ImportOutcome outcome =
             catalogSpecificationImporter.importOpenApiDocumentIntoGroup(
@@ -193,21 +203,64 @@ public class UploadedSpecAutoImporter {
     return Optional.empty();
   }
 
-  private Optional<CatalogRestClient.SpecificationDto> findExistingSpecificationInGroup(
-      String systemId, String specificationGroupId) {
+  private Optional<CatalogRestClient.SpecificationDto> findMatchingSpecificationInGroup(
+      String systemId, String specificationGroupId, byte[] uploadedContent) {
     List<CatalogRestClient.SpecificationDto> specs =
         catalogRestClient.getApiSpecifications(systemId);
     if (specs == null) {
       return Optional.empty();
     }
-    return specs.stream()
-        .filter(
-            s ->
-                s != null
-                    && s.id() != null
-                    && !s.id().isBlank()
-                    && specificationGroupId.equals(s.specificationGroupId()))
-        .findFirst();
+    List<CatalogRestClient.SpecificationDto> candidates =
+        specs.stream()
+            .filter(
+                s ->
+                    s != null
+                        && s.id() != null
+                        && !s.id().isBlank()
+                        && specificationGroupId.equals(s.specificationGroupId()))
+            .toList();
+    boolean sourceReadFailed = false;
+    for (CatalogRestClient.SpecificationDto candidate : candidates) {
+      try {
+        String existingSource = catalogRestClient.getModelSource(candidate.id());
+        if (existingSource == null) {
+          throw new IllegalStateException("Catalog returned no specification source");
+        }
+        if (sameDocument(uploadedContent, existingSource)) {
+          return Optional.of(candidate);
+        }
+      } catch (RuntimeException e) {
+        sourceReadFailed = true;
+        LOG.warnf(
+            e,
+            "Could not compare uploaded specification with catalog model systemId=%s modelId=%s",
+            systemId,
+            candidate.id());
+      }
+    }
+    if (sourceReadFailed) {
+      throw new IllegalStateException(
+          "Could not verify whether the uploaded specification already exists in the catalog");
+    }
+    return Optional.empty();
+  }
+
+  private static boolean sameDocument(byte[] uploadedContent, String existingSource) {
+    if (uploadedContent == null || existingSource == null) {
+      return false;
+    }
+    try {
+      JsonNode uploaded = DOCUMENT_MAPPER.readTree(uploadedContent);
+      JsonNode existing = DOCUMENT_MAPPER.readTree(existingSource);
+      return uploaded != null && uploaded.equals(existing);
+    } catch (Exception ignored) {
+      String uploaded = new String(uploadedContent, StandardCharsets.UTF_8);
+      return normalizeText(uploaded).equals(normalizeText(existingSource));
+    }
+  }
+
+  private static String normalizeText(String value) {
+    return value.replace("\r\n", "\n").replace('\r', '\n').trim();
   }
 
 }

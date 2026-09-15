@@ -328,6 +328,11 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public String getModelSource(String modelId) {
+    return null;
+  }
+
+  @Override
   public OperationDto getOperation(String operationId) {
     throw new UnsupportedOperationException("getOperation");
   }

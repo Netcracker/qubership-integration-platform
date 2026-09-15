@@ -1241,5 +1241,166 @@
     "designInputAnswers": [
       "Keep two separate service calls. Bind createRockyOrder only to POST /orders and authorizeRockyPayment only to POST /payments. Use executionId from the first response as orderId in the second request."
     ]
+  },
+  "product-create-chain-three-uploaded-openapi-mapping": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiUploadedThreeSpecMapping",
+    "uploadedSpecs": [
+      {
+        "fixture": "fixtures/rocky-orders-openapi.yaml",
+        "systemType": "EXTERNAL"
+      },
+      {
+        "fixture": "fixtures/rocky-payments-openapi.yaml",
+        "systemType": "EXTERNAL"
+      },
+      {
+        "fixture": "fixtures/rocky-fulfillment-openapi.yaml",
+        "systemType": "EXTERNAL"
+      }
+    ],
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives POST on internal route /rocky-three-spec-order with JSON fields client and total. First call the uploaded Rocky Orders API operation createRockyOrder, POST /orders. Map client to customerId and total to amount. Then call the uploaded Rocky Payments API operation authorizeRockyPayment, POST /payments. Map the Orders response executionId to Payments request orderId and map the original total to Payments request amount. Finally call the uploaded Rocky Fulfillment API operation createRockyFulfillment, POST /fulfillments. Map the Orders executionId to Fulfillment request orderId and the Payments response paymentId to Fulfillment request paymentId. Return executionId, order status, paymentId, paymentStatus, fulfillmentId, and fulfillmentStatus as JSON. No APIHub. No MCP. No error handling.",
+    "requiredFacts": [
+      "POST /rocky-three-spec-order",
+      "createRockyOrder",
+      "POST /orders",
+      "customerId",
+      "authorizeRockyPayment",
+      "POST /payments",
+      "createRockyFulfillment",
+      "POST /fulfillments",
+      "orderId",
+      "executionId",
+      "paymentId",
+      "fulfillmentId",
+      "fulfillmentStatus"
+    ],
+    "forbiddenFacts": [
+      "APIHub",
+      "try-catch-finally-2"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script",
+        "service-call"
+      ],
+      "minTypeCounts": {
+        "service-call": 3
+      },
+      "properties": [
+        {
+          "type": "http-trigger",
+          "key": "contextPath",
+          "equals": "/rocky-three-spec-order"
+        },
+        {
+          "type": "http-trigger",
+          "key": "httpMethodRestrict",
+          "equals": "POST"
+        },
+        {
+          "type": "service-call",
+          "key": "systemType",
+          "equals": "EXTERNAL"
+        },
+        {
+          "type": "script",
+          "key": "script",
+          "contains": "customerId"
+        },
+        {
+          "type": "script",
+          "key": "script",
+          "contains": "orderId"
+        },
+        {
+          "type": "script",
+          "key": "script",
+          "contains": "paymentId"
+        }
+      ],
+      "propertySets": [
+        {
+          "description": "Orders operation remains bound to the Orders path",
+          "type": "service-call",
+          "properties": {
+            "serviceCallId": "create-rocky-order",
+            "integrationOperationMethod": "POST",
+            "integrationOperationPath": "/orders"
+          },
+          "containsProperties": {
+            "integrationOperationId": "createRockyOrder"
+          }
+        },
+        {
+          "description": "Payments operation remains bound to the Payments path",
+          "type": "service-call",
+          "properties": {
+            "serviceCallId": "authorize-rocky-payment",
+            "integrationOperationMethod": "POST",
+            "integrationOperationPath": "/payments"
+          },
+          "containsProperties": {
+            "integrationOperationId": "authorizeRockyPayment"
+          }
+        },
+        {
+          "description": "Fulfillment operation remains bound to the Fulfillment path",
+          "type": "service-call",
+          "properties": {
+            "serviceCallId": "create-rocky-fulfillment",
+            "integrationOperationMethod": "POST",
+            "integrationOperationPath": "/fulfillments"
+          },
+          "containsProperties": {
+            "integrationOperationId": "createRockyFulfillment"
+          }
+        },
+        {
+          "description": "Response script combines all three service results",
+          "type": "script",
+          "containsProperties": {
+            "script": [
+              "executionId",
+              "orderStatus",
+              "paymentId",
+              "paymentStatus",
+              "fulfillmentId",
+              "fulfillmentStatus"
+            ]
+          }
+        }
+      ],
+      "distinctProperties": [
+        { "type": "service-call", "key": "integrationSystemId", "minDistinct": 3 },
+        { "type": "service-call", "key": "integrationSpecificationGroupId", "minDistinct": 3 },
+        { "type": "service-call", "key": "integrationSpecificationId", "minDistinct": 3 },
+        { "type": "service-call", "key": "integrationOperationId", "minDistinct": 3 }
+      ],
+      "skeleton": {
+        "minDependencies": 6,
+        "triggerMustHaveOutgoing": true,
+        "reachableFromTrigger": [
+          "service-call"
+        ]
+      },
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Keep three separate service calls in order. Bind createRockyOrder only to POST /orders, authorizeRockyPayment only to POST /payments, and createRockyFulfillment only to POST /fulfillments. Preserve the mappings between their request and response fields."
+    ]
   }
 }
