@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.flow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -11,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.builder.CloudEventBuilder;
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.serverlessworkflow.impl.WorkflowApplication;
@@ -20,6 +22,7 @@ import io.serverlessworkflow.impl.WorkflowStatus;
 import io.serverlessworkflow.impl.events.EventPublisher;
 import io.serverlessworkflow.impl.persistence.PersistenceInstanceHandlers;
 import jakarta.inject.Inject;
+import jakarta.transaction.Status;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
@@ -58,6 +61,52 @@ class DurableCreateChainFlowInstanceIT {
   @Inject DataSource dataSource;
   @Inject PersistenceInstanceHandlers persistenceHandlers;
   @InjectMock ProvidedIdsFlowTasks tasks;
+
+  @Test
+  void restartFlowWaitsForActivationBeforeExecutingAStage() throws Exception {
+    AtomicInteger executions = new AtomicInteger();
+    when(tasks.executeCurrentStage(any()))
+        .thenAnswer(
+            invocation -> {
+              executions.incrementAndGet();
+              ProvidedIdsFlow.RunContext context = invocation.getArgument(0);
+              return context.withDecision("STOP");
+            });
+    when(tasks.restoreAfterActivation(any()))
+        .thenAnswer(
+            invocation ->
+                new ProvidedIdsFlow.RunContext(
+                    "restart-child", "create-chain", "2", "manifest-sha", null));
+    ProvidedIdsFlow.RunContext context =
+        new ProvidedIdsFlow.RunContext(
+            "restart-child",
+            "create-chain",
+            "2",
+            "manifest-sha",
+            "WAIT_FOR_ACTIVATION");
+    WorkflowInstance instance = flow.instance(context);
+
+    instance.start();
+    waitUntil(
+        "restart child must persist the activation wait",
+        () -> instance.status() == WorkflowStatus.WAITING);
+    waitQuietly(Duration.ofMillis(200));
+
+    assertEquals(0, executions.get());
+    assertTrue(persistedInstanceExists(instance.id()));
+
+    publish(
+        resumeEvent(
+            ProvidedIdsFlow.ACTIVATION_EVENT_TYPE,
+            instance.id(),
+            "restart-child",
+            null));
+    waitUntil(
+        "activation must release exactly one child stage execution",
+        () -> executions.get() == 1 && instance.status() == WorkflowStatus.COMPLETED);
+
+    assertEquals(1, executions.get());
+  }
 
   @Test
   void startCreatesOnePersistedInstanceAndOpeningInputResumesIt() throws Exception {
@@ -505,8 +554,12 @@ class DurableCreateChainFlowInstanceIT {
         "CONTINUE must persist more than one checkpoint for the same Flow task pointer");
 
     Set<String> restoredIds;
-    try (Stream<WorkflowInstance> restored =
-        persistenceHandlers.reader().scanAll(flow.definition())) {
+    Stream<WorkflowInstance> scan = persistenceHandlers.reader().scanAll(flow.definition());
+    assertEquals(
+        Status.STATUS_NO_TRANSACTION,
+        QuarkusTransaction.getStatus(),
+        "scanAll must close its restore transaction before returning the stream");
+    try (Stream<WorkflowInstance> restored = scan) {
       restoredIds = restored.map(restoredInstance -> restoredInstance.id()).collect(Collectors.toSet());
     }
     assertTrue(

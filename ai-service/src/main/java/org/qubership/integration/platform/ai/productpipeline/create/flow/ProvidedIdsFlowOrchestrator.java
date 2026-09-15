@@ -97,6 +97,17 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
             PreparedRestart prepared =
                 runSupport.prepareCheckpointRestart(
                     command, active.run().flowInstanceId());
+            if (active.run().status() == RunStatus.RUNNING) {
+              publishCorrelatedEvent(
+                  ProvidedIdsFlow.ACTIVATION_EVENT_TYPE,
+                  active.run().flowInstanceId(),
+                  activationContext(command));
+              waitUntil(
+                  "restarted create-chain Flow instance "
+                      + active.run().flowInstanceId()
+                      + " must settle after activation",
+                  () -> tasks.settled(command.childRunId()));
+            }
             return runSupport
                 .restoreForExternalWorkflow(
                     new StartOrResumeCommand(
@@ -122,18 +133,49 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
                   command.profile().profileId(),
                   command.profile().profileVersion(),
                   command.profile().profileId() + "@" + command.profile().profileVersion(),
-                  null);
+                  "WAIT_FOR_ACTIVATION");
           WorkflowInstance instance = flow.instance(context);
           runSupport.prepareCheckpointRestart(command, instance.id());
           instance.start();
           waitUntil(
-              "restarted create-chain Flow instance " + instance.id() + " must settle",
+              "restarted create-chain Flow instance " + instance.id() + " must await activation",
               () ->
                   instance.status() == WorkflowStatus.WAITING
                       || instance.status() == WorkflowStatus.COMPLETED
                       || instance.status() == WorkflowStatus.FAULTED);
+          if (instance.status() == WorkflowStatus.FAULTED) {
+            throw new IllegalStateException(
+                "restarted create-chain Flow instance "
+                    + instance.id()
+                    + " faulted before activation");
+          }
           runStore.replaceConversationBinding(
-              command.conversationId(), command.parentRunId(), command.childRunId());
+              command.conversationId(),
+              command.parentRunId(),
+              command.parentRunRevision(),
+              command.childRunId());
+          try {
+            publishCorrelatedEvent(
+                ProvidedIdsFlow.ACTIVATION_EVENT_TYPE,
+                instance.id(),
+                activationContext(command));
+          } catch (RuntimeException activationFailure) {
+            try {
+              runStore.replaceConversationBinding(
+                  command.conversationId(), command.childRunId(), command.parentRunId());
+            } catch (RuntimeException rollbackFailure) {
+              activationFailure.addSuppressed(rollbackFailure);
+            }
+            throw activationFailure;
+          }
+          waitUntil(
+              "restarted create-chain Flow instance "
+                  + instance.id()
+                  + " must settle after activation",
+              () ->
+                  tasks.settled(command.childRunId())
+                      || instance.status() == WorkflowStatus.COMPLETED
+                      || instance.status() == WorkflowStatus.FAULTED);
           List<PipelineSignal> live = tasks.drainSignals(command.childRunId());
           if (!live.isEmpty()) {
             return live;
@@ -154,6 +196,15 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
               .await()
               .indefinitely();
         });
+  }
+
+  private static ProvidedIdsFlow.RunContext activationContext(RestartRunCommand command) {
+    return new ProvidedIdsFlow.RunContext(
+        command.childRunId(),
+        command.profile().profileId(),
+        command.profile().profileVersion(),
+        command.profile().profileId() + "@" + command.profile().profileVersion(),
+        null);
   }
 
   private Multi<PipelineSignal> startPersistedInstance(StartOrResumeCommand command) {

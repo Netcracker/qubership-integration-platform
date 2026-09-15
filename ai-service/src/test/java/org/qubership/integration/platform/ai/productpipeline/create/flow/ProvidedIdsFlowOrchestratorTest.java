@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -26,6 +28,9 @@ import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
+import org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionException;
 import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
@@ -188,6 +193,134 @@ class ProvidedIdsFlowOrchestratorTest {
     verify(runSupport).prepareCheckpointRestart(command, "child-flow");
     verify(runStore, never())
         .replaceConversationBinding(CONVERSATION_ID, RUN_ID, "child-run");
+  }
+
+  @Test
+  void faultedRestartFlowLeavesTheParentConversationBindingActive() {
+    RestartRunCommand command = mock(RestartRunCommand.class);
+    when(command.conversationId()).thenReturn(CONVERSATION_ID);
+    when(command.parentRunId()).thenReturn(RUN_ID);
+    when(command.childRunId()).thenReturn("child-run");
+    when(command.profile())
+        .thenReturn(
+            mock(
+                org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile.class));
+    when(runStore.loadByConversation(CONVERSATION_ID))
+        .thenReturn(Optional.of(document(RunStatus.FAILED, "design-execution", "parent-flow")));
+    WorkflowInstance instance = mock(WorkflowInstance.class);
+    when(instance.id()).thenReturn("child-flow");
+    when(instance.status()).thenReturn(WorkflowStatus.FAULTED);
+    when(flow.instance(any(ProvidedIdsFlow.RunContext.class))).thenReturn(instance);
+
+    IllegalStateException failure =
+        assertThrows(
+            IllegalStateException.class,
+            () -> orchestrator.restart(command).collect().asList().await().indefinitely());
+
+    assertTrue(failure.getMessage().contains("faulted before activation"));
+    verify(runSupport).prepareCheckpointRestart(command, "child-flow");
+    verify(runStore, never())
+        .replaceConversationBinding(CONVERSATION_ID, RUN_ID, "child-run");
+  }
+
+  @Test
+  void restartActivatesOnlyAfterFlowWaitsAtTheActivationBarrier() {
+    RestartRunCommand command = mock(RestartRunCommand.class);
+    when(command.conversationId()).thenReturn(CONVERSATION_ID);
+    when(command.parentRunId()).thenReturn(RUN_ID);
+    when(command.parentRunRevision()).thenReturn(3L);
+    when(command.childRunId()).thenReturn("child-run");
+    org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile profile =
+        mock(
+            org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile
+                .class);
+    when(profile.profileId()).thenReturn("create-chain");
+    when(profile.profileVersion()).thenReturn("2");
+    when(command.profile()).thenReturn(profile);
+    when(runStore.loadByConversation(CONVERSATION_ID))
+        .thenReturn(Optional.of(document(RunStatus.FAILED, "design-execution", "parent-flow")));
+    WorkflowInstance instance = mock(WorkflowInstance.class);
+    when(instance.id()).thenReturn("child-flow");
+    when(instance.status()).thenReturn(WorkflowStatus.WAITING);
+    when(instance.start()).thenReturn(CompletableFuture.completedFuture(mock(WorkflowModel.class)));
+    when(flow.instance(any(ProvidedIdsFlow.RunContext.class))).thenReturn(instance);
+    PipelineSignal waiting =
+        new PipelineSignal.WaitingForInput("design-execution", "review generated output");
+    when(tasks.settled("child-run")).thenReturn(true);
+    when(tasks.drainSignals("child-run")).thenReturn(List.of(waiting));
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(publisher.publish(any(CloudEvent.class)))
+        .thenReturn(CompletableFuture.completedFuture(null));
+    when(application.eventPublishers()).thenReturn(List.of(publisher));
+
+    List<PipelineSignal> signals =
+        orchestrator.restart(command).collect().asList().await().indefinitely();
+
+    assertEquals(List.of(waiting), signals);
+    ArgumentCaptor<ProvidedIdsFlow.RunContext> context =
+        ArgumentCaptor.forClass(ProvidedIdsFlow.RunContext.class);
+    verify(flow).instance(context.capture());
+    assertTrue(context.getValue().waitForActivation());
+    ArgumentCaptor<CloudEvent> event = ArgumentCaptor.forClass(CloudEvent.class);
+    InOrder order = inOrder(instance, runStore, publisher);
+    order.verify(instance).start();
+    order
+        .verify(runStore)
+        .replaceConversationBinding(CONVERSATION_ID, RUN_ID, 3L, "child-run");
+    order.verify(publisher).publish(event.capture());
+    assertEquals(ProvidedIdsFlow.ACTIVATION_EVENT_TYPE, event.getValue().getType());
+    assertEquals("child-flow", event.getValue().getExtension("flowinstanceid"));
+  }
+
+  @Test
+  void lostActivationRaceDoesNotPublishOrExecuteTheChild() {
+    RestartRunCommand command = restartCommand(3L);
+    when(runStore.loadByConversation(CONVERSATION_ID))
+        .thenReturn(Optional.of(document(RunStatus.FAILED, "design-execution", "parent-flow")));
+    WorkflowInstance instance = waitingRestartInstance();
+    when(flow.instance(any(ProvidedIdsFlow.RunContext.class))).thenReturn(instance);
+    doThrow(new StaleBlobVersionException("parent revision changed"))
+        .when(runStore)
+        .replaceConversationBinding(CONVERSATION_ID, RUN_ID, 3L, "child-run");
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(application.eventPublishers()).thenReturn(List.of(publisher));
+
+    assertThrows(
+        StaleBlobVersionException.class,
+        () -> orchestrator.restart(command).collect().asList().await().indefinitely());
+
+    verify(instance).start();
+    verify(publisher, never()).publish(any(CloudEvent.class));
+    verify(tasks, never()).drainSignals("child-run");
+    verify(runStore, never())
+        .replaceConversationBinding(CONVERSATION_ID, "child-run", RUN_ID);
+  }
+
+  @Test
+  void activationPublishFailureRestoresTheParentConversationBinding() {
+    RestartRunCommand command = restartCommand(3L);
+    when(runStore.loadByConversation(CONVERSATION_ID))
+        .thenReturn(Optional.of(document(RunStatus.FAILED, "design-execution", "parent-flow")));
+    WorkflowInstance instance = waitingRestartInstance();
+    when(flow.instance(any(ProvidedIdsFlow.RunContext.class))).thenReturn(instance);
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(publisher.publish(any(CloudEvent.class)))
+        .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("publish failed")));
+    when(application.eventPublishers()).thenReturn(List.of(publisher));
+
+    assertThrows(
+        RuntimeException.class,
+        () -> orchestrator.restart(command).collect().asList().await().indefinitely());
+
+    InOrder order = inOrder(runStore, publisher);
+    order
+        .verify(runStore)
+        .replaceConversationBinding(CONVERSATION_ID, RUN_ID, 3L, "child-run");
+    order.verify(publisher).publish(any(CloudEvent.class));
+    order
+        .verify(runStore)
+        .replaceConversationBinding(CONVERSATION_ID, "child-run", RUN_ID);
+    verify(tasks, never()).drainSignals("child-run");
   }
 
   @Test
@@ -598,6 +731,30 @@ class ProvidedIdsFlowOrchestratorTest {
                 List.of(),
                 null));
     return command;
+  }
+
+  private RestartRunCommand restartCommand(long parentRevision) {
+    RestartRunCommand command = mock(RestartRunCommand.class);
+    when(command.conversationId()).thenReturn(CONVERSATION_ID);
+    when(command.parentRunId()).thenReturn(RUN_ID);
+    when(command.parentRunRevision()).thenReturn(parentRevision);
+    when(command.childRunId()).thenReturn("child-run");
+    org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile profile =
+        mock(
+            org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile
+                .class);
+    when(profile.profileId()).thenReturn("create-chain");
+    when(profile.profileVersion()).thenReturn("2");
+    when(command.profile()).thenReturn(profile);
+    return command;
+  }
+
+  private WorkflowInstance waitingRestartInstance() {
+    WorkflowInstance instance = mock(WorkflowInstance.class);
+    when(instance.id()).thenReturn("child-flow");
+    when(instance.status()).thenReturn(WorkflowStatus.WAITING);
+    when(instance.start()).thenReturn(CompletableFuture.completedFuture(mock(WorkflowModel.class)));
+    return instance;
   }
 
   private static ProductPipelineRunDocument document(RunStatus status, String stageId) {

@@ -103,6 +103,14 @@ public class ProvidedIdsFlowTasks {
     return next;
   }
 
+  /** Releases a prepared child only after its conversation-pointer CAS succeeds. */
+  public ProvidedIdsFlow.RunContext restoreAfterActivation(Object payload) {
+    ProvidedIdsFlow.RunContext restored = restoreContext(payload);
+    ProvidedIdsFlow.RunContext next = restored.withDecision(null);
+    contextByRun.put(next.runId(), next);
+    return next;
+  }
+
   public ProvidedIdsFlow.RunContext restoreAfterRetry(Object payload) {
     ProvidedIdsFlow.RunContext restored = restoreContext(payload);
     ProvidedIdsFlow.RunContext next = restored.withContinueKeepingRetries();

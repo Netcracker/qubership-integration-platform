@@ -30,6 +30,8 @@ public class ProvidedIdsFlow extends Flow {
   static final String PROFILE_VERSION = "2";
   static final String INSTANCE_EXTENSION = "flowinstanceid";
   static final String TASK_ROUTE_DECISION = "routeDecision";
+  public static final String ACTIVATION_EVENT_TYPE =
+      "org.qubership.qip.create-chain.activation.v1";
   public static final String INPUT_EVENT_TYPE = "org.qubership.qip.create-chain.input.v1";
   public static final String APPROVAL_EVENT_TYPE = "org.qubership.qip.create-chain.approval.v1";
   public static final String IMPLEMENT_EVENT_TYPE = "org.qubership.qip.create-chain.implement.v1";
@@ -51,6 +53,18 @@ public class ProvidedIdsFlow extends Flow {
   public Workflow descriptor() {
     return workflow("qip", "create-chain-provided-ids", "1.0.0")
         .tasks(
+            switchCase(
+                "routeActivation",
+                caseOf(RunContext::waitForActivation, RunContext.class)
+                    .then("waitForActivation"),
+                caseOf(RunContext::always, RunContext.class).then("executeStage"),
+                caseDefault(FlowDirectiveEnum.END)),
+            listen("waitForActivation", correlatedOne(ACTIVATION_EVENT_TYPE)),
+            function("restoreAfterActivation", tasks::restoreAfterActivation, Object.class),
+            switchCase(
+                "afterActivation",
+                caseOf(RunContext::always, RunContext.class).then("executeStage"),
+                caseDefault(FlowDirectiveEnum.END)),
             function("executeStage", tasks::executeCurrentStage, RunContext.class),
             switchCase(
                 TASK_ROUTE_DECISION,
@@ -144,6 +158,10 @@ public class ProvidedIdsFlow extends Flow {
 
     public boolean waitForInput() {
       return "WAIT_FOR_INPUT".equals(decision);
+    }
+
+    public boolean waitForActivation() {
+      return "WAIT_FOR_ACTIVATION".equals(decision);
     }
 
     public boolean waitForRequirementApproval() {

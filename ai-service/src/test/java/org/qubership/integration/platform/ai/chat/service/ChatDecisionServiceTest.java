@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -51,6 +53,45 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.RestartChec
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 class ChatDecisionServiceTest {
+
+  @ParameterizedTest
+  @CsvSource(
+      textBlock = """
+          '  Start   over!!!  ', restart-from-beginning
+          Restart from the beginning, restart-from-beginning
+          Restart from beginning., restart-from-beginning
+          Restart from approved requirements, restart-from-approved-requirements
+          Go back to approved requirements?, restart-from-approved-requirements
+          Restart from approved plan, restart-from-approved-plan
+          Go back to approved plan!, restart-from-approved-plan
+          """)
+  void supportedRestartMessagesMapToTypedActions(String message, String expectedAction) {
+    CreateChainApplicationFacade facade = restartFacade();
+    ChatDecisionService service =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+
+    ChatDecisionCommand command =
+        service.restartCommandForMessage("conv-restart", message).orElseThrow();
+
+    assertEquals(expectedAction, command.getAction());
+    assertEquals(11L, command.getRevision());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "please start over",
+    "restart the process",
+    "go back",
+    "restart from an approved plan",
+    "start over and keep the plan"
+  })
+  void ambiguousRestartMessagesRemainOrdinaryInput(String message) {
+    ChatDecisionService service =
+        new ChatDecisionService(
+            restartFacade(), questionStore(), new RequirementDraftStore());
+
+    assertTrue(service.restartCommandForMessage("conv-restart", message).isEmpty());
+  }
 
   @Test
   void exactRestartMessageUsesTheTypedCheckpointCommand() {
@@ -158,6 +199,77 @@ class ChatDecisionServiceTest {
     verify(facade).restart(restart.capture());
     assertEquals(RestartCheckpoint.APPROVED_REQUIREMENTS, restart.getValue().checkpoint());
     assertEquals(11L, restart.getValue().expectedRunRevision());
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+    "restart-from-beginning, BEGINNING",
+    "restart-from-approved-requirements, APPROVED_REQUIREMENTS",
+    "restart-from-approved-plan, APPROVED_PLAN"
+  })
+  void everyRestartActionDispatchesItsBoundCheckpoint(
+      String action, RestartCheckpoint expectedCheckpoint) {
+    CreateChainApplicationFacade facade = restartFacade();
+    when(facade.restart(any())).thenReturn(Multi.createFrom().empty());
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(action);
+    command.setRevision(11L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-restart", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ArgumentCaptor<RestartCreateChainCommand> restart =
+        ArgumentCaptor.forClass(RestartCreateChainCommand.class);
+    verify(facade).restart(restart.capture());
+    assertEquals(expectedCheckpoint, restart.getValue().checkpoint());
+  }
+
+  @Test
+  void staleRestartActionReissuesTheCurrentGateWithoutRestarting() {
+    CreateChainApplicationFacade facade = restartFacade();
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.RESTART_FROM_BEGINNING_ACTION);
+    command.setRevision(10L);
+
+    List<ChatEvent> events =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .apply("conv-restart", command)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    assertEquals(1, events.size());
+    assertInstanceOf(ChatEvent.Decision.class, events.get(0));
+    verify(facade, never()).restart(any());
+  }
+
+  private static CreateChainApplicationFacade restartFacade() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-restart"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-restart",
+                    "run-parent",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    11L,
+                    new CreateChainPendingAction.Clarify(
+                        "Creation is paused.",
+                        List.of(),
+                        PipelineGates.RECOVERY_RETRY_TECHNICAL,
+                        "timeout",
+                        null,
+                        "run-parent",
+                        "design-execution"),
+                    "")));
+    when(facade.restartCheckpoints("conv-restart"))
+        .thenReturn(List.of(RestartCheckpoint.values()));
+    return facade;
   }
 
   @Test
