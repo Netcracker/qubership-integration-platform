@@ -29,7 +29,7 @@
   </parent>
 
   <properties>
-    <revision>1.2.3</revision>
+    <revision>1.2.3-oob-chains</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
