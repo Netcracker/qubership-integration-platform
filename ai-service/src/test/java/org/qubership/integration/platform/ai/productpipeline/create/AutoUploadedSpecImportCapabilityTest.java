@@ -570,7 +570,8 @@ class AutoUploadedSpecImportCapabilityTest {
 
     CapabilitySignal.Completed completed = run(capability, draft, List.of(draftRef, approvalRef));
 
-    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(StageOutcomeClass.MISSING_MANDATORY_INPUT, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().message().contains("return-task-result"));
     verify(gateway)
         .importUploadedSpec(
             eq("conv-1"),
@@ -1139,7 +1140,8 @@ class AutoUploadedSpecImportCapabilityTest {
 
     CapabilitySignal.Completed completed = run(capability, draft, List.of(draftRef, approvalRef));
 
-    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass());
+    assertEquals(StageOutcomeClass.MISSING_MANDATORY_INPUT, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().message().contains("ambiguous-task"));
     RequirementDraft updated =
         (RequirementDraft)
             completed.outcome().candidates().stream()

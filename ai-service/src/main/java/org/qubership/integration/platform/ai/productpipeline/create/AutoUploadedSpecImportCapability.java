@@ -358,7 +358,10 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       List<UploadedSpecImportOutcome> imported) {
     RequirementDraft draft = resolveCurrentDraft(context).orElse(null);
     if (draft == null) {
-      return completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, message));
+      return completed(
+          StageOutcome.of(
+              StageOutcomeClass.MISSING_MANDATORY_INPUT,
+              "requirement-draft is required after uploaded-spec import"));
     }
     RequirementDraft updatedDraft = draft;
     FactRewrite rewrite =
@@ -377,6 +380,20 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         new ArtifactCandidate(
             CompilationArtifacts.Kind.REQUIREMENT_DRAFT, rewrittenDraft, context.inputRefs()));
     candidates.addAll(rewrite.hints());
+    Optional<String> bindingError =
+        rewrittenDraft.flow().interactions().isEmpty() || rewrittenDraft.hasPendingImport()
+            ? Optional.empty()
+            : RequirementFlowValidator.validateBindings(
+                rewrittenDraft.flow(), rewrittenDraft.facts(), rewrittenDraft.catalogBindings());
+    if (bindingError.isPresent()) {
+      return completed(
+          new StageOutcome(
+              StageOutcomeClass.MISSING_MANDATORY_INPUT,
+              candidates,
+              "Uploaded specifications were imported, but the requirement draft is not ready: "
+                  + bindingError.get(),
+              null));
+    }
     return completed(
         new StageOutcome(StageOutcomeClass.SUCCEEDED, candidates, message, null));
   }

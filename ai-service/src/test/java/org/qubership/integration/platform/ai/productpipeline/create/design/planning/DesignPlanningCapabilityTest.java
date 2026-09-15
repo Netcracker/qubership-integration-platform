@@ -54,6 +54,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerRunPinResolver;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -503,7 +504,43 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
-  void plannerInputListsTypedMappingTargetAndExactOwner() {
+  void rendererPreservesThreeApprovedCatalogBindings() {
+    DesignPlanReport report = new DesignPlanReport("1", validReport());
+    ChainSemanticRevision revision = sampleRevision();
+    DesignExecutionPlan projection =
+        new DesignPlanProjector()
+            .project(
+                report,
+                revision,
+                samplePin(
+                    revision,
+                    sampleDag(),
+                    Map.of(CipDesignPlannerAdapter.SKILL_ID, PINNED_SKILL_HASH),
+                    Map.of(CipDesignPlannerAdapter.SKILL_ID, "addon-hash")));
+    RequirementBrief brief =
+        sampleBrief()
+            .withCatalogBindings(
+                List.of(
+                    binding("create-order", "POST /orders", "orders"),
+                    binding("authorize-payment", "POST /payments", "payments"),
+                    binding("create-fulfillment", "POST /fulfillments", "fulfillment")));
+
+    ImplementationPlan plan =
+        new DesignImplementationPlanRenderer().render(report, projection, revision, brief);
+
+    assertEquals(
+        3,
+        plan.serviceBindings().stream().filter(binding -> binding.contains("[systemId=")).count());
+    assertTrue(plan.serviceBindings().stream().anyMatch(binding -> binding.contains("operation-orders")));
+    assertTrue(plan.serviceBindings().stream().anyMatch(binding -> binding.contains("operation-payments")));
+    assertTrue(
+        plan.serviceBindings().stream().anyMatch(binding -> binding.contains("operation-fulfillment")));
+    assertTrue(plan.planText().contains("## Service bindings"), plan.planText());
+    plan.serviceBindings().forEach(binding -> assertTrue(plan.planText().contains(binding)));
+  }
+
+  @Test
+  void plannerInputRequiresLiteralMappingIntentIdToken() {
     String input =
         DesignPlanningCapability.buildPlannerInput(
             sampleIds(),
@@ -896,6 +933,25 @@ class DesignPlanningCapabilityTest {
   private static RequirementBrief sampleBrief() {
     return new RequirementBrief(
         "Orders", List.of(), List.of(), List.of(), List.of(), "summary");
+  }
+
+  private static CatalogBindingHint binding(
+      String interactionId, String operationQuery, String suffix) {
+    return new CatalogBindingHint(
+        CatalogBindingHint.SCHEMA_VERSION,
+        interactionId,
+        interactionId,
+        operationQuery,
+        "system-" + suffix,
+        "group-" + suffix,
+        "specification-" + suffix,
+        "operation-" + suffix,
+        "http",
+        "POST",
+        operationQuery.substring(operationQuery.indexOf(' ') + 1),
+        "1.0.0",
+        FIXED,
+        "uploaded-spec:" + suffix);
   }
 
   private static CompilerRunPin samplePin(

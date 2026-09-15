@@ -37,7 +37,8 @@ public enum HaltProducer {
       case DesignPlanningCapability.CAPABILITY_ID -> DESIGN_PLANNING;
       case PlanningCapability.CAPABILITY_ID -> PLANNING;
       case DesignExecutionCapability.CAPABILITY_ID -> DESIGN_EXECUTION;
-      case SpecificationImportCapability.CAPABILITY_ID -> SPECIFICATION_IMPORT;
+      case SpecificationImportCapability.CAPABILITY_ID,
+              AutoUploadedSpecImportCapability.CAPABILITY_ID -> SPECIFICATION_IMPORT;
       case MaterializationCapability.CAPABILITY_ID -> MATERIALIZATION;
       default -> STAGE_EXECUTOR;
     };
