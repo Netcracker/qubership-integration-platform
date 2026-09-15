@@ -6,7 +6,7 @@ describe("ResourceFileNames", () => {
       const names = ResourceFileNames.empty();
 
       expect(names.getGeneric()).toBeUndefined();
-      expect(names.getBefore()).toBeUndefined();
+      expect(names.getBefore("script")).toBeUndefined();
       expect(names.getAfter("script", "404")).toBeUndefined();
     });
   });
@@ -27,13 +27,17 @@ describe("ResourceFileNames", () => {
     it("reads the before propertiesFilename", () => {
       const element = {
         properties: {
-          before: { propertiesFilename: "el-1.before.script.cip.groovy" },
+          before: {
+            type: "script",
+            propertiesFilename: "el-1.before.script.cip.groovy",
+          },
         },
       } as any;
 
       const names = ResourceFileNames.fromElement(element);
 
-      expect(names.getBefore()).toBe("el-1.before.script.cip.groovy");
+      expect(names.getBefore("script")).toBe("el-1.before.script.cip.groovy");
+      expect(names.getBefore("mapper-2")).toBeUndefined();
     });
 
     it("reads after filenames keyed by type and id", () => {
@@ -107,7 +111,7 @@ describe("ResourceFileNames", () => {
       const names = ResourceFileNames.fromElement(element);
 
       expect(names.getGeneric()).toBeUndefined();
-      expect(names.getBefore()).toBeUndefined();
+      expect(names.getBefore("script")).toBeUndefined();
       expect(names.getAfter("script", "404")).toBeUndefined();
     });
 

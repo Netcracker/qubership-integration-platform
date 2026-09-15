@@ -378,17 +378,25 @@ async function parseChildren(
   return children;
 }
 
+// Keep child resources external when loading an element for cloning.
+export async function loadElementProperties(
+  fileUri: Uri,
+  element: ElementSchema,
+): Promise<void> {
+  await loadSeparateFileProperties(fileUri, element);
+
+  if ((element.type as unknown as string) === "service-call") {
+    await loadServiceCallProperties(fileUri, element);
+  }
+}
+
 export async function parseElement(
   fileUri: Uri,
   element: ElementSchema,
   chainId: string,
   parentId: string | undefined = undefined,
 ): Promise<Element> {
-  await loadSeparateFileProperties(fileUri, element);
-
-  if ((element.type as unknown as string) === "service-call") {
-    await loadServiceCallProperties(fileUri, element);
-  }
+  await loadElementProperties(fileUri, element);
 
   const children = await parseChildren(fileUri, element, chainId);
 

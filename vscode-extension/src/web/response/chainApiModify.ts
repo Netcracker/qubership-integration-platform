@@ -18,6 +18,7 @@ import {
   getLibraryElementByType,
   getMainChain,
   getMaskedField,
+  loadElementProperties,
   parseElement,
   parseMaskedField,
 } from "./chainApiRead";
@@ -320,11 +321,6 @@ export async function updateElement(
     { element, parentElementId: elementWithParentId?.parentId },
     elementRequest,
   );
-  const newFilenames = new Set<string>();
-  {
-    const newElementForCollect = { ...element, properties: elementRequest.properties as ElementSchema["properties"] } as ElementSchema;
-    collectFilenamesFromElementTree([newElementForCollect], newFilenames);
-  }
   (element as any).properties = elementRequest.properties;
 
   element.parentElementId = elementRequest.parentElementId;
@@ -333,6 +329,8 @@ export async function updateElement(
   await checkRestrictions(element, chain.content.elements as ElementSchema[]);
 
   await writeElementProperties(fileUri, element, prevFilenames);
+  const newFilenames = new Set<string>();
+  collectFilenamesFromElementTree([element], newFilenames);
   await fileApi.writeMainChain(fileUri, chain);
 
   await cleanupOrphanPropertyFiles(fileUri, oldFilenames, newFilenames, chain.content.elements as ElementSchema[]);
@@ -565,7 +563,7 @@ async function writeElementProperties(
 ): Promise<void> {
   async function handleServiceCallProperty(beforeAfterBlock: any, isBefore: boolean) {
     const existing = isBefore
-      ? prevFilenames?.getBefore()
+      ? prevFilenames?.getBefore(beforeAfterBlock.type)
       : prevFilenames?.getAfter(beforeAfterBlock.type, String(beforeAfterBlock.id ?? beforeAfterBlock.code ?? ""));
     if (beforeAfterBlock.type === "script") {
       beforeAfterBlock.propertiesFilename = buildServiceCallFilename(element.id, isBefore, beforeAfterBlock, "script", "groovy", existing);
@@ -1362,7 +1360,9 @@ export async function cloneElements(
       clone.type as unknown as string,
     );
 
+    await loadElementProperties(fileUri, clone);
     resetPropertiesToDefault(chainId, clone, libraryElement);
+    await writeElementProperties(fileUri, clone);
 
     if (containerElementSchema) {
       clone.parentElementId = containerId;
