@@ -66,10 +66,12 @@ design_input_choice="$(jq -r --arg s "${SCENARIO_ID}" \
 discovery_answers_json="$(jq -c --arg s "${SCENARIO_ID}" '.[$s].discoveryAnswers // []' "${SCENARIOS_FILE}")"
 design_input_answers_json="$(jq -c --arg s "${SCENARIO_ID}" \
   '.[$s].designInputAnswers // []' "${SCENARIOS_FILE}")"
-uploaded_spec_fixture="$(jq -r --arg s "${SCENARIO_ID}" \
-  '.[$s].uploadedSpec.fixture // empty' "${SCENARIOS_FILE}")"
-uploaded_spec_system_type="$(jq -r --arg s "${SCENARIO_ID}" \
-  '.[$s].uploadedSpec.systemType // "EXTERNAL"' "${SCENARIOS_FILE}")"
+uploaded_specs_json="$(jq -c --arg s "${SCENARIO_ID}" '
+  if .[$s].uploadedSpecs then .[$s].uploadedSpecs
+  elif .[$s].uploadedSpec then [.[$s].uploadedSpec]
+  else []
+  end
+' "${SCENARIOS_FILE}")"
 required_json="$(jq -c --arg s "${SCENARIO_ID}" '.[$s].requiredFacts // []' "${SCENARIOS_FILE}")"
 forbidden_json="$(jq -c --arg s "${SCENARIO_ID}" '.[$s].forbiddenFacts // []' "${SCENARIOS_FILE}")"
 unique_prefix="$(jq -r --arg s "${SCENARIO_ID}" '.[$s].uniqueChainNamePrefix // empty' "${SCENARIOS_FILE}")"
@@ -114,7 +116,7 @@ if [[ -n "${recovery_fault_stage}" && "${recovery_automatic_only}" != "true" \
   echo "FAIL: recovery scenario currently requires chat transport for the typed revise decision" >&2
   exit 2
 fi
-if [[ -n "${uploaded_spec_fixture}" && "${TRANSPORT}" != "chat" ]]; then
+if [[ "$(jq 'length' <<<"${uploaded_specs_json}")" -gt 0 && "${TRANSPORT}" != "chat" ]]; then
   echo "FAIL: uploaded specification scenarios require chat transport" >&2
   exit 2
 fi
@@ -282,7 +284,9 @@ recovery_follow_up_sent=0
 recovery_revise_sent=0
 recovery_reopened_approval_seen=0
 recovery_pre_materialization_clean=0
-uploaded_spec_object_key=""
+uploaded_spec_object_keys_json='[]'
+uploaded_spec_system_types_json='{}'
+uploaded_spec_uploads_json='[]'
 
 last_a2a_response=""
 
@@ -342,11 +346,18 @@ for part in parts:
 PY
 }
 
-if [[ -n "${uploaded_spec_fixture}" ]]; then
+uploaded_spec_index=0
+while IFS= read -r uploaded_spec; do
+  [[ -n "${uploaded_spec}" ]] || continue
+  uploaded_spec_fixture="$(jq -r '.fixture // empty' <<<"${uploaded_spec}")"
+  uploaded_spec_system_type="$(jq -r '.systemType // "EXTERNAL"' <<<"${uploaded_spec}")"
+  [[ -n "${uploaded_spec_fixture}" ]] \
+    || { echo "FAIL: uploaded specification fixture must be non-blank" >&2; exit 1; }
   uploaded_spec_path="${DIR}/${uploaded_spec_fixture}"
   [[ -f "${uploaded_spec_path}" ]] \
     || { echo "FAIL: uploaded specification fixture not found: ${uploaded_spec_path}" >&2; exit 1; }
-  upload_response="${run_dir}/uploaded-spec-upload.json"
+  uploaded_spec_index=$((uploaded_spec_index + 1))
+  upload_response="${run_dir}/uploaded-spec-upload-${uploaded_spec_index}.json"
   upload_prefix="e2e/${SCENARIO_ID}/${run_stamp}-r${REP}"
   curl -fsS --max-time 60 \
     -X POST "${BASE_URL}/api/v1/storage/objects" \
@@ -354,25 +365,37 @@ if [[ -n "${uploaded_spec_fixture}" ]]; then
     -F "prefix=${upload_prefix}" >"${upload_response}"
   uploaded_spec_object_key="$(jq -r '.objectKey // empty' "${upload_response}")"
   [[ -n "${uploaded_spec_object_key}" ]] \
-    || { echo "FAIL: storage upload returned no objectKey" >&2; exit 1; }
-  export E2E_CHAT_ATTACHMENT_KEYS_JSON
-  E2E_CHAT_ATTACHMENT_KEYS_JSON="$(jq -nc --arg key "${uploaded_spec_object_key}" '[$key]')"
+    || { echo "FAIL: storage upload returned no objectKey for ${uploaded_spec_fixture}" >&2; exit 1; }
+  uploaded_spec_object_keys_json="$(jq -c --arg key "${uploaded_spec_object_key}" '. + [$key]' \
+    <<<"${uploaded_spec_object_keys_json}")"
+  uploaded_spec_system_types_json="$(jq -c \
+    --arg key "${uploaded_spec_object_key}" --arg systemType "${uploaded_spec_system_type}" \
+    '. + {($key): $systemType}' <<<"${uploaded_spec_system_types_json}")"
+  uploaded_spec_uploads_json="$(jq -c \
+    --arg fixture "${uploaded_spec_fixture}" \
+    --arg objectKey "${uploaded_spec_object_key}" \
+    --arg systemType "${uploaded_spec_system_type}" \
+    '. + [{fixture: $fixture, objectKey: $objectKey, systemType: $systemType}]' \
+    <<<"${uploaded_spec_uploads_json}")"
+done < <(jq -c '.[]' <<<"${uploaded_specs_json}")
+
+if [[ "$(jq 'length' <<<"${uploaded_spec_object_keys_json}")" -gt 0 ]]; then
+  export E2E_CHAT_ATTACHMENT_KEYS_JSON="${uploaded_spec_object_keys_json}"
 fi
 
 send_turn "01-prompt" "${prompt}"
 unset E2E_CHAT_ATTACHMENT_KEYS_JSON || true
 
-if [[ -n "${uploaded_spec_object_key}" ]]; then
+if [[ "$(jq 'length' <<<"${uploaded_spec_object_keys_json}")" -gt 0 ]]; then
   upload_decision="$(
     e2e_extract_uploaded_spec_import_decision \
-      "${sse_dir}/01-prompt.sse" "${uploaded_spec_object_key}" "${uploaded_spec_system_type}"
+      "${sse_dir}/01-prompt.sse" "${uploaded_spec_system_types_json}"
   )" || { echo "FAIL: uploaded specification import decision card not found" >&2; exit 1; }
   jq -n \
-    --slurpfile upload "${run_dir}/uploaded-spec-upload.json" \
-    --arg objectKey "${uploaded_spec_object_key}" \
-    --arg systemType "${uploaded_spec_system_type}" \
+    --argjson uploads "${uploaded_spec_uploads_json}" \
+    --argjson specSystemTypes "${uploaded_spec_system_types_json}" \
     --argjson decision "${upload_decision}" \
-    '{upload: $upload[0], objectKey: $objectKey, systemType: $systemType, decision: $decision}' \
+    '{uploads: $uploads, specSystemTypes: $specSystemTypes, decision: $decision}' \
     >"${run_dir}/uploaded-spec.json"
   send_turn "02-import-specification" "" "" "${upload_decision}"
 fi

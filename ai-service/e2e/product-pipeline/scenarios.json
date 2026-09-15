@@ -1126,5 +1126,120 @@
     "designInputAnswers": [
       "Map request body client to customerId and total to amount before POST /orders. Return response executionId and status as JSON."
     ]
+  },
+  "product-create-chain-two-uploaded-openapi-mapping": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiUploadedTwoSpecMapping",
+    "uploadedSpecs": [
+      {
+        "fixture": "fixtures/rocky-orders-openapi.yaml",
+        "systemType": "EXTERNAL"
+      },
+      {
+        "fixture": "fixtures/rocky-payments-openapi.yaml",
+        "systemType": "EXTERNAL"
+      }
+    ],
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives POST on internal route /rocky-two-spec-order with JSON fields client and total. First call the uploaded Rocky Orders API operation createRockyOrder, POST /orders. Map client to customerId and total to amount. Then call the uploaded Rocky Payments API operation authorizeRockyPayment, POST /payments. Map the Orders response executionId to Payments request orderId and map the original total to Payments request amount. Return the Orders executionId and status plus the Payments paymentId and paymentStatus as JSON. No APIHub. No MCP. No error handling.",
+    "requiredFacts": [
+      "POST /rocky-two-spec-order",
+      "createRockyOrder",
+      "POST /orders",
+      "customerId",
+      "authorizeRockyPayment",
+      "POST /payments",
+      "orderId",
+      "executionId",
+      "paymentId",
+      "paymentStatus"
+    ],
+    "forbiddenFacts": [
+      "APIHub",
+      "try-catch-finally-2"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "script",
+        "service-call"
+      ],
+      "minTypeCounts": {
+        "service-call": 2
+      },
+      "properties": [
+        { "type": "http-trigger", "key": "contextPath", "equals": "/rocky-two-spec-order" },
+        { "type": "http-trigger", "key": "httpMethodRestrict", "equals": "POST" },
+        { "type": "service-call", "key": "systemType", "equals": "EXTERNAL" },
+        { "type": "script", "key": "script", "contains": "customerId" },
+        { "type": "script", "key": "script", "contains": "orderId" }
+      ],
+      "propertySets": [
+        {
+          "description": "Orders operation remains bound to the Orders path",
+          "type": "service-call",
+          "properties": {
+            "serviceCallId": "create-rocky-order",
+            "integrationOperationMethod": "POST",
+            "integrationOperationPath": "/orders"
+          },
+          "containsProperties": {
+            "integrationOperationId": "createRockyOrder"
+          }
+        },
+        {
+          "description": "Payments operation remains bound to the Payments path",
+          "type": "service-call",
+          "properties": {
+            "serviceCallId": "authorize-rocky-payment",
+            "integrationOperationMethod": "POST",
+            "integrationOperationPath": "/payments"
+          },
+          "containsProperties": {
+            "integrationOperationId": "authorizeRockyPayment"
+          }
+        },
+        {
+          "description": "Response script combines the Orders and Payments results",
+          "type": "script",
+          "containsProperties": {
+            "script": [
+              "orderExecutionId",
+              "orderStatus",
+              "paymentId",
+              "paymentStatus"
+            ]
+          }
+        }
+      ],
+      "distinctProperties": [
+        { "type": "service-call", "key": "integrationSystemId", "minDistinct": 2 },
+        { "type": "service-call", "key": "integrationSpecificationGroupId", "minDistinct": 2 },
+        { "type": "service-call", "key": "integrationSpecificationId", "minDistinct": 2 },
+        { "type": "service-call", "key": "integrationOperationId", "minDistinct": 2 }
+      ],
+      "skeleton": {
+        "minDependencies": 4,
+        "triggerMustHaveOutgoing": true,
+        "reachableFromTrigger": [
+          "service-call"
+        ]
+      },
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Keep two separate service calls. Bind createRockyOrder only to POST /orders and authorizeRockyPayment only to POST /payments. Use executionId from the first response as orderId in the second request."
+    ]
   }
 }

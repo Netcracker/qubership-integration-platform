@@ -89,6 +89,9 @@ class RequirementDraftToolTest {
     assertTrue(description.contains("INBOUND"), description);
     assertTrue(description.contains("OUTBOUND"), description);
     assertTrue(description.contains("Do not author ENDPOINT or SERVICE_CALL topology facts"), description);
+    assertTrue(
+        description.contains("Do not model an HTTP response as a separate OUTBOUND interaction"),
+        description);
     assertTrue(description.contains("binds a unique local catalog match"), description);
     assertFalse(description.contains("only outbound"), description);
     assertFalse(description.contains("Only then run catalog"), description);

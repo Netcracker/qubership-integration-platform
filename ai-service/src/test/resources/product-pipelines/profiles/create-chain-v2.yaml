@@ -28,15 +28,6 @@ stages:
       # Present when the author declined the specification; the IDS then stays out of chat.
       - { type: ids-bypass, schemaVersion: 1 }
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
-  - stageId: import-stage
-    capabilityId: specification-import
-    consumes: [{ type: requirement-draft, schemaVersion: 2 }]
-    produces: [{ type: requirement-draft, schemaVersion: 2 }]
-    skip:
-      whenAny:
-        - no-apihub-candidate
-        - catalog-binding-present
-    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
   - stageId: uploaded-spec-import
     capabilityId: auto-uploaded-spec-import
     consumes: [{ type: requirement-draft, schemaVersion: 2 }]
@@ -46,6 +37,14 @@ stages:
     skip:
       whenAny:
         - no-allowed-attachments
+    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+  - stageId: import-stage
+    capabilityId: specification-import
+    consumes: [{ type: requirement-draft, schemaVersion: 2 }]
+    produces: [{ type: requirement-draft, schemaVersion: 2 }]
+    skip:
+      whenAny:
+        - no-apihub-candidate
         - catalog-binding-present
     retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
   - stageId: requirement-analysis
