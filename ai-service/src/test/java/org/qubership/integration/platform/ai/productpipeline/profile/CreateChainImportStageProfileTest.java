@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.profile;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -8,7 +9,7 @@ import java.io.InputStream;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-/** T4: create-chain profiles declare import-stage after discovery and before analysis. */
+/** T4: create-chain profiles declare import stages after discovery and before analysis. */
 class CreateChainImportStageProfileTest {
 
   @Test
@@ -30,9 +31,9 @@ class CreateChainImportStageProfileTest {
     assertTrue(importStage >= 0, "import-stage missing");
     assertTrue(uploaded >= 0, "uploaded-spec-import missing");
     assertTrue(analysis >= 0, "requirement-analysis missing");
-    assertEquals(discovery + 1, importStage);
-    assertEquals(importStage + 1, uploaded);
-    assertEquals(uploaded + 1, analysis);
+    assertEquals(discovery + 1, uploaded);
+    assertEquals(uploaded + 1, importStage);
+    assertEquals(importStage + 1, analysis);
   }
 
   @Test
@@ -94,7 +95,7 @@ class CreateChainImportStageProfileTest {
         List.of(new ArtifactTypeRef("requirement-draft", 2)), uploaded.produces());
     assertNotNull(uploaded.skip(), "skip policy required for uploaded-spec-import");
     assertTrue(uploaded.skip().whenAny().contains(SkipPolicy.NO_ALLOWED_ATTACHMENTS));
-    assertTrue(uploaded.skip().whenAny().contains(SkipPolicy.CATALOG_BINDING_PRESENT));
+    assertFalse(uploaded.skip().whenAny().contains(SkipPolicy.CATALOG_BINDING_PRESENT));
   }
 
   private static ProductPipelineProfile loadCreateChain(String resourceName) throws Exception {

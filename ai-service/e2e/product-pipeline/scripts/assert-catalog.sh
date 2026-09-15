@@ -36,6 +36,8 @@ fi
 if jq -e --arg s "$SCENARIO" '(.[$s].catalog.requiredTypes // []) | length == 0' "$SCENARIOS_FILE" >/dev/null \
   && jq -e --arg s "$SCENARIO" '(.[$s].catalog.forbiddenTypes // []) | length == 0' "$SCENARIOS_FILE" >/dev/null \
   && jq -e --arg s "$SCENARIO" '(.[$s].catalog.properties // []) | length == 0' "$SCENARIOS_FILE" >/dev/null \
+  && jq -e --arg s "$SCENARIO" '(.[$s].catalog.propertySets // []) | length == 0' "$SCENARIOS_FILE" >/dev/null \
+  && jq -e --arg s "$SCENARIO" '(.[$s].catalog.distinctProperties // []) | length == 0' "$SCENARIOS_FILE" >/dev/null \
   && jq -e --arg s "$SCENARIO" '(.[$s].catalog.nestedContainers // []) | length == 0' "$SCENARIOS_FILE" >/dev/null \
   && jq -e --arg s "$SCENARIO" '(.[$s].catalog.minTypeCounts // {} | keys) | length == 0' "$SCENARIOS_FILE" >/dev/null \
   && jq -e --arg s "$SCENARIO" '.[$s].catalog.skeleton == null' "$SCENARIOS_FILE" >/dev/null; then
@@ -113,6 +115,48 @@ while IFS= read -r row; do
     e2e_fail "catalog property ${elem_type}.${prop_key}: set equals, contains, or nonBlank"
   fi
 done < <(jq -c --arg s "$SCENARIO" '.[$s].catalog.properties[]? // empty' "$SCENARIOS_FILE")
+
+while IFS= read -r row; do
+  [[ -n "$row" ]] || continue
+  elem_type="$(jq -r '.type' <<<"$row")"
+  expected_properties="$(jq -c '.properties // {}' <<<"$row")"
+  contained_properties="$(jq -c '.containsProperties // {}' <<<"$row")"
+  description="$(jq -r '.description // .type' <<<"$row")"
+  if ! jq -e \
+      --arg t "$elem_type" \
+      --argjson expected "$expected_properties" \
+      --argjson contained "$contained_properties" '
+    any(.. | objects | select(.type? == $t);
+      . as $element
+      | all($expected | to_entries[];
+          (($element.properties[.key] // null) | tostring) == (.value | tostring))
+      and all($contained | to_entries[];
+          . as $entry
+          | (($element.properties[$entry.key] // "") | tostring) as $actual
+          | if ($entry.value | type) == "array"
+            then all($entry.value[]; . as $needle | $actual | contains($needle | tostring))
+            else $actual | contains($entry.value | tostring)
+            end))
+  ' "$elements_json" >/dev/null; then
+    e2e_fail "catalog property set not found: ${description} exact=${expected_properties} contains=${contained_properties}"
+  fi
+  e2e_pass "catalog property set matched: ${description}"
+done < <(jq -c --arg s "$SCENARIO" '.[$s].catalog.propertySets[]? // empty' "$SCENARIOS_FILE")
+
+while IFS= read -r row; do
+  [[ -n "$row" ]] || continue
+  elem_type="$(jq -r '.type' <<<"$row")"
+  prop_key="$(jq -r '.key' <<<"$row")"
+  min_distinct="$(jq -r '.minDistinct // 2' <<<"$row")"
+  actual_distinct="$(jq -r --arg t "$elem_type" --arg k "$prop_key" '
+    [.. | objects | select(.type? == $t) | .properties[$k] // empty | tostring]
+    | map(select(length > 0)) | unique | length
+  ' "$elements_json")"
+  if ((actual_distinct < min_distinct)); then
+    e2e_fail "catalog property ${elem_type}.${prop_key}: expected >= ${min_distinct} distinct values, got ${actual_distinct}"
+  fi
+  e2e_pass "catalog property ${elem_type}.${prop_key} has ${actual_distinct} distinct values"
+done < <(jq -c --arg s "$SCENARIO" '.[$s].catalog.distinctProperties[]? // empty' "$SCENARIOS_FILE")
 
 while IFS= read -r row; do
   [[ -n "$row" ]] || continue

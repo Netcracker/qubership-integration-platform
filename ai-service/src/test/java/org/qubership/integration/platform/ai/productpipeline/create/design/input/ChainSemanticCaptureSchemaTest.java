@@ -111,13 +111,16 @@ class ChainSemanticCaptureSchemaTest {
     ObjectMapper mapper = new ObjectMapper();
     JsonNode arguments =
         mapper.readTree(
-            linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, ""));
+            linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "")
+                .replace(
+                    "\"nodeId\": \"op-shared\"",
+                    "\"nodeId\": \"op-shared\", \"sourceFactIds\": [\"fact-script\"]"));
     ((ObjectNode) arguments)
         .put(parameterName(), arguments.get(parameterName()).toString());
 
     String result = executeThroughFactory(mapper.writeValueAsString(arguments));
 
-    assertTrue(result.contains("orphan script: op-shared"), result);
+    assertTrue(result.contains(ChainSemanticCaptureTool.CAPTURED_MESSAGE), result);
   }
 
   @Test

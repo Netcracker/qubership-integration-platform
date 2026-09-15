@@ -92,6 +92,49 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void rejectsAResponseBehaviorThatHasNoSemanticOperation() {
+    ChainSemanticCapture capture =
+        new ChainSemanticCapture(
+            "chain-orders",
+            List.of(
+                new CapturedEntryPoint(
+                    "http-in",
+                    "trigger-http",
+                    ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
+                    0,
+                    List.of("trigger-1"),
+                    "Create order",
+                    null)),
+            List.of(new CapturedTrigger("trigger-http", List.of("trigger-1"))),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(
+                new CapturedEdge(
+                    "http-in",
+                    ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)),
+            List.of());
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> adapt(capture, ChainSemanticCaptureFixtures.approvedBrief()));
+
+    assertTrue(error.getMessage().contains("fact-script"), error.getMessage());
+    assertTrue(error.getMessage().contains("sourceFactId"), error.getMessage());
+  }
+
+  @Test
   void doesNotCreateServiceCallNodeForCatalogBoundAsyncApiTrigger() {
     RequirementBrief brief = ChainSemanticCaptureFixtures.catalogBoundAsyncApiTriggerBrief();
     ChainSemanticCapture capture =
@@ -696,7 +739,7 @@ class ChainSemanticCaptureAdapterTest {
         List.of(new CapturedTrigger("trigger-http", List.of("trigger-1"))),
         List.of(
             new CapturedOperation("op-condition", "condition", List.of()),
-            new CapturedOperation("op-else", "script", List.of())),
+            new CapturedOperation("op-else", "script", List.of("fact-script"))),
         List.of(),
         List.of(
             new ChainSemanticCapture.CapturedConditionRegion(

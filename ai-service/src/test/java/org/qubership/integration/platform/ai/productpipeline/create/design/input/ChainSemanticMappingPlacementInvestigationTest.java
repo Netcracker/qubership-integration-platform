@@ -132,7 +132,7 @@ class ChainSemanticMappingPlacementInvestigationTest {
     return ChainSemanticCaptureFixtures.rockyCapture(
         List.of(
             new CapturedOperation("map-start", "script", List.of()),
-            new CapturedOperation("map-result", "script", List.of())),
+            new CapturedOperation("map-result", "script", List.of("fact-script"))),
         List.of(
             new CapturedEdge("task-start", "map-start", null, null, null, null, null, null),
             new CapturedEdge(

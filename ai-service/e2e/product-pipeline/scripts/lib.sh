@@ -220,14 +220,16 @@ PY
 # Print the typed import decision for an uploaded specification card, or fail.
 e2e_extract_uploaded_spec_import_decision() {
   local sse_file="${1:?sse file}"
-  local object_key="${2:?object key}"
-  local system_type="${3:?system type}"
-  python3 - "$sse_file" "$object_key" "$system_type" <<'PY'
+  local spec_system_types_json="${2:?spec system types JSON}"
+  python3 - "$sse_file" "$spec_system_types_json" <<'PY'
 import json
 import re
 import sys
 
-path, object_key, system_type = sys.argv[1:4]
+path, spec_system_types_json = sys.argv[1:3]
+spec_system_types = json.loads(spec_system_types_json)
+if not isinstance(spec_system_types, dict) or not spec_system_types:
+    raise SystemExit(1)
 text = open(path, errors="replace").read()
 found = None
 for block in re.split(r"\n\n+", text):
@@ -264,7 +266,7 @@ print(json.dumps({
     "artifactType": found["artifactType"],
     "artifactHash": found["artifactHash"],
     "revision": found.get("revision") or 0,
-    "specSystemTypes": {object_key: system_type},
+    "specSystemTypes": spec_system_types,
 }))
 PY
 }

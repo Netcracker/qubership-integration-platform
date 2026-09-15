@@ -1060,7 +1060,7 @@ event: done
 data: conv-upload
 EOF
 if ! upload_decision="$(e2e_extract_uploaded_spec_import_decision \
-    "${sse_upload}" "e2e/orders.yaml" "EXTERNAL")"; then
+    "${sse_upload}" '{"e2e/orders.yaml":"EXTERNAL","e2e/payments.yaml":"EXTERNAL"}')"; then
   fail "extractor missed uploaded specification import card"
 fi
 jq -e '
@@ -1069,8 +1069,10 @@ jq -e '
   and .artifactHash == "sha256:upload"
   and .revision == 12
   and .specSystemTypes["e2e/orders.yaml"] == "EXTERNAL"
+  and .specSystemTypes["e2e/payments.yaml"] == "EXTERNAL"
+  and (.specSystemTypes | length) == 2
 ' <<<"${upload_decision}" >/dev/null \
-  || fail "extractor must bind the uploaded object key and system type to the card"
+  || fail "extractor must bind every uploaded object key and system type to the card"
 pass "uploaded specification decision extraction"
 
 echo "=== uploaded OpenAPI scenario covers import, binding, mapping, and materialization ==="
@@ -1098,6 +1100,46 @@ rg -q '/api/v1/storage/objects' "${SCENARIO_SH}" \
 rg -q 'e2e_extract_uploaded_spec_import_decision' "${SCENARIO_SH}" \
   || fail "product runner must answer the exact import-specification decision card"
 pass "uploaded OpenAPI end-to-end scenario contract"
+
+echo "=== two uploaded OpenAPI specifications keep distinct operation bindings ==="
+jq -e '
+  .["product-create-chain-two-uploaded-openapi-mapping"] as $s
+  | $s.status == "active"
+    and $s.pipeline == "create-chain-v1"
+    and $s.profileId == "create-chain"
+    and $s.profileVersion == "2"
+    and $s.terminalState == "CHAIN_MATERIALIZED"
+    and $s.retainCatalogChain == true
+    and ($s.uploadedSpecs | length) == 2
+    and ($s.uploadedSpecs | map(.fixture) | index("fixtures/rocky-orders-openapi.yaml") != null)
+    and ($s.uploadedSpecs | map(.fixture) | index("fixtures/rocky-payments-openapi.yaml") != null)
+    and $s.catalog.minTypeCounts["service-call"] == 2
+    and any($s.catalog.propertySets[];
+      .properties.serviceCallId == "create-rocky-order"
+      and .containsProperties.integrationOperationId == "createRockyOrder"
+      and .properties.integrationOperationPath == "/orders")
+    and any($s.catalog.propertySets[];
+      .properties.serviceCallId == "authorize-rocky-payment"
+      and .containsProperties.integrationOperationId == "authorizeRockyPayment"
+      and .properties.integrationOperationPath == "/payments")
+    and any($s.catalog.propertySets[];
+      .description == "Response script combines the Orders and Payments results"
+      and (.containsProperties.script | index("paymentId") != null))
+    and any($s.catalog.distinctProperties[];
+      .key == "integrationSpecificationId" and .minDistinct == 2)
+' "${SCENARIOS_FILE}" >/dev/null \
+  || fail "two-spec scenario must assert distinct specifications and exact operation/path pairs"
+[[ -f "${DIR}/fixtures/rocky-orders-openapi.yaml" ]] \
+  || fail "missing Rocky Orders OpenAPI fixture"
+[[ -f "${DIR}/fixtures/rocky-payments-openapi.yaml" ]] \
+  || fail "missing Rocky Payments OpenAPI fixture"
+rg -q 'uploadedSpecs' "${SCENARIO_SH}" \
+  || fail "product runner must accept multiple uploaded specifications"
+rg -q 'propertySets' "${SCRIPTS_DIR}/assert-catalog.sh" \
+  || fail "catalog assertions must keep properties paired on one element"
+rg -q 'distinctProperties' "${SCRIPTS_DIR}/assert-catalog.sh" \
+  || fail "catalog assertions must prove separate imported specifications"
+pass "two uploaded OpenAPI specifications keep distinct operation bindings"
 
 echo "=== chat-turn payload includes attachment keys, attachment, and decision ==="
 payload_out="${TMP}/chat-payload.json"
