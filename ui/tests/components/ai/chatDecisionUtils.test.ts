@@ -356,6 +356,31 @@ describe("decision entry round trip through the session store", () => {
 });
 
 describe("recoveryCardActions", () => {
+  it("should retain restart checkpoints supplied by the server", () => {
+    expect(
+      recoveryCardActions(
+        buildDecision({
+          actions: [
+            "retry-creation",
+            "restart-from-beginning",
+            "restart-from-approved-plan",
+          ],
+          recovery: {
+            category: "temporary-technical-failure",
+            title: "Creation is paused",
+            summary: "The current attempt could not continue.",
+            preservedWork: "Approved checkpoints are available.",
+            technicalDetails: "",
+          },
+        }),
+      ),
+    ).toEqual([
+      "retry-creation",
+      "restart-from-beginning",
+      "restart-from-approved-plan",
+    ]);
+  });
+
   it("should default regeneratable halts to Retry creation and End run", () => {
     expect(
       recoveryCardActions(

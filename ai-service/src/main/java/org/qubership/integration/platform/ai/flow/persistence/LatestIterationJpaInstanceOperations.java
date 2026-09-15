@@ -14,8 +14,10 @@ import jakarta.enterprise.inject.Alternative;
 import jakarta.inject.Inject;
 import jakarta.interceptor.Interceptor;
 import jakarta.transaction.Transactional;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
@@ -38,16 +40,33 @@ public class LatestIterationJpaInstanceOperations extends JpaInstanceOperations 
   public Stream<PersistenceWorkflowInfo> scanAll(
       String applicationId, WorkflowDefinition definition) {
     QuarkusTransaction.begin();
-    WorkflowDefinitionId id = definition.id();
-    return instances
-        .stream(
-            "select x from WorkflowInstanceEntity x where x.applicationId=?1 and x.workflowNamespace=?2 and x.workflowName=?3 and x.workflowVersion=?4",
-            applicationId,
-            id.namespace(),
-            id.name(),
-            id.version())
-        .map(this::workflowInfo)
-        .onClose(QuarkusTransaction::commit);
+    try {
+      WorkflowDefinitionId id = definition.id();
+      List<PersistenceWorkflowInfo> restored =
+          materialize(
+              instances.stream(
+                  "select x from WorkflowInstanceEntity x where x.applicationId=?1 and x.workflowNamespace=?2 and x.workflowName=?3 and x.workflowVersion=?4",
+                  applicationId,
+                  id.namespace(),
+                  id.name(),
+                  id.version()),
+              this::workflowInfo);
+      QuarkusTransaction.commit();
+      return restored.stream();
+    } catch (RuntimeException failure) {
+      try {
+        QuarkusTransaction.rollback();
+      } catch (RuntimeException rollbackFailure) {
+        failure.addSuppressed(rollbackFailure);
+      }
+      throw failure;
+    }
+  }
+
+  static <T, R> List<R> materialize(Stream<T> source, Function<T, R> mapper) {
+    try (source) {
+      return source.map(mapper).toList();
+    }
   }
 
   @Override

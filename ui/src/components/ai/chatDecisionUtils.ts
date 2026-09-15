@@ -130,6 +130,9 @@ const RECOVERY_ACTION_IDS = new Set([
   "edit-requirements",
   "rebuild-plan",
   "stop-with-report",
+  "restart-from-beginning",
+  "restart-from-approved-requirements",
+  "restart-from-approved-plan",
 ]);
 
 function defaultRecoveryActions(

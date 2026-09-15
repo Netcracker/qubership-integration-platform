@@ -44,6 +44,22 @@ public final class ProductPipelineRunStore {
    */
   public ProductPipelineRunDocument create(
       RunSnapshot snapshot, String commandId, String commandPayloadHash) {
+    ProductPipelineRunDocument document = createUnbound(snapshot, commandId, commandPayloadHash);
+    try {
+      blobStore.putIfVersion(
+          conversationKey(snapshot.conversationId()),
+          snapshot.runId().getBytes(StandardCharsets.UTF_8),
+          null);
+    } catch (StaleBlobVersionException e) {
+      throw new StaleBlobVersionException(
+          "conversation already bound: " + snapshot.conversationId(), e);
+    }
+    return document;
+  }
+
+  /** Creates a durable run without changing the conversation's active-run pointer. */
+  public ProductPipelineRunDocument createUnbound(
+      RunSnapshot snapshot, String commandId, String commandPayloadHash) {
     Objects.requireNonNull(snapshot, "snapshot");
     requireText(snapshot.runId(), "runId");
     requireText(snapshot.conversationId(), "conversationId");
@@ -73,17 +89,38 @@ public final class ProductPipelineRunStore {
     } catch (StaleBlobVersionException e) {
       throw new StaleBlobVersionException("run already exists: " + snapshot.runId(), e);
     }
-    try {
-      blobStore.putIfVersion(
-          conversationKey(snapshot.conversationId()),
-          snapshot.runId().getBytes(StandardCharsets.UTF_8),
-          null);
-    } catch (StaleBlobVersionException e) {
-      throw new StaleBlobVersionException(
-          "conversation already bound: " + snapshot.conversationId(), e);
-    }
     return load(snapshot.runId())
         .orElseThrow(() -> new IllegalStateException("created run disappeared"));
+  }
+
+  /**
+   * Atomically changes the active run for a conversation after a child run has been prepared.
+   * The expected run id prevents a stale restart request from replacing a newer active run.
+   */
+  public void replaceConversationBinding(
+      String conversationId, String expectedRunId, String newRunId) {
+    requireText(conversationId, "conversationId");
+    requireText(expectedRunId, "expectedRunId");
+    requireText(newRunId, "newRunId");
+    ProductPipelineRunDocument child =
+        load(newRunId)
+            .orElseThrow(() -> new IllegalArgumentException("run was not found: " + newRunId));
+    if (!conversationId.equals(child.run().conversationId())) {
+      throw new IllegalArgumentException(
+          "run " + newRunId + " belongs to another conversation");
+    }
+    String key = conversationKey(conversationId);
+    VersionedBlob current =
+        blobStore
+            .getVersioned(key)
+            .orElseThrow(
+                () -> new IllegalArgumentException("conversation was not found: " + conversationId));
+    String activeRunId = new String(current.content(), StandardCharsets.UTF_8);
+    if (!expectedRunId.equals(activeRunId)) {
+      throw new StaleBlobVersionException(
+          "expected active run " + expectedRunId + " but conversation has " + activeRunId);
+    }
+    blobStore.putIfVersion(key, newRunId.getBytes(StandardCharsets.UTF_8), current.version());
   }
 
   public Optional<ProductPipelineRunDocument> load(String runId) {

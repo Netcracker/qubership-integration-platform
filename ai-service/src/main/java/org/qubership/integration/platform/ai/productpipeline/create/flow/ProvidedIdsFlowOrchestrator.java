@@ -28,7 +28,10 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveComm
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignalLiveSink;
+import org.qubership.integration.platform.ai.productpipeline.runtime.PreparedRestart;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RestartCheckpoint;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RestartRunCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -71,6 +74,86 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
     ProductPipelineRunDocument document = existing.get();
     rejectUnboundManualRun(document);
     return runSupport.restoreForExternalWorkflow(command);
+  }
+
+  @Override
+  public List<RestartCheckpoint> availableRestartCheckpoints(String conversationId) {
+    return runSupport.availableRestartCheckpoints(conversationId);
+  }
+
+  @Override
+  public Multi<PipelineSignal> restart(RestartRunCommand command) {
+    return streamWhileSettling(
+        command.childRunId(),
+        () -> {
+          ProductPipelineRunDocument active =
+              runStore
+                  .loadByConversation(command.conversationId())
+                  .orElseThrow(
+                      () ->
+                          new IllegalArgumentException(
+                              "unknown conversation: " + command.conversationId()));
+          if (command.childRunId().equals(active.run().runId())) {
+            PreparedRestart prepared =
+                runSupport.prepareCheckpointRestart(
+                    command, active.run().flowInstanceId());
+            return runSupport
+                .restoreForExternalWorkflow(
+                    new StartOrResumeCommand(
+                        command.conversationId(),
+                        command.childRunId(),
+                        command.profile(),
+                        prepared.runManifest()))
+                .collect()
+                .asList()
+                .await()
+                .indefinitely();
+          }
+          if (!command.parentRunId().equals(active.run().runId())) {
+            throw new org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionException(
+                "expected active run "
+                    + command.parentRunId()
+                    + " but conversation has "
+                    + active.run().runId());
+          }
+          ProvidedIdsFlow.RunContext context =
+              new ProvidedIdsFlow.RunContext(
+                  command.childRunId(),
+                  command.profile().profileId(),
+                  command.profile().profileVersion(),
+                  command.profile().profileId() + "@" + command.profile().profileVersion(),
+                  null);
+          WorkflowInstance instance = flow.instance(context);
+          runSupport.prepareCheckpointRestart(command, instance.id());
+          instance.start();
+          waitUntil(
+              "restarted create-chain Flow instance " + instance.id() + " must settle",
+              () ->
+                  instance.status() == WorkflowStatus.WAITING
+                      || instance.status() == WorkflowStatus.COMPLETED
+                      || instance.status() == WorkflowStatus.FAULTED);
+          runStore.replaceConversationBinding(
+              command.conversationId(), command.parentRunId(), command.childRunId());
+          List<PipelineSignal> live = tasks.drainSignals(command.childRunId());
+          if (!live.isEmpty()) {
+            return live;
+          }
+          ProductPipelineRunDocument child =
+              runStore.load(command.childRunId()).orElseThrow();
+          org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest manifest =
+              runSupport.prepareCheckpointRestart(command, instance.id()).runManifest();
+          return runSupport
+              .restoreForExternalWorkflow(
+                  new StartOrResumeCommand(
+                      command.conversationId(),
+                      child.run().runId(),
+                      command.profile(),
+                      manifest))
+              .collect()
+              .asList()
+              .await()
+              .indefinitely();
+        });
   }
 
   private Multi<PipelineSignal> startPersistedInstance(StartOrResumeCommand command) {

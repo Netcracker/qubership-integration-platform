@@ -450,6 +450,57 @@ describe("AiDecisionCard", () => {
     ).toBeInTheDocument();
   });
 
+  it("should offer available restart checkpoints in one menu", () => {
+    const onAnswer = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      question: "Creation is paused.",
+      actions: [
+        "retry-creation",
+        "restart-from-beginning",
+        "restart-from-approved-requirements",
+        "restart-from-approved-plan",
+        "stop-with-report",
+      ],
+      recovery: {
+        category: "temporary-technical-failure",
+        title: "Creation is paused",
+        summary: "The current attempt could not continue.",
+        preservedWork: "Approved checkpoints are available.",
+        technicalDetails: "",
+      },
+    });
+
+    render(<AiDecisionCard decision={decision} onAnswer={onAnswer} />);
+
+    expect(screen.queryByRole("button", { name: "Beginning" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Restart from/ }));
+    fireEvent.click(screen.getByText("Approved requirements"));
+
+    expect(onAnswer).toHaveBeenCalledWith(
+      "restart-from-approved-requirements",
+      "",
+    );
+  });
+
+  it("should show the selected restart checkpoint after answering", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation is paused.",
+          actions: ["restart-from-approved-plan"],
+          answeredAction: "restart-from-approved-plan",
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    expect(screen.getByText("Approved plan")).toBeInTheDocument();
+    expect(screen.queryByText("Sent")).toBeNull();
+  });
+
   it("should render a requirement defect with Edit requirements and no stage identifiers", () => {
     const onAnswer = jest.fn();
     const decision = buildDecision({

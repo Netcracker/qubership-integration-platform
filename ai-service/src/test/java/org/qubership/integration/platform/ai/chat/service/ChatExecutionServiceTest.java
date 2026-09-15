@@ -139,6 +139,30 @@ class ChatExecutionServiceTest {
   }
 
   @Test
+  void exactRestartMessageRunsAsTheTypedDecisionCommand() {
+    ScenarioRouter router = mock(ScenarioRouter.class);
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    ChatDecisionCommand restart = new ChatDecisionCommand();
+    restart.setAction(ChatEvent.RESTART_FROM_APPROVED_REQUIREMENTS_ACTION);
+    restart.setRevision(9L);
+    when(decisions.restartCommandForMessage(
+            "conv-restart", "Restart from approved requirements"))
+        .thenReturn(Optional.of(restart));
+    when(decisions.apply("conv-restart", restart))
+        .thenReturn(Multi.createFrom().item(ChatEvent.token("Restarted.")));
+
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-restart");
+    request.setMessage("Restart from approved requirements");
+
+    service(router, decisions).streamV1Sse(request).collect().asList().await().indefinitely();
+
+    verify(decisions).apply("conv-restart", restart);
+    verify(router, never()).route(any(), anyString());
+    assertEquals("Restart from approved requirements", request.getEffectiveUserText());
+  }
+
+  @Test
   void deployCardMarkerUsesPendingDomain() {
     PendingRedeployStore store = new PendingRedeployStore();
     store.put(

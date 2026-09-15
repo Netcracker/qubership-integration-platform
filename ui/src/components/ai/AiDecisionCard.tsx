@@ -1,4 +1,5 @@
-import { Button, Input, List, Radio, Space, Typography } from "antd";
+import { DownOutlined } from "@ant-design/icons";
+import { Button, Dropdown, Input, List, Radio, Space, Typography } from "antd";
 import React, { useId, useRef, useState } from "react";
 import type {
   CatalogSystemType,
@@ -53,7 +54,16 @@ const ACTION_LABELS: Record<string, string> = {
   "edit-requirements": "Edit requirements",
   "rebuild-plan": "Rebuild plan",
   "stop-with-report": "End run and keep report",
+  "restart-from-beginning": "Beginning",
+  "restart-from-approved-requirements": "Approved requirements",
+  "restart-from-approved-plan": "Approved plan",
 };
+
+const RESTART_ACTIONS = new Set([
+  "restart-from-beginning",
+  "restart-from-approved-requirements",
+  "restart-from-approved-plan",
+]);
 
 /**
  * Actions the server runs as a typed command against the run. Everything else is an answer the
@@ -88,6 +98,7 @@ const COMMAND_ACTIONS = new Set([
   "edit-requirements",
   "rebuild-plan",
   "stop-with-report",
+  ...RESTART_ACTIONS,
 ]);
 
 /** Actions that run the primary command of their gate. */
@@ -175,7 +186,12 @@ function answeredLabel(decision: ChatDecision): string {
   if (answered === undefined) {
     return "";
   }
-  if (answered === "yes" || answered === "no" || answered === "pass_through") {
+  if (
+    COMMAND_ACTIONS.has(answered) ||
+    answered === "yes" ||
+    answered === "no" ||
+    answered === "pass_through"
+  ) {
     return actionLabel(answered);
   }
   if (decision.kind === "clarify") {
@@ -235,6 +251,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   );
   // Guards against a double click sending the answer twice before `busy` catches up.
   const clickedRef = useRef(false);
+  const cardRef = useRef<HTMLDivElement>(null);
   const disabled = busy || stale || answeredAction !== undefined;
 
   const handleClick = (action: string) => {
@@ -289,6 +306,32 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   const recoveryActions = recovery
     ? recoveryCardActions(haltDecision)
     : labeledActions(decision.actions);
+  const restartActions = labeledActions(decision.actions).filter((action) =>
+    RESTART_ACTIONS.has(action),
+  );
+  const regularActions = recoveryActions.filter(
+    (action) => !RESTART_ACTIONS.has(action),
+  );
+  const restartMenu =
+    restartActions.length > 0 ? (
+      <Dropdown
+        disabled={disabled}
+        getPopupContainer={() => cardRef.current ?? document.body}
+        menu={{
+          items: restartActions.map((action) => ({
+            key: action,
+            label: actionLabel(action),
+          })),
+          onClick: ({ key }) => handleClick(key),
+        }}
+        trigger={["click"]}
+      >
+        <Button size="small" disabled={disabled}>
+          Restart from...
+          <DownOutlined />
+        </Button>
+      </Dropdown>
+    ) : null;
   const recoveryDetails = recovery
     ? [
         recovery.technicalDetails
@@ -321,6 +364,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   if (recovery) {
     return (
       <div
+        ref={cardRef}
         className="ai-decision-card ai-decision-card--recovery"
         data-decision-id={decision.id}
         role="alert"
@@ -357,7 +401,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
           </>
         ) : (
           <Space className="ai-decision-card__actions" wrap>
-            {recoveryActions.map((action) => (
+            {regularActions.map((action) => (
               <Button
                 key={action}
                 size="small"
@@ -368,6 +412,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
                 {actionLabel(action)}
               </Button>
             ))}
+            {restartMenu}
           </Space>
         )}
       </div>
@@ -375,7 +420,11 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   }
 
   return (
-    <div className="ai-decision-card" data-decision-id={decision.id}>
+    <div
+      ref={cardRef}
+      className="ai-decision-card"
+      data-decision-id={decision.id}
+    >
       {cardText ? (
         <div className="ai-decision-card__question">
           {/* Server text is Markdown: numbered actions and **Adds** / **Removes** verbs. */}
@@ -469,23 +518,26 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
               (usePerSpecImport
                 ? perSpecImportActions(decision.actions)
                 : labeledActions(decision.actions)
-              ).map((action) => (
-                <Button
-                  key={action}
-                  size="small"
-                  type={PRIMARY_ACTIONS.has(action) ? "primary" : "default"}
-                  disabled={
-                    disabled ||
-                    (action === "describe_mappings" && text.trim() === "")
-                  }
-                  onClick={() => handleClick(action)}
-                >
-                  {usePerSpecImport && action === "import-specification"
-                    ? "Import"
-                    : actionLabel(action)}
-                </Button>
-              ))
+              )
+                .filter((action) => !RESTART_ACTIONS.has(action))
+                .map((action) => (
+                  <Button
+                    key={action}
+                    size="small"
+                    type={PRIMARY_ACTIONS.has(action) ? "primary" : "default"}
+                    disabled={
+                      disabled ||
+                      (action === "describe_mappings" && text.trim() === "")
+                    }
+                    onClick={() => handleClick(action)}
+                  >
+                    {usePerSpecImport && action === "import-specification"
+                      ? "Import"
+                      : actionLabel(action)}
+                  </Button>
+                ))
             )}
+            {restartMenu}
           </Space>
         </>
       )}

@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.ApproveComm
 import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RestartRunCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -161,6 +162,32 @@ class ProvidedIdsFlowOrchestratorTest {
     verify(flow, never()).startInstance(any());
     verify(runSupport).bootstrap(command, "flow-1");
     verify(instance).start();
+  }
+
+  @Test
+  void restartFailureBeforeFlowStartLeavesTheParentConversationBindingActive() {
+    RestartRunCommand command = mock(RestartRunCommand.class);
+    when(command.conversationId()).thenReturn(CONVERSATION_ID);
+    when(command.parentRunId()).thenReturn(RUN_ID);
+    when(command.childRunId()).thenReturn("child-run");
+    when(command.profile())
+        .thenReturn(
+            mock(
+                org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile.class));
+    when(runStore.loadByConversation(CONVERSATION_ID))
+        .thenReturn(Optional.of(document(RunStatus.FAILED, "design-execution", "parent-flow")));
+    WorkflowInstance instance = mock(WorkflowInstance.class);
+    when(instance.id()).thenReturn("child-flow");
+    when(instance.start()).thenThrow(new IllegalStateException("start failed"));
+    when(flow.instance(any(ProvidedIdsFlow.RunContext.class))).thenReturn(instance);
+
+    assertThrows(
+        RuntimeException.class,
+        () -> orchestrator.restart(command).collect().asList().await().indefinitely());
+
+    verify(runSupport).prepareCheckpointRestart(command, "child-flow");
+    verify(runStore, never())
+        .replaceConversationBinding(CONVERSATION_ID, RUN_ID, "child-run");
   }
 
   @Test
