@@ -313,7 +313,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
     (action) => !RESTART_ACTIONS.has(action),
   );
   const restartMenu =
-    restartActions.length > 0 ? (
+    recovery && restartActions.length > 0 ? (
       <Dropdown
         disabled={disabled}
         getPopupContainer={() => cardRef.current ?? document.body}
