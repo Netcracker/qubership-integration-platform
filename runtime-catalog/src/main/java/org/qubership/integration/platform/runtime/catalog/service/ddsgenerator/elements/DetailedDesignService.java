@@ -74,6 +74,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -138,7 +139,8 @@ public class DetailedDesignService {
         templateData = templateDataBuilder.build(chain, elements);
 
         // template + data -> markdown
-        String content = getTemplate(templateId).getContent();
+        String content = findTemplateContent(templateId)
+                .orElseThrow(() -> new EntityNotFoundException("Detailed design template not found: " + templateId));
         Writer writer = new StringWriter();
         try {
             new Template(templateId, content, freemakerConfiguration).process(templateData, writer);
@@ -278,15 +280,19 @@ public class DetailedDesignService {
         return specs;
     }
 
+    private Optional<String> findTemplateContent(String templateId) {
+        return builtinTemplates.containsKey(templateId)
+                ? Optional.of(builtinTemplates.get(templateId).getRight())
+                : designTemplateRepository.findById(templateId).map(DetailedDesignTemplate::getContent);
+    }
+
     private Configuration createFreemakerConfiguration() {
         Configuration configuration = new Configuration(Configuration.VERSION_2_3_33);
         // an included template resolves from the same source as the rendered one, never from a stale copy
         configuration.setTemplateLoader(new TemplateLoader() {
             @Override
             public Object findTemplateSource(String name) {
-                return builtinTemplates.containsKey(name)
-                        ? builtinTemplates.get(name).getRight()
-                        : designTemplateRepository.findById(name).map(DetailedDesignTemplate::getContent).orElse(null);
+                return findTemplateContent(name).orElse(null);
             }
 
             @Override
@@ -301,6 +307,7 @@ public class DetailedDesignService {
 
             @Override
             public void closeTemplateSource(Object templateSource) {
+                // the source is a string, nothing to release
             }
         });
         configuration.setCacheStorage(new NullCacheStorage());
