@@ -660,18 +660,20 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
     private void compileGroovyScripts(RoutesDefinition routesDefinition) {
         for (RouteDefinition route : routesDefinition.getRoutes()) {
-            for (ProcessorDefinition<?> processor : route.getOutputs()) {
-                if (!(processor instanceof ExpressionNode)) {
-                    continue;
-                }
-                ExpressionDefinition expression = ((ExpressionNode) processor).getExpression();
-                if (!expression.getLanguage().equals("groovy")) {
-                    continue;
-                }
+            compileGroovyScripts(route);
+        }
+    }
 
-                log.debug("Compiling groovy script for processor {}", processor.getId());
-                compileGroovyScript(expression);
+    private void compileGroovyScripts(ProcessorDefinition<?> parent) {
+        for (ProcessorDefinition<?> processor : parent.getOutputs()) {
+            if (processor instanceof ExpressionNode expressionNode) {
+                ExpressionDefinition expression = expressionNode.getExpression();
+                if (expression.getLanguage().equals("groovy")) {
+                    log.debug("Compiling groovy script for processor {}", processor.getId());
+                    compileGroovyScript(expression);
+                }
             }
+            compileGroovyScripts(processor);
         }
     }
 
