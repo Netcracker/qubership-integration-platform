@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -78,6 +79,7 @@ class UploadedSpecAutoImporterTest {
             List.of(
                 new CatalogRestClient.SpecificationDto(
                     "spec-1", "orders-api", "sg-1", "sys-1")));
+    when(client.getModelSource("spec-1")).thenReturn("{}");
 
     UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
@@ -204,6 +206,8 @@ class UploadedSpecAutoImporterTest {
             List.of(
                 new CatalogRestClient.SpecificationDto(
                     "spec-1", "Salesforce WFM Specification", "sg-spec", "sys-1")));
+    when(client.getModelSource("spec-1"))
+        .thenReturn("{\"info\":{\"title\":\"Salesforce WFM\"}}");
 
     UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
@@ -217,6 +221,143 @@ class UploadedSpecAutoImporterTest {
     verify(importer, never()).importOpenApiDocument(any(), any(), any(), any(), any());
     verify(importer, never()).importOpenApiDocumentIntoGroup(any(), any(), any(), any());
     verify(client, never()).createSystem(any());
+  }
+
+  @Test
+  void reusesSameDocumentWithDifferentFilenameFormatAndPropertyOrder() {
+    S3Service s3 = mock(S3Service.class);
+    CatalogRestClient client = mock(CatalogRestClient.class);
+    CatalogSpecificationImporter importer = mock(CatalogSpecificationImporter.class);
+    ConversationCatalogCache cache = mock(ConversationCatalogCache.class);
+    String uploaded =
+        """
+        openapi: 3.0.3
+        info:
+          title: Order API
+          version: 1.0.0
+        paths:
+          /orders:
+            post:
+              operationId: createOrder
+        """;
+    when(s3.readObjectBytes("renamed-key")).thenReturn(uploaded.getBytes());
+    when(client.searchSystems(any()))
+        .thenReturn(
+            List.of(new CatalogRestClient.SystemDto("sys-1", "Order API", "INTERNAL", null)));
+    when(client.getEnvironments("sys-1"))
+        .thenReturn(List.of(new CatalogRestClient.EnvironmentDto("env-1", "default", null)));
+    when(client.getSpecificationGroups("sys-1"))
+        .thenReturn(List.of(new CatalogRestClient.SpecificationGroupDto("sg-1", "Order API")));
+    when(client.getApiSpecifications("sys-1"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SpecificationDto(
+                    "spec-1", "Order API", "sg-1", "sys-1")));
+    when(client.getModelSource("spec-1"))
+        .thenReturn(
+            """
+            {"paths":{"/orders":{"post":{"operationId":"createOrder"}}},
+             "info":{"version":"1.0.0","title":"Order API"},"openapi":"3.0.3"}
+            """);
+
+    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecImportOutcome outcome =
+        service.importSpec(
+            "conv-1", new UploadedSpecAttachment("renamed-key", "completely-different-name.yml"));
+
+    assertEquals(true, outcome.reused());
+    assertEquals("spec-1", outcome.specificationId());
+    verify(importer, never()).importOpenApiDocumentIntoGroup(any(), any(), any(), any());
+    verify(importer, never()).importOpenApiDocument(any(), any(), any(), any(), any());
+  }
+
+  @Test
+  void importsChangedDocumentWithSameTitleAndVersion() {
+    S3Service s3 = mock(S3Service.class);
+    CatalogRestClient client = mock(CatalogRestClient.class);
+    CatalogSpecificationImporter importer = mock(CatalogSpecificationImporter.class);
+    ConversationCatalogCache cache = mock(ConversationCatalogCache.class);
+    String uploaded =
+        """
+        openapi: 3.0.3
+        info:
+          title: Order API
+          version: 1.0.0
+        paths:
+          /orders:
+            post:
+              operationId: replaceOrder
+        """;
+    when(s3.readObjectBytes("changed-key")).thenReturn(uploaded.getBytes());
+    when(client.searchSystems(any()))
+        .thenReturn(
+            List.of(new CatalogRestClient.SystemDto("sys-1", "Order API", "INTERNAL", null)));
+    when(client.getEnvironments("sys-1"))
+        .thenReturn(List.of(new CatalogRestClient.EnvironmentDto("env-1", "default", null)));
+    when(client.getSpecificationGroups("sys-1"))
+        .thenReturn(List.of(new CatalogRestClient.SpecificationGroupDto("sg-1", "Order API")));
+    when(client.getApiSpecifications("sys-1"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SpecificationDto(
+                    "spec-1", "Order API", "sg-1", "sys-1")));
+    when(client.getModelSource("spec-1"))
+        .thenReturn(
+            """
+            openapi: 3.0.3
+            info:
+              title: Order API
+              version: 1.0.0
+            paths:
+              /orders:
+                post:
+                  operationId: createOrder
+            """);
+    when(importer.importOpenApiDocumentIntoGroup(
+            eq("sys-1"), eq("sg-1"), any(byte[].class), eq("renamed-orders.yaml")))
+        .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-2", "sg-1", "import-2"));
+
+    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecImportOutcome outcome =
+        service.importSpec(
+            "conv-1", new UploadedSpecAttachment("changed-key", "renamed-orders.yaml"));
+
+    assertEquals(false, outcome.reused());
+    assertEquals("spec-2", outcome.specificationId());
+    verify(importer)
+        .importOpenApiDocumentIntoGroup(
+            eq("sys-1"), eq("sg-1"), any(byte[].class), eq("renamed-orders.yaml"));
+  }
+
+  @Test
+  void doesNotImportWhenExistingSourceCannotBeCompared() {
+    S3Service s3 = mock(S3Service.class);
+    CatalogRestClient client = mock(CatalogRestClient.class);
+    CatalogSpecificationImporter importer = mock(CatalogSpecificationImporter.class);
+    ConversationCatalogCache cache = mock(ConversationCatalogCache.class);
+    byte[] uploaded = "{\"info\":{\"title\":\"Order API\"}}".getBytes();
+    when(s3.readObjectBytes("key")).thenReturn(uploaded);
+    when(client.searchSystems(any()))
+        .thenReturn(
+            List.of(new CatalogRestClient.SystemDto("sys-1", "Order API", "INTERNAL", null)));
+    when(client.getEnvironments("sys-1"))
+        .thenReturn(List.of(new CatalogRestClient.EnvironmentDto("env-1", "default", null)));
+    when(client.getSpecificationGroups("sys-1"))
+        .thenReturn(List.of(new CatalogRestClient.SpecificationGroupDto("sg-1", "Order API")));
+    when(client.getApiSpecifications("sys-1"))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.SpecificationDto(
+                    "spec-1", "Order API", "sg-1", "sys-1")));
+    when(client.getModelSource("spec-1")).thenThrow(new RuntimeException("catalog unavailable"));
+
+    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+
+    assertThrows(
+        IllegalStateException.class,
+        () -> service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders.yaml")));
+    verify(importer, never()).importOpenApiDocumentIntoGroup(any(), any(), any(), any());
+    verify(importer, never()).importOpenApiDocument(any(), any(), any(), any(), any());
   }
 
   @Test

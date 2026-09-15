@@ -414,6 +414,11 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public String getModelSource(String modelId) {
+    return null;
+  }
+
+  @Override
   public OperationDto getOperation(String operationId) {
     throw unsupported("getOperation");
   }
