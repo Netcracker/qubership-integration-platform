@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.langchain4j.model.ModelProvider;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
-import dev.langchain4j.model.openai.OpenAiChatRequestParameters;
+import dev.langchain4j.model.openai.OpenAiResponsesChatRequestParameters;
 import io.quarkiverse.langchain4j.ModelName;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -93,11 +93,26 @@ class RateLimitChatModelWiringIT {
     assertFalse(
         openAiStreamingChatModel instanceof RateLimitStreamingChatModel,
         "Named upstream StreamingChatModel must stay unwrapped");
+    OpenAiResponsesChatRequestParameters openAiParameters =
+        assertInstanceOf(
+            OpenAiResponsesChatRequestParameters.class,
+            openAiChatModel.defaultRequestParameters(),
+            "Named OpenAI ChatModel must use the Responses API");
+    OpenAiResponsesChatRequestParameters openAiStreamingParameters =
+        assertInstanceOf(
+            OpenAiResponsesChatRequestParameters.class,
+            openAiStreamingChatModel.defaultRequestParameters(),
+            "Named OpenAI StreamingChatModel must use the Responses API");
     assertEquals(
-        "none",
-        ((OpenAiChatRequestParameters) openAiStreamingChatModel.defaultRequestParameters())
-            .reasoningEffort(),
+        "medium",
+        openAiParameters.reasoningEffort(),
+        "Named upstream ChatModel must preserve the configured reasoning effort");
+    assertEquals(
+        "medium",
+        openAiStreamingParameters.reasoningEffort(),
         "Named upstream StreamingChatModel must preserve the configured reasoning effort");
+    assertEquals(16, openAiParameters.maxOutputTokens());
+    assertEquals(16, openAiStreamingParameters.maxOutputTokens());
     assertTrue(
         rateLimited.delegate() == openAiChatModel
             || rateLimited.delegate().getClass().equals(openAiChatModel.getClass()),
