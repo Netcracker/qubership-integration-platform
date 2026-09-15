@@ -45,6 +45,8 @@ public class DeploymentInfo {
     private String chainStatusCode;
     @Schema(description = "Timestamp of object creation")
     private Long createdWhen;
+    @Schema(description = "Name of the user who created that deployment")
+    private String createdBy;
     @Schema(description = "Whether chain contains checkpoint elements")
     private Boolean containsCheckpointElements;
     @Schema(description = "Whether chain contains scheduler elements")
