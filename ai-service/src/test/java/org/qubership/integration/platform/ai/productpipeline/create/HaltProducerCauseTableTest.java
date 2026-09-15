@@ -17,6 +17,13 @@ import org.qubership.integration.platform.ai.productpipeline.create.OwnerCandida
 class HaltProducerCauseTableTest {
 
   @Test
+  void uploadedSpecImportFailuresBelongToSpecificationImport() {
+    assertEquals(
+        HaltProducer.SPECIFICATION_IMPORT,
+        HaltProducer.ofCapability(AutoUploadedSpecImportCapability.CAPABILITY_ID));
+  }
+
+  @Test
   void everyProducerListsAtLeastOneCauseAndEveryCauseIsKnown() {
     Set<RecoveryCauseCode> allCodes = EnumSet.allOf(RecoveryCauseCode.class);
     Set<RecoveryCauseCode> emitted = EnumSet.noneOf(RecoveryCauseCode.class);

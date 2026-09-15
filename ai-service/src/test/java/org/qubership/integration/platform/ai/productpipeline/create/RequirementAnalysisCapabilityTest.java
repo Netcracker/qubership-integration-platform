@@ -277,6 +277,44 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
+  void reportsTheReadinessViolationInsteadOfClaimingTheDraftIsMissing() {
+    RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
+    List<RequirementFact> facts =
+        approved.facts().stream()
+            .map(
+                fact ->
+                    "http-trigger".equals(fact.capabilityKey())
+                        ? new RequirementFact(
+                            fact.sourceFactId() + "-trigger",
+                            fact.polarity(),
+                            fact.kind(),
+                            fact.capabilityKey(),
+                            fact.text(),
+                            fact.participant(),
+                            fact.operation(),
+                            fact.topic(),
+                            fact.httpMethod(),
+                            fact.path(),
+                            fact.serviceCallId())
+                        : fact)
+            .toList();
+    RequirementDraft invalid = approved.withFacts(facts);
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> coveringBrief(approved, "unused"));
+
+    CapabilitySignal.Completed completed = run(capability, invalid);
+
+    assertEquals(StageOutcomeClass.MISSING_MANDATORY_INPUT, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().message().contains("has no matching inbound interaction"));
+    assertFalse(completed.outcome().message().contains("is required for analysis"));
+  }
+
+  @Test
   void analysisRejectsBriefMissingSourceFact() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     List<RequirementFact> incomplete = approved.facts().subList(0, approved.facts().size() - 1);

@@ -398,6 +398,16 @@ public class RequirementDraftTool {
           return finish(conversationId, startMs, topologyError);
         }
       }
+      facts = alignNativeTriggerOwners(capturedFlow, facts);
+      duplicateFactError = validateUniqueFacts(facts);
+      if (duplicateFactError != null) {
+        LOG.warnf(
+            "captureRequirementDraft: validation failed after native trigger alignment"
+                + " conversationId=%s reason=%s",
+            conversationId, duplicateFactError);
+        store.recordCaptureRejection(conversationId, duplicateFactError);
+        return finish(conversationId, startMs, duplicateFactError);
+      }
       final List<RequirementFact> capturedFacts = facts;
       String duplicateCallError = validateUniqueServiceCallIds(facts);
       if (duplicateCallError != null) {
@@ -1206,6 +1216,68 @@ public class RequirementDraftTool {
     }
     List<String> keys = conversationService.getAllowedAttachmentKeys(conversationId);
     return keys != null && !keys.isEmpty();
+  }
+
+  private static List<RequirementFact> alignNativeTriggerOwners(
+      RequirementFlow flow, List<RequirementFact> facts) {
+    if (flow == null || flow.interactions().isEmpty() || facts == null || facts.isEmpty()) {
+      return facts == null ? List.of() : facts;
+    }
+    List<RequirementFact> aligned = new ArrayList<>(facts.size());
+    for (RequirementFact fact : facts) {
+      if (!isUnownedNativeTrigger(flow, fact)) {
+        aligned.add(fact);
+        continue;
+      }
+      List<RequirementFlow.Interaction> matches =
+          flow.interactions().stream()
+              .filter(interaction -> interaction.direction() == RequirementFlow.Direction.INBOUND)
+              .filter(interaction -> matchesNativeTrigger(interaction, fact))
+              .toList();
+      if (matches.size() != 1) {
+        aligned.add(fact);
+        continue;
+      }
+      aligned.add(withSourceFactId(fact, matches.getFirst().interactionId()));
+    }
+    return List.copyOf(aligned);
+  }
+
+  private static boolean isUnownedNativeTrigger(RequirementFlow flow, RequirementFact fact) {
+    return fact != null
+        && fact.polarity() == RequirementFactPolarity.POSITIVE
+        && fact.kind() == RequirementFactKind.CAPABILITY
+        && ("http-trigger".equals(fact.capabilityKey())
+            || "kafka-trigger-2".equals(fact.capabilityKey()))
+        && flow.interaction(fact.sourceFactId()).isEmpty();
+  }
+
+  private static boolean matchesNativeTrigger(
+      RequirementFlow.Interaction interaction, RequirementFact fact) {
+    if ("http-trigger".equals(fact.capabilityKey())) {
+      String[] operation = interaction.operation().trim().split("\\s+", 2);
+      return operation.length == 2
+          && operation[0].equalsIgnoreCase(fact.httpMethod())
+          && operation[1].equals(fact.path());
+    }
+    return "kafka-trigger-2".equals(fact.capabilityKey())
+        && !fact.topic().isBlank()
+        && fact.topic().equals(interaction.operation().trim());
+  }
+
+  private static RequirementFact withSourceFactId(RequirementFact fact, String sourceFactId) {
+    return new RequirementFact(
+        sourceFactId,
+        fact.polarity(),
+        fact.kind(),
+        fact.capabilityKey(),
+        fact.text(),
+        fact.participant(),
+        fact.operation(),
+        fact.topic(),
+        fact.httpMethod(),
+        fact.path(),
+        fact.serviceCallId());
   }
 
   private static String rejectTopologyFacts(List<RequirementFact> facts) {

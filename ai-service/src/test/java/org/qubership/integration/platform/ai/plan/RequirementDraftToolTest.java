@@ -746,6 +746,75 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureAlignsUploadedHttpTriggerFactWithItsInboundInteraction() {
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "draft-conv", List.of("sessions/conv/orders.yaml"));
+    RequirementDraftTool tool = RequirementDraftTool.withConversationService(store, conversations);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Expose GET /orders using the attached specifications",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                sampleFactsWithTrigger("orders-http-trigger"),
+                null,
+                nativeHttpFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertTrue(result.contains("Requirement draft captured"), result);
+    assertTrue(draft.readyForPlan(), draft.toString());
+    RequirementFact trigger =
+        draft.facts().stream()
+            .filter(fact -> "http-trigger".equals(fact.capabilityKey()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals("orders-http", trigger.sourceFactId());
+  }
+
+  @Test
+  void captureDoesNotGuessHttpTriggerOwnerWhenMultipleInboundInteractionsMatch() {
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "draft-conv", List.of("sessions/conv/orders.yaml"));
+    RequirementDraftTool tool = RequirementDraftTool.withConversationService(store, conversations);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow ambiguousFlow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("orders-primary", Direction.INBOUND, "Caller", "GET /orders", ""),
+                new Interaction("orders-secondary", Direction.INBOUND, "Caller", "GET /orders", "")),
+            List.of());
+
+    tool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "Expose GET /orders using the attached specifications",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            sampleFactsWithTrigger("orders-http-trigger"),
+            null,
+            ambiguousFlow));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertFalse(draft.readyForPlan());
+    assertEquals(
+        "orders-http-trigger",
+        draft.facts().stream()
+            .filter(fact -> "http-trigger".equals(fact.capabilityKey()))
+            .findFirst()
+            .orElseThrow()
+            .sourceFactId());
+  }
+
+  @Test
   void captureIsReadyWhenEveryServiceCallHasItsOwnResolution() {
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
     RequirementDraftTool tool = RequirementDraftTool.withResolutions(store, resolutions);

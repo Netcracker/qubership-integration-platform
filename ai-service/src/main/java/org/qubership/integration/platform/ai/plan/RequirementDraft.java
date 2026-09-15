@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -396,10 +397,26 @@ public record RequirementDraft(
   }
 
   public boolean readyForPlan() {
-    return decision == DraftDecision.READY_FOR_PLAN
-        && openQuestions.isEmpty()
-        && !flow.interactions().isEmpty()
-        && RequirementFlowValidator.validateBindings(flow, facts, catalogBindings).isEmpty();
+    return readinessError().isEmpty();
+  }
+
+  /** Returns the first reason this draft cannot cross the requirement-analysis boundary. */
+  public Optional<String> readinessError() {
+    if (flow.interactions().isEmpty()) {
+      return Optional.of("requirement draft has no flow interactions");
+    }
+    Optional<String> bindingError =
+        RequirementFlowValidator.validateBindings(flow, facts, catalogBindings);
+    if (bindingError.isPresent()) {
+      return bindingError;
+    }
+    if (decision != DraftDecision.READY_FOR_PLAN) {
+      return Optional.of("requirement draft decision is " + decision);
+    }
+    if (!openQuestions.isEmpty()) {
+      return Optional.of("requirement draft still has open questions");
+    }
+    return Optional.empty();
   }
 
   public boolean hasPendingImport() {
