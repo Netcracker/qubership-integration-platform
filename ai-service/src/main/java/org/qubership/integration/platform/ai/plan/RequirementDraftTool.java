@@ -228,6 +228,9 @@ public class RequirementDraftTool {
       Do not add publish or subscribe to the business flow; runtime validates those catalog verbs
       against the captured direction. Keep payload constants and mapping rules out of operation
       names.
+      Do not model an HTTP response as a separate OUTBOUND interaction. Keep response fields and
+      response mappings as BEHAVIOR facts; OUTBOUND interactions are external calls or publishes
+      that require a catalog binding.
       Do not author ENDPOINT or SERVICE_CALL topology facts. Java projects those roles from the
       flow. Keep facts as ordinary constraints and native-trigger configuration: polarity, text,
       and optional kind (GOAL, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY, VISIBILITY, ROUTING).

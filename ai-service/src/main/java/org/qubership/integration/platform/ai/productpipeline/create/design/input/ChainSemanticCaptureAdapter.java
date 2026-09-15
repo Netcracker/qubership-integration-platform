@@ -20,6 +20,8 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
@@ -104,7 +106,6 @@ public class ChainSemanticCaptureAdapter {
         throw new IllegalArgumentException("Duplicate nodeId: " + node.nodeId());
       }
     }
-
     List<SemanticRegion> regions = regions(capture);
     Set<String> regionIds = new LinkedHashSet<>();
     for (SemanticRegion region : regions) {
@@ -120,6 +121,7 @@ public class ChainSemanticCaptureAdapter {
     requireApprovedAnchorGraph(authoritative, triggerBindings, briefServiceCalls, edges);
     List<MappingIntent> mappingIntents = mappingIntents(authoritative, edges, nodes);
     List<SemanticContainment> containment = containment(capture, nodeIds);
+    requirePositiveBehaviorCoverage(authoritative, nodes);
 
     ChainSemanticRevision forIdentity =
         new ChainSemanticRevision(
@@ -278,6 +280,27 @@ public class ChainSemanticCaptureAdapter {
       throw new IllegalArgumentException("The capture has no nodes");
     }
     return List.copyOf(nodes);
+  }
+
+  private static void requirePositiveBehaviorCoverage(
+      RequirementBrief brief, List<SemanticNode> nodes) {
+    Set<String> coveredFactIds = new LinkedHashSet<>();
+    for (SemanticNode node : nodes) {
+      coveredFactIds.addAll(node.provenance().sourceFactIds());
+    }
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null
+          || fact.polarity() != RequirementFactPolarity.POSITIVE
+          || fact.kind() != RequirementFactKind.BEHAVIOR
+          || coveredFactIds.contains(fact.sourceFactId())) {
+        continue;
+      }
+      throw new IllegalArgumentException(
+          "Positive BEHAVIOR fact '"
+              + fact.sourceFactId()
+              + "' has no semantic node. Add the required internal operation with this"
+              + " sourceFactId and place it in the execution edges.");
+    }
   }
 
   // Entry points

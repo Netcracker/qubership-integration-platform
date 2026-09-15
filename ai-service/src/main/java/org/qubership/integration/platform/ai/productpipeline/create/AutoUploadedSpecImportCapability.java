@@ -98,10 +98,10 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
     String conversationId = context.conversationId();
 
     Optional<RequirementDraft> currentDraft = resolveCurrentDraft(context);
-    if (currentDraft.isPresent() && hasCatalogBinding(currentDraft.get())) {
+    if (currentDraft.isPresent() && allRequiredCallsBound(currentDraft.get())) {
       RequirementDraft draft = currentDraft.get();
       LOG.infof(
-          "Skipped uploaded-spec import: requirement draft already has catalog binding conversationId=%s",
+          "Skipped uploaded-spec import: all required service calls are bound conversationId=%s",
           conversationId);
       return Multi.createFrom().item(succeededWithDraft(context, draft));
     }
@@ -115,7 +115,9 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         conversationId,
         currentKeys == null ? 0 : currentKeys.size(),
         approvalKeys.size(),
-        currentDraft.map(d -> "present[binding=" + hasCatalogBinding(d) + "]").orElse("none"));
+        currentDraft
+            .map(d -> "present[allRequiredCallsBound=" + allRequiredCallsBound(d) + "]")
+            .orElse("none"));
     if ((currentKeys == null || currentKeys.isEmpty()) && approvalKeys.isEmpty()) {
       LOG.infof(
           "auto-uploaded-spec-import: no attachment keys conversationId=%s; skipping import",
@@ -655,18 +657,33 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
   private record UploadedSpecFact(String specTitle, String operationId, String channel) {}
 
   private Optional<RequirementDraft> resolveCurrentDraft(StageExecutionContext context) {
-    if (draftStore != null) {
-      Optional<RequirementDraft> stored = draftStore.get(context.conversationId());
-      if (stored.isPresent()) {
-        return stored;
-      }
-    }
     Optional<RequirementDraft> input = resolveDraftFromInputRefs(context);
-    if (input.isPresent()) {
-      return input;
+    Optional<RequirementDraft> stored =
+        draftStore == null ? Optional.empty() : draftStore.get(context.conversationId());
+    if (input.isPresent() && stored.isPresent()) {
+      RequirementDraft inputDraft = input.orElseThrow();
+      RequirementDraft storedDraft = stored.orElseThrow();
+      RequirementDraft current = moreAdvanced(inputDraft, storedDraft) ? inputDraft : storedDraft;
+      RequirementDraft other = current == inputDraft ? storedDraft : inputDraft;
+      for (CatalogBindingHint hint : other.catalogBindings()) {
+        if (current.catalogBinding(hint.interactionId()).isEmpty()) {
+          current = current.withBoundInteraction(hint.interactionId(), hint);
+        }
+      }
+      return Optional.of(current);
+    }
+    if (input.isPresent() || stored.isPresent()) {
+      return input.isPresent() ? input : stored;
     }
     Object approved = context.attributes().get("approvedDraft");
     return approved instanceof RequirementDraft draft ? Optional.of(draft) : Optional.empty();
+  }
+
+  private static boolean moreAdvanced(RequirementDraft left, RequirementDraft right) {
+    if (left.readyForPlan() != right.readyForPlan()) {
+      return left.readyForPlan();
+    }
+    return left.catalogBindings().size() > right.catalogBindings().size();
   }
 
   private Optional<RequirementDraft> resolveDraftFromInputRefs(StageExecutionContext context) {
@@ -678,8 +695,16 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         .map(revision -> artifactStore.payload(revision, RequirementDraft.class));
   }
 
-  private static boolean hasCatalogBinding(RequirementDraft draft) {
-    return draft != null && draft.selectedImportCallAlreadyBound();
+  private static boolean allRequiredCallsBound(RequirementDraft draft) {
+    if (draft == null) {
+      return false;
+    }
+    if (draft.flow() != null && !draft.flow().interactions().isEmpty()) {
+      return RequirementFlowValidator.validateBindings(
+              draft.flow(), draft.facts(), draft.catalogBindings())
+          .isEmpty();
+    }
+    return !draft.catalogBindings().isEmpty();
   }
 
   private static CapabilitySignal.Completed succeededWithDraft(
@@ -690,7 +715,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
             List.of(
                 new ArtifactCandidate(
                     CompilationArtifacts.Kind.REQUIREMENT_DRAFT, draft, context.inputRefs())),
-            "Skipped uploaded-spec import: requirement draft already has catalog binding",
+            "Skipped uploaded-spec import: all required service calls are bound",
             null));
   }
 

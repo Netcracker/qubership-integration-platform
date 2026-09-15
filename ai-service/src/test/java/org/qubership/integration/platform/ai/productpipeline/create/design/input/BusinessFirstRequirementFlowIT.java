@@ -95,7 +95,7 @@ class BusinessFirstRequirementFlowIT {
 
   private static ChainSemanticCapture rockyMappedCapture(String mappingIntentId) {
     return ChainSemanticCaptureFixtures.rockyCapture(
-        List.of(new CapturedOperation("mapper-1", "script", List.of())),
+        List.of(new CapturedOperation("mapper-1", "script", List.of("fact-script"))),
         List.of(
             new CapturedEdge("task-start", "create-task", null, null, null, null, null, null),
             new CapturedEdge(
