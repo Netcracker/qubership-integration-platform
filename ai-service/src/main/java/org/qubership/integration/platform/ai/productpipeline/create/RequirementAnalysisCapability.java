@@ -288,13 +288,22 @@ public class RequirementAnalysisCapability implements StageCapability {
   public Multi<CapabilitySignal> execute(StageExecutionContext context) {
     Objects.requireNonNull(context, "context");
     RequirementDraft approved = resolveApprovedDraft(context);
-    if (approved == null || !approved.readyForPlan()) {
+    if (approved == null) {
       return Multi.createFrom()
           .item(
               new CapabilitySignal.Completed(
                   StageOutcome.of(
                       StageOutcomeClass.MISSING_MANDATORY_INPUT,
                       "Approved requirement draft is required for analysis")));
+    }
+    if (!approved.readyForPlan()) {
+      return Multi.createFrom()
+          .item(
+              new CapabilitySignal.Completed(
+                  StageOutcome.of(
+                      StageOutcomeClass.MISSING_MANDATORY_INPUT,
+                      "Approved requirement draft is not ready for analysis: "
+                          + approved.readinessError().orElse("unknown readiness error"))));
     }
     RequirementDraft prepared = approved;
 

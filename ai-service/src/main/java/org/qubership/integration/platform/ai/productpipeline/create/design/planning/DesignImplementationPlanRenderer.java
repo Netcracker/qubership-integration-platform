@@ -6,6 +6,7 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -115,11 +116,24 @@ public final class DesignImplementationPlanRenderer {
           approvedRequirementFacts.add(fact.text());
         }
       }
+      for (CatalogBindingHint binding : brief.catalogBindings()) {
+        String bindingFact = serviceBindingFact(binding);
+        if (!serviceBindings.contains(bindingFact)) {
+          serviceBindings.add(bindingFact);
+        }
+      }
     }
     if (!approvedRequirementFacts.isEmpty()) {
       body.append('\n').append("## Approved requirement facts").append('\n');
       for (String fact : approvedRequirementFacts) {
         body.append("- ").append(fact).append('\n');
+      }
+    }
+
+    if (!serviceBindings.isEmpty()) {
+      body.append('\n').append("## Service bindings").append('\n');
+      for (String binding : serviceBindings) {
+        body.append("- ").append(binding).append('\n');
       }
     }
 
@@ -176,5 +190,20 @@ public final class DesignImplementationPlanRenderer {
         skillOwnership,
         sourceArtifactReferences,
         dependencyProvenance);
+  }
+
+  private static String serviceBindingFact(CatalogBindingHint binding) {
+    return binding.interactionId()
+        + " -> "
+        + binding.operationQuery()
+        + " [systemId="
+        + binding.systemId()
+        + ", specificationGroupId="
+        + binding.specificationGroupId()
+        + ", specificationId="
+        + binding.specificationId()
+        + ", integrationOperationId="
+        + binding.integrationOperationId()
+        + "]";
   }
 }
