@@ -19,8 +19,10 @@ package org.qubership.integration.platform.runtime.catalog.service.ddsgenerator.
 import com.vladsch.flexmark.formatter.Formatter;
 import com.vladsch.flexmark.parser.Parser;
 import com.vladsch.flexmark.util.ast.Node;
-import freemarker.cache.StringTemplateLoader;
+import freemarker.cache.NullCacheStorage;
+import freemarker.cache.TemplateLoader;
 import freemarker.template.Configuration;
+import freemarker.template.Template;
 import io.micrometer.core.instrument.util.IOUtils;
 import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
@@ -39,7 +41,6 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.d
 import org.qubership.integration.platform.runtime.catalog.model.dds.TemplateData;
 import org.qubership.integration.platform.runtime.catalog.model.dds.TemplateSequenceDiagram;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
-import org.qubership.integration.platform.runtime.catalog.persistence.TransactionHandler;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
@@ -65,14 +66,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -85,13 +86,10 @@ public class DetailedDesignService {
     private final SystemModelService systemModelService;
     private final OperationService operationService;
     private final ActionsLogService actionLogger;
-    private final TransactionHandler transactionHandler;
     private final TemplateDataBuilder templateDataBuilder;
     private final DetailedDesignTemplateRepository designTemplateRepository;
 
-    private final StringTemplateLoader freemakerTemplateLoader;
     private final Configuration freemakerConfiguration;
-    private final ReadWriteLock readWriteLock = new ReentrantReadWriteLock();
 
     private final Parser markdownParser;
     private final Formatter markdownRenderer;
@@ -101,19 +99,16 @@ public class DetailedDesignService {
 
     @Autowired
     public DetailedDesignService(ChainFinderService chainFinderService, SystemModelService systemModelService, OperationService operationService, ActionsLogService actionLogger,
-                                 TransactionHandler transactionHandler, TemplateDataBuilder templateDataBuilder,
+                                 TemplateDataBuilder templateDataBuilder,
                                  DetailedDesignTemplateRepository designTemplateRepository,
-                                 StringTemplateLoader freemakerTemplateLoader, Configuration freemakerConfig,
                                  Parser markdownParser, Formatter markdownRenderer) {
         this.chainFinderService = chainFinderService;
         this.systemModelService = systemModelService;
         this.operationService = operationService;
         this.actionLogger = actionLogger;
-        this.transactionHandler = transactionHandler;
         this.templateDataBuilder = templateDataBuilder;
         this.designTemplateRepository = designTemplateRepository;
-        this.freemakerTemplateLoader = freemakerTemplateLoader;
-        this.freemakerConfiguration = freemakerConfig;
+        this.freemakerConfiguration = createFreemakerConfiguration();
         this.markdownParser = markdownParser;
         this.markdownRenderer = markdownRenderer;
     }
@@ -127,18 +122,6 @@ public class DetailedDesignService {
             Map<String, Resource> resources = ResourceLoaderUtils.loadFiles(CLASSPATH_DDS_TEMPLATES_PATTERN);
             for (Map.Entry<String, Resource> dirPathToDescriptorFile : resources.entrySet()) {
                 loadBuiltinTemplate(dirPathToDescriptorFile.getKey(), dirPathToDescriptorFile.getValue());
-            }
-
-            // load custom templates from db
-            readWriteLock.writeLock().lock();
-            try {
-                transactionHandler.runInTransaction(() -> {
-                    for (DetailedDesignTemplate template : designTemplateRepository.findAll()) {
-                        freemakerTemplateLoader.putTemplate(template.getName(), template.getContent());
-                    }
-                });
-            } finally {
-                readWriteLock.writeLock().unlock();
             }
             log.info("Detailed design templates loading finished");
         } catch (Exception e) {
@@ -155,16 +138,14 @@ public class DetailedDesignService {
         templateData = templateDataBuilder.build(chain, elements);
 
         // template + data -> markdown
+        String content = getTemplate(templateId).getContent();
         Writer writer = new StringWriter();
-        readWriteLock.readLock().lock();
         try {
-            freemakerConfiguration.getTemplate(templateId).process(templateData, writer);
+            new Template(templateId, content, freemakerConfiguration).process(templateData, writer);
         } catch (Exception e) {
             log.warn("Failed to build detailed design from template '{}': {}", templateId, e.getMessage());
             throw new TemplateProcessingException("Failed to build detailed design from template '"
                                                   + templateId + "': " + e.getMessage(), e);
-        } finally {
-            readWriteLock.readLock().unlock();
         }
 
         // additional data
@@ -234,12 +215,6 @@ public class DetailedDesignService {
                         .name(name)
                         .content(content)
                         .build());
-        readWriteLock.writeLock().lock();
-        try {
-            freemakerTemplateLoader.putTemplate(template.getId(), template.getContent());
-        } finally {
-            readWriteLock.writeLock().unlock();
-        }
 
         logChainAction(id, LogOperation.CREATE_OR_UPDATE);
 
@@ -303,6 +278,36 @@ public class DetailedDesignService {
         return specs;
     }
 
+    private Configuration createFreemakerConfiguration() {
+        Configuration configuration = new Configuration(Configuration.VERSION_2_3_33);
+        // an included template resolves from the same source as the rendered one, never from a stale copy
+        configuration.setTemplateLoader(new TemplateLoader() {
+            @Override
+            public Object findTemplateSource(String name) {
+                return builtinTemplates.containsKey(name)
+                        ? builtinTemplates.get(name).getRight()
+                        : designTemplateRepository.findById(name).map(DetailedDesignTemplate::getContent).orElse(null);
+            }
+
+            @Override
+            public long getLastModified(Object templateSource) {
+                return -1;
+            }
+
+            @Override
+            public Reader getReader(Object templateSource, String encoding) {
+                return new StringReader((String) templateSource);
+            }
+
+            @Override
+            public void closeTemplateSource(Object templateSource) {
+            }
+        });
+        configuration.setCacheStorage(new NullCacheStorage());
+        configuration.setLocalizedLookup(false);
+        return configuration;
+    }
+
     private @NotNull String buildTemplateId(String name) {
         return name.toLowerCase();
     }
@@ -327,13 +332,6 @@ public class DetailedDesignService {
                 String id = buildTemplateId(name);
                 String content = IOUtils.toString(descriptorFile.getInputStream(), StandardCharsets.UTF_8);
                 builtinTemplates.put(id, Pair.of(name, content));
-
-                readWriteLock.writeLock().lock();
-                try {
-                    freemakerTemplateLoader.putTemplate(id, content);
-                } finally {
-                    readWriteLock.writeLock().unlock();
-                }
             } else {
                 log.warn("Descriptor file is missing for {}, skipping", elementName);
             }
