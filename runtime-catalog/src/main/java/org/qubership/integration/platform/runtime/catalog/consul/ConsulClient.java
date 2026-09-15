@@ -24,13 +24,11 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.consul.exception.ConsulException;
 import org.qubership.integration.platform.runtime.catalog.consul.exception.KVNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.consul.exception.TxnConflictException;
-import org.qubership.integration.platform.runtime.catalog.model.consul.KVResponse;
 import org.qubership.integration.platform.runtime.catalog.model.consul.KeyResponse;
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.request.TxnKVRequest;
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.request.TxnRequest;
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.request.TxnVerb;
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.response.TxnResponse;
-import org.qubership.integration.platform.runtime.catalog.model.consul.txn.response.TxnResponseResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -72,23 +70,6 @@ public class ConsulClient {
 
     public List<KeyResponse> getKV(String key, boolean recurse) throws KVNotFoundException {
         return waitForKVChanges(key, recurse, 0, "0").getRight();
-    }
-
-    /**
-     * Throws ConsulException if at least one key in a list is not present in consul
-     *
-     * @param keys path without leading slash (e.g. 'config/test/key')
-     */
-    public List<KVResponse> getKVsInTransaction(List<String> keys) throws ConsulException {
-        return doTxnBatchedRequest(
-                keys.stream()
-                        .map(key -> new TxnRequest(
-                                TxnKVRequest.builder()
-                                        .verb(TxnVerb.GET)
-                                        .key(key)
-                                        .build()))
-                        .toList()
-        ).getResults().stream().map(TxnResponseResult::getKv).toList();
     }
 
     public void deleteKey(String key) {
