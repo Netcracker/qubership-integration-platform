@@ -450,7 +450,7 @@ public class RequirementDraftTool {
               : reconcileCatalogBindings(boundFlow, previous, conversationId);
       boolean candidateSatisfiedByCatalog =
           candidate != null
-              && candidateSatisfiedByCatalog(candidate, boundFlow, catalogBindings);
+              && candidateSatisfiedByCatalog(candidate, boundFlow, facts, catalogBindings);
       if (candidateSatisfiedByCatalog) {
         LOG.infof(
             "captureRequirementDraft: ignored API Hub candidate already bound in catalog"
@@ -1572,10 +1572,15 @@ public class RequirementDraftTool {
   private static boolean candidateSatisfiedByCatalog(
       ApiHubRequirementRefs candidate,
       RequirementFlow flow,
+      List<RequirementFact> facts,
       List<CatalogBindingHint> catalogBindings) {
     String operationId = CatalogStrings.blankToNull(candidate.operationId());
-    if (operationId == null || flow == null || catalogBindings == null) {
+    if (flow == null || catalogBindings == null) {
       return false;
+    }
+    if (operationId == null) {
+      return !catalogBindings.isEmpty()
+          && RequirementFlowValidator.validateBindings(flow, facts, catalogBindings).isEmpty();
     }
     List<String> matchingInteractions =
         flow.interactions().stream()
