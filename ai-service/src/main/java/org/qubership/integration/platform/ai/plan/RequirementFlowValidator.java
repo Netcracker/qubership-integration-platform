@@ -317,7 +317,7 @@ public final class RequirementFlowValidator {
     return Optional.empty();
   }
 
-  static boolean hasNativeInboundTriggerFact(
+  public static boolean hasNativeInboundTriggerFact(
       Interaction interaction, List<RequirementFact> facts) {
     return facts.stream()
         .anyMatch(

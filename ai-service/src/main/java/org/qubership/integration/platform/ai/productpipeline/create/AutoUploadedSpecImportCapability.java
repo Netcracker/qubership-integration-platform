@@ -26,9 +26,9 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
@@ -475,7 +475,8 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       return;
     }
     for (RequirementFlow.Interaction interaction : flow.interactions()) {
-      if (interaction == null || interaction.direction() != Direction.OUTBOUND) {
+      if (interaction == null
+          || RequirementFlowValidator.hasNativeInboundTriggerFact(interaction, facts)) {
         continue;
       }
       if (alreadyBound(hints, interaction.interactionId())) {

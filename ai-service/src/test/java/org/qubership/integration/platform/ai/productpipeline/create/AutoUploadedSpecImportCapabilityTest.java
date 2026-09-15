@@ -714,6 +714,96 @@ class AutoUploadedSpecImportCapabilityTest {
   }
 
   @Test
+  void bindsCatalogBackedInboundInteractionFromUploadedSpec() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
+    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway, conversationService, artifactStore, handler, matcher, draftStore);
+    RequirementDraft draft =
+        draft()
+            .withFacts(
+                List.of(
+                    RequirementFact.of(
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.GOAL,
+                        "chain",
+                        "Receive OM onTaskStart and create a Salesforce task")))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction(
+                            "on-task-start", Direction.INBOUND, "OM", "onTaskStart", ""),
+                        new Interaction(
+                            "create-salesforce-task",
+                            Direction.OUTBOUND,
+                            "Salesforce WFM",
+                            "createTask",
+                            "")),
+                    List.of(new Transition("on-task-start", "create-salesforce-task"))));
+    CompilationArtifacts.Reference draftRef = requirementDraftRef();
+    stubRequirementDraft(artifactStore, draftRef, draft);
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/integration.yaml"));
+    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
+        .thenReturn(
+            Uni.createFrom()
+                .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
+    when(matcher.matchImported(
+            eq("service-call"), any(), any(), any(), eq("onTaskStart"), eq("conv-1")))
+        .thenReturn(
+            new CatalogBindingMatcher.MatchResult.Exact(
+                new CatalogMatch(
+                    "sys-om",
+                    "group-om",
+                    "spec-om",
+                    "op-task-start",
+                    "OM",
+                    "kafka",
+                    "publish",
+                    "onTaskStart",
+                    "onTaskStart",
+                    "catalog-read:sys-om/spec-om/op-task-start")));
+    when(matcher.matchImported(
+            eq("service-call"), any(), any(), any(), eq("createTask"), eq("conv-1")))
+        .thenReturn(
+            new CatalogBindingMatcher.MatchResult.Exact(
+                new CatalogMatch(
+                    "sys-salesforce",
+                    "group-salesforce",
+                    "spec-salesforce",
+                    "op-create-task",
+                    "Salesforce WFM",
+                    "http",
+                    "POST",
+                    "/sobjects/Task",
+                    "createTask",
+                    "catalog-read:sys-salesforce/spec-salesforce/op-create-task")));
+    CompilationArtifacts.Reference approvalRef = approvalRef();
+    stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
+
+    CapabilitySignal.Completed completed = run(capability, draft, List.of(draftRef, approvalRef));
+
+    RequirementDraft updated =
+        (RequirementDraft)
+            completed.outcome().candidates().stream()
+                .filter(candidate -> candidate.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT)
+                .findFirst()
+                .orElseThrow()
+                .payload();
+    assertTrue(updated.readyForPlan());
+    assertEquals(2, updated.catalogBindings().size());
+    assertTrue(
+        updated.catalogBindings().stream()
+            .anyMatch(binding -> "on-task-start".equals(binding.interactionId())));
+  }
+
+  @Test
   void bindsDuplicateOperationIdsByCatalogPathWhenParticipantNamesDiffer() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     ConversationService conversationService = mock(ConversationService.class);
