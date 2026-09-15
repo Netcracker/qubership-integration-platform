@@ -244,6 +244,8 @@ public class ChatDecisionService {
     if (pending instanceof PendingAction.Approve approve
         && CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN.equals(approve.artifactType())) {
       actions = List.of(ChatEvent.APPROVE_AND_CREATE_ACTION, ChatEvent.REQUEST_CHANGES_ACTION);
+    } else if (pending instanceof PendingAction.Approve) {
+      actions = List.of(ChatEvent.APPROVE_ACTION, ChatEvent.REQUEST_CHANGES_ACTION);
     } else if (pending instanceof PendingAction.Clarify clarify) {
       List<String> clarifyActions = ChatEvent.actionsForClarify(clarify);
       actions = clarifyActions == null ? List.of() : clarifyActions;
