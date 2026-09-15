@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+#
+# Wait for the module builds a pull request triggers and fail if one fails.
+# The snapshot flow builds every module itself, so a module build only gates it:
+# a module the pull request does not touch is not built again.
+#
+# Usage: GH_TOKEN=... GITHUB_REPOSITORY=owner/repo PR_NUMBER=123 PR_HEAD_SHA=<sha> \
+#   PR_HEAD_REF_JSON='"branch"' PR_HEAD_REPOSITORY_JSON='"owner/repo"' \
+#   PR_UPDATED_AT_JSON='"2026-01-01T00:00:00Z"' GITHUB_STEP_SUMMARY=/dev/stdout \
+#   scripts/wait-for-module-builds.sh
+set -euo pipefail
+
+changed_files=$(gh api --paginate \
+    "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" \
+    --jq '.[].filename')
+
+integration_build_pipeline_expected=false
+runtime_catalog_expected=false
+micro_engine_expected=false
+
+# Keep these patterns aligned with the standalone module workflows.
+while IFS= read -r changed_file; do
+    case "$changed_file" in
+        integration-build-pipeline/* | parent/* | pom.xml)
+            integration_build_pipeline_expected=true
+            ;;
+    esac
+    case "$changed_file" in
+        integration-build-pipeline/* | runtime-catalog/* | parent/* | pom.xml)
+            runtime_catalog_expected=true
+            ;;
+    esac
+    case "$changed_file" in
+        micro-engine/* | pom.xml)
+            micro_engine_expected=true
+            ;;
+    esac
+done <<< "$changed_files"
+
+# Prints "<run id>\t<run url>" of the latest run for this pull request, or nothing.
+# A run from a fork lists no pull requests, so it is matched by its head.
+find_run() {
+    gh api --method GET \
+        "repos/${GITHUB_REPOSITORY}/actions/workflows/$1/runs" \
+        -f event=pull_request \
+        -f head_sha="$PR_HEAD_SHA" \
+        -F per_page=100 \
+        --jq "
+            .workflow_runs
+            | map(select(
+                .created_at >= ${PR_UPDATED_AT_JSON}
+                and (
+                  any(.pull_requests[]?; .number == ${PR_NUMBER})
+                  or (
+                    ((.pull_requests // []) | length) == 0
+                    and .head_branch == ${PR_HEAD_REF_JSON}
+                    and .head_repository.full_name == ${PR_HEAD_REPOSITORY_JSON}
+                  )
+                )
+              ))
+            | max_by(.run_number)
+            | select(. != null)
+            | [.id, .html_url]
+            | @tsv
+        "
+}
+
+wait_for_run() {
+    local build_name="$1"
+    local run_id="$2"
+    local run_url="$3"
+    local run_state
+    local status
+    local conclusion
+    local status_read_failures=0
+
+    while :; do
+        if ! run_state=$(gh api \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" \
+            --jq '[.status, (.conclusion // "")] | @tsv'); then
+            status_read_failures=$((status_read_failures + 1))
+            if [ "$status_read_failures" -ge 3 ]; then
+                echo "::error::Could not read ${build_name} status after three attempts: ${run_url}"
+                exit 1
+            fi
+            echo "::warning::Could not read ${build_name} status; retrying."
+            sleep 20
+            continue
+        fi
+        status_read_failures=0
+
+        IFS=$'\t' read -r status conclusion <<< "$run_state"
+        if [ "$status" = "completed" ]; then
+            if [ "$conclusion" != "success" ]; then
+                echo "::error::${build_name} did not complete successfully: ${run_url}"
+                exit 1
+            fi
+            return
+        fi
+
+        echo "Waiting for ${build_name} to complete (status: ${status})."
+        sleep 20
+    done
+}
+
+await_build() {
+    local workflow_file="$1"
+    local build_name="$2"
+    local expected="$3"
+    local run=""
+    local run_id
+    local run_url
+
+    if [ "$expected" != "true" ]; then
+        echo "| ${build_name} | not triggered |" >> "$GITHUB_STEP_SUMMARY"
+        return
+    fi
+
+    for _ in {1..12}; do
+        if ! run=$(find_run "$workflow_file"); then
+            echo "::warning::Could not inspect ${workflow_file}."
+            run=""
+        fi
+        [ -n "$run" ] && break
+        sleep 10
+    done
+
+    if [ -z "$run" ]; then
+        echo "::warning::${build_name} was not found; the snapshot flow runs without it."
+        echo "| ${build_name} | not found |" >> "$GITHUB_STEP_SUMMARY"
+        return
+    fi
+
+    IFS=$'\t' read -r run_id run_url <<< "$run"
+    echo "Waiting for ${build_name}: ${run_url}"
+    wait_for_run "$build_name" "$run_id" "$run_url"
+    echo "| ${build_name} | [passed](${run_url}) |" >> "$GITHUB_STEP_SUMMARY"
+}
+
+printf '### Module builds\n\n| Build | Result |\n| --- | --- |\n' >> "$GITHUB_STEP_SUMMARY"
+await_build integration-build-pipeline-build.yaml "Integration Build Pipeline Library Build" "$integration_build_pipeline_expected"
+await_build runtime-catalog-build.yaml "Runtime Catalog Build" "$runtime_catalog_expected"
+await_build micro-engine-build.yaml "Micro Engine Build" "$micro_engine_expected"
