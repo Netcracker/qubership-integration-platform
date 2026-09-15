@@ -494,6 +494,13 @@ describe("AiDecisionCard", () => {
           kind: "clarify",
           question: "Creation is paused.",
           actions: [action],
+          recovery: {
+            category: "unclassified-failure",
+            title: "Creation is paused",
+            summary: "The current attempt could not continue.",
+            preservedWork: "Approved checkpoints are available.",
+            technicalDetails: "",
+          },
         })}
         onAnswer={onAnswer}
       />,
@@ -511,29 +518,39 @@ describe("AiDecisionCard", () => {
   it.each([
     ["busy", { busy: true }],
     ["stale", { stale: true }],
-  ])("should disable restart checkpoints while the card is %s", (_state, props) => {
-    const onAnswer = jest.fn();
-    render(
-      <AiDecisionCard
-        decision={buildDecision({
-          kind: "clarify",
-          question: "Creation is paused.",
-          actions: ["restart-from-beginning"],
-        })}
-        onAnswer={onAnswer}
-        {...props}
-      />,
-    );
+  ])(
+    "should disable restart checkpoints while the card is %s",
+    (_state, props) => {
+      const onAnswer = jest.fn();
+      render(
+        <AiDecisionCard
+          decision={buildDecision({
+            kind: "clarify",
+            question: "Creation is paused.",
+            actions: ["restart-from-beginning"],
+            recovery: {
+              category: "unclassified-failure",
+              title: "Creation is paused",
+              summary: "The current attempt could not continue.",
+              preservedWork: "Approved checkpoints are available.",
+              technicalDetails: "",
+            },
+          })}
+          onAnswer={onAnswer}
+          {...props}
+        />,
+      );
 
-    const restart = screen.getByRole("button", { name: /Restart from/ });
-    expect(restart).toBeDisabled();
-    fireEvent.click(restart);
+      const restart = screen.getByRole("button", { name: /Restart from/ });
+      expect(restart).toBeDisabled();
+      fireEvent.click(restart);
 
-    expect(screen.queryByText("Beginning")).toBeNull();
-    expect(onAnswer).not.toHaveBeenCalled();
-  });
+      expect(screen.queryByText("Beginning")).toBeNull();
+      expect(onAnswer).not.toHaveBeenCalled();
+    },
+  );
 
-  it("should keep free-text clarification beside the restart menu", () => {
+  it("should hide restart checkpoints for a regular clarification", () => {
     const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();
     render(
@@ -548,13 +565,16 @@ describe("AiDecisionCard", () => {
       />,
     );
 
-    fireEvent.change(screen.getByPlaceholderText("Provide the missing information"), {
-      target: { value: "Use $.customer.id" },
-    });
+    fireEvent.change(
+      screen.getByPlaceholderText("Provide the missing information"),
+      {
+        target: { value: "Use $.customer.id" },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
     expect(onSubmitClarification).toHaveBeenCalledWith("Use $.customer.id");
-    expect(screen.getByRole("button", { name: /Restart from/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Restart from/ })).toBeNull();
     expect(onAnswer).not.toHaveBeenCalled();
   });
 
