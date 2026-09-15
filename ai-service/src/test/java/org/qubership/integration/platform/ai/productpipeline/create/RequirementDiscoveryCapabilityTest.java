@@ -1426,9 +1426,27 @@ class RequirementDiscoveryCapabilityTest {
   }
 
   @Test
-  void discoveryEmitsNoIdsBypassWhileTheAuthorHasNotSaid() {
+  void discoveryWaitsAtIdsChoiceWhileTheAuthorHasNotSaid() {
     RequirementDraftStore store = new RequirementDraftStore();
-    RequirementDraft undecided = petstoreServiceCallDraft();
+    RequirementDraft ready = petstoreServiceCallDraft();
+    RequirementDraft undecided =
+        new RequirementDraft(
+            false,
+            ready.assembledText(),
+            DraftDecision.NEEDS_INPUT,
+            List.of(),
+            ready.sourceSkillId(),
+            ready.sourceSkillVersion(),
+            ready.sourceSkillHash(),
+            ready.apiHubCandidate(),
+            ready.awaitingPlanContinuation(),
+            ready.facts(),
+            ready.importIntent(),
+            ready.apiHubCandidateInteractionId(),
+            null,
+            ready.flow(),
+            ready.catalogBindings(),
+            ready.preferredSystemType());
     RequirementDiscoveryCapability capability = discovery(store, undecided);
 
     ProductPipelineProfile withBypass =

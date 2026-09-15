@@ -745,6 +745,36 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void openDecisionKeepsApprovalActionsWhenRestartCheckpointsAreAvailable() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-1"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-1",
+                    "run-1",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    5L,
+                    new CreateChainPendingAction.Approve(
+                        "requirement-brief", "sha256:brief", 5L, "Approve the brief?"),
+                    "")));
+    when(facade.restartCheckpoints("conv-1"))
+        .thenReturn(List.of(RestartCheckpoint.BEGINNING));
+
+    ChatEvent.Decision decision =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-1")
+            .orElseThrow();
+
+    assertEquals(
+        List.of(
+            ChatEvent.APPROVE_ACTION,
+            ChatEvent.REQUEST_CHANGES_ACTION,
+            ChatEvent.RESTART_FROM_BEGINNING_ACTION),
+        decision.actions());
+  }
+
+  @Test
   void openDecisionReportsNothingWhenTheRunWaitsForNothing() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-1"))
