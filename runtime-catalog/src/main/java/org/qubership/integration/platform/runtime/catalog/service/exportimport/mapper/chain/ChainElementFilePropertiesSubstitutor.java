@@ -36,9 +36,12 @@ import static org.qubership.integration.platform.io.model.exportimport.ExportImp
 public class ChainElementFilePropertiesSubstitutor {
 
     private final ObjectMapper objectMapper;
+    private final ElementResourceFileNameBuilder resourceFileNameBuilder;
 
-    public ChainElementFilePropertiesSubstitutor(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper) {
+    public ChainElementFilePropertiesSubstitutor(@Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
+                                                 ElementResourceFileNameBuilder resourceFileNameBuilder) {
         this.objectMapper = objectMapper;
+        this.resourceFileNameBuilder = resourceFileNameBuilder;
     }
 
     public Map<String, byte[]> getElementPropertiesAsSeparateFiles(ChainElementExternalEntity externalElement) {
@@ -92,7 +95,7 @@ public class ChainElementFilePropertiesSubstitutor {
             }
 
             if (propertyContent != null) {
-                String propertiesFileName = generatePropertiesFileName(externalElement, propsToExportSeparately);
+                String propertiesFileName = resourceFileNameBuilder.generatePropertiesFileName(externalElement, propsToExportSeparately);
                 properties.put(FILE_NAME_PROPERTY, propertiesFileName);
                 propsToExportSeparately.forEach(properties::remove);
 
@@ -112,11 +115,11 @@ public class ChainElementFilePropertiesSubstitutor {
             String fileName;
             String propertyContent;
             if (SCRIPT.equals(afterProperty.get(TYPE))) {
-                fileName = generateAfterScriptFileName(externalElement.getId(), afterProperty);
+                fileName = resourceFileNameBuilder.generateAfterScriptFileName(externalElement.getId(), afterProperty);
                 propertyContent = afterProperty.get(SCRIPT) != null ? afterProperty.get(SCRIPT).toString() : "";
                 afterProperty.remove(SCRIPT);
             } else if (StringUtils.startsWith((String) afterProperty.get(TYPE), MAPPER)) {
-                fileName = generateAfterMapperFileName(externalElement.getId(), afterProperty);
+                fileName = resourceFileNameBuilder.generateAfterMapperFileName(externalElement.getId(), afterProperty);
                 propertyContent = extractPropertyStringForMapper(afterProperty);
             } else {
                 continue;
@@ -130,11 +133,11 @@ public class ChainElementFilePropertiesSubstitutor {
         String fileName;
         String propertyContent;
         if (SCRIPT.equals(beforeProperty.get(TYPE))) {
-            fileName = generateBeforeScriptFileName(externalElement.getId());
+            fileName = resourceFileNameBuilder.generateBeforeScriptFileName(externalElement.getId());
             propertyContent = beforeProperty.get(SCRIPT) != null ? beforeProperty.get(SCRIPT).toString() : "";
             beforeProperty.remove(SCRIPT);
         } else if (StringUtils.startsWith((String) beforeProperty.get(TYPE), MAPPER)) {
-            fileName = generateBeforeMapperFileName(externalElement.getId());
+            fileName = resourceFileNameBuilder.generateBeforeMapperFileName(externalElement.getId());
             propertyContent = extractPropertyStringForMapper(beforeProperty);
         } else {
             return result;
@@ -144,42 +147,6 @@ public class ChainElementFilePropertiesSubstitutor {
         result.put(fileName, propertyContent.getBytes());
 
         return result;
-    }
-
-    private String generatePropertiesFileName(ChainElementExternalEntity externalElement, List<String> propsToExportInSeparateFile) {
-        String prefix;
-
-        if (externalElement.getType() != null && externalElement.getType().startsWith(MAPPER)) {
-            prefix = propsToExportInSeparateFile.size() == 1 ? propsToExportInSeparateFile.get(0) : "mapper";
-        } else {
-            prefix = propsToExportInSeparateFile.size() == 1 ? propsToExportInSeparateFile.get(0) : "properties";
-        }
-
-        String extension = Optional.ofNullable(externalElement.getProperties().get(EXPORT_FILE_EXTENSION_PROPERTY))
-                .map(Object::toString)
-                .orElse(DEFAULT_EXTENSION);
-
-        return prefix + "-" + externalElement.getId() + "." + extension;
-    }
-
-    private String generateAfterScriptFileName(String id, Map<String, Object> afterProp) {
-        return SCRIPT + DASH + getIdOrCode(afterProp) + DASH + id + "." + GROOVY_EXTENSION;
-    }
-
-    private String generateBeforeScriptFileName(String id) {
-        return SCRIPT + DASH + BEFORE + DASH + id + "." + GROOVY_EXTENSION;
-    }
-
-    private String generateAfterMapperFileName(String id, Map<String, Object> afterProp) {
-        return MAPPING_DESCRIPTION + DASH + getIdOrCode(afterProp) + DASH + id + "." + JSON_EXTENSION;
-    }
-
-    private String generateBeforeMapperFileName(String id) {
-        return MAPPING_DESCRIPTION + DASH + BEFORE + DASH + id + "." + JSON_EXTENSION;
-    }
-
-    private Object getIdOrCode(Map<String, Object> mapProp) {
-        return mapProp.get(ID) == null ? mapProp.get(CODE) : mapProp.get(ID);
     }
 
     private String extractPropertyStringForMapper(Map<String, Object> properties) throws JsonProcessingException {
