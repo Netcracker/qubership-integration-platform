@@ -16,11 +16,14 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.CatalogRuntimeException;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
+import org.qubership.integration.platform.runtime.catalog.rest.handler.exception.MicroserviceErrorResponseException;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.FilterRequestDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.LiveExchangeDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.engine.LiveExchangeExtDTO;
@@ -28,7 +31,9 @@ import org.qubership.integration.platform.runtime.catalog.service.filter.liveexc
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.*;
@@ -92,6 +97,18 @@ public class LiveExchangesService {
 
     @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public void sendKillExchangeRequest(String podIp, String deploymentId, String exchangeId) {
+        try {
+            restTemplateMs.delete(String.format(SESSION_DELETE_URL, podIp, deploymentId, exchangeId));
+        } catch (MicroserviceErrorResponseException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new EntityNotFoundException(e.getMessage());
+            }
+            throw e;
+        } catch (ResourceAccessException e) {
+            log.warn("Unable to send a kill request for exchange {} to engine pod {}", exchangeId, podIp, e);
+            throw new CatalogRuntimeException("Cannot reach the engine pod that runs the exchange");
+        }
+
         String domainName = null;
         try {
             domainName = deploymentService.findById(deploymentId).getDomain();
@@ -105,6 +122,5 @@ public class LiveExchangesService {
                 .parentName(domainName)
                 .operation(LogOperation.DELETE)
                 .build());
-        restTemplateMs.delete(String.format(SESSION_DELETE_URL, podIp, deploymentId, exchangeId));
     }
 }

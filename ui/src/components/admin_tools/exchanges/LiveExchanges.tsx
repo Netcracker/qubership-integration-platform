@@ -3,7 +3,11 @@ import { Button, Flex, InputNumber, Space, Table, Tooltip } from "antd";
 import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../../table/TreeExpandIcon.tsx";
-import { LiveExchange, SessionsLoggingLevel } from "../../../api/apiTypes.ts";
+import {
+  LiveExchange,
+  RestApiError,
+  SessionsLoggingLevel,
+} from "../../../api/apiTypes.ts";
 import commonStyles from "../CommonStyle.module.css";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
@@ -89,15 +93,19 @@ export const LiveExchanges: React.FC = () => {
           liveExchange.deploymentId,
           liveExchange.exchangeId,
         );
-        setExchanges((exchanges) =>
-          exchanges.filter((e) => e.exchangeId !== liveExchange.exchangeId),
-        );
       } catch (error) {
-        notificationService.requestFailed(
-          "Failed to terminate exchange",
-          error,
-        );
+        if (!(error instanceof RestApiError && error.responseCode === 404)) {
+          notificationService.requestFailed(
+            "Failed to terminate exchange",
+            error,
+          );
+          return;
+        }
+        notificationService.info("Exchange already finished");
       }
+      setExchanges((exchanges) =>
+        exchanges.filter((e) => e.exchangeId !== liveExchange.exchangeId),
+      );
     },
     [notificationService],
   );
