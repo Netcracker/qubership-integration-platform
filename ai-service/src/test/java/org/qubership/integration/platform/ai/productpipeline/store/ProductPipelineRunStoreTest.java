@@ -11,6 +11,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -318,6 +321,111 @@ class ProductPipelineRunStoreTest {
 
     assertEquals(
         "run-1", runStore.loadByConversation(CONVERSATION_ID).orElseThrow().run().runId());
+  }
+
+  @Test
+  void conversationBindingRejectsMissingAndCrossConversationChildren() {
+    runStore.create(sampleSnapshot(1L, RunStatus.WAITING_FOR_INPUT));
+    runStore.createUnbound(
+        unboundSnapshot("other-child", "other-conversation"), "restart-1", "payload-1");
+
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            runStore.replaceConversationBinding(CONVERSATION_ID, "run-1", "missing-child"));
+    assertThrows(
+        IllegalArgumentException.class,
+        () ->
+            runStore.replaceConversationBinding(CONVERSATION_ID, "run-1", "other-child"));
+
+    assertEquals(
+        "run-1", runStore.loadByConversation(CONVERSATION_ID).orElseThrow().run().runId());
+  }
+
+  @Test
+  void concurrentConversationReplacementsActivateExactlyOneChild() {
+    runStore.create(sampleSnapshot(1L, RunStatus.WAITING_FOR_INPUT));
+    runStore.createUnbound(
+        unboundSnapshot("run-child-a", CONVERSATION_ID), "restart-a", "payload-a");
+    runStore.createUnbound(
+        unboundSnapshot("run-child-b", CONVERSATION_ID), "restart-b", "payload-b");
+    CountDownLatch ready = new CountDownLatch(2);
+    CountDownLatch start = new CountDownLatch(1);
+    AtomicInteger successful = new AtomicInteger();
+
+    CompletableFuture<Void> first =
+        replacementAttempt("run-child-a", ready, start, successful);
+    CompletableFuture<Void> second =
+        replacementAttempt("run-child-b", ready, start, successful);
+    assertTrue(await(ready));
+    start.countDown();
+    CompletableFuture.allOf(first, second).join();
+
+    assertEquals(1, successful.get());
+    String active =
+        runStore.loadByConversation(CONVERSATION_ID).orElseThrow().run().runId();
+    assertTrue(active.equals("run-child-a") || active.equals("run-child-b"));
+  }
+
+  @Test
+  void parentRevisionChangePreventsChildActivation() {
+    ProductPipelineRunDocument parent =
+        runStore.create(sampleSnapshot(1L, RunStatus.WAITING_FOR_INPUT));
+    runStore.createUnbound(
+        unboundSnapshot("run-child", CONVERSATION_ID), "restart-1", "payload-1");
+    runStore.commit(
+        1L,
+        sampleCommit(parent, "parent-input", RunStatus.WAITING_FOR_INPUT, StageStatus.WAITING_FOR_INPUT));
+
+    assertThrows(
+        StaleBlobVersionException.class,
+        () ->
+            runStore.replaceConversationBinding(
+                CONVERSATION_ID, "run-1", 1L, "run-child"));
+
+    assertEquals(
+        "run-1", runStore.loadByConversation(CONVERSATION_ID).orElseThrow().run().runId());
+  }
+
+  private CompletableFuture<Void> replacementAttempt(
+      String childRunId,
+      CountDownLatch ready,
+      CountDownLatch start,
+      AtomicInteger successful) {
+    return CompletableFuture.runAsync(
+        () -> {
+          ready.countDown();
+          try {
+            start.await();
+            runStore.replaceConversationBinding(CONVERSATION_ID, "run-1", childRunId);
+            successful.incrementAndGet();
+          } catch (StaleBlobVersionException expected) {
+            // The losing writer proves the active-run pointer is compare-and-set protected.
+          } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(interrupted);
+          }
+        });
+  }
+
+  private static boolean await(CountDownLatch latch) {
+    try {
+      return latch.await(5, java.util.concurrent.TimeUnit.SECONDS);
+    } catch (InterruptedException interrupted) {
+      Thread.currentThread().interrupt();
+      return false;
+    }
+  }
+
+  private static RunSnapshot unboundSnapshot(String runId, String conversationId) {
+    return new RunSnapshot(
+        runId,
+        conversationId,
+        1L,
+        RunStatus.RUNNING,
+        "collect",
+        List.of(new StageSnapshot("collect", StageStatus.RUNNING, List.of(), null)),
+        null);
   }
 
   private void advanceToRevision(ProductPipelineRunDocument created, long targetRevision) {

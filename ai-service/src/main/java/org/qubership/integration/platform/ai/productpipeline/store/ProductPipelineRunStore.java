@@ -99,9 +99,36 @@ public final class ProductPipelineRunStore {
    */
   public void replaceConversationBinding(
       String conversationId, String expectedRunId, String newRunId) {
+    replaceConversationBinding(conversationId, expectedRunId, null, newRunId);
+  }
+
+  /**
+   * Atomically changes the active run after confirming that the parent did not advance while the
+   * child was prepared.
+   */
+  public void replaceConversationBinding(
+      String conversationId,
+      String expectedRunId,
+      Long expectedRunRevision,
+      String newRunId) {
     requireText(conversationId, "conversationId");
     requireText(expectedRunId, "expectedRunId");
     requireText(newRunId, "newRunId");
+    if (expectedRunRevision != null) {
+      ProductPipelineRunDocument parent =
+          load(expectedRunId)
+              .orElseThrow(
+                  () -> new IllegalArgumentException("run was not found: " + expectedRunId));
+      if (parent.run().runRevision() != expectedRunRevision) {
+        throw new StaleBlobVersionException(
+            "expected active runRevision "
+                + expectedRunRevision
+                + " but run "
+                + expectedRunId
+                + " has "
+                + parent.run().runRevision());
+      }
+    }
     ProductPipelineRunDocument child =
         load(newRunId)
             .orElseThrow(() -> new IllegalArgumentException("run was not found: " + newRunId));

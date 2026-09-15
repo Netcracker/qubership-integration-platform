@@ -10,7 +10,6 @@ import { AiDecisionCard } from "../../../src/components/ai/AiDecisionCard.tsx";
 import type { ChatDecision } from "../../../src/ai/modelProviders/types.ts";
 
 jest.mock("../../../src/components/ai/AiMarkdownRenderer.tsx", () => {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports -- jest.mock factory runs before imports
   const R = require("react") as typeof import("react");
 
   function withBold(text: string): ReactNode[] {
@@ -481,6 +480,82 @@ describe("AiDecisionCard", () => {
       "restart-from-approved-requirements",
       "",
     );
+  });
+
+  it.each([
+    ["Beginning", "restart-from-beginning"],
+    ["Approved requirements", "restart-from-approved-requirements"],
+    ["Approved plan", "restart-from-approved-plan"],
+  ])("should dispatch the %s restart checkpoint once", (label, action) => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation is paused.",
+          actions: [action],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Restart from/ }));
+    const item = screen.getByText(label);
+    fireEvent.click(item);
+    fireEvent.click(item);
+
+    expect(onAnswer).toHaveBeenCalledTimes(1);
+    expect(onAnswer).toHaveBeenCalledWith(action, "");
+  });
+
+  it.each([
+    ["busy", { busy: true }],
+    ["stale", { stale: true }],
+  ])("should disable restart checkpoints while the card is %s", (_state, props) => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Creation is paused.",
+          actions: ["restart-from-beginning"],
+        })}
+        onAnswer={onAnswer}
+        {...props}
+      />,
+    );
+
+    const restart = screen.getByRole("button", { name: /Restart from/ });
+    expect(restart).toBeDisabled();
+    fireEvent.click(restart);
+
+    expect(screen.queryByText("Beginning")).toBeNull();
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  it("should keep free-text clarification beside the restart menu", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Which source field should be used?",
+          actions: ["restart-from-beginning"],
+        })}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Provide the missing information"), {
+      target: { value: "Use $.customer.id" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onSubmitClarification).toHaveBeenCalledWith("Use $.customer.id");
+    expect(screen.getByRole("button", { name: /Restart from/ })).toBeInTheDocument();
+    expect(onAnswer).not.toHaveBeenCalled();
   });
 
   it("should show the selected restart checkpoint after answering", () => {

@@ -237,7 +237,7 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   const blankClarifyHalt = isBlankClarifyHalt(decision);
   const isFreeTextClarify =
     isClarify &&
-    decision.actions.length === 0 &&
+    decision.actions.every((action) => RESTART_ACTIONS.has(action)) &&
     !decision.recovery &&
     !blankClarifyHalt;
   const answeredAction = decision.answeredAction;
