@@ -424,16 +424,6 @@ public class RequirementDraftTool {
         openQuestions = List.of();
       }
 
-      if (decision == DraftDecision.READY_FOR_PLAN && candidate != null) {
-        softDowngradedForImport = true;
-        decision = DraftDecision.NEEDS_INPUT;
-        LOG.warnf(
-            "captureRequirementDraft: soft-downgraded READY_FOR_PLAN with pending apiHubCandidate"
-                + " conversationId=%s packageId=%s",
-            conversationId,
-            candidate.packageId());
-      }
-
       if (decision == DraftDecision.READY_FOR_PLAN
           && openQuestions.isEmpty()
           && capturedFlow.interactions().isEmpty()
@@ -458,6 +448,26 @@ public class RequirementDraftTool {
           boundFlow.interactions().isEmpty()
               ? hintsFromResolvedCalls(reconciledCalls)
               : reconcileCatalogBindings(boundFlow, previous, conversationId);
+      boolean candidateSatisfiedByCatalog =
+          candidate != null
+              && candidateSatisfiedByCatalog(candidate, boundFlow, catalogBindings);
+      if (candidateSatisfiedByCatalog) {
+        LOG.infof(
+            "captureRequirementDraft: ignored API Hub candidate already bound in catalog"
+                + " conversationId=%s packageId=%s operationId=%s",
+            conversationId,
+            candidate.packageId(),
+            candidate.operationId());
+        candidate = null;
+      } else if (decision == DraftDecision.READY_FOR_PLAN && candidate != null) {
+        softDowngradedForImport = true;
+        decision = DraftDecision.NEEDS_INPUT;
+        LOG.warnf(
+            "captureRequirementDraft: soft-downgraded READY_FOR_PLAN with pending apiHubCandidate"
+                + " conversationId=%s packageId=%s",
+            conversationId,
+            candidate.packageId());
+      }
       List<RequirementServiceCall> unresolvedCalls =
           reconciledCalls.stream().filter(call -> call.catalogBinding() == null).toList();
       // Assessments decide whenever the draft names its service calls. The catalog-cache heuristic
@@ -543,7 +553,9 @@ public class RequirementDraftTool {
         return finish(conversationId, startMs, invalidDecision);
       }
 
-      boolean importIntent = candidate != null || (previous != null && previous.importIntent());
+      boolean importIntent =
+          !candidateSatisfiedByCatalog
+              && (candidate != null || (previous != null && previous.importIntent()));
 
       String owningInteractionId = null;
       if (candidate != null) {
@@ -1554,6 +1566,31 @@ public class RequirementDraftTool {
       }
     }
     return List.copyOf(hints);
+  }
+
+  /** A cached API Hub candidate is stale when its flow interaction already has a catalog bind. */
+  private static boolean candidateSatisfiedByCatalog(
+      ApiHubRequirementRefs candidate,
+      RequirementFlow flow,
+      List<CatalogBindingHint> catalogBindings) {
+    String operationId = CatalogStrings.blankToNull(candidate.operationId());
+    if (operationId == null || flow == null || catalogBindings == null) {
+      return false;
+    }
+    List<String> matchingInteractions =
+        flow.interactions().stream()
+            .filter(
+                interaction ->
+                    operationId.equalsIgnoreCase(
+                        CatalogStrings.blankToNull(interaction.operation())))
+            .map(RequirementFlow.Interaction::interactionId)
+            .toList();
+    if (matchingInteractions.size() != 1) {
+      return false;
+    }
+    String interactionId = matchingInteractions.getFirst();
+    return catalogBindings.stream()
+        .anyMatch(binding -> interactionId.equals(binding.interactionId()));
   }
 
   private static String validateFactText(List<RequirementFact> facts) {
