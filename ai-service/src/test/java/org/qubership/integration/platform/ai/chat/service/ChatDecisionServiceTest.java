@@ -350,6 +350,57 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void aHaltEmitsOneDecisionAfterRestartCheckpointsAreStored() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    CreateChainPendingAction.Clarify pending =
+        new CreateChainPendingAction.Clarify(
+            "The same problem came back.",
+            List.of(),
+            PipelineGates.RECOVERY_REPEATED,
+            "multiple catalog binding hints",
+            null,
+            "run-repeated",
+            "design-execution");
+    when(facade.snapshot("conv-repeated"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-repeated",
+                    "run-repeated",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    9L,
+                    pending,
+                    "")));
+    when(facade.restartCheckpoints("conv-repeated"))
+        .thenReturn(List.of(RestartCheckpoint.BEGINNING, RestartCheckpoint.APPROVED_PLAN));
+    when(facade.continueWithInput(any()))
+        .thenReturn(Multi.createFrom().item(new CreateChainEvent.Waiting(pending)));
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(PipelineGates.STOP_WITH_REPORT_ACTION);
+    command.setRevision(9L);
+
+    List<ChatEvent.Decision> decisions =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .apply("conv-repeated", command)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely()
+            .stream()
+            .filter(ChatEvent.Decision.class::isInstance)
+            .map(ChatEvent.Decision.class::cast)
+            .toList();
+
+    assertEquals(1, decisions.size());
+    assertEquals(
+        List.of(
+            PipelineGates.STOP_WITH_REPORT_ACTION,
+            ChatEvent.RESTART_FROM_BEGINNING_ACTION,
+            ChatEvent.RESTART_FROM_APPROVED_PLAN_ACTION),
+        decisions.getFirst().actions());
+  }
+
+  @Test
   void openDecisionProjectsAContextualBriefDefectFromServerOwnedState() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-brief"))
