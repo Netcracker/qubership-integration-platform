@@ -2,9 +2,9 @@
 ## Description
 
 ---
-When it is required to enter a script in the specific QIP element, it must be entered in **Groovy** programming language. By utilizing the syntax of this language, it is possible to access wide scope of instruments, allowing to build mapping, validations, operate with exchange data, etc. This page contains a list of commonly-used scenarios and script examples to fulfill them.
+When it is required to enter a script in the specific CIP element, it must be entered in **Groovy** programming language. By utilizing the syntax of this language, it is possible to access wide scope of instruments, allowing to build mapping, validations, operate with exchange data, etc. This page contains a list of commonly-used scenarios and script examples to fulfill them.
 
-## Application in QIP
+## Application in CIP
 
 ---
 According to Groovy, you can set a suitable kind of scripts, error handling, input/output messages. System displays the code completion popup automatically as user types.

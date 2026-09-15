@@ -9,7 +9,7 @@ Audit allows tracking most of the actions in UI. Click on the expandable section
 
 <details><summary>Audit log types</summary>
 
-| QIP Entity                         | Operation | Cases when action is registered                                                                                                                                           |
+| CIP Entity                         | Operation | Cases when action is registered                                                                                                                                           |
 |------------------------------------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Chain                              | Create    | <ul><li>Create new chain.</li><li>Import new chain.</li></ul>                                                                                                             |
 | Chain                              | Update    | <ul><li>Update chain name, description or labels.</li><li>Import new version of existing chain.</li></ul>                                                                 |
@@ -77,6 +77,13 @@ A dedicated **"Audit"** tab is available in <ins>Web UI</ins> for viewing the lo
 > - In case of bulk operations, audit page will register separate action per each entity (e.g. bulk chain import/export, bulk snapshot deletion, etc.)
 > - For manual import of complex entities, such as chains, services, etc. system may register both IMPORT and CREATE/UPDATE operations, depending on how imported entities are handled.
 > - In some scenarios, when the platform does not identify the exact operation type, it sets "Create and Update" as a value for the record.
+
+## Process Initialization
+
+---
+
+When appropriate event happens within Catalog, Cloud Integration Platform logs data automatically. Logged data could be viewed via "**Audit**" tab in "**Admin Tool**" section.
+
 ## User Interface
 
 ---
@@ -112,3 +119,21 @@ To export audit table to Excel file, find and click export ![cloud-download](img
 
 ### Refresh Logs
 To refresh Audit table, simply click button ![redo](img/redo.svg), presented in the menu or refresh the page itself.
+
+## Data Storage
+
+---
+
+Please refer to [logging page] for more details regarding data storage.
+
+## Configuration
+
+---
+
+Configuration is being done during the CIP installation with ACTION_LOG_CLEANUP_INTERVAL and ACTION_LOG_CLEANUP_CRON variables. Please refer to Installation Notes for more details.
+
+## API Details
+
+---
+
+No specific API available.

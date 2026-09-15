@@ -7,6 +7,12 @@
 ---
 This tab allows to create data in MaaS right from the application and export configuration file. Only limited set of MaaS-related parameters is available for manual enter, while other technical and connection data is handled by system.
 
+## Process Initialization
+
+---
+
+Current tab is available under the "[Dev Tools]" menu.
+
 ## User Interface
 
 ---
@@ -31,3 +37,21 @@ Tab contains RabbitMQ-specific parameters, that allow to create classifier in Ma
 
 ### Export Configuration File
 To export MaaS configuration file, simply click ![20](img/cloud-download.svg) **Export**  button. All mandatory fields must be specified before button becomes active.
+
+## Data Storage
+
+---
+
+No specific information is being stored.
+
+## Configuration
+
+---
+
+No specific configuration available for this particular tab.
+
+## API Details
+
+---
+
+No specific API available.

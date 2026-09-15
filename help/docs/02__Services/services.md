@@ -4,7 +4,7 @@
 
 ---
 
-Most of the integration flows consider calling a particular service. "Service" in the context of Qubership Integration Platform,
+Most of the integration flows consider calling a particular service. "Service" in the context of Cloud Integration Platform,
 is an entity, that contains integration settings of real service, that exists inside or outside of it.
 Integration settings, that are utilized by service consist of API specifications, environment addresses and properties, etc.
 To integrate with the services, configured in the system, it is required to add and properly set up specific elements in the chain.
@@ -13,7 +13,7 @@ There are next possible service types, supported by the system:
 
 - ![external](img/external.svg) [External](1__External/external.md) - services available only via Egress Gateway. Usable in [Service Call](../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md) and [AsyncAPI Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md) elements.
 - ![internal](img/internal.svg) [Inner Cloud](2__Inner_Cloud/inner_cloud.md) - also called "Internal Services". Such services share same K8S environment
-  with QIP and may be called directly. Usable in [Service Call](../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md)
+  with CIP and may be called directly. Usable in [Service Call](../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md)
   and [AsyncAPI Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md) elements.
 - ![implemented](img/implemented.svg) [Implemented](3__Implemented/implemented.md) - custom services, usually created from [HTTP Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
 - ![context](img/context.svg) [Context](4__Context/context.md) - database instance used for storing chain contexts, further enabling creation, retrieval and deletion of context data. Usable in [Context Storage](../01__Chains/1__Graph/1__Elements_Library/4__Services/1__Context_Storage/context_storage.md) element.
@@ -28,7 +28,7 @@ Services consist of next entities:
 - **Operation** - describes exact endpoint, related to particular business operation. Not available for Context and MCP services.
 - **Environment** - Each Dev, QA or Production environment must have specific address by which service will be available for API calling. Depending on its type, service may have specific limitations for quantity of the environments:
   - **one** environment: for **Inner Cloud** and **Implemented services**.
-  - **multiple** environments:  for **External services**.
+  - **multiple** environments:  for **External services**.
   - **no** environments: for **Context** and **MCP services**
 
 > ℹ️ **Note:** Environment's address field for **http**-based services may be inactive, which means that route registration on Egress is globally disabled in CMDB. In this case, registration must be performed manually.

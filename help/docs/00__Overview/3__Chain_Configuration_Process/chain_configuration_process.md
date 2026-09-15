@@ -3,7 +3,7 @@
 ## Description
 
 ---
-Qubership Integration Platform follows chain-concept, where integration task is being configured or build with the different elements and integration platform capabilities.
+Cloud Integration Platform follows chain-concept, where integration task is being configured or build with the different elements and integration platform capabilities.
 
 The high-level diagram below shows the process of chain configuration.
 
@@ -16,9 +16,29 @@ The high-level diagram below shows the process of chain configuration.
 | 1     | Configuration in UI | The first step is the creation of the chain via integration platform UI. User is build the chain (basically, integration step-by-step instruction for platform), utilizing UI components, such us windows for service discovery, triggers, mapper, script, etc. |
 | 2     | Snapshot            | Snapshot is a system-understandable file that stores all the instructions, given within the chain in XML format. Snapshot provides a "Save point" for the chain and works as a version of it. User is able to always come back to any saved version.            |
 | 3,4,5 | Deployment          | To apply any snapshot to particular environment (engine) with specific logging settings, it is required to Deploy the snapshot. As part of this operation, Engine(s) will retrieve all required details from Catalog via REST API.                              |
-| 5     | GW Configuration    | For external endpoints it is essential to complete gateway set-up, that is done outside of Qubership Integration Platform and shall be handled by particular project group.                                                                                     |
+| 5     | GW Configuration    | For external endpoints it is essential to complete gateway set-up, that is done outside of Cloud Integration Platform and shall be handled by particular project group.                                                                                         |
+
+## Process Initialization
+
+---
+The process starts from adding (or importing) of the chain via main page. Please read [Chains] article for more details.
 
 ## User Interface
 
 ---
 Chain configuration is handled via multiple UI elements, separately described in respective articles: [Elements Library](../../01__Chains/1__Graph/graph.md)
+
+## Data Storage
+
+---
+Please refer to  [CIP Architecture](../../05__Architecture/cip_architecture.md) for global data storage information.
+
+## Configuration
+
+---
+Environment configuration steps are fully covered by Installation Notes. Please read respective articles for each particular element or functionality, utilizing during chain set-up.
+
+## API Details
+
+---
+No specific API available.

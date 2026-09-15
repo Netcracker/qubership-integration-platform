@@ -7,6 +7,13 @@
 
 To make a chain available for usage, its snapshot shall be deployed on the specific Engine via "**Deployments**" tab. For the chain only one deployment instance is applicable, but chain can be deployed on different engine domains.
 
+## Process Initialization
+
+---
+
+Mentioned functionality is available on "**Deployments**" tab, that could be found under each particular Chain within CIP UI.
+
+
 ## User Interface
 
 ---
@@ -38,5 +45,23 @@ If you want to **delete deployment**, click ![delete](img/delete.svg) on the rig
 
 > ℹ️ **Notes:**
 >
-> - QIP user can do chain **redeploy** - specific maintenance operation for Production usage in high load Chains, that gracefully stop chain, process all sessions from queue, change required chain settings and start it again.
+> - CIP user can do chain **redeploy** - specific maintenance operation for Production usage in high load Chains, that gracefully stop chain, process all sessions from queue, change required chain settings and start it again.
 > - User will be notified if deployment removal fails due to inability to delete MaaS entities. Problematic MaaS entity will be also mentioned in notification.
+
+## Data Storage
+
+---
+
+As the result of the deployment, deployment data is going to be stored in CIP in a way of cards (records) under the respective UI tabs. If any specific logging level is specified, then CIP will produce the session logs to the Open Search (please refer to the general logging page for more details [Logging].
+
+## Configuration
+
+---
+
+In general, all configurations are being done via UI. For detailed information about logging configuration, please refer to the [Logging] article. Global configuration aspects and guides for Cloud Integration Platform are available in Installation Notes articles.
+
+## API Details
+
+---
+
+No specific API available.
