@@ -255,6 +255,11 @@ public interface CatalogRestClient {
   SpecificationDto getModel(@PathParam("modelId") String modelId);
 
   @GET
+  @Path("/v1/models/{modelId}/source")
+  @Produces(MediaType.TEXT_PLAIN)
+  String getModelSource(@PathParam("modelId") String modelId);
+
+  @GET
   @Path("/v1/operations/{operationId}")
   OperationDto getOperation(@PathParam("operationId") String operationId);
 

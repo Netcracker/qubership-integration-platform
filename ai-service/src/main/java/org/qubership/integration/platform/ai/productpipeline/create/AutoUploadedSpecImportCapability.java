@@ -197,7 +197,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         Multi.createFrom()
             .iterable(attachments)
             .onItem()
-            .transformToUniAndMerge(
+            .transformToUniAndConcatenate(
                 attachment ->
                     catalogMutationGateway
                         .importUploadedSpec(

@@ -16,6 +16,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
@@ -127,6 +132,83 @@ class AutoUploadedSpecImportCapabilityTest {
             eq("conv-1"),
             eq(new UploadedSpecAttachment("uploads/notifications-async.yaml", "notifications-async.yaml")),
             eq("INTERNAL"));
+  }
+
+  @Test
+  void importsMoreThanThreeAttachmentsSequentially() throws Exception {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway,
+            conversationService,
+            artifactStore,
+            handler,
+            mock(CatalogBindingMatcher.class),
+            mock(RequirementDraftStore.class));
+    RequirementDraft draft = draft();
+    UploadedSpecAttachment first =
+        new UploadedSpecAttachment("uploads/orders.yaml", "orders.yaml");
+    UploadedSpecAttachment second =
+        new UploadedSpecAttachment("uploads/payments.yaml", "payments.yaml");
+    UploadedSpecAttachment third =
+        new UploadedSpecAttachment("uploads/fulfillment.yaml", "fulfillment.yaml");
+    UploadedSpecAttachment fourth =
+        new UploadedSpecAttachment("uploads/notifications.yaml", "notifications.yaml");
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of(first.s3Key(), second.s3Key(), third.s3Key(), fourth.s3Key()));
+    CompletableFuture<UploadedSpecImportOutcome> firstImport = new CompletableFuture<>();
+    CountDownLatch firstStarted = new CountDownLatch(1);
+    when(gateway.importUploadedSpec("conv-1", first, "INTERNAL"))
+        .thenAnswer(
+            ignored -> {
+              firstStarted.countDown();
+              return Uni.createFrom().completionStage(firstImport);
+            });
+    when(gateway.importUploadedSpec("conv-1", second, "INTERNAL"))
+        .thenReturn(
+            Uni.createFrom()
+                .item(
+                    new UploadedSpecImportOutcome(
+                        second.s3Key(), "sys-2", "group-2", "spec-2", false)));
+    when(gateway.importUploadedSpec("conv-1", third, "INTERNAL"))
+        .thenReturn(
+            Uni.createFrom()
+                .item(
+                    new UploadedSpecImportOutcome(
+                        third.s3Key(), "sys-3", "group-3", "spec-3", false)));
+    when(gateway.importUploadedSpec("conv-1", fourth, "INTERNAL"))
+        .thenReturn(
+            Uni.createFrom()
+                .item(
+                    new UploadedSpecImportOutcome(
+                        fourth.s3Key(), "sys-4", "group-4", "spec-4", false)));
+    CompilationArtifacts.Reference approvalRef = approvalRef();
+    stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
+
+    try (ExecutorService executor = Executors.newSingleThreadExecutor()) {
+      CompletableFuture<CapabilitySignal.Completed> result =
+          CompletableFuture.supplyAsync(
+              () -> run(capability, draft, List.of(approvalRef)), executor);
+
+      assertTrue(firstStarted.await(5, TimeUnit.SECONDS));
+      verify(gateway, never()).importUploadedSpec("conv-1", second, "INTERNAL");
+      verify(gateway, never()).importUploadedSpec("conv-1", third, "INTERNAL");
+      verify(gateway, never()).importUploadedSpec("conv-1", fourth, "INTERNAL");
+      firstImport.complete(
+          new UploadedSpecImportOutcome(
+              first.s3Key(), "sys-1", "group-1", "spec-1", false));
+
+      assertEquals(
+          StageOutcomeClass.SUCCEEDED,
+          result.get(5, TimeUnit.SECONDS).outcome().outcomeClass());
+      verify(gateway).importUploadedSpec("conv-1", second, "INTERNAL");
+      verify(gateway).importUploadedSpec("conv-1", third, "INTERNAL");
+      verify(gateway).importUploadedSpec("conv-1", fourth, "INTERNAL");
+    }
   }
 
   @Test
