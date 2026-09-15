@@ -8,6 +8,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
@@ -397,15 +398,15 @@ public class ChatDecisionService {
     if (refusal.isPresent()) {
       return refused(conversationId, refusal.get());
     }
-    Multi<ChatEvent> approved =
-        facade
-            .streamApproveOnly(approval)
-            .onItem()
-            .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event));
+    Multi<CreateChainEvent> approved = facade.streamApproveOnly(approval);
     if (!ChatEvent.APPROVE_AND_CREATE_ACTION.equals(action)) {
-      return approved.onCompletion().switchTo(() -> openGateEvents(conversationId));
+      return projectWithOpenGate(conversationId, approved);
     }
-    return approved.onCompletion().switchTo(() -> createAfterApproval(conversationId));
+    return approved
+        .onItem()
+        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
+        .onCompletion()
+        .switchTo(() -> createAfterApproval(conversationId));
   }
 
   private Multi<ChatEvent> restartFromCheckpoint(
@@ -425,14 +426,11 @@ public class ChatDecisionService {
             + command.getRevision()
             + ":"
             + checkpoint.actionId();
-    return facade
-        .restart(
+    return projectWithOpenGate(
+        conversationId,
+        facade.restart(
             new RestartCreateChainCommand(
-                conversationId, command.getRevision(), checkpoint, commandId))
-        .onItem()
-        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
-        .onCompletion()
-        .switchTo(() -> openGateEvents(conversationId));
+                conversationId, command.getRevision(), checkpoint, commandId)));
   }
 
   /**
@@ -444,14 +442,11 @@ public class ChatDecisionService {
   private Multi<ChatEvent> requestChanges(String conversationId, ChatDecisionCommand command) {
     String comment = command.getComment() == null ? "" : command.getComment().strip();
     String text = comment.isEmpty() ? transcriptMarker(command) : comment;
-    return facade
-        .continueWithInput(
-            new ContinueCreateChainCommand(
-                conversationId, text, UUID.randomUUID().toString(), InputOrigin.TRUSTED))
-        .onItem()
-        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
-        .onCompletion()
-        .switchTo(() -> openGateEvents(conversationId))
+    return projectWithOpenGate(
+            conversationId,
+            facade.continueWithInput(
+                new ContinueCreateChainCommand(
+                    conversationId, text, UUID.randomUUID().toString(), InputOrigin.TRUSTED)))
         .onCompletion()
         .ifEmpty()
         .switchTo(
@@ -476,14 +471,14 @@ public class ChatDecisionService {
       return openGateEvents(conversationId);
     }
     String pipelineAction = toPipelineAction(action);
-    return facade
-        .continueWithInput(
-            new ContinueCreateChainCommand(
-                conversationId, pipelineAction, UUID.randomUUID().toString(), InputOrigin.TRUSTED))
-        .onItem()
-        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
-        .onCompletion()
-        .switchTo(() -> openGateEvents(conversationId))
+    return projectWithOpenGate(
+            conversationId,
+            facade.continueWithInput(
+                new ContinueCreateChainCommand(
+                    conversationId,
+                    pipelineAction,
+                    UUID.randomUUID().toString(),
+                    InputOrigin.TRUSTED)))
         .onCompletion()
         .ifEmpty()
         .switchTo(
@@ -559,19 +554,52 @@ public class ChatDecisionService {
    * card that comes back offers creation alone — a recoverable state rather than an ambiguous one.
    */
   private Multi<ChatEvent> createChain(String conversationId, String planHash, long revision) {
-    return facade
-        .streamCreateChain(conversationId, planHash, revision)
-        .onItem()
-        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
-        .onCompletion()
-        .switchTo(() -> openGateEvents(conversationId));
+    return projectWithOpenGate(
+        conversationId, facade.streamCreateChain(conversationId, planHash, revision));
   }
 
   /** The gate the run stands at now, as an event, or nothing when it waits for nothing. */
   private Multi<ChatEvent> openGateEvents(String conversationId) {
-    return openDecision(conversationId)
-        .map(decision -> Multi.createFrom().item((ChatEvent) decision))
-        .orElseGet(() -> Multi.createFrom().empty());
+    return openGateEvents(conversationId, null);
+  }
+
+  /**
+   * Projects progress immediately, then emits one gate after the facade has committed its durable
+   * state. The captured wait is a fallback for adapters that cannot expose a snapshot.
+   */
+  private Multi<ChatEvent> projectWithOpenGate(
+      String conversationId, Multi<CreateChainEvent> source) {
+    AtomicReference<CreateChainEvent.Waiting> fallback = new AtomicReference<>();
+    return source
+        .onItem()
+        .invoke(
+            event -> {
+              if (event instanceof CreateChainEvent.Waiting waiting) {
+                fallback.set(waiting);
+              }
+            })
+        .onItem()
+        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
+        .onCompletion()
+        .switchTo(() -> openGateEvents(conversationId, fallback.get()));
+  }
+
+  private Multi<ChatEvent> openGateEvents(
+      String conversationId, CreateChainEvent.Waiting fallback) {
+    Optional<ChatEvent.Decision> durable = openDecision(conversationId);
+    if (durable.isPresent()) {
+      return Multi.createFrom().item(durable.orElseThrow());
+    }
+    if (fallback == null) {
+      return Multi.createFrom().empty();
+    }
+    return Multi.createFrom()
+        .item(
+            ChatEvent.decision(
+                fallback.pendingAction(),
+                revisionOf(conversationId, fallback),
+                "",
+                actionsFor(conversationId, fallback.pendingAction())));
   }
 
   /** Answers a refused command with the decision the run waits for now, or with the reason. */
@@ -617,14 +645,11 @@ public class ChatDecisionService {
       }
       return Multi.createFrom().item(ChatEvent.skillStep(skill.skillId(), skill.status()));
     }
-    if (event instanceof CreateChainEvent.Waiting waiting) {
-      return Multi.createFrom()
-          .item(
-              ChatEvent.decision(
-                  waiting.pendingAction(),
-                  revisionOf(conversationId, waiting),
-                  "",
-                  actionsFor(conversationId, waiting.pendingAction())));
+    if (event instanceof CreateChainEvent.Waiting) {
+      // Every caller re-reads the durable gate after the facade stream completes. Emitting this
+      // transient copy as well can race the checkpoint commit and show a card without restart
+      // actions immediately before the complete card.
+      return Multi.createFrom().empty();
     }
     if (event instanceof CreateChainEvent.Failed failed) {
       return Multi.createFrom().item(ChatEvent.token(failed.message()));
@@ -682,12 +707,9 @@ public class ChatDecisionService {
     LOG.infof(
         "Approved uploaded-specs import conversationId=%s runId=%s",
         conversationId, runIdFor(conversationId));
-    return facade
-        .start(new StartCreateChainCommand(conversationId, originalUserText(conversationId)))
-        .onItem()
-        .transformToMultiAndConcatenate(event -> toChatEvent(conversationId, event))
-        .onCompletion()
-        .switchTo(() -> openGateEvents(conversationId));
+    return projectWithOpenGate(
+        conversationId,
+        facade.start(new StartCreateChainCommand(conversationId, originalUserText(conversationId))));
   }
 
   /** Returns the last user-authored message, skipping the decision marker if present. */

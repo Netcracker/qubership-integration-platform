@@ -126,6 +126,32 @@ class DefaultExecutorCatalogBindingAdapterTest {
   }
 
   @Test
+  void repeatedHintsForTheSameCatalogOperationResolveOnce() {
+    CatalogBindingHint hint = v2Hint("call-1", "fact-1", "GET /pets", "sys-1", "op-1");
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(hint, hint), approved());
+
+    assertInstanceOf(BindingResolutionResult.Resolved.class, results.getFirst());
+    assertEquals(
+        1,
+        catalog.calls().stream().filter(call -> call.startsWith("getOperationSchemas")).count());
+  }
+
+  @Test
+  void conflictingHintsForOneInteractionStillFail() {
+    CatalogBindingHint first = v2Hint("call-1", "fact-1", "GET /pets", "sys-1", "op-1");
+    CatalogBindingHint second = v2Hint("call-1", "fact-1", "GET /pets", "sys-2", "op-2");
+
+    List<BindingResolutionResult> results =
+        adapter.resolve(CONVERSATION_ID, sampleOneCall(), List.of(first, second), approved());
+
+    BindingResolutionResult.Failed failed =
+        assertInstanceOf(BindingResolutionResult.Failed.class, results.getFirst());
+    assertTrue(failed.reason().contains("multiple catalog binding hints"), failed.reason());
+  }
+
+  @Test
   void resolvedBindingDoesNotCallSearchSchemaEndpoints() {
     adapter.resolve(
         CONVERSATION_ID,
