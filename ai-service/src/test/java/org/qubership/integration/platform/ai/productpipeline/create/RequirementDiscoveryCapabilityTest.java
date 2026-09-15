@@ -1553,6 +1553,76 @@ class RequirementDiscoveryCapabilityTest {
             .anyMatch(candidate -> candidate.kind() == CompilationArtifacts.Kind.IDS_BYPASS));
   }
 
+  @Test
+  void discoveryWaitsAtIdsChoiceAfterUploadedSpecsAreAlreadyBound() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft ready = petstoreServiceCallDraft();
+    RequirementDraft undecided =
+        new RequirementDraft(
+            false,
+            ready.assembledText(),
+            DraftDecision.NEEDS_INPUT,
+            List.of(),
+            ready.sourceSkillId(),
+            ready.sourceSkillVersion(),
+            ready.sourceSkillHash(),
+            ready.apiHubCandidate(),
+            ready.awaitingPlanContinuation(),
+            ready.facts(),
+            ready.importIntent(),
+            ready.apiHubCandidateInteractionId(),
+            null,
+            ready.flow(),
+            ready.catalogBindings(),
+            ready.preferredSystemType());
+    ConversationService conversations = new ConversationService();
+    conversations.registerAllowedAttachmentKeys(
+        "conv-ids-uploaded", List.of("sessions/conv/petstore.json"));
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            null,
+            (conversationId, userText) -> {
+              store.beginTurn(conversationId);
+              store.put(conversationId, undecided);
+              store.markCaptured(conversationId);
+              ProductCapabilityCaptureContext.offerDraft(undecided);
+              return Multi.createFrom().empty();
+            },
+            conversations);
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-ids-uploaded",
+            "conv-ids-uploaded",
+            "requirement-discovery",
+            "exec-ids-uploaded",
+            "attempt-ids-uploaded",
+            discoveryProfile(
+                List.of(new ArtifactTypeRef("requirement-draft", 2)),
+                List.of(new ArtifactTypeRef("ids-bypass", 1))),
+            null,
+            List.of(),
+            Map.of("userText", "Call Petstore Ext GET /pets using the attached specification."));
+
+    AtomicReference<CapabilitySignal.Completed> completed = new AtomicReference<>();
+    capability
+        .execute(context)
+        .subscribe()
+        .with(
+            signal -> {
+              if (signal instanceof CapabilitySignal.Completed c) {
+                completed.set(c);
+              }
+            });
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
+    assertEquals(
+        PipelineGates.IDS_PATH_CHOICE,
+        PipelineGates.gateOf(completed.get().outcome().message()).orElseThrow());
+  }
+
   private static RequirementDraft petstoreServiceCallDraft() {
     RequirementFact call =
         serviceCall("call-pets", "Petstore Ext", "GET /pets");

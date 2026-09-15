@@ -303,8 +303,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
         && RequirementFlowValidator.validateBindings(
                 draft.flow(), draft.facts(), draft.catalogBindings())
             .isEmpty()
-        && !pendingImportHandoff
-        && !pendingUploadedSpecHandoff) {
+        && !pendingImportHandoff) {
       return new CapabilitySignal.Completed(
           StageOutcome.of(
               StageOutcomeClass.NEEDS_INPUT,
