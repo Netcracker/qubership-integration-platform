@@ -299,10 +299,22 @@ public class DefaultExecutorCatalogBindingAdapter implements ExecutorCatalogBind
       return HintLookup.found(matches.getFirst());
     }
     if (matches.size() > 1) {
+      CatalogBindingHint latest = matches.getLast();
+      if (matches.stream().allMatch(candidate -> sameCatalogOperation(candidate, latest))) {
+        return HintLookup.found(latest);
+      }
       return HintLookup.failed(
           "multiple catalog binding hints for interactionId=" + occurrenceId);
     }
     return HintLookup.absent();
+  }
+
+  private static boolean sameCatalogOperation(
+      CatalogBindingHint left, CatalogBindingHint right) {
+    return Objects.equals(left.systemId(), right.systemId())
+        && Objects.equals(left.specificationGroupId(), right.specificationGroupId())
+        && Objects.equals(left.specificationId(), right.specificationId())
+        && Objects.equals(left.integrationOperationId(), right.integrationOperationId());
   }
 
   /**

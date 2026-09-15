@@ -97,9 +97,9 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
     Objects.requireNonNull(context, "context");
     String conversationId = context.conversationId();
 
-    Optional<RequirementDraft> inputDraft = resolveDraftFromInputRefs(context);
-    if (inputDraft.isPresent() && hasCatalogBinding(inputDraft.get())) {
-      RequirementDraft draft = inputDraft.get();
+    Optional<RequirementDraft> currentDraft = resolveCurrentDraft(context);
+    if (currentDraft.isPresent() && hasCatalogBinding(currentDraft.get())) {
+      RequirementDraft draft = currentDraft.get();
       LOG.infof(
           "Skipped uploaded-spec import: requirement draft already has catalog binding conversationId=%s",
           conversationId);
@@ -115,7 +115,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         conversationId,
         currentKeys == null ? 0 : currentKeys.size(),
         approvalKeys.size(),
-        inputDraft.map(d -> "present[binding=" + hasCatalogBinding(d) + "]").orElse("none"));
+        currentDraft.map(d -> "present[binding=" + hasCatalogBinding(d) + "]").orElse("none"));
     if ((currentKeys == null || currentKeys.isEmpty()) && approvalKeys.isEmpty()) {
       LOG.infof(
           "auto-uploaded-spec-import: no attachment keys conversationId=%s; skipping import",
@@ -354,7 +354,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       StageExecutionContext context,
       String message,
       List<UploadedSpecImportOutcome> imported) {
-    RequirementDraft draft = resolveDraft(context);
+    RequirementDraft draft = resolveCurrentDraft(context).orElse(null);
     if (draft == null) {
       return completed(StageOutcome.of(StageOutcomeClass.SUCCEEDED, message));
     }
@@ -402,6 +402,14 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
           || call.kind() != RequirementFactKind.SERVICE_CALL
           || call.text() == null
           || call.text().isBlank()) {
+        rewrittenFacts.add(call);
+        continue;
+      }
+      String interactionId =
+          call.serviceCallId() == null || call.serviceCallId().isBlank()
+              ? call.sourceFactId()
+              : call.serviceCallId();
+      if (draft.catalogBinding(interactionId).isPresent()) {
         rewrittenFacts.add(call);
         continue;
       }
@@ -454,7 +462,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
               catalogHint(call, hit, boundText),
               List.of()));
     }
-    addFlowBindingHints(draft.flow(), facts, hints, conversationId, imported);
+    addFlowBindingHints(draft, facts, hints, conversationId, imported);
     RequirementDraft rewritten = draft.withFacts(List.copyOf(rewrittenFacts));
     for (ArtifactCandidate candidate : hints) {
       if (!(candidate.payload() instanceof CatalogBindingHint hint)) {
@@ -466,11 +474,12 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
   }
 
   private void addFlowBindingHints(
-      RequirementFlow flow,
+      RequirementDraft draft,
       List<RequirementFact> facts,
       List<ArtifactCandidate> hints,
       String conversationId,
       List<UploadedSpecImportOutcome> imported) {
+    RequirementFlow flow = draft.flow();
     if (flow == null || flow.interactions().isEmpty()) {
       return;
     }
@@ -479,7 +488,8 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
           || RequirementFlowValidator.hasNativeInboundTriggerFact(interaction, facts)) {
         continue;
       }
-      if (alreadyBound(hints, interaction.interactionId())) {
+      if (draft.catalogBinding(interaction.interactionId()).isPresent()
+          || alreadyBound(hints, interaction.interactionId())) {
         continue;
       }
       String serviceName = blankToNull(interaction.participant());
@@ -644,9 +654,19 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
 
   private record UploadedSpecFact(String specTitle, String operationId, String channel) {}
 
-  private RequirementDraft resolveDraft(StageExecutionContext context) {
+  private Optional<RequirementDraft> resolveCurrentDraft(StageExecutionContext context) {
+    if (draftStore != null) {
+      Optional<RequirementDraft> stored = draftStore.get(context.conversationId());
+      if (stored.isPresent()) {
+        return stored;
+      }
+    }
+    Optional<RequirementDraft> input = resolveDraftFromInputRefs(context);
+    if (input.isPresent()) {
+      return input;
+    }
     Object approved = context.attributes().get("approvedDraft");
-    return approved instanceof RequirementDraft draft ? draft : null;
+    return approved instanceof RequirementDraft draft ? Optional.of(draft) : Optional.empty();
   }
 
   private Optional<RequirementDraft> resolveDraftFromInputRefs(StageExecutionContext context) {
