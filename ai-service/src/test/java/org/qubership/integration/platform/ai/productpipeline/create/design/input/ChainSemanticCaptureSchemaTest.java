@@ -94,9 +94,11 @@ class ChainSemanticCaptureSchemaTest {
   void generatedMapperAcceptsACaptureWithoutServerOwnedFields() {
     ProductCapabilityCaptureContext.bindDesign(
         "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
-    String arguments = linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "")
-        .replace("\"nodeId\": \"op-shared\"",
-            "\"nodeId\": \"op-shared\", \"sourceFactIds\": [\"fact-script\"]");
+    String arguments =
+        linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "")
+            .replace(
+                "\"nodeId\": \"op-shared\"",
+                "\"nodeId\": \"op-shared\", \"sourceFactIds\": [\"fact-script\"]");
     String result = execute(arguments);
     assertTrue(result.contains(ChainSemanticCaptureTool.CAPTURED_MESSAGE), result);
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isPresent());
