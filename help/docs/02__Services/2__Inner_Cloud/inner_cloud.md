@@ -38,6 +38,7 @@ Table with Inner Cloud services is accessible by navigating to **Services** → 
 
 At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table.
+  - ![refresh](img/refresh.svg) - reloads the table.
   - ![cloud-sync](img/cloud-sync.svg) - Service Discovery.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.

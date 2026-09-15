@@ -1,5 +1,6 @@
+import { Table } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Button, Flex, InputNumber, Space, Table, Tooltip } from "antd";
+import { Flex, InputNumber, Space } from "antd";
 import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { treeExpandIcon } from "../../table/TreeExpandIcon.tsx";
@@ -23,7 +24,7 @@ import { TablePageLayout } from "../../TablePageLayout.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { createActionsColumnBase } from "../../table/actionsColumn.ts";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { tableEmpty } from "../../table/tableEmpty.tsx";
 
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
@@ -243,20 +244,25 @@ export const LiveExchanges: React.FC = () => {
       columns,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        sessionId: 200,
-        chainName: 200,
-        sessionDuration: 200,
-        duration: 200,
-        sessionStartTime: 200,
-        main: 100,
-        podIp: 100,
-      },
-      { expandColumnWidth: LIVE_EXCHANGES_EXPAND_COLUMN_WIDTH },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      sessionId: 200,
+      chainName: 200,
+      sessionDuration: 200,
+      duration: 200,
+      sessionStartTime: 200,
+      main: 100,
+      podIp: 100,
+    },
+    { expandColumnWidth: LIVE_EXCHANGES_EXPAND_COLUMN_WIDTH },
+    "liveExchangesTable",
+  );
 
   const refresh = useCallback(async () => {
     try {
@@ -285,6 +291,7 @@ export const LiveExchanges: React.FC = () => {
         iconName="liveExchanges"
         toolbar={
           <TableToolbar
+            refresh={{ onRefresh: refresh, loading: isLoading }}
             variant="admin"
             leading={
               <Flex align="center" gap={8} wrap="wrap">
@@ -302,14 +309,6 @@ export const LiveExchanges: React.FC = () => {
               </Flex>
             }
             columnSettingsButton={columnSettingsButton}
-            actions={
-              <Tooltip title="Refresh" placement="bottom">
-                <Button
-                  icon={<OverridableIcon name="refresh" />}
-                  onClick={() => void refresh()}
-                />
-              </Tooltip>
-            }
           />
         }
       />
@@ -331,6 +330,7 @@ export const LiveExchanges: React.FC = () => {
               childrenColumnName: "exchanges",
             }}
             components={components}
+            onChange={handleConfiguredTableChange}
             locale={{ emptyText: tableEmpty("No running chains") }}
           />
         </TablePageLayout>
