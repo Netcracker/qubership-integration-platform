@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import io.smallrye.mutiny.Multi;
@@ -40,6 +41,18 @@ class ProvidedIdsFlowTasksTest {
     when(runtime.retryPolicy(RUN_ID, "work")).thenReturn(new RetryPolicy(3, 100L, 2.0, 250L));
     when(runtime.applyStageLifecycle(eq(RUN_ID), any())).thenReturn(Multi.createFrom().empty());
     tasks = new ProvidedIdsFlowTasks(runtime);
+  }
+
+  @Test
+  void activationWaitCannotExecuteAStage() {
+    ProvidedIdsFlow.RunContext waiting =
+        new ProvidedIdsFlow.RunContext(
+            RUN_ID, "create-chain", "2", "manifest-sha", "WAIT_FOR_ACTIVATION");
+
+    ProvidedIdsFlow.RunContext next = tasks.executeCurrentStage(waiting);
+
+    assertEquals(waiting, next);
+    verifyNoInteractions(runtime, executor);
   }
 
   @Test

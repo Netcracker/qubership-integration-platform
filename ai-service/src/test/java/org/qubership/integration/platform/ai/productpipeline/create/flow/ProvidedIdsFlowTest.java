@@ -24,6 +24,10 @@ class ProvidedIdsFlowTest {
 
     assertEquals(
         List.of(
+            "routeActivation",
+            "waitForActivation",
+            "restoreAfterActivation",
+            "afterActivation",
             "executeStage",
             "routeDecision",
             "waitForInput",

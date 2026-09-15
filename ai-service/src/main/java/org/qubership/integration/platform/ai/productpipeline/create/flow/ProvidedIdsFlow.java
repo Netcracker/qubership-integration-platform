@@ -68,6 +68,8 @@ public class ProvidedIdsFlow extends Flow {
             function("executeStage", tasks::executeCurrentStage, RunContext.class),
             switchCase(
                 TASK_ROUTE_DECISION,
+                caseOf(RunContext::waitForActivation, RunContext.class)
+                    .then("waitForActivation"),
                 caseOf(RunContext::waitForInput, RunContext.class).then("waitForInput"),
                 caseOf(RunContext::waitForRequirementApproval, RunContext.class)
                     .then("waitForRequirementApproval"),
