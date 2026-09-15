@@ -12,6 +12,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -35,15 +36,18 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
   private final InMemorySkillWorkspaceStore workspaceStore;
   private final CreateRunBindingStore bindingStore;
   private final DefaultCompilerDagExecutionEngine engine;
+  private final ProductPipelineArtifactStore artifactStore;
 
   @Inject
   public CompilerDerivedPlanningSpine(
       InMemorySkillWorkspaceStore workspaceStore,
       CreateRunBindingStore bindingStore,
-      DefaultCompilerDagExecutionEngine engine) {
+      DefaultCompilerDagExecutionEngine engine,
+      ProductPipelineArtifactStore artifactStore) {
     this.workspaceStore = Objects.requireNonNull(workspaceStore, "workspaceStore");
     this.bindingStore = Objects.requireNonNull(bindingStore, "bindingStore");
     this.engine = Objects.requireNonNull(engine, "engine");
+    this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
   }
 
   @SuppressWarnings("java:S107")
@@ -66,7 +70,8 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
             packRepository,
             graphAssemblyService,
             compilerValidationPipeline,
-            artifactStore));
+            artifactStore),
+        artifactStore);
   }
 
   @SuppressWarnings("java:S107")
@@ -102,7 +107,8 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
     return Uni.createFrom()
         .item(
             () -> {
-              PinnedRunContext pinned = resolvePinnedRun(request.conversationId());
+              PinnedRunContext pinned =
+                  resolvePinnedRun(request.runId(), request.conversationId());
               CompilerDagExecutionRequest engineRequest =
                   new CompilerDagExecutionRequest(
                       request.runId(),
@@ -135,7 +141,7 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
         state, ownerSkillId, patchArtifact);
   }
 
-  private PinnedRunContext resolvePinnedRun(String conversationId) {
+  private PinnedRunContext resolvePinnedRun(String runId, String conversationId) {
     CreateRunBinding binding =
         bindingStore
             .load(conversationId)
@@ -144,7 +150,11 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
                     new IllegalStateException(
                         "contract failure: missing create run binding for conversation "
                             + conversationId));
-    RunManifest manifest = binding.runManifest();
+    RunManifest manifest =
+        artifactStore
+            .latest(runId, Kind.RUN_MANIFEST)
+            .map(revision -> artifactStore.payload(revision, RunManifest.class))
+            .orElse(binding.runManifest());
     if (manifest == null) {
       throw new IllegalStateException("contract failure: run manifest is required for pinned planning");
     }
@@ -153,7 +163,11 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
       throw new IllegalStateException(
           "contract failure: compiler run pin with resolved DAG is required");
     }
-    return new PinnedRunContext(binding, manifest, pin);
+    if (!runId.equals(manifest.runId())) {
+      throw new IllegalStateException(
+          "contract failure: run manifest belongs to " + manifest.runId() + ", not " + runId);
+    }
+    return new PinnedRunContext(manifest, pin);
   }
 
   private CompilerPlanningRunner.PlanningSpineOutcome toOutcome(
@@ -184,10 +198,8 @@ public class CompilerDerivedPlanningSpine implements CompilerPlanningSpine {
         result.degradationFindings());
   }
 
-  private record PinnedRunContext(
-      CreateRunBinding binding, RunManifest manifest, CompilerRunPin pin) {
+  private record PinnedRunContext(RunManifest manifest, CompilerRunPin pin) {
     private PinnedRunContext {
-      Objects.requireNonNull(binding, "binding");
       Objects.requireNonNull(manifest, "manifest");
       Objects.requireNonNull(pin, "pin");
     }

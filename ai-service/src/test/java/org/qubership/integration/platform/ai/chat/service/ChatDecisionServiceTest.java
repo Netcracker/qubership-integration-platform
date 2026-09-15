@@ -42,13 +42,123 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Creat
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainExecutionStatus;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainPendingAction;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.ContinueCreateChainCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.RestartCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.StartCreateChainCommand;
 import org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.runtime.HaltRecoveryGuard;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RestartCheckpoint;
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 class ChatDecisionServiceTest {
+
+  @Test
+  void exactRestartMessageUsesTheTypedCheckpointCommand() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-restart"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-restart",
+                    "run-parent",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    11L,
+                    new CreateChainPendingAction.Clarify(
+                        "Creation is paused.",
+                        List.of(),
+                        PipelineGates.RECOVERY_RETRY_TECHNICAL,
+                        "timeout",
+                        null,
+                        "run-parent",
+                        "design-execution"),
+                    "")));
+    when(facade.restartCheckpoints("conv-restart"))
+        .thenReturn(
+            List.of(RestartCheckpoint.BEGINNING, RestartCheckpoint.APPROVED_REQUIREMENTS));
+    ChatDecisionService service =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+
+    ChatDecisionCommand command =
+        service
+            .restartCommandForMessage(
+                "conv-restart", "Go back to approved requirements.")
+            .orElseThrow();
+
+    assertEquals(ChatEvent.RESTART_FROM_APPROVED_REQUIREMENTS_ACTION, command.getAction());
+    assertEquals(11L, command.getRevision());
+  }
+
+  @Test
+  void restartMessageCannotSelectAnUnavailableCheckpoint() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-restart"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-restart",
+                    "run-parent",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    11L,
+                    new CreateChainPendingAction.Clarify(
+                        "Creation is paused.",
+                        List.of(),
+                        PipelineGates.RECOVERY_RETRY_TECHNICAL,
+                        "timeout",
+                        null,
+                        "run-parent",
+                        "design-execution"),
+                    "")));
+    when(facade.restartCheckpoints("conv-restart"))
+        .thenReturn(List.of(RestartCheckpoint.BEGINNING));
+    ChatDecisionService service =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+
+    assertTrue(
+        service
+            .restartCommandForMessage("conv-restart", "Restart from approved plan")
+            .isEmpty());
+  }
+
+  @Test
+  void restartActionDispatchesTheBoundCheckpointCommand() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    CreateChainExecutionSnapshot snapshot =
+        new CreateChainExecutionSnapshot(
+            "conv-restart",
+            "run-parent",
+            CreateChainExecutionStatus.INPUT_REQUIRED,
+            11L,
+            new CreateChainPendingAction.Clarify(
+                "Creation is paused.",
+                List.of(),
+                PipelineGates.RECOVERY_RETRY_TECHNICAL,
+                "timeout",
+                null,
+                "run-parent",
+                "design-execution"),
+            "");
+    when(facade.snapshot("conv-restart")).thenReturn(Optional.of(snapshot));
+    when(facade.restartCheckpoints("conv-restart"))
+        .thenReturn(
+            List.of(RestartCheckpoint.BEGINNING, RestartCheckpoint.APPROVED_REQUIREMENTS));
+    when(facade.restart(any())).thenReturn(Multi.createFrom().empty());
+    ChatDecisionCommand command = new ChatDecisionCommand();
+    command.setAction(ChatEvent.RESTART_FROM_APPROVED_REQUIREMENTS_ACTION);
+    command.setRevision(11L);
+
+    new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+        .apply("conv-restart", command)
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ArgumentCaptor<RestartCreateChainCommand> restart =
+        ArgumentCaptor.forClass(RestartCreateChainCommand.class);
+    verify(facade).restart(restart.capture());
+    assertEquals(RestartCheckpoint.APPROVED_REQUIREMENTS, restart.getValue().checkpoint());
+    assertEquals(11L, restart.getValue().expectedRunRevision());
+  }
 
   @Test
   void openDecisionProjectsAContextualRetryFromServerOwnedState() {

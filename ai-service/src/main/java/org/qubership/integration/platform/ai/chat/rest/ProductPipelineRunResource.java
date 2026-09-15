@@ -114,7 +114,12 @@ public class ProductPipelineRunResource {
             .loadRun(conversationId)
             .orElseThrow(() -> new NotFoundException("no durable product-pipeline run"));
 
-    RunManifest manifest = selection.runManifest();
+    RunManifest manifest =
+        Optional.ofNullable(document.run().runManifestRef())
+            .flatMap(ref -> artifactStore.get(document.run().runId(), ref))
+            .or(() -> artifactStore.latest(document.run().runId(), Kind.RUN_MANIFEST))
+            .map(revision -> artifactStore.payload(revision, RunManifest.class))
+            .orElse(selection.runManifest());
 
     EvidenceSnapshot.Knowledge knowledgeContext =
         evidenceStore

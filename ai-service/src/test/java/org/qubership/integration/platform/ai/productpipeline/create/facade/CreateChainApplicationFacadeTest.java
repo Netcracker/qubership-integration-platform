@@ -61,6 +61,7 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSig
 import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RestartCheckpoint;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
@@ -109,6 +110,38 @@ class CreateChainApplicationFacadeTest {
     assertEquals(
         1,
         fixture.runStore().loadByConversation(taskId).stream().count());
+  }
+
+  @Test
+  void restartFromBeginningCreatesADerivedActiveRunAndPreservesTheParent() {
+    CreateChainApplicationFacade facade = fixture.facade();
+    String taskId = "task-restart-1";
+    facade
+        .start(new StartCreateChainCommand(taskId, "create greetings API"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+    ProductPipelineRunDocument parent =
+        fixture.runStore().loadByConversation(taskId).orElseThrow();
+
+    facade
+        .restart(
+            new RestartCreateChainCommand(
+                taskId,
+                parent.run().runRevision(),
+                RestartCheckpoint.BEGINNING,
+                "restart-command-1"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
+
+    ProductPipelineRunDocument child =
+        fixture.runStore().loadByConversation(taskId).orElseThrow();
+    assertFalse(parent.run().runId().equals(child.run().runId()));
+    assertTrue(fixture.runStore().load(parent.run().runId()).isPresent());
+    assertEquals(parent.run().conversationId(), child.run().conversationId());
   }
 
   @Test

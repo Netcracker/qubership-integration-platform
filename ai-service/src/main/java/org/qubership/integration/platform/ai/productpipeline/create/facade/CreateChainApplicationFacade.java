@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.plan.ImplementationPlanChatView;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.MappingGapWait;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
@@ -36,6 +37,8 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.ImplementCo
 import org.qubership.integration.platform.ai.productpipeline.runtime.InputOrigin;
 import org.qubership.integration.platform.ai.productpipeline.runtime.PipelineSignal;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RestartCheckpoint;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RestartRunCommand;
 import org.qubership.integration.platform.ai.productpipeline.runtime.StaleApprovalException;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -209,6 +212,93 @@ public class CreateChainApplicationFacade {
         .existing(taskId)
         .map(selection -> selection.runManifest().responseLocale())
         .orElse(ResponseLocaleResolver.DEFAULT_LOCALE);
+  }
+
+  /** Returns only checkpoints backed by the active run's current durable evidence. */
+  public List<RestartCheckpoint> restartCheckpoints(String taskId) {
+    Objects.requireNonNull(taskId, "taskId");
+    return runtime.availableRestartCheckpoints(taskId);
+  }
+
+  /** Creates a derived run and resumes it from the selected durable checkpoint. */
+  public Multi<CreateChainEvent> restart(RestartCreateChainCommand command) {
+    Objects.requireNonNull(command, "command");
+    String taskId = command.taskId();
+    ProductPipelineRunDocument active =
+        runStore
+            .loadByConversation(taskId)
+            .orElseThrow(() -> new IllegalStateException("no run for taskId " + taskId));
+    String payloadHash =
+        CanonicalPayloadHash.sha256Hex(
+            Map.of(
+                "checkpoint", command.checkpoint().name(),
+                "commandId", command.commandId(),
+                "expectedRunRevision", command.expectedRunRevision(),
+                "taskId", taskId));
+    String childRunId;
+    ProductPipelineRunDocument parent = active;
+    if (active.appliedCommand(command.commandId(), payloadHash).isPresent()) {
+      childRunId = active.run().runId();
+      RunManifest childManifest = manifestOf(active);
+      parent =
+          runStore
+              .load(childManifest.parentRunId())
+              .orElseThrow(
+                  () ->
+                      new IllegalStateException(
+                          "parent run is missing: " + childManifest.parentRunId()));
+    } else {
+      if (active.run().runRevision() != command.expectedRunRevision()) {
+        throw new org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionException(
+            "expected runRevision "
+                + command.expectedRunRevision()
+                + " but was "
+                + active.run().runRevision());
+      }
+      childRunId = availableRestartRunId(taskId, command.commandId());
+    }
+    CreateRunBinding binding = requireBinding(taskId);
+    var profile =
+        profileCatalog.require(
+            binding.runManifest().profileId(), binding.runManifest().profileVersion());
+    RestartRunCommand restart =
+        new RestartRunCommand(
+            taskId,
+            parent.run().runId(),
+            command.expectedRunRevision(),
+            childRunId,
+            profile,
+            command.checkpoint(),
+            command.commandId(),
+            payloadHash);
+    return mapSignals(taskId, runtime.restart(restart));
+  }
+
+  private static String restartRunId(String taskId, String commandId) {
+    String digest = CanonicalPayloadHash.sha256Hex(taskId + "\n" + commandId);
+    return taskId + "-restart-" + digest.substring(0, 16);
+  }
+
+  private String availableRestartRunId(String taskId, String commandId) {
+    String candidate = restartRunId(taskId, commandId);
+    int attempt = 1;
+    while (runStore.load(candidate).isPresent()) {
+      candidate = restartRunId(taskId, commandId + "\nretry " + attempt);
+      attempt++;
+    }
+    return candidate;
+  }
+
+  private RunManifest manifestOf(ProductPipelineRunDocument doc) {
+    Reference manifestRef = doc.run().runManifestRef();
+    return Optional.ofNullable(manifestRef)
+        .flatMap(ref -> artifactStore.get(doc.run().runId(), ref))
+        .or(() -> artifactStore.latest(doc.run().runId(), Kind.RUN_MANIFEST))
+        .map(revision -> artifactStore.payload(revision, RunManifest.class))
+        .orElseThrow(
+            () ->
+                new IllegalStateException(
+                    "RUN_MANIFEST is missing for " + doc.run().runId()));
   }
 
   /** Approves the current expected artifact or recovers a blocked implementation gate. */
@@ -694,16 +784,16 @@ public class CreateChainApplicationFacade {
           runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId, origin)));
     }
     if (status == RunStatus.RUNNING || status == RunStatus.PLAN_APPROVED) {
-      CreateRunBinding binding = requireBinding(taskId);
+      RunManifest activeManifest = manifestOf(doc);
       return mapSignals(
           taskId,
           runtime.startOrResume(
               new StartOrResumeCommand(
                   taskId,
-                  binding.productRunId(),
+                  doc.run().runId(),
                   profileCatalog.require(
-                      binding.runManifest().profileId(), binding.runManifest().profileVersion()),
-                  binding.runManifest())));
+                      activeManifest.profileId(), activeManifest.profileVersion()),
+                  activeManifest)));
     }
     return Multi.createFrom().empty();
   }
