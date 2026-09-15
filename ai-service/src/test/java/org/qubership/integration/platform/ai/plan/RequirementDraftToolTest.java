@@ -360,6 +360,55 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void readyForPlanIgnoresDocumentCandidateWhenCatalogAlreadyBindsTheFlow() {
+    ConversationApiHubCache apiHubCache = new ConversationApiHubCache();
+    apiHubCache.rememberCandidate(
+        "draft-conv",
+        new ApiHubRequirementRefs(
+            "uploaded-approved-specifications",
+            "1.0.0",
+            null,
+            "uploaded-specifications",
+            "rest",
+            "Uploaded specifications",
+            null));
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(org.mockito.ArgumentMatchers.any(CatalogQuery.class)))
+        .thenAnswer(
+            invocation -> {
+              String operation = invocation.<CatalogQuery>getArgument(0).operationHint();
+              return switch (operation) {
+                case "onTaskStart" -> new CatalogLookupResult.Exact(omStartMatch());
+                case "createTask" -> new CatalogLookupResult.Exact(salesforceMatch());
+                case "onTaskResult" -> new CatalogLookupResult.Exact(omResultMatch());
+                default -> new CatalogLookupResult.None();
+              };
+            });
+    RequirementDraftTool captureTool =
+        new RequirementDraftTool(
+            store,
+            null,
+            null,
+            apiHubCache,
+            new ConversationApiResolutions(),
+            null,
+            lookup);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            flowCapture(true, DraftDecision.READY_FOR_PLAN, rockyFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, draft.decision());
+    assertTrue(draft.readyForPlan());
+    assertNull(draft.apiHubCandidate());
+    assertFalse(draft.importIntent());
+    assertFalse(result.contains("pending"), result);
+  }
+
+  @Test
   void captureFillsApiHubCandidateFromConversationCacheWhenAgentOmitsIt() {
     ConversationApiHubCache apiHubCache = new ConversationApiHubCache();
     apiHubCache.rememberCandidate(
