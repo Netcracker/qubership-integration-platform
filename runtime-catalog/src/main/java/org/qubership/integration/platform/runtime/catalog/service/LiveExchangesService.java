@@ -35,7 +35,10 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriUtils;
 
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -97,15 +100,23 @@ public class LiveExchangesService {
 
     @SuppressWarnings("checkstyle:EmptyCatchBlock")
     public void sendKillExchangeRequest(String podIp, String deploymentId, String exchangeId) {
+        String engineHost = runtimeDeploymentService.getEngineHosts().values().stream()
+                .flatMap(Collection::stream)
+                .filter(podIp::equals)
+                .findAny()
+                .orElseThrow(() -> new EntityNotFoundException("No engine pod is registered at the given address"));
+        URI killUri = URI.create(String.format(SESSION_DELETE_URL, engineHost,
+                UriUtils.encodePathSegment(deploymentId, StandardCharsets.UTF_8),
+                UriUtils.encodePathSegment(exchangeId, StandardCharsets.UTF_8)));
         try {
-            restTemplateMs.delete(String.format(SESSION_DELETE_URL, podIp, deploymentId, exchangeId));
+            restTemplateMs.delete(killUri);
         } catch (MicroserviceErrorResponseException e) {
             if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
                 throw new EntityNotFoundException(e.getMessage());
             }
             throw e;
         } catch (ResourceAccessException e) {
-            log.warn("Unable to send a kill request for exchange {} to engine pod {}", exchangeId, podIp, e);
+            log.warn("Unable to send a kill request for exchange {} to engine pod {}", exchangeId, engineHost, e);
             throw new CatalogRuntimeException("Cannot reach the engine pod that runs the exchange");
         }
 
@@ -116,7 +127,7 @@ public class LiveExchangesService {
         actionLogger.logAction(ActionLog.builder()
                 .entityType(EntityType.EXCHANGE)
                 .entityId(exchangeId)
-                .entityName("Exchange from " + podIp)
+                .entityName("Exchange from " + engineHost)
                 .parentType(EntityType.DEPLOYMENT)
                 .parentId(deploymentId)
                 .parentName(domainName)
