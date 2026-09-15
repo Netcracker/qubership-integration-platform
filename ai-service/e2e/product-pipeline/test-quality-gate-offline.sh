@@ -19,6 +19,7 @@ active="$(
   jq '[to_entries[] | select(
     (.value.status // "active") == "active"
     and (.value.recovery.exhaustHalt != true)
+    and (.value.recovery.manualOnly != true)
   )] | length' \
     "${DIR}/scenarios.json"
 )"

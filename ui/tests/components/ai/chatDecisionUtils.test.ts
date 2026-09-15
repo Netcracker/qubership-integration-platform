@@ -484,4 +484,16 @@ describe("isBlankClarifyHalt", () => {
       ),
     ).toBe(true);
   });
+
+  it("should ignore restart choices when detecting an empty clarify halt", () => {
+    expect(
+      isBlankClarifyHalt(
+        buildDecision({
+          kind: "clarify",
+          question: "   ",
+          actions: ["restart-from-beginning"],
+        }),
+      ),
+    ).toBe(true);
+  });
 });

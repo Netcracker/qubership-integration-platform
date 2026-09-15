@@ -214,10 +214,16 @@ export function openingUserAssignment(messages: ChatMessage[]): string {
 
 /** Empty clarify with no question is a halt, not a dead Submit. */
 export function isBlankClarifyHalt(decision: ChatDecision): boolean {
+  const actionable = (decision.actions ?? []).filter(
+    (action) =>
+      action !== "restart-from-beginning" &&
+      action !== "restart-from-approved-requirements" &&
+      action !== "restart-from-approved-plan",
+  );
   return (
     decision.kind === "clarify" &&
     decision.recovery === undefined &&
-    (decision.actions?.length ?? 0) === 0 &&
+    actionable.length === 0 &&
     !decisionCardText(decision)
   );
 }

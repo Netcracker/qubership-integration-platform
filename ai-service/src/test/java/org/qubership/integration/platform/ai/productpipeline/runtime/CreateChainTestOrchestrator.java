@@ -102,7 +102,10 @@ public final class CreateChainTestOrchestrator implements CreateChainOrchestrato
             () -> {
               support.prepareCheckpointRestart(command, "test-flow-" + command.childRunId());
               runStore.replaceConversationBinding(
-                  command.conversationId(), command.parentRunId(), command.childRunId());
+                  command.conversationId(),
+                  command.parentRunId(),
+                  command.parentRunRevision(),
+                  command.childRunId());
               return loop(command.childRunId());
             });
   }
