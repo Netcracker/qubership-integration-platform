@@ -63,6 +63,9 @@ public class ProvidedIdsFlowTasks {
 
   public ProvidedIdsFlow.RunContext executeCurrentStage(ProvidedIdsFlow.RunContext input) {
     Objects.requireNonNull(input, "input");
+    if (input.waitForActivation()) {
+      return input;
+    }
     runSupport.ensureDurablePinsLoaded(input.runId());
     String stageId = runSupport.currentStageId(input.runId());
     int used = input.technicalRetriesUsed() == null ? 0 : input.technicalRetriesUsed();

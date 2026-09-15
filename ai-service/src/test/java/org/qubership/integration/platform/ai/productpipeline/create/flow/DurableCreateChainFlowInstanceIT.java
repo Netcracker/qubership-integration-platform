@@ -68,8 +68,11 @@ class DurableCreateChainFlowInstanceIT {
     when(tasks.executeCurrentStage(any()))
         .thenAnswer(
             invocation -> {
-              executions.incrementAndGet();
               ProvidedIdsFlow.RunContext context = invocation.getArgument(0);
+              if (context.waitForActivation()) {
+                return context;
+              }
+              executions.incrementAndGet();
               return context.withDecision("STOP");
             });
     when(tasks.restoreAfterActivation(any()))
