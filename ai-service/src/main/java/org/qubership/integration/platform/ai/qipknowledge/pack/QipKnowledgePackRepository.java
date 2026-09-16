@@ -10,6 +10,7 @@ import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntime
 import org.qubership.integration.platform.ai.productpipeline.packageindex.ProductPipelinePackageIndex;
 import org.qubership.integration.platform.ai.qipknowledge.rag.QipKnowledgeRagIngestionManifest;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
+import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupportMatrix;
 
 /** Read-only access to pre-built QIP skill-pack indexes. */
 public interface QipKnowledgePackRepository {
@@ -30,6 +31,8 @@ public interface QipKnowledgePackRepository {
   CompilerRuntimePackageIndex loadCompilerRuntimePackageIndex();
 
   CompilerPipelineIndex loadCompilerPipelineIndex();
+
+  ElementSupportMatrix loadElementSupportMatrix();
 
   PipelineCompatibilityReport loadPipelineCompatibilityReport();
 

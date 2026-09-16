@@ -15,6 +15,7 @@ import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompiler
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntimePackageIndex;
 import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
+import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupportStatus;
 
 class QipKnowledgePackBuildGeneratorTest {
 
@@ -38,6 +39,9 @@ class QipKnowledgePackBuildGeneratorTest {
     assertTrue(
         Files.isRegularFile(
             versionDir.resolve(QipKnowledgePackIndexLoader.PRODUCT_PIPELINE_PACKAGE_INDEX_FILE)));
+    assertTrue(
+        Files.isRegularFile(
+            versionDir.resolve(QipKnowledgePackIndexLoader.ELEMENT_SUPPORT_MATRIX_FILE)));
     QipKnowledgePackRepository repository =
         new FilesystemQipKnowledgePackRepository(outputDir, QipKnowledgePackFixturePaths.packVersion());
     assertEquals(QipKnowledgePackFixturePaths.PACK_DIR, repository.loadManifest().version().normalized());
@@ -109,6 +113,11 @@ class QipKnowledgePackBuildGeneratorTest {
     assertEquals(2, pipelineIndex.schemaVersion());
     assertFalse(pipelineIndex.dependencies().isEmpty());
     assertFalse(pipelineIndex.nodes().isEmpty());
+
+    var supportMatrix = repository.loadElementSupportMatrix();
+    assertFalse(supportMatrix.elements().isEmpty());
+    assertEquals(ElementSupportStatus.UNSUPPORTED, supportMatrix.require("scs-sender").status());
+    assertEquals(ElementSupportStatus.PARTIAL, supportMatrix.require("reuse-reference").status());
 
     CompilerContract contract =
         new ClasspathCompilerContractRepository().require(CompilerContract.V1);

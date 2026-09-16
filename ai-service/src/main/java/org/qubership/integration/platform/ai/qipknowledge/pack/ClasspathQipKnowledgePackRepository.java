@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntime
 import org.qubership.integration.platform.ai.productpipeline.packageindex.ProductPipelinePackageIndex;
 import org.qubership.integration.platform.ai.qipknowledge.rag.QipKnowledgeRagIngestionManifest;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
+import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupportMatrix;
 
 /** Loads pre-built QIP knowledge indexes from classpath resources. No ingestion at runtime. */
 public class ClasspathQipKnowledgePackRepository implements QipKnowledgePackRepository {
@@ -98,6 +99,12 @@ public class ClasspathQipKnowledgePackRepository implements QipKnowledgePackRepo
   public CompilerPipelineIndex loadCompilerPipelineIndex() {
     return readJson(
         QipKnowledgePackIndexLoader.COMPILER_PIPELINE_INDEX_FILE, CompilerPipelineIndex.class);
+  }
+
+  @Override
+  public ElementSupportMatrix loadElementSupportMatrix() {
+    return readJson(
+        QipKnowledgePackIndexLoader.ELEMENT_SUPPORT_MATRIX_FILE, ElementSupportMatrix.class);
   }
 
   @Override
