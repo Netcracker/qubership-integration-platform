@@ -1,6 +1,6 @@
 def exceptionType = exchange.getProperty('exceptionType', String)
 
-if (exceptionType != '') {
+if (exceptionType != "") {
     if (exceptionType == 'arithmetic') {
         def a = 1 / 0
         exchange.setProperty('a', a)
