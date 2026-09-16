@@ -28,10 +28,8 @@ python3 ai-service/e2e/product-pipeline/check_element_test_coverage.py
 Add `--fail-on-known-failure` when the gate should also require every supported element to have a
 non-failing live scenario.
 
-The synchronous and asynchronous split scenarios are active manual-only characterization tests.
-Both currently reproduce a compiler validation failure: generated branch-shell elements have no
-sibling execution edge. Run either explicitly with `--scenario`; the default quality gate skips
-`liveTest.manualOnly` scenarios until that defect is fixed.
+The default gate includes synchronous and asynchronous split scenarios. They verify branch-shell
+containment and catalog materialization for `split-2` and `split-async-2`.
 
 ## Live gate
 

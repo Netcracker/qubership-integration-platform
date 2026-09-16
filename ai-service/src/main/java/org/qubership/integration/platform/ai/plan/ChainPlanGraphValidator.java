@@ -374,6 +374,9 @@ public class ChainPlanGraphValidator {
     if (ChainElementFamilies.TRY_CATCH_WRAPPER.contains(parentType)) {
       return !ChainElementFamilies.TRY_CATCH_SHELL.contains(type);
     }
+    if ("split-2".equals(parentType) || "split-async-2".equals(parentType)) {
+      return !ChainElementFamilies.PARALLEL_BRANCH_CHILDREN.contains(type);
+    }
     return true;
   }
 

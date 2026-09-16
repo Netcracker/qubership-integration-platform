@@ -276,10 +276,6 @@
     "expectsImplement": true,
     "retainCatalogChain": true,
     "uniqueChainNamePrefix": "AiCreateSyncSplit",
-    "liveTest": {
-      "manualOnly": true,
-      "knownFailure": "Generated split-element-2 branch shells have no sibling execution edge."
-    },
     "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". HTTP POST internal \"/split-orders\". Flow: http-trigger then a synchronous split with two branches named audit and fulfillment. Put one script in each branch: audit returns plain text \"audit queued\" and fulfillment returns plain text \"fulfillment queued\". After both branches complete, a final script returns plain text \"accepted\". Use only an HTTP trigger, the synchronous split, and scripts. No service calls. No error handling. No MCP. No APIHub.",
     "requiredFacts": [
       "POST /split-orders",
@@ -337,10 +333,6 @@
     "expectsImplement": true,
     "retainCatalogChain": true,
     "uniqueChainNamePrefix": "AiCreateAsyncSplit",
-    "liveTest": {
-      "manualOnly": true,
-      "knownFailure": "Generated async-split-element-2 branch shells have no sibling execution edge."
-    },
     "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". HTTP POST internal \"/fanout-orders\". Flow: http-trigger then an asynchronous fire-and-forget split with two branches named audit and notification. Put one script in each branch: audit returns plain text \"audit queued\" and notification returns plain text \"notification queued\". Continue after the fan-out to a final script that returns plain text \"accepted\". Use only an HTTP trigger, the asynchronous split, and scripts. No service calls. No error handling. No MCP. No APIHub.",
     "requiredFacts": [
       "POST /fanout-orders",
