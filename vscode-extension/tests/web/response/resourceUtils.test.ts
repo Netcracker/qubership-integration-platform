@@ -1,9 +1,13 @@
 import { Uri } from "vscode";
 import type { Element as ElementSchema } from "@netcracker/qip-schemas";
 import {
+  buildCipFilename,
+  buildServiceCallFilename,
+  cleanupOrphanPropertyFiles,
   collectFilenamesFromElementTree,
   deleteElementsPropertyFiles,
-  cleanupOrphanPropertyFiles,
+  getOrCreatePropertyFilename,
+  normalizeAfterId,
 } from "../../../src/web/response/resourceUtils";
 import { fileApi } from "../../../src/web/response/file";
 
@@ -331,5 +335,188 @@ describe("cleanupOrphanPropertyFiles", () => {
     const oldFilenames = new Set(["x.groovy"]);
     await cleanupOrphanPropertyFiles(fileUri, oldFilenames, new Set(), []);
     expect(mockedRemoveFile).toHaveBeenCalledWith(fileUri, "x.groovy");
+  });
+});
+
+describe("normalizeAfterId", () => {
+  it.each([
+    ["100..199", "1xx"],
+    ["200..299", "2xx"],
+    ["300..399", "3xx"],
+    ["400..499", "4xx"],
+    ["500..599", "5xx"],
+  ])("normalizes %s to %s", (input, expected) => {
+    expect(normalizeAfterId(input)).toBe(expected);
+  });
+
+  it.each([
+    "600..699",
+    "100..299",
+    "200..200",
+    "abc",
+    "1xx",
+    "",
+    "100..199 ",
+    " 100..199",
+    "100..1990",
+    "404",
+  ])("leaves non-matching value %s unchanged", (input) => {
+    expect(normalizeAfterId(input)).toBe(input);
+  });
+});
+
+describe("buildCipFilename", () => {
+  it("builds a dot-separated cip filename", () => {
+    expect(buildCipFilename("el-1", "element", "mapper", "json")).toBe("el-1.element.mapper.cip.json");
+  });
+
+  it("builds a before segment filename", () => {
+    expect(buildCipFilename("el-42", "before", "script", "groovy")).toBe("el-42.before.script.cip.groovy");
+  });
+
+  it("builds an after segment with normalized range", () => {
+    expect(buildCipFilename("el-1", "after-2xx", "mapper", "json")).toBe("el-1.after-2xx.mapper.cip.json");
+  });
+});
+
+describe("getOrCreatePropertyFilename", () => {
+  it("returns the existing filename when one is supplied", () => {
+    expect(getOrCreatePropertyFilename("http-sender", ["script"], "groovy", "el-1", "old.cip.groovy")).toBe(
+      "old.cip.groovy",
+    );
+  });
+
+  it("returns existing filename even when propertyNames and extension are missing", () => {
+    expect(getOrCreatePropertyFilename("mapper", undefined, undefined, "el-1", "keep.me")).toBe("keep.me");
+  });
+
+  it("builds a mapper kind filename for a single mappingDescription property on a mapper type", () => {
+    expect(getOrCreatePropertyFilename("mapper-custom", ["mappingDescription"], "json", "el-1")).toBe(
+      "el-1.element.mapper.cip.json",
+    );
+  });
+
+  it("builds a script kind filename for a single script property on a mapper type", () => {
+    expect(getOrCreatePropertyFilename("mapper", ["script"], "groovy", "el-1")).toBe(
+      "el-1.element.script.cip.groovy",
+    );
+  });
+
+  it("preserves a custom single property name for a mapper type", () => {
+    expect(getOrCreatePropertyFilename("mapper-foo", ["customProp"], "txt", "el-42")).toBe(
+      "el-42.element.customProp.cip.txt",
+    );
+  });
+
+  it("collapses multiple properties on a mapper type to mapper kind", () => {
+    expect(getOrCreatePropertyFilename("mapper", ["a", "b"], "json", "el-1")).toBe("el-1.element.mapper.cip.json");
+  });
+
+  it("builds a script kind filename for a single script property on a non-mapper type", () => {
+    expect(getOrCreatePropertyFilename("http-sender", ["script"], "groovy", "el-7")).toBe(
+      "el-7.element.script.cip.groovy",
+    );
+  });
+
+  it("preserves a custom single property name for a non-mapper type", () => {
+    expect(getOrCreatePropertyFilename("http-sender", ["myProp"], "json", "el-7")).toBe(
+      "el-7.element.myProp.cip.json",
+    );
+  });
+
+  it("collapses multiple properties on a non-mapper type to properties kind", () => {
+    expect(getOrCreatePropertyFilename("service-call", ["a", "b"], "json", "el-1")).toBe(
+      "el-1.element.properties.cip.json",
+    );
+  });
+
+  it("treats type not starting with mapper as non-mapper", () => {
+    expect(getOrCreatePropertyFilename("http-trigger", ["solo"], "json", "el-1")).toBe(
+      "el-1.element.solo.cip.json",
+    );
+  });
+
+  it("throws when propertyNames is undefined and no existing filename", () => {
+    expect(() => getOrCreatePropertyFilename("http-sender", undefined, "json", "el-1")).toThrow(
+      "Property names and exportFileExtension should be presented",
+    );
+  });
+
+  it("throws when exportFileExtension is undefined and no existing filename", () => {
+    expect(() => getOrCreatePropertyFilename("http-sender", ["script"], undefined, "el-1")).toThrow(
+      "Property names and exportFileExtension should be presented",
+    );
+  });
+
+  it("throws when both propertyNames and exportFileExtension are undefined", () => {
+    expect(() => getOrCreatePropertyFilename("http-sender", undefined, undefined, "el-1")).toThrow();
+  });
+});
+
+describe("buildServiceCallFilename", () => {
+  it("returns the existing filename when one is supplied", () => {
+    expect(buildServiceCallFilename("el-1", true, { id: "404" }, "script", "groovy", "keep.groovy")).toBe(
+      "keep.groovy",
+    );
+  });
+
+  it("returns existing filename for after block even when block has a range id", () => {
+    expect(buildServiceCallFilename("el-1", false, { id: "200..299" }, "mapper", "json", "keep.json")).toBe(
+      "keep.json",
+    );
+  });
+
+  it("builds a before script filename", () => {
+    expect(buildServiceCallFilename("el-1", true, {}, "script", "groovy")).toBe("el-1.before.script.cip.groovy");
+  });
+
+  it("builds a before mapper filename", () => {
+    expect(buildServiceCallFilename("el-1", true, {}, "mapper", "json")).toBe("el-1.before.mapper.cip.json");
+  });
+
+  it("builds an after script filename with id", () => {
+    expect(buildServiceCallFilename("el-1", false, { id: "404" }, "script", "groovy")).toBe(
+      "el-1.after-404.script.cip.groovy",
+    );
+  });
+
+  it("builds an after mapper filename with id", () => {
+    expect(buildServiceCallFilename("el-1", false, { id: "200" }, "mapper", "json")).toBe(
+      "el-1.after-200.mapper.cip.json",
+    );
+  });
+
+  it("falls back to code when id is absent for after block", () => {
+    expect(buildServiceCallFilename("el-1", false, { code: "myCode" }, "script", "groovy")).toBe(
+      "el-1.after-myCode.script.cip.groovy",
+    );
+  });
+
+  it("prefers id over code for after block", () => {
+    expect(buildServiceCallFilename("el-1", false, { id: "idVal", code: "codeVal" }, "script", "groovy")).toBe(
+      "el-1.after-idVal.script.cip.groovy",
+    );
+  });
+
+  it("normalizes a status-code range for after script", () => {
+    expect(buildServiceCallFilename("el-1", false, { id: "500..599" }, "script", "groovy")).toBe(
+      "el-1.after-5xx.script.cip.groovy",
+    );
+  });
+
+  it("normalizes a status-code range for after mapper", () => {
+    expect(buildServiceCallFilename("el-1", false, { id: "200..299" }, "mapper", "json")).toBe(
+      "el-1.after-2xx.mapper.cip.json",
+    );
+  });
+
+  it("keeps a non-matching range unchanged for after block", () => {
+    expect(buildServiceCallFilename("el-1", false, { id: "100..299" }, "script", "groovy")).toBe(
+      "el-1.after-100..299.script.cip.groovy",
+    );
+  });
+
+  it("uses empty string when block has neither id nor code", () => {
+    expect(buildServiceCallFilename("el-1", false, {}, "script", "groovy")).toBe("el-1.after-.script.cip.groovy");
   });
 });

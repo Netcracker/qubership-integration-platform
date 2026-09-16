@@ -18,19 +18,19 @@
   <parent>
       <groupId>org.qubership.integration.platform</groupId>
       <artifactId>qip-monorepo-parent</artifactId>
-      <version>1.2.3-SNAPSHOT</version>
+      <version>1.3.0-SNAPSHOT</version>
       <relativePath>../parent</relativePath>
   </parent>
 
   <properties>
-    <revision>1.2.3-oob-chains</revision>
+    <revision>1.3.0</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <!-- Last released version of the in-repo library, kept equal to integration-build-pipeline's revision by
          scripts/check-version-invariants.sh. The dependency below appends ${changelist}, so a normal build
          resolves the development coordinate from the reactor and a release, which passes -Dchangelist=,
          resolves the published jar. -->
-    <qip-integration-build-pipeline.version>1.2.3-oob-chains</qip-integration-build-pipeline.version>
+    <qip-integration-build-pipeline.version>1.3.0</qip-integration-build-pipeline.version>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

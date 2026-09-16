@@ -18,6 +18,7 @@ import {
   getLibraryElementByType,
   getMainChain,
   getMaskedField,
+  loadElementProperties,
   parseElement,
   parseMaskedField,
 } from "./chainApiRead";
@@ -53,7 +54,10 @@ import {
   cleanupOrphanPropertyFiles,
   collectFilenamesFromElementTree,
   deleteElementsPropertyFiles,
+  buildServiceCallFilename,
+  getOrCreatePropertyFilename,
 } from "./resourceUtils";
+import { ResourceFileNames } from "./ResourceFileNames";
 
 export async function updateChain(
   fileUri: Uri,
@@ -242,6 +246,37 @@ async function checkRestrictions(
   // }
 }
 
+function getParentElementForUpdate(chainElements: ElementSchema[], parentId: string | undefined) {
+  if (!parentId) {
+    return undefined;
+  }
+  const parent = findElementById(chainElements, parentId);
+  if (!parent) {
+    console.error(`Parent ElementId not found`);
+    throw new Error("Parent ElementId not found");
+  }
+  return parent;
+}
+
+function reattachElementOnUpdate(
+  chain: ChainSchema,
+  element: ElementSchema,
+  parentElement: ReturnType<typeof findElementById>,
+  isChangeParent: boolean,
+): void {
+  if (!isChangeParent) {
+    return;
+  }
+  if (parentElement) {
+    if (!(parentElement.element.children as ElementSchema[])?.length) {
+      parentElement.element.children = [];
+    }
+    (parentElement.element.children as ElementSchema[]).push(element);
+  } else {
+    (chain.content.elements as ElementSchema[]).push(element);
+  }
+}
+
 export async function updateElement(
   fileUri: Uri,
   chainId: string,
@@ -265,6 +300,7 @@ export async function updateElement(
 
   const oldFilenames = new Set<string>();
   collectFilenamesFromElementTree([element], oldFilenames);
+  const prevFilenames = ResourceFileNames.fromElement(element);
 
   const isChangeParent =
     elementWithParentId?.parentId !== elementRequest.parentElementId;
@@ -273,17 +309,7 @@ export async function updateElement(
     element = findAndRemoveElementById(chainElements, elementId)!;
   }
 
-  let parentElement = undefined;
-  if (elementRequest.parentElementId) {
-    parentElement = findElementById(
-      chainElements,
-      elementRequest.parentElementId,
-    );
-    if (!parentElement) {
-      console.error(`Parent ElementId not found`);
-      throw Error("Parent ElementId not found");
-    }
-  }
+  const parentElement = getParentElementForUpdate(chainElements, elementRequest.parentElementId);
 
   element.name = elementRequest.name;
   element.description = elementRequest.description;
@@ -295,28 +321,16 @@ export async function updateElement(
     { element, parentElementId: elementWithParentId?.parentId },
     elementRequest,
   );
-  const newFilenames = new Set<string>();
-  {
-    const newElementForCollect = { ...element, properties: elementRequest.properties as ElementSchema["properties"] } as ElementSchema;
-    collectFilenamesFromElementTree([newElementForCollect], newFilenames);
-  }
   (element as any).properties = elementRequest.properties;
 
   element.parentElementId = elementRequest.parentElementId;
-  if (isChangeParent) {
-    if (parentElement) {
-      if (!(parentElement.element.children as ElementSchema[])?.length) {
-        parentElement.element.children = [];
-      }
-      (parentElement.element.children as ElementSchema[]).push(element);
-    } else {
-      (chain.content.elements as ElementSchema[]).push(element);
-    }
-  }
+  reattachElementOnUpdate(chain, element, parentElement, isChangeParent);
 
   await checkRestrictions(element, chain.content.elements as ElementSchema[]);
 
-  await writeElementProperties(fileUri, element);
+  await writeElementProperties(fileUri, element, prevFilenames);
+  const newFilenames = new Set<string>();
+  collectFilenamesFromElementTree([element], newFilenames);
   await fileApi.writeMainChain(fileUri, chain);
 
   await cleanupOrphanPropertyFiles(fileUri, oldFilenames, newFilenames, chain.content.elements as ElementSchema[]);
@@ -542,41 +556,17 @@ async function connectToTransferTarget(
   };
 }
 
-function getOrCreatePropertyFilename(
-  type: string,
-  propertyNames: string[] | undefined,
-  exportFileExtension: string | undefined,
-  id: string,
-) {
-  let prefix: string;
-  if (!propertyNames || !exportFileExtension) {
-    throw new Error(
-      `Property names and exportFileExtension should be presented`,
-    );
-  }
-  if (type.startsWith("mapper")) {
-    prefix = propertyNames.length === 1 ? propertyNames[0] : "mapper";
-  } else {
-    prefix = propertyNames.length === 1 ? propertyNames[0] : "properties";
-  }
-
-  return `${prefix}-${id}.${exportFileExtension}`;
-}
-
 async function writeElementProperties(
   fileUri: Uri,
   element: ElementSchema,
+  prevFilenames?: ResourceFileNames,
 ): Promise<void> {
-  async function handleServiceCallProperty(beforeAfterBlock: any) {
-    const propertiesFilenameId =
-      (beforeAfterBlock.id ? beforeAfterBlock.id + "-" : "") + element.id;
+  async function handleServiceCallProperty(beforeAfterBlock: any, isBefore: boolean) {
+    const existing = isBefore
+      ? prevFilenames?.getBefore(beforeAfterBlock.type)
+      : prevFilenames?.getAfter(beforeAfterBlock.type, String(beforeAfterBlock.id ?? beforeAfterBlock.code ?? ""));
     if (beforeAfterBlock.type === "script") {
-      beforeAfterBlock.propertiesFilename = getOrCreatePropertyFilename(
-        beforeAfterBlock.type,
-        ["script"],
-        "groovy",
-        propertiesFilenameId,
-      );
+      beforeAfterBlock.propertiesFilename = buildServiceCallFilename(element.id, isBefore, beforeAfterBlock, "script", "groovy", existing);
       await fileApi.writePropertyFile(
         fileUri,
         beforeAfterBlock.propertiesFilename,
@@ -590,12 +580,7 @@ async function writeElementProperties(
         );
         throw Error("Deprecated Mapper element is not supported");
       }
-      beforeAfterBlock.propertiesFilename = getOrCreatePropertyFilename(
-        beforeAfterBlock.type,
-        ["mappingDescription"],
-        "json",
-        propertiesFilenameId,
-      );
+      beforeAfterBlock.propertiesFilename = buildServiceCallFilename(element.id, isBefore, beforeAfterBlock, "mapper", "json", existing);
       const property: any = JSON.stringify(
         { mappingDescription: beforeAfterBlock["mappingDescription"] },
         null,
@@ -624,6 +609,7 @@ async function writeElementProperties(
       propertyNames,
       elementProperties.exportFileExtension,
       element.id,
+      prevFilenames?.getGeneric(),
     );
     if (elementProperties.exportFileExtension === "json" && propertyNames) {
       const properties: any = {};
@@ -656,11 +642,11 @@ async function writeElementProperties(
     const elementProperties = element.properties as any; // WA before fix of schemas compilation missing service call properties
     if (Array.isArray(elementProperties.after)) {
       for (const afterBlock of elementProperties.after) {
-        await handleServiceCallProperty(afterBlock);
+        await handleServiceCallProperty(afterBlock, false);
       }
     }
     if (elementProperties.before) {
-      await handleServiceCallProperty(elementProperties.before);
+      await handleServiceCallProperty(elementProperties.before, true);
     }
   }
 }
@@ -1374,7 +1360,9 @@ export async function cloneElements(
       clone.type as unknown as string,
     );
 
+    await loadElementProperties(fileUri, clone);
     resetPropertiesToDefault(chainId, clone, libraryElement);
+    await writeElementProperties(fileUri, clone);
 
     if (containerElementSchema) {
       clone.parentElementId = containerId;
