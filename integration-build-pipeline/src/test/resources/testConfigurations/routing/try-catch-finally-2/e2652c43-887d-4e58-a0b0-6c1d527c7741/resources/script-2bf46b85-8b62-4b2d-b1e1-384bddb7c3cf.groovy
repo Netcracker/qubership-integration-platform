@@ -1,2 +1,2 @@
-exchange.getMessage().setBody("Exception occurred")
+exchange.getMessage().setBody('Exception occurred')
 

@@ -1,1 +1,1 @@
-exchange.getMessage().setHeader("X-Finally-Step","true")
+exchange.getMessage().setHeader('X-Finally-Step', true)

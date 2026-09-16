@@ -4,4 +4,4 @@ if(exchange.getProperty('catchError') == true){
   throw new Exception('catchError')
 }
 
-exchange.getMessage().setBody("ArithmeticException occurred")
+exchange.getMessage().setBody('ArithmeticException occurred')

@@ -5,4 +5,4 @@ if(exchange.getProperty('finallyError') == true){
   throw new Exception('finallyError')
 }
 
-exchange.getMessage().setHeader("X-Finally-Step","true")
+exchange.getMessage().setHeader('X-Finally-Step', true)

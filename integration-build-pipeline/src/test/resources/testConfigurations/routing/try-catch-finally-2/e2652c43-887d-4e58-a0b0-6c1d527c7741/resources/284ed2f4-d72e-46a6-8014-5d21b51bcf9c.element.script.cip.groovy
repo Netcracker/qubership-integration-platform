@@ -1,6 +1,6 @@
-def exceptionType = exchange.getProperty("exceptionType", String.class)
+def exceptionType = exchange.getProperty('exceptionType', String)
 
-if (exceptionType != "") {
+if (exceptionType != '') {
   if (exceptionType == 'arithmetic'){
     def a = 1 / 0
   }
@@ -9,6 +9,6 @@ if (exceptionType != "") {
     def i = arr[8]
   }
   else{
-    throw new Exception("Other Exception")
+    throw new Exception('Other Exception')
   }
 }

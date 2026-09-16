@@ -1,1 +1,1 @@
-exchange.getMessage().setBody("Chain completed successful")
+exchange.getMessage().setBody('Chain completed successful')

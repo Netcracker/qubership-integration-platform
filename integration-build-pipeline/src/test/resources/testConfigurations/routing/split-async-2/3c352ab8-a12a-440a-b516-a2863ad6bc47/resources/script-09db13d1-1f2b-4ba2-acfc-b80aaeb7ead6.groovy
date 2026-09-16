@@ -1,1 +1,1 @@
-exchange.setProperty('test', "Before asynch split")
+exchange.setProperty('test', 'Before asynch split')

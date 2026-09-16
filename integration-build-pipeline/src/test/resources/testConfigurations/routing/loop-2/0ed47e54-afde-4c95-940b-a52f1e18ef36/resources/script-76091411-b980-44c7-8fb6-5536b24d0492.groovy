@@ -1,3 +1,3 @@
 def message = exchange.getMessage()
 def index = exchange.getProperty('CamelLoopIndex')
-message.setBody(message.getBody(String.class) + ':' + index)
+message.setBody(message.getBody(String) + ':' + index)
