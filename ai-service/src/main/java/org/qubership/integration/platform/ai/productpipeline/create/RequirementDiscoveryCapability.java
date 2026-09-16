@@ -22,6 +22,7 @@ import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.IdsBypass;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -280,6 +281,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
       StageExecutionContext context,
       AtomicReference<RequirementDraft> captured) {
     String conversationId = context.conversationId();
+    RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
+    if (directive == RequirementDiscoveryDirective.STAY) {
+      return new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
+    }
     RequirementDraft draft =
         captured.get() != null ? captured.get() : draftStore.get(conversationId).orElse(null);
     if (draft == null) {
@@ -287,6 +293,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
           StageOutcome.of(
               StageOutcomeClass.NEEDS_INPUT,
               RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE));
+    }
+    if (directive == RequirementDiscoveryDirective.NONE
+        && !draftStore.wasCapturedThisTurn(conversationId)) {
+      return new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
     }
     // Pending APIHub import hands off to import-stage (ADR 0001) even when the draft
     // is still NEEDS_INPUT with the pinned import-confirm open question. Approved uploaded

@@ -52,10 +52,7 @@ public class GatherRequirementsPromptBuilder {
     this(skillDocumentService, addonRepository, draftStore, null);
   }
 
-  /**
-   * Returns the agent input for one gather turn. When the draft is already READY_FOR_PLAN, returns
-   * the escaped raw user message so continuation turns stay short.
-   */
+  /** Returns the agent input for one conversational requirement-discovery turn. */
   public String wrap(String conversationId, String userMessage) {
     return wrap(conversationId, userMessage, "en");
   }
@@ -66,9 +63,6 @@ public class GatherRequirementsPromptBuilder {
     }
     Optional<RequirementDraft> draft =
         draftStore != null ? draftStore.get(conversationId) : Optional.empty();
-    if (draft.isPresent() && draft.get().readyForPlan()) {
-      return QuteUserMessageEscaping.escapeForAiServiceUserMessage(userMessage);
-    }
     try {
       CompilerSkillDocument document =
           skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID);
@@ -81,8 +75,17 @@ public class GatherRequirementsPromptBuilder {
           <service-runtime-envelope>
           Follow the compiler process skill and the brainstorming addon below for requirement
           discovery behavior (catalog/API Hub, capture decisions, facts, platform defaults,
-          clarifying-question overrides). Do not write files, commit changes, invoke implementation
-          skills, or run the compiler spine. Call captureRequirementDraft every turn.
+          consultation, and clarifying-question overrides). Do not write files, commit changes,
+          invoke implementation skills, or run the compiler spine. Answer the user's current
+          question before asking for more requirements. Capture accepted requirement changes only;
+          do not capture explanations, recommendations, or unselected alternatives.
+          Before making a QIP-specific capability, element, constraint, or pattern claim, call
+          searchRequirementKnowledge with the user's question and ground the answer in its sources.
+          If the lookup fails or lacks support, say that the QIP-specific claim is unverified.
+          Call finishRequirementDiscoveryTurn exactly once as the final tool call, after any
+          required capture and before the final answer. Use STAY for questions, advice,
+          comparisons, or continued discussion. Use CONTINUE only when the user asked to proceed
+          with design or chain creation.
           Capture RequirementFlow before catalog lookup. That first capture may use
           NEEDS_INPUT with empty openQuestions. searchCatalogSystems does not bind an
           interaction.%s Reply in the

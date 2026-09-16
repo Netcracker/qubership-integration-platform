@@ -37,6 +37,16 @@ class RequirementDraftStoreLifecycleTest {
   }
 
   @Test
+  void beginTurnClearsThePreviousDiscoveryDirective() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    store.finishTurn("conversation-1", RequirementDiscoveryDirective.STAY);
+
+    store.beginTurn("conversation-1");
+
+    assertEquals(RequirementDiscoveryDirective.NONE, store.turnDirective("conversation-1"));
+  }
+
+  @Test
   void clearTurnFlagsClearsCaptureRejection() {
     RequirementDraftStore store = new RequirementDraftStore();
     store.recordCaptureRejection("conversation-1", "duplicate sourceFactId in facts: x");

@@ -33,9 +33,12 @@ CREATE_TEST_CASES, CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
 
 - GATHER_REQUIREMENTS: The user is describing a new integration for the first time, mentions API
   calls, flow steps, or data mappings, phrases an IDS / "create design" request that should enter
-  product CREATE, and there is no complete requirement draft yet. On **COLD** (no draft), always
-  prefer this over **CREATE_CHAIN_PLAN** for first-time chain descriptions, even when the message
-  says "create chain".
+  product CREATE, asks for architecture, pattern, or platform-behavior advice about a possible QIP
+  integration, and there is no complete requirement draft yet. On **COLD** (no draft), always prefer
+  this over **CREATE_CHAIN_PLAN** for first-time chain descriptions or questions such as
+  "Как лучше организовать интеграцию через QIP?" is a discovery question. This still applies when the
+  message says "create chain". A question about an identifiable existing deployed catalog chain remains
+  **ASK_CHAIN**.
 
 - CREATE_CHAIN_PLAN: Revise an existing captured graph plan, re-run product CREATE planning after
   the requirement draft is complete, or explicit plan-structure changes. Not for the first-time

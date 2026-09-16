@@ -110,12 +110,19 @@ class GatherRequirementsPromptBuilderTest {
   }
 
   @Test
-  void wrapSkipsProcessSkillWhenDraftAlreadyReadyForPlan() {
+  void wrapKeepsDiscoveryContextWhenDraftIsAlreadyReadyForPlan() {
     draftStore.put("conv-1", RequirementFactFixtures.readyDraft("already ready"));
 
     String input = builder.wrap("conv-1", "More detail");
 
-    assertFalse(input.contains("<compiler-process-skill"));
+    assertTrue(input.contains("<compiler-process-skill"), input);
+    assertTrue(input.contains("<current-requirement-draft decision=\"READY_FOR_PLAN\">"), input);
+    assertTrue(input.contains("already ready"), input);
+    assertTrue(input.contains("finishRequirementDiscoveryTurn"), input);
+    assertTrue(input.contains("searchRequirementKnowledge"), input);
+    assertTrue(input.contains("Capture accepted requirement changes only"), input);
+    assertTrue(input.contains("STAY"), input);
+    assertTrue(input.contains("CONTINUE"), input);
     assertFalse(input.contains("<last-capture-rejection"));
     assertTrue(input.contains("More detail"));
   }

@@ -10,6 +10,7 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools;
 import org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool;
 
 class GatherRequirementsAgentTest {
 
@@ -21,10 +22,8 @@ class GatherRequirementsAgentTest {
     assertTrue(Arrays.asList(tools).contains(RequirementDraftTool.class));
     assertTrue(Arrays.asList(tools).contains(CatalogSystemTools.class));
     assertTrue(Arrays.asList(tools).contains(CatalogFirstApiHubDiscoveryTool.class));
+    assertTrue(Arrays.asList(tools).contains(RequirementDiscoveryKnowledgeTool.class));
     assertFalse(Arrays.asList(tools).contains(ApiHubMcpTools.class));
-    assertFalse(
-        Arrays.stream(tools)
-            .anyMatch(tool -> tool.getSimpleName().equals("QipKnowledgeTools")));
-    assertTrue(annotation.maxSequentialToolInvocations() >= 6);
+    assertTrue(annotation.maxSequentialToolInvocations() >= 9);
   }
 }

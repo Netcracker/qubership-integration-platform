@@ -15,6 +15,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
@@ -211,6 +212,46 @@ public class RequirementDraftTool {
   static RequirementDraftTool withConversationService(
       RequirementDraftStore store, ConversationService conversationService) {
     return new RequirementDraftTool(store, null, null, null, null, conversationService, null);
+  }
+
+  @Tool("""
+      Finish this requirement-discovery turn with the author's current intent.
+      Call exactly once as the final tool call, after any required draft capture and before
+      returning the final answer.
+      Use STAY for explanations, advice, comparisons, continued discussion, or when the author
+      says not to create anything yet. Use CONTINUE only when the author asked to proceed with
+      design or chain creation. This tool does not change accepted requirements.
+      """)
+  public String finishRequirementDiscoveryTurn(RequirementDiscoveryDirective directive) {
+    String conversationId = ToolSession.resolveConversationId();
+    long startMs = System.currentTimeMillis();
+    ToolTraceLog.logToolInvoke(
+        LOG,
+        "finishRequirementDiscoveryTurn",
+        conversationId,
+        "directive=" + directive);
+    try {
+      if (conversationId == null || conversationId.isBlank()) {
+        return finishTurn(conversationId, startMs, "conversationId is required");
+      }
+      if (directive == null || directive == RequirementDiscoveryDirective.NONE) {
+        return finishTurn(conversationId, startMs, "directive must be STAY or CONTINUE");
+      }
+      store.finishTurn(conversationId, directive);
+      String result =
+          directive == RequirementDiscoveryDirective.STAY
+              ? "Turn completed: stay in requirement discovery."
+              : "Turn completed: continue when the current requirements pass runtime gates.";
+      return finishTurn(conversationId, startMs, result);
+    } catch (RuntimeException e) {
+      ToolTraceLog.logToolFailed(
+          LOG,
+          "finishRequirementDiscoveryTurn",
+          conversationId,
+          System.currentTimeMillis() - startMs,
+          e);
+      return "Error finishing requirement discovery turn: " + e.getMessage();
+    }
   }
 
   @Tool("""
@@ -771,6 +812,16 @@ public class RequirementDraftTool {
   private String finish(String conversationId, long startMs, String result) {
     ToolTraceLog.logToolComplete(
         LOG, "captureRequirementDraft", conversationId, System.currentTimeMillis() - startMs, result);
+    return result;
+  }
+
+  private String finishTurn(String conversationId, long startMs, String result) {
+    ToolTraceLog.logToolComplete(
+        LOG,
+        "finishRequirementDiscoveryTurn",
+        conversationId,
+        System.currentTimeMillis() - startMs,
+        result);
     return result;
   }
 
