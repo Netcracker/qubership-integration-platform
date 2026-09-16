@@ -19,7 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport.
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
 import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
-import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.components.ElementDescriptorHelper;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementsExternalMapperEntity;
@@ -34,20 +34,17 @@ import java.sql.Timestamp;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static org.qubership.integration.platform.library.constants.CamelNames.CONTAINER;
-
-
 @Component
 public class ChainElementsExternalEntityMapper {
 
-    private final LibraryElementsService libraryService;
+    private final ElementDescriptorHelper elementDescriptorHelper;
     private final ChainElementFilePropertiesSubstitutor chainElementFilePropertiesSubstitutor;
 
     public ChainElementsExternalEntityMapper(
-            LibraryElementsService libraryService,
+            ElementDescriptorHelper elementDescriptorHelper,
             ChainElementFilePropertiesSubstitutor chainElementFilePropertiesSubstitutor
     ) {
-        this.libraryService = libraryService;
+        this.elementDescriptorHelper = elementDescriptorHelper;
         this.chainElementFilePropertiesSubstitutor = chainElementFilePropertiesSubstitutor;
     }
 
@@ -99,7 +96,7 @@ public class ChainElementsExternalEntityMapper {
     }
 
     private ChainElement createInternalEntity(Element modelElement, Map<String, ChainElement> resultElements) {
-        ElementDescriptor descriptor = resolveDescriptor(modelElement.getType());
+        ElementDescriptor descriptor = elementDescriptorHelper.resolveDescriptor(modelElement.getType());
 
         ChainElement element;
         if (descriptor.isContainer()) {
@@ -134,19 +131,6 @@ public class ChainElementsExternalEntityMapper {
                 descriptor.getProperties(), modelElement.getId(), modelElement.getChain().getId());
         properties.putAll(modelElement.getProperties());
         return properties;
-    }
-
-    private ElementDescriptor resolveDescriptor(String type) {
-        return libraryService.lookupElementDescriptor(type)
-                .orElseGet(() -> {
-                    if (CONTAINER.equals(type)) {
-                        ElementDescriptor containerDescriptor = new ElementDescriptor();
-                        containerDescriptor.setType(ElementType.CONTAINER);
-                        containerDescriptor.setContainer(true);
-                        return containerDescriptor;
-                    }
-                    throw new IllegalArgumentException("Element of type " + type + " not found");
-                });
     }
 
     private ServiceEnvironment toEnvironmentEntity(org.qubership.integration.platform.chain.model.ServiceEnvironment modelEnvironment) {

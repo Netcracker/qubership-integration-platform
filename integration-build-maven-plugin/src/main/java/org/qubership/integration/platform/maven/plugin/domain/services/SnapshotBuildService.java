@@ -3,7 +3,7 @@ package org.qubership.integration.platform.maven.plugin.domain.services;
 import org.qubership.integration.platform.chain.impl.ConnectionImpl;
 import org.qubership.integration.platform.chain.impl.ElementImpl;
 import org.qubership.integration.platform.chain.model.*;
-import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.components.ElementDescriptorHelper;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.maven.plugin.domain.adapters.SnapshotImpl;
@@ -17,15 +17,15 @@ import java.util.function.Consumer;
 
 @Service
 public class SnapshotBuildService {
-    private final LibraryElementsService libraryElementsService;
+    private final ElementDescriptorHelper elementDescriptorHelper;
     private final ElementPropertiesVerificationService elementPropertiesVerificationService;
 
     @Autowired
     public SnapshotBuildService(
-        LibraryElementsService libraryElementsService,
+        ElementDescriptorHelper elementDescriptorHelper,
         ElementPropertiesVerificationService elementPropertiesVerificationService
     ) {
-        this.libraryElementsService = libraryElementsService;
+        this.elementDescriptorHelper = elementDescriptorHelper;
         this.elementPropertiesVerificationService = elementPropertiesVerificationService;
     }
 
@@ -114,7 +114,7 @@ public class SnapshotBuildService {
         // Will be replaced after creation of all elements
         snapshotElement.getSwimlane().ifPresent(snapshotElement::setSwimlane);
 
-        ElementDescriptor elementDescriptor = libraryElementsService.getElementDescriptor(element.getType());
+        ElementDescriptor elementDescriptor = elementDescriptorHelper.resolveDescriptor(element.getType());
         snapshotElement.setContainer(elementDescriptor.isContainer());
         snapshotElement.setSwimlaneElement(elementDescriptor.getType() == ElementType.SWIMLANE);
 
