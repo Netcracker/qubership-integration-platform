@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
+package org.qubership.integration.platform.verification.properties.verifiers;
 
 import org.apache.commons.lang3.StringUtils;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
 import org.qubership.integration.platform.util.MaasConnectionSourceUtils;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 
 import java.util.Collection;
 import java.util.Collections;

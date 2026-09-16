@@ -49,11 +49,11 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.CreateElementRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.TransferElementRequest;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.qubership.integration.platform.runtime.catalog.testutils.TestElementUtils;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
 import org.qubership.integration.platform.runtime.catalog.util.OldContainerUtils;
 import org.qubership.integration.platform.util.ElementUtils;
+import org.qubership.integration.platform.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.test.context.ContextConfiguration;

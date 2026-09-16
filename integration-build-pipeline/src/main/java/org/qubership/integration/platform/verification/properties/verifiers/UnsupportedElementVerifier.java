@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
+package org.qubership.integration.platform.verification.properties.verifiers;
 
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.constants.CamelNames;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.verification.properties.ElementPropertiesVerifier;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -29,12 +29,12 @@ import java.util.Collections;
 public class UnsupportedElementVerifier implements ElementPropertiesVerifier {
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return CamelNames.UNSUPPORTED_COMPONENT.equals(element.getType());
     }
 
     @Override
-    public Collection<VerificationError> verify(ChainElement element) {
+    public Collection<VerificationError> verify(Element element) {
         return Collections.singletonList(new VerificationError("There are unsupported elements found in the chain. Remove them to proceed further."));
     }
 }

@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
+package org.qubership.integration.platform.verification.properties.verifiers;
 
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.library.constants.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.util.ElementUtils;
+import org.qubership.integration.platform.verification.properties.ElementPropertiesVerifier;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -32,7 +33,7 @@ import static org.qubership.integration.platform.library.constants.CamelOptions.
 @Component
 public class RabbitMqElementPropertiesVerifier implements ElementPropertiesVerifier {
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return List.of(
                 CamelNames.RABBITMQ_TRIGGER_COMPONENT,
                 CamelNames.RABBITMQ_SENDER_COMPONENT,
@@ -42,9 +43,9 @@ public class RabbitMqElementPropertiesVerifier implements ElementPropertiesVerif
     }
 
     @Override
-    public Collection<VerificationError> verify(ChainElement element) {
-        String sourceType = element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP);
-        String maasClassifier = Optional.ofNullable(element.getPropertyAsString(CamelOptions.MAAS_VHOST_CLASSIFIER_NAME_PROP))
+    public Collection<VerificationError> verify(Element element) {
+        String sourceType = ElementUtils.getPropertyAsString(element, CamelOptions.CONNECTION_SOURCE_TYPE_PROP);
+        String maasClassifier = Optional.ofNullable(ElementUtils.getPropertyAsString(element, CamelOptions.MAAS_VHOST_CLASSIFIER_NAME_PROP))
                 .orElse(DEFAULT_VHOST_CLASSIFIER_NAME);
         return MaasElementPropertiesVerifierHelper.verifyMaasProperties(sourceType, maasClassifier);
     }

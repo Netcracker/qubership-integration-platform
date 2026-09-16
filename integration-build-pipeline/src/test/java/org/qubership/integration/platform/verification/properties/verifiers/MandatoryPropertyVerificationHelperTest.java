@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
+package org.qubership.integration.platform.verification.properties.verifiers;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.chain.impl.ConnectionImpl;
+import org.qubership.integration.platform.chain.impl.ElementImpl;
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.model.CustomTab;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
@@ -27,9 +30,6 @@ import org.qubership.integration.platform.library.model.ElementProperties;
 import org.qubership.integration.platform.library.model.ElementProperty;
 import org.qubership.integration.platform.library.model.PropertyValidation;
 import org.qubership.integration.platform.library.model.PropertyValueType;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Dependency;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
 
 import java.util.List;
 import java.util.Optional;
@@ -56,8 +56,10 @@ class MandatoryPropertyVerificationHelperTest {
         return new MandatoryPropertyVerificationHelper(libraryService);
     }
 
-    private static ChainElement element(String type) {
-        return ChainElement.builder().type(type).build();
+    private static Element element(String type) {
+        ElementImpl element = new ElementImpl();
+        element.setType(type);
+        return element;
     }
 
     @Test
@@ -96,7 +98,7 @@ class MandatoryPropertyVerificationHelperTest {
         when(property.getName()).thenReturn("timeout");
         stubDescriptorProperties(List.of(property));
 
-        ChainElement element = element("t");
+        Element element = element("t");
         element.getProperties().put("timeout", "5000");
 
         assertThat(helper().areMandatoryPropertiesPresent(element)).isTrue();
@@ -127,8 +129,8 @@ class MandatoryPropertyVerificationHelperTest {
         when(property.isMandatory()).thenReturn(true);
         when(property.getName()).thenReturn("timeout");
 
-        ChainElement missing = element("t");
-        ChainElement present = element("t");
+        Element missing = element("t");
+        Element present = element("t");
         present.getProperties().put("timeout", "5000");
 
         assertThat(helper().isMandatoryPropertyPresent(property, missing)).isFalse();
@@ -148,15 +150,17 @@ class MandatoryPropertyVerificationHelperTest {
         when(descriptor.isMandatoryInnerElement()).thenReturn(true);
         when(libraryService.lookupElementDescriptor("container")).thenReturn(Optional.of(descriptor));
 
-        ContainerChainElement withStart = new ContainerChainElement();
+        ElementImpl withStart = new ElementImpl();
+        withStart.setContainer(true);
         withStart.setType("container");
-        withStart.addChildElement(element("child"));
+        withStart.getChildren().add(element("child"));
 
-        ContainerChainElement withoutStart = new ContainerChainElement();
+        ElementImpl withoutStart = new ElementImpl();
+        withoutStart.setContainer(true);
         withoutStart.setType("container");
-        ChainElement wiredChild = element("child");
-        wiredChild.addInputDependency(Dependency.of(element("other"), wiredChild));
-        withoutStart.addChildElement(wiredChild);
+        Element wiredChild = element("child");
+        wiredChild.getInputConnections().add(new ConnectionImpl(element("other"), wiredChild));
+        withoutStart.getChildren().add(wiredChild);
 
         assertThat(helper().isMandatoryInnerElementPresent(withStart)).isTrue();
         assertThat(helper().isMandatoryInnerElementPresent(withoutStart)).isFalse();
@@ -167,9 +171,9 @@ class MandatoryPropertyVerificationHelperTest {
         when(descriptor.isMandatoryInnerElement()).thenReturn(true);
         when(libraryService.lookupElementDescriptor("t")).thenReturn(Optional.of(descriptor));
 
-        ChainElement leaf = element("t");
-        ChainElement wired = element("t");
-        wired.addOutputDependency(Dependency.of(wired, element("other")));
+        Element leaf = element("t");
+        Element wired = element("t");
+        wired.getOutputConnections().add(new ConnectionImpl(wired, element("other")));
 
         assertThat(helper().isMandatoryInnerElementPresent(leaf)).isFalse();
         assertThat(helper().isMandatoryInnerElementPresent(wired)).isTrue();

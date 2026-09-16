@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
+package org.qubership.integration.platform.verification.properties.verifiers;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.verification.properties.ElementPropertiesVerifier;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
@@ -31,12 +31,12 @@ public class CompoundPropertiesVerifier implements ElementPropertiesVerifier {
     }
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return verifiers.stream().anyMatch(verifier -> verifier.applicableTo(element));
     }
 
     @Override
-    public Collection<VerificationError> verify(ChainElement element) {
+    public Collection<VerificationError> verify(Element element) {
         return verifiers.stream().map(verifier -> verifier.verify(element))
                 .flatMap(Collection::stream).collect(Collectors.toList());
     }

@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
+package org.qubership.integration.platform.verification.properties.verifiers;
 
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.constants.CamelNames;
 import org.qubership.integration.platform.library.constants.CamelOptions;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.util.ElementUtils;
+import org.qubership.integration.platform.verification.properties.ElementPropertiesVerifier;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
@@ -29,7 +30,7 @@ import java.util.List;
 @Component
 public class KafkaElementPropertiesVerifier implements ElementPropertiesVerifier {
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return List.of(
                 CamelNames.KAFKA_TRIGGER_COMPONENT,
                 CamelNames.KAFKA_SENDER_COMPONENT,
@@ -39,9 +40,9 @@ public class KafkaElementPropertiesVerifier implements ElementPropertiesVerifier
     }
 
     @Override
-    public Collection<VerificationError> verify(ChainElement element) {
-        String sourceType = element.getPropertyAsString(CamelOptions.CONNECTION_SOURCE_TYPE_PROP);
-        String maasClassifier = element.getPropertyAsString(CamelOptions.MAAS_TOPICS_CLASSIFIER_NAME_PROP);
+    public Collection<VerificationError> verify(Element element) {
+        String sourceType = ElementUtils.getPropertyAsString(element, CamelOptions.CONNECTION_SOURCE_TYPE_PROP);
+        String maasClassifier = ElementUtils.getPropertyAsString(element, CamelOptions.MAAS_TOPICS_CLASSIFIER_NAME_PROP);
         return MaasElementPropertiesVerifierHelper.verifyMaasProperties(sourceType, maasClassifier);
     }
 }

@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties;
+package org.qubership.integration.platform.verification.properties;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.CompoundPropertiesVerifier;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.verification.properties.verifiers.CompoundPropertiesVerifier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +32,7 @@ public class ElementPropertiesVerifierFactory {
         this.verifiers = verifiers;
     }
 
-    public ElementPropertiesVerifier getElementPropertiesVerifier(ChainElement element) {
+    public ElementPropertiesVerifier getElementPropertiesVerifier(Element element) {
         return new CompoundPropertiesVerifier(verifiers.stream().filter(verifier -> verifier.applicableTo(element)).toList());
     }
 }

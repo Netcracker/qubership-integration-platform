@@ -9,7 +9,6 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.MountOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
-import org.qubership.integration.platform.camelk.naming.strategies.BuildNamingContext;
 import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
 import org.qubership.integration.platform.camelk.services.BuildInfoFactory;
 import org.qubership.integration.platform.chain.model.Snapshot;
@@ -26,7 +25,6 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.*;
 
 import static java.util.Objects.isNull;

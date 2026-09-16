@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
+package org.qubership.integration.platform.verification.properties.verifiers;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.chain.impl.ElementImpl;
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 
 import java.util.List;
 import java.util.Optional;
@@ -51,9 +51,11 @@ class ContainerElementPropertiesVerifierTest {
         return new ContainerElementPropertiesVerifier(libraryService, mandatoryPropertyVerificationHelper);
     }
 
-    private static ChainElement container(String name) {
-        ChainElement element = ChainElement.builder().type("container").build();
+    private static ElementImpl container(String name) {
+        ElementImpl element = new ElementImpl();
+        element.setType("container");
         element.setName(name);
+        element.setContainer(true);
         return element;
     }
 
@@ -64,7 +66,7 @@ class ContainerElementPropertiesVerifierTest {
 
     @Test
     void reportsNoErrorWhenTheContainerHasItsMandatoryInnerElement() {
-        ChainElement element = container("Filter");
+        Element element = container("Filter");
         when(mandatoryPropertyVerificationHelper.isMandatoryInnerElementPresent(element)).thenReturn(true);
 
         assertThat(verifier().verify(element)).isEmpty();
@@ -72,7 +74,7 @@ class ContainerElementPropertiesVerifierTest {
 
     @Test
     void reportsAnEmptyContainerErrorNamedByTheElementWhenNoParentRestriction() {
-        ChainElement element = container("Filter");
+        Element element = container("Filter");
         when(mandatoryPropertyVerificationHelper.isMandatoryInnerElementPresent(element)).thenReturn(false);
         when(libraryService.lookupElementDescriptor("container")).thenReturn(Optional.of(descriptor));
         when(descriptor.getParentRestriction()).thenReturn(List.of());
@@ -84,8 +86,9 @@ class ContainerElementPropertiesVerifierTest {
 
     @Test
     void reportsAnEmptyContainerErrorQualifiedByParentWhenTheDescriptorRestrictsTheParent() {
-        ChainElement element = container("When");
-        ContainerChainElement parent = new ContainerChainElement();
+        ElementImpl element = container("When");
+        ElementImpl parent = new ElementImpl();
+        parent.setContainer(true);
         parent.setName("Choice");
         element.setParent(parent);
         when(mandatoryPropertyVerificationHelper.isMandatoryInnerElementPresent(element)).thenReturn(false);

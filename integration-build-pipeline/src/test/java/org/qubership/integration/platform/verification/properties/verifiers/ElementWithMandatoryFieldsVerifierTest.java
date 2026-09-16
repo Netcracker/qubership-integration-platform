@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
+package org.qubership.integration.platform.verification.properties.verifiers;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.chain.impl.ElementImpl;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -40,14 +41,20 @@ class ElementWithMandatoryFieldsVerifierTest {
         return new ElementWithMandatoryFieldsVerifier(mandatoryPropertyVerificationHelper);
     }
 
+    private Element createElement() {
+        ElementImpl element = new ElementImpl();
+        element.setType("http-trigger");
+        return element;
+    }
+
     @Test
     void appliesToEveryElement() {
-        assertThat(verifier().applicableTo(ChainElement.builder().type("http-trigger").build())).isTrue();
+        assertThat(verifier().applicableTo(createElement())).isTrue();
     }
 
     @Test
     void reportsNoErrorWhenMandatoryPropertiesArePresent() {
-        ChainElement element = ChainElement.builder().type("http-trigger").build();
+        Element element = createElement();
         when(mandatoryPropertyVerificationHelper.areMandatoryPropertiesPresent(element)).thenReturn(true);
 
         assertThat(verifier().verify(element)).isEmpty();
@@ -55,7 +62,7 @@ class ElementWithMandatoryFieldsVerifierTest {
 
     @Test
     void reportsARequiredFieldsErrorWhenAMandatoryPropertyIsMissing() {
-        ChainElement element = ChainElement.builder().type("http-trigger").build();
+        Element element = createElement();
         when(mandatoryPropertyVerificationHelper.areMandatoryPropertiesPresent(element)).thenReturn(false);
 
         assertThat(verifier().verify(element))

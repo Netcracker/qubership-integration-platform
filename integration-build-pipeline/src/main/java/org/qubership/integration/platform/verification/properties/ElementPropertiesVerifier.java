@@ -14,6 +14,14 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties;
+package org.qubership.integration.platform.verification.properties;
 
-public record VerificationError(String message) {}
+import org.qubership.integration.platform.chain.model.Element;
+
+import java.util.Collection;
+
+public interface ElementPropertiesVerifier {
+    boolean applicableTo(Element element);
+
+    Collection<VerificationError> verify(Element element);
+}

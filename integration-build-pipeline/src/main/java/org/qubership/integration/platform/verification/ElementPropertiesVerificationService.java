@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification;
+package org.qubership.integration.platform.verification;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifierFactory;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.chain.model.Chain;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.verification.properties.ElementPropertiesVerifierFactory;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -36,11 +36,11 @@ public class ElementPropertiesVerificationService {
         this.elementPropertiesVerifierFactory = elementPropertiesVerifierFactory;
     }
 
-    public Collection<VerificationError> verifyProperties(ChainElement element) {
+    public Collection<VerificationError> verifyProperties(Element element) {
         return elementPropertiesVerifierFactory.getElementPropertiesVerifier(element).verify(element);
     }
 
-    public Map<ChainElement, Collection<VerificationError>> verifyElementProperties(Chain chain) {
+    public Map<Element, Collection<VerificationError>> verifyElementProperties(Chain chain) {
         return chain.getElements().stream()
                 .map(element -> Map.entry(element, verifyProperties(element)))
                 .filter(e -> !e.getValue().isEmpty())

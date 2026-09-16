@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers;
+package org.qubership.integration.platform.verification.properties.verifiers;
 
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.ElementPropertiesVerifier;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.verification.properties.ElementPropertiesVerifier;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -38,12 +38,12 @@ public class ElementWithMandatoryFieldsVerifier implements ElementPropertiesVeri
     }
 
     @Override
-    public boolean applicableTo(ChainElement element) {
+    public boolean applicableTo(Element element) {
         return true;
     }
 
     @Override
-    public Collection<VerificationError> verify(ChainElement element) {
+    public Collection<VerificationError> verify(Element element) {
         return mandatoryPropertyVerificationHelper.areMandatoryPropertiesPresent(element)
                 ? Collections.emptyList()
                 : Collections.singletonList(new VerificationError("Required fields not specified"));

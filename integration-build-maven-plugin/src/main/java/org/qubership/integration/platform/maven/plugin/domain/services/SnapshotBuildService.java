@@ -7,6 +7,7 @@ import org.qubership.integration.platform.library.components.LibraryElementsServ
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.maven.plugin.domain.adapters.SnapshotImpl;
+import org.qubership.integration.platform.verification.ElementPropertiesVerificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -17,10 +18,15 @@ import java.util.function.Consumer;
 @Service
 public class SnapshotBuildService {
     private final LibraryElementsService libraryElementsService;
+    private final ElementPropertiesVerificationService elementPropertiesVerificationService;
 
     @Autowired
-    public SnapshotBuildService(final LibraryElementsService libraryElementsService) {
+    public SnapshotBuildService(
+        LibraryElementsService libraryElementsService,
+        ElementPropertiesVerificationService elementPropertiesVerificationService
+    ) {
         this.libraryElementsService = libraryElementsService;
+        this.elementPropertiesVerificationService = elementPropertiesVerificationService;
     }
 
     public Snapshot build(Chain chain) {
@@ -134,6 +140,6 @@ public class SnapshotBuildService {
     }
 
     private void verifyElementProperties(Chain chain) {
-        // TODO
+        elementPropertiesVerificationService.verifyElementProperties(chain);
     }
 }
