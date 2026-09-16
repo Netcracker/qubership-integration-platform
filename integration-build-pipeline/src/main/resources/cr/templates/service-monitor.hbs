@@ -18,9 +18,6 @@ spec:
     port: web
     scheme: http
   jobLabel: {{integrationName}}
-  namespaceSelector:
-    matchNames:
-    - {{namespace}}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{serviceName}}

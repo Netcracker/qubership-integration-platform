@@ -13,5 +13,6 @@ public class MonitoringOptions {
     @Builder.Default
     private boolean enabled = true;
 
-    private String interval;
+    @Builder.Default
+    private String interval = "30s";
 }

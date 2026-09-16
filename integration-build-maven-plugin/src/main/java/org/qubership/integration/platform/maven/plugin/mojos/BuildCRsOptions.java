@@ -1,21 +1,19 @@
-package org.qubership.integration.platform.camelk.model.options;
+package org.qubership.integration.platform.maven.plugin.mojos;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.qubership.integration.platform.camelk.model.options.*;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 @Data
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder(toBuilder = true)
-public class ResourceBuildOptions {
-    @Builder.Default
-    private String language = "xml";
-
-    private String name;
-
-    private String namespace;
-
+public class BuildCRsOptions {
     @Builder.Default
     private int replicas = 1;
 
@@ -43,6 +41,5 @@ public class ResourceBuildOptions {
     @Builder.Default
     private IntegrationsConfigurationOptions integrations = new IntegrationsConfigurationOptions();
 
-    @Builder.Default
-    private String serviceAccount = "default";
+    private String serviceAccount;
 }
