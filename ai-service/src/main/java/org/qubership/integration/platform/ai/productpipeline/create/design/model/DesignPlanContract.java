@@ -22,6 +22,7 @@ public record DesignPlanContract(
     MAPPING_INTENT,
     REGION,
     BEHAVIOR_NODE,
+    ELEMENT_NODE,
     CATALOG_BINDING
   }
 

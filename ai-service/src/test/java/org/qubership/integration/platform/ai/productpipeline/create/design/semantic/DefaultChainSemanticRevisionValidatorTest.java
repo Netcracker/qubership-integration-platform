@@ -147,6 +147,29 @@ class DefaultChainSemanticRevisionValidatorTest {
   }
 
   @Test
+  void acceptsStandaloneReuseSubtree() {
+    assertDoesNotThrow(() -> validate(reuseRevision(true, false)));
+  }
+
+  @Test
+  void rejectsReuseWithoutBody() {
+    IllegalArgumentException error =
+        assertThrows(IllegalArgumentException.class, () -> validate(reuseRevision(false, false)));
+
+    assertTrue(
+        error.getMessage().contains("requires at least 1 'body' child"), error.getMessage());
+  }
+
+  @Test
+  void rejectsExecutionAcrossReuseBoundary() {
+    IllegalArgumentException error =
+        assertThrows(IllegalArgumentException.class, () -> validate(reuseRevision(true, true)));
+
+    assertTrue(
+        error.getMessage().contains("crosses reuse containment boundary"), error.getMessage());
+  }
+
+  @Test
   void acceptsRetryAndErrorScope() {
     assertDoesNotThrow(() -> validate(retryRevision()));
     assertDoesNotThrow(() -> validate(errorScopeRevision("catch-all")));
@@ -1150,6 +1173,39 @@ class DefaultChainSemanticRevisionValidatorTest {
         linear.executionEdges(),
         linear.containment(),
         linear.mappingIntents());
+  }
+
+  private static ChainSemanticRevision reuseRevision(boolean withBody, boolean crossesBoundary) {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "http-trigger", new SemanticProvenance(List.of()));
+    SemanticNode reference =
+        new SemanticNode.Operation(
+            "reuse-reference", "reuse-reference", new SemanticProvenance(List.of()));
+    SemanticNode after =
+        new SemanticNode.Operation(
+            "after-reuse", "header-modification", new SemanticProvenance(List.of()));
+    SemanticNode reuse =
+        new SemanticNode.Operation("reuse-container", "reuse", new SemanticProvenance(List.of()));
+    SemanticNode body =
+        new SemanticNode.Operation(
+            "reuse-body", "header-modification", new SemanticProvenance(List.of()));
+    List<SemanticExecutionEdge> edges =
+        new ArrayList<>(
+            List.of(
+                sequence("edge-entry", "trigger-http", "reuse-reference", null, null),
+                sequence("edge-after", "reuse-reference", "after-reuse", null, null)));
+    if (crossesBoundary) {
+      edges.add(sequence("edge-crossing", "reuse-body", "after-reuse", null, null));
+    }
+    return revision(
+        List.of(entry("http-in", "trigger-http", "reuse-reference")),
+        List.of(trigger, reference, after, reuse, body),
+        List.of(),
+        edges,
+        withBody
+            ? List.of(new SemanticContainment("reuse-container", "reuse-body", "body"))
+            : List.of(),
+        List.of());
   }
 
   private static ChainSemanticRevision revisionWithDuplicateNodeId() {
