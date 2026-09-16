@@ -385,9 +385,7 @@ final class GeneratorPatchRegressionHarness {
             true,
             Set.of("try-catch-finally-2", "try-2", "catch-2", "finally-2"),
             Set.of(),
-            Map.of(
-                "catch-2", Set.of("exception", "priority"),
-                "http-trigger", Set.of("chainFailureHandler"))));
+            Map.of("catch-2", Set.of("exception", "priority"))));
     ownership.put(
         "cip-loop-generator",
         new GraphPatchOwnershipPolicy(
@@ -419,7 +417,7 @@ final class GeneratorPatchRegressionHarness {
                 "main-split-element-2"),
             Set.of(),
             Map.of(
-                "split-async-2", Set.of("timeout"),
+                "split-async-2", Set.of(),
                 "split-2", Set.of("timeout"),
                 "split-element-2", Set.of("priority"),
                 "async-split-element-2", Set.of("priority"),
@@ -446,7 +444,7 @@ final class GeneratorPatchRegressionHarness {
             Set.of("condition", "if", "else", "choice", "when", "otherwise"),
             Set.of(),
             Map.of(
-                "condition", Set.of("condition"),
+                "condition", Set.of(),
                 "if", Set.of("condition", "priority"),
                 "else", Set.of(),
                 "choice", Set.of(),
@@ -469,7 +467,7 @@ final class GeneratorPatchRegressionHarness {
             Set.of(),
             Map.ofEntries(
                 entry("http-trigger", Set.of("accessControlType", "roles", "abacParameters")),
-                entry("service-call", Set.of("password", "authorizationConfiguration")),
+                entry("service-call", Set.of("authorizationConfiguration")),
                 entry("kafka-sender-2", Set.of("sslProtocol", "saslJaasConfig")),
                 entry("kafka-trigger-2", Set.of("sslProtocol", "saslJaasConfig")),
                 entry("jms-sender", Set.of("password")),

@@ -118,6 +118,10 @@ class QipKnowledgePackBuildGeneratorTest {
     assertFalse(supportMatrix.elements().isEmpty());
     assertEquals(ElementSupportStatus.UNSUPPORTED, supportMatrix.require("scs-sender").status());
     assertEquals(ElementSupportStatus.PARTIAL, supportMatrix.require("reuse-reference").status());
+    assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("condition").status());
+    assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("http-trigger").status());
+    assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("service-call").status());
+    assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("split-async-2").status());
 
     CompilerContract contract =
         new ClasspathCompilerContractRepository().require(CompilerContract.V1);
