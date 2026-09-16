@@ -16,6 +16,22 @@ no FULL/SLIM runtime selection.
 - `run-quality-gate.sh` verifies the package, starts the stack, and runs all active scenarios.
 - `verify-knowledge-package.sh` checks that the sidecar serves the selected certified package.
 - `test-quality-gate-offline.sh` and `test-live-runner-contracts.sh` run without network access.
+- `check_element_test_coverage.py` fails when a `SUPPORTED` element in the generated support matrix
+  has no generator-regression case or active product-pipeline scenario.
+
+Check declared live-test coverage after generating the support matrix:
+
+```bash
+python3 ai-service/e2e/product-pipeline/check_element_test_coverage.py
+```
+
+Add `--fail-on-known-failure` when the gate should also require every supported element to have a
+non-failing live scenario.
+
+The synchronous and asynchronous split scenarios are active manual-only characterization tests.
+Both currently reproduce a compiler validation failure: generated branch-shell elements have no
+sibling execution edge. Run either explicitly with `--scenario`; the default quality gate skips
+`liveTest.manualOnly` scenarios until that defect is fixed.
 
 ## Live gate
 
