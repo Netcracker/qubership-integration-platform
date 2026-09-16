@@ -32,6 +32,17 @@ class OpenChainPromptContractTest {
     assertTrue(prompt.contains("Do not infer a mutation from an error message"));
   }
 
+  @Test
+  void routerPromptsSendColdQipArchitectureQuestionsToDiscovery() throws IOException {
+    String role = resource("/prompts/roles/router.md");
+    String system = resource("/prompts/router-system.md");
+
+    assertTrue(role.contains("architecture, pattern, or platform-behavior advice"), role);
+    assertTrue(role.contains("Как лучше организовать интеграцию через QIP?"), role);
+    assertTrue(system.contains("architecture, pattern, or platform-behavior advice"), system);
+    assertTrue(system.contains("existing deployed catalog chain"), system);
+  }
+
   private static String resource(String path) throws IOException {
     try (var stream = OpenChainPromptContractTest.class.getResourceAsStream(path)) {
       if (stream == null) {
