@@ -710,6 +710,10 @@ class ChainPlanGraphValidatorTest {
     when(loader.load("script")).thenReturn(matchingDescriptor("script", false));
     when(loader.load("condition")).thenReturn(matchingDescriptor("condition", false));
     when(loader.load("if")).thenReturn(matchingDescriptor("if", true));
+    when(loader.load("else"))
+        .thenReturn(
+            new CatalogElementDescriptor(
+                "else", true, Map.of(), List.of(), false, "priority", true, false, false, true));
     ChainPlanGraphValidator driftValidator = new ChainPlanGraphValidator(schemaService, loader);
 
     IllegalStateException error =
