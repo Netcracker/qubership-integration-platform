@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
@@ -13,7 +14,7 @@ public record RequirementDraftCapture(
     String assembledText,
     DraftDecision decision,
     List<String> openQuestions,
-    ApiHubRequirementRefs apiHubCandidate,
+    @JsonIgnore ApiHubRequirementRefs apiHubCandidate,
     List<RequirementFact> facts,
     @Description(
             "true when the author asked for an Integration Design Specification, false when they"
