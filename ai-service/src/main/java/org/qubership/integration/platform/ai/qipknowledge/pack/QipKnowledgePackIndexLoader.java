@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntime
 import org.qubership.integration.platform.ai.productpipeline.packageindex.ProductPipelinePackageIndex;
 import org.qubership.integration.platform.ai.qipknowledge.rag.QipKnowledgeRagIngestionManifest;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
+import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupportMatrix;
 
 /** Loads pre-built QIP knowledge pack indexes from a version directory. */
 public class QipKnowledgePackIndexLoader {
@@ -32,6 +33,7 @@ public class QipKnowledgePackIndexLoader {
   static final String COMPILER_RUNTIME_PACKAGE_INDEX_FILE = "compiler-runtime-package-index.json";
   static final String COMPILER_GENERATOR_POLICY_FILE = "compiler-generator-policy.json";
   static final String COMPILER_PIPELINE_INDEX_FILE = "compiler-pipeline-index.json";
+  static final String ELEMENT_SUPPORT_MATRIX_FILE = "element-support-matrix.json";
   static final String PIPELINE_COMPATIBILITY_REPORT_FILE = "pipeline-compatibility-report.json";
   static final String RUNTIME_PROMOTED_SKILLS_FILE = "runtime-promoted-skills.json";
   public static final String PRODUCT_PIPELINE_PACKAGE_INDEX_FILE =
@@ -95,6 +97,10 @@ public class QipKnowledgePackIndexLoader {
 
   public CompilerPipelineIndex loadCompilerPipelineIndex(Path versionDir) throws IOException {
     return readJson(versionDir.resolve(COMPILER_PIPELINE_INDEX_FILE), CompilerPipelineIndex.class);
+  }
+
+  public ElementSupportMatrix loadElementSupportMatrix(Path versionDir) throws IOException {
+    return readJson(versionDir.resolve(ELEMENT_SUPPORT_MATRIX_FILE), ElementSupportMatrix.class);
   }
 
   public PipelineCompatibilityReport loadPipelineCompatibilityReport(Path versionDir)

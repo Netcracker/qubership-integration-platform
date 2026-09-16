@@ -17,6 +17,8 @@ import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatal
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalogLoader;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDescriptor;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDisposition;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineCompatibilityAnalyzer;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexBuilder;
@@ -36,6 +38,8 @@ import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityDescri
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
 import org.qubership.integration.platform.ai.qipknowledge.skill.SkillDescriptor;
 import org.qubership.integration.platform.ai.qipknowledge.skill.SkillParser;
+import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupportMatrix;
+import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupportMatrixBuilder;
 
 /** Orchestrates deterministic ingestion of one QIP skill pack. */
 public class QipKnowledgePackIngestionService {
@@ -192,6 +196,15 @@ public class QipKnowledgePackIngestionService {
     writeJson(
         versionDir.resolve(QipKnowledgePackIndexLoader.COMPILER_PIPELINE_INDEX_FILE),
         pipelineIndex);
+    Path packRoot = Path.of(result.manifest().sourcePath());
+    Path repoRoot = packRoot.getParent() == null ? packRoot : packRoot.getParent();
+    CompilerContract compilerContract =
+        new ClasspathCompilerContractRepository().require(CompilerContract.V1);
+    ElementSupportMatrix supportMatrix =
+        new ElementSupportMatrixBuilder().build(repoRoot, pipelineIndex, compilerContract);
+    writeJson(
+        versionDir.resolve(QipKnowledgePackIndexLoader.ELEMENT_SUPPORT_MATRIX_FILE),
+        supportMatrix);
     PipelineCompatibilityReport compatibilityReport =
         new CompilerPipelineCompatibilityAnalyzer()
             .compare(loadPreviousCertifiedPipelineIndex(), pipelineIndex);
@@ -199,9 +212,7 @@ public class QipKnowledgePackIngestionService {
         versionDir.resolve(QipKnowledgePackIndexLoader.PIPELINE_COMPATIBILITY_REPORT_FILE),
         compatibilityReport);
     writeProductPipelineIndexes(
-        Path.of(result.manifest().sourcePath()).getParent() == null
-            ? Path.of(result.manifest().sourcePath())
-            : Path.of(result.manifest().sourcePath()),
+        packRoot,
         versionDir,
         policy);
     Files.writeString(
