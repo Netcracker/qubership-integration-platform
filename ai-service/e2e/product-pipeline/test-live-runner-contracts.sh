@@ -885,19 +885,19 @@ jq -e '."product-create-chain-lang-router".catalog.requiredTypes | index("if") !
   || fail "lang-router create-chain catalog must require if"
 pass "create-chain EH and lang-router retain catalog contract"
 
-echo "=== known-failing split scenarios stay selectable but out of the default gate ==="
+echo "=== split scenarios run in the default gate ==="
 jq -e '
   .["product-create-chain-sync-split"].status == "active"
-    and .["product-create-chain-sync-split"].liveTest.manualOnly == true
-    and ((.["product-create-chain-sync-split"].liveTest.knownFailure | length) > 0)
+    and (.["product-create-chain-sync-split"].liveTest.manualOnly != true)
+    and (.["product-create-chain-sync-split"].liveTest.knownFailure == null)
     and .["product-create-chain-async-split"].status == "active"
-    and .["product-create-chain-async-split"].liveTest.manualOnly == true
-    and ((.["product-create-chain-async-split"].liveTest.knownFailure | length) > 0)
+    and (.["product-create-chain-async-split"].liveTest.manualOnly != true)
+    and (.["product-create-chain-async-split"].liveTest.knownFailure == null)
 ' "${DIR}/scenarios.json" >/dev/null \
-  || fail "split characterization scenarios must remain active manual-only known failures"
+  || fail "split scenarios must be active without known-failure markers"
 rg -q 'liveTest.manualOnly != true' "${GATE_SH}" \
   || fail "default quality gate must skip manual-only live tests"
-pass "manual-only split characterization scenarios"
+pass "split scenarios in default gate"
 
 echo "=== stub mode never starts Docker ==="
 rg -q 'PRODUCT_PIPELINE_STUB_MODE' "${GATE_SH}" \

@@ -39,6 +39,7 @@ class ChainElementFamiliesTest {
             ChainElementFamilies.TRY_CATCH_DEPRECATED,
             ChainElementFamilies.LOOP,
             ChainElementFamilies.PARALLEL,
+            ChainElementFamilies.PARALLEL_BRANCH_CHILDREN,
             ChainElementFamilies.CHAIN_CALL)
         .flatMap(Set::stream)
         .distinct();

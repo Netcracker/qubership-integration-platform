@@ -274,6 +274,18 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void compilesParallelSplitBranchesWithoutSequentialSiblingEdges() {
+    for (SplitMode mode : SplitMode.values()) {
+      ChainSemanticRevision revision = splitTwoBranchRevision(mode);
+      ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+      List<String> errors = new ChainPlanGraphValidator(schemaService).validate(graph);
+
+      assertTrue(errors.isEmpty(), mode + ": " + String.join("; ", errors));
+    }
+  }
+
+  @Test
   void keepsNestedRegionMembersUnderTheirOwnShells() {
     ChainSemanticRevision revision = nestedConditionInSplitRevision();
     ChainSemanticGraphCompiler uncheckedCompiler =
@@ -836,6 +848,51 @@ class DefaultChainSemanticGraphCompilerTest {
                 "after-split",
                 region.regionId(),
                 new SemanticRoute.Reconverge(List.of("work")),
+                null)),
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision splitTwoBranchRevision(SplitMode mode) {
+    SemanticRegion.Split region =
+        new SemanticRegion.Split(
+            "sync-split-region",
+            "split-1",
+            mode,
+            List.of(
+                new SemanticBranch.Split("audit", 0, "audit-script", List.of("audit-script")),
+                new SemanticBranch.Split(
+                    "fulfillment", 1, "fulfillment-script", List.of("fulfillment-script"))),
+            null);
+    return revision(
+        List.of(entry("http-in", "trigger-http", "split-1")),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "split-1",
+                mode == SplitMode.SYNC ? "split-2" : "split-async-2",
+                new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "audit-script", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "fulfillment-script", "script", new SemanticProvenance(List.of()))),
+        List.of(region),
+        List.of(
+            sequence("edge-entry", "trigger-http", "split-1", null),
+            new SemanticExecutionEdge(
+                "edge-audit",
+                "split-1",
+                "audit-script",
+                region.regionId(),
+                new SemanticRoute.SplitBranch("audit"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-fulfillment",
+                "split-1",
+                "fulfillment-script",
+                region.regionId(),
+                new SemanticRoute.SplitBranch("fulfillment"),
                 null)),
         List.of(),
         List.of());

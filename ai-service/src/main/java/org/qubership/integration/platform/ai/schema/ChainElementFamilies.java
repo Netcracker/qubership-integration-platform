@@ -30,6 +30,8 @@ public final class ChainElementFamilies {
 
   public static final Set<String> LOOP = Set.of("loop-2");
   public static final Set<String> PARALLEL = Set.of("split-2", "split-async-2", "main-split-element-2");
+  public static final Set<String> PARALLEL_BRANCH_CHILDREN =
+      Set.of("split-element-2", "async-split-element-2", "main-split-element-2");
   public static final Set<String> CHAIN_CALL = Set.of("chain-call-2", "reuse", "reuse-reference");
 
   private ChainElementFamilies() {
