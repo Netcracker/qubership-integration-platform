@@ -75,6 +75,14 @@ elements:
       type: mapper-2
       container: false
       deprecated: false
+  header-modification:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-header-modification
+    runtimeDescriptor:
+      type: header-modification
+      container: false
+      deprecated: false
   context-storage:
     containmentRoles: {}
     requiredProperties: []
@@ -144,6 +152,16 @@ elements:
       type: split-2
       container: true
       deprecated: false
+  split-element-2:
+    containmentRoles: {}
+    requiredProperties:
+      - splitName
+    materializationRuleId: materialize-split-element-2
+    runtimeDescriptor:
+      type: split-element-2
+      container: true
+      minimumChildren: 1
+      deprecated: false
   split-async-2:
     containmentRoles:
       async-split-element-2:
@@ -152,6 +170,15 @@ elements:
     materializationRuleId: materialize-split-async-2
     runtimeDescriptor:
       type: split-async-2
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  async-split-element-2:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-async-split-element-2
+    runtimeDescriptor:
+      type: async-split-element-2
       container: true
       minimumChildren: 1
       deprecated: false
@@ -190,6 +217,24 @@ elements:
     runtimeDescriptor:
       type: catch-2
       container: true
+      deprecated: false
+  reuse:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-reuse
+    runtimeDescriptor:
+      type: reuse
+      container: true
+      minimumChildren: 1
+      deprecated: false
+  reuse-reference:
+    containmentRoles: {}
+    requiredProperties:
+      - reuseElementId
+    materializationRuleId: materialize-reuse-reference
+    runtimeDescriptor:
+      type: reuse-reference
+      container: false
       deprecated: false
 topology:
   split-async-2:
