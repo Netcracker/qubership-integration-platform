@@ -91,6 +91,7 @@ class ClasspathCompilerContractRepositoryTest {
     assertTrue(contract.elements().containsKey("header-modification"));
     assertTrue(contract.elements().containsKey("reuse"));
     assertTrue(contract.elements().containsKey("reuse-reference"));
+    assertEquals(1, contract.elements().get("reuse").containmentRoles().get("body").min());
     assertFalse(contract.topology().get("generic-barrier").supported());
     assertTrue(contract.requiredArtifacts().contains("CHAIN_SEMANTIC_REVISION"));
     assertTrue(contract.requiredArtifacts().contains("CHAIN_PLAN_GRAPH"));

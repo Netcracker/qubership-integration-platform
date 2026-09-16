@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /** Validates one typed plan against the approved semantic revision and pinned compiler catalog. */
 public final class DesignPlanContractValidator {
@@ -191,6 +192,15 @@ public final class DesignPlanContractValidator {
         .forEach(call -> owners.put(
             new TargetKey(TargetKind.SERVICE_CALL, call.serviceCallId()),
             DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID));
+    revision.nodes().stream()
+        .filter(SemanticNode.Operation.class::isInstance)
+        .map(SemanticNode.Operation.class::cast)
+        .filter(operation -> ChainElementFamilies.CHAIN_CALL.contains(operation.elementType()))
+        .forEach(
+            operation ->
+                owners.put(
+                    new TargetKey(TargetKind.ELEMENT_NODE, operation.nodeId()),
+                    DesignPlanProjector.COMPOSITION_GENERATOR_SKILL_ID));
     if (brief != null) {
       Set<String> occurrenceIds =
           revision.nodes().stream()

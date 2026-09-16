@@ -225,7 +225,8 @@ public final class GeneratorReadinessEvaluator {
     catalog.put("credentials", "Credentials, passwords, secrets, or secured variables.");
     catalog.put("timeout", "Request or response timeouts, deadlines, or a timeout hierarchy.");
     catalog.put("retry", "Retry, redelivery, or backoff on failure.");
-    catalog.put("composition", "Composing or reusing another chain (chain-call).");
+    catalog.put(
+        "composition", "Composing another chain or invoking a reusable block (chain-call or reuse).");
     catalog.put("loop", "Iterating over items — a loop or foreach.");
     catalog.put("parallel", "Running branches in parallel — a split.");
     catalog.put("monitoring", "Monitoring, observability, checkpoints, or session logging.");

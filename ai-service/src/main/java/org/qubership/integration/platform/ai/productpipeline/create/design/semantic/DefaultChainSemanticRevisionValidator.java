@@ -329,8 +329,10 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
         }
       }
     }
+    Map<String, String> parentByChild = parentByChild(revision);
     for (SemanticNode node : revision.nodes()) {
-      if (!reachable.contains(node.nodeId())) {
+      if (!reachable.contains(node.nodeId())
+          && reuseOwner(node.nodeId(), index, parentByChild) == null) {
         errors.add("Node '" + node.nodeId() + "' is not reachable from any entry point");
       }
     }
@@ -343,6 +345,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       List<String> errors) {
     Map<String, String> parentByChild = new LinkedHashMap<>();
     Map<String, List<String>> children = new LinkedHashMap<>();
+    Map<String, Map<String, Integer>> roleCounts = new LinkedHashMap<>();
     for (SemanticContainment relation : revision.containment()) {
       if (!index.nodes.containsKey(relation.parentNodeId())) {
         errors.add("Containment parentNodeId '" + relation.parentNodeId() + "' is missing");
@@ -359,7 +362,12 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       children
           .computeIfAbsent(relation.parentNodeId(), ignored -> new ArrayList<>())
           .add(relation.childNodeId());
+      roleCounts
+          .computeIfAbsent(relation.parentNodeId(), ignored -> new LinkedHashMap<>())
+          .merge(relation.role(), 1, Integer::sum);
     }
+    validateContainmentCardinality(revision, contract, roleCounts, errors);
+    validateReuseExecution(revision, index, parentByChild, errors);
     Map<String, Color> colors = new HashMap<>();
     for (SemanticNode node : revision.nodes()) {
       colors.put(node.nodeId(), Color.WHITE);
@@ -374,6 +382,111 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     if (cycle) {
       errors.add("containment relations must form a DAG");
     }
+  }
+
+  private static void validateContainmentCardinality(
+      ChainSemanticRevision revision,
+      CompilerContract contract,
+      Map<String, Map<String, Integer>> roleCounts,
+      List<String> errors) {
+    Set<String> regionOwners = new HashSet<>();
+    for (SemanticRegion region : revision.regions()) {
+      switch (region) {
+        case SemanticRegion.Condition value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.Split value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.Loop value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.Retry value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.ErrorScope value -> regionOwners.add(value.ownerNodeId());
+        case SemanticRegion.Sequence ignored -> {
+          // A sequence has no structural owner.
+        }
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (regionOwners.contains(node.nodeId())) {
+        continue;
+      }
+      ElementContract element = contract.elements().get(elementType(node));
+      if (element == null) {
+        continue;
+      }
+      Map<String, Integer> counts = roleCounts.getOrDefault(node.nodeId(), Map.of());
+      for (Map.Entry<String, ContainmentRole> role : element.containmentRoles().entrySet()) {
+        int count = counts.getOrDefault(role.getKey(), 0);
+        if (count < role.getValue().min()) {
+          errors.add(
+              "Element '"
+                  + node.nodeId()
+                  + "' requires at least "
+                  + role.getValue().min()
+                  + " '"
+                  + role.getKey()
+                  + "' child");
+        }
+        Integer max = role.getValue().max();
+        if (max != null && count > max) {
+          errors.add(
+              "Element '"
+                  + node.nodeId()
+                  + "' allows at most "
+                  + max
+                  + " '"
+                  + role.getKey()
+                  + "' child");
+        }
+      }
+    }
+  }
+
+  private static void validateReuseExecution(
+      ChainSemanticRevision revision,
+      Index index,
+      Map<String, String> parentByChild,
+      List<String> errors) {
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      SemanticNode source = index.nodes.get(edge.sourceNodeId());
+      SemanticNode target = index.nodes.get(edge.targetNodeId());
+      if (isReuse(source) || isReuse(target)) {
+        errors.add(
+            "Execution edge '"
+                + edge.edgeId()
+                + "' must not connect to a standalone reuse container");
+      }
+      String sourceOwner = reuseOwner(edge.sourceNodeId(), index, parentByChild);
+      String targetOwner = reuseOwner(edge.targetNodeId(), index, parentByChild);
+      if (!Objects.equals(sourceOwner, targetOwner)) {
+        errors.add(
+            "Execution edge '"
+                + edge.edgeId()
+                + "' crosses reuse containment boundary");
+      }
+    }
+  }
+
+  private static Map<String, String> parentByChild(ChainSemanticRevision revision) {
+    Map<String, String> parents = new LinkedHashMap<>();
+    for (SemanticContainment relation : revision.containment()) {
+      parents.putIfAbsent(relation.childNodeId(), relation.parentNodeId());
+    }
+    return parents;
+  }
+
+  private static String reuseOwner(
+      String nodeId, Index index, Map<String, String> parentByChild) {
+    Set<String> visited = new HashSet<>();
+    String current = nodeId;
+    while (current != null && visited.add(current)) {
+      if (isReuse(index.nodes.get(current))) {
+        return current;
+      }
+      current = parentByChild.get(current);
+    }
+    return null;
+  }
+
+  private static boolean isReuse(SemanticNode node) {
+    return node instanceof SemanticNode.Operation operation
+        && "reuse".equals(operation.elementType());
   }
 
   private static void validateContainmentRole(
