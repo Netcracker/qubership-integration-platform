@@ -8,10 +8,6 @@ name: Main Build
 # chain). This consolidated build re-runs the same checks on the merged main,
 # giving a single "is main green right now" signal. Sonar is intentionally
 # skipped here — it already runs on every PR.
-#
-# micro-engine needs read access to the private com.netcracker.cloud artifacts
-# on GitHub Packages (server-id: github); until that access is granted to this
-# repo's token, its matrix leg is red exactly like its PR build.
 
 on:
   push:
@@ -21,6 +17,8 @@ on:
       - 'checkstyle/**'
       - 'engine/**'
       - 'micro-engine/**'
+      # Built and tested by the runtime-catalog leg, which runs with -am.
+      - 'integration-build-pipeline/**'
       - 'runtime-catalog/**'
       - 'sessions-management/**'
       - 'parent/**'

@@ -82,10 +82,11 @@
         <tag>HEAD</tag>
     </scm>
 
+    <!-- Maven queries repositories in this order and Central serves nearly every artifact, so it goes first. -->
     <repositories>
         <repository>
-            <id>oss.sonatype.org</id>
-            <url>https://central.sonatype.com</url>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
             <releases><enabled>true</enabled></releases>
             <snapshots><enabled>false</enabled></snapshots>
         </repository>
