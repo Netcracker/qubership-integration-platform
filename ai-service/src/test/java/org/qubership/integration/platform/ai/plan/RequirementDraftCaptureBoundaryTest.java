@@ -22,6 +22,9 @@ class RequirementDraftCaptureBoundaryTest {
     assertFalse(
         capture.properties().containsKey("catalogBinding"),
         "catalogBinding must not be a top-level capture property: " + capture.properties().keySet());
+    assertFalse(
+        capture.properties().containsKey("apiHubCandidate"),
+        "apiHubCandidate is selected through its dedicated tool: " + capture.properties().keySet());
   }
 
   private static ToolMethodCreateInfo createInfo() {
