@@ -1,0 +1,16 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/api.schema.yaml"
+id: "some-id"
+name: "Sample API"
+content:
+  specificationType: "protobuf"
+  operations:
+    - id: "generated-id"
+      type: "protobuf"
+      name: customer
+      package: "some.pack.name"
+      service: "SomeService"
+      rpcMethod: "SomeOperation"
+  specifications:
+    - filePath: "some-resource-name.yaml"
+      isRoot: true

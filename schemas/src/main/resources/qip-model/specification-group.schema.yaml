@@ -24,5 +24,11 @@ properties:
       synchronization:
         type: boolean
         default: false
+      apis:
+        type: array
+        items:
+          type: string
+          subtype: reference
+          $refSchema: http://qubership.org/schemas/product/qip/api.schema.yaml
 required:
   - content
