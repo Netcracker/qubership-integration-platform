@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.integration.catalog.materialize;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -42,10 +43,11 @@ public class ChainPlanConnectionsMaterializer {
     int createdCount = 0;
     List<String> failedEdgeIds = new ArrayList<>();
     boolean listDependenciesFailed = false;
-    Set<String> existing = Set.of();
+    Set<String> existing = new HashSet<>();
     try {
-      existing = CatalogDependencyKeys.edgeKeysFromDependencies(
-          catalogRestClient.listDependencies(map.chainId()));
+      existing.addAll(
+          CatalogDependencyKeys.edgeKeysFromDependencies(
+              catalogRestClient.listDependencies(map.chainId())));
     } catch (Exception e) {
       listDependenciesFailed = true;
       LOG.warnf(e, "listDependencies failed chainId=%s", map.chainId());
@@ -72,6 +74,7 @@ public class ChainPlanConnectionsMaterializer {
                 map.chainId(),
                 new CatalogCreateDependencyRequest(
                     projection.fromElementId(), projection.toElementId()));
+            existing.add(edgeKey);
             createdCount++;
           } catch (Exception e) {
             failedEdgeIds.add(edge.edgeId());

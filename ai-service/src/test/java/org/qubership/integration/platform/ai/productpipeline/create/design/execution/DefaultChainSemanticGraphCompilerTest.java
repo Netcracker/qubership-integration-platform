@@ -5,10 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
@@ -35,6 +36,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SplitMode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
@@ -54,22 +56,57 @@ class DefaultChainSemanticGraphCompilerTest {
       new DefaultChainSemanticGraphCompiler(new DefaultChainSemanticRevisionValidator(), schemaService);
 
   @Test
-  void compilesConditionReconvergenceAsIndependentInvocations() {
-    ChainPlanGraph graph = compiler.compile(conditionRevision(), CONTRACT, List.of());
+  void projectsConditionReconvergenceThroughTheContainerOwner() {
+    ChainSemanticRevision revision = withoutContainment(conditionRevision());
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
 
     assertEquals(
-        Set.of("edge-entry", "edge-true", "edge-false", "edge-true-join", "edge-false-join"),
+        Set.of(
+            "edge-entry",
+            "edge-true",
+            "edge-false",
+            "edge-true-join",
+            "edge-false-join",
+            "condition-1-if-true-branch-entry",
+            "condition-1-else-false-branch-entry"),
         graph.edges().stream().map(ChainPlanEdge::edgeId).collect(Collectors.toSet()));
     assertEquals(
         1,
         graph.nodes().stream().filter(node -> "script-common".equals(node.nodeId())).count());
-    assertEquals("condition-1", node(graph, "script-true").parentNodeId());
-    assertEquals("condition-1", node(graph, "script-false").parentNodeId());
+    assertEquals("if", node(graph, "condition-1-if-true-branch").type());
+    assertEquals("else", node(graph, "condition-1-else-false-branch").type());
+    assertEquals("condition-1", node(graph, "condition-1-if-true-branch").parentNodeId());
+    assertEquals("condition-1", node(graph, "condition-1-else-false-branch").parentNodeId());
+    assertEquals("condition-1-if-true-branch", node(graph, "script-true").parentNodeId());
+    assertEquals("condition-1-else-false-branch", node(graph, "script-false").parentNodeId());
     assertNull(node(graph, "script-common").parentNodeId());
+    assertEquals("status == 'ok'", property(node(graph, "condition-1-if-true-branch"), "condition"));
+    assertEquals("1", property(node(graph, "condition-1-if-true-branch"), "priority"));
+    assertEquals("condition-1-if-true-branch", edge(graph, "edge-true").fromNodeId());
+    assertEquals("condition-1-else-false-branch", edge(graph, "edge-false").fromNodeId());
     assertEquals("condition-1", edge(graph, "edge-true").scopeNodeId());
+    assertEquals("condition-1", edge(graph, "edge-true-join").fromNodeId());
+    assertEquals("condition-1", edge(graph, "edge-false-join").fromNodeId());
     assertEquals("condition-1", edge(graph, "edge-true-join").scopeNodeId());
     assertEquals("revision-1", graph.chain().semanticRevisionId());
     assertEquals(CONTRACT.contractVersion(), graph.chain().compilerContractVersion());
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, revision);
+  }
+
+  @Test
+  void reusesConcreteIfBranchEntryInsteadOfGeneratingNestedIfShell() {
+    ChainSemanticRevision revision = conditionRevisionWithConcreteIfEntry();
+
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+    assertEquals(1, graph.nodes().stream().filter(node -> "if".equals(node.type())).count());
+    assertEquals("condition-1", node(graph, "existing-if").parentNodeId());
+    assertEquals("existing-if", node(graph, "script-true").parentNodeId());
+    assertEquals("status == 'ok'", property(node(graph, "existing-if"), "condition"));
+    assertEquals("1", property(node(graph, "existing-if"), "priority"));
+    assertEquals("condition-1", edge(graph, "edge-true").fromNodeId());
+    assertEquals("existing-if", edge(graph, "edge-true").toNodeId());
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, revision);
   }
 
   @Test
@@ -77,6 +114,29 @@ class DefaultChainSemanticGraphCompilerTest {
     ChainPlanGraph graph = compiler.compile(asyncApiTriggerRevision(), CONTRACT, List.of());
 
     assertEquals("async-api-trigger", node(graph, "trigger-async").type());
+  }
+
+  @Test
+  void compilesChainTriggerWithoutCatalogBinding() {
+    ChainSemanticRevision revision =
+        revision(
+            List.of(entry("chain-in", "trigger-chain", "op-shared")),
+            List.of(
+                new SemanticNode.Trigger(
+                    "trigger-chain",
+                    "chain-trigger-2",
+                    new SemanticProvenance(List.of("fact-chain"))),
+                new SemanticNode.Operation(
+                    "op-shared", "script", new SemanticProvenance(List.of("fact-script")))),
+            List.of(),
+            List.of(sequence("edge-chain-in", "trigger-chain", "op-shared", null)),
+            List.of(),
+            List.of());
+
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+    assertEquals("chain-trigger-2", node(graph, "trigger-chain").type());
+    assertTrue(new ChainPlanGraphValidator(schemaService).validate(graph).isEmpty());
   }
 
   @Test
@@ -185,12 +245,84 @@ class DefaultChainSemanticGraphCompilerTest {
 
   @Test
   void compilesOneBranchAsyncSplitWithRegionScope() {
-    ChainPlanGraph graph =
-        compiler.compile(asyncSplitOneBranchRevision(), CONTRACT, List.of(binding("call-notify")));
+    ChainSemanticRevision revision = asyncSplitOneBranchRevision();
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of(binding("call-notify")));
 
     assertEquals("split-async-2", node(graph, "split-async-1").type());
+    assertEquals("async-split-element-2", node(graph, "split-async-1-branch-notify").type());
+    assertEquals("split-async-1", node(graph, "split-async-1-branch-notify").parentNodeId());
+    assertEquals("split-async-1-branch-notify", node(graph, "call-notify").parentNodeId());
+    assertEquals(0, node(graph, "split-async-1-branch-notify").order());
+    assertEquals("split-async-1-branch-notify", edge(graph, "edge-notify").fromNodeId());
     assertEquals("split-async-1", edge(graph, "edge-notify").scopeNodeId());
     assertEquals(1, graph.nodes().stream().filter(n -> "call-notify".equals(n.nodeId())).count());
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, revision);
+  }
+
+  @Test
+  void compilesSynchronousSplitBranchShell() {
+    ChainSemanticRevision revision = syncSplitOneBranchRevision();
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+    assertEquals("split-element-2", node(graph, "split-1-branch-work").type());
+    assertEquals("split-1", node(graph, "split-1-branch-work").parentNodeId());
+    assertEquals("split-1-branch-work", node(graph, "work-script").parentNodeId());
+    assertEquals(0, node(graph, "split-1-branch-work").order());
+    assertEquals("work", property(node(graph, "split-1-branch-work"), "splitName"));
+    assertEquals("split-1-branch-work", edge(graph, "edge-work").fromNodeId());
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, revision);
+  }
+
+  @Test
+  void keepsNestedRegionMembersUnderTheirOwnShells() {
+    ChainSemanticRevision revision = nestedConditionInSplitRevision();
+    ChainSemanticGraphCompiler uncheckedCompiler =
+        new DefaultChainSemanticGraphCompiler((candidate, contract) -> {}, schemaService);
+
+    ChainPlanGraph graph = uncheckedCompiler.compile(revision, CONTRACT, List.of());
+
+    assertEquals("outer-split-branch-nested", node(graph, "inner-condition").parentNodeId());
+    assertEquals("inner-condition-if-yes", node(graph, "yes-script").parentNodeId());
+    assertEquals("inner-condition-else-no", node(graph, "no-script").parentNodeId());
+    assertEquals("outer-split", edge(graph, "edge-yes-after").fromNodeId());
+    assertEquals("outer-split", edge(graph, "edge-no-after").fromNodeId());
+    assertNull(node(graph, "after-nested").parentNodeId());
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, revision);
+  }
+
+  @Test
+  void rejectsGeneratedShellIdCollision() {
+    ChainSemanticRevision revision = nestedConditionInSplitRevision();
+    List<SemanticNode> nodes = new java.util.ArrayList<>(revision.nodes());
+    nodes.add(
+        new SemanticNode.Operation(
+            "outer-split-branch-nested", "script", new SemanticProvenance(List.of())));
+    ChainSemanticRevision colliding =
+        new ChainSemanticRevision(
+            revision.schemaVersion(),
+            revision.revisionId(),
+            revision.chainIdentity(),
+            revision.compilerContractVersion(),
+            revision.entryPoints(),
+            List.copyOf(nodes),
+            revision.regions(),
+            revision.executionEdges(),
+            revision.containment(),
+            revision.mappingIntents(),
+            revision.constraints(),
+            revision.assumptions(),
+            revision.citations());
+    ChainSemanticGraphCompiler uncheckedCompiler =
+        new DefaultChainSemanticGraphCompiler((candidate, contract) -> {}, schemaService);
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> uncheckedCompiler.compile(colliding, CONTRACT, List.of()));
+
+    assertEquals(
+        "Structural shell node id already exists: outer-split-branch-nested",
+        error.getMessage());
   }
 
   @Test
@@ -203,12 +335,16 @@ class DefaultChainSemanticGraphCompilerTest {
     assertNull(property(node(graph, "loop-1"), "doWhile"));
     assertEquals("loop-1", edge(graph, "edge-body").scopeNodeId());
     assertEquals("loop-1", edge(graph, "edge-exit").scopeNodeId());
+    assertEquals("loop-1", edge(graph, "edge-exit").fromNodeId());
+    assertEquals("loop-1", node(graph, "body-script").parentNodeId());
+    assertNull(node(graph, "after-loop").parentNodeId());
     assertTrue(
         graph.edges().stream()
             .noneMatch(
                 edge ->
                     "loop-1".equals(edge.toNodeId())
                         && !"trigger-http".equals(edge.fromNodeId())));
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, loopRevision(LoopMode.COPY));
   }
 
   @Test
@@ -253,6 +389,25 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void projectsErrorScopeExitThroughTheWrapper() {
+    ChainSemanticGraphCompiler uncheckedCompiler =
+        new DefaultChainSemanticGraphCompiler((candidate, contract) -> {}, schemaService);
+    ChainPlanGraph graph =
+        uncheckedCompiler.compile(errorScopeRevisionWithContinuation(), CONTRACT, List.of());
+
+    assertEquals("try-catch-1", edge(graph, "edge-after-error").fromNodeId());
+    assertEquals("after-error", edge(graph, "edge-after-error").toNodeId());
+  }
+
+  @Test
+  void validatesProjectedErrorScopeWithoutExplicitContainment() {
+    ChainSemanticRevision revision = withoutContainment(errorScopeRevision());
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, revision);
+  }
+
+  @Test
   void stampsExceptionAndPriorityWhenHandlerEntryIsCatch2() {
     ChainPlanGraph graph = compiler.compile(errorScopeRevision("catch-2"), CONTRACT, List.of());
 
@@ -260,6 +415,17 @@ class DefaultChainSemanticGraphCompilerTest {
     assertEquals("catch-2", catchEntry.type());
     assertEquals("java.lang.Exception", property(catchEntry, "exception"));
     assertEquals("0", property(catchEntry, "priority"));
+  }
+
+  @Test
+  void parentsExplicitCatchWithoutContainment() {
+    ChainSemanticRevision revision =
+        withoutContainment(withExplicitCatchScript(errorScopeRevision("catch-2")));
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+    assertEquals("try-catch-1", node(graph, "catch-body").parentNodeId());
+    assertEquals("catch-body", node(graph, "catch-script").parentNodeId());
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, revision);
   }
 
   @Test
@@ -533,6 +699,64 @@ class DefaultChainSemanticGraphCompilerTest {
         List.of());
   }
 
+  private static ChainSemanticRevision conditionRevisionWithConcreteIfEntry() {
+    ChainSemanticRevision base = withoutContainment(conditionRevision());
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(
+        new SemanticNode.Operation(
+            "existing-if", "if", new SemanticProvenance(List.of())));
+    SemanticRegion.Condition condition = (SemanticRegion.Condition) base.regions().getFirst();
+    List<SemanticBranch.Condition> branches =
+        condition.branches().stream()
+            .map(
+                branch ->
+                    branch.role() == ConditionBranchRole.IF
+                        ? new SemanticBranch.Condition(
+                            branch.branchId(),
+                            branch.role(),
+                            branch.predicate(),
+                            branch.priority(),
+                            "existing-if",
+                            branch.exitNodeIds())
+                        : branch)
+            .toList();
+    List<SemanticExecutionEdge> edges = new ArrayList<>();
+    for (SemanticExecutionEdge edge : base.executionEdges()) {
+      if ("edge-true".equals(edge.edgeId())) {
+        edges.add(
+            new SemanticExecutionEdge(
+                edge.edgeId(),
+                edge.sourceNodeId(),
+                "existing-if",
+                edge.regionId(),
+                edge.route(),
+                edge.mappingId()));
+      } else {
+        edges.add(edge);
+      }
+    }
+    edges.add(sequence("edge-if-body", "existing-if", "script-true", null));
+    return new ChainSemanticRevision(
+        base.schemaVersion(),
+        base.revisionId(),
+        base.chainIdentity(),
+        base.compilerContractVersion(),
+        base.entryPoints(),
+        List.copyOf(nodes),
+        List.of(
+            new SemanticRegion.Condition(
+                condition.regionId(),
+                condition.ownerNodeId(),
+                branches,
+                condition.reconvergenceNodeId())),
+        List.copyOf(edges),
+        base.containment(),
+        base.mappingIntents(),
+        base.constraints(),
+        base.assumptions(),
+        base.citations());
+  }
+
   private static ChainSemanticRevision twoEntryRevision() {
     return revision(
         List.of(
@@ -573,6 +797,132 @@ class DefaultChainSemanticGraphCompilerTest {
                 "call-notify",
                 region.regionId(),
                 new SemanticRoute.SplitBranch("notify"),
+                null)),
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision syncSplitOneBranchRevision() {
+    SemanticRegion.Split region =
+        new SemanticRegion.Split(
+            "sync-split-region",
+            "split-1",
+            SplitMode.SYNC,
+            List.of(new SemanticBranch.Split("work", 0, "work-script", List.of("work-script"))),
+            "after-split");
+    return revision(
+        List.of(entry("http-in", "trigger-http", "split-1")),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation("split-1", "split-2", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "work-script", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "after-split", "script", new SemanticProvenance(List.of()))),
+        List.of(region),
+        List.of(
+            sequence("edge-entry", "trigger-http", "split-1", null),
+            new SemanticExecutionEdge(
+                "edge-work",
+                "split-1",
+                "work-script",
+                region.regionId(),
+                new SemanticRoute.SplitBranch("work"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-after",
+                "work-script",
+                "after-split",
+                region.regionId(),
+                new SemanticRoute.Reconverge(List.of("work")),
+                null)),
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision nestedConditionInSplitRevision() {
+    SemanticRegion.Condition condition =
+        new SemanticRegion.Condition(
+            "inner-condition-region",
+            "inner-condition",
+            List.of(
+                new SemanticBranch.Condition(
+                    "yes",
+                    ConditionBranchRole.IF,
+                    "approved",
+                    0,
+                    "yes-script",
+                    List.of("yes-script")),
+                new SemanticBranch.Condition(
+                    "no",
+                    ConditionBranchRole.ELSE,
+                    null,
+                    1,
+                    "no-script",
+                    List.of("no-script"))),
+            "after-nested");
+    SemanticRegion.Split split =
+        new SemanticRegion.Split(
+            "outer-split-region",
+            "outer-split",
+            SplitMode.ASYNC,
+            List.of(
+                new SemanticBranch.Split(
+                    "nested", 0, "inner-condition", List.of("inner-condition"))),
+            "after-nested");
+    return revision(
+        List.of(entry("http-in", "trigger-http", "outer-split")),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "outer-split", "split-async-2", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "inner-condition", "condition", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "yes-script", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "no-script", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "after-nested", "script", new SemanticProvenance(List.of()))),
+        List.of(condition, split),
+        List.of(
+            sequence("edge-entry", "trigger-http", "outer-split", null),
+            new SemanticExecutionEdge(
+                "edge-nested",
+                "outer-split",
+                "inner-condition",
+                split.regionId(),
+                new SemanticRoute.SplitBranch("nested"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-yes",
+                "inner-condition",
+                "yes-script",
+                condition.regionId(),
+                new SemanticRoute.ConditionBranch("yes"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-no",
+                "inner-condition",
+                "no-script",
+                condition.regionId(),
+                new SemanticRoute.ConditionBranch("no"),
+                null),
+            new SemanticExecutionEdge(
+                "edge-yes-after",
+                "yes-script",
+                "after-nested",
+                condition.regionId(),
+                new SemanticRoute.Reconverge(List.of("yes")),
+                null),
+            new SemanticExecutionEdge(
+                "edge-no-after",
+                "no-script",
+                "after-nested",
+                condition.regionId(),
+                new SemanticRoute.Reconverge(List.of("no")),
                 null)),
         List.of(),
         List.of());
@@ -706,6 +1056,80 @@ class DefaultChainSemanticGraphCompilerTest {
             new SemanticContainment("try-catch-1", "catch-body", "catch-2"),
             new SemanticContainment("try-catch-1", "finally-script", "finally-2")),
         List.of());
+  }
+
+  private static ChainSemanticRevision errorScopeRevisionWithContinuation() {
+    ChainSemanticRevision base = errorScopeRevision();
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(
+        new SemanticNode.Operation(
+            "after-error", "script", new SemanticProvenance(List.of())));
+    List<SemanticExecutionEdge> edges = new ArrayList<>(base.executionEdges());
+    edges.add(sequence("edge-after-error", "finally-script", "after-error", "error-region"));
+    return new ChainSemanticRevision(
+        base.schemaVersion(),
+        base.revisionId(),
+        base.chainIdentity(),
+        base.compilerContractVersion(),
+        base.entryPoints(),
+        List.copyOf(nodes),
+        base.regions(),
+        List.copyOf(edges),
+        base.containment(),
+        base.mappingIntents(),
+        base.constraints(),
+        base.assumptions(),
+        base.citations());
+  }
+
+  private static ChainSemanticRevision withoutContainment(ChainSemanticRevision revision) {
+    return new ChainSemanticRevision(
+        revision.schemaVersion(),
+        revision.revisionId(),
+        revision.chainIdentity(),
+        revision.compilerContractVersion(),
+        revision.entryPoints(),
+        revision.nodes(),
+        revision.regions(),
+        revision.executionEdges(),
+        List.of(),
+        revision.mappingIntents(),
+        revision.constraints(),
+        revision.assumptions(),
+        revision.citations());
+  }
+
+  private static ChainSemanticRevision withExplicitCatchScript(ChainSemanticRevision revision) {
+    List<SemanticNode> nodes = new java.util.ArrayList<>(revision.nodes());
+    nodes.add(
+        new SemanticNode.Operation("catch-script", "script", new SemanticProvenance(List.of())));
+    SemanticRegion.ErrorScope scope = (SemanticRegion.ErrorScope) revision.regions().getFirst();
+    SemanticRegion.ErrorScope updatedScope =
+        new SemanticRegion.ErrorScope(
+            scope.regionId(),
+            scope.ownerNodeId(),
+            scope.tryEntryNodeId(),
+            List.of(
+                new ErrorHandler(
+                    "catch-all", "java.lang.Exception", "catch-body", List.of("catch-script"))),
+            scope.finallyEntryNodeId(),
+            scope.exitNodeIds());
+    List<SemanticExecutionEdge> edges = new java.util.ArrayList<>(revision.executionEdges());
+    edges.add(sequence("edge-catch-script", "catch-body", "catch-script", "error-region"));
+    return new ChainSemanticRevision(
+        revision.schemaVersion(),
+        revision.revisionId(),
+        revision.chainIdentity(),
+        revision.compilerContractVersion(),
+        revision.entryPoints(),
+        List.copyOf(nodes),
+        List.of(updatedScope),
+        List.copyOf(edges),
+        revision.containment(),
+        revision.mappingIntents(),
+        revision.constraints(),
+        revision.assumptions(),
+        revision.citations());
   }
 
   private ChainPlanGraph compileMapped(

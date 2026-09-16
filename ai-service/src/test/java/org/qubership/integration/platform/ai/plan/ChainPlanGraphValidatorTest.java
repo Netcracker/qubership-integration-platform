@@ -32,6 +32,8 @@ import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ConditionBranchRole;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.LoopMode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.LoopPolicy;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticBranch;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticContainment;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
@@ -238,6 +240,33 @@ class ChainPlanGraphValidatorTest {
                         "e1", "try", "parse", null))));
 
     assertTrue(errors.isEmpty());
+  }
+
+  @Test
+  void acceptsConditionBranchExitAsConnectionBetweenRootSiblings() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("router", "Router"),
+            List.of(
+                new ChainPlanNode("condition", "condition", "Condition", null, null, List.of()),
+                new ChainPlanNode("if", "if", "If", "condition", 1, List.of()),
+                new ChainPlanNode("if-script", "script", "If script", "if", null, List.of()),
+                new ChainPlanNode("else", "else", "Else", "condition", 2, List.of()),
+                new ChainPlanNode(
+                    "else-script", "script", "Else script", "else", null, List.of()),
+                new ChainPlanNode("response", "script", "Response", null, null, List.of())),
+            List.of(
+                new ChainPlanEdge("condition-if", "condition", "if", "condition"),
+                new ChainPlanEdge("condition-else", "condition", "else", "condition"),
+                new ChainPlanEdge("if-entry", "if", "if-script", "condition"),
+                new ChainPlanEdge("else-entry", "else", "else-script", "condition"),
+                new ChainPlanEdge("if-exit", "if-script", "response", "condition"),
+                new ChainPlanEdge("else-exit", "else-script", "response", "condition")));
+
+    assertTrue(validator.validate(graph).isEmpty());
+    assertTrue(validator.diagnoseForRepair(graph).isEmpty());
+    assertEquals(graph.edges(), validator.normalizeMissingSiblingExecutionEdges(graph).edges());
   }
 
   @Test
@@ -637,11 +666,50 @@ class ChainPlanGraphValidatorTest {
   }
 
   @Test
+  void rejectsSemanticContainmentWithoutConcreteConditionShell() {
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class,
+            () ->
+                validator.validate(
+                    conditionGraphWithoutShells(), CONTRACT, conditionRevision()));
+
+    assertTrue(error.getMessage().contains("condition role if has 0 child"));
+  }
+
+  @Test
+  void rejectsLoopWithoutConcreteChild() {
+    ChainSemanticRevision revision = loopRevision();
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection(
+                "loop-chain", null, null, null, "revision-loop", CONTRACT.contractVersion()),
+            List.of(
+                new ChainPlanNode(
+                    "trigger-http", "http-trigger", "trigger-http", null, null, List.of()),
+                new ChainPlanNode("loop-1", "loop-2", "loop-1", null, null, List.of()),
+                new ChainPlanNode("body-script", "script", "body-script", null, null, List.of()),
+                new ChainPlanNode("after-loop", "script", "after-loop", null, null, List.of())),
+            List.of(
+                new ChainPlanEdge("edge-entry", "trigger-http", "loop-1", null),
+                new ChainPlanEdge("edge-body", "loop-1", "body-script", "loop-1"),
+                new ChainPlanEdge("edge-exit", "body-script", "after-loop", "loop-1")));
+
+    IllegalStateException error =
+        assertThrows(
+            IllegalStateException.class, () -> validator.validate(graph, CONTRACT, revision));
+
+    assertTrue(error.getMessage().contains("loop-2 node loop-1 has 0 child"));
+  }
+
+  @Test
   void rejectsRuntimeDescriptorDrift() {
     CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
     when(loader.load("http-trigger")).thenReturn(matchingDescriptor("http-trigger", false));
     when(loader.load("script")).thenReturn(matchingDescriptor("script", false));
     when(loader.load("condition")).thenReturn(matchingDescriptor("condition", false));
+    when(loader.load("if")).thenReturn(matchingDescriptor("if", true));
     ChainPlanGraphValidator driftValidator = new ChainPlanGraphValidator(schemaService, loader);
 
     IllegalStateException error =
@@ -653,6 +721,52 @@ class ChainPlanGraphValidatorTest {
     assertEquals(
         "Runtime descriptor is incompatible with compiler contract: condition container",
         error.getMessage());
+  }
+
+  @Test
+  void acceptsMandatoryInnerElementAsRuntimeMinimumChild() {
+    CatalogElementDescriptorLoader loader = mock(CatalogElementDescriptorLoader.class);
+    when(loader.load("http-trigger")).thenReturn(matchingDescriptor("http-trigger", false));
+    when(loader.load("script")).thenReturn(matchingDescriptor("script", false));
+    when(loader.load("loop-2"))
+        .thenReturn(
+            new CatalogElementDescriptor(
+                "loop-2",
+                true,
+                Map.of(),
+                List.of(),
+                false,
+                "priority",
+                true,
+                false,
+                false,
+                true));
+    ChainPlanGraphValidator runtimeValidator = new ChainPlanGraphValidator(schemaService, loader);
+    ChainSemanticRevision revision = loopRevision();
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection(
+                "loop-chain", null, null, null, "revision-loop", CONTRACT.contractVersion()),
+            List.of(
+                new ChainPlanNode(
+                    "trigger-http", "http-trigger", "trigger-http", null, null, List.of()),
+                new ChainPlanNode(
+                    "loop-1",
+                    "loop-2",
+                    "loop-1",
+                    null,
+                    null,
+                    List.of(new PlanProperty("expression", "items"))),
+                new ChainPlanNode(
+                    "body-script", "script", "body-script", "loop-1", null, List.of()),
+                new ChainPlanNode("after-loop", "script", "after-loop", null, null, List.of())),
+            List.of(
+                new ChainPlanEdge("edge-entry", "trigger-http", "loop-1", null),
+                new ChainPlanEdge("edge-body", "loop-1", "body-script", "loop-1"),
+                new ChainPlanEdge("edge-exit", "loop-1", "after-loop", "loop-1")));
+
+    runtimeValidator.validate(graph, CONTRACT, revision);
   }
 
   @Test
@@ -700,11 +814,73 @@ class ChainPlanGraphValidatorTest {
         List.of(
             new ChainPlanNode("trigger-http", "http-trigger", "trigger-http", null, null, List.of()),
             new ChainPlanNode("condition-1", "condition", "condition-1", null, null, List.of()),
+            new ChainPlanNode(
+                "condition-1-if-true-branch",
+                "if",
+                "condition-1-if-true-branch",
+                "condition-1",
+                1,
+                List.of(
+                    new PlanProperty("condition", "status == 'ok'"),
+                    new PlanProperty("priority", "1"))),
+            new ChainPlanNode(
+                "condition-1-else-false-branch",
+                "else",
+                "condition-1-else-false-branch",
+                "condition-1",
+                0,
+                List.of()),
+            new ChainPlanNode(
+                "script-true",
+                "script",
+                "script-true",
+                "condition-1-if-true-branch",
+                null,
+                List.of()),
+            new ChainPlanNode(
+                "script-false",
+                "script",
+                "script-false",
+                "condition-1-else-false-branch",
+                null,
+                List.of()),
+            new ChainPlanNode(
+                "script-common", "script", "script-common", null, null, List.of())),
+        List.of(
+            new ChainPlanEdge("edge-entry", "trigger-http", "condition-1", null),
+            new ChainPlanEdge(
+                "condition-1-if-true-branch-entry",
+                "condition-1",
+                "condition-1-if-true-branch",
+                "condition-1"),
+            new ChainPlanEdge(
+                "condition-1-else-false-branch-entry",
+                "condition-1",
+                "condition-1-else-false-branch",
+                "condition-1"),
+            new ChainPlanEdge(
+                "edge-true", "condition-1-if-true-branch", "script-true", "condition-1"),
+            new ChainPlanEdge(
+                "edge-false",
+                "condition-1-else-false-branch",
+                "script-false",
+                "condition-1"),
+            new ChainPlanEdge("edge-true-join", "script-true", "script-common", "condition-1"),
+            new ChainPlanEdge("edge-false-join", "script-false", "script-common", "condition-1")));
+  }
+
+  private static ChainPlanGraph conditionGraphWithoutShells() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection(
+            "chain-greetings", null, null, null, "revision-1", CONTRACT.contractVersion()),
+        List.of(
+            new ChainPlanNode("trigger-http", "http-trigger", "trigger-http", null, null, List.of()),
+            new ChainPlanNode("condition-1", "condition", "condition-1", null, null, List.of()),
             new ChainPlanNode("script-true", "script", "script-true", "condition-1", null, List.of()),
             new ChainPlanNode(
                 "script-false", "script", "script-false", "condition-1", null, List.of()),
-            new ChainPlanNode(
-                "script-common", "script", "script-common", null, null, List.of())),
+            new ChainPlanNode("script-common", "script", "script-common", null, null, List.of())),
         List.of(
             new ChainPlanEdge("edge-entry", "trigger-http", "condition-1", null),
             new ChainPlanEdge("edge-true", "condition-1", "script-true", "condition-1"),
@@ -839,6 +1015,65 @@ class ChainPlanGraphValidatorTest {
         List.of(
             new SemanticContainment("condition-1", "script-true", "if"),
             new SemanticContainment("condition-1", "script-false", "else")),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  private static ChainSemanticRevision loopRevision() {
+    return new ChainSemanticRevision(
+        CONTRACT.semanticSchemaVersion(),
+        "revision-loop",
+        "loop-chain",
+        CONTRACT.contractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "http-in",
+                "trigger-http",
+                "loop-1",
+                0,
+                new SemanticProvenance(List.of()),
+                null)),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation("loop-1", "loop-2", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "body-script", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "after-loop", "script", new SemanticProvenance(List.of()))),
+        List.of(
+            new SemanticRegion.Loop(
+                "loop-region",
+                "loop-1",
+                "body-script",
+                List.of("body-script"),
+                "after-loop",
+                new LoopPolicy(LoopMode.COPY, "items", 10))),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-entry",
+                "trigger-http",
+                "loop-1",
+                null,
+                new SemanticRoute.Sequence(),
+                null),
+            new SemanticExecutionEdge(
+                "edge-body",
+                "loop-1",
+                "body-script",
+                "loop-region",
+                new SemanticRoute.LoopBody(),
+                null),
+            new SemanticExecutionEdge(
+                "edge-exit",
+                "body-script",
+                "after-loop",
+                "loop-region",
+                new SemanticRoute.LoopExit(),
+                null)),
+        List.of(),
         List.of(),
         List.of(),
         List.of(),
