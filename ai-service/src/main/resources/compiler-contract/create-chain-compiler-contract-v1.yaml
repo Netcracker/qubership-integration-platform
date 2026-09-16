@@ -48,6 +48,15 @@ elements:
       type: service-call
       container: false
       deprecated: false
+  chain-call-2:
+    containmentRoles: {}
+    requiredProperties:
+      - elementId
+    materializationRuleId: materialize-chain-call-2
+    runtimeDescriptor:
+      type: chain-call-2
+      container: false
+      deprecated: false
   script:
     containmentRoles: {}
     requiredProperties:
@@ -64,6 +73,31 @@ elements:
     materializationRuleId: materialize-mapper-2
     runtimeDescriptor:
       type: mapper-2
+      container: false
+      deprecated: false
+  context-storage:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-context-storage
+    runtimeDescriptor:
+      type: context-storage
+      container: false
+      deprecated: false
+  file-write:
+    containmentRoles: {}
+    requiredProperties:
+      - fileName
+    materializationRuleId: materialize-file-write
+    runtimeDescriptor:
+      type: file-write
+      container: false
+      deprecated: false
+  log-record:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-log-record
+    runtimeDescriptor:
+      type: log-record
       container: false
       deprecated: false
   condition:
@@ -87,6 +121,15 @@ elements:
     runtimeDescriptor:
       type: if
       container: true
+      deprecated: false
+  else:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-condition-else
+    runtimeDescriptor:
+      type: else
+      container: true
+      minimumChildren: 1
       deprecated: false
   split-2:
     containmentRoles:
