@@ -104,6 +104,33 @@ class ChainPlanConnectionsMaterializerTest {
     }
 
     @Test
+    void createsSharedProjectedDependencyOnlyOnce() {
+        when(catalogRestClient.createConnection(any(), any()))
+                .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+        ChainPlanGraph graph = new ChainPlanGraph(
+                "1.0",
+                new ChainSection("demo-chain", null),
+                List.of(
+                        new ChainPlanNode("condition", "condition", "Condition", null, null, List.of()),
+                        new ChainPlanNode("response", "script", "Response", null, null, List.of())),
+                List.of(
+                        new ChainPlanEdge("if-exit", "condition", "response", "condition"),
+                        new ChainPlanEdge("else-exit", "condition", "response", "condition")));
+        MaterializationMap map = new MaterializationMap(
+                "chain-1", Map.of("condition", "el-condition", "response", "el-response"), Map.of(), Map.of());
+
+        ChainPlanConnectionsMaterializer.ConnectionsApplyResult result = materializer.apply(graph, map);
+
+        assertEquals(1, result.createdCount());
+        assertTrue(result.failedEdgeIds().isEmpty());
+        verify(catalogRestClient)
+                .createConnection(
+                        eq("chain-1"),
+                        eq(new CatalogCreateDependencyRequest("el-condition", "el-response")));
+    }
+
+    @Test
     void createsRootDependencyToContainerWrapper() {
         when(catalogRestClient.createConnection(any(), any()))
                 .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));

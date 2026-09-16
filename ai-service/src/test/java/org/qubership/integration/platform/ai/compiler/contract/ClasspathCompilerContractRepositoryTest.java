@@ -18,6 +18,7 @@ class ClasspathCompilerContractRepositoryTest {
   void loadsV1ContractVersionDigestAndAsyncCardinality() {
     CompilerContract contract = repository.require(V1);
     assertEquals(1, contract.topology().get("split-async-2").minimumBranches());
+    assertTrue(contract.elements().get("if").runtimeDescriptor().container());
     assertTrue(contract.sha256().matches("[0-9a-f]{64}"));
     assertEquals(V1, contract.contractVersion());
     assertEquals("chain-semantic-revision/v1", contract.semanticSchemaVersion());

@@ -308,8 +308,8 @@ class CanonicalSemanticCreateChainIT {
         revision.nodes().stream().map(SemanticNode::nodeId).collect(Collectors.toSet());
     Set<String> graphNodeIds =
         graph.nodes().stream().map(ChainPlanNode::nodeId).collect(Collectors.toSet());
-    assertEquals(semanticNodeIds, graphNodeIds);
-    assertEquals(semanticNodeIds, map.nodeIdToElementId().keySet());
+    assertTrue(graphNodeIds.containsAll(semanticNodeIds));
+    assertEquals(graphNodeIds, map.nodeIdToElementId().keySet());
 
     Set<String> semanticEdgeIds =
         revision.executionEdges().stream()
@@ -317,8 +317,8 @@ class CanonicalSemanticCreateChainIT {
             .collect(Collectors.toSet());
     Set<String> graphEdgeIds =
         graph.edges().stream().map(ChainPlanEdge::edgeId).collect(Collectors.toSet());
-    assertEquals(semanticEdgeIds, graphEdgeIds);
-    assertEquals(semanticEdgeIds, map.semanticEdgeOwnerElementIds().keySet());
+    assertTrue(graphEdgeIds.containsAll(semanticEdgeIds));
+    assertEquals(graphEdgeIds, map.semanticEdgeOwnerElementIds().keySet());
 
     for (SemanticNode node : revision.nodes()) {
       if (node instanceof SemanticNode.ServiceCall call) {

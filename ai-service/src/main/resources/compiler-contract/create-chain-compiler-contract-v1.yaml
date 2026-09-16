@@ -86,7 +86,7 @@ elements:
     materializationRuleId: materialize-condition-if
     runtimeDescriptor:
       type: if
-      container: false
+      container: true
       deprecated: false
   split-2:
     containmentRoles:
