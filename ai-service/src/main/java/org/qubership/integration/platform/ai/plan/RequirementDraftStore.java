@@ -29,6 +29,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 public class RequirementDraftStore {
 
   private final ConcurrentHashMap<String, Boolean> capturedThisTurn = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, RequirementDiscoveryDirective> turnDirectives =
+      new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, String> lastCaptureRejection = new ConcurrentHashMap<>();
   private final CompilationArtifacts artifacts;
   private final CompilationSessions sessions;
@@ -153,12 +155,14 @@ public class RequirementDraftStore {
   public void remove(String conversationId) {
     sessions.startNew(conversationId);
     capturedThisTurn.remove(conversationId);
+    turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
   }
 
   /** Clears per-turn gather flags without starting a new compilation. */
   public void clearTurnFlags(String conversationId) {
     capturedThisTurn.remove(conversationId);
+    turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
   }
 
@@ -170,6 +174,18 @@ public class RequirementDraftStore {
   /** Marks the start of a gather scenario turn before the agent runs. */
   public void beginTurn(String conversationId) {
     capturedThisTurn.put(conversationId, false);
+    turnDirectives.remove(conversationId);
+  }
+
+  public void finishTurn(String conversationId, RequirementDiscoveryDirective directive) {
+    Objects.requireNonNull(conversationId, "conversationId");
+    turnDirectives.put(
+        conversationId,
+        directive == null ? RequirementDiscoveryDirective.NONE : directive);
+  }
+
+  public RequirementDiscoveryDirective turnDirective(String conversationId) {
+    return turnDirectives.getOrDefault(conversationId, RequirementDiscoveryDirective.NONE);
   }
 
   public void markCaptured(String conversationId) {

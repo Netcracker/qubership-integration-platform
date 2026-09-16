@@ -9,6 +9,7 @@ import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSys
 import org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
 import org.qubership.integration.platform.ai.plan.SelectApiHubCandidateTool;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool;
 
 /**
  * Agent for iterative requirement gathering before the compiler spine runs. Uses TOKEN_WINDOW chat
@@ -19,9 +20,10 @@ import org.qubership.integration.platform.ai.plan.SelectApiHubCandidateTool;
       RequirementDraftTool.class,
       SelectApiHubCandidateTool.class,
       CatalogSystemTools.class,
-      CatalogFirstApiHubDiscoveryTool.class
+      CatalogFirstApiHubDiscoveryTool.class,
+      RequirementDiscoveryKnowledgeTool.class
     },
-    maxSequentialToolInvocations = 8)
+    maxSequentialToolInvocations = 10)
 @ApplicationScoped
 public interface GatherRequirementsAgent {
 

@@ -43,6 +43,7 @@ import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftCapture;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -235,6 +236,83 @@ class RequirementDiscoveryCapabilityTest {
             });
 
     assertEquals(StageOutcomeClass.CANDIDATE, completed.get().outcome().outcomeClass());
+  }
+
+  @Test
+  void readyDraftConsultationStaysInDiscoveryWithoutARequirementCandidate() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft ready = RequirementFactFixtures.greetingsApprovedDraft();
+    store.put("conv-consult", ready);
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            (conversationId, userText) -> {
+              store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
+              return Multi.createFrom().empty();
+            });
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-consult",
+            "conv-consult",
+            "requirement-discovery",
+            "exec-consult",
+            "attempt-consult",
+            null,
+            null,
+            List.of(),
+            Map.of("userText", "Why is Kafka a better fit here?"));
+
+    List<CapabilitySignal> signals =
+        capability.execute(context).collect().asList().await().indefinitely();
+    StageOutcome outcome =
+        signals.stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow()
+            .outcome();
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
+    assertTrue(outcome.candidates().isEmpty());
+    assertEquals(ready, store.get("conv-consult").orElseThrow());
+  }
+
+  @Test
+  void readyDraftWithoutAnExplicitTurnDirectiveStaysInDiscovery() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft ready = RequirementFactFixtures.greetingsApprovedDraft();
+    store.put("conv-no-directive", ready);
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            (conversationId, userText) -> Multi.createFrom().empty());
+
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-no-directive",
+            "conv-no-directive",
+            "requirement-discovery",
+            "exec-no-directive",
+            "attempt-no-directive",
+            null,
+            null,
+            List.of(),
+            Map.of("userText", "Explain the current recommendation."));
+
+    StageOutcome outcome =
+        capability.execute(context).collect().asList().await().indefinitely().stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow()
+            .outcome();
+
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
+    assertTrue(outcome.candidates().isEmpty());
+    assertEquals(ready, store.get("conv-no-directive").orElseThrow());
   }
 
   @Test

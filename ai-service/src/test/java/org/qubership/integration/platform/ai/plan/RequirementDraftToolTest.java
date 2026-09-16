@@ -76,6 +76,21 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void finishDiscoveryTurnStoresStayDirectiveWithoutCapturingADraft() {
+    store.beginTurn("draft-conv");
+
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("draft-conv")) {
+      result = tool.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.STAY);
+    }
+
+    assertTrue(result.contains("stay in requirement discovery"), result);
+    assertEquals(RequirementDiscoveryDirective.STAY, store.turnDirective("draft-conv"));
+    assertFalse(store.wasCapturedThisTurn("draft-conv"));
+    assertTrue(store.get("draft-conv").isEmpty());
+  }
+
+  @Test
   void captureToolDescriptionAuthorsBusinessFlowFirst() throws Exception {
     String description =
         String.join(
