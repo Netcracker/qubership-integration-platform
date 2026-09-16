@@ -21,14 +21,14 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>1.2.3-SNAPSHOT</version>
+    <version>1.3.0-SNAPSHOT</version>
     <relativePath>../parent</relativePath>
   </parent>
 
   <properties>
-    <revision>1.2.3</revision>
+    <revision>1.3.0</revision>
     <changelist>-SNAPSHOT</changelist>
-    <qip-integration-build-pipeline.version>1.2.3</qip-integration-build-pipeline.version>
+    <qip-integration-build-pipeline.version>${revision}${changelist}</qip-integration-build-pipeline.version>
   </properties>
 
   <dependencyManagement>
@@ -81,7 +81,7 @@
     <dependency>
       <groupId>${project.parent.groupId}</groupId>
       <artifactId>qip-integration-build-pipeline</artifactId>
-      <version>${qip-integration-build-pipeline.version}${changelist}</version>
+      <version>${qip-integration-build-pipeline.version}</version>
     </dependency>
   </dependencies>
 

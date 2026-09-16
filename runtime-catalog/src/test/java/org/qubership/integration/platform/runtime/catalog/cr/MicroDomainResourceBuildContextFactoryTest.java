@@ -98,10 +98,11 @@ class MicroDomainResourceBuildContextFactoryTest {
         auditor = mock(AuditorAware.class);
         when(auditor.getCurrentAuditor()).thenReturn(Optional.empty());
         when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of());
-        when(buildInfoFactory.createBuildInfo(any())).thenAnswer(invocation -> BuildInfo.builder()
+        when(buildInfoFactory.createBuildInfo(any(), any())).thenAnswer(invocation -> BuildInfo.builder()
             .id(UUID.randomUUID().toString())
             .name(BUILD_NAME)
             .options(invocation.getArgument(0))
+            .createdBy(invocation.getArgument(1))
             .build());
         when(httpRoutePublicNamingStrategy.getName(any())).thenReturn(PUBLIC_ROUTE_NAME);
         when(httpRoutePrivateNamingStrategy.getName(any())).thenReturn(PRIVATE_ROUTE_NAME);

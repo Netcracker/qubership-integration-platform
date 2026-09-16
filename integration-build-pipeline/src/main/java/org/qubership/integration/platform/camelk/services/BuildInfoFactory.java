@@ -19,7 +19,7 @@ public class BuildInfoFactory {
         this.buildNamingStrategy = buildNamingStrategy;
     }
 
-    public BuildInfo createBuildInfo(ResourceBuildOptions options) {
+    public BuildInfo createBuildInfo(ResourceBuildOptions options, String createdBy) {
         String id = UUID.randomUUID().toString();
         Instant timestamp = Instant.now();
         BuildNamingContext buildNamingContext = BuildNamingContext.builder()
@@ -31,6 +31,7 @@ public class BuildInfoFactory {
             .timestamp(timestamp)
             .name(buildNamingStrategy.getName(buildNamingContext))
             .options(options)
+            .createdBy(createdBy)
             .build();
     }
 }

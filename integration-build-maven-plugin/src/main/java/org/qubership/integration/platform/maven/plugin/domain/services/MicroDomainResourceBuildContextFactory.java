@@ -23,7 +23,8 @@ public class MicroDomainResourceBuildContextFactory {
         List<Snapshot> snapshots,
         ResourceBuildOptions options
     ) {
-        BuildInfo buildInfo = buildInfoFactory.createBuildInfo(options);
+        // FIXME createdBy
+        BuildInfo buildInfo = buildInfoFactory.createBuildInfo(options, null);
         return ResourceBuildContext.create(buildInfo)
             .updateTo(snapshots);
     }
