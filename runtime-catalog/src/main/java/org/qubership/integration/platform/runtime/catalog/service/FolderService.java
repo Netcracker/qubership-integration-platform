@@ -263,12 +263,10 @@ public class FolderService {
 
     public void deleteByIds(List<String> folderIds) {
         List<Chain> chains = chainRepository.findAllChainsInFolders(folderIds);
-        chains.forEach(FoldableEntity::getParentFolder); // To ensure that parent folders are loaded.
-        chains.stream().map(Chain::getId).toList().forEach(deploymentService::deleteAllByChainId);
-        folderRepository.deleteFolderTree(folderIds);
-        chains.forEach(chain -> {
+        // Read the parent folders before the native delete removes their rows under the lazy proxies.
+        List<ActionLog> actions = chains.stream().map(chain -> {
             Optional<Folder> folder = Optional.ofNullable(chain.getParentFolder());
-            actionLogger.logAction(ActionLog.builder()
+            return ActionLog.builder()
                     .entityType(EntityType.CHAIN)
                     .entityId(chain.getId())
                     .entityName(chain.getName())
@@ -276,8 +274,11 @@ public class FolderService {
                     .parentId(folder.map(Folder::getId).orElse(null))
                     .parentName(folder.map(Folder::getName).orElse(null))
                     .operation(LogOperation.DELETE)
-                    .build());
-        });
+                    .build();
+        }).toList();
+        chains.stream().map(Chain::getId).toList().forEach(deploymentService::deleteAllByChainId);
+        folderRepository.deleteFolderTree(folderIds);
+        actions.forEach(actionLogger::logAction);
     }
 
     private void deleteRuntimeDeployments(Folder folder) {
