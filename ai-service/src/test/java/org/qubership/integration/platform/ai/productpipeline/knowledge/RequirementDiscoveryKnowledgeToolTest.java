@@ -12,6 +12,8 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 
 class RequirementDiscoveryKnowledgeToolTest {
 
@@ -29,8 +31,9 @@ class RequirementDiscoveryKnowledgeToolTest {
                 List.of("golden-patterns"),
                 List.of(),
                 0));
+    RequirementDraftStore draftStore = new RequirementDraftStore();
     RequirementDiscoveryKnowledgeTool tool =
-        new RequirementDiscoveryKnowledgeTool(client, contextProvider);
+        new RequirementDiscoveryKnowledgeTool(client, contextProvider, draftStore);
 
     String result;
     try (ToolSession.Handle ignored = ToolSession.open("conv-knowledge")) {
@@ -45,6 +48,8 @@ class RequirementDiscoveryKnowledgeToolTest {
     assertEquals("DISCOVERY", request.getValue().phase());
     assertEquals(8, request.getValue().maxObjects());
     assertEquals(12_000, request.getValue().maxChars());
+    assertEquals(
+        RequirementDiscoveryDirective.STAY, draftStore.turnDirective("conv-knowledge"));
     assertTrue(result.contains("fixture@1.0.0"), result);
     assertTrue(result.contains("sha256:pinned"), result);
   }
@@ -60,8 +65,9 @@ class RequirementDiscoveryKnowledgeToolTest {
             new KnowledgeClientException(
                 KnowledgeFailureKind.KNOWLEDGE_TEMPORARILY_UNAVAILABLE,
                 "sidecar temporarily unavailable"));
+    RequirementDraftStore draftStore = new RequirementDraftStore();
     RequirementDiscoveryKnowledgeTool tool =
-        new RequirementDiscoveryKnowledgeTool(client, contextProvider);
+        new RequirementDiscoveryKnowledgeTool(client, contextProvider, draftStore);
 
     String result;
     try (ToolSession.Handle ignored = ToolSession.open("conv-knowledge")) {
@@ -70,6 +76,8 @@ class RequirementDiscoveryKnowledgeToolTest {
 
     assertTrue(result.contains("KNOWLEDGE_TEMPORARILY_UNAVAILABLE"), result);
     assertTrue(result.contains("Do not claim unsupported QIP behavior"), result);
+    assertEquals(
+        RequirementDiscoveryDirective.STAY, draftStore.turnDirective("conv-knowledge"));
   }
 
   private static KnowledgePackageRef packageRef(String checksum) {

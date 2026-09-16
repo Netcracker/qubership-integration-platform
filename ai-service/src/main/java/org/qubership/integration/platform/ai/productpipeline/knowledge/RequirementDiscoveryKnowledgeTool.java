@@ -5,23 +5,33 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.logging.ToolTraceLog;
+import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 
 /** Bounded knowledge-package lookup for conversational requirement discovery. */
 @ApplicationScoped
 public class RequirementDiscoveryKnowledgeTool {
 
+  private static final Logger LOG = Logger.getLogger(RequirementDiscoveryKnowledgeTool.class);
+  private static final String TOOL_NAME = "searchRequirementKnowledge";
   static final int MAX_OBJECTS = 8;
   static final int MAX_CHARS = 12_000;
 
   private final KnowledgeClient knowledgeClient;
   private final KnowledgeContextProvider contextProvider;
+  private final RequirementDraftStore draftStore;
 
   @Inject
   public RequirementDiscoveryKnowledgeTool(
-      KnowledgeClient knowledgeClient, KnowledgeContextProvider contextProvider) {
+      KnowledgeClient knowledgeClient,
+      KnowledgeContextProvider contextProvider,
+      RequirementDraftStore draftStore) {
     this.knowledgeClient = Objects.requireNonNull(knowledgeClient, "knowledgeClient");
     this.contextProvider = Objects.requireNonNull(contextProvider, "contextProvider");
+    this.draftStore = Objects.requireNonNull(draftStore, "draftStore");
   }
 
   @Tool("""
@@ -33,15 +43,26 @@ public class RequirementDiscoveryKnowledgeTool {
       """)
   public String searchRequirementKnowledge(String question) {
     String conversationId = ToolSession.resolveConversationId();
+    long startMs = System.currentTimeMillis();
+    ToolTraceLog.logToolInvoke(LOG, TOOL_NAME, conversationId, "question=" + question);
     if (conversationId == null || conversationId.isBlank()) {
-      return limitation(
-          KnowledgeFailureKind.KNOWLEDGE_INVALID_REQUEST,
-          "No active conversation is bound to this lookup.");
+      return complete(
+          conversationId,
+          startMs,
+          limitation(
+              KnowledgeFailureKind.KNOWLEDGE_INVALID_REQUEST,
+              "No active conversation is bound to this lookup."));
     }
+    // A knowledge lookup is a consultation turn. An explicit CONTINUE call later in the same turn
+    // can override this safe default.
+    draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
     if (question == null || question.isBlank()) {
-      return limitation(
-          KnowledgeFailureKind.KNOWLEDGE_INVALID_REQUEST,
-          "A concrete platform question is required.");
+      return complete(
+          conversationId,
+          startMs,
+          limitation(
+              KnowledgeFailureKind.KNOWLEDGE_INVALID_REQUEST,
+              "A concrete platform question is required."));
     }
     try {
       KnowledgeQueryContext context = contextProvider.forConversation(conversationId);
@@ -55,10 +76,20 @@ public class RequirementDiscoveryKnowledgeTool {
                   List.of(),
                   MAX_OBJECTS,
                   MAX_CHARS));
-      return knowledge.renderMarkdown();
+      return complete(conversationId, startMs, knowledge.renderMarkdown());
     } catch (KnowledgeClientException error) {
-      return limitation(error.kind(), error.getMessage());
+      return complete(conversationId, startMs, limitation(error.kind(), error.getMessage()));
+    } catch (RuntimeException error) {
+      ToolTraceLog.logToolFailed(
+          LOG, TOOL_NAME, conversationId, System.currentTimeMillis() - startMs, error);
+      throw error;
     }
+  }
+
+  private static String complete(String conversationId, long startMs, String result) {
+    ToolTraceLog.logToolComplete(
+        LOG, TOOL_NAME, conversationId, System.currentTimeMillis() - startMs, result);
+    return result;
   }
 
   private static String limitation(KnowledgeFailureKind kind, String detail) {
