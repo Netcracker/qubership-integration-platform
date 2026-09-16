@@ -25,7 +25,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticContainment;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
@@ -137,7 +136,7 @@ public class ChainPlanGraphValidator {
     checkSemanticNodesRepresented(graph, expectedRevision, errors);
     checkSemanticEdgesRepresented(graph, expectedRevision, errors);
     checkRuntimeTypes(graph, expectedRevision, errors);
-    checkContractCardinality(graph, contract, expectedRevision, errors);
+    checkContractCardinality(graph, contract, errors);
     checkRuntimeDescriptors(graph, contract, errors);
     if (!errors.isEmpty()) {
       throw new IllegalStateException(String.join("; ", errors));
@@ -177,15 +176,18 @@ public class ChainPlanGraphValidator {
           flowSiblings.stream().map(ChainPlanNode::nodeId).collect(Collectors.toSet());
       boolean needsEdges =
           flowSiblings.stream()
-              .anyMatch(sibling -> !hasSiblingExecutionEdge(sibling.nodeId(), siblingIds, edges));
+              .anyMatch(
+                  sibling ->
+                      !hasSiblingExecutionEdge(
+                          sibling.nodeId(), siblingIds, edges, nodesById));
       if (!needsEdges) {
         continue;
       }
       for (int i = 0; i < flowSiblings.size() - 1; i++) {
         String fromId = flowSiblings.get(i).nodeId();
         String toId = flowSiblings.get(i + 1).nodeId();
-        if (hasSiblingExecutionEdge(fromId, siblingIds, edges)
-            && hasSiblingExecutionEdge(toId, siblingIds, edges)) {
+        if (hasSiblingExecutionEdge(fromId, siblingIds, edges, nodesById)
+            && hasSiblingExecutionEdge(toId, siblingIds, edges, nodesById)) {
           continue;
         }
         if (hasDirectExecutionEdge(fromId, toId, edges)
@@ -296,7 +298,7 @@ public class ChainPlanGraphValidator {
       }
       Set<String> siblingIds = flowSiblings.stream().map(ChainPlanNode::nodeId).collect(Collectors.toSet());
       for (ChainPlanNode sibling : flowSiblings) {
-        if (!hasSiblingExecutionEdge(sibling.nodeId(), siblingIds, edges)) {
+        if (!hasSiblingExecutionEdge(sibling.nodeId(), siblingIds, edges, nodesById)) {
           errors.add(
               "node '"
                   + sibling.nodeId()
@@ -333,7 +335,7 @@ public class ChainPlanGraphValidator {
               edge -> siblingIds.contains(edge.fromNodeId()) || siblingIds.contains(edge.toNodeId()))
           .toList();
       for (ChainPlanNode sibling : flowSiblings) {
-        if (!hasSiblingExecutionEdge(sibling.nodeId(), siblingIds, edges)) {
+        if (!hasSiblingExecutionEdge(sibling.nodeId(), siblingIds, edges, nodesById)) {
           issues.add(
               new ChainPlanRepairIssue(
                   "MISSING_SIBLING_EXECUTION_EDGE",
@@ -376,16 +378,35 @@ public class ChainPlanGraphValidator {
   }
 
   private static boolean hasSiblingExecutionEdge(
-      String nodeId, Set<String> siblingIds, List<ChainPlanEdge> edges) {
+      String nodeId,
+      Set<String> siblingIds,
+      List<ChainPlanEdge> edges,
+      Map<String, ChainPlanNode> nodesById) {
     for (ChainPlanEdge edge : edges) {
-      if (nodeId.equals(edge.fromNodeId()) && siblingIds.contains(edge.toNodeId())) {
+      String fromSibling = owningSibling(edge.fromNodeId(), siblingIds, nodesById);
+      String toSibling = owningSibling(edge.toNodeId(), siblingIds, nodesById);
+      if (nodeId.equals(fromSibling) && toSibling != null && !nodeId.equals(toSibling)) {
         return true;
       }
-      if (nodeId.equals(edge.toNodeId()) && siblingIds.contains(edge.fromNodeId())) {
+      if (nodeId.equals(toSibling) && fromSibling != null && !nodeId.equals(fromSibling)) {
         return true;
       }
     }
     return false;
+  }
+
+  private static String owningSibling(
+      String nodeId, Set<String> siblingIds, Map<String, ChainPlanNode> nodesById) {
+    Set<String> visited = new HashSet<>();
+    String current = nodeId;
+    while (current != null && visited.add(current)) {
+      if (siblingIds.contains(current)) {
+        return current;
+      }
+      ChainPlanNode node = nodesById.get(current);
+      current = node == null ? null : blankToNull(node.parentNodeId());
+    }
+    return null;
   }
 
   private static boolean hasDirectExecutionEdge(
@@ -880,13 +901,17 @@ public class ChainPlanGraphValidator {
   private static void checkContractCardinality(
       ChainPlanGraph graph,
       CompilerContract contract,
-      ChainSemanticRevision revision,
       List<String> errors) {
     Map<String, Map<String, Integer>> roleCounts = new HashMap<>();
-    for (SemanticContainment containment : revision.containment()) {
+    for (ChainPlanNode child : graph.nodes()) {
+      String parentNodeId = trim(child.parentNodeId());
+      String role = trim(child.type());
+      if (parentNodeId == null || role == null) {
+        continue;
+      }
       roleCounts
-          .computeIfAbsent(containment.parentNodeId(), ignored -> new HashMap<>())
-          .merge(containment.role(), 1, Integer::sum);
+          .computeIfAbsent(parentNodeId, ignored -> new HashMap<>())
+          .merge(role, 1, Integer::sum);
     }
     for (ChainPlanNode node : graph.nodes()) {
       String elementType = trim(node.type());
@@ -894,7 +919,7 @@ public class ChainPlanGraphValidator {
         continue;
       }
       ElementContract element = contract.elements().get(elementType);
-      if (element == null || element.containmentRoles().isEmpty()) {
+      if (element == null) {
         continue;
       }
       Map<String, Integer> present = roleCounts.getOrDefault(node.nodeId(), Map.of());
@@ -913,6 +938,20 @@ public class ChainPlanGraphValidator {
                   + " child; the contract allows at most "
                   + role.max()
                   + " (cardinality)");
+        }
+      }
+      RuntimeDescriptorConstraints runtimeDescriptor = element.runtimeDescriptor();
+      if (runtimeDescriptor != null && runtimeDescriptor.minimumChildren() != null) {
+        int childCount = present.values().stream().mapToInt(Integer::intValue).sum();
+        if (childCount < runtimeDescriptor.minimumChildren()) {
+          errors.add(
+              elementType
+                  + " node "
+                  + node.nodeId()
+                  + " has "
+                  + childCount
+                  + " child; the runtime descriptor requires at least "
+                  + runtimeDescriptor.minimumChildren());
         }
       }
     }
@@ -977,12 +1016,13 @@ public class ChainPlanGraphValidator {
   }
 
   private static int minimumChildren(CatalogElementDescriptor descriptor) {
-    if (descriptor.allowedChildren() == null || descriptor.allowedChildren().isEmpty()) {
-      return 0;
-    }
-    return descriptor.allowedChildren().values().stream()
-        .mapToInt(CatalogChildQuantity::minimum)
-        .min()
-        .orElse(0);
+    int roleMinimum =
+        descriptor.allowedChildren() == null
+            ? 0
+            : descriptor.allowedChildren().values().stream()
+                .mapToInt(CatalogChildQuantity::minimum)
+                .min()
+                .orElse(0);
+    return Math.max(roleMinimum, descriptor.mandatoryInnerElement() ? 1 : 0);
   }
 }

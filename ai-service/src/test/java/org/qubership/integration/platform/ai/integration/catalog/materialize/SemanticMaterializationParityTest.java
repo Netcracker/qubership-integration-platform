@@ -234,6 +234,8 @@ class SemanticMaterializationParityTest {
             "script",
             "service-call",
             "condition",
+            "if",
+            "else",
             "loop-2",
             "mapper-2",
             "try-catch-finally-2",
