@@ -65,6 +65,7 @@ class DesignPlanCaptureSchemaTest {
             "MAPPING_INTENT",
             "REGION",
             "BEHAVIOR_NODE",
+            "ELEMENT_NODE",
             "CATALOG_BINDING"),
         new LinkedHashSet<>(enumValues(fields.get("targetKind"))));
   }

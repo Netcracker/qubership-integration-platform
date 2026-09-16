@@ -340,7 +340,10 @@ public class DesignInputCapability implements StageCapability {
          id, both versions above, the catalog capability behind each entry point, and every\
          service call node, so leave them out. List each internal node you do author under\
          operations, and each control-flow region under the list that matches its kind; omit\
-         the region lists when the chain is linear.""");
+         the region lists when the chain is linear. A reuse container is a standalone subtree:\
+         attach its first child through containment with role=body. Keep the main execution path\
+         on reuse-reference and continue from that reference to the next node. Do not connect\
+         execution edges to the reuse container or across the reuse containment boundary.""");
     if (repairSection != null && !repairSection.isBlank()) {
       prompt.append(repairSection);
     }

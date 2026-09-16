@@ -45,6 +45,7 @@ public final class DesignPlanProjector {
   /** Upstream process skill; rewritten onto pinned Validation producers when absent from the DAG. */
   static final String CHAIN_VALIDATOR_SKILL_ID = "cip-chain-validator";
   static final String ERROR_HANDLING_GENERATOR_SKILL_ID = "cip-error-handling-generator";
+  static final String COMPOSITION_GENERATOR_SKILL_ID = "cip-composition-generator";
   static final String SCRIPT_GENERATOR_SKILL_ID = "cip-script-generator";
   static final String SERVICE_CALL_GENERATOR_SKILL_ID = "cip-service-call-generator";
   static final String TRANSFORMATION_GENERATOR_SKILL_ID = "cip-transformation-generator";

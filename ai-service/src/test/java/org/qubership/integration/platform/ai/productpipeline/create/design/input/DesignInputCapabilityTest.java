@@ -238,6 +238,8 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("nodeId=call-1"), prompt);
     assertTrue(prompt.contains("commandType=completeTask"), prompt);
     assertTrue(prompt.contains("Do not mint a mapping id"), prompt);
+    assertTrue(prompt.contains("reuse container is a standalone subtree"), prompt);
+    assertTrue(prompt.contains("role=body"), prompt);
   }
 
   @Test

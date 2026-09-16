@@ -219,7 +219,9 @@ elements:
       container: true
       deprecated: false
   reuse:
-    containmentRoles: {}
+    containmentRoles:
+      body:
+        min: 1
     requiredProperties: []
     materializationRuleId: materialize-reuse
     runtimeDescriptor:
