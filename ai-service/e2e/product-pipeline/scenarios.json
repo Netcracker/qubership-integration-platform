@@ -265,6 +265,128 @@
       "Pass the data through unchanged. No field mapping and no transformation on any edge."
     ]
   },
+  "product-create-chain-sync-split": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiCreateSyncSplit",
+    "liveTest": {
+      "manualOnly": true,
+      "knownFailure": "Generated split-element-2 branch shells have no sibling execution edge."
+    },
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". HTTP POST internal \"/split-orders\". Flow: http-trigger then a synchronous split with two branches named audit and fulfillment. Put one script in each branch: audit returns plain text \"audit queued\" and fulfillment returns plain text \"fulfillment queued\". After both branches complete, a final script returns plain text \"accepted\". Use only an HTTP trigger, the synchronous split, and scripts. No service calls. No error handling. No MCP. No APIHub.",
+    "requiredFacts": [
+      "POST /split-orders",
+      "synchronous split",
+      "audit",
+      "fulfillment"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "split-async-2",
+      "APIHub"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "split-2",
+        "split-element-2",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call",
+        "split-async-2",
+        "async-split-element-2"
+      ],
+      "nestedContainers": [
+        {
+          "containerType": "split-2",
+          "childType": "split-element-2",
+          "minChildren": 2
+        },
+        {
+          "containerType": "split-element-2",
+          "childType": "script",
+          "minChildren": 1
+        }
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-async-split": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "retainCatalogChain": true,
+    "uniqueChainNamePrefix": "AiCreateAsyncSplit",
+    "liveTest": {
+      "manualOnly": true,
+      "knownFailure": "Generated async-split-element-2 branch shells have no sibling execution edge."
+    },
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". HTTP POST internal \"/fanout-orders\". Flow: http-trigger then an asynchronous fire-and-forget split with two branches named audit and notification. Put one script in each branch: audit returns plain text \"audit queued\" and notification returns plain text \"notification queued\". Continue after the fan-out to a final script that returns plain text \"accepted\". Use only an HTTP trigger, the asynchronous split, and scripts. No service calls. No error handling. No MCP. No APIHub.",
+    "requiredFacts": [
+      "POST /fanout-orders",
+      "asynchronous split",
+      "audit",
+      "notification"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "split-2",
+      "APIHub"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "split-async-2",
+        "async-split-element-2",
+        "script"
+      ],
+      "forbiddenTypes": [
+        "service-call",
+        "split-2",
+        "split-element-2"
+      ],
+      "nestedContainers": [
+        {
+          "containerType": "split-async-2",
+          "childType": "async-split-element-2",
+          "minChildren": 2
+        },
+        {
+          "containerType": "async-split-element-2",
+          "childType": "script",
+          "minChildren": 1
+        }
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
   "product-create-chain-requirement-greetings": {
     "tier": "product-pipeline",
     "status": "inactive",

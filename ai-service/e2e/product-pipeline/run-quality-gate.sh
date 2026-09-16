@@ -123,6 +123,7 @@ active_entries() {
       .value.tier == "product-pipeline"
       and (.value.status // "active") == "active"
       and .value.pipeline == $p
+      and (.value.liveTest.manualOnly != true)
       and (.value.recovery.exhaustHalt != true)
       and (.value.recovery.manualOnly != true)
     ) | .key' \
