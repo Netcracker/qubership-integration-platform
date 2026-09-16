@@ -12,6 +12,7 @@ import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntime
 import org.qubership.integration.platform.ai.productpipeline.packageindex.ProductPipelinePackageIndex;
 import org.qubership.integration.platform.ai.qipknowledge.rag.QipKnowledgeRagIngestionManifest;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityRegistry;
+import org.qubership.integration.platform.ai.qipknowledge.support.ElementSupportMatrix;
 
 /** Loads pre-built QIP knowledge indexes from a filesystem directory. */
 public class FilesystemQipKnowledgePackRepository implements QipKnowledgePackRepository {
@@ -69,6 +70,11 @@ public class FilesystemQipKnowledgePackRepository implements QipKnowledgePackRep
   @Override
   public CompilerPipelineIndex loadCompilerPipelineIndex() {
     return load(loader::loadCompilerPipelineIndex);
+  }
+
+  @Override
+  public ElementSupportMatrix loadElementSupportMatrix() {
+    return load(loader::loadElementSupportMatrix);
   }
 
   @Override
