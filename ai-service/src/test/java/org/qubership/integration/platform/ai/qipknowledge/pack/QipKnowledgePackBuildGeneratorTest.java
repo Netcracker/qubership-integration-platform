@@ -117,7 +117,7 @@ class QipKnowledgePackBuildGeneratorTest {
     var supportMatrix = repository.loadElementSupportMatrix();
     assertFalse(supportMatrix.elements().isEmpty());
     assertEquals(ElementSupportStatus.UNSUPPORTED, supportMatrix.require("scs-sender").status());
-    assertEquals(ElementSupportStatus.PARTIAL, supportMatrix.require("reuse-reference").status());
+    assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("reuse-reference").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("condition").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("else").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("chain-call-2").status());
@@ -127,6 +127,17 @@ class QipKnowledgePackBuildGeneratorTest {
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("http-trigger").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("service-call").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("split-async-2").status());
+    assertEquals(
+        ElementSupportStatus.SUPPORTED,
+        supportMatrix.require("try-catch-finally-2").status());
+    assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("split-element-2").status());
+    assertEquals(
+        ElementSupportStatus.SUPPORTED,
+        supportMatrix.require("async-split-element-2").status());
+    assertEquals(
+        ElementSupportStatus.SUPPORTED,
+        supportMatrix.require("header-modification").status());
+    assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("reuse").status());
 
     CompilerContract contract =
         new ClasspathCompilerContractRepository().require(CompilerContract.V1);

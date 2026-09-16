@@ -376,8 +376,8 @@ final class GeneratorPatchRegressionHarness {
             Set.of(),
             Map.of(
                 "chain-call-2", Set.of("elementId"),
-                "reuse", Set.of("reference"),
-                "reuse-reference", Set.of("elementId"))));
+                "reuse", Set.of(),
+                "reuse-reference", Set.of("reuseElementId"))));
     ownership.put(
         "cip-error-handling-generator",
         new GraphPatchOwnershipPolicy(
@@ -419,8 +419,9 @@ final class GeneratorPatchRegressionHarness {
             Map.of(
                 "split-async-2", Set.of(),
                 "split-2", Set.of("timeout"),
-                "split-element-2", Set.of("priority"),
-                "async-split-element-2", Set.of("priority"),
+                "split-element-2",
+                    Set.of("splitName", "propagateHeaders", "propagateProperties"),
+                "async-split-element-2", Set.of(),
                 "main-split-element-2", Set.of())));
     ownership.put(
         "cip-retry-generator",
@@ -537,7 +538,9 @@ final class GeneratorPatchRegressionHarness {
                 entry("scs-sender", Set.of("bindingName")),
                 entry("dbaas", Set.of("query")),
                 entry("mapper-2", Set.of("mapping")),
-                entry("header-modification", Set.of("headers")))));
+                entry(
+                    "header-modification",
+                    Set.of("headerModificationToAdd", "headerModificationToRemove")))));
     ownership.put(
         "cip-timeout-generator",
         new GraphPatchOwnershipPolicy(

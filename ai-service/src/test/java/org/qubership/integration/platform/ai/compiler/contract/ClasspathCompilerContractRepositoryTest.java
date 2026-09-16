@@ -83,9 +83,14 @@ class ClasspathCompilerContractRepositoryTest {
     assertTrue(contract.elements().containsKey("mapper-2"));
     assertTrue(contract.elements().containsKey("condition"));
     assertTrue(contract.elements().containsKey("split-2"));
+    assertTrue(contract.elements().containsKey("split-element-2"));
     assertTrue(contract.elements().containsKey("split-async-2"));
+    assertTrue(contract.elements().containsKey("async-split-element-2"));
     assertTrue(contract.elements().containsKey("loop-2"));
     assertTrue(contract.elements().containsKey("try-catch-finally-2"));
+    assertTrue(contract.elements().containsKey("header-modification"));
+    assertTrue(contract.elements().containsKey("reuse"));
+    assertTrue(contract.elements().containsKey("reuse-reference"));
     assertFalse(contract.topology().get("generic-barrier").supported());
     assertTrue(contract.requiredArtifacts().contains("CHAIN_SEMANTIC_REVISION"));
     assertTrue(contract.requiredArtifacts().contains("CHAIN_PLAN_GRAPH"));
