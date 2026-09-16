@@ -43,7 +43,7 @@ public final class SnapshotFailureExpectation {
         return cause;
     }
 
-    private static SnapshotFailureExpectation parse(JsonNode value, String path) {
+    static SnapshotFailureExpectation parse(JsonNode value, String path) {
         if (!value.isObject()) {
             throw invalid(path, "must be an object with required fields type, message, and cause");
         }

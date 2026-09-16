@@ -1,0 +1,85 @@
+---
+id: "cf27ca42-3e82-4e2a-b7c9-592fb98a0349"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "split (1)"
+content:
+  labels: []
+  elements:
+  - id: "9a569606-e358-409f-ae18-cdd32ed3858e"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "9a569606-e358-409f-ae18-cdd32ed3858e"
+  - id: "f439b61b-408d-480e-934b-ce9137dadb15"
+    name: "Split"
+    type: "split-2"
+    children:
+    - id: "45ffb1d6-d1a8-4ed7-8b77-157d8dcfc13b"
+      name: "Properties Only"
+      type: "split-element-2"
+      children:
+      - id: "b7d41178-6dbf-431a-9ba3-122067d340cc"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-b7d41178-6dbf-431a-9ba3-122067d340cc.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        propagateHeaders: false
+        propagateProperties: true
+        splitName: "propertiesOnly"
+    - id: "7564e44c-2043-452e-afd3-4ca0e290e3c2"
+      name: "Headers Only"
+      type: "split-element-2"
+      children:
+      - id: "e8edf37a-1d96-423c-8847-f42fd5129ee7"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-e8edf37a-1d96-423c-8847-f42fd5129ee7.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        propagateHeaders: true
+        propagateProperties: false
+        splitName: "headersOnly"
+    - id: "75d9b942-12bf-4385-ba3c-09af5072b7c9"
+      name: "No Propagation"
+      type: "split-element-2"
+      children:
+      - id: "ed3ebf50-73bf-4edb-add6-ee6c94222ca8"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-ed3ebf50-73bf-4edb-add6-ee6c94222ca8.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        propagateHeaders: false
+        propagateProperties: false
+        splitName: "noPropagation"
+    - id: "c745ef77-0fee-4238-902a-0564f986b957"
+      name: "Main Split Element"
+      type: "main-split-element-2"
+      children:
+      - id: "72baceb8-21e7-40b1-8c37-5a478f5e395d"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-72baceb8-21e7-40b1-8c37-5a478f5e395d.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        splitName: "main"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: 0
+  dependencies:
+  - from: "9a569606-e358-409f-ae18-cdd32ed3858e"
+    to: "f439b61b-408d-480e-934b-ce9137dadb15"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

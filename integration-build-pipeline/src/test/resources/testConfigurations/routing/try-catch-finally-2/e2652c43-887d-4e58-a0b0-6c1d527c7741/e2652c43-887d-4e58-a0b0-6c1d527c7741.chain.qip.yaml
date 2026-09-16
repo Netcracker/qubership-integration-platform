@@ -23,14 +23,14 @@ content:
         type: "script"
         properties:
           exportFileExtension: "groovy"
-          propertiesFilename: "script-0533ce79-4a44-4774-bed8-3fa73e1c051c.groovy"
+          propertiesFilename: "0533ce79-4a44-4774-bed8-3fa73e1c051c.element.script.cip.groovy"
           propertiesToExportInSeparateFile: "script"
       - id: "284ed2f4-d72e-46a6-8014-5d21b51bcf9c"
         name: "Script"
         type: "script"
         properties:
           exportFileExtension: "groovy"
-          propertiesFilename: "script-284ed2f4-d72e-46a6-8014-5d21b51bcf9c.groovy"
+          propertiesFilename: "284ed2f4-d72e-46a6-8014-5d21b51bcf9c.element.script.cip.groovy"
           propertiesToExportInSeparateFile: "script"
     - id: "3f24dc53-a3af-4050-820b-b79123bc845c"
       name: "Catch IndexOutOfBoundsException"
@@ -41,7 +41,7 @@ content:
         type: "script"
         properties:
           exportFileExtension: "groovy"
-          propertiesFilename: "script-a5bb6cb9-6335-4f34-a47b-a40c4c45dcba.groovy"
+          propertiesFilename: "a5bb6cb9-6335-4f34-a47b-a40c4c45dcba.element.script.cip.groovy"
           propertiesToExportInSeparateFile: "script"
       properties:
         exception: "java.lang.IndexOutOfBoundsException"
@@ -55,7 +55,7 @@ content:
         type: "script"
         properties:
           exportFileExtension: "groovy"
-          propertiesFilename: "script-2bf46b85-8b62-4b2d-b1e1-384bddb7c3cf.groovy"
+          propertiesFilename: "2bf46b85-8b62-4b2d-b1e1-384bddb7c3cf.element.script.cip.groovy"
           propertiesToExportInSeparateFile: "script"
       properties:
         exception: "java.lang.Exception"
@@ -69,7 +69,7 @@ content:
         type: "script"
         properties:
           exportFileExtension: "groovy"
-          propertiesFilename: "script-b5634381-404d-4469-9a7a-e8b9905d8a16.groovy"
+          propertiesFilename: "b5634381-404d-4469-9a7a-e8b9905d8a16.element.script.cip.groovy"
           propertiesToExportInSeparateFile: "script"
     - id: "d887c6c7-de28-4805-82dc-286be7d34f02"
       name: "Catch ArithmeticException"
@@ -80,7 +80,7 @@ content:
         type: "script"
         properties:
           exportFileExtension: "groovy"
-          propertiesFilename: "script-e2e54742-9994-4649-b565-931a0678cb05.groovy"
+          propertiesFilename: "e2e54742-9994-4649-b565-931a0678cb05.element.script.cip.groovy"
           propertiesToExportInSeparateFile: "script"
       properties:
         exception: "java.lang.ArithmeticException"

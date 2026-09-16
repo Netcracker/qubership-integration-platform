@@ -10,9 +10,11 @@ import org.apache.camel.model.RouteDefinition;
 import org.qubership.integration.platform.engine.camel.processors.SplitAsyncProcessor;
 import org.qubership.integration.platform.engine.camel.processors.session.ActiveThreadCounterIncrementer;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties;
+import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFailureExpectation;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureDefinition;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureExchangeExpectation;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureInteraction;
+import org.qubership.integration.platform.engine.routes.support.SnapshotFailureAssertions;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -103,11 +105,6 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
             this.expectedCompletionCount = expectedExchanges.stream()
                     .mapToInt(SnapshotFixtureExchangeExpectation::getCount)
                     .reduce(0, Math::addExact);
-            if (expectedCompletionCount == 0) {
-                throw new IllegalArgumentException(
-                        "Async flow fixture '" + fixtureId + "' must expect at least one exchange."
-                );
-            }
             this.completionsRecorded = new CountDownLatch(expectedCompletionCount);
         }
 
@@ -193,24 +190,26 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
             );
 
             AtomicInteger counter = activeThreadCounter.get();
-            assertNotNull(
-                    counter,
-                    () -> "Async flow fixture '" + fixtureId + "' did not initialize the active thread counter."
-            );
-            assertEquals(
-                    0,
-                    counter.get(),
-                    () -> "Async flow fixture '" + fixtureId
-                            + "' left an unexpected number of active asynchronous branches."
-            );
-
-            for (int index = 0; index < actualExchanges.size(); index++) {
-                int exchangeNumber = index + 1;
-                CapturedExchange actualExchange = actualExchanges.get(index);
+            if (expectedCompletionCount == 0) {
+                assertEquals(
+                        1L,
+                        branchStarted.getCount(),
+                        () -> "Inactive async flow fixture '" + fixtureId + "' started an asynchronous branch."
+                );
                 assertNull(
-                        actualExchange.failure(),
-                        () -> "Async flow fixture '" + fixtureId + "' exchange " + exchangeNumber
-                                + " failed: " + failureDescription(actualExchange.failure()) + "."
+                        counter,
+                        () -> "Inactive async flow fixture '" + fixtureId + "' initialized the active thread counter."
+                );
+            } else {
+                assertNotNull(
+                        counter,
+                        () -> "Async flow fixture '" + fixtureId + "' did not initialize the active thread counter."
+                );
+                assertEquals(
+                        0,
+                        counter.get(),
+                        () -> "Async flow fixture '" + fixtureId
+                                + "' left an unexpected number of active asynchronous branches."
                 );
             }
             assertExpectedExchanges(actualExchanges);
@@ -388,7 +387,8 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
     ) {
         return matchesBody(expectation, actualExchange.body())
                 && containsExpectedValues(expectation.getHeaders(), actualExchange.headers())
-                && containsExpectedValues(expectation.getProperties(), actualExchange.properties());
+                && containsExpectedValues(expectation.getProperties(), actualExchange.properties())
+                && SnapshotFailureAssertions.matches(expectation.getExpectedFailure(), actualExchange.failure());
     }
 
     static boolean matchesBody(
@@ -419,13 +419,25 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
             return "none";
         }
         String message = failure.getMessage();
-        return failure.getClass().getName() + (message == null ? "" : ": " + message);
+        return "{type=" + failure.getClass().getName()
+                + ", message=" + message
+                + ", cause=" + failureDescription(failure.getCause()) + "}";
+    }
+
+    private static String expectedFailureDescription(SnapshotFailureExpectation expectedFailure) {
+        if (expectedFailure == null) {
+            return "none";
+        }
+        return "{type=" + expectedFailure.getType()
+                + ", message=" + expectedFailure.getMessage()
+                + ", cause=" + expectedFailureDescription(expectedFailure.getCause()) + "}";
     }
 
     private static String expectationDescription(SnapshotFixtureExchangeExpectation expectation) {
         return "{body=" + expectation.getBody()
                 + ", headers=" + expectation.getHeaders()
-                + ", properties=" + expectation.getProperties() + "}";
+                + ", properties=" + expectation.getProperties()
+                + ", expectedFailure=" + expectedFailureDescription(expectation.getExpectedFailure()) + "}";
     }
 
     private static Map<String, Object> immutableMap(Map<String, Object> values) {
@@ -447,5 +459,12 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
             Map<String, Object> properties,
             Throwable failure
     ) {
+        @Override
+        public String toString() {
+            return "{body=" + body
+                    + ", headers=" + headers
+                    + ", properties=" + properties
+                    + ", failure=" + failureDescription(failure) + "}";
+        }
     }
 }

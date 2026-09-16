@@ -14,9 +14,30 @@ scenarios:
     headers:
       X-Test-Request: "request-value"
     properties:
+      failChild: false
       testProperty: "property-value"
     expectedBody: "Subchain called"
+    expectedHeaders:
+      X-Test-Request: "child-header"
+    expectedProperties:
+      testProperty: "child-property"
+      afterCallReached: true
+      caughtBy: null
+      finallyReached: true
+
+  - id: "handles-child-failure-and-skips-continuation-in-try"
+    endpointUri: "cip-chain:573699af-6329-47f9-a409-f469528b6eaa"
+    body: "Original"
+    headers:
+      X-Test-Request: "request-value"
+    properties:
+      failChild: true
+      testProperty: "property-value"
+    expectedBody: "Original"
     expectedHeaders:
       X-Test-Request: "request-value"
     expectedProperties:
       testProperty: "property-value"
+      afterCallReached: null
+      caughtBy: "illegal-state"
+      finallyReached: true

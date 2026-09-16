@@ -82,10 +82,49 @@ The JMS fixture selects the connection factory before each deployment's XML is l
 the production destination resolver creates destinations through that factory's session.
 
 The shared execution support checks each invocation's body, headers, properties, and
-failure expectations, then verifies fixture interactions. A sequence of invocations
-shares the scenario's state. Async fixtures release their gates together, await all
+failure expectations, then verifies fixture interactions. After fixture completion, it
+checks the expected properties on the same returned exchanges again to detect changes
+from asynchronous branches. Body assertions run once because reading a stream body
+can consume it. A sequence of invocations shares the scenario's state.
+Async fixtures release their gates together, await all
 branches, and then check the shared session counter. This also supports an async branch
 that calls another chain with its own async branch.
+
+HTTP Service Call fixtures accept `response.delayMillis` to delay a response through
+WireMock. The value is a nonnegative integer in milliseconds; omitting it adds no delay.
+Keep delays below the HTTP and invocation timeouts when testing slow successful calls.
+
+Circuit breaker fixtures accept `awaitState` to wait up to 10 seconds before sending
+an invocation. The fixture polls the state every 25 milliseconds in the invocation
+thread and propagates interruption. It observes state without changing it; use it to
+verify automatic recovery with `automaticTransitionFromOpenToHalfOpenEnabled` enabled.
+If `transitionToState` is also specified, that transition runs before the wait.
+`expectedState` still checks the state immediately after the invocation. Context cleanup
+returns the breaker to `CLOSED`.
+
+Each `async-flow` entry in `expectedExchanges` can declare `expectedFailure` with the
+exact exception `type`, `message`, and complete `cause` chain. Omitting it requires that
+branch to succeed. Expectations match completed branches independently of completion
+order. Use `expectedExchanges: []` when a scenario does not invoke that fixture's deployment;
+the fixture then verifies that no branches were dispatched or completed.
+
+Failure expectations compare the exact exception type, message, and complete cause chain.
+For `CamelExchangeException`, write `Exchange[<exchange-id>]` in the expected message:
+the comparison replaces the exception's exchange ID with this placeholder. The rest of
+the message and each cause are still checked exactly.
+
+Parallel barrier fixtures in one deployment must have the same `expectedRequest.count`.
+Set it to the invocation's `repeat` value to verify parallel execution, or set every
+barrier's count to `0` when the invocation uses another deployment. Zero-count expectations
+still reject unexpected requests to those barriers.
+
+The `split-timeout` fixture holds a secondary branch before the Script identified by
+`sourceElementId`. Use `expectedRequest` to check the exchange entering the gate and
+`expectedExchanges` to check the branch after completion. The fixture releases the gate
+after route result assertions and waits for the branch's unit of work to finish. It also
+releases the gate during cleanup if an assertion fails. Each scenario supports one
+invocation with `repeat: 1`; use `count: 0` and `expectedExchanges: []` for scenarios that
+do not call the gated branch.
 
 Checkpoint fixtures run the production context saver, loader, and checkpoint mapper.
 The fixture replaces the storage service and bypasses retry authorization. Generated
