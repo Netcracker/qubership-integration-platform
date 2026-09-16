@@ -1,1 +1,1 @@
-exchange.setProperty("afterSplitReached", true)
+exchange.setProperty('afterSplitReached', true)

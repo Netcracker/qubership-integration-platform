@@ -1,1 +1,2 @@
-exchange.getMessage().setBody("Chain completed successfully");
+exchange.getMessage().setBody("Chain completed successfully")
+

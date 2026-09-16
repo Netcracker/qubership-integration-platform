@@ -1,2 +1,2 @@
-exchange.getMessage().setHeader("X-Branch-Name", "headersOnly")
-exchange.setProperty("branchValue", "headersOnly")
+exchange.getMessage().setHeader('X-Branch-Name', 'headersOnly')
+exchange.setProperty('branchValue', 'headersOnly')

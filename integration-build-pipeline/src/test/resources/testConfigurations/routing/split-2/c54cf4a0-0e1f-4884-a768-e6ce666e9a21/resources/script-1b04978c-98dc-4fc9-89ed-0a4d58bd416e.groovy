@@ -1,1 +1,1 @@
-exchange.getMessage().setBody("Secondary branch")
+exchange.getMessage().setBody('Secondary branch')

@@ -1,2 +1,2 @@
-exchange.setProperty("elseExecutions", exchange.getProperty("elseExecutions", Integer.class) + 1);
-exchange.getMessage().setBody("Else");
+exchange.setProperty('elseExecutions', exchange.getProperty('elseExecutions', Integer) + 1)
+exchange.getMessage().setBody('Else')

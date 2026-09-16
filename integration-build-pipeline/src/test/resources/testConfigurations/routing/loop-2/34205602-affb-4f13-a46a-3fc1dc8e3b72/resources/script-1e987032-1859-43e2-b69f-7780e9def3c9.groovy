@@ -1,2 +1,2 @@
-exchange.getMessage().setBody("S")
-exchange.setProperty("visitedIterations", [])
+exchange.getMessage().setBody('S')
+exchange.setProperty('visitedIterations', [])

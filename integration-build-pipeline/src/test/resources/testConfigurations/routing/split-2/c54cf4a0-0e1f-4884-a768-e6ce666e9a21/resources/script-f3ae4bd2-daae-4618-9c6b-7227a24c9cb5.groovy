@@ -1,1 +1,1 @@
-exchange.getMessage().setBody("Main branch")
+exchange.getMessage().setBody('Main branch')

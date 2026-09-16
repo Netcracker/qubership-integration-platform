@@ -1,4 +1,4 @@
-def exceptionType = exchange.getProperty("exceptionType", String.class);
+def exceptionType = exchange.getProperty("exceptionType", String.class)
 
 if (exceptionType != "") {
 

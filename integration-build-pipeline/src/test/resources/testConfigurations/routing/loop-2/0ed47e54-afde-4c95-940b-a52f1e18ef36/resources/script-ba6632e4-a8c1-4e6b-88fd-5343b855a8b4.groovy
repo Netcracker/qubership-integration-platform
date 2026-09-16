@@ -1,1 +1,1 @@
-exchange.getMessage().setBody("S")
+exchange.getMessage().setBody('S')

@@ -1,1 +1,1 @@
-throw new Exception("Exception");
+throw new Exception('Exception')
