@@ -15,9 +15,11 @@ public class ContainerOptions {
     @Builder.Default
     private ImagePoolPolicy imagePoolPolicy = ImagePoolPolicy.IfNotPresent;
 
-    private Limits request;
+    @Builder.Default
+    private Limits request = new Limits();
 
-    private Limits limit;
+    @Builder.Default
+    private Limits limit = new Limits();
 
     @Builder.Default
     private boolean readOnlyRootFilesystem = true;
@@ -34,7 +36,8 @@ public class ContainerOptions {
 
     private boolean allowPrivilegeEscalation;
 
-    private CapabilitiesOptions capabilities;
+    @Builder.Default
+    private CapabilitiesOptions capabilities = new CapabilitiesOptions();
 
     @Builder.Default
     private List<String> args = new ArrayList<>();

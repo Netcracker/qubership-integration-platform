@@ -41,5 +41,5 @@ public class BuildCRsOptions {
     @Builder.Default
     private IntegrationsConfigurationOptions integrations = new IntegrationsConfigurationOptions();
 
-    private String serviceAccount;
+    private String serviceAccount = "default";
 }
