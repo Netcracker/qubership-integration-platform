@@ -54,9 +54,3 @@ Security policies are stored in Access Control database.Cloud Integration Platfo
 
 Access Control policies shall be manually configured if required. Fields such as 'Resource type', 'Operation', 'Resource data type' and 'Resource' identifier shall be specified by user for HTTP Trigger.
 
-## API Details
-
----
-TBD
-
-Simplified Access Control API is being utilized: [TBD]. For additional details, please refer to the [API Hub - TBD] folder.

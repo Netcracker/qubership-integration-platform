@@ -111,7 +111,6 @@ Column visibility and order can be adjusted using the ![setting](img/setting.svg
 At the right top the next operation is available only for <ins>Web UI</ins>:
 - ![cloud-download](img/cloud-download.svg) - Export service.
 
-
 ### View Specifications
 When particular specification group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
 
@@ -327,16 +326,3 @@ System allows to export service with all its API specifications, environments an
 
 Environment configuration steps are fully covered by Installation Notes.
 
-## API Details
-
----
-
-No specific API is being utilized.
-
-### Constraints
-
----
-
-Please consider next constraints:
-- When implemented service is being created from HTTP Trigger element, it (trigger) **must** have a **single HTTP method** configured in the settings. Otherwise, creation will fail with error.
-- **Technical** labels cannot be imported via UI or exported.

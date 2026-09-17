@@ -132,8 +132,3 @@ Please refer to [logging page] for more details regarding data storage.
 
 Configuration is being done during the CIP installation with ACTION_LOG_CLEANUP_INTERVAL and ACTION_LOG_CLEANUP_CRON variables. Please refer to Installation Notes for more details.
 
-## API Details
-
----
-
-No specific API available.

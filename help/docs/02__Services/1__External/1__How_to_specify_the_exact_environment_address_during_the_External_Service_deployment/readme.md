@@ -27,7 +27,7 @@ When configured properly, fetching of the environment based on the labels is bei
 
 ---
 
-To properly prepare the service for export and make sure that it will be possible to utilize labels during the import, you can use CIP UI. For more details, please refer to [External Services] and [Environments Info].
+To properly prepare the service for export and make sure that it will be possible to utilize labels during the import, you can use CIP UI. For more details, please refer to [External Services](../../1__External/external.md).
 
 ## Data Storage
 
@@ -41,8 +41,3 @@ As part of the preparation steps, labels are going to be stored under the servic
 
 To utilize mentioned approach, configuration shall be done via CIP UI (when preparing the service for export) and via API (when adding the label to the **deployLabel** body parameter).
 
-## API Details
-
----
-
-Mentioned method utilizes **Import Service** API, described in details in the [Deployment Process] article (see **API Details** section).

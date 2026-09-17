@@ -74,10 +74,3 @@ Please refer to [CIP Architecture](../../05__Architecture/cip_architecture.md) f
 
 Global configuration steps are fully covered by Installation Notes. For chain configuration or specific elements setup steps (including Role-based access control of endpoints for HTTP Trigger), please refer to the respective article.
 
-## API Details
-
----
-
-TBD
-
-Utilized path is "**POST** /api/v1/identity-provider/auth/realms/{realm}/protocol/openid-connect/token".

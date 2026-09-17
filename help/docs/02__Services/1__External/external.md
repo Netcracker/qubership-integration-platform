@@ -355,15 +355,3 @@ System allows to export service with all its API specifications, environments an
 
 Environment configuration steps are fully covered by Installation Notes.
 
-## API Details
-
----
-
-No specific API is being utilized.
-
-### Constraints
-
----
-Please consider next constraints:
-- When entering environment's **address** or **properties** on respective window, _avoid using runtime variables_, as they won't work due to technical limitations. Instead, use design time variables if it suits the requirements.
-- **Technical** labels cannot be imported via UI or exported.

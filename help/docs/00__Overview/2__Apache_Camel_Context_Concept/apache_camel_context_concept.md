@@ -83,7 +83,6 @@ Diagrams below show how context data is being managed by **Checkpoint** element:
 | 1,2 | When context data reaches ***Checkpoint***, it is being serialized and preserved to DB, so this data could be accessed later in case of chain failure. At this step system creates ***Checkpoint*** from which session could be restarted. |
 | 2   | Original context data is being processed as-is through next elements in the chain.                                                                                                                                                         |
 
-
 Diagrams below show how context data is being handled when **retry** is requested for failed session:
 
 ![Checkpoint retry context data flow diagram](img/camel_retry.svg)
@@ -109,7 +108,6 @@ Diagram below shows how context data is being managed by **Loop** element:
 | 1 | In each new iteration, ***Loop*** reuses context data from previous iteration, overriding it as the result. |
 | 2 | At the end of ***Loop*** processing, data from the last iteration will be in the context.                   |
 
-
 ### Reuse
 Diagram below shows how context data is being managed by pair of **Reuse Reference** and **Reuse** elements:
 
@@ -121,7 +119,6 @@ Diagram below shows how context data is being managed by pair of **Reuse Referen
 |---|---------------------------------------------------------------------------------------------------------------------------------|
 | 1 | Reuse reference routes context data to the ***Reuse*** container, where other elements are placed.                              |
 | 2 | When ***Reuse*** element finishes processing, context data is transferred back to ***Reuse Reference*** for further processing. |
-
 
 ### Condition
 Diagram below shows how context data is being managed by **Condition** element:
@@ -135,7 +132,6 @@ Diagram below shows how context data is being managed by **Condition** element:
 | 1 | Condition element routes context data to appropriate ***If*** container with respective chain part, depending on the expression and priority, configured in these containers. |
 | 2 | Context data reaches ***Else*** sub-element when data has not been handled by any ***If*** expression.                                                                        |
 
-
 ### Try-Catch-Finally
 Diagram below shows how context data is being managed by **Try-Catch-Finally** element:
 
@@ -148,7 +144,6 @@ Diagram below shows how context data is being managed by **Try-Catch-Finally** e
 | 1 | ***Try-Catch-Finally*** makes an attempt to execute logic under ***Try*** by using input context data.                     |
 | 2 | When attempt made and there is an error in response, resulted data will be passed to ***Catch*** sub-element if it exists. |
 | 3 | Sub element ***Finally*** receives finalized context from previous blocks and processes it.                                |
-
 
 ### Circuit Breaker
 Diagram below shows how context data is being managed by **Circuit Breaker** element in case of sunny-day scenario:
@@ -165,7 +160,6 @@ Diagram below shows how context data is being managed by **Circuit Breaker** ele
 Diagram below shows how context data is being managed by **Circuit Breaker** element in case of rainy-day scenario, when fallback detected:
 
 ![Circuit Breaker rainy-day fallback scenario diagram](img/camel_cb_fallback.svg)
-
 
 **Steps Description**
 
@@ -197,8 +191,3 @@ Please refer to  [CIP Architecture](../../05__Architecture/cip_architecture.md) 
 
 Configuration steps are fully covered by Installation Notes. Please read respective articles for each particular element or functionality, utilizing during chain set-up.
 
-## API Details
-
----
-
-No specific API available.

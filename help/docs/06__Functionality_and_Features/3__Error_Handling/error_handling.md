@@ -346,8 +346,3 @@ During the processing, errors might be logged, according to the [Logging] articl
 
 No specific configuration available for error handling, done by CIP itself. But, it is possible to configure the error and error handling logic within the chain, utilizing different CIP elements (e.g. [HTTP Trigger], [Script], etc.).
 
-## API Details
-
----
-
-No specific API is being utilized.

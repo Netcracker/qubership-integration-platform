@@ -46,7 +46,3 @@ All configuration steps are done via UI components, please read "**User Interfac
 
 Preparation of entities in **MaaS** (topics, queues, etc.) - TBD
 
-## API Details
-
----
-No specific API available.

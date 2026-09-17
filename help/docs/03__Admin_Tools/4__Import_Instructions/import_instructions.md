@@ -136,20 +136,3 @@ Data is being stored in CIP Database, except delete instructions, which are not 
 
 Configuration is done by utilizing Cloud Integration Platform user interface capabilities or via text editors when file is built manually.
 
-## API Details
-
----
-
-API details are described in [APIs with BWC support].
-
-### Constraints
-
----
-
-Please consider next constraints:
-
-- Delete import instructions **will not be stored** in CIP, hence they are not presented in Import Instruction table.
-- During deployment process it is not possible to remove already existing import instructions in Database by uploading Import Instructions file. It can only be done manually via UI or respective API.
-- System prohibits to delete services, specification groups and specifications while import process if desired entities have a reference to any chain in "**Used By**" list.
-- System doesn't consider specification status, hence it can remove the specification that has not been moved to deprecated.
-- When system applies override logic, it undeploys overridden chain even if a new chain has not been deployed.

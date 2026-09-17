@@ -11,7 +11,7 @@
 
 ---
 
-Current page is available under the "[Admin Tools]" menu.
+Current page is available under the "Dev Tools" section.
 
 ## User Interface
 
@@ -80,8 +80,3 @@ Validation results are stored in CIP DB.
 
 Default set of validations is being delivered as part of OOB, custom ones can be uploaded via smartplug.
 
-## API Details
-
----
-
-No specific API available.

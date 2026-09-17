@@ -72,8 +72,3 @@ No particular storage specifics are available.
 
 No specific configuration available.
 
-## API Details
-
----
-
-No specific API available.

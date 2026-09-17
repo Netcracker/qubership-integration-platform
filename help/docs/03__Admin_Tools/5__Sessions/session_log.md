@@ -101,8 +101,3 @@ Please refer to [logging page] for more details regarding data storage.
 
 Session logs are being captured as per [logging settings](../../01__Chains/5__Logging/logging.md).
 
-## API Details
-
----
-
-API details are described in [APIs with BWC support] article.

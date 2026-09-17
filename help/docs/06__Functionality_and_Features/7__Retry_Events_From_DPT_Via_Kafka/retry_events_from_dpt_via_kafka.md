@@ -1,6 +1,5 @@
 # Retry events from DPT (via Kafka)
 
-
 ## Description
 
 ---
@@ -92,8 +91,3 @@ For correct processing, next items shall be considered:
 - Value for parameter **actionId** in retry event shall be **"Retry"** (every message with different action will result in SESSION\_HANDLING\_FAILURE event, that is going to be sent to DPT).
 - errorMessage in SESSION\_HANDLING\_FAILURE event is hardcoded to **"Session retry failed during event handling"** and shall be sent to DPT as well.
 
-## API Details
-
----
-
-No specific API details available.

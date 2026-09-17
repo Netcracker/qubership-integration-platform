@@ -19,7 +19,6 @@ Correlation id can be passed by the following chain modules:
 - [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md)
 - [GraphQL Sender](../1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/graphql_sender.md)
 
-
 In case of asynchronous request during chain design time user has to configure correlation id source and its name (key).
 
 > ℹ️ **Note**: Correlation id will be added to the list of camel exchange properties in Runtime.
@@ -112,8 +111,3 @@ Please refer to the main [logging article] for details about session logs storag
 
 Please refer to the main [logging article] for details about session logs configuration and retention settings.
 
-## API Details
-
----
-
-No particular API is being used.

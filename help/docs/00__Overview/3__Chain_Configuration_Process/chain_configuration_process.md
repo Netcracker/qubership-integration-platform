@@ -38,7 +38,3 @@ Please refer to  [CIP Architecture](../../05__Architecture/cip_architecture.md) 
 ---
 Environment configuration steps are fully covered by Installation Notes. Please read respective articles for each particular element or functionality, utilizing during chain set-up.
 
-## API Details
-
----
-No specific API available.

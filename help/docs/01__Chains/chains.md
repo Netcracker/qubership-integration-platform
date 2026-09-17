@@ -321,14 +321,7 @@ Because the two compared versions are fixed by Git, there is no chain/snapshot s
 - When chain is being exported with the marked "**Export related services**" checkbox, system reads environment parameter CIP\_EXPORT\_REMOVE\_UNUSED\_SPECS to decide if it shall export every service's specification or only the ones, that are utilized within the chain and sub-chains.
 - While chain is being exported, system reads environment parameter CIP_EXPORT_LEGACY_FORMAT to decide if it shall export the configuration in new export format _(with revised folder structure)_ or legacy export format.
 
-## API Details
+## Constraints
 
 ---
-
-API details are described in [APIs with BWC support] article.
-
-### Constraints
-
----
-
-**Technical** chain labels cannot be imported via the UI or exported.
+**Technical** chain labels cannot be imported via UI or exported.

@@ -54,8 +54,3 @@ Values for System Properties are stored in Camel context.
 
 No specific configuration available.
 
-## API Details
-
----
-
-No specific API available.

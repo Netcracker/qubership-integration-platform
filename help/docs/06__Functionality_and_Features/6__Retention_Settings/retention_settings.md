@@ -114,12 +114,6 @@ No specific data is stored.
 
 Configuration is being done during the deployment. Please refer to the Installation Notes and select proper version for more details.
 
-## API Details
-
----
-
-No specific API available.
-
 ## Constraints
 
 ---

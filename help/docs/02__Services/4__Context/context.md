@@ -117,8 +117,3 @@ System allows exporting service. There are two possible ways to export service(s
 
 Environment configuration steps are fully covered by Installation Notes.
 
-## API Details
-
----
-
-No specific API is being utilized.

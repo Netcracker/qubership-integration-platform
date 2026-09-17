@@ -164,8 +164,3 @@ Secured variables are stored in K8S secrets.
 
 Configuration could be done via CIP user interface or via native functionality of K8s / Consul.
 
-## API Details
-
----
-
-No specific API available.

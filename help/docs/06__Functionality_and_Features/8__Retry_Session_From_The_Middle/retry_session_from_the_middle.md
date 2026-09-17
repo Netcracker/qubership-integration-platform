@@ -12,7 +12,7 @@ Diagram - TBD
 
 ### Normal Flow
 
-The 1st diagram shows the case when the session of CIP chain *xyz* was completed without errors. There are 2 configured places of restart, or [Checkpoint]s (*Checkpoint 123* and *Checkpoint 456*) from which chain session can be restarted (API details are described [below](#api-details)). When the chain session passing any checkpoint:
+The 1st diagram shows the case when the session of CIP chain *xyz* was completed without errors. There are 2 configured places of restart, or [Checkpoint]s (*Checkpoint 123* and *Checkpoint 456*) from which chain session can be restarted. When the chain session passing any checkpoint:
 
 - session context (headers, body, properties) will be saved to Engine domain database - **Persistent layer.**
 - In case of payload logging is enabled, the event about passing the safe point will be logged to Graylog - **Logging layer**.
@@ -50,7 +50,7 @@ The 3rd diagram shows process of session retry by support team from *Checkpoint 
 
 ---
 
-Retry session from the middle can be triggered by event to dedicated Kafka topic (see [Retry events from DPT (via Kafka)](../7__Retry_Events_From_DPT_Via_Kafka/retry_events_from_dpt_via_kafka.md)) the particular endpoint or via session tab (under the [chain], and [Sessions](../../03__Admin_Tools/5__Sessions/session_log.md). The details of API are available [below](#api-details).
+Retry session from the middle can be triggered by event to dedicated Kafka topic (see [Retry events from DPT (via Kafka)](../7__Retry_Events_From_DPT_Via_Kafka/retry_events_from_dpt_via_kafka.md)) the particular endpoint or via session tab (under the [chain], and [Sessions](../../03__Admin_Tools/5__Sessions/session_log.md).
 
 > ℹ️
 > When retrying a failed session (via  [Retry events from DPT (via Kafka)](../7__Retry_Events_From_DPT_Via_Kafka/retry_events_from_dpt_via_kafka.md)) or a [specific endpoint]), you can ensure idempotent behavior by using the `"x-idempotency-key"` header. A retry request with a unique header value will be logged (processed) under the original session in the UI. Any duplicate retry request that carries an identical `"x-idempotency-key"` will not be processes.
@@ -79,8 +79,3 @@ To configure the retry session in the middle, the next steps should be done:
 2. After CIP installation add [Checkpoint](../../01__Chains/1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) to the chain graph and deploy chain.
 3. Set access role **ROLE\_CIP\_SESSION\_RETRY** for the API consumer**.**
 
-## API Details
-
----
-
-API details are described in [APIs with BWC support] article.

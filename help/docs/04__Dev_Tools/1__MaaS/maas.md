@@ -11,7 +11,7 @@ This tab allows to create data in MaaS right from the application and export con
 
 ---
 
-Current tab is available under the "[Dev Tools]" menu.
+Current tab is available under the "Dev Tools" section.
 
 ## User Interface
 
@@ -50,8 +50,3 @@ No specific information is being stored.
 
 No specific configuration available for this particular tab.
 
-## API Details
-
----
-
-No specific API available.

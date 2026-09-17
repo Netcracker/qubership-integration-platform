@@ -4,9 +4,7 @@
 ## Description
 
 ---
-This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed. Next main capabilities are available:
-- Configure logging settings and apply them in runtime.
-- Apply logging masking for specific parameters in order to protect the data from unauthorized access.
+This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed. The main capability is configuration of logging settings that will be applied in runtime.
 
 Please refer to the diagram below, that represents architecture on the high level:
 
@@ -21,8 +19,10 @@ Please refer to the diagram below, that represents architecture on the high leve
 ## Process Initialization
 
 ---
+In the <ins>Web UI</ins>: once the chain is created, configurations of its logging settings is available in the "Logging" tab under the chain.  
 
-Masking is being automatically applied by CIP Engine during chain processing for the fields that have respective configuration on **"Logging Settings"** tab.
+---
+
 
 ## User Interface
 
@@ -80,11 +80,6 @@ There are next additional articles, that could bring more details regarding data
 
 ---
 
-- In CIP UI: custom logging configuration is being done via CIP UI ("Logging settings" tab under the chain). Please refer to [general logging page]for more details regarding logging capabilities and log formats. It is also possible to setup predefined chain-specific and default logging settings in Consul, which is described in detail in section **Deployment Profiles in Consul** of [Deployment Process] article.
-- In CIP VSCode Extension: custom logging configuration is unsupported in this extension.
+- In CIP UI: custom logging configuration is being done via CIP UI ("Logging settings" tab under the chain). Please refer to [general logging page] for more details regarding logging capabilities and log formats. It is also possible to setup predefined chain-specific and default logging settings in Consul, which is described in detail in section **Deployment Profiles in Consul** of [Deployment Process] article.
+- In CIP VSCode Extension: custom logging configuration is not supported.
 
-## API Details
-
----
-
-No specific API available.

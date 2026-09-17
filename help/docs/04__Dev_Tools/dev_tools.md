@@ -17,3 +17,8 @@ Tab is specifically designed to contain developer tools for the purposes of test
 By navigating to "Dev Tools", next tabs are going to be available:
 - [MaaS](1__MaaS/maas.md) - allows to create Kafka topics or RabbitMQ exchanges/queues in MaaS.
 - [Diagnostic](2__Diagnostic/diagnostic.md) - allows to execute system validations to find issues and get resolution hints.
+
+## Configuration
+
+---
+Availability of the tab is strictly dependent on the value, specified for ```PRODUCTION_MODE``` environment parameter.

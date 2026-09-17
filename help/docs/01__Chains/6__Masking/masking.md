@@ -4,9 +4,17 @@
 ---
 This tab allows to apply logging masking for specific parameters in order to protect the data from unauthorized access.
 
+## Process Initialization
+
+---
+Once the chain is created, configurations of its masking field(s) is available on the "Masking" tab under the chain.
+
 ## User Interface
 
 ---
+
+> ⚠️ Navigate to "Logging" tab to ensure that the checkbox **"Enable logging masking"** is enabled.
+
 ### View Masking Fields Table
 The table of masking fields consists of the following columns and elements:
 
@@ -40,3 +48,14 @@ To secure sensitive data use the **action menu** to  **Add New Masked Field** ![
 
 ### Delete Field(s)
 To delete masking field(s) select the items by checkbox and click ![delete](img/delete.svg).
+
+## Data Storage
+
+---
+- In the CIP UI: masked fields are stored in CIP Runtime-Catalog DB.
+- In the CIP VSCode extension: masked fields are stored locally within chain resources.
+
+## Configuration
+All configurations are performed via user interface (Web UI or VSCode extension UI).
+
+---

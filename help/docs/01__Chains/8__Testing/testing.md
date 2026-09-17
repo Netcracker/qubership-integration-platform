@@ -242,13 +242,13 @@ Failures outside the rules are recorded here as well - a test case with no trigg
 ---
 Everything on the **Testing** tab is gated by the rights of the chain it belongs to. The same screens under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) ask for the matching **Admin Tools** rights instead:
 
-| Action | Right on the chain tab | Right under Admin Tools |
-|---|---|---|
-| Open a list, a details panel or an editor, and **Refresh** | `read` | `read` |
-| **Create**, **Delete**, and saving an editor | `update` | `update` |
-| **Run**, **Restart**, **Cancel** | `execute` | `execute` |
-| **Import** | `import` | `import` |
-| **Export** | `export` | `export` |
+| Action                                                     | Right on the chain tab | Right under Admin Tools |
+|------------------------------------------------------------|------------------------|-------------------------|
+| Open a list, a details panel or an editor, and **Refresh** | `read`                 | `read`                  |
+| **Create**, **Delete**, and saving an editor               | `update`               | `update`                |
+| **Run**, **Restart**, **Cancel**                           | `execute`              | `execute`               |
+| **Import**                                                 | `import`               | `import`                |
+| **Export**                                                 | `export`               | `export`                |
 
 The two sets are independent: holding one grants nothing under the other. Full rights on a chain leave the cross-chain lists closed, and the **Test Run** reference in the **Test Case Runs** table above leads to a page that only **Admin Tools** `read` opens.
 
@@ -278,9 +278,9 @@ A Service Call over Kafka, AMQP or gRPC is never intercepted, and neither is an 
 
 The two settings live on the engine:
 
-| Setting | Environment variable | Default | Description |
-|---|---|---|---|
-| `qip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false` | switches endpoint mocking on for the engine |
+| Setting               | Environment variable      | Default                       | Description                                          |
+|-----------------------|---------------------------|-------------------------------|------------------------------------------------------|
+| `qip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false`                       | switches endpoint mocking on for the engine          |
 | `qip.testing.address` | `TESTING_SERVICE_ADDRESS` | `http://testing-service:8080` | address of the testing service the calls are sent to |
 
 A change takes effect when the engine restarts. No chain has to be redeployed.

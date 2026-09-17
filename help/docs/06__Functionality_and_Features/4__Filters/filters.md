@@ -6,7 +6,7 @@
 
 ### Overview
 
-Almost every commonly used application's window allows to limit the output data by specifying filtering rules via ![filter icon] button. Please view the list of pages, where filtering is available:
+Almost every commonly used application's window allows to limit the output data by specifying filtering rules via ![filter icon](img/filter.svg) button. Please view the list of pages, where filtering is available:
 
 - Chains
 - Chain/Snapshots
@@ -331,7 +331,7 @@ Filtering options shall be manually specified and applied via user interface.
 
 ---
 
-Filtering pop-up is accessible by clicking ![filter icon] button on the respective page. Data will be filtered after rules are configured and applied via "Apply" button.
+Filtering pop-up is accessible by clicking ![filter icon](img/filter.svg) button on the respective page. Data will be filtered after rules are configured and applied via "Apply" button.
 
 ## Data Storage
 
@@ -345,8 +345,3 @@ No data is being stored.
 
 No additional configuration is available. Everything is being controlled by user interface.
 
-## API Details
-
----
-
-No specific API exposed.

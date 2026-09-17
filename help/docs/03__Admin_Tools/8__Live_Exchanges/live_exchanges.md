@@ -29,7 +29,6 @@ The table displays a list of active exchanges, aggregated by session identifier.
 - **Pod IP** - the IP address of the engine pod hosting the session, displayed in parentheses (e.g., 10.131.170.120)
 - ![stop](img/stop.svg) - button (located at the extreme right of each row) allows users to terminate live exchange, halting its execution immediately.
 
-
 **Control panel**
 
 The control panel is positioned at the top right of the table and provides the following capabilities:
@@ -38,7 +37,6 @@ The control panel is positioned at the top right of the table and provides the f
 - ![filter](img/filter.svg) - opens filter pop-up.
 - ![setting](img/setting.svg) - column settings.
 - ![redo](img/redo.svg) - refresh the table.
-
 
 ### Terminate Exchange
 To terminate a live exchange, locate the relevant row in the Live Exchanges table, click  ![stop](img/stop.svg) ("Terminate" button) at the far right, and then click the "Yes" button to confirm your choice.
@@ -57,8 +55,3 @@ Live exchanges are temporary data taken from engine domain runtime processing.
 
 No configuration option available in CIP UI.
 
-## API Details
-
----
-
-No specific API for the functionality.

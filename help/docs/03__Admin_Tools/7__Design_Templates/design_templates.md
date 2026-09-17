@@ -50,8 +50,3 @@ Data is being stored in CIP Database.
 
 Configuration is done by utilizing Cloud Integration Platform user interface capabilities.
 
-## API Details
-
----
-
-No specific API available.

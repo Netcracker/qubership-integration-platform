@@ -13,7 +13,6 @@ To make a chain available for usage, its snapshot shall be deployed on the speci
 
 Mentioned functionality is available on "**Deployments**" tab, that could be found under each particular Chain within CIP UI.
 
-
 ## User Interface
 
 ---
@@ -31,7 +30,6 @@ Under the chain it is possible to navigate on "**Deployments**" tab. The followi
   - ![clock-circle](img/clock-circle.svg) **_Draft_** - deployment is saved as a draft and has not been deployed to any engine yet.
 - **Created By**: The user who initiated the deployment.
 - **Created At**: The exact date and time of deployment.
-
 
 ### Create Deployment
 Click **"Create deployment"** button marked with ![plus](img/plus.svg). The window for setting deployment parameters will appear. Fill in the following deployment parameters and click **"Deploy"**:
@@ -60,8 +58,3 @@ As the result of the deployment, deployment data is going to be stored in CIP in
 
 In general, all configurations are being done via UI. For detailed information about logging configuration, please refer to the [Logging] article. Global configuration aspects and guides for Cloud Integration Platform are available in Installation Notes articles.
 
-## API Details
-
----
-
-No specific API available.

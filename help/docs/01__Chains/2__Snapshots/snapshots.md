@@ -38,7 +38,6 @@ Placed on the top of the table. Provides next capabilities:
   - ![diff](img/diff.svg) - compares selected snapshots.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
 
-
 ### Create Snapshot
 To create snapshot, click button ![plus](img/plus.svg). If chain graph is valid, snapshot will be created.
 
@@ -47,12 +46,10 @@ To delete snapshot(s), mark all suitable rows with ticks in the snapshot table v
 
 > ℹ️ **Note**: Besides the UI option for manual deletion, a scheduled task automatically deletes snapshots older than the configured interval *(default is set to 14 days)*. Once deleted, these snapshots cannot be restored.
 
-
 ### Revert Chain to the Particular Snapshot
 To revert chain to the particular version, select **"Revert to"** option in actions menu. After this a popup with the confirmation will be opened. Then the graph will be shown with all the information and the elements that were saved in the chosen snapshot.
 
 > ℹ️ **Note**: In case there are unsaved changes in the chain and revert has been requested - the snapshot with all unsaved changes will be automatically created (saved) before reverting to the previous version.
-
 
 ### Open Snapshot Sequence Diagram
 To build the sequence diagram by particular snapshot data, select "**Show Diagram**" option in actions menu. This will open new pop-up window with sequence diagram.
@@ -74,7 +71,3 @@ No specific storage logic available.
 ---
 No specific configuration available.
 
-## API Details
-
----
-No specific API available.

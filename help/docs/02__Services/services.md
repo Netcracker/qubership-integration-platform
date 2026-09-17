@@ -47,3 +47,16 @@ API Specification statuses details:
 > ℹ️ **Notes:**
 > - It is only possible to delete **deprecated** API specifications, not used in any chain.
 > - API Specification versions are based on information from specification itself, hence microservices **must** provide proper specification files with actual metadata.
+
+## Process Initialization
+
+---
+- In CIP UI: after logging in to the Web UI, user can click directly on the "Services" section to start working with the related functionality.
+- In CIP VSCode Extension: once the extension is launched, user should expand 'CIP' section (available on the left side of the window) and then locate "Services" subsection to start working with all the related functionalities.
+
+## Data Storage
+
+---
+
+- In CIP UI: during the process of services creation, all the services will be stored in CIP catalog database and are available for export from UI.
+- In VS Code Extension: service based configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.

@@ -43,8 +43,3 @@ Values for **failed-element-name** and **failed-element-id** properties are stor
 
 No specific configuration required to populate value for **failed-element-name** and **failed-element-id,** but to operate with such values, user would require building a specific logic within a chain with help of chain elements.
 
-## API Details
-
----
-
-No specific API available.

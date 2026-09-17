@@ -87,8 +87,3 @@ No specific information is being stored.
 
 The scaling is being settled during the CIP installation. No configuration option available in CIP UI.
 
-## API Details
-
----
-
-No specific API available.

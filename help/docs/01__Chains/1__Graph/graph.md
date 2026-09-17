@@ -52,7 +52,6 @@ The next actions are available upper right corner:
 * Label "**Unsaved changes**" - appears above "Save and Deploy" button only if there are changes, that are not saved in a snapshot.
 * **Overridden By** - expandable parameter, that contains a reference to the chain that overrides it.
 
-
 #### <ins>VS Code Extension</ins>
 * ![column-width](img/column-width.svg) - show sequence diagram based on the chain.
 
@@ -113,10 +112,4 @@ To initiate document generation, click ![file](img/file.svg) **"Generate DDS"** 
 
 ---
 
-In general, both for CIP web UI and VS Code extension, all configurations are being done via their respective UI's. Please refer to UI elements and tools described above.
-
-## API Details
-
----
-
-No specific API available.
+Please refer to UI elements and tools described above.

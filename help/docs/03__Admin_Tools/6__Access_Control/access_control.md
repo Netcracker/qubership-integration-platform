@@ -73,7 +73,6 @@ and related to **Deployed** chains are available for redeployment (in other case
 To quickly select all colored rows, simply click colored **"Select Unsaved Chains"**
 marked with icon ![carry-out](img/carry-out.svg) on top of the table.
 
-
 ### Refresh
 To update actual list of all endpoints and related data, use ![redo](img/redo.svg) button.
 
@@ -87,7 +86,3 @@ No specific data additionally stored.
 ---
 Initially, all endpoints, mentioned in this section are built by fetching the data from all existing chains. All additional configurations (e.g. updating roles) is done via UI elements available on "**Access Control**" tab under "**Admin** **Tools**" section.
 
-## API Details
-
----
-No specific API available.

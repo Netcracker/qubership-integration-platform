@@ -6,7 +6,7 @@
 
 ### Overview
 
-To enable isolated access to data in Cloud Integration Platform for different organization units multitenancy approach on database level is being supported. The multitenancy approach assumes that CIP can work with different configurations and input data sets at the same time via DBaaS, but these configurations and data should be isolated from one another (per Tenant). More detail about multitenancy is available here: [Multitenancy Support]
+To enable isolated access to data in Cloud Integration Platform for different organization units multitenancy approach on database level is being supported. The multitenancy approach assumes that CIP can work with different configurations and input data sets at the same time via DBaaS, but these configurations and data should be isolated from one another (per Tenant).
 
 > ℹ️ Currently, multitenancy logic is available in a very limited way, that means that common CIP capabilities are fully available **ONLY** for **default** tenant (that is being created during the cloud core deployment).
 >
@@ -18,7 +18,7 @@ To enable isolated access to data in Cloud Integration Platform for different or
 
 **CIP DB multitenancy**
 
-TBD - diagram
+![multitenancy](img/multitenancy.svg)
 
 Each user has the access only for its tenant data (chains, services, etc.)
 
@@ -49,7 +49,7 @@ The process will be initialized by login to UI application under particular tena
 
 ---
 
-The user have to input tenant name on the ***"Log in to Cloud Integration Platform"*** page. In case of successful login you can click the icon ![tenant details icon] to see current tenant details.
+The user have to input tenant name on the Web UI login page. In case of successful login you can click the icon ![tenant details icon](img/user.svg) to see current tenant details.
 
 ## Data storage
 
@@ -62,9 +62,3 @@ All tenants are stored and managed in [Tenant manager] Cloud Core service.
 ---
 
 Tenants should be created in tenant manager and user should be registered under particular tenant(s) in **IDP**.
-
-## API details
-
----
-
-No specific API is available.
