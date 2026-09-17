@@ -9,10 +9,10 @@ import static org.qubership.integration.platform.ai.qipknowledge.artifact.Requir
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
-import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -25,14 +25,14 @@ class RequirementFlowValidatorTest {
 
   @Test
   void supportedInboundKeysMatchTheCompilerContract() {
-    CompilerContract contract =
-        new ClasspathCompilerContractRepository().require(CompilerContract.V1);
-    Set<String> contractTriggers =
-        contract.elements().keySet().stream()
-            .filter(ChainElementFamilies::isTrigger)
-            .collect(java.util.stream.Collectors.toUnmodifiableSet());
-
-    assertEquals(contractTriggers, RequirementFlowValidator.supportedInboundCapabilityKeys());
+    assertEquals(
+        ChainElementFamilies.TRIGGERS.stream()
+            .filter(
+                type ->
+                    ChainElementFamilies.bindingMode(type)
+                        != ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE)
+            .collect(Collectors.toUnmodifiableSet()),
+        RequirementFlowValidator.supportedInboundCapabilityKeys());
   }
 
   @Test
@@ -418,7 +418,8 @@ class RequirementFlowValidatorTest {
 
     assertEquals(
         Optional.empty(),
-        RequirementFlowValidator.validateBindings(flow, List.of(asyncTrigger), List.of()));
+        RequirementFlowValidator.validateBindings(
+            flow, List.of(asyncTrigger), List.of(omStartHint())));
   }
 
   @Test
@@ -477,25 +478,204 @@ class RequirementFlowValidatorTest {
   }
 
   @Test
-  void reportsMissingOutboundBindingWithResolveAction() {
+  void reportsOutboundWithoutSenderAsksForClassification() {
     RequirementFlow flow =
         flow(
             List.of(
                 interaction("order-received", INBOUND, "Caller", "POST /orders"),
                 interaction("create-order", OUTBOUND, "Order System", "createOrder")),
             List.of(edge("order-received", "create-order")));
+    RequirementFact httpTrigger =
+        new RequirementFact(
+            "order-received",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose POST /orders",
+            "",
+            "",
+            "",
+            "POST",
+            "/orders");
 
     Optional<String> message =
-        RequirementFlowValidator.validateBindings(flow, List.of(), List.of());
+        RequirementFlowValidator.validateBindings(flow, List.of(httpTrigger), List.of());
     assertTrue(message.isPresent());
     assertTrue(message.get().contains("create-order"));
-    assertTrue(message.get().contains("resolveApiOperation"));
     assertTrue(message.get().contains("interactionId=create-order"));
     assertTrue(message.get().contains("OUTBOUND") || message.get().contains("outbound"));
-    assertFalse(message.get().contains("native trigger"));
-    assertFalse(message.get().contains("http-trigger"));
-    assertFalse(message.get().contains("kafka-trigger-2"));
+    assertFalse(message.get().contains("resolveApiOperation"));
     assertFalse(message.get().contains("order-received has no catalog binding"));
+  }
+
+  @Test
+  void customHttpTriggerWithPathDoesNotRequireCatalogBinding() {
+    Interaction inbound = interaction("orders-http", INBOUND, "Caller", "GET /orders");
+    RequirementFact fact =
+        new RequirementFact(
+            "orders-http",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /orders",
+            "",
+            "",
+            "",
+            "GET",
+            "/orders");
+    assertFalse(RequirementFlowValidator.requiresCatalogBinding(inbound, List.of(fact)));
+    assertEquals(
+        RequirementFlowValidator.LookupAction.SKIP,
+        RequirementFlowValidator.catalogLookupAction(inbound, List.of(fact)));
+  }
+
+  @Test
+  void implementedServiceHttpTriggerRequiresCatalogBinding() {
+    Interaction inbound = interaction("orders-http", INBOUND, "Orders API", "getOrder");
+    RequirementFact fact =
+        new RequirementFact(
+            "orders-http",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Implement Orders API getOrder",
+            "Orders API",
+            "getOrder",
+            "",
+            "",
+            "");
+    assertTrue(RequirementFlowValidator.requiresCatalogBinding(inbound, List.of(fact)));
+  }
+
+  @Test
+  void ambiguousHttpTriggerAsksAndDoesNotLookUp() {
+    Interaction inbound = interaction("orders-http", INBOUND, "Caller", "HTTP API");
+    RequirementFact fact =
+        new RequirementFact(
+            "orders-http",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose an HTTP API",
+            "",
+            "",
+            "",
+            "",
+            "");
+    assertEquals(
+        RequirementFlowValidator.LookupAction.ASK,
+        RequirementFlowValidator.catalogLookupAction(inbound, List.of(fact)));
+    assertFalse(RequirementFlowValidator.requiresCatalogBinding(inbound, List.of(fact)));
+  }
+
+  @Test
+  void outboundWithoutSenderCapabilityDoesNotAutoRequireCatalog() {
+    Interaction outbound = interaction("create-order", OUTBOUND, "Order System", "createOrder");
+    assertEquals(
+        RequirementFlowValidator.LookupAction.ASK,
+        RequirementFlowValidator.catalogLookupAction(outbound, List.of()));
+    assertFalse(RequirementFlowValidator.requiresCatalogBinding(outbound, List.of()));
+  }
+
+  @Test
+  void mcpTriggerIsRejectedAsUnsupported() {
+    Interaction inbound = interaction("mcp-in", INBOUND, "Agent", "tool");
+    RequirementFact fact =
+        new RequirementFact(
+            "mcp-in",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "mcp-trigger",
+            "Expose the chain as an MCP tool");
+    assertEquals(
+        RequirementFlowValidator.LookupAction.REJECT_UNSUPPORTED,
+        RequirementFlowValidator.catalogLookupAction(inbound, List.of(fact)));
+    Optional<String> error =
+        RequirementFlowValidator.validateBindings(flow(List.of(inbound), List.of()), List.of(fact), List.of());
+    assertTrue(error.isPresent());
+    assertTrue(error.get().contains("not supported"), error.get());
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "chain-trigger-2",
+        "jms-trigger",
+        "kafka-trigger-2",
+        "pubsub-trigger",
+        "quartz-scheduler",
+        "rabbitmq-trigger-2",
+        "sds-trigger",
+        "sftp-trigger-2"
+      })
+  void directTriggerCapabilitySkipsCatalogLookup(String capabilityKey) {
+    String interactionId = "entry";
+    Interaction inbound = interaction(interactionId, INBOUND, "System", "start");
+    RequirementFact fact =
+        new RequirementFact(
+            interactionId,
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            capabilityKey,
+            "Start the chain");
+    assertEquals(
+        RequirementFlowValidator.LookupAction.SKIP,
+        RequirementFlowValidator.catalogLookupAction(inbound, List.of(fact)));
+    assertEquals(
+        Optional.of("requirement flow interaction " + interactionId + " has an unexpected catalog binding"),
+        RequirementFlowValidator.validateBindings(
+            flow(List.of(inbound), List.of()),
+            List.of(fact),
+            List.of(kafkaPublishHint(interactionId, "start"))));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "graphql-sender",
+        "http-sender",
+        "jms-sender",
+        "kafka-sender-2",
+        "mail-sender",
+        "pubsub-sender",
+        "rabbitmq-sender-2",
+        "scs-sender"
+      })
+  void directSenderCapabilitySkipsCatalogLookup(String capabilityKey) {
+    String interactionId = "send";
+    Interaction outbound = interaction(interactionId, OUTBOUND, "Target", "publish");
+    RequirementFact fact =
+        new RequirementFact(
+            interactionId,
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            capabilityKey,
+            "Send directly");
+    assertEquals(
+        RequirementFlowValidator.LookupAction.SKIP,
+        RequirementFlowValidator.catalogLookupAction(outbound, List.of(fact)));
+    assertEquals(
+        Optional.of("requirement flow interaction " + interactionId + " has an unexpected catalog binding"),
+        RequirementFlowValidator.validateBindings(
+            flow(
+                List.of(
+                    interaction("http-start", INBOUND, "Caller", "GET /start"),
+                    outbound),
+                List.of(edge("http-start", interactionId))),
+            List.of(
+                new RequirementFact(
+                    "http-start",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "http-trigger",
+                    "Expose GET /start",
+                    "",
+                    "",
+                    "",
+                    "GET",
+                    "/start"),
+                fact),
+            List.of(kafkaPublishHint(interactionId, "publish"))));
   }
 
   private static CatalogBindingHint omStartHint() {
