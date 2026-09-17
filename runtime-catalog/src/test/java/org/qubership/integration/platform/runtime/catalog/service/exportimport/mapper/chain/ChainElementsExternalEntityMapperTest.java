@@ -67,7 +67,7 @@ class ChainElementsExternalEntityMapperTest {
         // A real substitutor is a no-op for elements whose properties do not opt into separate files,
         // so the mapper output stays the honest oracle here.
         ChainElementFilePropertiesSubstitutor substitutor =
-                new ChainElementFilePropertiesSubstitutor(new ObjectMapper());
+                new ChainElementFilePropertiesSubstitutor(new ObjectMapper(), new ElementResourceFileNameBuilderImpl());
         mapper = new ChainElementsExternalEntityMapper(libraryService, substitutor);
     }
 

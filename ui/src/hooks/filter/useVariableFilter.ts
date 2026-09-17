@@ -5,7 +5,9 @@ import {
 } from "../../components/table/filter/filterTypes";
 import { useFilter } from "../../components/table/filter/useFilter";
 
-export const useVariableFilter = (enableValueFilter: boolean = true): {
+export const useVariableFilter = (
+  enableValueFilter: boolean = true,
+): {
   filterButton: ReactNode;
   matchFilters: (object: unknown) => boolean;
 } => {
@@ -16,14 +18,21 @@ export const useVariableFilter = (enableValueFilter: boolean = true): {
         name: "Key",
         conditions: ExtendedStringFilterConditions,
       },
-      ...(enableValueFilter ? [{
-        id: "value",
-        name: "Value",
-        conditions: ExtendedStringFilterConditions,
-      }] : []),
+      ...(enableValueFilter
+        ? [
+            {
+              id: "value",
+              name: "Value",
+              conditions: ExtendedStringFilterConditions,
+            },
+          ]
+        : []),
     ],
     [enableValueFilter],
   );
 
-  return useFilter(filterColumns);
+  return useFilter(
+    filterColumns,
+    enableValueFilter ? "commonVariablesTable" : "securedVariablesTable",
+  );
 };

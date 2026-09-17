@@ -78,5 +78,5 @@ export const useActionLogFilter = (): {
     [],
   );
 
-  return useFilter(filterColumns);
+  return useFilter(filterColumns, "actionsLogTable");
 };

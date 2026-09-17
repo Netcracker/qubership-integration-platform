@@ -194,7 +194,7 @@ Two things this does not solve, both of them properties of the answer rather tha
 
 Deploying the same chain to two domains is mostly prevented by the platform, which is why the ambiguous branch is rare
 rather than dead. `DeploymentService.checkHttpTriggers` refuses a classic deployment whose HTTP trigger path is already
-registered on another domain — `Found similar triggers path registered on other domains`. The micro path does not run
+registered on another domain — `Found similar triggers paths registered on other domains or by other chains on this domain`. The micro path does not run
 that check: `CustomResourceController` deploys a Camel-K resource without it, so deploying to a classic domain first
 and to a micro domain second is accepted and leaves the chain on both.
 
