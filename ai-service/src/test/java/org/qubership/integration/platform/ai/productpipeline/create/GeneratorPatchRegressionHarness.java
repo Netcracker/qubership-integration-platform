@@ -491,6 +491,7 @@ final class GeneratorPatchRegressionHarness {
                 "graphql-sender",
                 "rabbitmq-sender-2",
                 "scs-sender",
+                "mail-sender",
                 "dbaas",
                 "mapper-2",
                 "header-modification"),
@@ -531,7 +532,7 @@ final class GeneratorPatchRegressionHarness {
                         "integrationOperationPath",
                         "integrationOperationProtocolType",
                         "integrationOperationMethod")),
-                entry("http-sender", Set.of("path", "method")),
+                entry("http-sender", Set.of("httpMethod", "uri")),
                 entry(
                     "kafka-sender-2",
                     Set.of(
@@ -544,9 +545,10 @@ final class GeneratorPatchRegressionHarness {
                         "keySerializer",
                         "valueSerializer",
                         "propagateContext")),
-                entry("graphql-sender", Set.of("operationName")),
+                entry("graphql-sender", Set.of("query", "uri", "operationName")),
                 entry("rabbitmq-sender-2", Set.of("exchange", "routingKey")),
-                entry("scs-sender", Set.of("bindingName")),
+                entry("scs-sender", Set.of("bindingName", "useCorrelationId", "operation")),
+                entry("mail-sender", Set.of("from", "url")),
                 entry("dbaas", Set.of("query")),
                 entry("mapper-2", Set.of("mapping")),
                 entry(
