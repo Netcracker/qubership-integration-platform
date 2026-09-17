@@ -14,6 +14,11 @@ class ActivityDisplayLabelsTest {
   }
 
   @Test
+  void brainstormingUsesANeutralChatLabel() {
+    assertEquals("Thinking", ActivityDisplayLabels.of("skill", "brainstorming"));
+  }
+
+  @Test
   void chainEditPlannerUsesExactLabel() {
     assertEquals(
         "Planning the structural change",

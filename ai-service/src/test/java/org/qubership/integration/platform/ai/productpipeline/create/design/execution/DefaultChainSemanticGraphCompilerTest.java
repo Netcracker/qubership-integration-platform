@@ -184,6 +184,35 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void compilesKafkaSenderWithSchemaDefaults() {
+    ChainSemanticRevision revision =
+        revision(
+            List.of(entry("http-in", "trigger-http", "send-kafka")),
+            List.of(
+                new SemanticNode.Trigger(
+                    "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "send-kafka", "kafka-sender-2", new SemanticProvenance(List.of()))),
+            List.of(),
+            List.of(sequence("edge-entry", "trigger-http", "send-kafka", null)),
+            List.of(),
+            List.of());
+
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+    ChainPlanNode sender = node(graph, "send-kafka");
+    assertEquals("kafka-sender-2", sender.type());
+    assertEquals("manual", property(sender, "connectionSourceType"));
+    assertEquals("TLS", property(sender, "sslProtocol"));
+    assertEquals(
+        "org.apache.kafka.common.serialization.StringSerializer",
+        property(sender, "keySerializer"));
+    assertEquals(
+        "org.apache.kafka.common.serialization.StringSerializer",
+        property(sender, "valueSerializer"));
+  }
+
+  @Test
   void projectsApprovedHttpEndpointPropertiesOntoTrigger() {
     RequirementBrief brief =
         new RequirementBrief(

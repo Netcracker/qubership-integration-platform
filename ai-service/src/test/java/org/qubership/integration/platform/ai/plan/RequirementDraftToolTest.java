@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
@@ -76,6 +77,46 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureSoftDowngradesHttpTriggerWithoutMethod() {
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFact trigger =
+        new RequirementFact(
+            "orders-http",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose /orders",
+            "",
+            "",
+            "",
+            "",
+            "/orders");
+
+    String result =
+        tool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Expose /orders over HTTP",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(trigger),
+                null,
+                nativeHttpFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertTrue(result.contains("NEEDS_INPUT"), result);
+    assertTrue(result.contains("has no HTTP method"), result);
+    assertFalse(result.contains("resolveApiOperation"), result);
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    assertFalse(draft.complete());
+    assertTrue(
+        draft.openQuestions().getFirst().contains("HTTP method"),
+        draft.openQuestions().toString());
+  }
+
+  @Test
   void finishDiscoveryTurnStoresStayDirectiveWithoutCapturingADraft() {
     store.beginTurn("draft-conv");
 
@@ -107,6 +148,11 @@ class RequirementDraftToolTest {
     assertTrue(
         description.contains("Do not model an HTTP response as a separate OUTBOUND interaction"),
         description);
+    assertTrue(
+        description.contains("Catalog verbs such as publish or subscribe do not choose the role"),
+        description);
+    assertTrue(description.contains("absolute or"), description);
+    assertTrue(description.contains("relative URI"), description);
     assertTrue(description.contains("binds a unique local catalog match"), description);
     assertFalse(description.contains("only outbound"), description);
     assertFalse(description.contains("Only then run catalog"), description);
@@ -563,6 +609,136 @@ class RequirementDraftToolTest {
     assertFalse(
         draft.openQuestions().getFirst().contains("order-received has no catalog binding"),
         draft.openQuestions().toString());
+  }
+
+  @Test
+  void captureDirectHttpFlowDoesNotSearchTheCatalog() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withLookup(store, new ConversationApiResolutions(), lookup);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-entry", Direction.INBOUND, "Caller", "GET /greeting", ""),
+                new Interaction(
+                    "send-greeting",
+                    Direction.OUTBOUND,
+                    "Greeting service",
+                    "GET /hello",
+                    "")),
+            List.of(new Transition("http-entry", "send-greeting")));
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "http-entry",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose GET /greeting",
+                "",
+                "",
+                "",
+                "GET",
+                "/greeting"),
+            new RequirementFact(
+                "send-greeting",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-sender",
+                "Send GET to https://greetings.com/hello",
+                "",
+                "",
+                "",
+                "GET",
+                "https://greetings.com/hello",
+                ""));
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Receive GET /greeting and send GET to https://greetings.com/hello",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                facts,
+                null,
+                flow));
+
+    assertTrue(result.contains("Requirement draft captured"), result);
+    assertTrue(store.get("draft-conv").orElseThrow().readyForPlan());
+    verifyNoInteractions(lookup);
+  }
+
+  @Test
+  void captureInfersDirectHttpSenderFromOwnedBehaviorFact() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withLookup(store, new ConversationApiResolutions(), lookup);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction(
+                    "request-received", Direction.INBOUND, "Caller", "GET /check-context", ""),
+                new Interaction(
+                    "with-context-call",
+                    Direction.OUTBOUND,
+                    "Get Context Headers",
+                    "GET /auto-tests/get-context-headers",
+                    "Call Get Context Headers for the with-context branch.")),
+            List.of(new Transition("request-received", "with-context-call")));
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "request-received",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose GET /check-context",
+                "",
+                "",
+                "",
+                "GET",
+                "/check-context"),
+            new RequirementFact(
+                "with-context-config",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "The with-context branch uses HTTP Sender with propagateContext=true.",
+                "with-context branch",
+                "",
+                "",
+                "",
+                "",
+                ""));
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Use HTTP Sender to call GET /auto-tests/get-context-headers.",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                facts,
+                null,
+                flow));
+
+    assertTrue(result.contains("Requirement draft captured"), result);
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertTrue(draft.readyForPlan());
+    assertTrue(
+        draft.facts().stream()
+            .anyMatch(
+                fact ->
+                    "with-context-call".equals(fact.sourceFactId())
+                        && "http-sender".equals(fact.capabilityKey())));
+    verifyNoInteractions(lookup);
   }
 
   @Test
@@ -2303,6 +2479,60 @@ class RequirementDraftToolTest {
     assertTrue(
         stored.openQuestions().getFirst().contains("conflicts with catalog direction"),
         stored.openQuestions().toString());
+  }
+
+  @Test
+  void readyForPlanAutoBindsOutboundKafkaPublishServiceCall() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(org.mockito.ArgumentMatchers.any(CatalogQuery.class)))
+        .thenReturn(new CatalogLookupResult.Exact(omStartMatch()));
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withLookup(store, new ConversationApiResolutions(), lookup);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-start", Direction.INBOUND, "Caller", "GET /start", ""),
+                new Interaction(
+                    "publish-event",
+                    Direction.OUTBOUND,
+                    "Kafka service",
+                    "onTaskStart",
+                    "")),
+            List.of(new Transition("http-start", "publish-event")));
+    RequirementFact httpTrigger =
+        new RequirementFact(
+            "http-start",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /start",
+            "",
+            "",
+            "",
+            "GET",
+            "/start");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Receive GET /start and publish onTaskStart to Kafka.",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(httpTrigger),
+                null,
+                flow));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertTrue(result.contains("Requirement draft captured"), result);
+    assertEquals(DraftDecision.READY_FOR_PLAN, stored.decision());
+    assertTrue(stored.readyForPlan());
+    assertEquals(
+        List.of("publish-event"),
+        stored.catalogBindings().stream().map(CatalogBindingHint::interactionId).toList());
   }
 
   @Test

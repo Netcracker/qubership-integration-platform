@@ -22,6 +22,7 @@ import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
@@ -99,7 +100,14 @@ public class ChainSemanticCaptureAdapter {
     List<TriggerBinding> triggerBindings = triggerBindings(briefEntryPoints);
 
     List<SemanticNode> nodes =
-        nodes(capture, triggerBindings, briefServiceCalls, briefEntryPoints, contract, factIds);
+        nodes(
+            capture,
+            triggerBindings,
+            briefServiceCalls,
+            briefEntryPoints,
+            authoritative.facts(),
+            contract,
+            factIds);
     Set<String> nodeIds = new LinkedHashSet<>();
     for (SemanticNode node : nodes) {
       if (!nodeIds.add(node.nodeId())) {
@@ -121,7 +129,8 @@ public class ChainSemanticCaptureAdapter {
     requireApprovedAnchorGraph(authoritative, triggerBindings, briefServiceCalls, edges);
     List<MappingIntent> mappingIntents = mappingIntents(authoritative, edges, nodes);
     List<SemanticContainment> containment = containment(capture, nodeIds);
-    requirePositiveBehaviorCoverage(authoritative, nodes);
+    requireNativeDirectOutboundFactCoverage(authoritative, nodes);
+    requirePositiveExecutableFactCoverage(authoritative, nodes);
 
     ChainSemanticRevision forIdentity =
         new ChainSemanticRevision(
@@ -191,6 +200,7 @@ public class ChainSemanticCaptureAdapter {
       List<TriggerBinding> triggerBindings,
       Map<String, RequirementServiceCall> briefServiceCalls,
       Map<String, RequirementEntryPoint> briefEntryPoints,
+      List<RequirementFact> facts,
       CompilerContract contract,
       Set<String> factIds) {
     List<SemanticNode> nodes = new ArrayList<>();
@@ -211,6 +221,10 @@ public class ChainSemanticCaptureAdapter {
     }
     Set<String> triggerFactIds = triggerFactIds(briefEntryPoints.values());
     for (RequirementServiceCall approved : briefServiceCalls.values()) {
+      if (RequirementFlowValidator.hasNativeDirectOutboundCapabilityFact(
+          approved.serviceCallId(), facts)) {
+        continue;
+      }
       if (!materializesServiceCallNode(approved, triggerFactIds)) {
         if (approved.catalogBinding() == null) {
           throw new IllegalArgumentException(
@@ -282,7 +296,7 @@ public class ChainSemanticCaptureAdapter {
     return List.copyOf(nodes);
   }
 
-  private static void requirePositiveBehaviorCoverage(
+  private static void requirePositiveExecutableFactCoverage(
       RequirementBrief brief, List<SemanticNode> nodes) {
     Set<String> coveredFactIds = new LinkedHashSet<>();
     for (SemanticNode node : nodes) {
@@ -291,15 +305,49 @@ public class ChainSemanticCaptureAdapter {
     for (RequirementFact fact : brief.facts()) {
       if (fact == null
           || fact.polarity() != RequirementFactPolarity.POSITIVE
-          || fact.kind() != RequirementFactKind.BEHAVIOR
+          || (fact.kind() != RequirementFactKind.BEHAVIOR
+              && fact.kind() != RequirementFactKind.CAPABILITY)
           || coveredFactIds.contains(fact.sourceFactId())) {
         continue;
       }
       throw new IllegalArgumentException(
-          "Positive BEHAVIOR fact '"
+          "Positive executable fact '"
               + fact.sourceFactId()
-              + "' has no semantic node. Add the required internal operation with this"
+              + "' has no semantic node. Add the required element with this"
               + " sourceFactId and place it in the execution edges.");
+    }
+  }
+
+  private static void requireNativeDirectOutboundFactCoverage(
+      RequirementBrief brief, List<SemanticNode> nodes) {
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null) {
+        continue;
+      }
+      String expectedType =
+          RequirementFlowValidator
+              .nativeDirectOutboundCapabilityKey(fact.sourceFactId(), brief.facts())
+              .orElse(null);
+      if (expectedType == null) {
+        continue;
+      }
+      boolean covered =
+          nodes.stream()
+              .anyMatch(
+                  node ->
+                      node instanceof SemanticNode.Operation operation
+                          && fact.sourceFactId().equals(operation.nodeId())
+                          && expectedType.equals(operation.elementType()));
+      if (!covered) {
+        throw new IllegalArgumentException(
+            "Positive native outbound fact '"
+                + fact.sourceFactId()
+                + "' requires operation nodeId '"
+                + fact.sourceFactId()
+                + "' with elementType '"
+                + expectedType
+                + "'. Add that operation and connect it through the execution edges.");
+      }
     }
   }
 

@@ -144,7 +144,12 @@ class RequirementDiscoveryCapabilityTest {
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.ENDPOINT,
                     "http-trigger",
-                    "HTTP GET /hello"),
+                    "HTTP GET /hello",
+                    "",
+                    "",
+                    "",
+                    "GET",
+                    "/hello"),
                 RequirementFact.of(
                     RequirementFactPolarity.POSITIVE,
                     RequirementFactKind.BEHAVIOR,
@@ -276,7 +281,48 @@ class RequirementDiscoveryCapabilityTest {
 
     assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
     assertTrue(outcome.candidates().isEmpty());
+    assertEquals(
+        PipelineGates.REQUIREMENT_DRAFT_READY,
+        PipelineGates.gateOf(outcome.message()).orElseThrow());
     assertEquals(ready, store.get("conv-consult").orElseThrow());
+  }
+
+  @Test
+  void planningActionAdvancesAReadyDraftWithoutCallingTheGatherAgent() {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraft ready = RequirementFactFixtures.greetingsApprovedDraft();
+    store.put("conv-plan", ready);
+    AtomicInteger agentCalls = new AtomicInteger();
+    RequirementDiscoveryCapability capability =
+        new RequirementDiscoveryCapability(
+            null,
+            store,
+            (conversationId, userText) -> {
+              agentCalls.incrementAndGet();
+              return Multi.createFrom().empty();
+            });
+    StageExecutionContext context =
+        new StageExecutionContext(
+            "run-plan",
+            "conv-plan",
+            "requirement-discovery",
+            "exec-plan",
+            "attempt-plan",
+            null,
+            null,
+            List.of(),
+            Map.of("userText", ChatEvent.CONTINUE_TO_PLANNING_ACTION));
+
+    StageOutcome outcome =
+        capability.execute(context).collect().asList().await().indefinitely().stream()
+            .filter(CapabilitySignal.Completed.class::isInstance)
+            .map(CapabilitySignal.Completed.class::cast)
+            .findFirst()
+            .orElseThrow()
+            .outcome();
+
+    assertEquals(StageOutcomeClass.CANDIDATE, outcome.outcomeClass());
+    assertEquals(0, agentCalls.get());
   }
 
   @Test

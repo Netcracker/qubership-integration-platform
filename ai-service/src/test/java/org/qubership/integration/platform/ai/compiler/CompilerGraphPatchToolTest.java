@@ -569,7 +569,91 @@ class CompilerGraphPatchToolTest {
     String result = tool.captureGraphPatch(patch);
 
     assertTrue(result.contains("Invalid property value"));
+    assertTrue(result.contains("received value: [\"GET\"]"));
     assertTrue(captureSession.get(CaptureKey.capability(CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, CAPABILITY_ID), GraphPatch.class).isEmpty());
+  }
+
+  @Test
+  void scalarValueOverridesToolSchemaObjectPlaceholder() {
+    planStore.put(
+        CONVERSATION_ID,
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("publish", "Publish"),
+            List.of(
+                new ChainPlanNode(
+                    "kafka-send-event",
+                    "kafka-sender-2",
+                    "Publish event",
+                    null,
+                    null,
+                    List.of(new PlanProperty("connectionSourceType", "manual")))),
+            List.of()));
+    MDC.put(CompilerSkillMdc.CAPABILITY_ID, SERVICE_CALL_CAPABILITY_ID);
+    executionContextStore.set(
+        new GraphPatchExecutionContext(
+            "run-1",
+            SERVICE_CALL_CAPABILITY_ID,
+            "req-1",
+            null,
+            "compiler-1",
+            "24.4",
+            new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary"),
+            List.of(),
+            planStore.get(CONVERSATION_ID).orElseThrow(),
+            new GraphPatchOwnershipPolicy(
+                false,
+                false,
+                Set.of("kafka-sender-2"),
+                Set.of(),
+                Map.of(
+                    "kafka-sender-2",
+                    Set.of(
+                        "connectionSourceType", "topicsClassifierName", "propagateContext"))),
+            ""));
+
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "kafka-source",
+            SERVICE_CALL_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.UPDATE,
+                    "kafka-send-event",
+                    "connectionSourceType",
+                    objectMapper.createObjectNode(),
+                    "maas"),
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "kafka-send-event",
+                    "topicsClassifierName",
+                    objectMapper.createObjectNode(),
+                    "cip-auto-tests-topic1"),
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "kafka-send-event",
+                    "propagateContext",
+                    objectMapper.createObjectNode(),
+                    "true")),
+            List.of(),
+            List.of(),
+            "Use the approved MaaS mode");
+
+    CaptureValidationException terminal =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(terminal.getMessage().contains("Graph patch captured"));
+    GraphPatch stored =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SERVICE_CALL_CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    assertEquals("maas", stored.propertyPatches().getFirst().property().value());
+    assertEquals("true", stored.propertyPatches().get(2).property().value());
   }
 
   @Test
@@ -817,6 +901,74 @@ class CompilerGraphPatchToolTest {
             .orElseThrow();
     assertEquals("quartz-empty-ok", stored.patchId());
     assertTrue(feedbackStore.lastPatchFailure(CONVERSATION_ID, quartzSkill).isEmpty());
+  }
+
+  @Test
+  void emptyServiceCallPatchIsRejectedWhenKafkaSenderConfigurationIsIncomplete() {
+    ChainPlanGraph baseGraph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("publish", "Publish"),
+            List.of(
+                new ChainPlanNode(
+                    "kafka-send-event",
+                    "kafka-sender-2",
+                    "Publish event",
+                    null,
+                    null,
+                    List.of(new PlanProperty("connectionSourceType", "manual")))),
+            List.of());
+    planStore.put(CONVERSATION_ID, baseGraph);
+    MDC.put(CompilerSkillMdc.CAPABILITY_ID, SERVICE_CALL_CAPABILITY_ID);
+    executionContextStore.set(
+        new GraphPatchExecutionContext(
+            "run-1",
+            SERVICE_CALL_CAPABILITY_ID,
+            "req-1",
+            null,
+            "compiler-1",
+            "24.4",
+            new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary"),
+            List.of(),
+            baseGraph,
+            new GraphPatchOwnershipPolicy(
+                false,
+                false,
+                Set.of("kafka-sender-2"),
+                Set.of(),
+                Map.of(
+                    "kafka-sender-2",
+                    Set.of(
+                        "connectionSourceType",
+                        "topicsClassifierName",
+                        "keySerializer",
+                        "valueSerializer",
+                        "propagateContext"))),
+            ""));
+
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "kafka-empty",
+            SERVICE_CALL_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Kafka configuration is already complete");
+
+    String result = tool.captureGraphPatch(patch);
+
+    assertTrue(result.contains("Kafka sender configuration is incomplete"));
+    assertTrue(result.contains("kafka-send-event"));
+    assertTrue(result.contains("topicsClassifierName"));
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SERVICE_CALL_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
   }
 
   @Test

@@ -254,6 +254,32 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  void productionCreateChainPinOwnsKafkaSenderConfigurationOnServiceCallGenerator() {
+    CompilerRunPin pin =
+        resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
+
+    GraphPatchOwnershipPolicy ownership =
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-service-call-generator".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .ownership();
+
+    assertEquals(
+        Set.of(
+            "connectionSourceType",
+            "topicsClassifierName",
+            "maasClassifierNamespace",
+            "maasClassifierTenantEnabled",
+            "maasClassifierTenantId",
+            "key",
+            "keySerializer",
+            "valueSerializer",
+            "propagateContext"),
+        ownership.properties().get("kafka-sender-2"));
+  }
+
+  @Test
   void runPinRetainsEffectiveOwnership() {
     CompilerRunPin pin = resolver.resolve(createChainProfile, fullKnowledgeContext);
     GraphPatchOwnershipPolicy policy =

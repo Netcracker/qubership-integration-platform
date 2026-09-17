@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.knowledge;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -9,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chat.ToolSession;
@@ -29,8 +31,8 @@ class RequirementDiscoveryKnowledgeToolTest {
             new KnowledgeContextPackage(
                 new KnowledgeResponseIdentity(ref),
                 List.of("golden-patterns"),
-                List.of(),
-                0));
+                List.of(knowledgeObject()),
+                31));
     RequirementDraftStore draftStore = new RequirementDraftStore();
     RequirementDiscoveryKnowledgeTool tool =
         new RequirementDiscoveryKnowledgeTool(client, contextProvider, draftStore);
@@ -50,8 +52,10 @@ class RequirementDiscoveryKnowledgeToolTest {
     assertEquals(12_000, request.getValue().maxChars());
     assertEquals(
         RequirementDiscoveryDirective.STAY, draftStore.turnDirective("conv-knowledge"));
-    assertTrue(result.contains("fixture@1.0.0"), result);
-    assertTrue(result.contains("sha256:pinned"), result);
+    assertTrue(result.contains("Loop repeats its child steps."), result);
+    assertFalse(result.contains("fixture@1.0.0"), result);
+    assertFalse(result.contains("sha256:pinned"), result);
+    assertFalse(result.contains("CIP:GEN:element:loop"), result);
   }
 
   @Test
@@ -88,5 +92,22 @@ class RequirementDiscoveryKnowledgeToolTest {
         checksum,
         "CERTIFIED",
         "sha256:certificate");
+  }
+
+  private static CanonicalKnowledgeObject knowledgeObject() {
+    return new CanonicalKnowledgeObject(
+        "1",
+        "CIP:GEN:element:loop",
+        "element",
+        "Loop",
+        "",
+        Map.of(),
+        List.of(),
+        new CanonicalKnowledgeObject.Content(
+            "markdown", "Loop repeats its child steps.", null, List.of()),
+        "1",
+        "ACTIVE",
+        new CanonicalKnowledgeObject.Source(
+            "markdown", "docs/elements/loop.md", "loop", "sha256:source", "1"));
   }
 }

@@ -13,6 +13,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND;
 import static org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -344,6 +345,74 @@ class CatalogFirstApiHubDiscoveryToolTest {
         result.contains("Capture RequirementFlow before resolving interactionId=call-stock"),
         result);
     assertTrue(resolutions.assessments("conv-no-draft").isEmpty());
+    verifyNoInteractions(lookup);
+    verifyNoInteractions(apiHub);
+  }
+
+  @Test
+  void directEndpointsDoNotQueryCatalogOrApiHub() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementFact nativeTrigger =
+        new RequirementFact(
+            "http-entry",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /greeting");
+    RequirementFact chainTrigger =
+        new RequirementFact(
+            "chain-entry",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "chain-trigger-2",
+            "Start from a parent chain");
+    RequirementFact directSender =
+        new RequirementFact(
+            "send-greeting",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-sender",
+            "Send GET to https://greetings.com/hello",
+            "",
+            "",
+            "",
+            "GET",
+            "https://greetings.com/hello",
+            "");
+    store.put(
+        "conv-direct",
+        new RequirementDraft(false, "direct HTTP")
+            .withFacts(List.of(nativeTrigger, chainTrigger, directSender))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("http-entry", INBOUND, "Caller", "GET /greeting", ""),
+                        new Interaction("chain-entry", INBOUND, "Parent chain", "start", ""),
+                        interaction(
+                            "send-greeting",
+                            "Greeting service",
+                            "GET /hello",
+                            "Send a direct greeting request")),
+                    List.of(new RequirementFlow.Transition("http-entry", "send-greeting")))));
+
+    try (ToolSession.Handle ignored = ToolSession.open("conv-direct")) {
+      assertTrue(
+          tool(lookup, apiHub, store)
+              .resolveApiOperation("http-entry", "GET", "/greeting", null, "http", "")
+              .contains("must not use catalog or API Hub resolution"));
+      assertTrue(
+          tool(lookup, apiHub, store)
+              .resolveApiOperation("chain-entry", "", "", null, "", "")
+              .contains("must not use catalog or API Hub resolution"));
+      assertTrue(
+          tool(lookup, apiHub, store)
+              .resolveApiOperation(
+                  "send-greeting", "GET", "https://greetings.com/hello", null, "http", "")
+              .contains("must not use catalog or API Hub resolution"));
+    }
+
     verifyNoInteractions(lookup);
     verifyNoInteractions(apiHub);
   }

@@ -1237,6 +1237,8 @@ pass "create-chain@1 backward-compat contract"
 echo "=== forbidden facts ignore negation phrases and skill metadata ==="
 rg -q '_forbidden_haystack|_positive_fact_texts' "${BUILD_PY}" \
   || fail "build-report-from-evidence.py must use a dedicated forbidden-facts haystack"
+rg -q 'Generator ownership versus topology' "${DIR}/semantic-rubric.md" \
+  || fail "semantic rubric must distinguish generator ownership from service-call topology"
 neg_ev="${TMP}/forbidden-negation-evidence.json"
 cat >"${neg_ev}" <<'EOF'
 {
@@ -1409,6 +1411,31 @@ python3 "${BUILD_PY}" \
   --out "${TMP}/forbidden-positive-report.json"
 jq -e '.presentForbiddenFacts == ["service-call"]' "${TMP}/forbidden-positive-report.json" >/dev/null \
   || fail "real service-call topology must set presentForbiddenFacts"
+
+script_key_ev="${TMP}/forbidden-script-key-evidence.json"
+python3 - "${neg_ev}" "${script_key_ev}" <<'PY'
+import json
+import pathlib
+import sys
+
+src = json.loads(pathlib.Path(sys.argv[1]).read_text())
+graph = src["decodedArtifacts"]["CHAIN_PLAN_GRAPH#g1"]
+graph["nodes"] = [node for node in graph["nodes"] if node.get("type") != "script"]
+graph["description"] = "A chain without executable code"
+catalog = src["decodedArtifacts"]["CATALOG_CHAIN_SNAPSHOT#c1"]
+catalog["elements"] = [element for element in catalog["elements"] if element.get("type") != "script"]
+pathlib.Path(sys.argv[2]).write_text(json.dumps(src))
+PY
+python3 "${BUILD_PY}" \
+  --evidence "${script_key_ev}" \
+  --scenario-id product-create-chain-greetings \
+  --rep 1 \
+  --required-facts '["GET /greetings"]' \
+  --forbidden-facts '["script"]' \
+  --expected-terminal-state CHAIN_MATERIALIZED \
+  --out "${TMP}/forbidden-script-key-report.json"
+jq -e '.presentForbiddenFacts == []' "${TMP}/forbidden-script-key-report.json" >/dev/null \
+  || fail "description fields must not be mistaken for script topology"
 pass "forbidden facts negation vs topology contract"
 
 echo "=== required HTTP endpoint facts tolerate split method/path ==="

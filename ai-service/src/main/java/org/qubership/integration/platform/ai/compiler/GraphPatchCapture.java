@@ -24,7 +24,7 @@ record GraphPatchCapture(
     @Description(
             "Set true when this skill has nothing to change (NOT_APPLICABLE). Requires empty"
                 + " nodePatches, edgePatches, propertyPatches, and chainPatches. Prefer this over"
-                + " inventing patch bodies. Omit or false for normal patches.")
+                + " inventing patch bodies. Always send false for normal patches.")
         Boolean notApplicable) {
 
   /** Compatibility constructor for callers that omit {@code notApplicable}. */

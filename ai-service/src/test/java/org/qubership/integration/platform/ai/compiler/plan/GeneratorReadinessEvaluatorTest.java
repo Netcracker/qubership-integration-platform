@@ -663,6 +663,81 @@ class GeneratorReadinessEvaluatorTest {
   }
 
   @Test
+  void unmetCompletenessFlagsKafkaSenderWithIncompleteManualConnection() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("publish", "Publish"),
+            List.of(
+                new ChainPlanNode(
+                    "kafka-1",
+                    "kafka-sender-2",
+                    "Publish event",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "manual"),
+                        new PlanProperty("securityProtocol", "PLAINTEXT"),
+                        new PlanProperty("saslMechanism", "GSSAPI")))),
+            List.of());
+
+    List<String> unmet =
+        evaluator.unmetCompleteness(
+            List.of("incomplete_kafka_sender_configuration"), graph);
+
+    assertEquals(List.of("incomplete_kafka_sender_configuration"), unmet);
+    assertEquals(List.of("kafka-1"), evaluator.kafkaSenderNodesMissingConfiguration(graph));
+  }
+
+  @Test
+  void kafkaSenderMaaSConfigurationIsCompleteWithClassifier() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("publish", "Publish"),
+            List.of(
+                new ChainPlanNode(
+                    "kafka-1",
+                    "kafka-sender-2",
+                    "Publish event",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "maas"),
+                        new PlanProperty("topicsClassifierName", "cip-auto-tests-topic1"),
+                        new PlanProperty("maasClassifierTenantEnabled", "false")))),
+            List.of());
+
+    assertTrue(evaluator.kafkaSenderNodesMissingConfiguration(graph).isEmpty());
+    assertTrue(
+        evaluator
+            .unmetCompleteness(List.of("incomplete_kafka_sender_configuration"), graph)
+            .isEmpty());
+  }
+
+  @Test
+  void kafkaSenderMaaSConfigurationRequiresTenantIdWhenTenantIsEnabled() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("publish", "Publish"),
+            List.of(
+                new ChainPlanNode(
+                    "kafka-1",
+                    "kafka-sender-2",
+                    "Publish event",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "maas"),
+                        new PlanProperty("topicsClassifierName", "cip-auto-tests-topic1"),
+                        new PlanProperty("maasClassifierTenantEnabled", "true")))),
+            List.of());
+
+    assertEquals(List.of("kafka-1"), evaluator.kafkaSenderNodesMissingConfiguration(graph));
+  }
+
+  @Test
   void incompleteServiceCallBindingsStillTrueWhenOperationBranchIsSchemaInvalid() {
     ChainPlanGraph graph =
         new ChainPlanGraph(

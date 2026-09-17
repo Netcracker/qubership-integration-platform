@@ -392,6 +392,38 @@ class CompilerSkillContextBuilderAddonTest {
   }
 
   @Test
+  void serviceCallGeneratorKeepsNativeKafkaApplicableWhenCatalogCallsAreForbidden() {
+    CompilerSkillDocument document =
+        documentService.loadByCapabilityId("cip-service-call-generator");
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("kafka", "Kafka"),
+            java.util.List.of(
+                new ChainPlanNode(
+                    "kafka-publish-event",
+                    "kafka-sender-2",
+                    "Publish event",
+                    null,
+                    null,
+                    java.util.List.of())),
+            java.util.List.of());
+    CompilerSkillInputSnapshot snapshot =
+        new CompilerSkillInputSnapshot(
+            "Use kafka-sender-2. No service calls. No APIHub.",
+            "Publish through the native Kafka sender.",
+            null,
+            graph,
+            null);
+
+    String message = contextBuilder.buildUserMessage(document, snapshot);
+
+    assertTrue(message.contains("does not disable an owned native sender"));
+    assertTrue(message.contains("configure it without"));
+    assertTrue(message.contains("inventing a catalog binding"));
+  }
+
+  @Test
   void generatorPromptSerializesGraphAsCompactJson() {
     CompilerSkillDocument document = documentService.loadByCapabilityId("cip-security-generator");
     ChainPlanGraph graph =

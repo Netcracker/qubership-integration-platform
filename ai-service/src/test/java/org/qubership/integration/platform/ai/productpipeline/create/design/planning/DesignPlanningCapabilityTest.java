@@ -60,6 +60,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.IdsDocument;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
@@ -577,6 +579,39 @@ class DesignPlanningCapabilityTest {
         input);
     assertFalse(input.contains("serviceCallRole="), input);
     assertTrue(input.contains("Control-flow regions:\n- none"), input);
+  }
+
+  @Test
+  void plannerInputAssignsKafkaSenderToServiceCallGenerator() {
+    ChainSemanticRevision base = sampleRevision();
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(
+        new SemanticNode.Operation(
+            "send-kafka", "kafka-sender-2", new SemanticProvenance(List.of("fact-kafka"))));
+    ChainSemanticRevision revision =
+        new ChainSemanticRevision(
+            base.schemaVersion(),
+            base.revisionId(),
+            base.chainIdentity(),
+            base.compilerContractVersion(),
+            base.entryPoints(),
+            nodes,
+            base.regions(),
+            base.executionEdges(),
+            base.containment(),
+            base.mappingIntents(),
+            base.constraints(),
+            base.assumptions(),
+            base.citations());
+
+    String input =
+        DesignPlanningCapability.buildPlannerInput(sampleIds(), revision, "2024.4", sampleBrief());
+
+    assertTrue(
+        input.contains(
+            "targetKind=ELEMENT_NODE targetId=send-kafka"
+                + " producer=cip-service-call-generator elementType=kafka-sender-2"),
+        input);
   }
 
   @Test

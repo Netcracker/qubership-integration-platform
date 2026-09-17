@@ -1,4 +1,60 @@
 {
+  "product-create-chain-kafka-sender": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateKafkaSenderSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives POST on internal route \"/publish-event\" and sends the unchanged request body to Kafka through kafka-sender-2. Use MaaS connection mode with topic classifier \"cip-auto-tests-topic1\", String serializers for both key and value, and context propagation enabled. Flow: http-trigger then kafka-sender-2. No service calls. No scripts. No error handling. No RBAC. No MCP. No APIHub.",
+    "requiredFacts": [
+      "POST /publish-event",
+      "kafka-sender-2",
+      "cip-auto-tests-topic1"
+    ],
+    "forbiddenFacts": [
+      "service-call",
+      "script",
+      "APIHub"
+    ],
+    "catalog": {
+      "requiredTypes": [
+        "http-trigger",
+        "kafka-sender-2"
+      ],
+      "forbiddenTypes": [
+        "service-call",
+        "script"
+      ],
+      "properties": [
+        { "type": "http-trigger", "key": "contextPath", "equals": "/publish-event" },
+        { "type": "http-trigger", "key": "httpMethodRestrict", "equals": "POST" },
+        { "type": "kafka-sender-2", "key": "connectionSourceType", "equals": "maas" },
+        { "type": "kafka-sender-2", "key": "topicsClassifierName", "contains": "cip-auto-tests-topic1" },
+        { "type": "kafka-sender-2", "key": "keySerializer", "contains": "StringSerializer" },
+        { "type": "kafka-sender-2", "key": "valueSerializer", "contains": "StringSerializer" },
+        { "type": "kafka-sender-2", "key": "propagateContext", "equals": "true" }
+      ],
+      "skeleton": {
+        "minDependencies": 1,
+        "triggerMustHaveOutgoing": true
+      },
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [
+      "Keep the native kafka-sender-2 requirement unchanged. Do not bind any catalog operation and do not add a service call or APIHub dependency."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "pass_through"
+    ]
+  },
   "product-create-chain-greetings": {
     "tier": "product-pipeline",
     "status": "active",

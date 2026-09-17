@@ -205,6 +205,13 @@ public class RequirementDiscoveryCapability implements StageCapability {
                   StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
     }
     RequirementDraft current = draftStore.get(conversationId).orElse(null);
+    if (current != null
+        && current.readyForPlan()
+        && ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(userMessage.strip())) {
+      draftStore.beginTurn(conversationId);
+      draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.CONTINUE);
+      return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(current)));
+    }
     Boolean idsChoice = idsChoice(userMessage);
     if (current != null
         && current.readyForPlan()
@@ -282,12 +289,20 @@ public class RequirementDiscoveryCapability implements StageCapability {
       AtomicReference<RequirementDraft> captured) {
     String conversationId = context.conversationId();
     RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
+    RequirementDraft draft =
+        captured.get() != null ? captured.get() : draftStore.get(conversationId).orElse(null);
     if (directive == RequirementDiscoveryDirective.STAY) {
+      if (draft != null && draft.readyForPlan()) {
+        return new CapabilitySignal.Completed(
+            StageOutcome.of(
+                StageOutcomeClass.NEEDS_INPUT,
+                PipelineGates.tag(
+                    PipelineGates.REQUIREMENT_DRAFT_READY,
+                    "Requirements are ready. Continue to planning?")));
+      }
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
     }
-    RequirementDraft draft =
-        captured.get() != null ? captured.get() : draftStore.get(conversationId).orElse(null);
     if (draft == null) {
       return new CapabilitySignal.Completed(
           StageOutcome.of(

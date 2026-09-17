@@ -591,6 +591,40 @@ class RequirementBriefCoverageValidatorTest {
     assertTrue(error.orElseThrow().contains("call-om-result"), error.orElseThrow());
   }
 
+  @Test
+  void acceptsNativeKafkaSenderWithoutCatalogBinding() {
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-start", Direction.INBOUND, "Caller", "POST /publish-event", ""),
+                new Interaction("kafka-publish-event", Direction.OUTBOUND, "Kafka", "send", "")),
+            List.of(new Transition("http-start", "kafka-publish-event")));
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "http-start",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose POST /publish-event"),
+            new RequirementFact(
+                "kafka-publish-event",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "kafka-sender-2",
+                "Publish the request body to Kafka"));
+    RequirementServiceCall nativeKafkaCall =
+        new RequirementServiceCall(
+            "kafka-publish-event", "kafka-publish-event", "Kafka", "send");
+    RequirementDraft approved =
+        approvedDraft(facts, List.of(nativeKafkaCall)).withFlow(flow);
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            briefWithCalls(approved, facts, List.of(nativeKafkaCall)).withFlow(flow));
+
+    assertEquals(Optional.empty(), validator.validate(approved, brief));
+  }
+
   private static RequirementDraft rockyApprovedDraft() {
     Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
     return new RequirementDraft(

@@ -839,6 +839,27 @@ class ChatDecisionServiceTest {
   }
 
   @Test
+  void openDecisionHidesTheGenericAdditionalInputPlaceholder() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-1"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-1",
+                    "run-1",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    5L,
+                    new CreateChainPendingAction.Clarify(
+                        "Additional input is required.", List.of()),
+                    "")));
+
+    assertTrue(
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .openDecision("conv-1")
+            .isEmpty());
+  }
+
+  @Test
   void openDecisionOffersImportWhenACandidateIsPending() {
     CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
     when(facade.snapshot("conv-1")).thenReturn(Optional.empty());
@@ -1628,6 +1649,50 @@ class ChatDecisionServiceTest {
     assertTrue(
         events.stream()
             .anyMatch(event -> event instanceof ChatEvent.Token token && token.text().equals("Design derived.")),
+        () -> "expected the direct gate result, got: " + events);
+  }
+
+  @Test
+  void planningButtonContinuesTheReadyRequirementGateWithoutRoutingThroughTheModel() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-plan"))
+        .thenReturn(
+            Optional.of(
+                new CreateChainExecutionSnapshot(
+                    "conv-plan",
+                    "run-plan",
+                    CreateChainExecutionStatus.INPUT_REQUIRED,
+                    8L,
+                    new CreateChainPendingAction.Clarify(
+                        "Requirements are ready. Continue to planning?",
+                        List.of(),
+                        PipelineGates.REQUIREMENT_DRAFT_READY),
+                    "")));
+    when(facade.continueWithInput(any(ContinueCreateChainCommand.class)))
+        .thenReturn(Multi.createFrom().item(new CreateChainEvent.Message("Planning started.")));
+    ChatDecisionCommand command =
+        command(ChatEvent.CONTINUE_TO_PLANNING_ACTION, null, null, null);
+    command.setRevision(8L);
+
+    List<ChatEvent> events =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore())
+            .apply("conv-plan", command)
+            .collect()
+            .asList()
+            .await()
+            .indefinitely();
+
+    ArgumentCaptor<ContinueCreateChainCommand> input =
+        ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade).continueWithInput(input.capture());
+    assertEquals(
+        ChatEvent.CONTINUE_TO_PLANNING_ACTION, input.getValue().clarificationText());
+    assertTrue(
+        events.stream()
+            .anyMatch(
+                event ->
+                    event instanceof ChatEvent.Token token
+                        && token.text().equals("Planning started.")),
         () -> "expected the direct gate result, got: " + events);
   }
 

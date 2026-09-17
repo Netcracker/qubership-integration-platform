@@ -18,6 +18,9 @@ public sealed interface ChatEvent {
 
   String REQUEST_CHANGES_ACTION = "request-changes";
 
+  /** Leaves requirement discussion and starts planning from the ready draft. */
+  String CONTINUE_TO_PLANNING_ACTION = "continue-to-planning";
+
   /** Writes the chain into the catalog: the one irreversible step, never a model's to take. */
   String CREATE_ACTION = "create-chain";
 
@@ -575,6 +578,7 @@ public sealed interface ChatEvent {
     return switch (gateId) {
       case PipelineGates.IMPORT_SPECIFICATION -> IMPORT_ACTIONS;
       case PipelineGates.IDS_PATH_CHOICE -> IDS_PATH_CHOICE_ACTIONS;
+      case PipelineGates.REQUIREMENT_DRAFT_READY -> List.of(CONTINUE_TO_PLANNING_ACTION);
       case PipelineGates.MAPPING_GAP -> MAPPING_GAP_ACTIONS;
       case PipelineGates.STAGE_RETRY -> List.of(PipelineGates.RETRY_ACTION);
       case PipelineGates.RECOVERY_RETRY_TECHNICAL,
@@ -692,6 +696,15 @@ public sealed interface ChatEvent {
       return List.of();
     }
     return actionsForGate(clarify.gateId());
+  }
+
+  /** True for an internal blank wait that must not become an empty decision card. */
+  public static boolean isSilentClarification(PendingAction pending) {
+    return pending instanceof PendingAction.Clarify clarify
+        && clarify.gateId().isBlank()
+        && clarify.missingEvidence().isEmpty()
+        && (clarify.reason().isBlank()
+            || "Additional input is required.".equals(clarify.reason()));
   }
 
   private static boolean mappingGapSourceIsMissing(List<String> missingEvidence) {

@@ -10,6 +10,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTri
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ElementRole;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ElementSkeleton;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.SelectedPattern;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /**
  * Projects CREATE compiler seed artifacts from the graph Java already compiled from the approved
@@ -90,8 +91,7 @@ final class CompilerCreateSeedProjector {
   }
 
   static boolean isTriggerType(String type) {
-    String normalized = normalizeType(type);
-    return normalized.endsWith("-trigger") || normalized.equals("quartz-scheduler");
+    return ChainElementFamilies.isTrigger(normalizeType(type));
   }
 
   private static String normalizeType(String type) {

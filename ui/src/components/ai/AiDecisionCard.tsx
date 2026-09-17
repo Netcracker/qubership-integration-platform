@@ -27,6 +27,7 @@ const ACTION_LABELS: Record<string, string> = {
   "import-specification": "Import specification",
   "import-specification-internal": "Import as internal",
   "import-specification-external": "Import as external",
+  "continue-to-planning": "Continue to planning",
   clarify: "Clarify",
   "request-changes": "Request changes",
   "deploy-chain": "Deploy",

@@ -139,7 +139,8 @@ public class CompilerGraphPatchTool {
       If the skill is not applicable, set notApplicable=true and keep all patch arrays empty
       (do not invent node/edge/property/chain patches). Omit notApplicable or set false for
       normal patches.
-      ownerCapabilityId must match the skill being executed.
+      ownerCapabilityId must match the skill being executed. Always send notApplicable explicitly:
+      false for a normal patch, true only for the empty not-applicable path.
       GraphPatch shape:
       {
         "patchId": "unique-id",
@@ -149,7 +150,7 @@ public class CompilerGraphPatchTool {
         "edgePatches": [],
         "propertyPatches": [
           {"operation": "ADD", "targetNodeId": "http-trigger-1", "key": "accessControlType",
-           "value": "RBAC"},
+           "scalarValue": "RBAC", "value": {}},
           {"operation": "ADD", "targetNodeId": "http-trigger-1", "key": "roles",
            "value": ["qip-viewer"]}
         ],
@@ -161,7 +162,9 @@ public class CompilerGraphPatchTool {
       node.properties must be an array of {key,value} objects. Prefer properties:[] when only changing labels.
       Never send a bare Groovy string or string array as properties.
       Only cip-script-generator may set property key "script" (bodies). Other skills must omit it.
-      Property and chain patches use key plus structured value (string, number, boolean, array, or object).
+      Property patches use scalarValue for strings, numbers, and booleans. Use value only for arrays
+      and objects. When the tool schema requires value beside scalarValue, send value={} and the server
+      will use scalarValue. Chain patches use key plus structured value.
       Do not put JSON arrays or objects inside string values.""")
   public String captureGraphPatch(GraphPatchCapture patch) {
 
@@ -440,7 +443,10 @@ public class CompilerGraphPatchTool {
   private String completenessSummary(List<String> unmet, ChainPlanGraph graph) {
     List<String> modelRepairSignals =
         unmet.stream()
-            .filter(signal -> !"incomplete_service_call_bindings".equals(signal))
+            .filter(
+                signal ->
+                    !"incomplete_service_call_bindings".equals(signal)
+                        && !"incomplete_kafka_sender_configuration".equals(signal))
             .toList();
     StringBuilder summary =
         new StringBuilder(repairMessageBuilder.completenessSummary(modelRepairSignals));
@@ -464,6 +470,17 @@ public class CompilerGraphPatchTool {
       readinessEvaluator
           .serviceCallBindingSchemaFailure(graph)
           .ifPresent(detail -> summary.append(" Schema detail: ").append(detail));
+    }
+    if (unmet.contains("incomplete_kafka_sender_configuration")) {
+      List<String> missing = readinessEvaluator.kafkaSenderNodesMissingConfiguration(graph);
+      if (!missing.isEmpty()) {
+        summary
+            .append(" Kafka sender configuration is incomplete on node ids: ")
+            .append(String.join(", ", missing))
+            .append(". Set connectionSourceType and the required branch properties in one patch:")
+            .append(" maas requires topicsClassifierName; manual requires brokers,")
+            .append(" securityProtocol, saslMechanism, and topics.");
+      }
     }
     return summary.toString();
   }
@@ -495,9 +512,10 @@ public class CompilerGraphPatchTool {
   private PropertyPatch toPropertyPatch(
       String conversationId, GraphPatchCapture patch, PropertyPatchCapture propertyPatch) {
     String elementType = resolveTargetNodeType(conversationId, patch, propertyPatch.targetNodeId());
+    JsonNode capturedValue = capturedPropertyValue(elementType, propertyPatch);
     if (elementType != null) {
       Optional<String> validationError = schemaService.validateCapturePropertyValue(
-          elementType, propertyPatch.key(), propertyPatch.value());
+          elementType, propertyPatch.key(), capturedValue);
       if (validationError.isPresent()) {
         throw new IllegalArgumentException(
             "node '"
@@ -507,11 +525,13 @@ public class CompilerGraphPatchTool {
                 + ") property '"
                 + propertyPatch.key()
                 + "': "
-                + validationError.get());
+                + validationError.get()
+                + "; received value: "
+                + capturedValue);
       }
     }
     try {
-      String asString = propertyValueToString(propertyPatch.value());
+      String asString = propertyValueToString(capturedValue);
       if (asString != null
           && !asString.isBlank()
           && !"script".equals(propertyPatch.key())
@@ -531,6 +551,17 @@ public class CompilerGraphPatchTool {
     } catch (JsonProcessingException e) {
       throw new IllegalArgumentException(e.getMessage(), e);
     }
+  }
+
+  private JsonNode capturedPropertyValue(
+      String elementType, PropertyPatchCapture propertyPatch) {
+    if (propertyPatch.scalarValue() != null && !propertyPatch.scalarValue().isBlank()) {
+      Object coerced =
+          schemaService.coercePatchPropertyValue(
+              elementType, propertyPatch.key(), propertyPatch.scalarValue());
+      return objectMapper.valueToTree(coerced);
+    }
+    return propertyPatch.value();
   }
 
   private String resolveTargetNodeType(

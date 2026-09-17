@@ -85,10 +85,11 @@ public class CatalogFirstApiHubDiscoveryTool {
   @Tool("""
       Resolve one catalog-backed interaction, inbound or outbound. This tool always checks the
       local runtime catalog first. It calls API Hub only when the catalog has no matching service
-      and operation. Pass interactionId from the stored RequirementFlow. Do not decide SERVICE_CALL
-      first and do not repeat interaction prose. Give HTTP method and path only as optional
-      narrowing hints. If status is CATALOG_BOUND, recapture with that interactionId; do not copy
-      catalog UUIDs by hand. If status is APIHUB_CANDIDATES, select one result with
+      and operation. Pass interactionId from the stored RequirementFlow. The stored direction
+      determines whether the interaction becomes an entry point or a service call; catalog lookup
+      does not change that role. Do not repeat interaction prose. Give HTTP method and path only as
+      optional narrowing hints. If status is CATALOG_BOUND, recapture with that interactionId; do
+      not copy catalog UUIDs by hand. If status is APIHUB_CANDIDATES, select one result with
       selectApiHubCandidate using the same interactionId. If status is AMBIGUOUS, ask the reader
       to choose; never search API Hub for an ambiguous local catalog match. If status is
       INCOMPLETE, ask the reader for the fields listed in missingFields; do not guess them. On a
@@ -113,6 +114,12 @@ public class CatalogFirstApiHubDiscoveryTool {
     RequirementFlow.Interaction interaction = storedInteraction(conversationId, resolvedInteractionId);
     if (interaction == null) {
       return error("Capture RequirementFlow before resolving interactionId=" + resolvedInteractionId);
+    }
+    if (isNativeDirectInteraction(conversationId, interaction)) {
+      return error(
+          "interactionId="
+              + resolvedInteractionId
+              + " is a direct endpoint and must not use catalog or API Hub resolution");
     }
     InteractionAssessment.Intent intent = intentFrom(interaction, method, path, specificationHint);
 
@@ -280,6 +287,17 @@ public class CatalogFirstApiHubDiscoveryTool {
       return null;
     }
     return draft.flow().interaction(interactionId).orElse(null);
+  }
+
+  private boolean isNativeDirectInteraction(
+      String conversationId, RequirementFlow.Interaction interaction) {
+    if (draftStore == null || conversationId == null || conversationId.isBlank()) {
+      return false;
+    }
+    return draftStore
+        .get(conversationId)
+        .map(draft -> RequirementFlowValidator.isNativeDirectInteraction(interaction, draft.facts()))
+        .orElse(false);
   }
 
   private static InteractionAssessment.Intent intentFrom(

@@ -11,6 +11,14 @@ elements:
       type: http-trigger
       container: false
       deprecated: false
+  chain-trigger-2:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-chain-trigger-2
+    runtimeDescriptor:
+      type: chain-trigger-2
+      container: false
+      deprecated: false
   kafka-trigger-2:
     containmentRoles: {}
     requiredProperties:
@@ -46,6 +54,18 @@ elements:
     materializationRuleId: materialize-service-call
     runtimeDescriptor:
       type: service-call
+      container: false
+      deprecated: false
+  kafka-sender-2:
+    containmentRoles: {}
+    requiredProperties:
+      - connectionSourceType
+      - sslProtocol
+      - keySerializer
+      - valueSerializer
+    materializationRuleId: materialize-kafka-sender-2
+    runtimeDescriptor:
+      type: kafka-sender-2
       container: false
       deprecated: false
   chain-call-2:

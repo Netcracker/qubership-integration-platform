@@ -27,6 +27,9 @@ public final class PipelineGates {
   /** The run asks whether to write an integration design document. */
   public static final String IDS_PATH_CHOICE = "ids-path-choice";
 
+  /** Requirement discovery is complete and waits for an explicit move into planning. */
+  public static final String REQUIREMENT_DRAFT_READY = "requirement-draft-ready";
+
   /** The design needs field mappings, or permission to pass the payload through as-is. */
   public static final String MAPPING_GAP = "mapping-gap";
 

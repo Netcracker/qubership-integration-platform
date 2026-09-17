@@ -41,6 +41,7 @@ class DesignPlanContractValidatorTest {
           Map.entry("error", "cip-error-handling-generator"),
           Map.entry("reuse-block", "cip-composition-generator"),
           Map.entry("reuse-ref", "cip-composition-generator"),
+          Map.entry("send-kafka", "cip-service-call-generator"),
           Map.entry("script-behavior", "cip-script-generator"));
 
   private final DesignPlanContractValidator validator = new DesignPlanContractValidator();
@@ -296,6 +297,9 @@ class DesignPlanContractValidatorTest {
     nodes.add(
         new SemanticNode.Operation(
             "reuse-ref", "reuse-reference", new SemanticProvenance(List.of())));
+    nodes.add(
+        new SemanticNode.Operation(
+            "send-kafka", "kafka-sender-2", new SemanticProvenance(List.of())));
     List<SemanticRegion> regions =
         List.of(
             new SemanticRegion.Sequence("sequence", List.of("node-call")),
@@ -372,6 +376,9 @@ class DesignPlanContractValidatorTest {
       return TargetKind.BEHAVIOR_NODE;
     }
     if ("reuse-block".equals(targetId) || "reuse-ref".equals(targetId)) {
+      return TargetKind.ELEMENT_NODE;
+    }
+    if ("send-kafka".equals(targetId)) {
       return TargetKind.ELEMENT_NODE;
     }
     return TargetKind.REGION;

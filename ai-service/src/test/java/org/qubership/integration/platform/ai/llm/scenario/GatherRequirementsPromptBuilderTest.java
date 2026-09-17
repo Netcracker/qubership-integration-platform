@@ -62,7 +62,8 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("Capture RequirementFlow before catalog lookup"), input);
     assertTrue(input.contains("searchCatalogSystems does not bind"));
     assertTrue(input.contains("after the flow is stored"), input);
-    assertTrue(input.contains("with the interactionId from the stored flow"), input);
+    assertTrue(input.contains("only for catalog-backed interactions"), input);
+    assertTrue(input.contains("direct http-trigger, chain-trigger-2, or http-sender"), input);
     assertTrue(input.contains("empty openQuestions"), input);
     assertFalse(input.contains("after you pick a catalog operation"), input);
     assertFalse(input.contains("with serviceCallId"), input);
@@ -120,6 +121,9 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("already ready"), input);
     assertTrue(input.contains("finishRequirementDiscoveryTurn"), input);
     assertTrue(input.contains("searchRequirementKnowledge"), input);
+    assertTrue(input.contains("Do not show source names or identifiers"), input);
+    assertTrue(input.contains("write exactly one final answer"), input);
+    assertFalse(input.contains("Cite the returned source names"), input);
     assertTrue(input.contains("Capture accepted requirement changes only"), input);
     assertTrue(input.contains("STAY"), input);
     assertTrue(input.contains("CONTINUE"), input);

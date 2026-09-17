@@ -161,7 +161,8 @@ public final class RequirementBriefCoverageValidator {
   /**
    * Empty brief service-call lists stay a coverage no-op so v1 briefs that only pin facts still
    * pass. A non-empty list must cover every draft {@code serviceCallId}, and every call must carry
-   * a catalog binding that names it.
+   * a catalog binding that names it. Native direct outbound elements are projected as service
+   * calls for topology purposes, but do not require catalog bindings.
    *
    * <p>Requiring the binding here is what keeps an unbound call from reaching design execution,
    * where nothing upstream can still resolve it and the run can only ask the author again.
@@ -264,6 +265,9 @@ public final class RequirementBriefCoverageValidator {
                 + call.operation());
       }
       CatalogBindingHint hint = call.catalogBinding();
+      if (hint == null && isNativeDirectOutboundCall(brief, call)) {
+        continue;
+      }
       if (hint == null) {
         return Optional.of(
             "requirement brief service call has no catalog binding, serviceCallId="
@@ -283,6 +287,15 @@ public final class RequirementBriefCoverageValidator {
       }
     }
     return Optional.empty();
+  }
+
+  private static boolean isNativeDirectOutboundCall(
+      RequirementBrief brief, RequirementServiceCall call) {
+    return brief
+        .flow()
+        .interaction(call.serviceCallId())
+        .filter(interaction -> RequirementFlowValidator.isNativeDirectInteraction(interaction, brief.facts()))
+        .isPresent();
   }
 
   private static Map<String, RequirementServiceCall> indexCalls(

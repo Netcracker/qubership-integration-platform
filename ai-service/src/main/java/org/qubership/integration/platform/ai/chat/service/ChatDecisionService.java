@@ -85,6 +85,7 @@ public class ChatDecisionService {
             .flatMap(
                 snapshot ->
                     Optional.ofNullable(snapshot.pendingAction())
+                        .filter(pending -> !ChatEvent.isSilentClarification(pending))
                         .map(
                             pending ->
                                 (ChatEvent.Decision)
@@ -500,7 +501,8 @@ public class ChatDecisionService {
   }
 
   private static boolean isPipelineInputAction(String action) {
-    return ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(action)
+    return ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(action)
+        || ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(action)
         || ChatEvent.MAPPING_GAP_ACTIONS.contains(action)
         || ChatEvent.RETRY_CREATION_ACTION.equals(action)
         || ChatEvent.EDIT_REQUIREMENTS_ACTION.equals(action)

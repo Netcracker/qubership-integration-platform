@@ -63,7 +63,7 @@ public record CompilerExecutionSeed(
   /** Pattern is projected from the compiled graph, so CREATE does not run this skill. */
   public static final String PATTERN_SELECTOR_SKILL = "cip-pattern-selector";
 
-  /** Triggers are projected from the compiled graph, so CREATE does not run this skill. */
+  /** Trigger generator skill identifier. */
   public static final String TRIGGER_GENERATOR_SKILL = "cip-trigger-generator";
 
   /** Upstream CREATE skills that a property-only edit never runs. */
@@ -109,9 +109,8 @@ public record CompilerExecutionSeed(
 
   /**
    * CREATE seed after design-execution compiled the semantic revision. The workspace already holds
-   * the revision, the compiled graph, structure, pattern, and trigger set, so {@code
-   * cip-structure-generator}, {@code cip-pattern-selector}, and {@code cip-trigger-generator} do
-   * not run again.
+   * the revision, the compiled graph, structure, pattern, and trigger set. Structure and pattern
+   * projection are complete, while the trigger generator still owns endpoint configuration.
    */
   public static CompilerExecutionSeed forCreate(
       String conversationId,
@@ -171,8 +170,7 @@ public record CompilerExecutionSeed(
         Set.of(
             REQUIREMENT_ANALYZER_SKILL,
             STRUCTURE_GENERATOR_SKILL,
-            PATTERN_SELECTOR_SKILL,
-            TRIGGER_GENERATOR_SKILL));
+            PATTERN_SELECTOR_SKILL));
   }
 
   /**

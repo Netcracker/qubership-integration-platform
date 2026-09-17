@@ -32,6 +32,10 @@ public record RequirementFlow(List<Interaction> interactions, List<Transition> t
   @JsonIgnoreProperties(ignoreUnknown = true)
   public record Interaction(
       String interactionId,
+      @Description(
+              "INBOUND only when this interaction starts chain execution and has no predecessor;"
+                  + " OUTBOUND when the chain invokes it after an entry point. Catalog operation"
+                  + " verbs do not determine this role")
       Direction direction,
       String participant,
       String operation,

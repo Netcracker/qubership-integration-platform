@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTrigger;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTriggerSet;
+import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 class ConfiguredTriggerSetCaptureToolTest {
 
@@ -31,7 +32,10 @@ class ConfiguredTriggerSetCaptureToolTest {
     session = new CaptureSession();
     tool =
         new ConfiguredTriggerSetCaptureTool(
-            session, new ObjectMapper(), new CaptureAttemptFeedbackStore());
+            session,
+            new ObjectMapper(),
+            new CaptureAttemptFeedbackStore(),
+            DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()));
     org.jboss.logmanager.MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
   }
 
@@ -60,6 +64,41 @@ class ConfiguredTriggerSetCaptureToolTest {
 
     assertTrue(result.contains("triggers"));
     assertFalse(
+        session.isPresent(CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, CONVERSATION_ID)));
+  }
+
+  @Test
+  void rejectsAllInvalidTriggerPropertiesBeforeCapture() {
+    ConfiguredTriggerSet invalid =
+        new ConfiguredTriggerSet(
+            1,
+            List.of(
+                new ConfiguredTrigger(
+                    "entry",
+                    "http-trigger-1",
+                    "http-trigger",
+                    "Customer API",
+                    List.of(
+                        new PlanProperty("externalRoute", "external"),
+                        new PlanProperty("privateRoute", "private"),
+                        new PlanProperty("unknownProperty", "value")))),
+            List.of(),
+            List.of());
+
+    String result = tool.captureConfiguredTriggerSet(invalid);
+
+    assertTrue(result.contains("externalRoute"), result);
+    assertTrue(result.contains("privateRoute"), result);
+    assertTrue(result.contains("unknownProperty"), result);
+    assertFalse(
+        session.isPresent(CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, CONVERSATION_ID)));
+
+    CaptureValidationException accepted =
+        assertThrows(
+            CaptureValidationException.class, () -> tool.captureConfiguredTriggerSet(validTriggerSet()));
+
+    assertTrue(accepted.getMessage().contains("captured"), accepted.getMessage());
+    assertTrue(
         session.isPresent(CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, CONVERSATION_ID)));
   }
 

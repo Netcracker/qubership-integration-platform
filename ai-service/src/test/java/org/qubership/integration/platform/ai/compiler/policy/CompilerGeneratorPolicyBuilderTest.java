@@ -46,9 +46,10 @@ class CompilerGeneratorPolicyBuilderTest {
 
   @Test
   void readinessSignalsForServiceCallGeneratorIncludesIncompleteBindings() {
-    assertTrue(
-        policy.readinessSignalsFor("cip-service-call-generator")
-            .contains("incomplete_service_call_bindings"));
+    List<String> signals = policy.readinessSignalsFor("cip-service-call-generator");
+
+    assertTrue(signals.contains("incomplete_service_call_bindings"));
+    assertTrue(signals.contains("incomplete_kafka_sender_configuration"));
   }
 
   @Test

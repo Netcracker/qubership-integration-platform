@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -69,6 +70,22 @@ class CompilerCreateSeedProjectorTest {
   }
 
   @Test
+  void chainTriggerIsCopiedIntoCompilerSeed() {
+    ChainPlanGraph graph =
+        graph(
+            new ChainPlanNode(
+                "chain-entry", "chain-trigger-2", "Start from parent chain", null, null, List.of()));
+
+    ElementSkeleton skeleton = CompilerCreateSeedProjector.skeleton(graph, "GP-01");
+    ConfiguredTriggerSet triggers = CompilerCreateSeedProjector.triggerSet(graph);
+
+    assertEquals(List.of("chain-entry"), skeleton.entryPointRoleIds());
+    assertEquals("chain-trigger-2", role(skeleton, "chain-entry").elementType());
+    assertEquals(1, triggers.triggers().size());
+    assertEquals("chain-trigger-2", triggers.triggers().get(0).elementType());
+  }
+
+  @Test
   void completeTaskSkeletonKeepsBehaviorOwnedScriptRole() {
     ChainPlanGraph graph =
         graph(
@@ -90,7 +107,7 @@ class CompilerCreateSeedProjectorTest {
   }
 
   @Test
-  void createSeedPreSatisfiesPatternAndTriggerSkills() {
+  void createSeedLeavesTriggerGeneratorRunnable() {
     ChainPlanGraph graph =
         graph(new ChainPlanNode("http-in", "http-trigger", "In", null, null, List.of()));
     CompilerExecutionSeed seed =
@@ -98,7 +115,7 @@ class CompilerCreateSeedProjectorTest {
             "conv-1", emptyBrief(), SemanticFixtures.linearOrders(), graph, List.of());
 
     assertTrue(seed.preSatisfiedSkillIds().contains(CompilerExecutionSeed.PATTERN_SELECTOR_SKILL));
-    assertTrue(seed.preSatisfiedSkillIds().contains(CompilerExecutionSeed.TRIGGER_GENERATOR_SKILL));
+    assertFalse(seed.preSatisfiedSkillIds().contains(CompilerExecutionSeed.TRIGGER_GENERATOR_SKILL));
     assertTrue(seed.presentArtifactTypes().contains("SELECTED_PATTERN"));
     assertTrue(seed.presentArtifactTypes().contains("ELEMENT_SKELETON"));
     assertTrue(seed.presentArtifactTypes().contains("CONFIGURED_TRIGGER_SET"));
