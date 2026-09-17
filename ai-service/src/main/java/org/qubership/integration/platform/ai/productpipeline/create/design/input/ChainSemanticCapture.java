@@ -23,7 +23,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
  * {@code anyOf} branches.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-record ChainSemanticCapture(
+public record ChainSemanticCapture(
     @Description("Short chain name, e.g. orders-intake") String chainIdentity,
     @Description("Processing nodes such as script, mapper-2, condition, split, loop, or try-catch")
         List<CapturedOperation> operations,
@@ -44,7 +44,7 @@ record ChainSemanticCapture(
     @Description("Parent-child relations for container nodes; omit when there is no container")
         List<CapturedContainment> containment) {
 
-  ChainSemanticCapture {
+  public ChainSemanticCapture {
     operations = copy(operations);
     sequenceRegions = copy(sequenceRegions);
     conditionRegions = copy(conditionRegions);
@@ -60,7 +60,7 @@ record ChainSemanticCapture(
    * Compatibility constructor used by tests that still pass captured entry points and triggers. The
    * server ignores those lists and materializes interaction anchors from the approved brief.
    */
-  ChainSemanticCapture(
+  public ChainSemanticCapture(
       String chainIdentity,
       List<CapturedEntryPoint> entryPoints,
       List<CapturedTrigger> triggers,
