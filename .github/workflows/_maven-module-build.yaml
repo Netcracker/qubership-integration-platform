@@ -23,10 +23,9 @@ on:
         type: boolean
         default: false
         description: >-
-          Pass -U to Maven (force re-check of release/snapshot resolution).
-          Enable for modules with private GitHub Packages deps (micro-engine):
-          the OWNER/* wildcard repo intermittently fails under load, and Maven
-          negative-caches the miss inside the restored ~/.m2. -U defeats that.
+          Pass -U so Maven re-checks snapshots and cached misses instead of
+          trusting the restored ~/.m2. Enable for micro-engine: its
+          com.netcracker.cloud BOMs import 1.0.0-SNAPSHOT BOMs from GitHub Packages.
       ensure-openapi-spec:
         required: false
         type: boolean
@@ -67,25 +66,26 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: "21"
           distribution: "temurin"
           # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
 
-      # setup-java's built-in maven cache restores on an exact pom-hash key only.
-      # Every release rewrites the poms in a [skip ci] commit, so the tree the
-      # next run checks out was never cached and the restore always missed. A
-      # prefix fallback gives a warm start, and keying per module stops the Java
-      # jobs in a wave from racing for one entry — only the first to finish could
-      # save it, and the rest logged "Unable to reserve cache".
-      - name: Cache the Maven repository
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Every release rewrites the poms in a [skip ci] commit, so an exact pom-hash
+      # key would always miss; the module prefix gives a warm start, and any module's
+      # cache covers a module Main Build does not build on its own. Only main saves
+      # the cache: a pull request's copy is visible to that pull request alone, and
+      # a copy per pull request fills the repository quota.
+      - name: Restore the Maven repository
+        id: maven-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             maven-${{ runner.os }}-${{ inputs.module }}-
+            maven-${{ runner.os }}-
 
       - name: Build and verify (no publish)
         env:
@@ -106,6 +106,13 @@ jobs:
             -pl $MODULE_NAME \
             -am \
             -Dgpg.skip=true
+
+      - name: Save the Maven repository
+        if: ${{ github.ref == 'refs/heads/main' && steps.maven-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.m2/repository
+          key: ${{ steps.maven-cache.outputs.cache-primary-key }}
 
       - name: Upload Sonar inputs
         if: ${{ inputs.sonar-project-key != '' }}
@@ -146,7 +153,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: "21"
           distribution: "temurin"
@@ -154,19 +161,15 @@ jobs:
           # mirroring the build job — micro-engine needs the private BOMs to assemble
           # its effective POM.
 
-      # setup-java's built-in maven cache restores on an exact pom-hash key only.
-      # Every release rewrites the poms in a [skip ci] commit, so the tree the
-      # next run checks out was never cached and the restore always missed. A
-      # prefix fallback gives a warm start, and keying per module stops the Java
-      # jobs in a wave from racing for one entry — only the first to finish could
-      # save it, and the rest logged "Unable to reserve cache".
-      - name: Cache the Maven repository
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Restores the cache the build job saves on main.
+      - name: Restore the Maven repository
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             maven-${{ runner.os }}-${{ inputs.module }}-
+            maven-${{ runner.os }}-
 
       - name: Pre-install integration-build-library into .m2
         if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}
@@ -176,7 +179,7 @@ jobs:
             -DskipTests -Dgpg.skip=true -Dcheckstyle.skip=true
 
       - name: Download Sonar inputs
-        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           name: ${{ inputs.module }}-target
           path: ${{ inputs.module }}/target
@@ -216,25 +219,21 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: "21"
           distribution: "temurin"
           # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
 
-      # setup-java's built-in maven cache restores on an exact pom-hash key only.
-      # Every release rewrites the poms in a [skip ci] commit, so the tree the
-      # next run checks out was never cached and the restore always missed. A
-      # prefix fallback gives a warm start, and keying per module stops the Java
-      # jobs in a wave from racing for one entry — only the first to finish could
-      # save it, and the rest logged "Unable to reserve cache".
-      - name: Cache the Maven repository
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      # Restores the cache the build job saves on main.
+      - name: Restore the Maven repository
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.m2/repository
           key: maven-${{ runner.os }}-${{ inputs.module }}-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             maven-${{ runner.os }}-${{ inputs.module }}-
+            maven-${{ runner.os }}-
 
       - name: Pre-install integration-build-library into .m2
         if: ${{ inputs.preinstall-integration-build-pipeline-library == true }}

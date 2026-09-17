@@ -1,3 +1,5 @@
+import { useTableSetting } from "../../components/table/useTableSetting";
+import type { ControlledTableSort } from "../../components/table/useTableConfiguration";
 import React, {
   useCallback,
   useEffect,
@@ -110,6 +112,7 @@ export const testCaseRunsListSource: TestingListSource<TestCaseRunView> = {
 };
 
 export type UseTestingEntityListOptions<T> = {
+  storageKey?: string;
   source: TestingListSource<T>;
   chainId?: string;
   filters: EntityFilterModel[];
@@ -132,6 +135,7 @@ export type TestingEntityList<T> = {
   exportEntities: (ids: string[]) => Promise<void>;
   sortBy?: string;
   sortOrder?: TestingSortOrder;
+  tableSort: ControlledTableSort;
   handleTableChange: NonNullable<TableProps<T>["onChange"]>;
   selectedRowKeys: React.Key[];
   selectAllMatching: boolean;
@@ -199,6 +203,7 @@ function toNameMap(entities: NamedEntity[]): Map<string, string> {
  */
 export function useTestingEntityList<T extends { id: string }>({
   source,
+  storageKey,
   chainId,
   filters,
   searchString,
@@ -210,8 +215,26 @@ export function useTestingEntityList<T extends { id: string }>({
   const [items, setItems] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [allLoaded, setAllLoaded] = useState(false);
-  const [sortBy, setSortBy] = useState(initialSortBy);
-  const [sortOrder, setSortOrder] = useState(initialSortOrder);
+  const [sorting, setSorting] = useTableSetting<{
+    sortBy?: string;
+    sortOrder?: TestingSortOrder;
+  }>(storageKey, "serverSort", {
+    sortBy: initialSortBy,
+    sortOrder: initialSortOrder,
+  });
+  const { sortBy, sortOrder } = sorting;
+  const tableSort = useMemo<ControlledTableSort>(
+    () => ({
+      key: sortBy,
+      order:
+        sortOrder === TestingSortOrder.ASC
+          ? "ascend"
+          : sortOrder === TestingSortOrder.DESC
+            ? "descend"
+            : null,
+    }),
+    [sortBy, sortOrder],
+  );
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [selectAllMatching, setSelectAllMatching] = useState(false);
   const itemsRef = useRef<T[]>([]);
@@ -486,10 +509,12 @@ export function useTestingEntityList<T extends { id: string }>({
   const handleTableChange = useCallback<NonNullable<TableProps<T>["onChange"]>>(
     (_pagination, _tableFilters, sorter) => {
       const { columnKey, order } = Array.isArray(sorter) ? sorter[0] : sorter;
-      setSortBy(order ? String(columnKey) : undefined);
-      setSortOrder(order ? SORT_ORDER_BY_ANTD_ORDER[order] : undefined);
+      setSorting({
+        sortBy: order ? String(columnKey) : undefined,
+        sortOrder: order ? SORT_ORDER_BY_ANTD_ORDER[order] : undefined,
+      });
     },
-    [],
+    [setSorting],
   );
 
   const chainNames = useMemo(() => toNameMap(chains), [chains]);
@@ -516,6 +541,7 @@ export function useTestingEntityList<T extends { id: string }>({
     exportEntities,
     sortBy,
     sortOrder,
+    tableSort,
     handleTableChange,
     selectedRowKeys,
     selectAllMatching,

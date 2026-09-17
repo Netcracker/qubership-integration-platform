@@ -4,8 +4,41 @@
 
 import "@testing-library/jest-dom";
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { TableToolbar } from "../../../src/components/table/TableToolbar.tsx";
+
+const requestFailed = jest.fn();
+
+jest.mock("../../../src/hooks/useNotificationService", () => ({
+  useNotificationService: () => ({ requestFailed }),
+}));
+
+jest.mock("../../../src/permissions/ProtectedButton", () => ({
+  ProtectedButton: ({
+    buttonProps,
+  }: {
+    buttonProps: {
+      onClick?: () => void;
+      loading?: boolean;
+      disabled?: boolean;
+      "aria-label"?: string;
+    };
+  }) => (
+    <button
+      aria-label={buttonProps["aria-label"]}
+      onClick={buttonProps.onClick}
+      disabled={buttonProps.loading || buttonProps.disabled}
+    >
+      Refresh
+    </button>
+  ),
+}));
 
 jest.mock("../../../src/components/table/CompactSearch.tsx", () => ({
   CompactSearch: jest.fn(
@@ -40,6 +73,7 @@ const CompactSearchMock = jest.mocked(CompactSearch);
 describe("TableToolbar", () => {
   beforeEach(() => {
     CompactSearchMock.mockClear();
+    requestFailed.mockClear();
   });
 
   it("renders search, column settings, and actions in order", () => {
@@ -158,5 +192,38 @@ describe("TableToolbar", () => {
     );
     const withCustom = container.querySelector(".custom-actions");
     expect(withCustom).toBeInTheDocument();
+  });
+
+  it("prevents another refresh until the request completes", async () => {
+    let finish!: () => void;
+    const onRefresh = jest.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<TableToolbar refresh={{ onRefresh }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    await act(async () => finish());
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
+  });
+
+  it("reports a failed refresh and allows retry", async () => {
+    const error = new Error("Unavailable");
+    const onRefresh = jest.fn().mockRejectedValue(error);
+    render(<TableToolbar refresh={{ onRefresh }} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+    await waitFor(() =>
+      expect(requestFailed).toHaveBeenCalledWith(
+        "Failed to refresh table",
+        error,
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Refresh" })).toBeEnabled();
   });
 });

@@ -1,4 +1,5 @@
-import { Breadcrumb, Button, Flex, Table } from "antd";
+import { Table } from "antd";
+import { Breadcrumb, Button, Flex } from "antd";
 import { message, modal } from "../misc/antd-app.ts";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { useNavigate, useSearchParams } from "react-router";
@@ -60,7 +61,7 @@ import {
 } from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
-import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
@@ -1089,25 +1090,30 @@ const Chains = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<ChainTableItem>("chainsTable", columns);
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        name: 220,
-        id: 200,
-        description: 240,
-        status: 200,
-        labels: 200,
-        createdBy: 120,
-        createdWhen: 168,
-        modifiedBy: 120,
-        modifiedWhen: 168,
-      },
-      {
-        expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
-        selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
-      },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      name: 220,
+      id: 200,
+      description: 240,
+      status: 200,
+      labels: 200,
+      createdBy: 120,
+      createdWhen: 168,
+      modifiedBy: 120,
+      modifiedWhen: 168,
+    },
+    {
+      expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
+    },
+    "chainsTable",
+  );
 
   const rowSelection: TableRowSelection<ChainTableItem> = {
     type: "checkbox",
@@ -1138,6 +1144,7 @@ const Chains = () => {
     <>
       <Flex vertical gap={16} className={styles.container}>
         <TableToolbar
+          refresh={{ onRefresh: updateFolderItems, loading: isLoading }}
           leading={
             <Flex
               align="center"
@@ -1265,6 +1272,7 @@ const Chains = () => {
           locale={{ emptyText: tableEmpty("No chains or folders") }}
           scroll={tableScroll(scrollX, tableItems.length)}
           components={components}
+          onChange={handleConfiguredTableChange}
           rowKey="id"
           rowClassName={(record) =>
             [

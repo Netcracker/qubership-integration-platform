@@ -1,8 +1,4 @@
-import {
-  ActionLog,
-  EntityType,
-  LogOperation,
-} from "../../api/apiTypes.ts";
+import { ActionLog, EntityType, LogOperation } from "../../api/apiTypes.ts";
 import {
   Badge,
   Button,
@@ -32,8 +28,8 @@ import {
 import {
   attachResizeToColumns,
   sumScrollXForColumns,
-  useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { matchesByFields } from "../table/tableSearch.ts";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
@@ -195,17 +191,25 @@ export const ActionsLog: React.FC = () => {
 
   const [containerRef, containerHeight] = useResizeHeight<HTMLElement>();
 
-  const actionLogColumnResize = useTableColumnResize({
-    actionTime: 180,
-    username: 150,
-    operation: 150,
-    entityType: 160,
-    entityName: 260,
-    parentName: 200,
-    entityId: 200,
-    parentId: 200,
-    requestId: 200,
-  });
+  const {
+    columnResize: actionLogColumnResize,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration<ActionLog>(
+    undefined,
+    {
+      actionTime: 180,
+      username: 150,
+      operation: 150,
+      entityType: 160,
+      entityName: 260,
+      parentName: 200,
+      entityId: 200,
+      parentId: 200,
+      requestId: 200,
+    },
+    {},
+    "actionsLogTable",
+  );
 
   const [openSidebar, setOpenSidebar] = useState(false);
 
@@ -445,6 +449,7 @@ export const ActionsLog: React.FC = () => {
 
   const auditToolbar = (
     <TableToolbar
+      refresh={{ onRefresh: refresh, loading: isLoading || isFetching }}
       variant="admin"
       search={{
         value: searchTerm,
@@ -456,12 +461,6 @@ export const ActionsLog: React.FC = () => {
       filterButton={filterButton}
       actions={
         <>
-          <Tooltip title="Refresh" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="refresh" />}
-              onClick={() => void refresh()}
-            />
-          </Tooltip>
           {!(isLoading || isFetching) && (
             <Require permissions={{ actionLog: ["export"] }}>
               <Tooltip title="Export action logs" placement="bottom">
@@ -569,6 +568,7 @@ export const ActionsLog: React.FC = () => {
               loading={isFetching}
               onScroll={(event) => void onScroll(event)}
               components={actionLogColumnResize.resizableHeaderComponents}
+              onChange={handleConfiguredTableChange}
               onRow={(row) => {
                 return {
                   onClick: () => {

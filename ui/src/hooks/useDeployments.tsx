@@ -52,7 +52,7 @@ export const useDeployments = (
     }
     setIsLoading(true);
     try {
-      return api.getDeployments(chainId);
+      return await api.getDeployments(chainId);
     } catch (error) {
       notificationService.requestFailed("Failed to load deployments", error);
       return [];
@@ -103,7 +103,13 @@ export const useDeployments = (
     [deployments],
   );
 
+  const refresh = useCallback(
+    () => getDeployments().then(setDeployments),
+    [getDeployments],
+  );
+
   return {
+    refresh,
     isLoading,
     deployments,
     setDeployments,

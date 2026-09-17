@@ -9,7 +9,7 @@ import { useNotificationService } from "../../../hooks/useNotificationService.ts
 import { VariableImportPreview } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { api } from "../../../api/api.ts";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { tableScroll } from "../../table/tableScroll.ts";
 
 interface Props {
@@ -35,7 +35,7 @@ const ImportVariablesModal = ({ onSuccess }: Props) => {
   );
 
   const { columnResize, columnsWithResize, components } =
-    useColumnsWithResizeAndScroll(previewColumns, {
+    useTableConfiguration(previewColumns, {
       name: 220,
       value: 280,
     });
