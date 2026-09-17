@@ -24,7 +24,13 @@ export const JsonParametersEditor: React.FC<JsonParametersEditorProps> = ({
     <Button
       type="link"
       size="small"
-      style={{ padding: 0, textAlign: "left", height: "auto" }}
+      style={{
+        padding: 0,
+        textAlign: "left",
+        height: "auto",
+        maxWidth: "100%",
+        overflow: "hidden",
+      }}
       aria-label={`Edit ${documentParameterName}`}
       onClick={() =>
         showModal({
