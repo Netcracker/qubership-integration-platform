@@ -532,7 +532,15 @@ final class GeneratorPatchRegressionHarness {
                         "integrationOperationPath",
                         "integrationOperationProtocolType",
                         "integrationOperationMethod")),
-                entry("http-sender", Set.of("httpMethod", "uri")),
+                entry(
+                    "http-sender",
+                    Set.of(
+                        "httpMethod",
+                        "uri",
+                        "isExternalCall",
+                        "m2m",
+                        "propagateContext",
+                        "reuseEstablishedConnection")),
                 entry(
                     "kafka-sender-2",
                     Set.of(

@@ -280,6 +280,29 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  void productionCreateChainPinOwnsHttpSenderRuntimeOptionsOnServiceCallGenerator() {
+    CompilerRunPin pin =
+        resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
+
+    GraphPatchOwnershipPolicy ownership =
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-service-call-generator".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .ownership();
+
+    assertEquals(
+        Set.of(
+            "httpMethod",
+            "uri",
+            "isExternalCall",
+            "m2m",
+            "propagateContext",
+            "reuseEstablishedConnection"),
+        ownership.properties().get("http-sender"));
+  }
+
+  @Test
   void runPinRetainsEffectiveOwnership() {
     CompilerRunPin pin = resolver.resolve(createChainProfile, fullKnowledgeContext);
     GraphPatchOwnershipPolicy policy =
