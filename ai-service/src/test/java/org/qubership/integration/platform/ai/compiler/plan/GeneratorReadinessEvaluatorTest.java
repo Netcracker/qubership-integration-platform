@@ -713,6 +713,53 @@ class GeneratorReadinessEvaluatorTest {
   }
 
   @Test
+  void unmetCompletenessFlagsMissingServiceCallErrorThrowing() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("proxy", "Proxy"),
+            List.of(
+                new ChainPlanNode(
+                    "call-1",
+                    "service-call",
+                    "Call inventory",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("integrationSystemId", "sys-1"),
+                        new PlanProperty("integrationOperationId", "op-1")))),
+            List.of());
+
+    List<String> unmet =
+        evaluator.unmetCompleteness(List.of("incomplete_service_call_error_throwing"), graph);
+
+    assertEquals(List.of("incomplete_service_call_error_throwing"), unmet);
+    assertEquals(List.of("call-1"), evaluator.serviceCallNodesMissingErrorThrowing(graph));
+  }
+
+  @Test
+  void unmetCompletenessClearsWhenServiceCallHasErrorThrowing() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("proxy", "Proxy"),
+            List.of(
+                new ChainPlanNode(
+                    "call-1",
+                    "service-call",
+                    "Call inventory",
+                    null,
+                    null,
+                    List.of(new PlanProperty("errorThrowing", "true")))),
+            List.of());
+
+    assertTrue(
+        evaluator
+            .unmetCompleteness(List.of("incomplete_service_call_error_throwing"), graph)
+            .isEmpty());
+  }
+
+  @Test
   void unmetCompletenessFlagsKafkaSenderWithIncompleteManualConnection() {
     ChainPlanGraph graph =
         new ChainPlanGraph(

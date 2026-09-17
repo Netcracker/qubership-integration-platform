@@ -1,7 +1,51 @@
 lockfile_version: '1'
-generated_at: '2026-07-24T18:19:54.844726+00:00'
+generated_at: '2026-09-14T14:57:33.324737+00:00'
 apm_version: 0.26.0
 dependencies:
+- repo_url: _local/integration-platform-skills
+  name: integration-platform-skills
+  version: 0.2.0
+  package_type: apm_package
+  deployed_files:
+  - .agents/skills/rocky-binding-mapping
+  - .agents/skills/rocky-binding-mapping/SKILL.md
+  - .agents/skills/rocky-binding-mapping/references/commands.md
+  - .agents/skills/rocky-binding-mapping/references/progress.md
+  - .agents/skills/rocky-binding-mapping/references/recovery-boundaries.md
+  - .claude/rules/cip-bugfix-gate.md
+  - .claude/rules/cip-design-gate.md
+  - .claude/rules/cip-ids-sequence-diagram-only.md
+  - .claude/rules/cip-validation-gate.md
+  - .claude/skills/rocky-binding-mapping
+  - .claude/skills/rocky-binding-mapping/SKILL.md
+  - .claude/skills/rocky-binding-mapping/references/commands.md
+  - .claude/skills/rocky-binding-mapping/references/progress.md
+  - .claude/skills/rocky-binding-mapping/references/recovery-boundaries.md
+  - .cursor/rules/cip-bugfix-gate.mdc
+  - .cursor/rules/cip-design-gate.mdc
+  - .cursor/rules/cip-ids-sequence-diagram-only.mdc
+  - .cursor/rules/cip-validation-gate.mdc
+  deployed_file_hashes:
+    .agents/skills/rocky-binding-mapping/SKILL.md: sha256:9e437751e388a304d952181b8dd527f1430e901f1f30bac408a13a9154df1f3c
+    .agents/skills/rocky-binding-mapping/references/commands.md: sha256:41104e8b033ba9493a6102752b0574d9564162dbcb61f303505b5a5b8a7cdec8
+    .agents/skills/rocky-binding-mapping/references/progress.md: sha256:58307dcfd1f50ea05a33a3b09e65d77ad41d1d9fdba13e488867c785fbd11d67
+    .agents/skills/rocky-binding-mapping/references/recovery-boundaries.md: sha256:f64d281fdad1698e82cede0abfb851e752f91a23207ef608b081317e0f2585a6
+    .claude/rules/cip-bugfix-gate.md: sha256:e832724e2939cf7f302306d0561ec595f52805bac07c0ebabd8b225951513d2d
+    .claude/rules/cip-design-gate.md: sha256:37bf714d624131aa387ba97eb070fb4e8669791d36f8afa7c6a4143d7c03fc8d
+    .claude/rules/cip-ids-sequence-diagram-only.md: sha256:054b3e31821e0322c6eb17e72e3450f60d296f91e31643f82519df2e9aec1122
+    .claude/rules/cip-validation-gate.md: sha256:b8e67d8a715250ccaf6bc48ff17abd50d544fdb42f0eba4605dfc9e4b62b28c4
+    .claude/skills/rocky-binding-mapping/SKILL.md: sha256:9e437751e388a304d952181b8dd527f1430e901f1f30bac408a13a9154df1f3c
+    .claude/skills/rocky-binding-mapping/references/commands.md: sha256:41104e8b033ba9493a6102752b0574d9564162dbcb61f303505b5a5b8a7cdec8
+    .claude/skills/rocky-binding-mapping/references/progress.md: sha256:58307dcfd1f50ea05a33a3b09e65d77ad41d1d9fdba13e488867c785fbd11d67
+    .claude/skills/rocky-binding-mapping/references/recovery-boundaries.md: sha256:f64d281fdad1698e82cede0abfb851e752f91a23207ef608b081317e0f2585a6
+    .cursor/rules/cip-bugfix-gate.mdc: sha256:eeed807fcca5fa41eed22a6f48a9fbefde43d019ecb15d5752905e21e9d300e8
+    .cursor/rules/cip-design-gate.mdc: sha256:439306cc195794d4a068524726999b26cfb54f42ac01fd898b6a8dbb1b589d52
+    .cursor/rules/cip-ids-sequence-diagram-only.mdc: sha256:5df5286652368ab2780a44c40ea48ddcb5d6e56fecb42188abbc62300f7aeffb
+    .cursor/rules/cip-validation-gate.mdc: sha256:cf1cad7f4203d4f120ad56eb2bd29c9a7cff14625783aa5b1b9a783989bc78bf
+  source: local
+  local_path: ./integration-platform-skills
+  skill_subset:
+  - rocky-binding-mapping
 - repo_url: netcracker/qubership-ai-agent-telemetry
   name: ai-agent-telemetry
   host: github.com
@@ -203,6 +247,42 @@ deployments:
   content_hash: sha256:5c4185d3d69333a810c01f5e26a8ea46b033e7082a21f1551433d6c97d8a24a2
 - kind: project-relative
   target: claude
+  value: .claude/rules/cip-bugfix-gate.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:e832724e2939cf7f302306d0561ec595f52805bac07c0ebabd8b225951513d2d
+- kind: project-relative
+  target: claude
+  value: .claude/rules/cip-design-gate.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:37bf714d624131aa387ba97eb070fb4e8669791d36f8afa7c6a4143d7c03fc8d
+- kind: project-relative
+  target: claude
+  value: .claude/rules/cip-ids-sequence-diagram-only.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:054b3e31821e0322c6eb17e72e3450f60d296f91e31643f82519df2e9aec1122
+- kind: project-relative
+  target: claude
+  value: .claude/rules/cip-validation-gate.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:b8e67d8a715250ccaf6bc48ff17abd50d544fdb42f0eba4605dfc9e4b62b28c4
+- kind: project-relative
+  target: claude
   value: .claude/rules/docs-authoring.md
   runtime: null
   scope: project
@@ -327,6 +407,51 @@ deployments:
   - netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   content_hash: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
+- kind: project-relative
+  target: claude
+  value: .claude/skills/rocky-binding-mapping
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: null
+- kind: project-relative
+  target: claude
+  value: .claude/skills/rocky-binding-mapping/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:9e437751e388a304d952181b8dd527f1430e901f1f30bac408a13a9154df1f3c
+- kind: project-relative
+  target: claude
+  value: .claude/skills/rocky-binding-mapping/references/commands.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:41104e8b033ba9493a6102752b0574d9564162dbcb61f303505b5a5b8a7cdec8
+- kind: project-relative
+  target: claude
+  value: .claude/skills/rocky-binding-mapping/references/progress.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:58307dcfd1f50ea05a33a3b09e65d77ad41d1d9fdba13e488867c785fbd11d67
+- kind: project-relative
+  target: claude
+  value: .claude/skills/rocky-binding-mapping/references/recovery-boundaries.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:f64d281fdad1698e82cede0abfb851e752f91a23207ef608b081317e0f2585a6
 - kind: project-relative
   target: claude
   value: .claude/skills/ui-api-and-utilities
@@ -472,6 +597,51 @@ deployments:
   active_owner: netcracker/qubership-ai-packages/agent-packages/english-us-developer-style
   content_hash: sha256:c91fecf2c209428808e1c9ffc0cbe6cd735bd0786e266be533620e8164367da7
 - kind: project-relative
+  target: codex
+  value: .agents/skills/rocky-binding-mapping
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: null
+- kind: project-relative
+  target: codex
+  value: .agents/skills/rocky-binding-mapping/SKILL.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:9e437751e388a304d952181b8dd527f1430e901f1f30bac408a13a9154df1f3c
+- kind: project-relative
+  target: codex
+  value: .agents/skills/rocky-binding-mapping/references/commands.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:41104e8b033ba9493a6102752b0574d9564162dbcb61f303505b5a5b8a7cdec8
+- kind: project-relative
+  target: codex
+  value: .agents/skills/rocky-binding-mapping/references/progress.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:58307dcfd1f50ea05a33a3b09e65d77ad41d1d9fdba13e488867c785fbd11d67
+- kind: project-relative
+  target: codex
+  value: .agents/skills/rocky-binding-mapping/references/recovery-boundaries.md
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:f64d281fdad1698e82cede0abfb851e752f91a23207ef608b081317e0f2585a6
+- kind: project-relative
   target: cursor
   value: .cursor/rules/apm-authoring.mdc
   runtime: null
@@ -480,6 +650,42 @@ deployments:
   - netcracker/qubership-ai-packages/agent-packages/apm-authoring
   active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
   content_hash: sha256:fbc8f94d4f0b94c04a0ed042ee06f1f48244fdac316f0ce15e2d38b0affbb9aa
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/cip-bugfix-gate.mdc
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:eeed807fcca5fa41eed22a6f48a9fbefde43d019ecb15d5752905e21e9d300e8
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/cip-design-gate.mdc
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:439306cc195794d4a068524726999b26cfb54f42ac01fd898b6a8dbb1b589d52
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/cip-ids-sequence-diagram-only.mdc
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:5df5286652368ab2780a44c40ea48ddcb5d6e56fecb42188abbc62300f7aeffb
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/cip-validation-gate.mdc
+  runtime: null
+  scope: project
+  owners:
+  - ./integration-platform-skills
+  active_owner: ./integration-platform-skills
+  content_hash: sha256:cf1cad7f4203d4f120ad56eb2bd29c9a7cff14625783aa5b1b9a783989bc78bf
 - kind: project-relative
   target: cursor
   value: .cursor/rules/docs-authoring.mdc

@@ -59,7 +59,14 @@ class HaltProducerCauseTableTest {
             OwnerDiagnosis.of("The brief omitted the scheduler.", "analysis"),
             List.of(new OwnerCandidate("analysis", "requirement-brief")));
 
-    assertEquals("State the access policy in the requirements.", sentence);
+    assertEquals("Set accessControlType on the HTTP trigger in the requirements.", sentence);
+  }
+
+  @Test
+  void securityPolicySelectsThePlanProducerCategory() {
+    assertEquals(
+        FindingOwnerCategory.PLAN_FILL,
+        HaltProducerCauseTable.ownerCategory(RecoveryCauseCode.SECURITY_POLICY));
   }
 
   @Test

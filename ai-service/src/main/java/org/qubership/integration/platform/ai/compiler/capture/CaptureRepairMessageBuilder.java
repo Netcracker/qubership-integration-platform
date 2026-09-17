@@ -311,6 +311,10 @@ public class CaptureRepairMessageBuilder {
         "Catalog identity for each service-call operation branch is server-owned and already"
             + " hydrated. Do not add or modify catalog identity properties; set only"
             + " generator-owned execution properties.");
+    instructions.put(
+        "incomplete_service_call_error_throwing",
+        "Each service-call needs errorThrowing. Set true to fail the chain, or false to return an"
+            + " inline response.");
     return Map.copyOf(instructions);
   }
 }

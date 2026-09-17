@@ -303,15 +303,25 @@ public class CatalogFirstApiHubDiscoveryTool {
               "interactionId="
                   + interaction.interactionId()
                   + " is a direct endpoint and must not use catalog or API Hub resolution");
-      case ASK ->
-          error(
-              "interactionId="
-                  + interaction.interactionId()
-                  + ": element type or HTTP mode is not decided; capture a CAPABILITY fact"
-                  + " on this interaction before calling resolveApiOperation");
+      case ASK -> outboundAskAllowsExplicitResolve(interaction);
       case REJECT_UNSUPPORTED -> error("MCP trigger is not supported in create-chain yet.");
       case REQUIRE -> null;
     };
+  }
+
+  /**
+   * Auto-lookup stays off for ASK. An explicit {@code resolveApiOperation} on outbound is how the
+   * model classifies a catalog service call. Inbound ASK is still an undecided HTTP trigger mode.
+   */
+  private String outboundAskAllowsExplicitResolve(RequirementFlow.Interaction interaction) {
+    if (interaction.direction() == RequirementFlow.Direction.OUTBOUND) {
+      return null;
+    }
+    return error(
+        "interactionId="
+            + interaction.interactionId()
+            + ": element type or HTTP mode is not decided; capture a CAPABILITY fact"
+            + " on this interaction before calling resolveApiOperation");
   }
 
   private static InteractionAssessment.Intent intentFrom(

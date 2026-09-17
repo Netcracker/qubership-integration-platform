@@ -40,6 +40,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 @ApplicationScoped
 public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerExecutionRunner {
 
+  /** Always scoped on CREATE so RBAC is not dropped when the plan treated it as topology. */
+  static final String SECURITY_GENERATOR_SKILL_ID = "cip-security-generator";
+
   private final CompilerDagExecutionEngine engine;
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineArtifactStore artifactStore;
@@ -217,6 +220,9 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
    * {@code all-generation-skills} macro. Walking that list would run quartz, retry, and the rest
    * on a HealthProxy CREATE. Seed the walk from non-terminal owners only, then attach assembler
    * and Validation nodes and drop {@code dependsOn} edges that point outside the cut.
+   *
+   * <p>{@code cip-security-generator} is always seeded when it exists in the pin. Access control
+   * is properties on the HTTP trigger, not a plan step, so the planner may omit this skill.
    */
   static Set<String> skillClosureIds(
       DesignExecutionPlan plan, ResolvedCompilerDag fullDag) {
@@ -266,6 +272,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
         queue.addLast(skillId);
       }
     }
+    enqueueAlwaysScheduledGenerator(byId, queue);
     while (!queue.isEmpty()) {
       String skillId = queue.removeFirst();
       ResolvedCompilerNode node = byId.get(skillId);
@@ -275,6 +282,14 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       enqueueDependencies(queue, node);
     }
     return closure;
+  }
+
+  private static void enqueueAlwaysScheduledGenerator(
+      LinkedHashMap<String, ResolvedCompilerNode> byId, ArrayDeque<String> queue) {
+    ResolvedCompilerNode security = byId.get(SECURITY_GENERATOR_SKILL_ID);
+    if (security != null && !isExecutionTerminal(security)) {
+      queue.addLast(SECURITY_GENERATOR_SKILL_ID);
+    }
   }
 
   private static void enqueueDependencies(ArrayDeque<String> queue, ResolvedCompilerNode node) {

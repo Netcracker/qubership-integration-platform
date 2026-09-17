@@ -63,6 +63,7 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("searchCatalogSystems does not bind"));
     assertTrue(input.contains("after the flow is stored"), input);
     assertTrue(input.contains("only for catalog-backed interactions"), input);
+    assertTrue(input.contains("no sender CAPABILITY"), input);
     assertTrue(input.contains("sftp-trigger-2"), input);
     assertTrue(input.contains("mail-sender"), input);
     assertTrue(input.contains("mcp-trigger"), input);

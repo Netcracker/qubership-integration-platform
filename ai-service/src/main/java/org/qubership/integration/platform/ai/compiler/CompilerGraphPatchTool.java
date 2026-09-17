@@ -471,6 +471,15 @@ public class CompilerGraphPatchTool {
           .serviceCallBindingSchemaFailure(graph)
           .ifPresent(detail -> summary.append(" Schema detail: ").append(detail));
     }
+    if (unmet.contains("incomplete_service_call_error_throwing")) {
+      List<String> missing = readinessEvaluator.serviceCallNodesMissingErrorThrowing(graph);
+      if (!missing.isEmpty()) {
+        summary
+            .append(" Service-call errorThrowing is missing on node ids: ")
+            .append(String.join(", ", missing))
+            .append(". Patch errorThrowing; do not capture an empty patch.");
+      }
+    }
     if (unmet.contains("incomplete_kafka_sender_configuration")) {
       List<String> missing = readinessEvaluator.kafkaSenderNodesMissingConfiguration(graph);
       if (!missing.isEmpty()) {
