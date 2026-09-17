@@ -9,7 +9,8 @@ The **Testing** group is the cross-chain view of the testing feature. Where the 
 
 A **test run** is a set of test cases started together. It is created whenever test cases are run - from a chain, or from the cross-chain list here - and it records one **test case run** per test case it holds. Because the cross-chain list is not limited to a single chain, a run started from it can hold test cases of several different chains.
 
-> ℹ️ **Note:** The **Testing** group appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the group hidden until an operator switches the mode, as described under [Testing Service Mode](../../01__Chains/8__Testing/testing.md#testing-service-mode). On a production installation the group is hidden, the chain-level **Testing** tab is hidden with it, and a direct link to a testing address lands on the "not found" page. Testing is a development and verification feature; it is not intended for production installations.
+> ℹ️ **Note:** The **Testing** group appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the group hidden until an operator switches the mode, as described under [Testing Service Mode](../../01__Chains/8__Testing/testing.md#testing-service-mode).
+> On a production installation the group is hidden, the chain-level **Testing** tab is hidden with it, and a direct link to a testing address lands on the "not found" page. Testing is a development and verification feature; it is not intended for production installations.
 
 ## User Interface
 

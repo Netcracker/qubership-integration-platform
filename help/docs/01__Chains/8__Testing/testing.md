@@ -13,7 +13,8 @@ The **Testing** tab collects everything needed to exercise a single chain withou
 
 Test cases and endpoint mocks are handled by a separate testing service, which reads the chain configuration from the runtime catalog and calls the deployed chain through the engine. The chain therefore has to be [deployed](../3__Deployments/deployments.md) before a test case can run, and the trigger a test case points at has to be an **HTTP Trigger** with a configured context path - no other trigger type can be activated.
 
-> ℹ️ **Note:** The **Testing** tab appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the tab hidden until an operator switches the mode, as described under [Testing Service Mode](#testing-service-mode). On a production installation the tab is hidden, the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) is hidden with it, and a direct link to a testing address lands on the "not found" page.
+> ℹ️ **Note:** The **Testing** tab appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the tab hidden until an operator switches the mode, as described under [Testing Service Mode](#testing-service-mode).
+> On a production installation the tab is hidden, the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) is hidden with it, and a direct link to a testing address lands on the "not found" page.
 
 ## User Interface
 
