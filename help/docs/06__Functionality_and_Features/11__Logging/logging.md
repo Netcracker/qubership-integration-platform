@@ -8,7 +8,7 @@
 
 During the operating, Cloud Integration Platform has a capability of producing logs in according to the settings. There are multiple types of logs and structures that are utilized for different purposes. In a global sense, logs are essential to track the system behavior and capture specific events in order to analyze them and promptly provide a fix if necessary. All details about each particular logging aspect are mentioned below under respective section.
 
-![](img/cip_logs.svg)
+![Logging Diagram](img/cip_logs.svg)
 
 ### Microservice Logs
 
@@ -31,25 +31,25 @@ Message consist from two different parts:
 
 Following table contains list of CIP-specific parameters, that will be added **on top of** the standardized list.
 
-| Param              | Availability               | Description                                                                                                           |
-|:-------------------|:---------------------------|:----------------------------------------------------------------------------------------------------------------------|
-| session\_id        | All types of calls         | Session id.                                                                                                           |
-| chain\_id          | All types of calls         | Chain id, object id of the chain, available in chain list.                                                            |
-| correlation\_id    | All types of calls         | When correlation id is available it will be logged. This id's purpose is to logically connect multiple session on UI. |
-| chain              | All types of calls         | Chain name.                                                                                                           |
-| chain\_element\_id | All types of calls         | Object id of the element within the chain, that produced the message.                                                 |
-| chain\_element     | All types of calls         | Chain element name.                                                                                                   |
-| log\_type          | Inbound and outbound calls | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.                    |
-| url                | REST outbound calls        | Url, to where call has been passed.                                                                                   |
-| responseCode       | REST outbound calls        | Response code, received from source. Blank if direction = request                                                     |
-| responseTime       | REST outbound calls        | Response time, shows call processing time in **milliseconds**. Blank if direction = request                           |
-| direction          | REST outbound calls        | Shows the direction of the call. Possible values: <br/>- request<br>- response                                        |
+| Param              | Availability               | Description                                                                                                     |
+|:-------------------|:---------------------------|:----------------------------------------------------------------------------------------------------------------|
+| session\_id        | All types of calls         | Session id.                                                                                                     |
+| chain\_id          | All types of calls         | Chain id, object id of the chain, available in chain list.                                                      |
+| correlation\_id    | All types of calls         | When correlation id is available it will be logged. Its purpose is to logically connect multiple session on UI. |
+| chain              | All types of calls         | Chain name.                                                                                                     |
+| chain\_element\_id | All types of calls         | Object id of the element within the chain, that produced the message.                                           |
+| chain\_element     | All types of calls         | Chain element name.                                                                                             |
+| log\_type          | Inbound and outbound calls | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.              |
+| url                | REST outbound calls        | URL, to where call has been passed.                                                                             |
+| responseCode       | REST outbound calls        | Response code, received from source. Blank if direction = request                                               |
+| responseTime       | REST outbound calls        | Response time, shows call processing time in **milliseconds**. Blank if direction = request                     |
+| direction          | REST outbound calls        | Shows the direction of the call. Possible values: <br/>- request<br>- response                                  |
 
 **Message sample for successful REST inbound call:**
 
 **Text format**
 
-```
+```text
 2022-08-17T10:11:07.129388551Z [2022-08-17T10:11:07.129][INFO ] [request_id=1660731067128.0.7228021061350399] [tenant_id=cloud-common ] [traceId=- ] [spanId=- ] [originating_bi_id=- ] [business_identifiers=- ] [thread=0.0-8080-exec-8] [class=o.q.i.platform.engine.service.debugger.CamelDebugger        ] [method=logBeforeProcessByType ] [session_id=b702f2b9-58fa-4f24-8ccb-f7c9a59ad329] [chain_id=ff3ecdb8-1907-4435-8aa1-32061b341ecc] [chain=New Chain ] [chain_element_id=54b43763-8338-4a6a-80ea-2a60d3ae412c] [chain_element=HTTP Trigger ] [log_type=int] Get request from trigger. Headers: {CamelHttpUrl=http://localhost:8092/routes/test1, X-Request-Id=1660731067128.0.7228021061350399}, body: <body not logged>, exchange properties: {}
 ```
 
@@ -647,6 +647,7 @@ Body
 
 
 Headers
+
 ```json
 {
     "x-version": "v2",
@@ -654,6 +655,7 @@ Headers
 	"x-idempotency-key": "4a1c6r8e-7c41-2e0e-1c0b-5b2a6d4c8f93" 
 }
 ``` 
+
 Body
 
 ```json
