@@ -40,7 +40,7 @@ Following table contains list of CIP-specific parameters, that will be added **o
 | chain\_element\_id | All types of calls         | Object id of the element within the chain, that produced the message.                                           |
 | chain\_element     | All types of calls         | Chain element name.                                                                                             |
 | log\_type          | Inbound and outbound calls | Constant, always equals to "int". This parameter is being set only for inbound and outbound calls.              |
-| url                | REST outbound calls        | URL, to where call has been passed.                                                                             |
+| `url`              | REST outbound calls        | URL, to where call has been passed.                                                                             |
 | responseCode       | REST outbound calls        | Response code, received from source. Blank if direction = request                                               |
 | responseTime       | REST outbound calls        | Response time, shows call processing time in **milliseconds**. Blank if direction = request                     |
 | direction          | REST outbound calls        | Shows the direction of the call. Possible values: <br/>- request<br>- response                                  |
@@ -414,7 +414,7 @@ Message sample:
                 "bodyBefore": "",
                 "bodyAfter": "",
                 "headersBefore": {
-                    "postman-token": "5d2950e0-06c0-41ea-bb92-1aa976594145",
+                    "postman-token": "00000000-0000-0000-0000-000000000000",
                     "cor": "cor",
                     "x-forwarded-port": "80",
                     "x-envoy-original-path": "/cip-routes/demo1808",
@@ -446,7 +446,7 @@ Message sample:
                     "x-envoy-internal": "true",
                     "x-request-id": "40227f0140b3ee6dcef133efd92a7b2e",
                     "x-forwarded-proto": "http",
-                    "postman-token": "5d2950e0-06c0-41ea-bb92-1aa976594145",
+                    "postman-token": "00000000-0000-0000-0000-000000000000",
                     "CamelHttpCharacterEncoding": "UTF-8",
                     "cor": "cor",
                     "x-forwarded-port": "80",
@@ -536,7 +536,7 @@ Headers
 {
     "x-version": "v2",
     "x-version-name": "active",
-	"x-idempotency-key": "3f9c2b8e-7c41-4e0e-9c0b-1b2a6d4c8f93"
+	"x-idempotency-key": "00000000-0000-0000-0000-000000000000"
 }
 ```
 Body
@@ -569,7 +569,7 @@ Headers
 {
     "x-version": "v2",
     "x-version-name": "active",
-	"x-idempotency-key": "3f9c2b8e-7c41-4e0e-9c0b-1b2a6d4c8f93"
+	"x-idempotency-key": "00000000-0000-0000-0000-000000000000"
 }
 ```
 
@@ -601,7 +601,7 @@ Headers
 {
     "x-version": "v3",
     "x-version-name": "candidate",
-	"x-idempotency-key": "3f9c2b8e-7c41-4e0e-9c0b-1b2a6d4c8f93" 
+	"x-idempotency-key": "00000000-0000-0000-0000-000000000000" 
 }
 ```
 Body
@@ -652,7 +652,7 @@ Headers
 {
     "x-version": "v2",
     "x-version-name": "active",
-	"x-idempotency-key": "4a1c6r8e-7c41-2e0e-1c0b-5b2a6d4c8f93" 
+	"x-idempotency-key": "00000000-0000-0000-0000-000000000000" 
 }
 ```
 
