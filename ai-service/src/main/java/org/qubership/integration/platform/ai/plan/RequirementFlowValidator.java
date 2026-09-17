@@ -291,7 +291,7 @@ public final class RequirementFlowValidator {
                 + " has unknown catalog operation direction");
       }
       if (interaction.direction() == Direction.INBOUND
-          && catalogDirection.get() != CatalogOperationDirection.PRODUCED_BY_SYSTEM) {
+          && !inboundCatalogDirectionAllowed(interaction, factList, catalogDirection.get())) {
         return Optional.of(
             "requirement flow interaction "
                 + interactionId
@@ -442,6 +442,18 @@ public final class RequirementFlowValidator {
       return LookupAction.ASK;
     }
     return LookupAction.ASK;
+  }
+
+  private static boolean inboundCatalogDirectionAllowed(
+      Interaction interaction,
+      List<RequirementFact> facts,
+      CatalogOperationDirection catalogDirection) {
+    if (catalogDirection == CatalogOperationDirection.PRODUCED_BY_SYSTEM) {
+      return true;
+    }
+    return catalogDirection == CatalogOperationDirection.CONSUMED_BY_SYSTEM
+        && inboundCapabilityKey(interaction, facts).filter("http-trigger"::equals).isPresent()
+        && requiresCatalogBinding(interaction, facts);
   }
 
   private static boolean hasMcpTriggerFact(String interactionId, List<RequirementFact> facts) {
