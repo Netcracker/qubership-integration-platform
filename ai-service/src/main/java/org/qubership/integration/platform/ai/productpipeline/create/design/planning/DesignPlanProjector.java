@@ -810,14 +810,36 @@ public final class DesignPlanProjector {
     return remaining.isEmpty() ? null : remaining.getFirst();
   }
 
+  private static final Set<String> TRIGGER_COVERAGE_OWNERS =
+      Set.of(
+          "cip-trigger-generator",
+          "cip-http-trigger-endpoint-generator",
+          "cip-messaging-generator",
+          "cip-quartz-scheduler-generator",
+          "cip-sds-trigger-generator",
+          "cip-sftp-trigger-generator");
+
   private static void validateTriggerCoverage(ParsedPlannerReport parsed) {
     boolean hasTrigger =
-        parsed.steps().stream()
-            .anyMatch(step -> step.owningSkillIds().contains("cip-trigger-generator"));
+        parsed.steps().stream().anyMatch(DesignPlanProjector::coversEntryPointTrigger);
     if (!hasTrigger) {
       throw new PlannerContractException(
-          "planner report missing trigger coverage (cip-trigger-generator)");
+          "planner report missing trigger coverage (entry-point producer skill)");
     }
+  }
+
+  private static boolean coversEntryPointTrigger(ParsedPlannerReport.Step step) {
+    for (String skillId : step.owningSkillIds()) {
+      if (TRIGGER_COVERAGE_OWNERS.contains(skillId)) {
+        return true;
+      }
+      if (SERVICE_CALL_GENERATOR_SKILL_ID.equals(skillId)
+          && step.reportText() != null
+          && step.reportText().toLowerCase(Locale.ROOT).contains("trigger")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static void validateScriptMappingCoverage(
