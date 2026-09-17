@@ -190,7 +190,9 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
                         needToExecuteBulk = false;
                     }
                 } catch (Exception e) {
-                    log.error("While sessions writing an error has occurred", e);
+                    log.error("While sessions writing an error has occurred (retry {}/{}), next attempt in {}ms. queueSize={}, currentPayloadKb={}",
+                        currentRetry, RETRY_COUNT_ON_WRITE_ERROR, currentWriteTimeout,
+                        sessionElementsQueue.size(), queueTotalPayloadSize.get() / 1024, e);
                     increaseWriteTimeout();
                     if (currentRetry < RETRY_COUNT_ON_WRITE_ERROR) {
                         currentRetry++;
@@ -278,13 +280,19 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
 
     protected void scheduleElementToLog(SessionElementElastic element, boolean addToCache) {
         long payloadSize = calculatePayloadSizeInBytes(element);
-        if (queueTotalPayloadSize.get() >= queueMaxSizeBytes
-                || !sessionElementsQueue.offer(
+        long currentPayload = queueTotalPayloadSize.get();
+        if (currentPayload >= queueMaxSizeBytes) {
+            log.error("Queue of opensearch elements is full, element is not added (PAYLOAD LIMIT): currentPayloadKb={}, maxPayloadKb={}, queueSize={}, sessionId={}, elementId={}, writerBackoffMs={}",
+                currentPayload / 1024, queueMaxSizeBytes / 1024,
+                sessionElementsQueue.size(), element.getSessionId(), element.getId(), currentWriteTimeout);
+        } else if (!sessionElementsQueue.offer(
                 QueueElement.builder()
                         .element(element)
                         .calculatedPayloadSize(payloadSize)
                         .build())) {
-            log.error("Queue of opensearch elements is full, element is not added");
+            log.error("Queue of opensearch elements is full, element is not added (CAPACITY LIMIT): queueSize={}, currentPayloadKb={}, sessionId={}, elementId={}, writerBackoffMs={}",
+                sessionElementsQueue.size(), currentPayload / 1024,
+                element.getSessionId(), element.getId(), currentWriteTimeout);
         } else {
             queueTotalPayloadSize.addAndGet(payloadSize);
         }
