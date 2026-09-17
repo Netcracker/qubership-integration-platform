@@ -1,12 +1,21 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.planning;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.Claim;
@@ -24,6 +33,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SplitMode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class DesignPlanContractValidatorTest {
@@ -283,6 +296,89 @@ class DesignPlanContractValidatorTest {
         DesignPlanContractFinding.Code.OWNER_TARGET_MISMATCH,
         TargetKind.ELEMENT_NODE,
         "send-http");
+  }
+
+  @Test
+  void customHttpTriggerExpectsEndpointOwnerWithoutCatalogBinding() {
+    ChainSemanticRevision revision = DesignPlanTestFixtures.revision();
+    SemanticEntryPoint entry = revision.entryPoints().getFirst();
+    RequirementBrief brief =
+        DesignPlanTestFixtures.brief()
+            .withCatalogBindings(List.of())
+            .withFacts(List.of(RequirementFactFixtures.httpTriggerFact("entry-1", "POST", "/orders")));
+
+    assertEquals(
+        "cip-http-trigger-endpoint-generator",
+        DesignPlanContractValidator.ownerForEntryPoint(entry, revision, brief));
+  }
+
+  @Test
+  void implementedServiceHttpTriggerExpectsServiceCallOwnerWhenBindingPresent() {
+    ChainSemanticRevision revision = DesignPlanTestFixtures.revision();
+    SemanticEntryPoint entry = revision.entryPoints().getFirst();
+    CatalogBindingHint binding =
+        new CatalogBindingHint(
+            CatalogBindingHint.SCHEMA_VERSION,
+            "entry-1",
+            "entry-1",
+            "POST /orders",
+            "sys-orders",
+            "sg-orders",
+            "spec-orders",
+            "op-orders",
+            "http",
+            "POST",
+            "/orders",
+            "v1",
+            Instant.EPOCH,
+            "catalog-read:sys-orders/spec-orders/op-orders");
+    RequirementBrief brief =
+        DesignPlanTestFixtures.brief()
+            .withFacts(
+                List.of(
+                    RequirementFactFixtures.implementedServiceHttpTriggerFact(
+                        "entry-1", "Orders API", "createOrder")))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction(
+                            "entry-1", Direction.INBOUND, "Orders API", "createOrder", "")),
+                    List.of()))
+            .withCatalogBindings(List.of(binding));
+
+    assertEquals(
+        DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID,
+        DesignPlanContractValidator.ownerForEntryPoint(entry, revision, brief));
+  }
+
+  @Test
+  void ambiguousHttpTriggerDoesNotDefaultToEndpointWhenBindingMissing() {
+    ChainSemanticRevision revision = DesignPlanTestFixtures.revision();
+    SemanticEntryPoint entry = revision.entryPoints().getFirst();
+    RequirementBrief brief =
+        new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withFacts(
+                List.of(
+                    new RequirementFact(
+                        "entry-1",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "http-trigger",
+                        "Expose an HTTP API",
+                        "",
+                        "",
+                        "",
+                        "",
+                        "")))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(new Interaction("entry-1", Direction.INBOUND, "Caller", "HTTP API", "")),
+                    List.of()));
+
+    assertNull(DesignPlanContractValidator.ownerForEntryPoint(entry, revision, brief));
+    assertNotEquals(
+        "cip-http-trigger-endpoint-generator",
+        DesignPlanContractValidator.ownerForEntryPoint(entry, revision, brief));
   }
 
   @Test

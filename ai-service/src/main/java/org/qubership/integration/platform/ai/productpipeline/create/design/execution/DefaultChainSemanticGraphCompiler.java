@@ -12,7 +12,10 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.catalog.binding.ServiceCallCatalogIdentity;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator.LookupAction;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanEdge;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
@@ -665,8 +668,25 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
           || !"http-trigger".equals(trigger.capabilityKey())) {
         continue;
       }
-      CatalogBindingHint binding = bindingsByEntryPoint.get(semanticEntryPoint.entryPointId());
-      if (binding != null) {
+      Interaction interaction =
+          RequirementFlowValidator.interactionForEntryPoint(brief, semanticEntryPoint.entryPointId());
+      LookupAction lookupAction =
+          RequirementFlowValidator.catalogLookupAction(interaction, brief.facts());
+      if (lookupAction == LookupAction.SKIP) {
+        if (!approved.path().isBlank()) {
+          addProperty(extraByNode, trigger.nodeId(), "contextPath", approved.path());
+        }
+        if (!approved.httpMethod().isBlank()) {
+          addProperty(
+              extraByNode, trigger.nodeId(), "httpMethodRestrict", approved.httpMethod());
+        }
+        continue;
+      }
+      if (lookupAction == LookupAction.REQUIRE) {
+        CatalogBindingHint binding = bindingsByEntryPoint.get(semanticEntryPoint.entryPointId());
+        if (binding == null) {
+          continue;
+        }
         addProperty(extraByNode, trigger.nodeId(), "systemType", "INTEGRATION");
         addProperty(extraByNode, trigger.nodeId(), "integrationSystemId", binding.systemId());
         addProperty(
@@ -685,14 +705,6 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
         if (binding.method() != null && !binding.method().isBlank()) {
           addProperty(extraByNode, trigger.nodeId(), "httpMethodRestrict", binding.method());
         }
-        continue;
-      }
-      if (!approved.path().isBlank()) {
-        addProperty(extraByNode, trigger.nodeId(), "contextPath", approved.path());
-      }
-      if (!approved.httpMethod().isBlank()) {
-        addProperty(
-            extraByNode, trigger.nodeId(), "httpMethodRestrict", approved.httpMethod());
       }
     }
   }
