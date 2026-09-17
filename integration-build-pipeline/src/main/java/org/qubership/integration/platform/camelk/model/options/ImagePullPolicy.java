@@ -1,6 +1,6 @@
 package org.qubership.integration.platform.camelk.model.options;
 
-public enum ImagePoolPolicy {
+public enum ImagePullPolicy {
     Always,
     Never,
     IfNotPresent

@@ -13,7 +13,7 @@ public class ContainerOptions {
     private String image;
 
     @Builder.Default
-    private ImagePoolPolicy imagePoolPolicy = ImagePoolPolicy.IfNotPresent;
+    private ImagePullPolicy imagePullPolicy = ImagePullPolicy.IfNotPresent;
 
     @Builder.Default
     private Limits request = new Limits();
