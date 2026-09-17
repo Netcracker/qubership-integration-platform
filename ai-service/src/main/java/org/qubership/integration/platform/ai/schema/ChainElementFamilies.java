@@ -1,9 +1,17 @@
 package org.qubership.integration.platform.ai.schema;
 
+import java.util.HashSet;
 import java.util.Set;
 
 /** Semantic element families not expressible by schema metadata alone. */
 public final class ChainElementFamilies {
+
+  public enum BindingMode {
+    DIRECT,
+    CATALOG_REQUIRED,
+    HTTP_TRIGGER_DUAL_MODE,
+    UNSUPPORTED_IN_CREATE
+  }
 
   public static final Set<String> TRIGGERS = Set.of(
       "http-trigger",
@@ -17,6 +25,16 @@ public final class ChainElementFamilies {
       "rabbitmq-trigger-2",
       "sds-trigger",
       "sftp-trigger-2");
+
+  public static final Set<String> SENDERS = Set.of(
+      "graphql-sender",
+      "http-sender",
+      "jms-sender",
+      "kafka-sender-2",
+      "mail-sender",
+      "pubsub-sender",
+      "rabbitmq-sender-2",
+      "scs-sender");
 
   public static final Set<String> ROUTING = Set.of("condition", "choice", "if", "else", "when", "otherwise");
   public static final Set<String> ROUTING_MODERN = Set.of("condition", "if", "else");
@@ -39,6 +57,36 @@ public final class ChainElementFamilies {
 
   public static boolean isTrigger(String type) {
     return contains(TRIGGERS, type);
+  }
+
+  public static boolean isSender(String type) {
+    return contains(SENDERS, type);
+  }
+
+  public static BindingMode bindingMode(String elementType) {
+    if (elementType == null) {
+      throw new IllegalArgumentException("null");
+    }
+    String type = elementType.trim();
+    if ("http-trigger".equals(type)) {
+      return BindingMode.HTTP_TRIGGER_DUAL_MODE;
+    }
+    if ("async-api-trigger".equals(type)) {
+      return BindingMode.CATALOG_REQUIRED;
+    }
+    if ("mcp-trigger".equals(type)) {
+      return BindingMode.UNSUPPORTED_IN_CREATE;
+    }
+    if (isSender(type) || isTrigger(type)) {
+      return BindingMode.DIRECT;
+    }
+    throw new IllegalArgumentException(type);
+  }
+
+  public static Set<String> classifiedTriggerAndSenderTypes() {
+    Set<String> classified = new HashSet<>(TRIGGERS);
+    classified.addAll(SENDERS);
+    return Set.copyOf(classified);
   }
 
   public static boolean isTryCatchShell(String type) {
