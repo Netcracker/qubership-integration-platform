@@ -35,8 +35,8 @@ so only a caller reaching the service directly gets them. Set `pprof.enabled` to
 
 `GET /api/v1/mode` reports whether this is a live installation, and the frontend hides the operations that are unsafe
 there while it says so. An installation that names no mode is a live one. `PRODUCTION_MODE` is the flag every service
-of the platform reads, so a sandbox sets `PRODUCTION_MODE=false` once rather than naming this service; `production:
-false` in the file, or `QIP_TESTING_PRODUCTION=false`, overrides it for this service alone.
+of the platform reads, and the only source of the mode: a sandbox sets `PRODUCTION_MODE=false`. The mode has no key in
+the file and no `QIP_TESTING_` variable.
 
 Every other key can be overridden from the environment: uppercase it, replace the dots with underscores and prefix it
 with `QIP_TESTING_`. `QIP_TESTING_POSTGRES_DSN` sets `postgres.dsn`, `QIP_TESTING_EXECUTION_WORKERS` sets

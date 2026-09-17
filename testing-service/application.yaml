@@ -50,7 +50,6 @@ pprof:
   enabled: false
   bind: ":6060"
 
-# production is reported through GET /api/v1/mode, and the front end hides the
-# operations that are unsafe on a live installation while it is on. It is left
-# out here so that it stays on: an installation nobody told otherwise is treated
-# as a live one. Add `production: false` on a sandbox to show those operations.
+# The production mode is not read from this file. It comes from PRODUCTION_MODE,
+# the flag every service of the platform reads, and an installation that does
+# not set it is treated as a live one.

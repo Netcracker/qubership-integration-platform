@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -59,9 +60,8 @@ const (
 	apiVersionPath    = "/api-version"
 	// envPrefix selects the environment variables that override the file.
 	envPrefix = "QIP_TESTING_"
-	// productionModeEnv is the installation-wide flag, set on every service of
-	// the platform rather than on this one. QIP_TESTING_PRODUCTION overrides it,
-	// which is how a single service is moved off the installation's answer.
+	// productionModeEnv is the installation-wide flag every service of the
+	// platform reads, and the only source of the mode.
 	productionModeEnv = "PRODUCTION_MODE"
 	healthTimeout     = 3 * time.Second
 	shutdownTimeout   = 10 * time.Second
@@ -124,10 +124,10 @@ type appConfig struct {
 		Enabled bool   `koanf:"enabled"`
 		Bind    string `koanf:"bind"`
 	} `koanf:"pprof"`
-	// Production is left unset when the file and the environment name no mode,
-	// and the library reads that as production. Only a pointer keeps that case
-	// apart from an explicit `production: false`.
-	Production *bool `koanf:"production"`
+	// Production is read from PRODUCTION_MODE alone, so neither the file nor a
+	// QIP_TESTING_ variable sets it. It is left unset when the variable is, and
+	// the library reads that as production.
+	Production *bool `koanf:"-"`
 }
 
 // defaultAppConfig covers only the settings this binary owns. The rest stays
@@ -171,11 +171,6 @@ func loadConfig(path string) (appConfig, error) {
 			return appConfig{}, fmt.Errorf("read configuration file %s: %w", path, err)
 		}
 	}
-	// Loaded before the prefixed variables so that QIP_TESTING_PRODUCTION wins
-	// over the installation-wide flag rather than the other way round.
-	if err := k.Load(koanfenv.Provider(productionModeEnv, ".", productionModeKey), nil); err != nil {
-		return appConfig{}, fmt.Errorf("read %s from the environment: %w", productionModeEnv, err)
-	}
 	if err := k.Load(koanfenv.Provider(envPrefix, ".", envKey), nil); err != nil {
 		return appConfig{}, fmt.Errorf("read configuration from the environment: %w", err)
 	}
@@ -184,22 +179,19 @@ func loadConfig(path string) (appConfig, error) {
 	if err := k.Unmarshal("", &cfg); err != nil {
 		return appConfig{}, fmt.Errorf("apply configuration: %w", err)
 	}
+	if value := os.Getenv(productionModeEnv); value != "" {
+		production, err := strconv.ParseBool(value)
+		if err != nil {
+			return appConfig{}, fmt.Errorf("read %s from the environment: %w", productionModeEnv, err)
+		}
+		cfg.Production = &production
+	}
 	return cfg, nil
 }
 
 // envKey turns QIP_TESTING_POSTGRES_DSN into postgres.dsn.
 func envKey(name string) string {
 	return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(name, envPrefix)), "_", ".")
-}
-
-// productionModeKey maps PRODUCTION_MODE onto the setting it names. The provider
-// selects by prefix, so a longer variable that merely starts with the same
-// characters reaches this and is dropped: an empty key tells koanf to skip it.
-func productionModeKey(name string) string {
-	if name != productionModeEnv {
-		return ""
-	}
-	return "production"
 }
 
 // newLogger writes to out; anything but "text" is JSON.
