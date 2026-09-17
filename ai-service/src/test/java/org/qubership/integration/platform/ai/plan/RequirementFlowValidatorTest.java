@@ -24,7 +24,7 @@ import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 class RequirementFlowValidatorTest {
 
   @Test
-  void supportedInboundKeysMatchTheCompilerContract() {
+  void supportedInboundKeysMatchInScopeTriggerPolicy() {
     assertEquals(
         ChainElementFamilies.TRIGGERS.stream()
             .filter(
@@ -399,9 +399,10 @@ class RequirementFlowValidatorTest {
         RequirementFlowValidator.validateBindings(flow, List.of(), List.of());
     assertTrue(message.isPresent());
     assertTrue(message.get().contains("entry point orders-http"));
-    assertTrue(message.get().contains("interactionId=orders-http"));
+    assertTrue(message.get().contains("no trigger type"));
     assertTrue(message.get().contains("sourceFactId=orders-http"));
     assertTrue(message.get().contains("http-trigger"));
+    assertFalse(message.get().contains("resolveApiOperation"));
   }
 
   @Test
@@ -475,6 +476,8 @@ class RequirementFlowValidatorTest {
         RequirementFlowValidator.validateBindings(flow, List.of(goal), List.of());
     assertTrue(message.isPresent());
     assertTrue(message.get().contains("entry point task-start"));
+    assertTrue(message.get().contains("no trigger type"));
+    assertFalse(message.get().contains("resolveApiOperation"));
   }
 
   @Test
@@ -575,6 +578,38 @@ class RequirementFlowValidatorTest {
         RequirementFlowValidator.LookupAction.ASK,
         RequirementFlowValidator.catalogLookupAction(outbound, List.of()));
     assertFalse(RequirementFlowValidator.requiresCatalogBinding(outbound, List.of()));
+  }
+
+  @Test
+  void mcpTriggerFactAfterHttpTriggerStillRejects() {
+    Interaction inbound = interaction("dual-in", INBOUND, "Caller", "GET /orders");
+    RequirementFact httpFact =
+        new RequirementFact(
+            "dual-in",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /orders",
+            "",
+            "",
+            "",
+            "GET",
+            "/orders");
+    RequirementFact mcpFact =
+        new RequirementFact(
+            "dual-in",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "mcp-trigger",
+            "Also expose as an MCP tool");
+    assertEquals(
+        RequirementFlowValidator.LookupAction.REJECT_UNSUPPORTED,
+        RequirementFlowValidator.catalogLookupAction(inbound, List.of(httpFact, mcpFact)));
+    Optional<String> error =
+        RequirementFlowValidator.validateBindings(
+            flow(List.of(inbound), List.of()), List.of(httpFact, mcpFact), List.of());
+    assertTrue(error.isPresent());
+    assertEquals("MCP trigger is not supported in create-chain yet.", error.orElseThrow());
   }
 
   @Test

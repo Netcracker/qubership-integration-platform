@@ -46,6 +46,9 @@ public final class RequirementFlowValidator {
 
   static LookupAction catalogLookupAction(Interaction interaction, List<RequirementFact> facts) {
     List<RequirementFact> factList = facts == null ? List.of() : facts;
+    if (hasMcpTriggerFact(interaction.interactionId(), factList)) {
+      return LookupAction.REJECT_UNSUPPORTED;
+    }
     if (interaction.direction() == Direction.INBOUND) {
       return inboundCatalogLookupAction(interaction, factList);
     }
@@ -255,6 +258,12 @@ public final class RequirementFlowValidator {
       }
       if (action == LookupAction.ASK
           && interaction.direction() == Direction.INBOUND
+          && hint == null
+          && inboundCapabilityKey(interaction, factList).isEmpty()) {
+        return Optional.of(inboundTriggerTypeQuestion(interaction));
+      }
+      if (action == LookupAction.ASK
+          && interaction.direction() == Direction.INBOUND
           && inboundCapabilityKey(interaction, factList)
               .filter("http-trigger"::equals)
               .isPresent()) {
@@ -289,19 +298,7 @@ public final class RequirementFlowValidator {
           || hasEntryPointCapabilityFact(interactionId, factList)) {
         continue;
       }
-      return Optional.of(
-          "entry point "
-              + interactionId
-              + " has neither a catalog binding nor a capability fact ("
-              + interaction.participant()
-              + " "
-              + interaction.operation()
-              + "). The brief would carry an empty capability key and design-input rejects that."
-              + " Call resolveApiOperation with interactionId="
-              + interactionId
-              + ", or capture a CAPABILITY fact with sourceFactId="
-              + interactionId
-              + " and capabilityKey=http-trigger, chain-trigger-2, or kafka-trigger-2.");
+      return Optional.of(inboundTriggerTypeQuestion(interaction));
     }
     return Optional.empty();
   }
@@ -370,9 +367,6 @@ public final class RequirementFlowValidator {
       return LookupAction.ASK;
     }
     String key = capabilityKey.get();
-    if ("mcp-trigger".equals(key)) {
-      return LookupAction.REJECT_UNSUPPORTED;
-    }
     BindingMode mode = ChainElementFamilies.bindingMode(key);
     if (mode == BindingMode.HTTP_TRIGGER_DUAL_MODE) {
       return httpTriggerLookupAction(interaction.interactionId(), facts);
@@ -406,6 +400,13 @@ public final class RequirementFlowValidator {
       return LookupAction.ASK;
     }
     return LookupAction.ASK;
+  }
+
+  private static boolean hasMcpTriggerFact(String interactionId, List<RequirementFact> facts) {
+    return facts.stream()
+        .filter(Objects::nonNull)
+        .filter(fact -> interactionId.equals(fact.sourceFactId()))
+        .anyMatch(fact -> "mcp-trigger".equals(fact.capabilityKey()));
   }
 
   private static boolean hasSenderCapabilityFact(String interactionId, List<RequirementFact> facts) {
@@ -476,6 +477,19 @@ public final class RequirementFlowValidator {
     return "HTTP trigger "
         + interactionId
         + " needs either a custom URI (path) or an implemented catalog service (participant).";
+  }
+
+  private static String inboundTriggerTypeQuestion(Interaction interaction) {
+    return "entry point "
+        + interaction.interactionId()
+        + " has no trigger type ("
+        + interaction.participant()
+        + " "
+        + interaction.operation()
+        + "). Capture a CAPABILITY fact with sourceFactId="
+        + interaction.interactionId()
+        + " and a trigger capabilityKey (http-trigger, kafka-trigger-2, async-api-trigger,"
+        + " chain-trigger-2, or another supported trigger).";
   }
 
   private static Optional<String> detectCycle(
