@@ -592,6 +592,100 @@ class RequirementBriefCoverageValidatorTest {
   }
 
   @Test
+  void implementedServiceHttpTriggerWithoutBindingFails() {
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction(
+                    "geo-api", Direction.INBOUND, "GeoSite", "retrieveGeographicSite", "")),
+            List.of());
+    RequirementFact trigger =
+        new RequirementFact(
+            "geo-api",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GeoSite implemented service",
+            "GeoSite",
+            "",
+            "",
+            "GET",
+            "");
+    List<RequirementFact> facts = List.of(trigger);
+    RequirementDraft approved =
+        approvedDraft(facts, List.of()).withFlow(flow);
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            briefWithCalls(approved, facts, List.of()).withFlow(flow));
+
+    Optional<String> error = validator.validate(approved, brief);
+
+    assertTrue(error.isPresent(), () -> "expected binding error, got: " + error.orElse(""));
+    assertTrue(error.orElseThrow().contains("geo-api"), error.orElseThrow());
+    assertTrue(error.orElseThrow().toLowerCase().contains("catalog binding"), error.orElseThrow());
+  }
+
+  @Test
+  void customHttpTriggerWithPathPassesWithoutCatalogBinding() {
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(new Interaction("geo-site", Direction.INBOUND, "Caller", "GET /geo-site", "")),
+            List.of());
+    RequirementFact trigger =
+        new RequirementFact(
+            "geo-site",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /geo-site",
+            "",
+            "",
+            "",
+            "GET",
+            "/geo-site");
+    List<RequirementFact> facts = List.of(trigger);
+    RequirementDraft approved =
+        approvedDraft(facts, List.of()).withFlow(flow);
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            briefWithCalls(approved, facts, List.of()).withFlow(flow));
+
+    assertEquals(Optional.empty(), validator.validate(approved, brief));
+  }
+
+  @Test
+  void acceptsGraphqlSenderWithoutCatalogBinding() {
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-start", Direction.INBOUND, "Caller", "POST /query", ""),
+                new Interaction("graphql-call", Direction.OUTBOUND, "Graph API", "query", "")),
+            List.of(new Transition("http-start", "graphql-call")));
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "http-start",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose POST /query"),
+            new RequirementFact(
+                "graphql-call",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "graphql-sender",
+                "Query the Graph API"));
+    RequirementDraft approved =
+        approvedDraft(facts, List.of()).withFlow(flow);
+    RequirementBrief brief =
+        RequirementBriefProjector.project(
+            briefWithCalls(approved, facts, List.of()).withFlow(flow));
+
+    assertEquals(Optional.empty(), validator.validate(approved, brief));
+    assertTrue(brief.serviceCalls().isEmpty());
+  }
+
+  @Test
   void acceptsNativeKafkaSenderWithoutCatalogBinding() {
     RequirementFlow flow =
         new RequirementFlow(
