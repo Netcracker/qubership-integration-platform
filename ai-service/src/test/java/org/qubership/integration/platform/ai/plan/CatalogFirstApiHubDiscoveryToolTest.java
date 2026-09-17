@@ -19,6 +19,8 @@ import static org.qubership.integration.platform.ai.qipknowledge.artifact.Requir
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchAuthorizations;
@@ -29,6 +31,7 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogO
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 class CatalogFirstApiHubDiscoveryToolTest {
 
@@ -51,10 +54,10 @@ class CatalogFirstApiHubDiscoveryToolTest {
                     "getInventory",
                     "catalog-read:system-1/spec-1/operation-1")));
     RequirementDraftStore store = new RequirementDraftStore();
-    storeFlow(
+    storeCatalogBackedFlow(
         store,
         "conv-exact",
-        interaction(
+        catalogInteraction(
             "call-stock",
             "Petstore Ext",
             "getInventory",
@@ -82,10 +85,10 @@ class CatalogFirstApiHubDiscoveryToolTest {
             eq("getInventory"), eq("rest"), eq("2024.4"), eq(0), eq(100), eq(null)))
         .thenReturn("{\"hits\":[\"candidate\"]}");
     RequirementDraftStore store = new RequirementDraftStore();
-    storeFlow(
+    storeCatalogBackedFlow(
         store,
         "conv-miss",
-        interaction(
+        catalogInteraction(
             "call-stock",
             "Petstore",
             "getInventory",
@@ -108,10 +111,10 @@ class CatalogFirstApiHubDiscoveryToolTest {
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.TooBroad(80));
     RequirementDraftStore store = new RequirementDraftStore();
-    storeFlow(
+    storeCatalogBackedFlow(
         store,
         "conv-broad",
-        interaction("call-om", "OM", "onTaskResult", "The chain consumes OM task results"));
+        catalogInteraction("call-om", "OM", "onTaskResult", "The chain consumes OM task results"));
 
     String result;
     try (ToolSession.Handle ignored = ToolSession.open("conv-broad")) {
@@ -130,11 +133,10 @@ class CatalogFirstApiHubDiscoveryToolTest {
     CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     RequirementDraftStore store = new RequirementDraftStore();
-    storeFlow(
+    storeCatalogBackedFlow(
         store,
         "conv-incomplete",
-        interaction(
-            "call-stock", "Petstore", "", "The chain reads stock levels from somewhere"));
+        new Interaction("call-stock", INBOUND, "Petstore", "", "The chain reads stock levels from somewhere"));
 
     String result;
     try (ToolSession.Handle ignored = ToolSession.open("conv-incomplete")) {
@@ -170,11 +172,11 @@ class CatalogFirstApiHubDiscoveryToolTest {
         .thenReturn(new CatalogLookupResult.None());
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
     RequirementDraftStore store = new RequirementDraftStore();
-    storeFlow(
+    storeCatalogBackedFlow(
         store,
         "conv-assessments",
-        interaction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
-        interaction("call-invoice", "Billing", "createInvoice", "Raise an invoice in Billing"));
+        catalogInteraction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
+        catalogInteraction("call-invoice", "Billing", "createInvoice", "Raise an invoice in Billing"));
     CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, resolutions, store);
     try (ToolSession.Handle ignored = ToolSession.open("conv-assessments")) {
       discovery.resolveApiOperation(
@@ -203,11 +205,11 @@ class CatalogFirstApiHubDiscoveryToolTest {
         .thenReturn(new CatalogLookupResult.Exact(petstoreMatch()))
         .thenReturn(new CatalogLookupResult.None());
     RequirementDraftStore store = new RequirementDraftStore();
-    storeFlow(
+    storeCatalogBackedFlow(
         store,
         "conv-mixed",
-        interaction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
-        interaction("call-invoice", "Billing", "createInvoice", "Raise an invoice in Billing"));
+        catalogInteraction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
+        catalogInteraction("call-invoice", "Billing", "createInvoice", "Raise an invoice in Billing"));
     CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, store);
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-mixed")) {
@@ -226,11 +228,11 @@ class CatalogFirstApiHubDiscoveryToolTest {
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.Exact(petstoreMatch()));
     RequirementDraftStore store = new RequirementDraftStore();
-    storeFlow(
+    storeCatalogBackedFlow(
         store,
         "conv-all-local",
-        interaction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
-        interaction("call-stock-again", "Petstore Ext", "getInventory", "Read stock levels again"));
+        catalogInteraction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
+        catalogInteraction("call-stock-again", "Petstore Ext", "getInventory", "Read stock levels again"));
     CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, store);
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-all-local")) {
@@ -253,11 +255,11 @@ class CatalogFirstApiHubDiscoveryToolTest {
         .thenThrow(new IllegalStateException("API Hub MCP timed out"));
     ConversationApiResolutions resolutions = new ConversationApiResolutions();
     RequirementDraftStore store = new RequirementDraftStore();
-    storeFlow(
+    storeCatalogBackedFlow(
         store,
         "conv-timeout",
-        interaction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
-        interaction("call-invoice", "Billing", "createInvoice", "Raise an invoice in Billing"));
+        catalogInteraction("call-stock", "Petstore Ext", "getInventory", "Read stock levels from Petstore Ext"),
+        catalogInteraction("call-invoice", "Billing", "createInvoice", "Raise an invoice in Billing"));
     CatalogFirstApiHubDiscoveryTool discovery = tool(lookup, apiHub, resolutions, store);
 
     try (ToolSession.Handle ignored = ToolSession.open("conv-timeout")) {
@@ -280,12 +282,12 @@ class CatalogFirstApiHubDiscoveryToolTest {
     ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
     when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.None());
     RequirementDraftStore store = new RequirementDraftStore();
-    storeFlow(
+    storeCatalogBackedFlow(
         store,
         "conv-vague",
-        interaction(
+        catalogInteraction(
             "call-stock",
-            "",
+            "Petstore",
             "retrieve inventory levels",
             "The chain has to find out how many pets are left in stock before it answers"));
 
@@ -360,7 +362,12 @@ class CatalogFirstApiHubDiscoveryToolTest {
             RequirementFactPolarity.POSITIVE,
             RequirementFactKind.CAPABILITY,
             "http-trigger",
-            "Expose GET /greeting");
+            "Expose GET /greeting",
+            "",
+            "",
+            "",
+            "GET",
+            "/greeting");
     RequirementFact chainTrigger =
         new RequirementFact(
             "chain-entry",
@@ -417,6 +424,190 @@ class CatalogFirstApiHubDiscoveryToolTest {
     verifyNoInteractions(apiHub);
   }
 
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "chain-trigger-2",
+        "jms-trigger",
+        "kafka-trigger-2",
+        "pubsub-trigger",
+        "quartz-scheduler",
+        "rabbitmq-trigger-2",
+        "sds-trigger",
+        "sftp-trigger-2",
+        "graphql-sender",
+        "http-sender",
+        "jms-sender",
+        "kafka-sender-2",
+        "mail-sender",
+        "pubsub-sender",
+        "rabbitmq-sender-2",
+        "scs-sender"
+      })
+  void directCapabilityKeysDoNotQueryCatalogOrApiHub(String capabilityKey) {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    RequirementDraftStore store = new RequirementDraftStore();
+    boolean inbound = ChainElementFamilies.isTrigger(capabilityKey);
+    String interactionId = inbound ? "entry" : "send";
+    RequirementFact capability =
+        new RequirementFact(
+            interactionId,
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            capabilityKey,
+            "Direct capability");
+    RequirementFlow flow =
+        inbound
+            ? new RequirementFlow(
+                List.of(new Interaction(interactionId, INBOUND, "System", "start", "")),
+                List.of())
+            : new RequirementFlow(
+                List.of(
+                    new Interaction("http-entry", INBOUND, "Caller", "GET /start", ""),
+                    new Interaction(interactionId, OUTBOUND, "Target", "publish", "")),
+                List.of(new RequirementFlow.Transition("http-entry", interactionId)));
+    List<RequirementFact> facts =
+        inbound
+            ? List.of(capability)
+            : List.of(
+                new RequirementFact(
+                    "http-entry",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "http-trigger",
+                    "Expose GET /start",
+                    "",
+                    "",
+                    "",
+                    "GET",
+                    "/start"),
+                capability);
+    store.put(
+        "conv-direct-key",
+        new RequirementDraft(false, "direct capability")
+            .withFacts(facts)
+            .withFlow(flow));
+
+    try (ToolSession.Handle ignored = ToolSession.open("conv-direct-key")) {
+      String result =
+          tool(lookup, apiHub, store).resolveApiOperation(interactionId, "", "", null, "", "");
+      assertTrue(result.contains("ERROR"), result);
+      assertTrue(
+          result.contains("must not use catalog or API Hub resolution")
+              || result.contains("direct endpoint"),
+          result);
+    }
+
+    verifyNoInteractions(lookup);
+    verifyNoInteractions(apiHub);
+  }
+
+  @Test
+  void ambiguousHttpTriggerDoesNotQueryCatalog() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementFact httpTrigger =
+        new RequirementFact(
+            "orders-http",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose an HTTP API");
+    store.put(
+        "conv-ambiguous-http",
+        new RequirementDraft(false, "ambiguous HTTP")
+            .withFacts(List.of(httpTrigger))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction(
+                            "orders-http", INBOUND, "Caller", "HTTP API", "Expose an HTTP API")),
+                    List.of())));
+
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-ambiguous-http")) {
+      result =
+          tool(lookup, apiHub, store).resolveApiOperation("orders-http", "", "", null, "http", "");
+    }
+
+    assertTrue(result.contains("ERROR"), result);
+    assertTrue(result.contains("element type or HTTP mode is not decided"), result);
+    verifyNoInteractions(lookup);
+    verifyNoInteractions(apiHub);
+  }
+
+  @Test
+  void mcpTriggerDoesNotQueryCatalog() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementFact mcpTrigger =
+        new RequirementFact(
+            "mcp-in",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "mcp-trigger",
+            "Expose the chain as an MCP tool");
+    store.put(
+        "conv-mcp",
+        new RequirementDraft(false, "MCP trigger")
+            .withFacts(List.of(mcpTrigger))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(new Interaction("mcp-in", INBOUND, "Agent", "tool", "")),
+                    List.of())));
+
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-mcp")) {
+      result = tool(lookup, apiHub, store).resolveApiOperation("mcp-in", "", "", null, "", "");
+    }
+
+    assertTrue(result.contains("ERROR"), result);
+    assertTrue(result.contains("MCP trigger is not supported in create-chain yet."), result);
+    verifyNoInteractions(lookup);
+    verifyNoInteractions(apiHub);
+  }
+
+  @Test
+  void implementedServiceHttpTriggerMayQueryCatalog() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.None());
+    when(apiHub.searchApiOperations(any(), any(), any(), any(), any(), any()))
+        .thenReturn("{\"hits\":[]}");
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementFact httpTrigger =
+        new RequirementFact(
+            "orders-http",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Implement Orders API getOrder",
+            "Orders API",
+            "getOrder",
+            "",
+            "",
+            "");
+    store.put(
+        "conv-implemented-http",
+        new RequirementDraft(false, "implemented HTTP")
+            .withFacts(List.of(httpTrigger))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction(
+                            "orders-http", INBOUND, "Orders API", "getOrder", "Read an order")),
+                    List.of())));
+
+    try (ToolSession.Handle ignored = ToolSession.open("conv-implemented-http")) {
+      tool(lookup, apiHub, store).resolveApiOperation("orders-http", "", "", null, "http", "");
+    }
+
+    verify(lookup).resolve(any());
+  }
+
   private static void storeFlow(
       RequirementDraftStore store, String conversationId, Interaction... interactions) {
     store.put(
@@ -425,9 +616,35 @@ class CatalogFirstApiHubDiscoveryToolTest {
             .withFlow(new RequirementFlow(List.of(interactions), List.of())));
   }
 
+  private static void storeCatalogBackedFlow(
+      RequirementDraftStore store, String conversationId, Interaction... interactions) {
+    List<RequirementFact> facts = new java.util.ArrayList<>();
+    for (Interaction interaction : interactions) {
+      if (interaction.direction() == INBOUND) {
+        facts.add(
+            new RequirementFact(
+                interaction.interactionId(),
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "async-api-trigger",
+                "Catalog-backed " + interaction.operation()));
+      }
+    }
+    store.put(
+        conversationId,
+        new RequirementDraft(false, "captured flow")
+            .withFacts(List.copyOf(facts))
+            .withFlow(new RequirementFlow(List.of(interactions), List.of())));
+  }
+
   private static Interaction interaction(
       String interactionId, String participant, String operation, String description) {
     return new Interaction(interactionId, OUTBOUND, participant, operation, description);
+  }
+
+  private static Interaction catalogInteraction(
+      String interactionId, String participant, String operation, String description) {
+    return new Interaction(interactionId, INBOUND, participant, operation, description);
   }
 
   @Test
