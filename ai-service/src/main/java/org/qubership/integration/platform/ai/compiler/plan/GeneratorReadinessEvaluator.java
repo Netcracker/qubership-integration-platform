@@ -81,6 +81,7 @@ public final class GeneratorReadinessEvaluator {
           "incomplete_routing_nodes",
           "rbac_roles_missing",
           "incomplete_service_call_bindings",
+          "incomplete_service_call_error_throwing",
           "incomplete_kafka_sender_configuration",
           "incomplete_kafka_trigger_configuration",
           "incomplete_rabbitmq_messaging_configuration",
@@ -201,6 +202,7 @@ public final class GeneratorReadinessEvaluator {
       case "http_trigger_nodes" -> hasNodeType(graph, Set.of("http-trigger"));
       case "incomplete_http_trigger_endpoint" -> hasIncompleteHttpTriggerEndpoint(graph);
       case "incomplete_service_call_bindings" -> hasIncompleteServiceCallBindings(graph);
+      case "incomplete_service_call_error_throwing" -> hasIncompleteServiceCallErrorThrowing(graph);
       case "incomplete_kafka_sender_configuration" ->
           !kafkaSenderNodesMissingConfiguration(graph).isEmpty();
       case "incomplete_kafka_trigger_configuration" ->
@@ -322,6 +324,18 @@ public final class GeneratorReadinessEvaluator {
         .toList();
   }
 
+  public List<String> serviceCallNodesMissingErrorThrowing(ChainPlanGraph graph) {
+    if (graph == null || graph.nodes() == null) {
+      return List.of();
+    }
+    return graph.nodes().stream()
+        .filter(GeneratorReadinessEvaluator::serviceCallMissingErrorThrowing)
+        .map(ChainPlanNode::nodeId)
+        .filter(nodeId -> nodeId != null && !nodeId.isBlank())
+        .limit(MAX_TARGET_NODE_IDS)
+        .toList();
+  }
+
   public List<String> kafkaSenderNodesMissingConfiguration(ChainPlanGraph graph) {
     if (graph == null || graph.nodes() == null) {
       return List.of();
@@ -422,6 +436,24 @@ public final class GeneratorReadinessEvaluator {
       }
     }
     return false;
+  }
+
+  private boolean hasIncompleteServiceCallErrorThrowing(ChainPlanGraph graph) {
+    if (graph == null || graph.nodes() == null) {
+      return false;
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      if (serviceCallMissingErrorThrowing(node)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean serviceCallMissingErrorThrowing(ChainPlanNode node) {
+    return node != null
+        && "service-call".equals(node.type())
+        && !hasNonBlankProperty(node, "errorThrowing");
   }
 
   private boolean serviceCallMissingBindings(ChainPlanNode node) {

@@ -3491,18 +3491,16 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void policyValidationOnExecutionHaltsWithReviseOwnedByAnalysisWhenBriefIsInSet() {
+  void policyValidationOnExecutionHaltsWithReviseOwnedByPlanningWhenBriefIsInSet() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
     AtomicInteger executionCalls = new AtomicInteger();
-    AtomicReference<String> seenError = new AtomicReference<>();
-    AtomicReference<String> seenFollowUp = new AtomicReference<>();
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
     CreateChainTestOrchestrator runtime =
         newRuntime(
             new FailureNarrative(agent),
             profile,
-            analysisRepairCandidate(seenError, seenFollowUp),
+            analysisCandidate(),
             planningAlwaysCandidate(),
             executionRbacValidationFailure(executionCalls));
     startAndRecordInput(runtime, profile);
@@ -3512,22 +3510,18 @@ class ProductPipelineStageExecutorTest {
     StageExecutionResult failed = execute(runtime, "design-execution");
     StageDecision.ReopenProducer reopen =
         assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
-    assertEquals("requirement-analysis", reopen.producerStageId());
-    assertEquals(
-        "requirement-analysis", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+    assertEquals("design-planning", reopen.producerStageId());
+    assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
     assertEquals(1, executionCalls.get());
     applyLifecycle(runtime, failed);
 
-    StageExecutionResult analysis = execute(runtime, "requirement-analysis");
-    applyLifecycle(runtime, analysis);
+    StageExecutionResult planning = execute(runtime, "design-planning");
+    applyLifecycle(runtime, planning);
 
-    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals("design-planning", requireRun().run().currentStageId());
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-planning").status());
     assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
     assertEquals(1, executionCalls.get());
-    assertNotNull(seenError.get());
-    assertFalse(seenError.get().isBlank());
   }
 
   @Test
@@ -4230,16 +4224,15 @@ class ProductPipelineStageExecutorTest {
     StageExecutionResult failed = execute(runtime, "design-execution");
     applyLifecycle(runtime, failed);
 
-    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals("design-planning", requireRun().run().currentStageId());
     assertNotEquals("design-execution", requireRun().run().currentStageId());
-    assertNotEquals("design-planning", requireRun().run().currentStageId());
+    assertNotEquals("requirement-analysis", requireRun().run().currentStageId());
     assertEquals(1, executionCalls.get());
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-planning").status());
     assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
   }
 
   @Test
-  void bareGoBackToBriefRepairUsesHaltEvidenceAndWaitsForBriefApproval() {
+  void rbacHaltReopensPlanningWithHaltEvidenceAndWaitsForPlanApproval() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner(
             "Design execution could not complete.", "design-execution");
@@ -4248,13 +4241,10 @@ class ProductPipelineStageExecutorTest {
     AtomicReference<String> seenOutcome = new AtomicReference<>();
     AtomicReference<String> seenFailedStage = new AtomicReference<>();
     AtomicReference<String> seenFindings = new AtomicReference<>();
-    AtomicReference<String> seenFollowUp = new AtomicReference<>();
-    AtomicReference<RequirementBrief> seenPriorBrief = new AtomicReference<>();
-    AtomicReference<String> changeSummary = new AtomicReference<>();
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
-    StageCapability analysis =
+    StageCapability planning =
         capability(
-            "analysis-cap",
+            "planning-cap",
             context -> {
               seenError.set(
                   context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
@@ -4265,40 +4255,11 @@ class ProductPipelineStageExecutorTest {
                       ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR));
               seenFindings.set(
                   context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
-              seenFollowUp.set(
-                  context.attributeAsString(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR));
-              Object prior = context.attributes().get("requirementBrief");
-              if (prior instanceof RequirementBrief brief) {
-                seenPriorBrief.set(brief);
-              }
               String error =
                   context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR);
               boolean repairing = error != null && !error.isBlank();
-              if (!repairing && context.attributeAsString("userText") == null) {
-                return Multi.createFrom()
-                    .item(
-                        new CapabilitySignal.Completed(
-                            StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "need text")));
-              }
-              String goal = repairing ? "repaired goal with RBAC" : "goal";
-              RequirementBrief payload =
-                  new RequirementBrief(goal, List.of(), List.of(), List.of(), List.of(), goal);
-              if (repairing) {
-                changeSummary.set(
-                    "I added an RBAC access-control requirement. If you approve, the plan will be"
-                        + " rebuilt.");
-                return Multi.createFrom()
-                    .items(
-                        new CapabilitySignal.Message(changeSummary.get()),
-                        new CapabilitySignal.Completed(
-                            new StageOutcome(
-                                StageOutcomeClass.CANDIDATE,
-                                List.of(
-                                    new ArtifactCandidate(
-                                        Kind.REQUIREMENT_BRIEF, payload, List.of())),
-                                "Requirement brief updated. Approve to rebuild the plan.",
-                                null)));
-              }
+              Map<String, String> payload =
+                  repairing ? Map.of("plan", "rbac on http-trigger") : Map.of("plan", "ok");
               return Multi.createFrom()
                   .item(
                       new CapabilitySignal.Completed(
@@ -4306,74 +4267,35 @@ class ProductPipelineStageExecutorTest {
                               StageOutcomeClass.CANDIDATE,
                               List.of(
                                   new ArtifactCandidate(
-                                      Kind.REQUIREMENT_BRIEF, payload, List.of())),
-                              "brief ready",
+                                      Kind.IMPLEMENTATION_PLAN, payload, List.of())),
+                              "plan ready",
                               null)));
             });
     CreateChainTestOrchestrator runtime =
         newRuntime(
             new FailureNarrative(agent),
             profile,
-            analysis,
-            planningAlwaysCandidate(),
+            analysisCandidate(),
+            planning,
             executionRbacValidationFailure(executionCalls));
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
     StageExecutionResult failed = execute(runtime, "design-execution");
     applyLifecycle(runtime, failed);
-    StageExecutionResult analysisResult = execute(runtime, "requirement-analysis");
-    List<PipelineSignal> reopenSignals =
-        runtime
-            .support()
-            .applyStageLifecycle(RUN_ID, analysisResult)
-            .collect()
-            .asList()
-            .await()
-            .indefinitely();
+    StageExecutionResult planningResult = execute(runtime, "design-planning");
+    applyLifecycle(runtime, planningResult);
 
-    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals("design-planning", requireRun().run().currentStageId());
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
     assertNotEquals("design-execution", requireRun().run().currentStageId());
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-planning").status());
     assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
     assertNotNull(seenError.get());
     assertTrue(seenError.get().toLowerCase(Locale.ROOT).contains("rbac"), seenError.get());
     assertEquals("VALIDATION_FAILURE", seenOutcome.get());
     assertEquals("design-execution", seenFailedStage.get());
     assertTrue(seenFindings.get().toLowerCase(Locale.ROOT).contains("rbac"), seenFindings.get());
-    assertNotNull(seenPriorBrief.get());
-    assertEquals("goal", seenPriorBrief.get().goal());
-    assertTrue(
-        reopenSignals.stream()
-            .anyMatch(
-                signal ->
-                    signal instanceof PipelineSignal.Message message
-                        && message.text().contains("I added an RBAC")));
-    assertTrue(
-        reopenSignals.stream()
-            .anyMatch(
-                signal ->
-                    signal instanceof PipelineSignal.WaitingForApproval waiting
-                        && "requirement-analysis".equals(waiting.stageId())
-                        && ProductPipelineRunSupport.BRIEF_REPAIR_APPROVAL_PROMPT.equals(
-                            waiting.prompt())));
-
-    approveStage(runtime, "requirement-analysis");
-    String priorBriefHash =
-        artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).getFirst().contentHash();
-    String priorPlanHash =
-        artifactStore.latest(RUN_ID, Kind.IMPLEMENTATION_PLAN).orElseThrow().contentHash();
-    Map<String, Object> repairApprovalAttributes = runtime.support().runAttributes(RUN_ID);
-    assertEquals(
-        priorBriefHash,
-        repairApprovalAttributes.get(ProductPipelineRunSupport.SUPERSEDED_BRIEF_CONTENT_HASH_ATTR));
-    Object supersededArtifactHashes =
-        repairApprovalAttributes.get(ProductPipelineRunSupport.SUPERSEDED_ARTIFACT_HASHES_ATTR);
-    assertInstanceOf(List.class, supersededArtifactHashes);
-    assertTrue(((List<?>) supersededArtifactHashes).contains(priorPlanHash));
-    assertEquals("design-planning", requireRun().run().currentStageId());
-    assertEquals(StageStatus.RUNNING, snapshot(requireRun(), "design-planning").status());
+    assertEquals(1, executionCalls.get());
   }
 
   @Test
@@ -4423,20 +4345,17 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void haltFollowUpNamingRequirementsReopensThatStageNotExecution() {
+  void haltFollowUpReopensPlanningForRbacNotExecution() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner(
             "Design execution could not complete.", "design-execution");
     AtomicInteger executionCalls = new AtomicInteger();
-    AtomicReference<String> seenError = new AtomicReference<>();
-    AtomicReference<String> seenFollowUp = new AtomicReference<>();
-    StageCapability analysis = analysisRepairCandidate(seenError, seenFollowUp);
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
     CreateChainTestOrchestrator runtime =
         newRuntime(
             new FailureNarrative(agent),
             profile,
-            analysis,
+            analysisCandidate(),
             planningAlwaysCandidate(),
             executionRbacValidationFailure(executionCalls));
     startAndRecordInput(runtime, profile);
@@ -4445,16 +4364,14 @@ class ProductPipelineStageExecutorTest {
 
     StageExecutionResult failed = execute(runtime, "design-execution");
     applyLifecycle(runtime, failed);
-    StageExecutionResult analysisResult = execute(runtime, "requirement-analysis");
-    applyLifecycle(runtime, analysisResult);
+    StageExecutionResult planningResult = execute(runtime, "design-planning");
+    applyLifecycle(runtime, planningResult);
 
-    assertEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals("design-planning", requireRun().run().currentStageId());
     assertNotEquals("design-execution", requireRun().run().currentStageId());
     assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
     assertEquals(1, executionCalls.get());
     assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
-    assertNotNull(seenError.get());
-    assertFalse(seenError.get().isBlank());
   }
 
   @Test
@@ -5155,6 +5072,34 @@ class ProductPipelineStageExecutorTest {
         });
   }
 
+  private StageCapability executionMissingBriefFactsValidationFailure(
+      AtomicInteger executionCalls) {
+    return capability(
+        "execution-cap",
+        context -> {
+          executionCalls.incrementAndGet();
+          return Multi.createFrom()
+              .item(
+                  new CapabilitySignal.Completed(
+                      new StageOutcome(
+                          StageOutcomeClass.VALIDATION_FAILURE,
+                          List.of(
+                              new ArtifactCandidate(
+                                  Kind.PLAN_VALIDATION_RESULT,
+                                  new PlanValidationResult(
+                                      List.of(
+                                          new PlanValidationFinding(
+                                              RecoveryCauseCode.MISSING_BRIEF_FACTS.name(),
+                                              "The approved requirement brief is missing required"
+                                                  + " facts",
+                                              true))),
+                                  List.of())),
+                          "Phase 5 plan validation failed. Findings: MISSING_BRIEF_FACTS: The"
+                              + " approved requirement brief is missing required facts",
+                          null)));
+        });
+  }
+
   private StageCapability executionRbacValidationFailure(AtomicInteger executionCalls) {
     return capability(
         "execution-cap",
@@ -5213,7 +5158,7 @@ class ProductPipelineStageExecutorTest {
         context -> {
           int call = executionCalls.incrementAndGet();
           if (call == 1) {
-            return executionRbacValidationFailure(new AtomicInteger()).execute(context);
+            return executionMissingBriefFactsValidationFailure(new AtomicInteger()).execute(context);
           }
           if (call == 2) {
             return executionPlanFillValidationFailure(new AtomicInteger()).execute(context);

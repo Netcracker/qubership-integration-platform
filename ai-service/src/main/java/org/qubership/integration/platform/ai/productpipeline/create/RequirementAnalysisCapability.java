@@ -9,6 +9,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -36,6 +37,7 @@ import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -521,6 +523,15 @@ public class RequirementAnalysisCapability implements StageCapability {
     if (unresolvedMapping.isPresent()) {
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, unresolvedMapping.get()));
+    }
+    var mappingMechanismClarification =
+        brief.mappingIntents().stream()
+            .map(MappingMechanismSelector::clarification)
+            .flatMap(Optional::stream)
+            .findFirst();
+    if (mappingMechanismClarification.isPresent()) {
+      return new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, mappingMechanismClarification.get()));
     }
     var coverageError = coverageValidator.validate(approved, brief);
     if (coverageError.isPresent()) {

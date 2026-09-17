@@ -515,19 +515,25 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             List.of(
                 generationNode("cip-naming-generator", List.of()),
                 generationNode("cip-trigger-generator", List.of("cip-naming-generator")),
+                generationNode("cip-security-generator", List.of("cip-naming-generator")),
                 generationNode("cip-quartz-scheduler-generator", List.of("cip-naming-generator")),
                 terminalNode(
                     "cip-chain-assembler",
                     "Assembly",
-                    List.of("cip-trigger-generator", "cip-quartz-scheduler-generator")),
+                    List.of(
+                        "cip-trigger-generator",
+                        "cip-security-generator",
+                        "cip-quartz-scheduler-generator")),
                 terminalNode(
                     "cip-structural-validator",
                     "Validation",
                     List.of("cip-chain-assembler"))),
             List.of(
                 edge("cip-naming-generator", "cip-trigger-generator"),
+                edge("cip-naming-generator", "cip-security-generator"),
                 edge("cip-naming-generator", "cip-quartz-scheduler-generator"),
                 edge("cip-trigger-generator", "cip-chain-assembler"),
+                edge("cip-security-generator", "cip-chain-assembler"),
                 edge("cip-quartz-scheduler-generator", "cip-chain-assembler"),
                 edge("cip-chain-assembler", "cip-structural-validator")),
             "full-dag");
@@ -544,12 +550,13 @@ class DefaultApprovedCompilerExecutionRunnerTest {
         Set.of(
             "cip-naming-generator",
             "cip-trigger-generator",
+            "cip-security-generator",
             "cip-chain-assembler",
             "cip-structural-validator"),
         skillIds);
     assertFalse(skillIds.contains("cip-quartz-scheduler-generator"));
     assertEquals(
-        List.of("cip-trigger-generator"),
+        List.of("cip-trigger-generator", "cip-security-generator"),
         node(scoped, "cip-chain-assembler").dependsOn());
   }
 

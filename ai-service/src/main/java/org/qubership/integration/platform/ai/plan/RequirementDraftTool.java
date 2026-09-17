@@ -285,9 +285,10 @@ public class RequirementDraftTool {
       outbound interactionId, capabilityKey=http-sender, and httpMethod plus an absolute or
       relative URI in path. In-scope direct sender keys: graphql-sender, http-sender, jms-sender,
       kafka-sender-2, mail-sender, pubsub-sender, rabbitmq-sender-2, and scs-sender.
-      Call resolveApiOperation only for async-api-trigger and implemented-service HTTP triggers
-      (http-trigger with a catalog service participant and blank path). Do not call it for direct
-      senders, custom HTTP triggers with a path, or ambiguous interactions.
+      Call resolveApiOperation for catalog-backed outbound interactions (no sender CAPABILITY),
+      async-api-trigger, and implemented-service HTTP triggers (http-trigger with a catalog service
+      participant and blank path). Do not call it for direct senders, custom HTTP triggers with a
+      path, or ambiguous HTTP triggers.
       Distill facts from assembledText yourself; never ask the user for polarity labels.
       When READY_FOR_PLAN is sent without facts, the server soft-stores NEEDS_INPUT. Retry the
       same turn with facts, or keep NEEDS_INPUT with one open question.

@@ -134,13 +134,15 @@ public class GatherRequirementsPromptBuilder {
       return uploaded;
     }
     return " after the flow is stored, call resolveApiOperation only for catalog-backed"
-        + " interactions (implemented-service HTTP triggers and async-api-trigger). Native triggers"
+        + " interactions (implemented-service HTTP triggers, async-api-trigger, and outbound"
+        + " calls with no sender CAPABILITY). Native triggers"
         + " and direct senders (for example sftp-trigger-2, mail-sender, kafka-sender-2, and"
         + " jms-sender) skip the catalog; capture their CAPABILITY fact with method, path, topic,"
         + " or URI when applicable. Custom HTTP uses CAPABILITY http-trigger with a path; no"
         + " catalog. Implemented service HTTP uses CAPABILITY http-trigger with participant set"
         + " and a blank path, then resolveApiOperation. Catalog outbound calls do not invent a"
-        + " sender key. Ambiguous HTTP or outbound needs one question; do not search. mcp-trigger"
+        + " sender key; resolveApiOperation is that classification. Ambiguous HTTP or outbound"
+        + " needs one question; do not search. mcp-trigger"
         + " is not supported yet; tell the user that trigger is not supported in create-chain."
         + " Do not search the catalog or API Hub for direct elements.";
   }

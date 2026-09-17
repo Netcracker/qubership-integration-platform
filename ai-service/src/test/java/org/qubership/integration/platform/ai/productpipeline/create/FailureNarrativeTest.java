@@ -148,6 +148,7 @@ class FailureNarrativeTest {
     List<OwnerCandidate> candidates =
         List.of(
             new OwnerCandidate("planning", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
             new OwnerCandidate("analysis", "requirement-brief"));
 
     OwnerDiagnosis diagnosis =
@@ -163,10 +164,11 @@ class FailureNarrativeTest {
                 "the quartz job is required");
 
     assertEquals("The brief omitted the scheduler.", diagnosis.narrative());
-    assertEquals("analysis", diagnosis.owner().orElseThrow());
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
     assertFalse(diagnosis.ambiguous());
     assertEquals(
-        "planning:plan-validation-result,analysis:requirement-brief", agent.lastCandidateSet.get());
+        "planning:plan-validation-result,design-planning:implementation-plan,analysis:requirement-brief",
+        agent.lastCandidateSet.get());
     assertEquals("the quartz job is required", agent.lastFollowUp.get());
     assertEquals("VALIDATION_FAILURE", agent.lastOutcome.get());
   }
@@ -234,7 +236,7 @@ class FailureNarrativeTest {
   }
 
   @Test
-  void diagnoseRemapsASelfOwnerToTheBriefProducerForPolicyFindings() {
+  void diagnoseRemapsASelfOwnerToThePlanProducerForPolicyFindings() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
     List<OwnerCandidate> candidates =
@@ -256,7 +258,7 @@ class FailureNarrativeTest {
                 "add rbac");
 
     assertEquals("Design execution could not complete.", diagnosis.narrative());
-    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
     assertFalse(diagnosis.ambiguous());
     assertEquals("add rbac", agent.lastFollowUp.get());
   }
@@ -310,7 +312,7 @@ class FailureNarrativeTest {
   }
 
   @Test
-  void diagnoseKeepsAnEarlierOwnerWhenFindingsArePolicyAndOwnerIsBrief() {
+  void diagnoseKeepsThePlanOwnerWhenFindingsArePolicy() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("The brief omitted RBAC.", "requirement-analysis");
     OwnerDiagnosis diagnosis =
@@ -328,7 +330,7 @@ class FailureNarrativeTest {
                     new OwnerCandidate("requirement-analysis", "requirement-brief")),
                 "");
 
-    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -355,7 +357,7 @@ class FailureNarrativeTest {
                 "");
 
     assertTrue(diagnosis.narrative().contains(FakeFailureNarrativeAgent.GO_BACK_OFFER));
-    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
     assertEquals("VALIDATION_FAILURE", agent.lastOutcome.get());
     assertTrue(agent.lastFindings.get().toLowerCase(Locale.ROOT).contains("rbac"));
     assertTrue(agent.lastClarifyRoles.get().contains("design-planning:the plan"));
@@ -389,7 +391,7 @@ class FailureNarrativeTest {
   }
 
   @Test
-  void diagnoseSelectsTheBriefWhenSecurityFindingsArePresentEvenIfTheModelAsks() {
+  void diagnoseSelectsThePlanWhenSecurityFindingsArePresentEvenIfTheModelAsks() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.ask("Either the brief or the plan could be wrong.");
 
@@ -409,7 +411,7 @@ class FailureNarrativeTest {
                 "");
 
     assertFalse(diagnosis.ambiguous());
-    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -451,7 +453,7 @@ class FailureNarrativeTest {
                 "");
 
     assertTrue(findings.toLowerCase(Locale.ROOT).startsWith("security-1:"));
-    assertEquals("requirement-analysis", diagnosis.owner().orElseThrow());
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -462,10 +464,10 @@ class FailureNarrativeTest {
 
     OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
 
-    assertEquals("analysis", diagnosis.owner().orElseThrow());
-    assertEquals("State the access policy in the requirements.", diagnosis.instruction());
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("Set accessControlType on the HTTP trigger in the plan.", diagnosis.instruction());
     assertEquals(
-        "The brief omitted the scheduler.\n\nState the access policy in the requirements.",
+        "The brief omitted the scheduler.\n\nSet accessControlType on the HTTP trigger in the plan.",
         diagnosis.cardBody("raw evidence"));
   }
 
@@ -476,9 +478,9 @@ class FailureNarrativeTest {
 
     OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
 
-    assertEquals("State the access policy in the requirements.", diagnosis.instruction());
+    assertEquals("Set accessControlType on the HTTP trigger in the plan.", diagnosis.instruction());
     assertEquals("The brief omitted the scheduler.", diagnosis.narrative());
-    assertEquals("analysis", diagnosis.owner().orElseThrow());
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -487,11 +489,11 @@ class FailureNarrativeTest {
 
     OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
 
-    assertEquals("State the access policy in the requirements.", diagnosis.instruction());
+    assertEquals("Set accessControlType on the HTTP trigger in the plan.", diagnosis.instruction());
     assertEquals(
-        "planning validation failed\n\nState the access policy in the requirements.",
+        "planning validation failed\n\nSet accessControlType on the HTTP trigger in the plan.",
         diagnosis.cardBody("planning validation failed"));
-    assertEquals("analysis", diagnosis.owner().orElseThrow());
+    assertEquals("design-planning", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -504,8 +506,8 @@ class FailureNarrativeTest {
     OwnerDiagnosis afterTheBudget = diagnose(narrative, "run-1");
 
     assertEquals("", afterTheBudget.narrative());
-    assertEquals("analysis", afterTheBudget.owner().orElseThrow());
-    assertEquals("State the access policy in the requirements.", afterTheBudget.instruction());
+    assertEquals("design-planning", afterTheBudget.owner().orElseThrow());
+    assertEquals("Set accessControlType on the HTTP trigger in the plan.", afterTheBudget.instruction());
     assertEquals(1, agent.calls.get());
   }
 
@@ -932,6 +934,7 @@ class FailureNarrativeTest {
         "security-1: External route requires accessControlType=RBAC (blocker)",
         List.of(
             new OwnerCandidate("planning", "plan-validation-result"),
+            new OwnerCandidate("design-planning", "implementation-plan"),
             new OwnerCandidate("analysis", "requirement-brief")),
         "");
   }

@@ -120,7 +120,7 @@ public final class HaltProducerCauseTable {
 
   private static String sentenceFor(RecoveryCause cause, String role) {
     return switch (cause.causeCode()) {
-      case SECURITY_POLICY -> "State the access policy in " + role + ".";
+      case SECURITY_POLICY -> "Set accessControlType on the HTTP trigger in " + role + ".";
       case MISSING_BRIEF_FACTS -> "Add the missing facts to " + role + ".";
       case MAPPING_CONTRACT -> mappingContractSentence(cause, role);
       case MISSING_REQUIRED_PROPERTY -> "Add the required property to " + role + ".";
@@ -170,9 +170,8 @@ public final class HaltProducerCauseTable {
   /** Owner category the router uses for {@code causeCode}. Exhaustive over {@link RecoveryCauseCode}. */
   static FindingOwnerCategory ownerCategory(RecoveryCauseCode causeCode) {
     return switch (causeCode) {
-      case SECURITY_POLICY, MISSING_BRIEF_FACTS, MAPPING_CONTRACT ->
-          FindingOwnerCategory.POLICY_OR_BRIEF;
-      case MISSING_REQUIRED_PROPERTY -> FindingOwnerCategory.PLAN_FILL;
+      case MISSING_BRIEF_FACTS, MAPPING_CONTRACT -> FindingOwnerCategory.POLICY_OR_BRIEF;
+      case SECURITY_POLICY, MISSING_REQUIRED_PROPERTY -> FindingOwnerCategory.PLAN_FILL;
       case UNKNOWN_PROPERTY -> FindingOwnerCategory.EXECUTION;
       case CONTRACT_SHAPE,
               POLICY_FAILURE,

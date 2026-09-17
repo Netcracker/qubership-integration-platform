@@ -40,10 +40,10 @@ public final class OwnerCandidateSet {
    * product-word lists. Driven by finding codes and a few structural cues.
    *
    * <ul>
-   *   <li>{@link FindingOwnerCategory#POLICY_OR_BRIEF} — access policy, auth, scope, or constraints
+   *   <li>{@link FindingOwnerCategory#POLICY_OR_BRIEF} — missing brief facts or mapping contract
    *       owned by the requirement brief
-   *   <li>{@link FindingOwnerCategory#PLAN_FILL} — plan structure, bindings, or step properties when
-   *       policy already allows them
+   *   <li>{@link FindingOwnerCategory#PLAN_FILL} — plan structure, bindings, step properties, or
+   *       HTTP-trigger access control when the brief already allows them
    *   <li>{@link FindingOwnerCategory#EXECUTION} — transient compile/runtime with good upstream
    *       inputs
    *   <li>{@link FindingOwnerCategory#UNSPECIFIED} — no automatic remap preference

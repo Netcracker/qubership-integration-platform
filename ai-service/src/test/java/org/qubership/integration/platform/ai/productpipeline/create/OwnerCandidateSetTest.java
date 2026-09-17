@@ -293,7 +293,7 @@ class OwnerCandidateSetTest {
   }
 
   @Test
-  void preferEarliestSufficientOwnerMapsPolicyFindingsToTheBriefProducer() {
+  void preferEarliestSufficientOwnerMapsSecurityPolicyToThePlanProducer() {
     OwnerDiagnosis remapped =
         OwnerCandidateSet.selectOwner(
             "Design execution could not complete.",
@@ -305,7 +305,7 @@ class OwnerCandidateSetTest {
             RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
-    assertEquals("requirement-analysis", remapped.owner().orElseThrow());
+    assertEquals("design-planning", remapped.owner().orElseThrow());
   }
 
   @Test
@@ -336,7 +336,7 @@ class OwnerCandidateSetTest {
             RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
-    assertEquals("requirement-analysis", remapped.owner().orElseThrow());
+    assertEquals("design-planning", remapped.owner().orElseThrow());
   }
 
   @Test
@@ -372,7 +372,7 @@ class OwnerCandidateSetTest {
   }
 
   @Test
-  void selectOwnerIgnoresAModelAskWhenTheCauseNamesTheBrief() {
+  void selectOwnerIgnoresAModelAskWhenTheCauseNamesThePlan() {
     OwnerDiagnosis selected =
         OwnerCandidateSet.selectOwner(
             "Either the brief or the plan could be wrong.",
@@ -383,7 +383,7 @@ class OwnerCandidateSetTest {
             RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
-    assertEquals("requirement-analysis", selected.owner().orElseThrow());
+    assertEquals("design-planning", selected.owner().orElseThrow());
     assertFalse(selected.ambiguous());
   }
 
@@ -403,7 +403,7 @@ class OwnerCandidateSetTest {
   }
 
   @Test
-  void preferEarliestSufficientOwnerRemapsAPlanOwnerToBriefForPolicyFindings() {
+  void preferEarliestSufficientOwnerKeepsSecurityPolicyOnThePlanProducer() {
     OwnerDiagnosis remapped =
         OwnerCandidateSet.selectOwner(
             "The plan omitted RBAC.",
@@ -415,7 +415,7 @@ class OwnerCandidateSetTest {
             RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
-    assertEquals("requirement-analysis", remapped.owner().orElseThrow());
+    assertEquals("design-planning", remapped.owner().orElseThrow());
   }
 
   @Test
