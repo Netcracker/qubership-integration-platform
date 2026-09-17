@@ -29,14 +29,11 @@ public class BuildCRsMojo extends AbstractMojo {
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
-            getLog().info("Building CRs");
             TaskRunner taskRunner = new TaskRunner();
             BuildCRsTask task = new BuildCRsTask();
             taskRunner.execute(task, getTaskParameters());
-            getLog().info("Successfully built CRs");
         } catch (Exception exception) {
-            String message = String.format("Failed to build CRs: %s", exception.getMessage());
-            throw new MojoExecutionException(message, exception);
+            throw new MojoExecutionException("Failed to build K8s resources", exception);
         }
     }
 

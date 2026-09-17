@@ -25,6 +25,8 @@ import java.util.stream.Stream;
 public class ResourceWriteService {
     private final YAMLMapper yamlMapper;
 
+    private record ResourceNameAndKind(String name, String kind) {}
+
     public static class ResourceWriteException extends Exception {
         public ResourceWriteException(String message) {
             super(message);
@@ -38,44 +40,53 @@ public class ResourceWriteService {
 
     public void writeResources(String outputDirectory, String resourcesText) throws IOException {
         Files.createDirectories(Paths.get(outputDirectory));
-        Failable.stream(groupByName(splitResources(resourcesText)).entrySet()).forEach(entry -> {
+        Failable.stream(groupByNameAndKind(splitResources(resourcesText)).entrySet()).forEach(entry -> {
             if (entry.getValue().size() > 1) {
                 String message = String.format("Duplicate resource '%s'", entry.getKey());
                 throw new ResourceWriteException(message);
             }
-            String resourceName = entry.getKey();
+            ResourceNameAndKind resourceNameAndKind = entry.getKey();
             String content = entry.getValue().getFirst();
-            writeResource(outputDirectory, resourceName, content);
+            writeResource(outputDirectory, resourceNameAndKind, content);
         });
     }
 
-    public void writeResource(String outputDirectory, String resourceName, String content) throws IOException {
-        String name = resourceName + ".yaml";
+    private void writeResource(
+        String outputDirectory,
+        ResourceNameAndKind resourceNameAndKind,
+        String content
+    ) throws IOException {
+        String name = getResourceFileName(resourceNameAndKind);
         File file = new File(outputDirectory, name);
-        log.info("Writing resource '{}' to file '{}'", resourceName, file.getAbsolutePath());
+        log.info("Writing resource '{}' of kind '{}' to file '{}'",
+            resourceNameAndKind.name, resourceNameAndKind.kind, file.getAbsolutePath());
         try (FileWriter fileWriter = new FileWriter(file)) {
             fileWriter.write(content);
         }
     }
 
-    public static Collection<String> splitResources(String resourceText) {
+    private static String getResourceFileName(ResourceNameAndKind resourceNameAndKind) {
+        return String.format("%s-%s.yaml", resourceNameAndKind.kind, resourceNameAndKind.name);
+    }
+
+    private static Collection<String> splitResources(String resourceText) {
         return Stream.of(resourceText.split("(^|\\n)---[\\r\\n]"))
             .filter(text -> !text.isEmpty())
             .map(text -> "---" + System.lineSeparator() + text)
             .toList();
     }
 
-    public Map<String, List<String>> groupByName(Collection<String> resources) {
+    private Map<ResourceNameAndKind, List<String>> groupByNameAndKind(Collection<String> resources) {
         return resources.stream().collect(Collectors.groupingBy(content -> {
             try {
-                return getResourceName(content);
+                return getResourceNameAndKind(content);
             } catch (Exception ex) {
                 throw new RuntimeException(ex.getMessage(), ex);
             }
         }));
     }
 
-    public String getResourceName(String content) throws JsonProcessingException, ResourceWriteException {
+    private ResourceNameAndKind getResourceNameAndKind(String content) throws JsonProcessingException, ResourceWriteException {
         JsonNode node = yamlMapper.readTree(content);
         String kind = node.path("kind").asText();
         if (kind.isEmpty()) {
@@ -85,6 +96,6 @@ public class ResourceWriteService {
         if (name.isEmpty()) {
             throw new ResourceWriteException("Failed to get resource name");
         }
-        return kind.toLowerCase() + "-" + name;
+        return new ResourceNameAndKind(name, kind);
     }
 }

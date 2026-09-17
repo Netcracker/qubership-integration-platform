@@ -2,6 +2,7 @@ package org.qubership.integration.platform.maven.plugin.domain.services;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.function.Failable;
+import org.apache.commons.lang3.function.FailableFunction;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.services.ResourceBuildService;
@@ -69,7 +70,7 @@ public class MicroDomainResourcesBuildService {
             .stream()
             .flatMap(Collection::stream);
         Collection<ImportSystem> services = Failable.stream(serviceFiles)
-            .map(integrationSystemReader::read)
+            .map(file -> processFile(file, integrationSystemReader::read))
             .stream()
             .toList();
         // TODO
@@ -108,7 +109,10 @@ public class MicroDomainResourcesBuildService {
             .map(rootDir -> listDirectoriesThatContainChainFiles(rootDir, outputDirectory))
             .stream()
             .flatMap(Collection::stream);
-        return Failable.stream(chainDirectories).map(chainReader::read).stream().toList();
+        return Failable.stream(chainDirectories)
+            .map(directory -> processFile(directory, chainReader::read))
+            .stream()
+            .toList();
     }
 
     private Map<String, Collection<ImportChain>> groupChainsByDomain(Collection<ImportChain> chains, String defaultDomain) {
@@ -161,5 +165,14 @@ public class MicroDomainResourcesBuildService {
         Path p = path.normalize().toAbsolutePath();
         Path d = directory.normalize().toAbsolutePath();
         return p.startsWith(d);
+    }
+
+    private <R, E extends Throwable> R processFile(File file, FailableFunction<File, R, E> processor) throws Exception {
+        try {
+            return processor.apply(file);
+        } catch (Throwable error) {
+            String message = String.format("%s: %s", file.getAbsolutePath(), error.getMessage());
+            throw new Exception(message, error);
+        }
     }
 }
