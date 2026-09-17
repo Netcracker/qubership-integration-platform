@@ -147,6 +147,73 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void projectsOneOperationWhenOutboundInteractionHasMultipleFacts() {
+    String outboundId = "relay-out";
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-in", Direction.INBOUND, "Caller", "POST /notify", ""),
+                new Interaction(outboundId, Direction.OUTBOUND, "Target", "send", "")),
+            List.of(new Transition("http-in", outboundId)));
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "trigger-1",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose POST /notify",
+                "",
+                "",
+                "POST",
+                "/notify",
+                ""),
+            new RequirementFact(
+                outboundId,
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "kafka-sender-2",
+                "Send with kafka-sender-2"),
+            new RequirementFact(
+                outboundId,
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CONSTRAINT,
+                "",
+                "Use topic orders-out"));
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Relay",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Relay",
+            "draft-1",
+            "draft",
+            facts,
+            List.of(
+                new RequirementEntryPoint(
+                    "http-in", "trigger-1", "http-trigger", "", "POST", "/notify", "POST /notify")),
+            List.of(),
+            List.of(),
+            List.of(),
+            flow,
+            List.of());
+
+    ChainSemanticRevision revision = adapt(nativeSenderCapture(outboundId), brief);
+
+    long senderCount =
+        revision.nodes().stream()
+            .filter(SemanticNode.Operation.class::isInstance)
+            .map(SemanticNode.Operation.class::cast)
+            .filter(operation -> outboundId.equals(operation.nodeId()))
+            .count();
+    assertEquals(1, senderCount);
+    assertEquals("kafka-sender-2", senderOperation(revision, outboundId).elementType());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+  }
+
+  @Test
   void projectsNativeSenderFromCapabilityFactWithoutCapturedOperation() {
     RequirementBrief brief = nativeSenderBrief("kafka-sender-2", "relay-out", List.of());
     ChainSemanticCapture capture = nativeSenderCapture("relay-out");
