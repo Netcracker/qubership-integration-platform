@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.FakeKnowl
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineEntry;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndex;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineIndexSupport;
+import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
 import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionResult;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionService;
@@ -191,7 +192,7 @@ class CompilerSkillRuntimeCatalogExclusionTest {
 
   private static void writeKnowledgeFiles(Path root) throws Exception {
     Path knowledge = root.resolve("knowledge");
-    Path fixture = Path.of("src/test/resources/qip-knowledge-fixture");
+    Path fixture = QipKnowledgePackFixturePaths.knowledgeRoot();
     copyTree(fixture, knowledge);
     Path knowledgeDir = knowledge.resolve("ai");
     Files.writeString(
