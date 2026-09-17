@@ -12,6 +12,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationDirection;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
@@ -38,13 +40,22 @@ public final class RequirementFlowValidator {
 
   private RequirementFlowValidator() {}
 
+  public static Interaction interactionForEntryPoint(RequirementBrief brief, String entryPointId) {
+    if (brief == null || entryPointId == null || entryPointId.isBlank()) {
+      return new Interaction("", Direction.INBOUND, "", "", "");
+    }
+    return brief.flow()
+        .interaction(entryPointId)
+        .orElseGet(() -> interactionFromEntryPoint(brief, entryPointId));
+  }
+
   static Set<String> supportedInboundCapabilityKeys() {
     return ChainElementFamilies.TRIGGERS.stream()
         .filter(type -> ChainElementFamilies.bindingMode(type) != BindingMode.UNSUPPORTED_IN_CREATE)
         .collect(Collectors.toUnmodifiableSet());
   }
 
-  static LookupAction catalogLookupAction(Interaction interaction, List<RequirementFact> facts) {
+  public static LookupAction catalogLookupAction(Interaction interaction, List<RequirementFact> facts) {
     List<RequirementFact> factList = facts == null ? List.of() : facts;
     if (hasMcpTriggerFact(interaction.interactionId(), factList)) {
       return LookupAction.REJECT_UNSUPPORTED;
@@ -382,6 +393,36 @@ public final class RequirementFlowValidator {
       return LookupAction.REJECT_UNSUPPORTED;
     }
     return LookupAction.ASK;
+  }
+
+  private static Interaction interactionFromEntryPoint(
+      RequirementBrief brief, String entryPointId) {
+    RequirementEntryPoint entryPoint = null;
+    for (RequirementEntryPoint candidate : brief.entryPoints()) {
+      if (candidate != null && entryPointId.equals(candidate.entryPointId())) {
+        entryPoint = candidate;
+        break;
+      }
+    }
+    RequirementFact fact = matchingFact(brief.facts(), entryPointId);
+    String participant = fact == null ? "" : fact.participant();
+    String operation =
+        entryPoint != null && !entryPoint.operation().isBlank()
+            ? entryPoint.operation()
+            : fact == null ? "" : fact.operation();
+    return new Interaction(entryPointId, Direction.INBOUND, participant, operation, "");
+  }
+
+  private static RequirementFact matchingFact(List<RequirementFact> facts, String interactionId) {
+    if (facts == null || interactionId == null || interactionId.isBlank()) {
+      return null;
+    }
+    for (RequirementFact fact : facts) {
+      if (fact != null && interactionId.equals(fact.sourceFactId())) {
+        return fact;
+      }
+    }
+    return null;
   }
 
   private static LookupAction httpTriggerLookupAction(

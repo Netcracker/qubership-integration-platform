@@ -10,9 +10,13 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.ClaimRole;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.OwnerKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 final class DesignPlanTestFixtures {
@@ -24,7 +28,13 @@ final class DesignPlanTestFixtures {
   }
 
   static RequirementBrief brief() {
-    return new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "Create order");
+    return new RequirementBrief("Orders", List.of(), List.of(), List.of(), List.of(), "Create order")
+        .withFacts(List.of(RequirementFactFixtures.httpTriggerFact("entry-1", "POST", "/orders")))
+        .withFlow(
+            new RequirementFlow(
+                List.of(
+                    new Interaction("entry-1", Direction.INBOUND, "Caller", "POST /orders", "")),
+                List.of()));
   }
 
   static CompilerRunPin pin(ChainSemanticRevision revision) {

@@ -36,6 +36,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
+import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SplitMode;
 import java.time.Instant;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
@@ -243,14 +244,20 @@ class DefaultChainSemanticGraphCompilerTest {
             "summary",
             null,
             "",
-            List.of(),
+            List.of(
+                RequirementFactFixtures.implementedServiceHttpTriggerFact(
+                    "http-in", "GeoSite", "getGeo")),
             List.of(
                 new RequirementEntryPoint(
-                    "http-in", "", "http-trigger", "", "GET", "/geo", "getGeo")),
+                    "http-in", "http-in", "http-trigger", "", "GET", "", "getGeo")),
             List.of(),
             List.of(),
             List.of(),
-            RequirementFlow.EMPTY,
+            new RequirementFlow(
+                List.of(
+                    new RequirementFlow.Interaction(
+                        "http-in", RequirementFlow.Direction.INBOUND, "GeoSite", "getGeo", "")),
+                List.of()),
             List.of(binding));
 
     ChainPlanGraph graph = compiler.compile(conditionRevision(), CONTRACT, List.of(), brief);
@@ -275,12 +282,22 @@ class DefaultChainSemanticGraphCompilerTest {
             "summary",
             null,
             "",
-            List.of(),
+            List.of(RequirementFactFixtures.httpTriggerFact("http-in", "POST", "/orders")),
             List.of(
                 new RequirementEntryPoint(
-                    "http-in", "", "http-trigger", "", "POST", "/orders", "")),
+                    "http-in", "http-in", "http-trigger", "", "POST", "/orders", "")),
             List.of(),
             List.of(),
+            List.of(),
+            new RequirementFlow(
+                List.of(
+                    new RequirementFlow.Interaction(
+                        "http-in",
+                        RequirementFlow.Direction.INBOUND,
+                        "Caller",
+                        "POST /orders",
+                        "")),
+                List.of()),
             List.of());
 
     ChainPlanGraph graph = compiler.compile(conditionRevision(), CONTRACT, List.of(), brief);
