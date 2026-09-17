@@ -29,8 +29,6 @@ class CompilerContractKnowledgeAlignmentTest {
   private static final String IDS_COMPILER_EXTRACTION =
       "parse the IDS into compiler input";
   private static final String COMPILER_SOURCE_CHOICE = "GENERATE/DERIVE/PROVIDE";
-  private static final String TRACKED_FIXTURE =
-      "ai-service/src/test/resources/qip-knowledge-fixture";
 
   @Test
   void knowledgeIndexPinsCompilerContractDigestAndAsyncCardinality(@TempDir Path outputDir)
@@ -63,10 +61,10 @@ class CompilerContractKnowledgeAlignmentTest {
   }
 
   @Test
-  void trackedAddonsTreatIdsAsDerivedViewAndReuseSemanticCompilerSeed() throws Exception {
-    String generatorAddon = readTrackedAddon("cip-design-generator");
-    String structureAddon = readTrackedAddon("cip-structure-generator");
-    String executorAddon = readTrackedAddon("cip-design-executor");
+  void packAddonsTreatIdsAsDerivedViewAndReuseSemanticCompilerSeed() throws Exception {
+    String generatorAddon = readPackAddon("cip-design-generator");
+    String structureAddon = readPackAddon("cip-structure-generator");
+    String executorAddon = readPackAddon("cip-design-executor");
     List<String> addons = List.of(generatorAddon, structureAddon, executorAddon);
 
     assertTrue(
@@ -92,13 +90,13 @@ class CompilerContractKnowledgeAlignmentTest {
         new ClasspathCompilerContractRepository().require(CompilerContract.V1);
     for (String addonId : contract.requiredAddons()) {
       assertTrue(
-          Files.isRegularFile(trackedAddonFile(addonId)),
-          "Required tracked addon is missing: " + addonId);
+          Files.isRegularFile(packAddonFile(addonId)),
+          "Required pack addon is missing: " + addonId);
     }
     for (String fragment : contract.requiredKnowledgeFragments()) {
       assertTrue(
-          Files.isRegularFile(trackedKnowledgeFile(fragment)),
-          "Required tracked knowledge fragment is missing: " + fragment);
+          Files.isRegularFile(packKnowledgeFile(fragment)),
+          "Required pack knowledge fragment is missing: " + fragment);
     }
   }
 
@@ -106,9 +104,9 @@ class CompilerContractKnowledgeAlignmentTest {
   void everyCompilerContractRuleMapsToAddonAndDescriptor() throws Exception {
     CompilerContract contract =
         new ClasspathCompilerContractRepository().require(CompilerContract.V1);
-    String executorAddon = readTrackedAddon("cip-design-executor");
-    String structureAddon = readTrackedAddon("cip-structure-generator");
-    String generatorAddon = readTrackedAddon("cip-design-generator");
+    String executorAddon = readPackAddon("cip-design-executor");
+    String structureAddon = readPackAddon("cip-structure-generator");
+    String generatorAddon = readPackAddon("cip-design-generator");
     Set<String> headings = addonHeadings(generatorAddon, structureAddon, executorAddon);
     Map<String, MappingRow> rows = parseOwnershipTable(executorAddon);
 
@@ -145,9 +143,9 @@ class CompilerContractKnowledgeAlignmentTest {
     assertFalse(contract.topology().get("generic-barrier").supported());
     assertFalse(contract.topology().get("generic-aggregate").supported());
 
-    String generatorContracts = readTrackedKnowledge("GENERATOR_CONTRACTS.md");
-    String validationRules = readTrackedKnowledge("validation-rules.yaml");
-    String ruleMapping = readTrackedKnowledge("generator-rule-mapping.md");
+    String generatorContracts = readPackKnowledge("GENERATOR_CONTRACTS.md");
+    String validationRules = readPackKnowledge("validation-rules.yaml");
+    String ruleMapping = readPackKnowledge("generator-rule-mapping.md");
     assertFalse(generatorContracts.contains("choice/when/otherwise (for 3+ branches)"));
     assertFalse(validationRules.contains("async_split_element_2_count < 2"));
     assertTrue(validationRules.contains("async_split_element_2_count < 1"));
@@ -191,19 +189,19 @@ class CompilerContractKnowledgeAlignmentTest {
     throw new IllegalStateException("Runtime descriptor is missing for " + elementType);
   }
 
-  private static String readTrackedAddon(String skillId) throws Exception {
-    return Files.readString(trackedAddonFile(skillId));
+  private static String readPackAddon(String skillId) throws Exception {
+    return Files.readString(packAddonFile(skillId));
   }
 
-  private static Path trackedAddonFile(String skillId) {
-    return resolveRepoPath(TRACKED_FIXTURE + "/addons/skills").resolve(skillId + ".addon.md");
+  private static Path packAddonFile(String skillId) {
+    return QipKnowledgePackFixturePaths.addonRoot().resolve("skills").resolve(skillId + ".addon.md");
   }
 
-  private static String readTrackedKnowledge(String fileName) throws Exception {
-    return Files.readString(resolveRepoPath(TRACKED_FIXTURE + "/ai").resolve(fileName));
+  private static String readPackKnowledge(String fileName) throws Exception {
+    return Files.readString(QipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai").resolve(fileName));
   }
 
-  private static Path trackedKnowledgeFile(String fragment) {
+  private static Path packKnowledgeFile(String fragment) {
     String fileName =
         switch (fragment) {
           case "validation-rules" -> "validation-rules.yaml";
@@ -211,7 +209,7 @@ class CompilerContractKnowledgeAlignmentTest {
           case "generator-rule-mapping" -> "generator-rule-mapping.md";
           default -> fragment;
         };
-    return resolveRepoPath(TRACKED_FIXTURE + "/ai").resolve(fileName);
+    return QipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai").resolve(fileName);
   }
 
   private static Map<String, MappingRow> parseOwnershipTable(String executorAddon) {
