@@ -654,7 +654,7 @@ Headers
     "x-version-name": "active",
 	"x-idempotency-key": "4a1c6r8e-7c41-2e0e-1c0b-5b2a6d4c8f93" 
 }
-``` 
+```
 
 Body
 
