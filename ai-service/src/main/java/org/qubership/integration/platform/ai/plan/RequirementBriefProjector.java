@@ -33,7 +33,7 @@ public final class RequirementBriefProjector {
     Map<String, CatalogBindingHint> bindings = indexBindings(brief.catalogBindings());
     List<RequirementEntryPoint> entryPoints =
         entryPointsFrom(brief.flow(), facts, bindings);
-    List<RequirementServiceCall> serviceCalls = serviceCallsFrom(brief.flow(), bindings);
+    List<RequirementServiceCall> serviceCalls = serviceCallsFrom(brief.flow(), bindings, facts);
     return new RequirementBrief(
         brief.goal(),
         brief.inputs(),
@@ -400,12 +400,17 @@ public final class RequirementBriefProjector {
     RequirementFact config = matchingFact(facts, interactionId);
     boolean catalogBacked =
         bindings.containsKey(interactionId)
-            || (config != null && "async-api-trigger".equals(config.capabilityKey()));
+            || (config != null && "async-api-trigger".equals(config.capabilityKey()))
+            || isImplementedServiceHttpTrigger(config);
     if (catalogBacked) {
+      String capabilityKey =
+          config != null && "http-trigger".equals(config.capabilityKey())
+              ? "http-trigger"
+              : "async-api-trigger";
       return new RequirementEntryPoint(
           interactionId,
           interactionId,
-          "async-api-trigger",
+          capabilityKey,
           config == null ? "" : config.topic(),
           config == null ? "" : config.httpMethod(),
           config == null ? "" : config.path(),
@@ -428,16 +433,20 @@ public final class RequirementBriefProjector {
    * from the interaction. A catalog hint is attached when the brief already owns that binding.
    */
   static List<RequirementServiceCall> serviceCallsFrom(
-      RequirementFlow flow, Map<String, CatalogBindingHint> bindings) {
+      RequirementFlow flow, Map<String, CatalogBindingHint> bindings, List<RequirementFact> facts) {
     if (flow == null || flow.interactions().isEmpty()) {
       return List.of();
     }
+    List<RequirementFact> factList = facts == null ? List.of() : facts;
     List<RequirementServiceCall> calls = new ArrayList<>();
     for (Interaction interaction : flow.interactions()) {
       if (interaction.direction() != Direction.OUTBOUND) {
         continue;
       }
       String interactionId = interaction.interactionId();
+      if (RequirementFlowValidator.hasNativeDirectOutboundCapabilityFact(interactionId, factList)) {
+        continue;
+      }
       CatalogBindingHint hint = bindings.get(interactionId);
       calls.add(
           requireOwnedBinding(
@@ -450,6 +459,13 @@ public final class RequirementBriefProjector {
                   interaction.failureMode())));
     }
     return List.copyOf(calls);
+  }
+
+  private static boolean isImplementedServiceHttpTrigger(RequirementFact config) {
+    return config != null
+        && "http-trigger".equals(config.capabilityKey())
+        && config.path().isBlank()
+        && !config.participant().isBlank();
   }
 
   private static RequirementFact matchingFact(List<RequirementFact> facts, String interactionId) {

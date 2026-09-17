@@ -16,9 +16,12 @@ public record RequirementFact(
     RequirementFactPolarity polarity,
     RequirementFactKind kind,
     @Description(
-            "Native chain-element key. Use http-trigger, chain-trigger-2, kafka-trigger-2,"
-                + " quartz-scheduler, or async-api-trigger for inbound interactions; use"
-                + " http-sender or kafka-sender-2 for direct outbound requests")
+            "Native chain-element key. Inbound: http-trigger, chain-trigger-2, async-api-trigger,"
+                + " jms-trigger, kafka-trigger-2, pubsub-trigger, quartz-scheduler,"
+                + " rabbitmq-trigger-2, sds-trigger, or sftp-trigger-2. Outbound direct:"
+                + " graphql-sender, http-sender, jms-sender, kafka-sender-2, mail-sender,"
+                + " pubsub-sender, rabbitmq-sender-2, or scs-sender. Do not use mcp-trigger;"
+                + " that trigger is not supported in create-chain yet.")
         String capabilityKey,
     String text,
     @Description("SERVICE_CALL catalog or system display name, e.g. Petstore Ext")

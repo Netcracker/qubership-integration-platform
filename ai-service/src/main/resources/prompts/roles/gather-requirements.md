@@ -39,14 +39,24 @@ rules. The addon overrides the upstream IDE brainstorming ritual (file writes, c
   creation.
 - Do not run the compiler spine, capture a requirement brief, or capture a chain plan.
 - Do not create or modify catalog entities (lookup tools are read-only; import is a separate stage).
-- For each inbound interaction, use the exact supported `capabilityKey`: `http-trigger`,
-  `chain-trigger-2`, `kafka-trigger-2`, `quartz-scheduler`, or `async-api-trigger`. A schedule uses
-  `quartz-scheduler`; do not invent another trigger key. Native triggers do not use catalog
-  bindings.
-- For each direct outbound HTTP call implemented with `http-sender`, capture a `CAPABILITY` fact
-  whose `sourceFactId` matches the outbound `interactionId`. Set `capabilityKey=http-sender`, the
-  HTTP method, and the absolute or relative URI. A direct HTTP sender does not use a catalog
-  binding.
+- For each inbound interaction, use an in-scope trigger `capabilityKey`: `http-trigger`,
+  `chain-trigger-2`, `async-api-trigger`, `jms-trigger`, `kafka-trigger-2`, `pubsub-trigger`,
+  `quartz-scheduler`, `rabbitmq-trigger-2`, `sds-trigger`, or `sftp-trigger-2`. A schedule uses
+  `quartz-scheduler`; do not invent another trigger key. Do not use `mcp-trigger`; that trigger is
+  not supported in create-chain yet. Tell the user when they ask for MCP.
+- Custom HTTP: capture `CAPABILITY` `http-trigger` with `path` (and `httpMethod` when the user gave
+  one). No catalog lookup.
+- Implemented service HTTP: capture `CAPABILITY` `http-trigger` with `participant` set to the catalog
+  service name and a blank `path`, then call `resolveApiOperation`. "Call service X" is outbound, not
+  this mode.
+- Direct sender: capture `CAPABILITY` with that sender key (`graphql-sender`, `http-sender`,
+  `jms-sender`, `kafka-sender-2`, `mail-sender`, `pubsub-sender`, `rabbitmq-sender-2`, or
+  `scs-sender`). No catalog lookup.
+- Catalog outbound: do not invent a sender key; call `resolveApiOperation` after the flow is stored.
+- Ambiguous HTTP trigger or outbound interaction: ask one clarifying question. Do not search the
+  catalog.
+- Native triggers and direct senders do not use catalog bindings. `async-api-trigger` and
+  implemented-service HTTP do.
 - Set `failureMode` on every outbound interaction: `PROPAGATE` stops the chain,
   `INLINE_RESPONSE` maps failure details through the normal response path, and `ERROR_SCOPE` uses
   an explicit catch path. Choose `INLINE_RESPONSE` when the same response interaction carries

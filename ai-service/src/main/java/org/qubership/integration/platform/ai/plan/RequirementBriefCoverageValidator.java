@@ -104,6 +104,10 @@ public final class RequirementBriefCoverageValidator {
     if (serviceCallError.isPresent()) {
       return serviceCallError;
     }
+    Optional<String> entryPointBindingError = validateEntryPointBindings(brief);
+    if (entryPointBindingError.isPresent()) {
+      return entryPointBindingError;
+    }
     if (isSingleEntryServiceFlow(brief)) {
       try {
         topologyValidator.validate(brief);
@@ -136,7 +140,10 @@ public final class RequirementBriefCoverageValidator {
       if (interaction.direction() == Direction.INBOUND && !entryIds.contains(interactionId)) {
         return Optional.of("requirement brief missing entryPointId=" + interactionId);
       }
-      if (interaction.direction() == Direction.OUTBOUND && !callIds.contains(interactionId)) {
+      if (interaction.direction() == Direction.OUTBOUND
+          && !RequirementFlowValidator.hasNativeDirectOutboundCapabilityFact(
+              interactionId, brief.facts())
+          && !callIds.contains(interactionId)) {
         return Optional.of(
             "requirement brief missing serviceCallId="
                 + interactionId
@@ -246,6 +253,48 @@ public final class RequirementBriefCoverageValidator {
             + targetRef
             + ", which is not an approved flow transition. Capture one intent per transition."
             + " Put preserve or echo rules on the hop that writes the target payload.");
+  }
+
+  private static Optional<String> validateEntryPointBindings(RequirementBrief brief) {
+    RequirementFlow flow = brief.flow();
+    if (flow.interactions().isEmpty()) {
+      return Optional.empty();
+    }
+    Map<String, CatalogBindingHint> bindings = indexBindings(brief.catalogBindings());
+    for (Interaction interaction : flow.interactions()) {
+      if (interaction.direction() != Direction.INBOUND) {
+        continue;
+      }
+      if (!RequirementFlowValidator.requiresCatalogBinding(interaction, brief.facts())) {
+        continue;
+      }
+      String interactionId = interaction.interactionId();
+      if (!bindings.containsKey(interactionId)) {
+        return Optional.of(
+            "requirement brief entry point has no catalog binding, entryPointId="
+                + interactionId
+                + ", participant="
+                + interaction.participant()
+                + ", operation="
+                + interaction.operation()
+                + "; bind it to a catalog operation before approving the brief");
+      }
+    }
+    return Optional.empty();
+  }
+
+  private static Map<String, CatalogBindingHint> indexBindings(List<CatalogBindingHint> bindings) {
+    Map<String, CatalogBindingHint> byId = new LinkedHashMap<>();
+    if (bindings == null) {
+      return byId;
+    }
+    for (CatalogBindingHint hint : bindings) {
+      if (hint == null || hint.interactionId().isBlank()) {
+        continue;
+      }
+      byId.putIfAbsent(hint.interactionId(), hint);
+    }
+    return byId;
   }
 
   private static Optional<String> validateServiceCalls(RequirementBrief brief) {
