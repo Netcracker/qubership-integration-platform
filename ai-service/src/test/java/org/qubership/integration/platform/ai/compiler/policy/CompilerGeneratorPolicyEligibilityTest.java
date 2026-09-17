@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalogLoader;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillDisposition;
+import org.qubership.integration.platform.ai.qipknowledge.QipKnowledgePackFixturePaths;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackIngestionService;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackScanResult;
 import org.qubership.integration.platform.ai.qipknowledge.skill.CapabilityDescriptor;
@@ -87,7 +88,7 @@ class CompilerGeneratorPolicyEligibilityTest {
 
   private static void writeKnowledgeFiles(Path root) throws Exception {
     Path knowledge = root.resolve("knowledge");
-    Path fixture = Path.of("src/test/resources/qip-knowledge-fixture");
+    Path fixture = QipKnowledgePackFixturePaths.knowledgeRoot();
     copyTree(fixture, knowledge);
     Path knowledgeDir = knowledge.resolve("ai");
     Files.writeString(

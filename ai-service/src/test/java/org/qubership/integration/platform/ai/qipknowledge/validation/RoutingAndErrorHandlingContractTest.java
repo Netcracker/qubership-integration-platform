@@ -14,7 +14,7 @@ class RoutingAndErrorHandlingContractTest {
   void validationRulesAllowOneOrMoreDirectIfChildren() throws Exception {
     String rules =
         Files.readString(
-            Path.of("src/test/resources/qip-knowledge-fixture/ai/validation-rules.yaml"));
+            QipKnowledgePackFixturePaths.knowledgeRoot().resolve("ai/validation-rules.yaml"));
 
     assertFalse(rules.contains("condition.if_children_count != 1"));
     assertFalse(rules.contains("exactly one if child"));

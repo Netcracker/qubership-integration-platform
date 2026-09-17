@@ -195,13 +195,9 @@ class GeneratorTopologyOwnershipContractTest {
 
   private AddonRuntimeMetadata metadata(String skillId) {
     Path addon =
-        "cip-service-call-generator".equals(skillId)
-            ? Path.of(
-                "src/test/resources/qip-knowledge-fixture/addons/skills/"
-                    + "cip-service-call-generator.addon.md")
-            : QipKnowledgePackFixturePaths.addonRoot()
-                .resolve("skills")
-                .resolve(skillId + ".addon.md");
+        QipKnowledgePackFixturePaths.addonRoot()
+            .resolve("skills")
+            .resolve(skillId + ".addon.md");
     AddonRuntimeMetadata metadata = parser.parseAddonFile(addon);
     assertNotNull(metadata, "Missing runtime metadata for " + skillId);
     return metadata;

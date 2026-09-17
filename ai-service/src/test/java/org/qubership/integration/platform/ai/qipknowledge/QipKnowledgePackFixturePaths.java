@@ -21,6 +21,10 @@ public final class QipKnowledgePackFixturePaths {
     return packRoot().resolve(ADDON_PACK_DIR);
   }
 
+  public static Path knowledgeRoot() {
+    return packRoot().resolve("knowledge");
+  }
+
   public static QipKnowledgePackVersion packVersion() {
     return new QipKnowledgePackVersion(PACK_DIR, PACK_DIR);
   }
