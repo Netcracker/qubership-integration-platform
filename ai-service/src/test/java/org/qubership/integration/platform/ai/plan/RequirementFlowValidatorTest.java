@@ -613,6 +613,37 @@ class RequirementFlowValidatorTest {
   }
 
   @Test
+  void negativeMcpTriggerFactDoesNotRejectHttpInbound() {
+    Interaction inbound = interaction("http-in", INBOUND, "Caller", "GET /orders");
+    RequirementFact httpFact =
+        new RequirementFact(
+            "http-in",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /orders",
+            "",
+            "",
+            "",
+            "GET",
+            "/orders");
+    RequirementFact negativeMcpFact =
+        new RequirementFact(
+            "http-in",
+            RequirementFactPolarity.NEGATIVE,
+            RequirementFactKind.CONSTRAINT,
+            "mcp-trigger",
+            "No MCP");
+    assertEquals(
+        RequirementFlowValidator.LookupAction.SKIP,
+        RequirementFlowValidator.catalogLookupAction(inbound, List.of(httpFact, negativeMcpFact)));
+    Optional<String> error =
+        RequirementFlowValidator.validateBindings(
+            flow(List.of(inbound), List.of()), List.of(httpFact, negativeMcpFact), List.of());
+    assertTrue(error.isEmpty(), error::orElseThrow);
+  }
+
+  @Test
   void mcpTriggerIsRejectedAsUnsupported() {
     Interaction inbound = interaction("mcp-in", INBOUND, "Agent", "tool");
     RequirementFact fact =

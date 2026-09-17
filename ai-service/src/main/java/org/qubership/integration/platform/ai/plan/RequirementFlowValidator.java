@@ -460,6 +460,8 @@ public final class RequirementFlowValidator {
     return facts.stream()
         .filter(Objects::nonNull)
         .filter(fact -> interactionId.equals(fact.sourceFactId()))
+        .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+        .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
         .anyMatch(fact -> "mcp-trigger".equals(fact.capabilityKey()));
   }
 
