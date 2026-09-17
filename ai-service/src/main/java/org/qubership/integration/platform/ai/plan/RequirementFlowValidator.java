@@ -343,7 +343,8 @@ public final class RequirementFlowValidator {
   }
 
   /** Returns true when an interaction is configured without a catalog operation. */
-  static boolean isNativeDirectInteraction(Interaction interaction, List<RequirementFact> facts) {
+  public static boolean isNativeDirectInteraction(
+      Interaction interaction, List<RequirementFact> facts) {
     return catalogLookupAction(interaction, facts) == LookupAction.SKIP;
   }
 

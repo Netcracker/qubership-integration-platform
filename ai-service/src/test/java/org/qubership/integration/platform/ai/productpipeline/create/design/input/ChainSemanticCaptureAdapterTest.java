@@ -12,8 +12,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.time.Instant;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
@@ -138,24 +147,148 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
-  void rejectsACapabilityThatHasNoSemanticOperation() {
-    RequirementBrief approved = ChainSemanticCaptureFixtures.approvedBrief();
-    List<RequirementFact> facts = new ArrayList<>(approved.facts());
-    facts.add(
-        new RequirementFact(
-            "fact-kafka",
-            RequirementFactPolarity.POSITIVE,
-            RequirementFactKind.CAPABILITY,
-            "kafka-sender-2",
-            "Publish to the Kafka topic"));
+  void projectsNativeSenderFromCapabilityFactWithoutCapturedOperation() {
+    RequirementBrief brief = nativeSenderBrief("kafka-sender-2", "relay-out", List.of());
+    ChainSemanticCapture capture = nativeSenderCapture("relay-out");
 
-    IllegalArgumentException error =
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> adapt(ChainSemanticCaptureFixtures.linearCapture(), approved.withFacts(facts)));
+    ChainSemanticRevision revision = adapt(capture, brief);
 
-    assertTrue(error.getMessage().contains("fact-kafka"), error.getMessage());
-    assertTrue(error.getMessage().contains("elementType 'kafka-sender-2'"), error.getMessage());
+    SemanticNode.Operation sender = senderOperation(revision, "relay-out");
+    assertEquals("kafka-sender-2", sender.elementType());
+    assertTrue(revision.nodes().stream().noneMatch(SemanticNode.ServiceCall.class::isInstance));
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "graphql-sender",
+        "http-sender",
+        "jms-sender",
+        "kafka-sender-2",
+        "mail-sender",
+        "pubsub-sender",
+        "rabbitmq-sender-2",
+        "scs-sender"
+      })
+  void projectsDirectSenderCapabilityAsOperationWithoutCapturedOperation(String senderType) {
+    RequirementBrief brief = nativeSenderBrief(senderType, "relay-out", List.of());
+    ChainSemanticRevision revision = adapt(nativeSenderCapture("relay-out"), brief);
+
+    assertEquals(senderType, senderOperation(revision, "relay-out").elementType());
+    assertTrue(revision.nodes().stream().noneMatch(SemanticNode.ServiceCall.class::isInstance));
+    if (CONTRACT.elements().containsKey(senderType)) {
+      new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+    }
+  }
+
+  @Test
+  void skipsServiceCallMaterializationForHttpSenderCapability() {
+    RequirementBrief brief =
+        nativeSenderBrief(
+            "http-sender",
+            "relay-out",
+            List.of(new RequirementServiceCall("relay-out", "relay-out", "Relay", "POST")));
+    ChainSemanticRevision revision = adapt(nativeSenderCapture("relay-out"), brief);
+
+    assertEquals("http-sender", senderOperation(revision, "relay-out").elementType());
+    assertTrue(revision.nodes().stream().noneMatch(SemanticNode.ServiceCall.class::isInstance));
+  }
+
+  @Test
+  void implementedServiceHttpTriggerStaysTriggerWithCatalogBinding() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    CatalogBindingHint geoHint =
+        new CatalogBindingHint(
+            CatalogBindingHint.SCHEMA_VERSION,
+            "geo-api",
+            "geo-api",
+            "retrieveGeographicSite",
+            "sys-geo",
+            "sg-geo",
+            "spec-geo",
+            "op-geo",
+            "http",
+            "GET",
+            "/geo",
+            "v1",
+            observedAt,
+            "catalog-read:sys-geo/spec-geo/op-geo");
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction(
+                    "geo-api", Direction.INBOUND, "GeoSite", "retrieveGeographicSite", "")),
+            List.of());
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "geo-api",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose GeoSite implemented service",
+                "GeoSite",
+                "",
+                "",
+                "GET",
+                ""),
+            new RequirementFact(
+                "fact-script",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "Prepare the response"));
+    RequirementBrief brief =
+        new RequirementBrief(
+            "GeoSite",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Expose GeoSite",
+            "draft-1",
+            "draft",
+            facts,
+            List.of(
+                new RequirementEntryPoint(
+                    "geo-api",
+                    "geo-api",
+                    "http-trigger",
+                    "",
+                    "GET",
+                    "",
+                    "retrieveGeographicSite")),
+            List.of(),
+            List.of(),
+            List.of(),
+            flow,
+            List.of(geoHint));
+    ChainSemanticCapture capture =
+        new ChainSemanticCapture(
+            "chain-geo",
+            List.of(
+                new CapturedEntryPoint(
+                    "geo-api", "trigger-http", "op-script", 0, List.of("geo-api"), null, null)),
+            List.of(new CapturedTrigger("trigger-http", List.of("geo-api"))),
+            List.of(new CapturedOperation("op-script", "script", List.of("fact-script"))),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(new CapturedEdge("geo-api", "op-script", null, null, null, null, null, null)),
+            List.of());
+
+    ChainSemanticRevision revision = adapt(capture, brief);
+
+    SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
+    assertEquals("http-trigger", trigger.capabilityKey());
+    assertEquals("geo-api", trigger.nodeId());
+    assertEquals("op-geo", brief.catalogBindings().getFirst().integrationOperationId());
+    assertTrue(revision.nodes().stream().noneMatch(SemanticNode.ServiceCall.class::isInstance));
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
   }
 
   @Test
@@ -647,8 +780,10 @@ class ChainSemanticCaptureAdapterTest {
             IllegalArgumentException.class,
             () -> adapt(wrongOperationCapture, nativeKafkaBrief));
 
-    assertTrue(failure.getMessage().contains("requires operation nodeId 'call-1'"));
-    assertTrue(failure.getMessage().contains("elementType 'kafka-sender-2'"));
+    assertTrue(
+        failure.getMessage().contains("reuses an interaction id")
+            || failure.getMessage().contains("requires operation nodeId 'call-1'"),
+        failure.getMessage());
   }
 
   @Test
@@ -982,6 +1117,81 @@ class ChainSemanticCaptureAdapterTest {
         serviceCalls,
         brief.requirements(),
         brief.mappingIntents());
+  }
+
+  private static RequirementBrief nativeSenderBrief(
+      String senderType, String outboundId, List<RequirementServiceCall> serviceCalls) {
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-in", Direction.INBOUND, "Caller", "POST /notify", ""),
+                new Interaction(outboundId, Direction.OUTBOUND, "Target", "send", "")),
+            List.of(new Transition("http-in", outboundId)));
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "trigger-1",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose POST /notify",
+                "",
+                "",
+                "POST",
+                "/notify",
+                ""),
+            new RequirementFact(
+                outboundId,
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                senderType,
+                "Send with " + senderType));
+    return new RequirementBrief(
+        "Relay",
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        "Relay",
+        "draft-1",
+        "draft",
+        facts,
+        List.of(
+            new RequirementEntryPoint(
+                "http-in", "trigger-1", "http-trigger", "", "POST", "/notify", "POST /notify")),
+        serviceCalls,
+        List.of(),
+        List.of(),
+        flow,
+        List.of());
+  }
+
+  private static ChainSemanticCapture nativeSenderCapture(String outboundId) {
+    return new ChainSemanticCapture(
+        "chain-relay",
+        List.of(
+            new CapturedEntryPoint(
+                "http-in", "trigger-http", outboundId, 0, List.of("trigger-1"), null, null)),
+        List.of(new CapturedTrigger("trigger-http", List.of("trigger-1"))),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(new CapturedEdge("http-in", outboundId, null, null, null, null, null, null)),
+        List.of());
+  }
+
+  private static SemanticNode.Operation senderOperation(
+      ChainSemanticRevision revision, String outboundId) {
+    return revision.nodes().stream()
+        .filter(SemanticNode.Operation.class::isInstance)
+        .map(SemanticNode.Operation.class::cast)
+        .filter(operation -> outboundId.equals(operation.nodeId()))
+        .findFirst()
+        .orElseThrow();
   }
 
   private static ChainSemanticCapture withOperations(

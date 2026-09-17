@@ -44,6 +44,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /**
  * Projects a model-owned {@link ChainSemanticCapture} onto the canonical {@link
@@ -219,10 +220,31 @@ public class ChainSemanticCaptureAdapter {
               approved.capabilityKey(),
               new SemanticProvenance(provenance)));
     }
+    for (RequirementFact fact : facts) {
+      if (fact == null) {
+        continue;
+      }
+      String senderType =
+          RequirementFlowValidator
+              .nativeDirectOutboundCapabilityKey(fact.sourceFactId(), facts)
+              .orElse(null);
+      if (senderType == null) {
+        continue;
+      }
+      String nodeId = fact.sourceFactId();
+      if (!interactionIds.add(nodeId)) {
+        throw new IllegalArgumentException("Duplicate nodeId: " + nodeId);
+      }
+      List<String> provenance =
+          factIds.contains(fact.sourceFactId()) ? List.of(fact.sourceFactId()) : List.of();
+      nodes.add(
+          new SemanticNode.Operation(nodeId, senderType, new SemanticProvenance(provenance)));
+    }
     Set<String> triggerFactIds = triggerFactIds(briefEntryPoints.values());
     for (RequirementServiceCall approved : briefServiceCalls.values()) {
-      if (RequirementFlowValidator.hasNativeDirectOutboundCapabilityFact(
-          approved.serviceCallId(), facts)) {
+      if (RequirementFlowValidator.nativeDirectOutboundCapabilityKey(
+              approved.serviceCallId(), facts)
+          .isPresent()) {
         continue;
       }
       if (!materializesServiceCallNode(approved, triggerFactIds)) {
@@ -267,15 +289,18 @@ public class ChainSemanticCaptureAdapter {
     }
     for (ChainSemanticCapture.CapturedOperation operation : capture.operations()) {
       String nodeId = requireText(operation.nodeId(), "operation nodeId");
+      String elementType =
+          MappingMechanismSelector.canonicalTransformElementType(
+              requireText(operation.elementType(), "elementType"));
       if (interactionIds.contains(nodeId)) {
+        if (matchesProjectedSender(nodes, nodeId, elementType)) {
+          continue;
+        }
         throw new IllegalArgumentException(
             "Operation node '"
                 + nodeId
                 + "' reuses an interaction id. Do not list server-owned anchors under operations.");
       }
-      String elementType =
-          MappingMechanismSelector.canonicalTransformElementType(
-              requireText(operation.elementType(), "elementType"));
       if (!contract.elements().containsKey(elementType)) {
         throw new IllegalArgumentException(
             "Operation node '"
@@ -929,6 +954,14 @@ public class ChainSemanticCaptureAdapter {
         interactionIds.add(call.serviceCallId());
       }
     }
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null) {
+        continue;
+      }
+      RequirementFlowValidator
+          .nativeDirectOutboundCapabilityKey(fact.sourceFactId(), brief.facts())
+          .ifPresent(ignored -> interactionIds.add(fact.sourceFactId()));
+    }
     Set<AnchorEdge> contracted = contractedAnchorEdges(interactionIds, edges);
     Set<AnchorEdge> approved = new LinkedHashSet<>();
     for (RequirementFlow.Transition transition : flow.transitions()) {
@@ -1001,6 +1034,21 @@ public class ChainSemanticCaptureAdapter {
   static boolean materializesServiceCallNode(
       RequirementServiceCall call, Set<String> triggerFactIds) {
     return !triggerFactIds.contains(call.sourceFactId());
+  }
+
+  private static boolean matchesProjectedSender(
+      List<SemanticNode> nodes, String nodeId, String elementType) {
+    if (!ChainElementFamilies.isSender(elementType)) {
+      return false;
+    }
+    for (SemanticNode node : nodes) {
+      if (node instanceof SemanticNode.Operation operation
+          && nodeId.equals(operation.nodeId())
+          && elementType.equals(operation.elementType())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private record TriggerBinding(RequirementEntryPoint approved, int order) {

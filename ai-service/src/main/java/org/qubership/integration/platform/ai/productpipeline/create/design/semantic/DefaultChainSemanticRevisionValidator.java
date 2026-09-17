@@ -20,10 +20,16 @@ import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValida
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /**
  * One validation pass over a semantic revision. Wrong input fails closed; values are not
@@ -31,6 +37,9 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
  */
 @ApplicationScoped
 public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevisionValidator {
+
+  private static final String MCP_UNSUPPORTED_MESSAGE =
+      "MCP trigger is not supported in create-chain yet.";
 
   private enum Color {
     WHITE,
@@ -63,6 +72,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     validateHiddenJoins(revision, index, errors);
     validateMappings(revision, brief, index, errors);
     validateScriptOwnership(revision, index, brief, errors);
+    validateBindingPolicy(revision, brief, errors);
     if (!errors.isEmpty()) {
       throw new IllegalArgumentException(
           "Invalid chain semantic revision:\n- " + String.join("\n- ", errors));
@@ -940,6 +950,82 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       }
     }
     return List.copyOf(ids);
+  }
+
+  private static void validateBindingPolicy(
+      ChainSemanticRevision revision, RequirementBrief brief, List<String> errors) {
+    if (brief == null) {
+      return;
+    }
+    List<RequirementFact> facts = brief.facts() == null ? List.of() : brief.facts();
+    RequirementFlow flow = brief.flow() == null ? RequirementFlow.EMPTY : brief.flow();
+    for (RequirementFact fact : facts) {
+      if (fact != null && "mcp-trigger".equals(fact.capabilityKey())) {
+        errors.add(MCP_UNSUPPORTED_MESSAGE);
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Trigger trigger
+          && "mcp-trigger".equals(trigger.capabilityKey())) {
+        errors.add(MCP_UNSUPPORTED_MESSAGE);
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (!(node instanceof SemanticNode.ServiceCall call)) {
+        continue;
+      }
+      if (RequirementFlowValidator.nativeDirectOutboundCapabilityKey(call.serviceCallId(), facts)
+          .isPresent()) {
+        errors.add(
+            "Service call '"
+                + call.serviceCallId()
+                + "' conflicts with a direct sender capability on the approved brief");
+      }
+    }
+    for (RequirementFact fact : facts) {
+      if (fact == null
+          || fact.kind() != RequirementFactKind.CAPABILITY
+          || !ChainElementFamilies.isTrigger(fact.capabilityKey())) {
+        continue;
+      }
+      if (flow.interaction(fact.sourceFactId())
+          .filter(interaction -> interaction.direction() == Direction.OUTBOUND)
+          .isPresent()) {
+        errors.add(
+            "Trigger capability '"
+                + fact.capabilityKey()
+                + "' is not allowed on outbound interaction '"
+                + fact.sourceFactId()
+                + "'");
+      }
+    }
+    if (!flow.interactions().isEmpty()) {
+      RequirementFlowValidator.validateBindings(flow, facts, catalogBindings(brief))
+          .ifPresent(
+              message -> {
+                if (message.contains("unexpected catalog binding")) {
+                  errors.add(
+                      message.replace(
+                          "requirement flow interaction ",
+                          "Direct interaction "));
+                }
+              });
+    }
+  }
+
+  private static List<CatalogBindingHint> catalogBindings(RequirementBrief brief) {
+    List<CatalogBindingHint> bindings = new ArrayList<>();
+    for (CatalogBindingHint hint : brief.catalogBindings()) {
+      if (hint != null) {
+        bindings.add(hint);
+      }
+    }
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      if (call != null && call.catalogBinding() != null) {
+        bindings.add(call.catalogBinding());
+      }
+    }
+    return List.copyOf(bindings);
   }
 
   private static void validateScriptOwnership(

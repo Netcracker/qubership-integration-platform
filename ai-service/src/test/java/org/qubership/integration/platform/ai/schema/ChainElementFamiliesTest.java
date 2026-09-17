@@ -31,9 +31,17 @@ class ChainElementFamiliesTest {
     assertTrue(catalog.isDeprecated("loop-expression"));
   }
 
+  @Test
+  void sendersMatchIsSender() {
+    for (String sender : ChainElementFamilies.SENDERS) {
+      assertTrue(ChainElementFamilies.isSender(sender), sender);
+    }
+  }
+
   private static Stream<String> allFamilyTypes() {
     return Stream.of(
             ChainElementFamilies.TRIGGERS,
+            ChainElementFamilies.SENDERS,
             ChainElementFamilies.ROUTING,
             ChainElementFamilies.TRY_CATCH,
             ChainElementFamilies.TRY_CATCH_DEPRECATED,
