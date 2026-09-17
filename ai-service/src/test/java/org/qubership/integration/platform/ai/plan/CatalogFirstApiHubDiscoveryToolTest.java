@@ -608,6 +608,55 @@ class CatalogFirstApiHubDiscoveryToolTest {
     verify(lookup).resolve(any());
   }
 
+  @Test
+  void outboundCatalogCallWithoutSenderMayQueryCatalog() {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.None());
+    when(apiHub.searchApiOperations(any(), any(), any(), any(), any(), any()))
+        .thenReturn("{\"hits\":[]}");
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementFact httpTrigger =
+        new RequirementFact(
+            "http-entry",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /auto-tests/service-call",
+            "",
+            "",
+            "",
+            "GET",
+            "/auto-tests/service-call");
+    store.put(
+        "conv-outbound-catalog",
+        new RequirementDraft(false, "catalog outbound")
+            .withFacts(List.of(httpTrigger))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction(
+                            "http-entry",
+                            INBOUND,
+                            "Caller",
+                            "GET /auto-tests/service-call",
+                            ""),
+                        new Interaction(
+                            "get-variables",
+                            OUTBOUND,
+                            "cloud-integration-platform-catalog",
+                            "getVariables_2",
+                            "Fetch common variables")),
+                    List.of(new RequirementFlow.Transition("http-entry", "get-variables")))));
+
+    try (ToolSession.Handle ignored = ToolSession.open("conv-outbound-catalog")) {
+      tool(lookup, apiHub, store)
+          .resolveApiOperation("get-variables", "GET", "/v1/common-variables", null, "http", "");
+    }
+
+    verify(lookup).resolve(any());
+  }
+
   private static void storeFlow(
       RequirementDraftStore store, String conversationId, Interaction... interactions) {
     store.put(

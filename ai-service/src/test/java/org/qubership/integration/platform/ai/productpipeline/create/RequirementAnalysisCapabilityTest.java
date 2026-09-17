@@ -145,6 +145,59 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
+  void mapper2PreferenceWithExpressionKeepsBriefInNeedsInput() {
+    RequirementDraft approved =
+        RequirementFactFixtures.readyDraft("Create a task")
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("http-in", Direction.INBOUND, "http", "POST /", ""),
+                        new Interaction(
+                            "create-task", Direction.OUTBOUND, "Salesforce", "createTask", "")),
+                    List.of(new Transition("http-in", "create-task"))))
+            .withBoundInteraction(
+                "create-task",
+                new CatalogBindingHint(
+                    "3", "create-task", "create-task", "create-task", "salesforce", "group-1",
+                    "spec-1", "op-create-task", "http", "POST", "/tasks", "catalog",
+                    Instant.EPOCH, "test"));
+    RequirementBrief brief =
+        coveringBrief(approved, "Create a task")
+            .withMappingIntents(
+                List.of(
+                    new MappingIntent(
+                        "map-init",
+                        "http-in",
+                        MappingPort.OUTPUT,
+                        "create-task",
+                        MappingPort.REQUEST,
+                        List.of(
+                            new MappingIntentRule(
+                                "$.name",
+                                "$.fullName",
+                                "uppercase the name",
+                                MappingRuleStatus.USER_DEFINED)),
+                        "MAPPER_2")));
+
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    RequirementAnalysisCapability capability =
+        new RequirementAnalysisCapability(
+            knowledge,
+            knowledge,
+            new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+            ctx -> brief);
+
+    CapabilitySignal.Completed completed = run(capability, approved);
+    assertEquals(
+        StageOutcomeClass.NEEDS_INPUT,
+        completed.outcome().outcomeClass(),
+        completed.outcome().message());
+    assertTrue(completed.outcome().message().contains("MAPPER_2"));
+    assertTrue(completed.outcome().message().contains("SCRIPT"));
+    assertTrue(completed.outcome().candidates().isEmpty());
+  }
+
+  @Test
   void missingBriefWithConversationIdFailureIsNotNeedsInput() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     CaptureSession captureSession = new CaptureSession();
