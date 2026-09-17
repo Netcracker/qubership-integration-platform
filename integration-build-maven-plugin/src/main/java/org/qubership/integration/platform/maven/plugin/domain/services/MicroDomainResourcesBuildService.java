@@ -6,9 +6,12 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.services.ResourceBuildService;
 import org.qubership.integration.platform.chain.model.ImportChain;
+import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.io.readers.chain.ChainFileUtil;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
+import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
+import org.qubership.integration.platform.io.readers.system.ServiceFileUtil;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -27,6 +30,7 @@ import static java.util.Objects.isNull;
 @Service
 public class MicroDomainResourcesBuildService {
     private final ChainReader chainReader;
+    private final IntegrationSystemReader integrationSystemReader;
     private final SnapshotBuildService snapshotBuildService;
     private final ResourceBuildService resourceBuildService;
     private final ResourceWriteService resourceWriteService;
@@ -36,13 +40,15 @@ public class MicroDomainResourcesBuildService {
     @Autowired
     public MicroDomainResourcesBuildService(
         ChainReader chainReader,
+        IntegrationSystemReader integrationSystemReader,
         SnapshotBuildService snapshotBuildService,
         ResourceBuildService resourceBuildService,
         ResourceWriteService resourceWriteService,
         MicroDomainResourceBuildContextFactory resourceBuildContextFactory,
         ResourceBuildOptionsFactory resourceBuildOptionsFactory
-        ) {
+    ) {
         this.chainReader = chainReader;
+        this.integrationSystemReader = integrationSystemReader;
         this.snapshotBuildService = snapshotBuildService;
         this.resourceBuildService = resourceBuildService;
         this.resourceWriteService = resourceWriteService;
@@ -51,16 +57,36 @@ public class MicroDomainResourcesBuildService {
     }
 
     public void buildResources(BuildCRsTaskParameters parameters) throws IOException {
-        Collection<ImportChain> chains = readChains(parameters.getSourceRoots());
+        processServices(parameters);
+        buildChainResources(parameters);
+    }
+
+    private void processServices(BuildCRsTaskParameters parameters) throws IOException {
+        Path outputDirectory = Path.of(parameters.getOutputDirectory());
+        Stream<File> serviceFiles = Failable.stream(parameters.getSourceRoots())
+            .map(File::new)
+            .map(sourceRoot -> listServiceFiles(sourceRoot, outputDirectory))
+            .stream()
+            .flatMap(Collection::stream);
+        Collection<ImportSystem> services = Failable.stream(serviceFiles)
+            .map(integrationSystemReader::read)
+            .stream()
+            .toList();
+        // TODO
+    }
+
+    private void buildChainResources(BuildCRsTaskParameters parameters) throws IOException {
+        Path outputDirectory = Path.of(parameters.getOutputDirectory());
+        Collection<ImportChain> chains = readChains(parameters.getSourceRoots(), outputDirectory);
         Map<String, Collection<ImportChain>> chainsByDomain = groupChainsByDomain(chains, parameters.getDefaultDomain());
         Failable.stream(chainsByDomain.entrySet()).forEach(entry -> {
             String domain = entry.getKey();
             Collection<ImportChain> chainsForDomain = entry.getValue();
-            buildResourcesForDomain(domain, chainsForDomain, parameters);
+            buildChainResourcesForDomain(domain, chainsForDomain, parameters);
         });
     }
 
-    public void buildResourcesForDomain(
+    public void buildChainResourcesForDomain(
         String domain,
         Collection<ImportChain> chains,
         BuildCRsTaskParameters parameters
@@ -76,9 +102,10 @@ public class MicroDomainResourcesBuildService {
         resourceWriteService.writeResources(parameters.getOutputDirectory(), resourceText);
     }
 
-    private Collection<ImportChain> readChains(Collection<String> sourceRoots) {
+    private Collection<ImportChain> readChains(Collection<String> sourceRoots, Path outputDirectory) throws IOException {
         Stream<File> chainDirectories = Failable.stream(sourceRoots)
-            .map(rootDir -> listDirectoriesThatContainChainFiles(new File(rootDir)))
+            .map(File::new)
+            .map(rootDir -> listDirectoriesThatContainChainFiles(rootDir, outputDirectory))
             .stream()
             .flatMap(Collection::stream);
         return Failable.stream(chainDirectories).map(chainReader::read).stream().toList();
@@ -107,14 +134,32 @@ public class MicroDomainResourcesBuildService {
         return chainsByDomain;
     }
 
-    private Collection<File> listDirectoriesThatContainChainFiles(File directory) throws IOException {
+    private Collection<File> listDirectoriesThatContainChainFiles(File directory, Path outputDirectory) throws IOException {
         try (Stream<Path> paths = Files.walk(directory.toPath())) {
             return paths
+                .filter(path -> !isInDirectory(path, outputDirectory))
                 .filter(Files::isRegularFile)
                 .filter(file -> ChainFileUtil.isChainFile(file.getFileName().toString()))
                 .map(Path::getParent)
                 .map(Path::toFile)
                 .collect(Collectors.toSet());
         }
+    }
+
+    private Collection<File> listServiceFiles(File directory, Path outputDirectory) throws IOException {
+        try (Stream<Path> paths = Files.walk(directory.toPath())) {
+            return paths
+                .filter(path -> !isInDirectory(path, outputDirectory))
+                .filter(Files::isRegularFile)
+                .filter(file -> ServiceFileUtil.isServiceFile(file.getFileName().toString()))
+                .map(Path::toFile)
+                .toList();
+        }
+    }
+
+    private boolean isInDirectory(Path path, Path directory) {
+        Path p = path.normalize().toAbsolutePath();
+        Path d = directory.normalize().toAbsolutePath();
+        return p.startsWith(d);
     }
 }
