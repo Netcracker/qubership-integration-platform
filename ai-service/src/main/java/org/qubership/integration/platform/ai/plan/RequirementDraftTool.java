@@ -1693,7 +1693,8 @@ public class RequirementDraftTool {
         continue;
       }
       if (interaction.direction() == RequirementFlow.Direction.INBOUND
-          && catalogDirection.get() != CatalogOperationDirection.PRODUCED_BY_SYSTEM) {
+          && !RequirementFlowValidator.inboundCatalogDirectionAllowed(
+              interaction, facts, catalogDirection.get())) {
         continue;
       }
       resolutions.remember(
