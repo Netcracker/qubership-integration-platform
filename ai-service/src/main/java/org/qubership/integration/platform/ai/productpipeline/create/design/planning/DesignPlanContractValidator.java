@@ -9,8 +9,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanism;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
@@ -18,7 +20,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.ClaimRole;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.OwnerKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
@@ -186,13 +187,12 @@ public final class DesignPlanContractValidator {
   private static Map<TargetKey, String> expectedOwners(
       ChainSemanticRevision revision, RequirementBrief brief, BindingPolicy bindingPolicy) {
     Map<TargetKey, String> owners = new LinkedHashMap<>();
-    revision
-        .entryPoints()
-        .forEach(
-            entry ->
-                owners.put(
-                    new TargetKey(TargetKind.ENTRY_POINT, entry.entryPointId()),
-                    ownerForEntryPoint(entry, revision, brief)));
+    revision.entryPoints().forEach(entry -> {
+      String owner = ownerForEntryPoint(entry, revision, brief);
+      if (owner != null) {
+        owners.put(new TargetKey(TargetKind.ENTRY_POINT, entry.entryPointId()), owner);
+      }
+    });
     revision.nodes().stream()
         .filter(SemanticNode.ServiceCall.class::isInstance)
         .map(SemanticNode.ServiceCall.class::cast)
@@ -280,10 +280,16 @@ public final class DesignPlanContractValidator {
       SemanticEntryPoint entry, ChainSemanticRevision revision, RequirementBrief brief) {
     String capabilityKey = triggerCapabilityKey(entry, revision);
     if ("http-trigger".equals(capabilityKey)) {
-      if (catalogBindingForEntryPoint(brief, entry.entryPointId()) != null) {
-        return DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID;
+      if (brief == null) {
+        return null;
       }
-      return "cip-http-trigger-endpoint-generator";
+      Interaction interaction =
+          RequirementFlowValidator.interactionForEntryPoint(brief, entry.entryPointId());
+      return switch (RequirementFlowValidator.catalogLookupAction(interaction, brief.facts())) {
+        case SKIP -> "cip-http-trigger-endpoint-generator";
+        case REQUIRE -> DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID;
+        case ASK, REJECT_UNSUPPORTED -> null;
+      };
     }
     return ownerForTriggerCapability(capabilityKey);
   }
@@ -336,19 +342,6 @@ public final class DesignPlanContractValidator {
       }
     }
     return "";
-  }
-
-  private static CatalogBindingHint catalogBindingForEntryPoint(
-      RequirementBrief brief, String entryPointId) {
-    if (brief == null || brief.catalogBindings() == null) {
-      return null;
-    }
-    for (CatalogBindingHint hint : brief.catalogBindings()) {
-      if (entryPointId.equals(hint.interactionId())) {
-        return hint;
-      }
-    }
-    return null;
   }
 
   private static boolean ownerMatches(

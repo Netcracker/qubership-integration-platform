@@ -166,6 +166,21 @@ public final class RequirementFactFixtures {
         path);
   }
 
+  public static RequirementFact implementedServiceHttpTriggerFact(
+      String interactionId, String participant, String operation) {
+    return new RequirementFact(
+        interactionId,
+        RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CAPABILITY,
+        "http-trigger",
+        "Implement " + participant + " " + operation,
+        participant,
+        operation,
+        "",
+        "",
+        "");
+  }
+
   public static RequirementDraft readyDraft(String assembledText) {
     return new RequirementDraft(
             true,
