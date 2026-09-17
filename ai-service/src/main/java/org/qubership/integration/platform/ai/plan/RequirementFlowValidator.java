@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationDirection;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -16,6 +17,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies.BindingMode;
 
 /**
  * Structural contract for {@link RequirementFlow}. Returns the first deterministic violation so
@@ -23,22 +26,33 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
  */
 public final class RequirementFlowValidator {
 
-  private static final Set<String> NATIVE_INBOUND_TRIGGER_KEYS =
-      Set.of("http-trigger", "chain-trigger-2", "kafka-trigger-2", "quartz-scheduler");
-  private static final Set<String> NATIVE_DIRECT_OUTBOUND_CAPABILITY_KEYS =
-      Set.of("http-sender", "kafka-sender-2");
-  private static final Set<String> SUPPORTED_INBOUND_CAPABILITY_KEYS =
-      Set.of(
-          "http-trigger",
-          "chain-trigger-2",
-          "kafka-trigger-2",
-          "quartz-scheduler",
-          "async-api-trigger");
+  public enum LookupAction {
+    SKIP,
+    REQUIRE,
+    ASK,
+    REJECT_UNSUPPORTED
+  }
+
+  private static final String MCP_UNSUPPORTED_MESSAGE =
+      "MCP trigger is not supported in create-chain yet.";
 
   private RequirementFlowValidator() {}
 
   static Set<String> supportedInboundCapabilityKeys() {
-    return SUPPORTED_INBOUND_CAPABILITY_KEYS;
+    return ChainElementFamilies.TRIGGERS.stream()
+        .filter(type -> ChainElementFamilies.bindingMode(type) != BindingMode.UNSUPPORTED_IN_CREATE)
+        .collect(Collectors.toUnmodifiableSet());
+  }
+
+  static LookupAction catalogLookupAction(Interaction interaction, List<RequirementFact> facts) {
+    List<RequirementFact> factList = facts == null ? List.of() : facts;
+    if (interaction.direction() == Direction.INBOUND) {
+      return inboundCatalogLookupAction(interaction, factList);
+    }
+    if (hasSenderCapabilityFact(interaction.interactionId(), factList)) {
+      return LookupAction.SKIP;
+    }
+    return LookupAction.ASK;
   }
 
   public static Optional<String> validateStructure(RequirementFlow flow) {
@@ -193,7 +207,10 @@ public final class RequirementFlowValidator {
       if (fact == null
           || fact.polarity() != RequirementFactPolarity.POSITIVE
           || fact.kind() != RequirementFactKind.CAPABILITY
-          || !NATIVE_INBOUND_TRIGGER_KEYS.contains(fact.capabilityKey())) {
+          || !ChainElementFamilies.isTrigger(fact.capabilityKey())) {
+        continue;
+      }
+      if (ChainElementFamilies.bindingMode(fact.capabilityKey()) == BindingMode.UNSUPPORTED_IN_CREATE) {
         continue;
       }
       Optional<Interaction> owner = flow.interaction(fact.sourceFactId());
@@ -206,15 +223,18 @@ public final class RequirementFlowValidator {
     }
     for (Interaction interaction : flow.interactions()) {
       String interactionId = interaction.interactionId();
-      boolean requiresBinding = requiresCatalogBinding(interaction, factList);
+      LookupAction action = catalogLookupAction(interaction, factList);
       CatalogBindingHint hint = byInteraction.get(interactionId);
-      if (isNativeDirectInteraction(interaction, factList) && hint != null) {
+      if (action == LookupAction.REJECT_UNSUPPORTED) {
+        return Optional.of(MCP_UNSUPPORTED_MESSAGE);
+      }
+      if (action == LookupAction.SKIP && hint != null) {
         return Optional.of(
             "requirement flow interaction "
                 + interactionId
                 + " has an unexpected catalog binding");
       }
-      if (requiresBinding && hint == null) {
+      if (action == LookupAction.REQUIRE && hint == null) {
         return Optional.of(
             "business interaction "
                 + interactionId
@@ -227,6 +247,18 @@ public final class RequirementFlowValidator {
                 + "). Call resolveApiOperation with interactionId="
                 + interactionId
                 + ".");
+      }
+      if (action == LookupAction.ASK
+          && interaction.direction() == Direction.OUTBOUND
+          && hint == null) {
+        return Optional.of(outboundClassificationQuestion(interaction));
+      }
+      if (action == LookupAction.ASK
+          && interaction.direction() == Direction.INBOUND
+          && inboundCapabilityKey(interaction, factList)
+              .filter("http-trigger"::equals)
+              .isPresent()) {
+        return Optional.of(ambiguousHttpTriggerQuestion(interactionId));
       }
       if (hint == null) {
         continue;
@@ -281,14 +313,18 @@ public final class RequirementFlowValidator {
     for (Interaction interaction : checked.interactions()) {
       Optional<String> inboundCapability = inboundCapabilityKey(interaction, factList);
       if (inboundCapability.isPresent()
-          && !SUPPORTED_INBOUND_CAPABILITY_KEYS.contains(inboundCapability.get())) {
+          && "mcp-trigger".equals(inboundCapability.get())) {
+        continue;
+      }
+      if (inboundCapability.isPresent()
+          && !supportedInboundCapabilityKeys().contains(inboundCapability.get())) {
         return Optional.of(
             "requirement flow entry point "
                 + interaction.interactionId()
                 + " uses unsupported capabilityKey="
                 + inboundCapability.get()
                 + ". Allowed inbound capability keys: "
-                + String.join(", ", SUPPORTED_INBOUND_CAPABILITY_KEYS.stream().sorted().toList()));
+                + String.join(", ", supportedInboundCapabilityKeys().stream().sorted().toList()));
       }
       if (inboundCapability.filter("http-trigger"::equals).isPresent()
           && factList.stream()
@@ -305,16 +341,13 @@ public final class RequirementFlowValidator {
     return Optional.empty();
   }
 
-  /** Returns true for outbound interactions except explicitly direct native endpoints. */
   static boolean requiresCatalogBinding(Interaction interaction, List<RequirementFact> facts) {
-    return interaction.direction() == Direction.OUTBOUND && !isNativeDirectInteraction(interaction, facts);
+    return catalogLookupAction(interaction, facts) == LookupAction.REQUIRE;
   }
 
   /** Returns true when an interaction is configured without a catalog operation. */
   static boolean isNativeDirectInteraction(Interaction interaction, List<RequirementFact> facts) {
-    return (interaction.direction() == Direction.INBOUND
-            && hasNativeInboundTriggerFact(interaction, facts))
-        || hasNativeDirectOutboundCapabilityFact(interaction, facts);
+    return catalogLookupAction(interaction, facts) == LookupAction.SKIP;
   }
 
   /**
@@ -328,6 +361,60 @@ public final class RequirementFlowValidator {
       }
     }
     return false;
+  }
+
+  private static LookupAction inboundCatalogLookupAction(
+      Interaction interaction, List<RequirementFact> facts) {
+    Optional<String> capabilityKey = inboundCapabilityKey(interaction, facts);
+    if (capabilityKey.isEmpty()) {
+      return LookupAction.ASK;
+    }
+    String key = capabilityKey.get();
+    if ("mcp-trigger".equals(key)) {
+      return LookupAction.REJECT_UNSUPPORTED;
+    }
+    BindingMode mode = ChainElementFamilies.bindingMode(key);
+    if (mode == BindingMode.HTTP_TRIGGER_DUAL_MODE) {
+      return httpTriggerLookupAction(interaction.interactionId(), facts);
+    }
+    if (mode == BindingMode.CATALOG_REQUIRED) {
+      return LookupAction.REQUIRE;
+    }
+    if (mode == BindingMode.DIRECT) {
+      return LookupAction.SKIP;
+    }
+    if (mode == BindingMode.UNSUPPORTED_IN_CREATE) {
+      return LookupAction.REJECT_UNSUPPORTED;
+    }
+    return LookupAction.ASK;
+  }
+
+  private static LookupAction httpTriggerLookupAction(
+      String interactionId, List<RequirementFact> facts) {
+    for (RequirementFact fact : facts) {
+      if (fact == null
+          || !interactionId.equals(fact.sourceFactId())
+          || !"http-trigger".equals(fact.capabilityKey())) {
+        continue;
+      }
+      if (!fact.path().isBlank()) {
+        return LookupAction.SKIP;
+      }
+      if (!fact.participant().isBlank()) {
+        return LookupAction.REQUIRE;
+      }
+      return LookupAction.ASK;
+    }
+    return LookupAction.ASK;
+  }
+
+  private static boolean hasSenderCapabilityFact(String interactionId, List<RequirementFact> facts) {
+    return facts.stream()
+        .filter(Objects::nonNull)
+        .filter(fact -> interactionId.equals(fact.sourceFactId()))
+        .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+        .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
+        .anyMatch(fact -> ChainElementFamilies.isSender(fact.capabilityKey()));
   }
 
   private static Optional<String> inboundCapabilityKey(
@@ -348,18 +435,8 @@ public final class RequirementFlowValidator {
 
   public static boolean hasNativeInboundTriggerFact(
       Interaction interaction, List<RequirementFact> facts) {
-    return facts.stream()
-        .anyMatch(
-            fact ->
-                fact != null
-                    && interaction.interactionId().equals(fact.sourceFactId())
-                    && NATIVE_INBOUND_TRIGGER_KEYS.contains(fact.capabilityKey()));
-  }
-
-  private static boolean hasNativeDirectOutboundCapabilityFact(
-      Interaction interaction, List<RequirementFact> facts) {
-    return interaction.direction() == Direction.OUTBOUND
-        && hasNativeDirectOutboundCapabilityFact(interaction.interactionId(), facts);
+    return interaction.direction() == Direction.INBOUND
+        && catalogLookupAction(interaction, facts) == LookupAction.SKIP;
   }
 
   public static boolean hasNativeDirectOutboundCapabilityFact(
@@ -375,8 +452,30 @@ public final class RequirementFlowValidator {
         .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
         .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
         .map(RequirementFact::capabilityKey)
-        .filter(NATIVE_DIRECT_OUTBOUND_CAPABILITY_KEYS::contains)
+        .filter(ChainElementFamilies::isSender)
         .findFirst();
+  }
+
+  private static String outboundClassificationQuestion(Interaction interaction) {
+    return "business interaction "
+        + interaction.interactionId()
+        + " ("
+        + interaction.participant()
+        + " "
+        + interaction.operation()
+        + ", "
+        + interaction.direction()
+        + ") needs a sender type (http-sender, kafka-sender-2, jms-sender, mail-sender, and"
+        + " others) or confirmation that it is a catalog service call."
+        + " interactionId="
+        + interaction.interactionId()
+        + ".";
+  }
+
+  private static String ambiguousHttpTriggerQuestion(String interactionId) {
+    return "HTTP trigger "
+        + interactionId
+        + " needs either a custom URI (path) or an implemented catalog service (participant).";
   }
 
   private static Optional<String> detectCycle(
