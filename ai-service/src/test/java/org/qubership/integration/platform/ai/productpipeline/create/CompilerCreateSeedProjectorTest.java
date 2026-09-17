@@ -49,6 +49,38 @@ class CompilerCreateSeedProjectorTest {
   }
 
   @Test
+  void kafkaTriggerSelectsGp02() {
+    ChainPlanGraph graph =
+        graph(
+            new ChainPlanNode(
+                "kafka-in",
+                "kafka-trigger-2",
+                "Consume orders",
+                null,
+                null,
+                List.of(new PlanProperty("topicClassifier", "orders"))));
+
+    assertEquals("GP-02", CompilerCreateSeedProjector.pattern(graph).patternId());
+  }
+
+  @Test
+  void directTriggersOtherThanKafkaStayOnGp01() {
+    for (String triggerType :
+        List.of(
+            "chain-trigger-2",
+            "jms-trigger",
+            "pubsub-trigger",
+            "quartz-scheduler",
+            "rabbitmq-trigger-2",
+            "sds-trigger",
+            "sftp-trigger-2")) {
+      ChainPlanGraph graph =
+          graph(new ChainPlanNode("entry", triggerType, triggerType, null, null, List.of()));
+      assertEquals("GP-01", CompilerCreateSeedProjector.pattern(graph).patternId(), triggerType);
+    }
+  }
+
+  @Test
   void asyncApiTriggerSelectsGp02() {
     ChainPlanGraph graph =
         graph(

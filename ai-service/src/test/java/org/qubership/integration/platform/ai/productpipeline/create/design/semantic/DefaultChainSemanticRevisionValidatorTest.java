@@ -5,16 +5,22 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -190,6 +196,139 @@ class DefaultChainSemanticRevisionValidatorTest {
             IllegalArgumentException.class,
             () -> validate(revisionWithDuplicateServiceCallId()));
     assertTrue(error.getMessage().contains("Duplicate serviceCallId: call-1"), error.getMessage());
+  }
+
+  @Test
+  void rejectsServiceCallNodeForDirectSenderCapability() {
+    ChainSemanticRevision revision = linearRevision();
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                "call-1",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-sender",
+                "Forward with http-sender"));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
+
+    assertTrue(error.getMessage().contains("direct sender capability"), error.getMessage());
+    assertTrue(error.getMessage().contains("call-1"), error.getMessage());
+  }
+
+  @Test
+  void rejectsCatalogBindingOnDirectInteraction() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger(
+            "kafka-start", "kafka-trigger-2", new SemanticProvenance(List.of()));
+    SemanticNode call =
+        new SemanticNode.ServiceCall(
+            "node-call", "call-1", "getOrder", new SemanticProvenance(List.of()));
+    ChainSemanticRevision revision =
+        revision(
+            List.of(entry("kafka-start", "kafka-start", "node-call")),
+            List.of(trigger, call),
+            List.of(),
+            List.of(sequence("edge-entry", "kafka-start", "node-call", null, null)),
+            List.of(),
+            List.of());
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction(
+                    "kafka-start", Direction.INBOUND, "Local Kafka", "onTaskStart", "")),
+            List.of());
+    RequirementFact fact =
+        new RequirementFact(
+            "kafka-start",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "kafka-trigger-2",
+            "Consume the local task.start topic");
+    CatalogBindingHint hint =
+        new CatalogBindingHint(
+            CatalogBindingHint.SCHEMA_VERSION,
+            "kafka-start",
+            "kafka-start",
+            "onTaskStart",
+            "sys-kafka",
+            "sg-kafka",
+            "spec-kafka",
+            "op-kafka",
+            "kafka",
+            "",
+            "",
+            "v1",
+            Instant.EPOCH,
+            "catalog-read:sys-kafka/spec-kafka/op-kafka");
+    RequirementBrief brief =
+        briefWithFact(fact).withFlow(flow).withCatalogBindings(List.of(hint));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
+
+    assertTrue(error.getMessage().contains("kafka-start"), error.getMessage());
+    assertTrue(error.getMessage().contains("catalog binding"), error.getMessage());
+  }
+
+  @Test
+  void rejectsTriggerCapabilityOnOutboundInteraction() {
+    ChainSemanticRevision revision = linearRevision();
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                "call-1",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Misplaced trigger capability"))
+            .withFlow(
+                new RequirementFlow(
+                    List.of(
+                        new Interaction("http-in", Direction.INBOUND, "Caller", "start", ""),
+                        new Interaction("call-1", Direction.OUTBOUND, "Target", "send", "")),
+                    List.of()));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
+
+    assertTrue(error.getMessage().contains("http-trigger"), error.getMessage());
+    assertTrue(error.getMessage().contains("call-1"), error.getMessage());
+  }
+
+  @Test
+  void rejectsMcpTriggerCapabilityInSemanticInput() {
+    SemanticNode trigger =
+        new SemanticNode.Trigger("trigger-http", "mcp-trigger", new SemanticProvenance(List.of()));
+    SemanticNode call =
+        new SemanticNode.ServiceCall(
+            "node-call", "call-1", "getOrder", new SemanticProvenance(List.of()));
+    ChainSemanticRevision revision =
+        revision(
+            List.of(entry("http-in", "trigger-http", "node-call")),
+            List.of(trigger, call),
+            List.of(),
+            List.of(sequence("edge-entry", "trigger-http", "node-call", null, null)),
+            List.of(),
+            List.of());
+    RequirementBrief brief =
+        briefWithFact(
+            new RequirementFact(
+                "trigger-1",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "mcp-trigger",
+                "Expose MCP tools"));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
+
+    assertTrue(error.getMessage().contains("not supported"), error.getMessage());
   }
 
   @Test
