@@ -115,11 +115,9 @@ public class CatalogFirstApiHubDiscoveryTool {
     if (interaction == null) {
       return error("Capture RequirementFlow before resolving interactionId=" + resolvedInteractionId);
     }
-    if (isNativeDirectInteraction(conversationId, interaction)) {
-      return error(
-          "interactionId="
-              + resolvedInteractionId
-              + " is a direct endpoint and must not use catalog or API Hub resolution");
+    String lookupRefusal = lookupRefusal(conversationId, interaction);
+    if (lookupRefusal != null) {
+      return lookupRefusal;
     }
     InteractionAssessment.Intent intent = intentFrom(interaction, method, path, specificationHint);
 
@@ -289,15 +287,31 @@ public class CatalogFirstApiHubDiscoveryTool {
     return draft.flow().interaction(interactionId).orElse(null);
   }
 
-  private boolean isNativeDirectInteraction(
-      String conversationId, RequirementFlow.Interaction interaction) {
+  private String lookupRefusal(String conversationId, RequirementFlow.Interaction interaction) {
     if (draftStore == null || conversationId == null || conversationId.isBlank()) {
-      return false;
+      return error("Capture RequirementFlow before resolving interactionId=" + interaction.interactionId());
     }
-    return draftStore
-        .get(conversationId)
-        .map(draft -> RequirementFlowValidator.isNativeDirectInteraction(interaction, draft.facts()))
-        .orElse(false);
+    RequirementDraft draft = draftStore.get(conversationId).orElse(null);
+    if (draft == null) {
+      return error("Capture RequirementFlow before resolving interactionId=" + interaction.interactionId());
+    }
+    RequirementFlowValidator.LookupAction action =
+        RequirementFlowValidator.catalogLookupAction(interaction, draft.facts());
+    return switch (action) {
+      case SKIP ->
+          error(
+              "interactionId="
+                  + interaction.interactionId()
+                  + " is a direct endpoint and must not use catalog or API Hub resolution");
+      case ASK ->
+          error(
+              "interactionId="
+                  + interaction.interactionId()
+                  + ": element type or HTTP mode is not decided; capture a CAPABILITY fact"
+                  + " on this interaction before calling resolveApiOperation");
+      case REJECT_UNSUPPORTED -> error("MCP trigger is not supported in create-chain yet.");
+      case REQUIRE -> null;
+    };
   }
 
   private static InteractionAssessment.Intent intentFrom(

@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
@@ -276,11 +277,17 @@ public class RequirementDraftTool {
       flow. Keep facts as ordinary constraints and native-trigger configuration: polarity, text,
       and optional kind (GOAL, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY, VISIBILITY, ROUTING).
       Native trigger configuration uses a CAPABILITY fact whose sourceFactId matches the inbound
-      interactionId (http-trigger httpMethod and path, kafka-trigger-2 topic, or
-      chain-trigger-2 with no catalog binding).
+      interactionId. In-scope trigger keys: http-trigger, chain-trigger-2, async-api-trigger,
+      jms-trigger, kafka-trigger-2, pubsub-trigger, quartz-scheduler, rabbitmq-trigger-2,
+      sds-trigger, and sftp-trigger-2. Do not use mcp-trigger; that trigger is not supported in
+      create-chain yet.
       Direct HTTP sender configuration uses a CAPABILITY fact whose sourceFactId matches the
       outbound interactionId, capabilityKey=http-sender, and httpMethod plus an absolute or
-      relative URI in path.
+      relative URI in path. In-scope direct sender keys: graphql-sender, http-sender, jms-sender,
+      kafka-sender-2, mail-sender, pubsub-sender, rabbitmq-sender-2, and scs-sender.
+      Call resolveApiOperation only for async-api-trigger and implemented-service HTTP triggers
+      (http-trigger with a catalog service participant and blank path). Do not call it for direct
+      senders, custom HTTP triggers with a path, or ambiguous interactions.
       Distill facts from assembledText yourself; never ask the user for polarity labels.
       When READY_FOR_PLAN is sent without facts, the server soft-stores NEEDS_INPUT. Retry the
       same turn with facts, or keep NEEDS_INPUT with one open question.
@@ -547,10 +554,12 @@ public class RequirementDraftTool {
           Optional<String> bindingError =
               RequirementFlowValidator.validateBindings(boundFlow, facts, catalogBindings);
           if (bindingError.isPresent()) {
-            softDowngradedForBinding = true;
             decision = DraftDecision.NEEDS_INPUT;
             if (openQuestions.isEmpty()) {
               openQuestions = List.of(bindingError.get());
+            }
+            if (hasMissingRequiredCatalogBinding(boundFlow, capturedFacts, catalogBindings)) {
+              softDowngradedForBinding = true;
             }
           }
         }
@@ -873,11 +882,34 @@ public class RequirementDraftTool {
               || assessment.outcome() == InteractionAssessment.Outcome.AMBIGUOUS)) {
         return false;
       }
-      if (RequirementFlowValidator.requiresCatalogBinding(interaction, facts)) {
-        catalogBacked = true;
+      try {
+        if (RequirementFlowValidator.requiresCatalogBinding(interaction, facts)) {
+          catalogBacked = true;
+        }
+      } catch (IllegalArgumentException ignored) {
+        // Unknown capability keys are validated before planning.
       }
     }
     return catalogBacked;
+  }
+
+  private static boolean hasMissingRequiredCatalogBinding(
+      RequirementFlow flow,
+      List<RequirementFact> facts,
+      List<CatalogBindingHint> catalogBindings) {
+    Set<String> bound =
+        catalogBindings.stream().map(CatalogBindingHint::interactionId).collect(Collectors.toSet());
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      try {
+        if (RequirementFlowValidator.requiresCatalogBinding(interaction, facts)
+            && !bound.contains(interaction.interactionId())) {
+          return true;
+        }
+      } catch (IllegalArgumentException ignored) {
+        // Unknown capability keys are not catalog-backed.
+      }
+    }
+    return false;
   }
 
   /**
@@ -1630,7 +1662,7 @@ public class RequirementDraftTool {
           .isPresent()) {
         continue;
       }
-      if (RequirementFlowValidator.isNativeDirectInteraction(interaction, facts)) {
+      if (!RequirementFlowValidator.requiresCatalogBinding(interaction, facts)) {
         continue;
       }
       String capability =
