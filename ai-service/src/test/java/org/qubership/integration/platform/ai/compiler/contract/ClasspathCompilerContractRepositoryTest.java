@@ -5,7 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 class ClasspathCompilerContractRepositoryTest {
 
@@ -69,6 +73,41 @@ class ClasspathCompilerContractRepositoryTest {
                     requiredKnowledgeFragments: []
                     """));
     assertTrue(error.getMessage().contains("Required artifact identifier must not be empty"));
+  }
+
+  @Test
+  void requiresEveryInScopeTriggerAndSender() {
+    CompilerContract contract = repository.require(V1);
+    for (String type : ChainElementFamilies.classifiedTriggerAndSenderTypes()) {
+      if (ChainElementFamilies.bindingMode(type)
+          == ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE) {
+        assertFalse(contract.elements().containsKey(type), type);
+        continue;
+      }
+      assertTrue(contract.elements().containsKey(type), type);
+    }
+  }
+
+  @Test
+  void requiredElementTypesCoverInScopeTriggersAndSenders() {
+    Set<String> inScope = new HashSet<>();
+    for (String type : ChainElementFamilies.classifiedTriggerAndSenderTypes()) {
+      if (ChainElementFamilies.bindingMode(type)
+          != ChainElementFamilies.BindingMode.UNSUPPORTED_IN_CREATE) {
+        inScope.add(type);
+      }
+    }
+    assertEquals(18, inScope.size());
+    CompilerContract contract = repository.require(V1);
+    for (String type : inScope) {
+      assertTrue(contract.elements().containsKey(type), type);
+    }
+  }
+
+  @Test
+  void httpTriggerHasNoUnconditionalRequiredProperties() {
+    CompilerContract contract = repository.require(V1);
+    assertEquals(List.of(), contract.elements().get("http-trigger").requiredProperties());
   }
 
   @Test

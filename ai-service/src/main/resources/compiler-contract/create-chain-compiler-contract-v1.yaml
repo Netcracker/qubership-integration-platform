@@ -3,9 +3,7 @@ semanticSchemaVersion: chain-semantic-revision/v1
 elements:
   http-trigger:
     containmentRoles: {}
-    requiredProperties:
-      - contextPath
-      - httpMethodRestrict
+    requiredProperties: []
     materializationRuleId: materialize-http-trigger
     runtimeDescriptor:
       type: http-trigger
@@ -47,6 +45,60 @@ elements:
       type: quartz-scheduler
       container: false
       deprecated: false
+  jms-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - initialContextFactory
+      - providerUrl
+      - connectionFactoryName
+      - destinationName
+      - destinationType
+      - acknowledgmentMode
+    materializationRuleId: materialize-jms-trigger
+    runtimeDescriptor:
+      type: jms-trigger
+      container: false
+      deprecated: false
+  pubsub-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - destinationName
+      - projectId
+      - serviceAccountKey
+    materializationRuleId: materialize-pubsub-trigger
+    runtimeDescriptor:
+      type: pubsub-trigger
+      container: false
+      deprecated: false
+  rabbitmq-trigger-2:
+    containmentRoles: {}
+    requiredProperties:
+      - queues
+    materializationRuleId: materialize-rabbitmq-trigger-2
+    runtimeDescriptor:
+      type: rabbitmq-trigger-2
+      container: false
+      deprecated: false
+  sds-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - jobId
+      - prohibitParallelRun
+    materializationRuleId: materialize-sds-trigger
+    runtimeDescriptor:
+      type: sds-trigger
+      container: false
+      deprecated: false
+  sftp-trigger-2:
+    containmentRoles: {}
+    requiredProperties:
+      - connectUrl
+      - scheduler.cron
+    materializationRuleId: materialize-sftp-trigger-2
+    runtimeDescriptor:
+      type: sftp-trigger-2
+      container: false
+      deprecated: false
   service-call:
     containmentRoles: {}
     requiredProperties:
@@ -66,6 +118,78 @@ elements:
     materializationRuleId: materialize-kafka-sender-2
     runtimeDescriptor:
       type: kafka-sender-2
+      container: false
+      deprecated: false
+  graphql-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - query
+    materializationRuleId: materialize-graphql-sender
+    runtimeDescriptor:
+      type: graphql-sender
+      container: false
+      deprecated: false
+  http-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - httpMethod
+    materializationRuleId: materialize-http-sender
+    runtimeDescriptor:
+      type: http-sender
+      container: false
+      deprecated: false
+  jms-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - initialContextFactory
+      - providerUrl
+      - connectionFactoryName
+      - destinationName
+      - destinationType
+      - acknowledgmentMode
+      - jmsMessageType
+    materializationRuleId: materialize-jms-sender
+    runtimeDescriptor:
+      type: jms-sender
+      container: false
+      deprecated: false
+  mail-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - from
+      - url
+    materializationRuleId: materialize-mail-sender
+    runtimeDescriptor:
+      type: mail-sender
+      container: false
+      deprecated: false
+  pubsub-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - projectId
+      - destinationName
+      - serviceAccountKey
+    materializationRuleId: materialize-pubsub-sender
+    runtimeDescriptor:
+      type: pubsub-sender
+      container: false
+      deprecated: false
+  rabbitmq-sender-2:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-rabbitmq-sender-2
+    runtimeDescriptor:
+      type: rabbitmq-sender-2
+      container: false
+      deprecated: false
+  scs-sender:
+    containmentRoles: {}
+    requiredProperties:
+      - useCorrelationId
+      - operation
+    materializationRuleId: materialize-scs-sender
+    runtimeDescriptor:
+      type: scs-sender
       container: false
       deprecated: false
   chain-call-2:
