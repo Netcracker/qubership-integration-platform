@@ -15,6 +15,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Folder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.FolderRepository;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,6 +34,8 @@ class FolderServiceTest {
     private ChainRepository chainRepository;
     @Mock
     private DeploymentService deploymentService;
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
 
     @InjectMocks
     private FolderService folderService;
