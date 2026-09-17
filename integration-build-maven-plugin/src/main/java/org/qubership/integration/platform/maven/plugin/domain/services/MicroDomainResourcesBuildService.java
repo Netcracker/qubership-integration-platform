@@ -7,12 +7,12 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.services.ResourceBuildService;
 import org.qubership.integration.platform.chain.model.ImportChain;
-import org.qubership.integration.platform.chain.model.ImportSystem;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.io.readers.chain.ChainFileUtil;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
 import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.io.readers.system.ServiceFileUtil;
+import org.qubership.integration.platform.maven.plugin.domain.adapters.ImportSystemAdapter;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -32,6 +32,7 @@ import static java.util.Objects.isNull;
 public class MicroDomainResourcesBuildService {
     private final ChainReader chainReader;
     private final IntegrationSystemReader integrationSystemReader;
+    private final IntegrationServiceCatalogImpl integrationServiceCatalog;
     private final SnapshotBuildService snapshotBuildService;
     private final ResourceBuildService resourceBuildService;
     private final ResourceWriteService resourceWriteService;
@@ -42,6 +43,7 @@ public class MicroDomainResourcesBuildService {
     public MicroDomainResourcesBuildService(
         ChainReader chainReader,
         IntegrationSystemReader integrationSystemReader,
+        IntegrationServiceCatalogImpl integrationServiceCatalog,
         SnapshotBuildService snapshotBuildService,
         ResourceBuildService resourceBuildService,
         ResourceWriteService resourceWriteService,
@@ -50,6 +52,7 @@ public class MicroDomainResourcesBuildService {
     ) {
         this.chainReader = chainReader;
         this.integrationSystemReader = integrationSystemReader;
+        this.integrationServiceCatalog = integrationServiceCatalog;
         this.snapshotBuildService = snapshotBuildService;
         this.resourceBuildService = resourceBuildService;
         this.resourceWriteService = resourceWriteService;
@@ -69,11 +72,11 @@ public class MicroDomainResourcesBuildService {
             .map(sourceRoot -> listServiceFiles(sourceRoot, outputDirectory))
             .stream()
             .flatMap(Collection::stream);
-        Collection<ImportSystem> services = Failable.stream(serviceFiles)
+        Failable.stream(serviceFiles)
             .map(file -> processFile(file, integrationSystemReader::read))
+            .map(ImportSystemAdapter::new)
             .stream()
-            .toList();
-        // TODO
+            .forEach(integrationServiceCatalog::addService);
     }
 
     private void buildChainResources(BuildCRsTaskParameters parameters) throws IOException {

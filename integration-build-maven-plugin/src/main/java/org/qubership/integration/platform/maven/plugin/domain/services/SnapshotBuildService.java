@@ -1,7 +1,9 @@
 package org.qubership.integration.platform.maven.plugin.domain.services;
 
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.impl.ConnectionImpl;
 import org.qubership.integration.platform.chain.impl.ElementImpl;
+import org.qubership.integration.platform.chain.impl.ServiceEnvironmentImpl;
 import org.qubership.integration.platform.chain.model.*;
 import org.qubership.integration.platform.library.components.ElementDescriptorHelper;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
@@ -15,18 +17,24 @@ import java.time.Instant;
 import java.util.*;
 import java.util.function.Consumer;
 
+import static org.qubership.integration.platform.library.constants.CamelNames.*;
+import static org.qubership.integration.platform.library.constants.CamelOptions.SYSTEM_ID;
+
 @Service
 public class SnapshotBuildService {
     private final ElementDescriptorHelper elementDescriptorHelper;
     private final ElementPropertiesVerificationService elementPropertiesVerificationService;
+    private final IntegrationServiceCatalog integrationServiceCatalog;
 
     @Autowired
     public SnapshotBuildService(
         ElementDescriptorHelper elementDescriptorHelper,
-        ElementPropertiesVerificationService elementPropertiesVerificationService
+        ElementPropertiesVerificationService elementPropertiesVerificationService,
+        IntegrationServiceCatalog integrationServiceCatalog
     ) {
         this.elementDescriptorHelper = elementDescriptorHelper;
         this.elementPropertiesVerificationService = elementPropertiesVerificationService;
+        this.integrationServiceCatalog = integrationServiceCatalog;
     }
 
     public Snapshot build(Chain chain) {
@@ -118,8 +126,8 @@ public class SnapshotBuildService {
         snapshotElement.setContainer(elementDescriptor.isContainer());
         snapshotElement.setSwimlaneElement(elementDescriptor.getType() == ElementType.SWIMLANE);
 
-        // TODO service environment
-        //snapshotElement.setServiceEnvironment();
+        Optional<ServiceEnvironment> environment = getServiceEnvironment(element);
+        environment.ifPresent(snapshotElement::setServiceEnvironment);
 
         return snapshotElement;
     }
@@ -137,6 +145,35 @@ public class SnapshotBuildService {
                 return new ConnectionImpl(from, to);
             })
             .toList();
+    }
+
+    private Optional<ServiceEnvironment> getServiceEnvironment(Element element) {
+        return switch (element.getType()) {
+            case SERVICE_CALL_COMPONENT,
+                 ASYNC_API_TRIGGER_COMPONENT,
+                 HTTP_TRIGGER_COMPONENT ->
+                        Optional.ofNullable(element.getProperties())
+                            .map(properties -> properties.get(SYSTEM_ID))
+                            .map(Object::toString)
+                            .map(this::getIntegrationServiceActiveEnvironment);
+            default -> Optional.empty();
+        };
+    }
+
+    private ServiceEnvironment getIntegrationServiceActiveEnvironment(String serviceId) {
+        IntegrationService integrationService = integrationServiceCatalog.findById(serviceId)
+            .orElseThrow(() -> new NoSuchElementException("Integration service not found: " + serviceId));
+        return integrationService.getActiveEnvironment().orElseGet(() -> integrationService
+            .getEnvironments()
+            .stream()
+            .findFirst()
+            .orElseGet(() -> {
+                ServiceEnvironmentImpl serviceEnvironment = new ServiceEnvironmentImpl();
+                serviceEnvironment.setSystemId(serviceId);
+                serviceEnvironment.setActivated(false);
+                return serviceEnvironment;
+            })
+        );
     }
 
     private void verifyElementProperties(Chain chain) {
