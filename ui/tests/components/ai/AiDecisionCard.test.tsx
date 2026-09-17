@@ -125,6 +125,27 @@ describe("AiDecisionCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("import-specification", "");
   });
 
+  it("should submit the planning action from a ready requirements card", () => {
+    const onSubmitClarification = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Requirements are ready. Continue to planning?",
+          actions: ["continue-to-planning"],
+        })}
+        onAnswer={jest.fn()}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continue to planning" }),
+    );
+
+    expect(onSubmitClarification).toHaveBeenCalledWith("continue-to-planning");
+  });
+
   it("should send per-spec system types when Import is clicked", () => {
     const onAnswer = jest.fn();
     render(

@@ -325,6 +325,14 @@ def _forbidden_haystack(decoded: dict[str, Any], requirement: Any) -> str:
     return "\n".join(parts)
 
 
+def _forbidden_fact_present(fact: str, haystack: str) -> bool:
+    """Match a forbidden fact as a token, not as part of a JSON field name."""
+    if not fact:
+        return False
+    pattern = rf"(?<![A-Za-z0-9]){re.escape(fact)}(?![A-Za-z0-9])"
+    return re.search(pattern, haystack) is not None
+
+
 def build_report(
     evidence: dict[str, Any],
     *,
@@ -513,7 +521,9 @@ def build_report(
         for fact in required_facts
         if not _required_fact_present(fact, haystack, decoded)
     ]
-    present_forbidden = [fact for fact in forbidden_facts if fact in forbidden_haystack]
+    present_forbidden = [
+        fact for fact in forbidden_facts if _forbidden_fact_present(fact, forbidden_haystack)
+    ]
 
     kinds = evidence.get("committedArtifactKinds") or []
     if not isinstance(kinds, list):

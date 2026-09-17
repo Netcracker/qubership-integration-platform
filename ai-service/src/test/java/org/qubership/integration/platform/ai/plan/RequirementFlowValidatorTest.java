@@ -78,6 +78,22 @@ class RequirementFlowValidatorTest {
   }
 
   @Test
+  void rejectsInboundInteractionWithAPredecessor() {
+    RequirementFlow flow =
+        flow(
+            List.of(
+                interaction("http-start", INBOUND, "Caller", "GET /start"),
+                interaction("publish-event", INBOUND, "Kafka service", "onTaskStart")),
+            List.of(edge("http-start", "publish-event")));
+
+    assertEquals(
+        Optional.of(
+            "requirement flow inbound interaction publish-event has a predecessor and cannot be an"
+                + " entry point"),
+        RequirementFlowValidator.validateStructure(flow));
+  }
+
+  @Test
   void rejectsDuplicateInteractionIds() {
     RequirementFlow flow =
         flow(
@@ -189,6 +205,35 @@ class RequirementFlowValidatorTest {
   }
 
   @Test
+  void acceptsKafkaPublishBindingOnOutboundServiceCall() {
+    RequirementFlow flow =
+        flow(
+            List.of(
+                interaction("http-start", INBOUND, "Caller", "GET /start"),
+                interaction("publish-event", OUTBOUND, "Kafka service", "onTaskStart")),
+            List.of(edge("http-start", "publish-event")));
+    RequirementFact httpTrigger =
+        new RequirementFact(
+            "http-start",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /start",
+            "",
+            "",
+            "",
+            "GET",
+            "/start");
+
+    assertEquals(
+        Optional.empty(),
+        RequirementFlowValidator.validateBindings(
+            flow,
+            List.of(httpTrigger),
+            List.of(kafkaPublishHint("publish-event", "onTaskStart"))));
+  }
+
+  @Test
   void rejectsCatalogBindingOnNativeInboundInteraction() {
     RequirementFlow flow =
         flow(List.of(interaction("kafka-start", INBOUND, "Local Kafka", "onTaskStart")), List.of());
@@ -216,11 +261,113 @@ class RequirementFlowValidatorTest {
             RequirementFactPolarity.POSITIVE,
             RequirementFactKind.CAPABILITY,
             "http-trigger",
-            "Expose GET /orders");
+            "Expose GET /orders",
+            "",
+            "",
+            "",
+            "GET",
+            "/orders");
 
     assertEquals(
         Optional.empty(),
         RequirementFlowValidator.validateBindings(flow, List.of(nativeHttp), List.of()));
+  }
+
+  @Test
+  void acceptsNativeKafkaSenderFactWithoutCatalogBinding() {
+    RequirementFlow flow =
+        flow(
+            List.of(
+                interaction("http-start", INBOUND, "Caller", "POST /publish-event"),
+                interaction("kafka-send-event", OUTBOUND, "Kafka", "publish")),
+            List.of(edge("http-start", "kafka-send-event")));
+    RequirementFact nativeHttp =
+        new RequirementFact(
+            "http-start",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose POST /publish-event",
+            "",
+            "",
+            "",
+            "POST",
+            "/publish-event");
+    RequirementFact nativeKafkaSender =
+        new RequirementFact(
+            "kafka-send-event",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "kafka-sender-2",
+            "Publish the request body to Kafka");
+
+    assertEquals(
+        Optional.empty(),
+        RequirementFlowValidator.validateBindings(
+            flow, List.of(nativeHttp, nativeKafkaSender), List.of()));
+    assertFalse(
+        RequirementFlowValidator.requiresCatalogBinding(
+            flow.interaction("kafka-send-event").orElseThrow(),
+            List.of(nativeHttp, nativeKafkaSender)));
+  }
+
+  @Test
+  void acceptsNativeChainTriggerFactWithoutCatalogBinding() {
+    RequirementFlow flow =
+        flow(List.of(interaction("chain-entry", INBOUND, "Parent chain", "start")), List.of());
+    RequirementFact nativeChainTrigger =
+        new RequirementFact(
+            "chain-entry",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "chain-trigger-2",
+            "Start from a parent chain");
+
+    assertEquals(
+        Optional.empty(),
+        RequirementFlowValidator.validateBindings(flow, List.of(nativeChainTrigger), List.of()));
+  }
+
+  @Test
+  void acceptsDirectHttpSenderWithoutCatalogBinding() {
+    RequirementFlow flow =
+        flow(
+            List.of(
+                interaction("http-entry", INBOUND, "Caller", "GET /greeting"),
+                interaction("send-greeting", OUTBOUND, "Greeting service", "GET /hello")),
+            List.of(edge("http-entry", "send-greeting")));
+    RequirementFact nativeHttp =
+        new RequirementFact(
+            "http-entry",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /greeting",
+            "",
+            "",
+            "",
+            "GET",
+            "/greeting");
+    RequirementFact directSender =
+        new RequirementFact(
+            "send-greeting",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-sender",
+            "Send GET to https://greetings.com/hello",
+            "",
+            "",
+            "",
+            "GET",
+            "https://greetings.com/hello",
+            "");
+
+    assertEquals(
+        Optional.empty(),
+        RequirementFlowValidator.validateBindings(flow, List.of(nativeHttp, directSender), List.of()));
+    assertFalse(
+        RequirementFlowValidator.requiresCatalogBinding(
+            flow.interaction("send-greeting").orElseThrow(), List.of(nativeHttp, directSender)));
   }
 
   @Test

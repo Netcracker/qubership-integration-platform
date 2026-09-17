@@ -152,6 +152,35 @@ class ScenarioRouterTest {
   }
 
   @Test
+  void unknownGreetingDoesNotStartACreateRun() {
+    when(routerAgent.classify(any(), anyString(), any())).thenReturn(ScenarioType.UNKNOWN);
+    CreateRunSelectionService selection = mock(CreateRunSelectionService.class);
+    when(selection.existing(CONVERSATION_ID)).thenReturn(java.util.Optional.empty());
+    ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
+    ScenarioRouter productRouter =
+        new ScenarioRouter(
+            routerAgent,
+            compilationRuntime.phaseResolver(),
+            mock(ConversationService.class),
+            chainContextExtractor,
+            requirementDraftStore,
+            handlers,
+            selection,
+            adapter);
+    ChatRequest request = new ChatRequest();
+    request.setResolvedEffectiveUserText("hello");
+
+    var events =
+        productRouter.route(request, CONVERSATION_ID).collect().asList().await().indefinitely();
+
+    assertEquals(
+        "How can I help with your QIP integration?",
+        ((org.qubership.integration.platform.ai.chat.ChatEvent.Token) events.get(0)).text());
+    verify(selection, never()).selectOrCreate(anyString());
+    verify(adapter, never()).handle(any(), anyString());
+  }
+
+  @Test
   void finishedCreateRunReleasesTheConversationToOtherScenarios() {
     ProductPipelineChatAdapter adapter = mock(ProductPipelineChatAdapter.class);
     ScenarioHandler handler = mock(ScenarioHandler.class);

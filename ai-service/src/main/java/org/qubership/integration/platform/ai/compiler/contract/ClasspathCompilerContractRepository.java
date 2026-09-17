@@ -29,9 +29,11 @@ public class ClasspathCompilerContractRepository implements CompilerContractRepo
   private static final List<String> REQUIRED_ELEMENT_TYPES =
       List.of(
           "http-trigger",
+          "chain-trigger-2",
           "kafka-trigger-2",
           "async-api-trigger",
           "service-call",
+          "kafka-sender-2",
           "script",
           "mapper-2",
           "condition",

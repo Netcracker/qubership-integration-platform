@@ -183,6 +183,13 @@ class ChatEventActionsCaptureTest {
   }
 
   @Test
+  void readyRequirementDraftOffersAnExplicitPlanningAction() {
+    assertEquals(
+        List.of(ChatEvent.CONTINUE_TO_PLANNING_ACTION),
+        ChatEvent.actionsForGate(PipelineGates.REQUIREMENT_DRAFT_READY));
+  }
+
+  @Test
   void systemTypeForImportActionMapsTypedButtons() {
     assertEquals("EXTERNAL", ChatEvent.systemTypeForImportAction(ChatEvent.IMPORT_EXTERNAL_ACTION));
     assertEquals("INTERNAL", ChatEvent.systemTypeForImportAction(ChatEvent.IMPORT_INTERNAL_ACTION));

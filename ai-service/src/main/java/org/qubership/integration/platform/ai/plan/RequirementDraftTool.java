@@ -82,11 +82,10 @@ public class RequirementDraftTool {
 
   static final String CAPABILITY_SOFT_DOWNGRADE_PREFIX =
       "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): an inbound interaction has"
-          + " an unsupported capability key. ";
+          + " invalid or incomplete native capability configuration. ";
 
   static final String CAPABILITY_SOFT_DOWNGRADE_HINT =
-      "Recapture the same RequirementFlow with the exact supported capabilityKey named in the"
-          + " validation finding.";
+      "Recapture the same RequirementFlow with the correction named in the validation finding.";
 
   static final String CATALOG_BOUND_CAPTURE_HINT =
       " Recapture READY_FOR_PLAN with empty openQuestions when every catalog-backed interaction"
@@ -266,17 +265,22 @@ public class RequirementDraftTool {
       Capture a complete RequirementFlow before catalog lookup. Each interaction needs a stable
       interactionId, direction INBOUND or OUTBOUND, participant, and operation. Transitions name
       sourceInteractionId and targetInteractionId. List position is not order.
-      Do not add publish or subscribe to the business flow; runtime validates those catalog verbs
-      against the captured direction. Keep payload constants and mapping rules out of operation
-      names.
+      Choose direction from the interaction's role in the chain. INBOUND starts execution and has
+      no predecessor. OUTBOUND is invoked by the chain after an entry point.
+      Catalog verbs such as publish or subscribe do not choose the role. Keep payload constants
+      and mapping rules out of operation names.
       Do not model an HTTP response as a separate OUTBOUND interaction. Keep response fields and
-      response mappings as BEHAVIOR facts; OUTBOUND interactions are external calls or publishes
-      that require a catalog binding.
+      response mappings as BEHAVIOR facts. Service calls require a catalog binding; a direct
+      http-sender does not.
       Do not author ENDPOINT or SERVICE_CALL topology facts. Java projects those roles from the
       flow. Keep facts as ordinary constraints and native-trigger configuration: polarity, text,
       and optional kind (GOAL, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY, VISIBILITY, ROUTING).
       Native trigger configuration uses a CAPABILITY fact whose sourceFactId matches the inbound
-      interactionId (http-trigger httpMethod and path, or kafka-trigger-2 topic).
+      interactionId (http-trigger httpMethod and path, kafka-trigger-2 topic, or
+      chain-trigger-2 with no catalog binding).
+      Direct HTTP sender configuration uses a CAPABILITY fact whose sourceFactId matches the
+      outbound interactionId, capabilityKey=http-sender, and httpMethod plus an absolute or
+      relative URI in path.
       Distill facts from assembledText yourself; never ask the user for polarity labels.
       When READY_FOR_PLAN is sent without facts, the server soft-stores NEEDS_INPUT. Retry the
       same turn with facts, or keep NEEDS_INPUT with one open question.
@@ -440,6 +444,7 @@ public class RequirementDraftTool {
         }
       }
       facts = alignNativeTriggerOwners(capturedFlow, facts);
+      facts = alignDirectHttpSenderOwners(capturedFlow, facts);
       duplicateFactError = validateUniqueFacts(facts);
       if (duplicateFactError != null) {
         LOG.warnf(
@@ -1294,6 +1299,67 @@ public class RequirementDraftTool {
     return List.copyOf(aligned);
   }
 
+  private static List<RequirementFact> alignDirectHttpSenderOwners(
+      RequirementFlow flow, List<RequirementFact> facts) {
+    List<RequirementFact> aligned = new ArrayList<>(facts);
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      if (interaction.direction() != RequirementFlow.Direction.OUTBOUND
+          || RequirementFlowValidator.isNativeDirectInteraction(interaction, aligned)) {
+        continue;
+      }
+      List<RequirementFact> matches =
+          facts.stream()
+              .filter(fact -> isOwnedHttpSenderBehavior(interaction, fact))
+              .filter(
+                  fact ->
+                      flow.interactions().stream()
+                              .filter(
+                                  candidate ->
+                                      candidate.direction() == RequirementFlow.Direction.OUTBOUND)
+                              .filter(candidate -> isOwnedHttpSenderBehavior(candidate, fact))
+                              .count()
+                          == 1)
+              .toList();
+      String[] operation = interaction.operation().trim().split("\\s+", 2);
+      if (matches.size() != 1 || operation.length != 2) {
+        continue;
+      }
+      RequirementFact evidence = matches.getFirst();
+      aligned.remove(evidence);
+      aligned.add(
+          new RequirementFact(
+              interaction.interactionId(),
+              RequirementFactPolarity.POSITIVE,
+              RequirementFactKind.CAPABILITY,
+              "http-sender",
+              evidence.text(),
+              interaction.participant(),
+              "",
+              "",
+              operation[0],
+              operation[1],
+              ""));
+    }
+    return List.copyOf(aligned);
+  }
+
+  private static boolean isOwnedHttpSenderBehavior(
+      RequirementFlow.Interaction interaction, RequirementFact fact) {
+    if (fact == null || fact.polarity() != RequirementFactPolarity.POSITIVE) {
+      return false;
+    }
+    String text = fact.text().toLowerCase(Locale.ROOT);
+    if (!text.contains("http sender") && !text.contains("http-sender")) {
+      return false;
+    }
+    if (interaction.interactionId().equals(fact.sourceFactId())) {
+      return true;
+    }
+    String participant = fact.participant().toLowerCase(Locale.ROOT);
+    return !participant.isBlank()
+        && interaction.description().toLowerCase(Locale.ROOT).contains(participant);
+  }
+
   private static boolean isUnownedNativeTrigger(RequirementFlow flow, RequirementFact fact) {
     return fact != null
         && fact.polarity() == RequirementFactPolarity.POSITIVE
@@ -1536,7 +1602,7 @@ public class RequirementDraftTool {
 
   /**
    * Binds unique local catalog matches before {@link #reconcileCatalogBindings} copies them onto
-   * the draft. Does not search API Hub; unresolved outbound interactions still soft-downgrade.
+   * the draft. Does not search API Hub; unresolved catalog-backed interactions still soft-downgrade.
    */
   private void resolveUnboundFromCatalog(
       RequirementFlow flow, List<RequirementFact> facts, String conversationId) {
@@ -1564,7 +1630,7 @@ public class RequirementDraftTool {
           .isPresent()) {
         continue;
       }
-      if (RequirementFlowValidator.hasNativeInboundTriggerFact(interaction, facts)) {
+      if (RequirementFlowValidator.isNativeDirectInteraction(interaction, facts)) {
         continue;
       }
       String capability =
@@ -1594,11 +1660,8 @@ public class RequirementDraftTool {
       if (catalogDirection.isEmpty()) {
         continue;
       }
-      CatalogOperationDirection expected =
-          interaction.direction() == RequirementFlow.Direction.INBOUND
-              ? CatalogOperationDirection.PRODUCED_BY_SYSTEM
-              : CatalogOperationDirection.CONSUMED_BY_SYSTEM;
-      if (catalogDirection.get() != expected) {
+      if (interaction.direction() == RequirementFlow.Direction.INBOUND
+          && catalogDirection.get() != CatalogOperationDirection.PRODUCED_BY_SYSTEM) {
         continue;
       }
       resolutions.remember(

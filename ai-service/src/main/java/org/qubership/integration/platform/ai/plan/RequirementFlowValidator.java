@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationDirection;
@@ -23,9 +24,16 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
 public final class RequirementFlowValidator {
 
   private static final Set<String> NATIVE_INBOUND_TRIGGER_KEYS =
-      Set.of("http-trigger", "kafka-trigger-2", "quartz-scheduler");
+      Set.of("http-trigger", "chain-trigger-2", "kafka-trigger-2", "quartz-scheduler");
+  private static final Set<String> NATIVE_DIRECT_OUTBOUND_CAPABILITY_KEYS =
+      Set.of("http-sender", "kafka-sender-2");
   private static final Set<String> SUPPORTED_INBOUND_CAPABILITY_KEYS =
-      Set.of("http-trigger", "kafka-trigger-2", "quartz-scheduler", "async-api-trigger");
+      Set.of(
+          "http-trigger",
+          "chain-trigger-2",
+          "kafka-trigger-2",
+          "quartz-scheduler",
+          "async-api-trigger");
 
   private RequirementFlowValidator() {}
 
@@ -123,6 +131,16 @@ public final class RequirementFlowValidator {
       return cycle;
     }
 
+    for (Transition transition : checked.transitions()) {
+      String targetId = transition.targetInteractionId();
+      if (checked.interaction(targetId).orElseThrow().direction() == Direction.INBOUND) {
+        return Optional.of(
+            "requirement flow inbound interaction "
+                + targetId
+                + " has a predecessor and cannot be an entry point");
+      }
+    }
+
     Set<String> reachable = reachableFromInbound(interactions, adjacency);
     for (Interaction interaction : interactions) {
       if (interaction.direction() == Direction.OUTBOUND
@@ -190,7 +208,7 @@ public final class RequirementFlowValidator {
       String interactionId = interaction.interactionId();
       boolean requiresBinding = requiresCatalogBinding(interaction, factList);
       CatalogBindingHint hint = byInteraction.get(interactionId);
-      if (hasNativeInboundTriggerFact(interaction, factList) && hint != null) {
+      if (isNativeDirectInteraction(interaction, factList) && hint != null) {
         return Optional.of(
             "requirement flow interaction "
                 + interactionId
@@ -220,11 +238,8 @@ public final class RequirementFlowValidator {
                 + interactionId
                 + " has unknown catalog operation direction");
       }
-      CatalogOperationDirection expected =
-          interaction.direction() == Direction.INBOUND
-              ? CatalogOperationDirection.PRODUCED_BY_SYSTEM
-              : CatalogOperationDirection.CONSUMED_BY_SYSTEM;
-      if (catalogDirection.get() != expected) {
+      if (interaction.direction() == Direction.INBOUND
+          && catalogDirection.get() != CatalogOperationDirection.PRODUCED_BY_SYSTEM) {
         return Optional.of(
             "requirement flow interaction "
                 + interactionId
@@ -254,7 +269,7 @@ public final class RequirementFlowValidator {
               + interactionId
               + ", or capture a CAPABILITY fact with sourceFactId="
               + interactionId
-              + " and capabilityKey=http-trigger or kafka-trigger-2.");
+              + " and capabilityKey=http-trigger, chain-trigger-2, or kafka-trigger-2.");
     }
     return Optional.empty();
   }
@@ -275,17 +290,31 @@ public final class RequirementFlowValidator {
                 + ". Allowed inbound capability keys: "
                 + String.join(", ", SUPPORTED_INBOUND_CAPABILITY_KEYS.stream().sorted().toList()));
       }
+      if (inboundCapability.filter("http-trigger"::equals).isPresent()
+          && factList.stream()
+              .filter(fact -> fact != null)
+              .filter(fact -> interaction.interactionId().equals(fact.sourceFactId()))
+              .filter(fact -> "http-trigger".equals(fact.capabilityKey()))
+              .allMatch(fact -> fact.httpMethod().isBlank())) {
+        return Optional.of(
+            "HTTP trigger "
+                + interaction.interactionId()
+                + " has no HTTP method. Specify GET, POST, or another supported method.");
+      }
     }
     return Optional.empty();
   }
 
-  /**
-   * Returns true only for outbound interactions. {@code facts} stays on the signature so existing
-   * callers keep compiling; inbound catalog need is not derived from facts.
-   */
-  @SuppressWarnings("java:S1172")
+  /** Returns true for outbound interactions except explicitly direct native endpoints. */
   static boolean requiresCatalogBinding(Interaction interaction, List<RequirementFact> facts) {
-    return interaction.direction() == Direction.OUTBOUND;
+    return interaction.direction() == Direction.OUTBOUND && !isNativeDirectInteraction(interaction, facts);
+  }
+
+  /** Returns true when an interaction is configured without a catalog operation. */
+  static boolean isNativeDirectInteraction(Interaction interaction, List<RequirementFact> facts) {
+    return (interaction.direction() == Direction.INBOUND
+            && hasNativeInboundTriggerFact(interaction, facts))
+        || hasNativeDirectOutboundCapabilityFact(interaction, facts);
   }
 
   /**
@@ -325,6 +354,29 @@ public final class RequirementFlowValidator {
                 fact != null
                     && interaction.interactionId().equals(fact.sourceFactId())
                     && NATIVE_INBOUND_TRIGGER_KEYS.contains(fact.capabilityKey()));
+  }
+
+  private static boolean hasNativeDirectOutboundCapabilityFact(
+      Interaction interaction, List<RequirementFact> facts) {
+    return interaction.direction() == Direction.OUTBOUND
+        && hasNativeDirectOutboundCapabilityFact(interaction.interactionId(), facts);
+  }
+
+  public static boolean hasNativeDirectOutboundCapabilityFact(
+      String interactionId, List<RequirementFact> facts) {
+    return nativeDirectOutboundCapabilityKey(interactionId, facts).isPresent();
+  }
+
+  public static Optional<String> nativeDirectOutboundCapabilityKey(
+      String interactionId, List<RequirementFact> facts) {
+    return facts.stream()
+        .filter(Objects::nonNull)
+        .filter(fact -> interactionId.equals(fact.sourceFactId()))
+        .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+        .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
+        .map(RequirementFact::capabilityKey)
+        .filter(NATIVE_DIRECT_OUTBOUND_CAPABILITY_KEYS::contains)
+        .findFirst();
   }
 
   private static Optional<String> detectCycle(

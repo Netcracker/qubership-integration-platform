@@ -11,5 +11,13 @@ record PropertyPatchCapture(
     @Description("ADD, UPDATE, or REMOVE") GraphPatchOperation operation,
     @Description("Existing plan node id") String targetNodeId,
     @Description("Catalog property key from describeElementPatchSchema") String key,
-    @Description("Property value as JSON: string, number, boolean, array, or object")
-        JsonNode value) {}
+    @Description("Structured property value for arrays and objects; use scalarValue otherwise")
+        JsonNode value,
+    @Description("String, number, or boolean value rendered as text; use value for arrays/objects")
+        String scalarValue) {
+
+  PropertyPatchCapture(
+      GraphPatchOperation operation, String targetNodeId, String key, JsonNode value) {
+    this(operation, targetNodeId, key, value, null);
+  }
+}

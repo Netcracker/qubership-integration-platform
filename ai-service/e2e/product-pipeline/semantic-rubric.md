@@ -24,6 +24,16 @@ Reject non-integer or out-of-range scores. Reliability failures (TPM, MCP, Docke
 - That is **not** a `service-call` and is **not** an "external service call" unless those exact forbidden facts are listed.
 - Do not lower scores solely because `endpointFacts` contains `external` when the scenario forbids service-calls or "external service calls".
 
+## Generator ownership versus topology
+
+- `cip-service-call-generator` is an ownership label. Its presence does not prove that the plan
+  contains a `service-call` element.
+- The same generator configures native outbound elements such as `kafka-sender-2`. For those
+  elements, an empty `serviceBindings` collection is correct because no catalog or APIHub binding
+  is required.
+- Determine forbidden topology from the planned element types and structured claims, not from a
+  generator skill name or a negated phrase such as `No service calls` or `No APIHub`.
+
 ## Required response literals
 
 - Required strings such as `even minute` / `odd minute` count as present when they appear anywhere in the supplied plan JSON (`scriptOutcomes`, `planText`, branch notes, and so on).

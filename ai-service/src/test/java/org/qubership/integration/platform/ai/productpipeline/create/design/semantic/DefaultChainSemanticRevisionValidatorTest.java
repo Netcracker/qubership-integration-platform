@@ -71,6 +71,14 @@ class DefaultChainSemanticRevisionValidatorTest {
             revisionWithUnknownCatchHandler(),
             "handlerId 'ghost' is missing from region"),
         Arguments.of(
+            "try-catch without error scope",
+            tryCatchWithoutErrorScope(),
+            "element type 'try-catch-finally-2' requires an ERROR_SCOPE region"),
+        Arguments.of(
+            "error-scope branch path starts inside the branch",
+            errorScopeWithInternalCatchPath(),
+            "must start at owner 'try-catch-1'"),
+        Arguments.of(
             "unknown reconverge branch",
             revisionWithUnknownReconvergeBranch(),
             "branchId 'ghost' is missing from region"),
@@ -1157,6 +1165,56 @@ class DefaultChainSemanticRevisionValidatorTest {
             new SemanticContainment("try-catch-1", "catch-body", "catch-2"),
             new SemanticContainment("try-catch-1", "finally-script", "finally-2")),
         List.of());
+  }
+
+  private static ChainSemanticRevision tryCatchWithoutErrorScope() {
+    ChainSemanticRevision scoped = errorScopeRevision("catch-all");
+    List<SemanticExecutionEdge> edges =
+        scoped.executionEdges().stream()
+            .map(
+                edge ->
+                    new SemanticExecutionEdge(
+                        edge.edgeId(),
+                        edge.sourceNodeId(),
+                        edge.targetNodeId(),
+                        null,
+                        new SemanticRoute.Sequence(),
+                        edge.mappingId()))
+            .toList();
+    return copy(
+        scoped,
+        scoped.entryPoints(),
+        scoped.nodes(),
+        List.of(),
+        edges,
+        List.of(),
+        scoped.mappingIntents());
+  }
+
+  private static ChainSemanticRevision errorScopeWithInternalCatchPath() {
+    ChainSemanticRevision scoped = errorScopeRevision("catch-all");
+    List<SemanticExecutionEdge> edges =
+        scoped.executionEdges().stream()
+            .map(
+                edge ->
+                    "edge-catch".equals(edge.edgeId())
+                        ? new SemanticExecutionEdge(
+                            edge.edgeId(),
+                            "try-body",
+                            edge.targetNodeId(),
+                            edge.regionId(),
+                            edge.route(),
+                            edge.mappingId())
+                        : edge)
+            .toList();
+    return copy(
+        scoped,
+        scoped.entryPoints(),
+        scoped.nodes(),
+        scoped.regions(),
+        edges,
+        scoped.containment(),
+        scoped.mappingIntents());
   }
 
   private static ChainSemanticRevision revisionWithUnreachableNode() {
