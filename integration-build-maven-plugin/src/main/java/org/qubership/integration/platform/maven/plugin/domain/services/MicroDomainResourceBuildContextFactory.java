@@ -13,6 +13,9 @@ import java.util.List;
 
 @Component
 public class MicroDomainResourceBuildContextFactory {
+    /** A Maven build has no authenticated user, so the resources name the producer instead. */
+    private static final String CREATED_BY = "maven-plugin";
+
     private final BuildInfoFactory buildInfoFactory;
     private final IntegrationServiceCatalog integrationServiceCatalog;
 
@@ -29,8 +32,7 @@ public class MicroDomainResourceBuildContextFactory {
         List<Snapshot> snapshots,
         ResourceBuildOptions options
     ) {
-        // FIXME createdBy
-        BuildInfo buildInfo = buildInfoFactory.createBuildInfo(options, null);
+        BuildInfo buildInfo = buildInfoFactory.createBuildInfo(options, CREATED_BY);
         return ResourceBuildContext.create(buildInfo, integrationServiceCatalog)
             .updateTo(snapshots);
     }
