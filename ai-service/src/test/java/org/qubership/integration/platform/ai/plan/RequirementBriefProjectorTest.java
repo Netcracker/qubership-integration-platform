@@ -45,6 +45,85 @@ class RequirementBriefProjectorTest {
   }
 
   @Test
+  void skipsDirectSenderCapabilityFromServiceCalls() {
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-start", Direction.INBOUND, "Caller", "POST /notify", ""),
+                new Interaction("mail-send", Direction.OUTBOUND, "Mail", "send", "")),
+            List.of(new Transition("http-start", "mail-send")));
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "http-start",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose POST /notify"),
+            new RequirementFact(
+                "mail-send",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "mail-sender",
+                "Send notification email"));
+    RequirementBrief projected =
+        RequirementBriefProjector.project(
+            briefWithCalls(facts, List.of())
+                .withFlow(flow)
+                .withCatalogBindings(List.of()));
+
+    assertEquals(List.of("http-start"), projected.entryPoints().stream()
+        .map(RequirementEntryPoint::entryPointId)
+        .toList());
+    assertTrue(projected.serviceCalls().isEmpty());
+  }
+
+  @Test
+  void projectsImplementedServiceHttpTriggerWithCatalogBinding() {
+    Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
+    CatalogBindingHint geoHint =
+        catalogHint(
+            "geo-api",
+            "geo-api",
+            "retrieveGeographicSite",
+            "sys-geo",
+            "sg-geo",
+            "spec-geo",
+            "op-geo",
+            observedAt);
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction(
+                    "geo-api", Direction.INBOUND, "GeoSite", "retrieveGeographicSite", "")),
+            List.of());
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "geo-api",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose GeoSite implemented service",
+                "GeoSite",
+                "",
+                "",
+                "GET",
+                ""));
+    RequirementBrief projected =
+        RequirementBriefProjector.project(
+            briefWithCalls(facts, List.of())
+                .withFlow(flow)
+                .withCatalogBindings(List.of(geoHint)));
+
+    assertEquals(1, projected.entryPoints().size());
+    assertEquals("http-trigger", projected.entryPoints().getFirst().capabilityKey());
+    assertTrue(projected.entryPoints().getFirst().path().isBlank());
+    assertEquals("retrieveGeographicSite", projected.entryPoints().getFirst().operation());
+    assertEquals("op-geo", projected.catalogBindings().getFirst().integrationOperationId());
+  }
+
+  @Test
   void preservesTheFailureModeOfEachOutboundOccurrence() {
     RequirementFlow flow =
         new RequirementFlow(
@@ -68,7 +147,8 @@ class RequirementBriefProjectorTest {
                 new Transition("start", "create-primary"),
                 new Transition("create-primary", "create-audit")));
 
-    List<RequirementServiceCall> calls = RequirementBriefProjector.serviceCallsFrom(flow, java.util.Map.of());
+    List<RequirementServiceCall> calls =
+        RequirementBriefProjector.serviceCallsFrom(flow, java.util.Map.of(), List.of());
 
     assertEquals(ServiceCallFailureMode.INLINE_RESPONSE, calls.get(0).failureMode());
     assertEquals(ServiceCallFailureMode.PROPAGATE, calls.get(1).failureMode());

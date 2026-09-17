@@ -2133,7 +2133,8 @@ class RequirementDraftToolTest {
                 stored.catalogBindings().stream()
                     .collect(
                         java.util.stream.Collectors.toMap(
-                            CatalogBindingHint::interactionId, hint -> hint)))
+                            CatalogBindingHint::interactionId, hint -> hint)),
+                stored.facts())
             .stream()
             .filter(call -> "task-result".equals(call.serviceCallId()))
             .findFirst()
