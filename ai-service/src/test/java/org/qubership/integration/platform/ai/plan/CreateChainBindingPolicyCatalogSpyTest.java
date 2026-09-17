@@ -7,6 +7,7 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -14,7 +15,7 @@ import org.jboss.logmanager.MDC;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
-import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
+import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
@@ -35,9 +36,9 @@ class CreateChainBindingPolicyCatalogSpyTest {
   private final RequirementDraftStore store = new RequirementDraftStore();
   private final ConversationApiResolutions resolutions = new ConversationApiResolutions();
   private final CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
-  private final ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+  private final ConversationApiHubCache apiHubCache = mock(ConversationApiHubCache.class);
   private final RequirementDraftTool captureTool =
-      RequirementDraftTool.withLookup(store, resolutions, lookup);
+      new RequirementDraftTool(store, null, null, apiHubCache, resolutions, null, lookup);
 
   @AfterEach
   void clearMdc() {
@@ -91,7 +92,7 @@ class CreateChainBindingPolicyCatalogSpyTest {
     assertTrue(draft.readyForPlan(), draft.toString());
     assertTrue(draft.catalogBindings().isEmpty());
     verifyNoInteractions(lookup);
-    verifyNoInteractions(apiHub);
+    assertApiHubCacheBackfillOnly();
   }
 
   @Test
@@ -141,7 +142,7 @@ class CreateChainBindingPolicyCatalogSpyTest {
     assertTrue(draft.readyForPlan(), draft.toString());
     assertTrue(draft.catalogBindings().isEmpty());
     verifyNoInteractions(lookup);
-    verifyNoInteractions(apiHub);
+    assertApiHubCacheBackfillOnly();
   }
 
   @Test
@@ -201,7 +202,7 @@ class CreateChainBindingPolicyCatalogSpyTest {
     assertTrue(draft.readyForPlan(), draft.toString());
     assertTrue(draft.catalogBindings().isEmpty());
     verifyNoInteractions(lookup);
-    verifyNoInteractions(apiHub);
+    assertApiHubCacheBackfillOnly();
   }
 
   @Test
@@ -259,7 +260,7 @@ class CreateChainBindingPolicyCatalogSpyTest {
     assertFalse(draft.catalogBindings().isEmpty(), draft.catalogBindings().toString());
     assertEqualsBindingInteraction("petstore-http", draft);
     verify(lookup, atLeastOnce()).resolve(any());
-    verifyNoInteractions(apiHub);
+    assertApiHubCacheBackfillOnly();
   }
 
   @Test
@@ -318,7 +319,7 @@ class CreateChainBindingPolicyCatalogSpyTest {
     assertFalse(draft.catalogBindings().isEmpty(), draft.catalogBindings().toString());
     assertEqualsBindingInteraction("async-entry", draft);
     verify(lookup, atLeastOnce()).resolve(any());
-    verifyNoInteractions(apiHub);
+    assertApiHubCacheBackfillOnly();
   }
 
   private void beginTurn() {
@@ -328,6 +329,15 @@ class CreateChainBindingPolicyCatalogSpyTest {
 
   private void stubNoCatalogHits() {
     when(lookup.resolve(any(CatalogQuery.class))).thenReturn(new CatalogLookupResult.None());
+  }
+
+  /**
+   * Capture reads {@link ConversationApiHubCache#latestCandidate} for backfill only; it must not
+   * search API Hub or write cache entries during binding-policy scenarios.
+   */
+  private void assertApiHubCacheBackfillOnly() {
+    verify(apiHubCache).latestCandidate(CONVERSATION_ID);
+    verifyNoMoreInteractions(apiHubCache);
   }
 
   private static void assertEqualsBindingInteraction(String interactionId, RequirementDraft draft) {
