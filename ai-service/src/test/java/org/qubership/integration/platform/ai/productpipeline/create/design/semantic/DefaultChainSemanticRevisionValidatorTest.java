@@ -20,7 +20,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
-import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -298,6 +297,22 @@ class DefaultChainSemanticRevisionValidatorTest {
 
     assertTrue(error.getMessage().contains("http-trigger"), error.getMessage());
     assertTrue(error.getMessage().contains("call-1"), error.getMessage());
+  }
+
+  @Test
+  void acceptsHttpTriggerWhenBriefHasNegativeMcpTriggerFact() {
+    ChainSemanticRevision revision = linearRevision();
+    RequirementBrief brief =
+        briefFrom(revision)
+            .withFacts(
+                List.of(
+                    new RequirementFact(
+                        "http-in",
+                        RequirementFactPolarity.NEGATIVE,
+                        RequirementFactKind.CONSTRAINT,
+                        "mcp-trigger",
+                        "No MCP")));
+    assertDoesNotThrow(() -> validator.validate(revision, CONTRACT, brief));
   }
 
   @Test

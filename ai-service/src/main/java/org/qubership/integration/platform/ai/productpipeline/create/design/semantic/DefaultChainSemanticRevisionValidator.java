@@ -960,7 +960,10 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     List<RequirementFact> facts = brief.facts() == null ? List.of() : brief.facts();
     RequirementFlow flow = brief.flow() == null ? RequirementFlow.EMPTY : brief.flow();
     for (RequirementFact fact : facts) {
-      if (fact != null && "mcp-trigger".equals(fact.capabilityKey())) {
+      if (fact != null
+          && fact.polarity() == RequirementFactPolarity.POSITIVE
+          && fact.kind() == RequirementFactKind.CAPABILITY
+          && "mcp-trigger".equals(fact.capabilityKey())) {
         errors.add(MCP_UNSUPPORTED_MESSAGE);
       }
     }
