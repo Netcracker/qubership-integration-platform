@@ -306,7 +306,7 @@ class DesignPlanningCapabilityTest {
     // Well formed enough for the parser, so the report exists by the time the projector refuses it
     // for covering no trigger.
     String reportWithoutTrigger =
-        validReport().replace("(cip-trigger-generator)", "(cip-script-generator)");
+        validReport().replace("(cip-http-trigger-endpoint-generator)", "(cip-script-generator)");
     CipDesignPlannerAdapter planner =
         new CipDesignPlannerAdapter(
             (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) ->
@@ -1060,7 +1060,7 @@ class DesignPlanningCapabilityTest {
           2. Find API Orders API for Orders Service in APIHub for version 2024.4 (APIHub MCP search_rest_api_operations)
           3. Get API operation specification Orders API for Orders Service in APIHub (APIHub MCP get_rest_api_operations_specification)
           4. Resolve External integration target Orders Service from the retrieved spec (binding for cip-service-call-generator)
-          5. Generate HTTP Trigger element with interface Orders API (cip-trigger-generator)
+          5. Generate HTTP Trigger element with interface Orders API (cip-http-trigger-endpoint-generator)
           6. Generate Service Call element for Orders Service.createOrder bound to the retrieved spec (cip-service-call-generator)
           7. Generate execution structure and element ordering (cip-structure-generator)
           8. Connect steps trigger → service-call in the execution structure (cip-structure-generator)
@@ -1087,16 +1087,16 @@ class DesignPlanningCapabilityTest {
                   List.of("cip-requirement-analyzer"),
                   1),
               node(
-                  "cip-trigger-generator",
-                  List.of(SkillArtifactType.REQUIREMENT_BRIEF.name()),
+                  "cip-http-trigger-endpoint-generator",
                   List.of(SkillArtifactType.CONFIGURED_TRIGGER_SET.name()),
+                  List.of(SkillArtifactType.GRAPH_PATCH.name()),
                   List.of(),
                   2),
               node(
                   "cip-service-call-generator",
                   List.of(SkillArtifactType.CONFIGURED_TRIGGER_SET.name()),
                   List.of(SkillArtifactType.GRAPH_PATCH.name()),
-                  List.of("cip-trigger-generator"),
+                  List.of("cip-http-trigger-endpoint-generator"),
                   3),
               node(
                   "cip-script-generator",
@@ -1109,7 +1109,7 @@ class DesignPlanningCapabilityTest {
                   List.of(SkillArtifactType.CONFIGURED_TRIGGER_SET.name()),
                   List.of(SkillArtifactType.CHAIN_STRUCTURE.name()),
                   List.of(
-                      "cip-trigger-generator",
+                      "cip-http-trigger-endpoint-generator",
                       "cip-service-call-generator",
                       "cip-script-generator"),
                   5),

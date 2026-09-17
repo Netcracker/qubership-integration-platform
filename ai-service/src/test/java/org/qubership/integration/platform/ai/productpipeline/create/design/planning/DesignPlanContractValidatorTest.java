@@ -30,7 +30,7 @@ class DesignPlanContractValidatorTest {
 
   private static final Map<String, String> OWNER_BY_TARGET =
       Map.ofEntries(
-          Map.entry("entry-1", "cip-trigger-generator"),
+          Map.entry("entry-1", "cip-http-trigger-endpoint-generator"),
           Map.entry("call-1", "cip-service-call-generator"),
           Map.entry("map-init", "cip-script-generator"),
           Map.entry("sequence", "cip-structure-generator"),
@@ -141,7 +141,11 @@ class DesignPlanContractValidatorTest {
     RequirementBrief brief = DesignPlanTestFixtures.brief();
     CompilerRunPin pin = DesignPlanTestFixtures.pin(revision);
     Step trigger =
-        step("trigger", "cip-trigger-generator", TargetKind.ENTRY_POINT, "entry-1");
+        step(
+            "trigger",
+            "cip-http-trigger-endpoint-generator",
+            TargetKind.ENTRY_POINT,
+            "entry-1");
     Step call =
         new Step(
             "call",
@@ -154,8 +158,7 @@ class DesignPlanContractValidatorTest {
     assertCodes(
         malformed,
         DesignPlanContractFinding.Code.UNKNOWN_STEP_DEPENDENCY,
-        DesignPlanContractFinding.Code.SELF_STEP_DEPENDENCY,
-        DesignPlanContractFinding.Code.COMPILER_DEPENDENCY_MISSING);
+        DesignPlanContractFinding.Code.SELF_STEP_DEPENDENCY);
 
     Step cyclicTrigger =
         new Step(
@@ -227,12 +230,68 @@ class DesignPlanContractValidatorTest {
   }
 
   @Test
+  void httpSenderOperationExpectsServiceCallGeneratorNotApiHub() {
+    ChainSemanticRevision base = DesignPlanTestFixtures.revision();
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(
+        new SemanticNode.Operation(
+            "send-http", "http-sender", new SemanticProvenance(List.of("fact-http"))));
+    ChainSemanticRevision revision =
+        new ChainSemanticRevision(
+            base.schemaVersion(),
+            base.revisionId(),
+            base.chainIdentity(),
+            base.compilerContractVersion(),
+            base.entryPoints(),
+            nodes,
+            base.regions(),
+            base.executionEdges(),
+            base.containment(),
+            base.mappingIntents(),
+            base.constraints(),
+            base.assumptions(),
+            base.citations());
+    CompilerRunPin pin =
+        DesignPlanTestFixtures.pinWithSkills(
+            revision, "cip-http-trigger-endpoint-generator", "cip-service-call-generator");
+    List<Step> steps =
+        List.of(
+            step(
+                "trigger",
+                "cip-http-trigger-endpoint-generator",
+                TargetKind.ENTRY_POINT,
+                "entry-1"),
+            step("call", "cip-service-call-generator", TargetKind.SERVICE_CALL, "call-1"),
+            step("send-http", "cip-service-call-generator", TargetKind.ELEMENT_NODE, "send-http"));
+    List<DesignPlanContractFinding> findings =
+        validator.findings(
+            contract(revision, steps), revision, DesignPlanTestFixtures.brief(), pin);
+    assertTrue(findings.isEmpty());
+
+    List<Step> apiHubOwner = new ArrayList<>(steps);
+    apiHubOwner.set(
+        2,
+        new Step(
+            "send-http",
+            "Send HTTP",
+            new Owner(OwnerKind.APIHUB_TOOL, "get_rest_api_operations_specification"),
+            List.of(new Claim(TargetKind.ELEMENT_NODE, "send-http", ClaimRole.PRODUCER)),
+            List.of()));
+    assertFinding(
+        contract(revision, apiHubOwner),
+        new Fixture(revision, DesignPlanTestFixtures.brief(), pin, contract(revision, apiHubOwner)),
+        DesignPlanContractFinding.Code.OWNER_TARGET_MISMATCH,
+        TargetKind.ELEMENT_NODE,
+        "send-http");
+  }
+
+  @Test
   void requiresPinnedStructureAndAssemblerSupportOwners() {
     ChainSemanticRevision revision = DesignPlanTestFixtures.revision();
     CompilerRunPin pin =
         DesignPlanTestFixtures.pinWithSkills(
             revision,
-            "cip-trigger-generator",
+            "cip-http-trigger-endpoint-generator",
             "cip-service-call-generator",
             "cip-structure-generator",
             "cip-chain-assembler");
@@ -340,7 +399,7 @@ class DesignPlanContractValidatorTest {
     CompilerRunPin pin =
         DesignPlanTestFixtures.pinWithSkills(
             revision,
-            "cip-trigger-generator",
+            "cip-http-trigger-endpoint-generator",
             "cip-service-call-generator",
             "cip-script-generator",
             "cip-structure-generator",

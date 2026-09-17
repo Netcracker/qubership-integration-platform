@@ -31,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SplitMode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
@@ -652,12 +653,38 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     for (RequirementEntryPoint entryPoint : brief.entryPoints()) {
       approvedById.put(entryPoint.entryPointId(), entryPoint);
     }
+    Map<String, CatalogBindingHint> bindingsByEntryPoint = new LinkedHashMap<>();
+    for (CatalogBindingHint hint : brief.catalogBindings()) {
+      bindingsByEntryPoint.put(hint.interactionId(), hint);
+    }
     for (SemanticEntryPoint semanticEntryPoint : revision.entryPoints()) {
       RequirementEntryPoint approved = approvedById.get(semanticEntryPoint.entryPointId());
       SemanticNode node = nodesById.get(semanticEntryPoint.triggerNodeId());
       if (approved == null
           || !(node instanceof SemanticNode.Trigger trigger)
           || !"http-trigger".equals(trigger.capabilityKey())) {
+        continue;
+      }
+      CatalogBindingHint binding = bindingsByEntryPoint.get(semanticEntryPoint.entryPointId());
+      if (binding != null) {
+        addProperty(extraByNode, trigger.nodeId(), "systemType", "INTEGRATION");
+        addProperty(extraByNode, trigger.nodeId(), "integrationSystemId", binding.systemId());
+        addProperty(
+            extraByNode,
+            trigger.nodeId(),
+            "integrationSpecificationGroupId",
+            binding.specificationGroupId());
+        addProperty(
+            extraByNode, trigger.nodeId(), "integrationSpecificationId", binding.specificationId());
+        addProperty(
+            extraByNode, trigger.nodeId(), "integrationOperationId", binding.integrationOperationId());
+        if (binding.path() != null && !binding.path().isBlank()) {
+          addProperty(
+              extraByNode, trigger.nodeId(), "integrationOperationPath", binding.path());
+        }
+        if (binding.method() != null && !binding.method().isBlank()) {
+          addProperty(extraByNode, trigger.nodeId(), "httpMethodRestrict", binding.method());
+        }
         continue;
       }
       if (!approved.path().isBlank()) {

@@ -37,10 +37,13 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SplitMode;
+import java.time.Instant;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
@@ -210,6 +213,54 @@ class DefaultChainSemanticGraphCompilerTest {
     assertEquals(
         "org.apache.kafka.common.serialization.StringSerializer",
         property(sender, "valueSerializer"));
+  }
+
+  @Test
+  void projectsImplementedServiceCatalogBindingOntoHttpTriggerWithoutContextPath() {
+    CatalogBindingHint binding =
+        new CatalogBindingHint(
+            CatalogBindingHint.SCHEMA_VERSION,
+            "http-in",
+            "http-in",
+            "GET /geo/{id}",
+            "sys-geo",
+            "sg-geo",
+            "spec-geo",
+            "op-geo",
+            "http",
+            "GET",
+            "/geo/{id}",
+            "v1",
+            Instant.EPOCH,
+            "catalog-read:sys-geo/spec-geo/op-geo");
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Geo",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "summary",
+            null,
+            "",
+            List.of(),
+            List.of(
+                new RequirementEntryPoint(
+                    "http-in", "", "http-trigger", "", "GET", "/geo", "getGeo")),
+            List.of(),
+            List.of(),
+            List.of(),
+            RequirementFlow.EMPTY,
+            List.of(binding));
+
+    ChainPlanGraph graph = compiler.compile(conditionRevision(), CONTRACT, List.of(), brief);
+
+    ChainPlanNode trigger = node(graph, "trigger-http");
+    assertEquals("op-geo", property(trigger, "integrationOperationId"));
+    assertEquals("sys-geo", property(trigger, "integrationSystemId"));
+    assertEquals("/geo/{id}", property(trigger, "integrationOperationPath"));
+    assertEquals("GET", property(trigger, "httpMethodRestrict"));
+    assertNull(property(trigger, "contextPath"));
   }
 
   @Test

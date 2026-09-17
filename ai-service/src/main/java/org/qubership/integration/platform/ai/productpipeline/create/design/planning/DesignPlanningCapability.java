@@ -41,6 +41,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
+import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /**
  * Shared create-chain design-planning capability. Runs the pinned planner, projects the catalog
@@ -498,7 +499,8 @@ public class DesignPlanningCapability implements StageCapability {
     for (SemanticEntryPoint entry : revision.entryPoints()) {
       text.append("- targetKind=ENTRY_POINT targetId=")
           .append(entry.entryPointId())
-          .append(" producer=cip-trigger-generator")
+          .append(" producer=")
+          .append(DesignPlanContractValidator.ownerForEntryPoint(entry, revision, brief))
           .append(" trigger ")
           .append(entry.triggerNodeId())
           .append(" -> ")
@@ -544,10 +546,12 @@ public class DesignPlanningCapability implements StageCapability {
       } else if (node instanceof SemanticNode.Trigger trigger) {
         text.append(" capability=").append(trigger.capabilityKey());
       } else if (node instanceof SemanticNode.Operation operation
-          && "kafka-sender-2".equals(operation.elementType())) {
+          && ChainElementFamilies.isSender(operation.elementType())) {
         text.append(" targetKind=ELEMENT_NODE targetId=")
             .append(operation.nodeId())
-            .append(" producer=cip-service-call-generator elementType=")
+            .append(" producer=")
+            .append(DesignPlanContractValidator.ownerForSender(operation.elementType()))
+            .append(" elementType=")
             .append(operation.elementType());
       }
       text.append('\n');

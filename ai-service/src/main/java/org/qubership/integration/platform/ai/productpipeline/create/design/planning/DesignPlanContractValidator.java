@@ -18,8 +18,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.ClaimRole;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.OwnerKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -184,8 +186,13 @@ public final class DesignPlanContractValidator {
   private static Map<TargetKey, String> expectedOwners(
       ChainSemanticRevision revision, RequirementBrief brief, BindingPolicy bindingPolicy) {
     Map<TargetKey, String> owners = new LinkedHashMap<>();
-    revision.entryPoints().forEach(entry ->
-        owners.put(new TargetKey(TargetKind.ENTRY_POINT, entry.entryPointId()), "cip-trigger-generator"));
+    revision
+        .entryPoints()
+        .forEach(
+            entry ->
+                owners.put(
+                    new TargetKey(TargetKind.ENTRY_POINT, entry.entryPointId()),
+                    ownerForEntryPoint(entry, revision, brief)));
     revision.nodes().stream()
         .filter(SemanticNode.ServiceCall.class::isInstance)
         .map(SemanticNode.ServiceCall.class::cast)
@@ -195,12 +202,12 @@ public final class DesignPlanContractValidator {
     revision.nodes().stream()
         .filter(SemanticNode.Operation.class::isInstance)
         .map(SemanticNode.Operation.class::cast)
-        .filter(operation -> "kafka-sender-2".equals(operation.elementType()))
+        .filter(operation -> ChainElementFamilies.isSender(operation.elementType()))
         .forEach(
             operation ->
                 owners.put(
                     new TargetKey(TargetKind.ELEMENT_NODE, operation.nodeId()),
-                    DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID));
+                    ownerForSender(operation.elementType())));
     revision.nodes().stream()
         .filter(SemanticNode.Operation.class::isInstance)
         .map(SemanticNode.Operation.class::cast)
@@ -267,6 +274,81 @@ public final class DesignPlanContractValidator {
       case SemanticRegion.Retry ignored -> "cip-retry-generator";
       case SemanticRegion.ErrorScope ignored -> DesignPlanProjector.ERROR_HANDLING_GENERATOR_SKILL_ID;
     };
+  }
+
+  static String ownerForEntryPoint(
+      SemanticEntryPoint entry, ChainSemanticRevision revision, RequirementBrief brief) {
+    String capabilityKey = triggerCapabilityKey(entry, revision);
+    if ("http-trigger".equals(capabilityKey)) {
+      if (catalogBindingForEntryPoint(brief, entry.entryPointId()) != null) {
+        return DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID;
+      }
+      return "cip-http-trigger-endpoint-generator";
+    }
+    return ownerForTriggerCapability(capabilityKey);
+  }
+
+  static String ownerForSender(String elementType) {
+    return switch (elementType) {
+      case "jms-sender", "pubsub-sender" -> "cip-messaging-generator";
+      case "http-sender",
+          "kafka-sender-2",
+          "graphql-sender",
+          "rabbitmq-sender-2",
+          "scs-sender",
+          "mail-sender" ->
+          DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID;
+      default ->
+          throw new IllegalArgumentException("Unsupported sender element type: " + elementType);
+    };
+  }
+
+  static String ownerForTriggerCapability(String capabilityKey) {
+    return switch (capabilityKey) {
+      case "chain-trigger-2" -> "cip-trigger-generator";
+      case "kafka-trigger-2",
+          "jms-trigger",
+          "pubsub-trigger",
+          "rabbitmq-trigger-2" ->
+          "cip-messaging-generator";
+      case "quartz-scheduler" -> "cip-quartz-scheduler-generator";
+      case "sds-trigger" -> "cip-sds-trigger-generator";
+      case "sftp-trigger-2" -> "cip-sftp-trigger-generator";
+      case "async-api-trigger" -> DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID;
+      case "http-trigger" -> "cip-http-trigger-endpoint-generator";
+      default -> "cip-trigger-generator";
+    };
+  }
+
+  static String producerForOperation(SemanticNode.Operation operation) {
+    if (ChainElementFamilies.isSender(operation.elementType())) {
+      return ownerForSender(operation.elementType());
+    }
+    return null;
+  }
+
+  private static String triggerCapabilityKey(
+      SemanticEntryPoint entry, ChainSemanticRevision revision) {
+    for (SemanticNode node : revision.nodes()) {
+      if (node.nodeId().equals(entry.triggerNodeId())
+          && node instanceof SemanticNode.Trigger trigger) {
+        return trigger.capabilityKey();
+      }
+    }
+    return "";
+  }
+
+  private static CatalogBindingHint catalogBindingForEntryPoint(
+      RequirementBrief brief, String entryPointId) {
+    if (brief == null || brief.catalogBindings() == null) {
+      return null;
+    }
+    for (CatalogBindingHint hint : brief.catalogBindings()) {
+      if (entryPointId.equals(hint.interactionId())) {
+        return hint;
+      }
+    }
+    return null;
   }
 
   private static boolean ownerMatches(

@@ -32,16 +32,16 @@ final class DesignPlanTestFixtures {
         new ResolvedCompilerDag(
             List.of(
                 node(
-                    "cip-trigger-generator",
-                    List.of(SkillArtifactType.REQUIREMENT_BRIEF.name()),
+                    "cip-http-trigger-endpoint-generator",
                     List.of(SkillArtifactType.CONFIGURED_TRIGGER_SET.name()),
+                    List.of(SkillArtifactType.GRAPH_PATCH.name()),
                     List.of(),
                     0),
                 node(
                     "cip-service-call-generator",
                     List.of(SkillArtifactType.CONFIGURED_TRIGGER_SET.name()),
                     List.of(SkillArtifactType.GRAPH_PATCH.name()),
-                    List.of("cip-trigger-generator"),
+                    List.of("cip-http-trigger-endpoint-generator"),
                     1)),
             List.of(),
             "dag-hash");
@@ -97,7 +97,8 @@ final class DesignPlanTestFixtures {
             new DesignPlanCapture.Step(
                 "trigger",
                 triggerSummary,
-                new DesignPlanCapture.Owner(OwnerKind.SKILL, "cip-trigger-generator"),
+                new DesignPlanCapture.Owner(
+                    OwnerKind.SKILL, "cip-http-trigger-endpoint-generator"),
                 List.of(
                     new DesignPlanCapture.Claim(
                         TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),

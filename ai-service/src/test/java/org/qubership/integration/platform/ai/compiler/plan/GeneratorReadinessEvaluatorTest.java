@@ -178,7 +178,7 @@ class GeneratorReadinessEvaluatorTest {
   }
 
   @Test
-  void incompleteHttpTriggerEndpointSkipsWhenEndpointPropertiesArePresent() {
+  void incompleteHttpTriggerEndpointSkipsWhenCustomEndpointPropertiesArePresent() {
     var graph =
         new ChainPlanGraph(
             "1.0",
@@ -198,6 +198,56 @@ class GeneratorReadinessEvaluatorTest {
     var result = evaluator.evaluate(List.of("incomplete_http_trigger_endpoint"), graph, NO_INTENTS);
 
     assertEquals(GeneratorPlanStatus.SKIPPED, result.status());
+  }
+
+  @Test
+  void incompleteHttpTriggerEndpointSkipsWhenImplementedServiceCascadeIsComplete() {
+    var graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("http", "HTTP"),
+            List.of(
+                new ChainPlanNode(
+                    "1",
+                    "http-trigger",
+                    "Trigger",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("systemType", "INTEGRATION"),
+                        new PlanProperty("integrationSystemId", "sys-1"),
+                        new PlanProperty("integrationSpecificationGroupId", "sg-1"),
+                        new PlanProperty("integrationSpecificationId", "spec-1"),
+                        new PlanProperty("integrationOperationId", "op-1"),
+                        new PlanProperty("integrationOperationPath", "/orders"),
+                        new PlanProperty("httpMethodRestrict", "POST")))),
+            List.of());
+    var result = evaluator.evaluate(List.of("incomplete_http_trigger_endpoint"), graph, NO_INTENTS);
+
+    assertEquals(GeneratorPlanStatus.SKIPPED, result.status());
+  }
+
+  @Test
+  void incompleteHttpTriggerEndpointMatchesWhenNeitherCustomNorImplementedServiceIsComplete() {
+    var graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("http", "HTTP"),
+            List.of(
+                new ChainPlanNode(
+                    "1",
+                    "http-trigger",
+                    "Trigger",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("contextPath", "/hello"),
+                        new PlanProperty("integrationOperationId", "op-1")))),
+            List.of());
+    var result = evaluator.evaluate(List.of("incomplete_http_trigger_endpoint"), graph, NO_INTENTS);
+
+    assertEquals(GeneratorPlanStatus.READY, result.status());
+    assertTrue(result.matchedSignals().contains("incomplete_http_trigger_endpoint"));
   }
 
   @Test
