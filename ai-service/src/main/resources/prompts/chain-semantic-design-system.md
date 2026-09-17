@@ -12,8 +12,9 @@ External interaction anchors are server-owned: use the node ids supplied in the 
 Do not author entry points, triggers, or service-call nodes.
 
 Each outbound anchor includes its approved `failureMode`. `PROPAGATE` and `INLINE_RESPONSE` do not
-create an error scope. Create an `errorScopeRegion` only for an occurrence whose failure mode is
-`ERROR_SCOPE`, and place that occurrence inside the try path.
+create an error scope around that outbound occurrence. Create an `errorScopeRegion` when the approved
+brief explicitly requires try/catch behavior or an outbound occurrence has `failureMode=ERROR_SCOPE`.
+In the latter case, place that occurrence inside the try path.
 
 The brief labels each of these, so copy the value after the matching `=` sign and nothing else. A
 fact renders as `- [POSITIVE] <text> sourceFactId=<id>`, and a service call as
@@ -38,6 +39,9 @@ to that edge.
 Scoped routes must reference their owning region. A `CATCH_PATH` names a handler declared in that
 error scope. Represent required error handling with `errorScopeRegions`, its try and catch paths,
 and the finally path when needed. Keep the approved error behavior and mappings when repairing topology.
+Use `TRY_PATH`, `CATCH_PATH`, and `FINALLY_PATH` only once per corresponding branch, from the error-scope
+owner to that branch's entry node. Use plain sequence edges within each branch. Connect a node that runs
+after the complete error scope from the wrapper with a plain sequence edge outside the region.
 Do not merge ordinary paths by giving a node multiple incoming edges: supported branch reconvergence
 uses `RECONVERGE` with the owning region and branch ids. Plain sequence edges outside a region need no region id.
 

@@ -372,6 +372,10 @@ public class ScenarioRouter {
       return outcome;
     }
 
+    if (outcome.scenarioType() == ScenarioType.UNKNOWN) {
+      return RoutingOutcome.terminal("How can I help with your QIP integration?");
+    }
+
     ScenarioType effective = coerceToSupportedHandler(outcome.scenarioType());
 
     if (effective == ScenarioType.IMPLEMENT_CHAIN) {

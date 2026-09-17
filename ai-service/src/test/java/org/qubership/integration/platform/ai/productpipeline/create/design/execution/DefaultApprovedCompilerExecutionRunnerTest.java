@@ -183,7 +183,7 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             .effectiveSeed()
             .preSatisfiedSkillIds()
             .contains(CompilerExecutionSeed.PATTERN_SELECTOR_SKILL));
-    assertTrue(
+    assertFalse(
         request
             .effectiveSeed()
             .preSatisfiedSkillIds()

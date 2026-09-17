@@ -76,7 +76,14 @@ public class RequirementDiscoveryKnowledgeTool {
                   List.of(),
                   MAX_OBJECTS,
                   MAX_CHARS));
-      return complete(conversationId, startMs, knowledge.renderMarkdown());
+      KnowledgePackageRef sourcePackage = knowledge.identity().packageRef();
+      LOG.infof(
+          "Knowledge sources selected: conversationId=%s, packageKey=%s, packageChecksum=%s, objectIds=%s",
+          conversationId,
+          sourcePackage.packageKey(),
+          sourcePackage.packageChecksum(),
+          knowledge.objects().stream().map(CanonicalKnowledgeObject::id).toList());
+      return complete(conversationId, startMs, renderAnswerContext(knowledge));
     } catch (KnowledgeClientException error) {
       return complete(conversationId, startMs, limitation(error.kind(), error.getMessage()));
     } catch (RuntimeException error) {
@@ -98,5 +105,19 @@ public class RequirementDiscoveryKnowledgeTool {
         + "): "
         + detail
         + " Do not claim unsupported QIP behavior; state this limitation in the answer.";
+  }
+
+  private static String renderAnswerContext(KnowledgeContextPackage knowledge) {
+    String context =
+        knowledge.objects().stream()
+            .map(CanonicalKnowledgeObject::content)
+            .map(CanonicalKnowledgeObject.Content::body)
+            .filter(body -> body != null && !body.isBlank())
+            .map(String::strip)
+            .reduce((left, right) -> left + "\n\n" + right)
+            .orElse("");
+    return context.isBlank()
+        ? "No matching QIP knowledge content was returned."
+        : "QIP knowledge context:\n\n" + context;
   }
 }

@@ -13,6 +13,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.logging.AiTraceLog;
 
 /** Runs agent chat streams with bounded capture repair turns. */
 @ApplicationScoped
@@ -322,9 +323,10 @@ public class CaptureRepairRunner {
             ? repairMessageFactory.apply(failure.get())
             : messageBuilder.build(failure.get(), captureToolName);
     LOG.infof(
-        "Capture repair retry after validation failure on %s (repairIndex=%d)",
+        "Capture repair retry after validation failure on %s (repairIndex=%d, detail=%s)",
         captureToolName,
-        repairIndex + 1);
+        repairIndex + 1,
+        AiTraceLog.preview(failure.get().summary(), 500));
     onBeforeRepairRetry.run();
     return runAttempt(
         agentChat,

@@ -230,11 +230,7 @@ public class CreateProductPipelineCoordinator {
 
   private Multi<ChatEvent> waitingToChat(String conversationId, CreateChainEvent.Waiting waiting) {
     PendingAction pending = waiting.pendingAction();
-    if (pending instanceof CreateChainPendingAction.Clarify clarify
-        && clarify.gateId().isBlank()
-        && clarify.missingEvidence().isEmpty()
-        && (clarify.reason().isBlank()
-            || "Additional input is required.".equals(clarify.reason()))) {
+    if (ChatEvent.isSilentClarification(pending)) {
       return Multi.createFrom().empty();
     }
     long revision = revisionOf(conversationId, waiting);

@@ -58,6 +58,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     validateReachability(revision, index, errors);
     validateContainment(revision, contract, index, errors);
     validateRegions(revision, contract, index, errors);
+    validateRequiredErrorScopes(revision, errors);
     validateServiceCallFailureModes(revision, brief, errors);
     validateHiddenJoins(revision, index, errors);
     validateMappings(revision, brief, index, errors);
@@ -546,6 +547,26 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     }
   }
 
+  private static void validateRequiredErrorScopes(
+      ChainSemanticRevision revision, List<String> errors) {
+    Set<String> owners = new HashSet<>();
+    for (SemanticRegion region : revision.regions()) {
+      if (region instanceof SemanticRegion.ErrorScope scope) {
+        owners.add(scope.ownerNodeId());
+      }
+    }
+    for (SemanticNode node : revision.nodes()) {
+      if (node instanceof SemanticNode.Operation operation
+          && "try-catch-finally-2".equals(operation.elementType())
+          && !owners.contains(operation.nodeId())) {
+        errors.add(
+            "Node '"
+                + operation.nodeId()
+                + "' with element type 'try-catch-finally-2' requires an ERROR_SCOPE region");
+      }
+    }
+  }
+
   private static void validateSequence(
       SemanticRegion.Sequence sequence, Index index, List<String> errors) {
     for (String memberNodeId : sequence.memberNodeIds()) {
@@ -705,6 +726,72 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
       for (String exitNodeId : handler.exitNodeIds()) {
         requireNode(exitNodeId, "Error handler exit", index, errors);
       }
+    }
+    validateErrorScopeRoutes(scope, index, errors);
+  }
+
+  private static void validateErrorScopeRoutes(
+      SemanticRegion.ErrorScope scope, Index index, List<String> errors) {
+    int tryPaths = 0;
+    int finallyPaths = 0;
+    Map<String, Integer> catchPaths = new HashMap<>();
+    Map<String, String> catchEntryByHandler = new HashMap<>();
+    for (ErrorHandler handler : scope.handlers()) {
+      catchEntryByHandler.put(handler.handlerId(), handler.entryNodeId());
+    }
+    for (SemanticExecutionEdge edge : index.edges.values()) {
+      if (!scope.regionId().equals(edge.regionId())) {
+        continue;
+      }
+      String expectedTarget = null;
+      if (edge.route() instanceof SemanticRoute.TryPath) {
+        tryPaths++;
+        expectedTarget = scope.tryEntryNodeId();
+      } else if (edge.route() instanceof SemanticRoute.CatchPath catchPath) {
+        catchPaths.merge(catchPath.handlerId(), 1, Integer::sum);
+        expectedTarget = catchEntryByHandler.get(catchPath.handlerId());
+      } else if (edge.route() instanceof SemanticRoute.FinallyPath) {
+        finallyPaths++;
+        expectedTarget = scope.finallyEntryNodeId();
+      } else {
+        continue;
+      }
+      if (!scope.ownerNodeId().equals(edge.sourceNodeId())) {
+        errors.add(
+            "Error-scope branch edge '"
+                + edge.edgeId()
+                + "' must start at owner '"
+                + scope.ownerNodeId()
+                + "'");
+      }
+      if (expectedTarget != null && !expectedTarget.equals(edge.targetNodeId())) {
+        errors.add(
+            "Error-scope branch edge '"
+                + edge.edgeId()
+                + "' must target entry node '"
+                + expectedTarget
+                + "'");
+      }
+    }
+    if (tryPaths != 1) {
+      errors.add("Error scope '" + scope.regionId() + "' requires exactly one TRY_PATH edge");
+    }
+    for (ErrorHandler handler : scope.handlers()) {
+      if (catchPaths.getOrDefault(handler.handlerId(), 0) != 1) {
+        errors.add(
+            "Error handler '"
+                + handler.handlerId()
+                + "' requires exactly one CATCH_PATH edge");
+      }
+    }
+    int expectedFinallyPaths = scope.finallyEntryNodeId() == null ? 0 : 1;
+    if (finallyPaths != expectedFinallyPaths) {
+      errors.add(
+          "Error scope '"
+              + scope.regionId()
+              + "' requires exactly "
+              + expectedFinallyPaths
+              + " FINALLY_PATH edge");
     }
   }
 

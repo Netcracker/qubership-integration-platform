@@ -195,6 +195,15 @@ public final class DesignPlanContractValidator {
     revision.nodes().stream()
         .filter(SemanticNode.Operation.class::isInstance)
         .map(SemanticNode.Operation.class::cast)
+        .filter(operation -> "kafka-sender-2".equals(operation.elementType()))
+        .forEach(
+            operation ->
+                owners.put(
+                    new TargetKey(TargetKind.ELEMENT_NODE, operation.nodeId()),
+                    DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID));
+    revision.nodes().stream()
+        .filter(SemanticNode.Operation.class::isInstance)
+        .map(SemanticNode.Operation.class::cast)
         .filter(operation -> ChainElementFamilies.CHAIN_CALL.contains(operation.elementType()))
         .forEach(
             operation ->

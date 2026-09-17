@@ -16,7 +16,9 @@ public record RequirementFact(
     RequirementFactPolarity polarity,
     RequirementFactKind kind,
     @Description(
-            "Inbound capability key. Use http-trigger, kafka-trigger-2, quartz-scheduler, or async-api-trigger")
+            "Native chain-element key. Use http-trigger, chain-trigger-2, kafka-trigger-2,"
+                + " quartz-scheduler, or async-api-trigger for inbound interactions; use"
+                + " http-sender or kafka-sender-2 for direct outbound requests")
         String capabilityKey,
     String text,
     @Description("SERVICE_CALL catalog or system display name, e.g. Petstore Ext")
@@ -24,8 +26,9 @@ public record RequirementFact(
     @Description("Kafka consume operation, HTTP operation id, or SERVICE_CALL operationQuery")
         String operation,
     @Description("Kafka topic when capabilityKey is kafka-trigger-2") String topic,
-    @Description("HTTP method when capabilityKey is http-trigger, e.g. GET") String httpMethod,
-    @Description("HTTP path when capabilityKey is http-trigger, e.g. /pet/{petId}") String path,
+    @Description("HTTP method when capabilityKey is http-trigger or http-sender, e.g. GET")
+        String httpMethod,
+    @Description("HTTP path or URL when capabilityKey is http-trigger or http-sender") String path,
     @Description(
             "Stable SERVICE_CALL occurrence id, or catalog Kafka consume id when capabilityKey is async-api-trigger")
         String serviceCallId) {

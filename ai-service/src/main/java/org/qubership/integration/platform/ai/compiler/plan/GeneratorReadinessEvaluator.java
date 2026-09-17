@@ -80,7 +80,8 @@ public final class GeneratorReadinessEvaluator {
           "incomplete_try_catch_nodes",
           "incomplete_routing_nodes",
           "rbac_roles_missing",
-          "incomplete_service_call_bindings");
+          "incomplete_service_call_bindings",
+          "incomplete_kafka_sender_configuration");
 
   public GeneratorReadinessEvaluator() {
     this(null, new ObjectMapper());
@@ -167,7 +168,8 @@ public final class GeneratorReadinessEvaluator {
               && !intents.contains("error_handling")
               && !intents.contains("chain_failure_handler");
       case "try_catch_nodes", "incomplete_try_catch_nodes" -> hasIncompleteTryCatch(graph);
-      case "service_call_nodes" -> hasNodeType(graph, Set.of("service-call"));
+      case "service_call_nodes" ->
+          hasNodeType(graph, Set.of("service-call", "kafka-sender-2"));
       case "backend_integration_intent" -> intents.contains("backend_integration");
       case "routing_nodes" -> hasNodeType(graph, ChainElementFamilies.ROUTING);
       case "branching_intent" -> intents.contains("branching");
@@ -195,6 +197,8 @@ public final class GeneratorReadinessEvaluator {
       case "http_trigger_nodes" -> hasNodeType(graph, Set.of("http-trigger"));
       case "incomplete_http_trigger_endpoint" -> hasIncompleteHttpTriggerEndpoint(graph);
       case "incomplete_service_call_bindings" -> hasIncompleteServiceCallBindings(graph);
+      case "incomplete_kafka_sender_configuration" ->
+          !kafkaSenderNodesMissingConfiguration(graph).isEmpty();
       case "file_operations_intent" -> intents.contains("file_operations");
       case "file_operations_nodes" ->
           hasNodeType(graph, Set.of("file-read", "file-write", "sftp-download", "sftp-upload"));
@@ -306,6 +310,39 @@ public final class GeneratorReadinessEvaluator {
         .filter(nodeId -> nodeId != null && !nodeId.isBlank())
         .limit(MAX_TARGET_NODE_IDS)
         .toList();
+  }
+
+  public List<String> kafkaSenderNodesMissingConfiguration(ChainPlanGraph graph) {
+    if (graph == null || graph.nodes() == null) {
+      return List.of();
+    }
+    return graph.nodes().stream()
+        .filter(this::kafkaSenderMissingConfiguration)
+        .map(ChainPlanNode::nodeId)
+        .filter(nodeId -> nodeId != null && !nodeId.isBlank())
+        .limit(MAX_TARGET_NODE_IDS)
+        .toList();
+  }
+
+  private boolean kafkaSenderMissingConfiguration(ChainPlanNode node) {
+    if (node == null || !"kafka-sender-2".equals(node.type())) {
+      return false;
+    }
+    String connectionSourceType = propertyValue(node, "connectionSourceType");
+    if ("maas".equals(connectionSourceType)) {
+      if (!hasNonBlankProperty(node, "topicsClassifierName")) {
+        return true;
+      }
+      return "true".equalsIgnoreCase(propertyValue(node, "maasClassifierTenantEnabled"))
+          && !hasNonBlankProperty(node, "maasClassifierTenantId");
+    }
+    if (!"manual".equals(connectionSourceType)) {
+      return true;
+    }
+    return !hasNonBlankProperty(node, "brokers")
+        || !hasNonBlankProperty(node, "securityProtocol")
+        || !hasNonBlankProperty(node, "saslMechanism")
+        || !hasNonBlankProperty(node, "topics");
   }
 
   /**
@@ -490,6 +527,18 @@ public final class GeneratorReadinessEvaluator {
       }
     }
     return false;
+  }
+
+  private static String propertyValue(ChainPlanNode node, String key) {
+    if (node.properties() == null) {
+      return null;
+    }
+    for (PlanProperty property : node.properties()) {
+      if (property != null && key.equals(property.key())) {
+        return property.value();
+      }
+    }
+    return null;
   }
 
   private static boolean hasNonEmptyListProperty(ChainPlanNode node, String key) {

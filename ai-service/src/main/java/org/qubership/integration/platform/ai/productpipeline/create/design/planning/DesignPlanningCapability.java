@@ -543,6 +543,12 @@ public class DesignPlanningCapability implements StageCapability {
         }
       } else if (node instanceof SemanticNode.Trigger trigger) {
         text.append(" capability=").append(trigger.capabilityKey());
+      } else if (node instanceof SemanticNode.Operation operation
+          && "kafka-sender-2".equals(operation.elementType())) {
+        text.append(" targetKind=ELEMENT_NODE targetId=")
+            .append(operation.nodeId())
+            .append(" producer=cip-service-call-generator elementType=")
+            .append(operation.elementType());
       }
       text.append('\n');
     }

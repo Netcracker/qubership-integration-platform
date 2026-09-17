@@ -15,6 +15,9 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEntryPoint;
@@ -132,6 +135,27 @@ class ChainSemanticCaptureAdapterTest {
 
     assertTrue(error.getMessage().contains("fact-script"), error.getMessage());
     assertTrue(error.getMessage().contains("sourceFactId"), error.getMessage());
+  }
+
+  @Test
+  void rejectsACapabilityThatHasNoSemanticOperation() {
+    RequirementBrief approved = ChainSemanticCaptureFixtures.approvedBrief();
+    List<RequirementFact> facts = new ArrayList<>(approved.facts());
+    facts.add(
+        new RequirementFact(
+            "fact-kafka",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "kafka-sender-2",
+            "Publish to the Kafka topic"));
+
+    IllegalArgumentException error =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> adapt(ChainSemanticCaptureFixtures.linearCapture(), approved.withFacts(facts)));
+
+    assertTrue(error.getMessage().contains("fact-kafka"), error.getMessage());
+    assertTrue(error.getMessage().contains("elementType 'kafka-sender-2'"), error.getMessage());
   }
 
   @Test
@@ -528,6 +552,103 @@ class ChainSemanticCaptureAdapterTest {
             IllegalArgumentException.class,
             () -> adapt(ChainSemanticCaptureFixtures.linearCapture(), unbound));
     assertTrue(failure.getMessage().contains("no resolved catalog binding"));
+  }
+
+  @Test
+  void projectsNativeKafkaSenderWithoutCatalogBinding() {
+    RequirementBrief base = ChainSemanticCaptureFixtures.approvedBrief();
+    RequirementFact triggerFact = base.facts().getFirst();
+    RequirementFact kafkaFact =
+        new RequirementFact(
+            "call-1",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "kafka-sender-2",
+            "Publish the request body to Kafka");
+    RequirementBrief nativeKafkaBrief =
+        base.withFacts(List.of(triggerFact, kafkaFact))
+            .withServiceCalls(
+                List.of(new RequirementServiceCall("call-1", "call-1", "Kafka", "send")));
+    ChainSemanticCapture nativeKafkaCapture =
+        new ChainSemanticCapture(
+            "chain-kafka",
+            List.of(
+                new CapturedEntryPoint(
+                    "http-in",
+                    "trigger-http",
+                    "call-1",
+                    0,
+                    List.of("trigger-1"),
+                    "Publish event",
+                    null)),
+            List.of(new CapturedTrigger("trigger-http", List.of("trigger-1"))),
+            List.of(new CapturedOperation("call-1", "kafka-sender-2", List.of("call-1"))),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(new CapturedEdge("http-in", "call-1", null, null, null, null, null, null)),
+            List.of());
+
+    ChainSemanticRevision revision = adapt(nativeKafkaCapture, nativeKafkaBrief);
+
+    assertTrue(
+        revision.nodes().stream()
+            .anyMatch(
+                node ->
+                    node instanceof SemanticNode.Operation operation
+                        && "call-1".equals(operation.nodeId())
+                        && "kafka-sender-2".equals(operation.elementType())));
+    assertTrue(revision.nodes().stream().noneMatch(SemanticNode.ServiceCall.class::isInstance));
+  }
+
+  @Test
+  void rejectsNativeKafkaFactWithoutMatchingOperationNode() {
+    RequirementBrief base = ChainSemanticCaptureFixtures.approvedBrief();
+    RequirementFact triggerFact = base.facts().getFirst();
+    RequirementFact kafkaFact =
+        new RequirementFact(
+            "call-1",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "kafka-sender-2",
+            "Publish the request body to Kafka");
+    RequirementBrief nativeKafkaBrief =
+        base.withFacts(List.of(triggerFact, kafkaFact))
+            .withServiceCalls(
+                List.of(new RequirementServiceCall("call-1", "call-1", "Kafka", "send")));
+    ChainSemanticCapture wrongOperationCapture =
+        new ChainSemanticCapture(
+            "chain-kafka",
+            List.of(
+                new CapturedEntryPoint(
+                    "http-in",
+                    "trigger-http",
+                    "call-1",
+                    0,
+                    List.of("trigger-1"),
+                    "Publish event",
+                    null)),
+            List.of(new CapturedTrigger("trigger-http", List.of("trigger-1"))),
+            List.of(new CapturedOperation("call-1", "header-modification", List.of("call-1"))),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(new CapturedEdge("http-in", "call-1", null, null, null, null, null, null)),
+            List.of());
+
+    IllegalArgumentException failure =
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> adapt(wrongOperationCapture, nativeKafkaBrief));
+
+    assertTrue(failure.getMessage().contains("requires operation nodeId 'call-1'"));
+    assertTrue(failure.getMessage().contains("elementType 'kafka-sender-2'"));
   }
 
   @Test

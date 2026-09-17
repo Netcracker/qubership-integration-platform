@@ -75,10 +75,12 @@ class ClasspathCompilerContractRepositoryTest {
   void containsRequiredElementMappings() {
     CompilerContract contract = repository.require(V1);
     assertTrue(contract.elements().containsKey("http-trigger"));
+    assertTrue(contract.elements().containsKey("chain-trigger-2"));
     assertTrue(contract.elements().containsKey("kafka-trigger-2"));
     assertTrue(contract.elements().containsKey("async-api-trigger"));
     assertTrue(contract.elements().containsKey("quartz-scheduler"));
     assertTrue(contract.elements().containsKey("service-call"));
+    assertTrue(contract.elements().containsKey("kafka-sender-2"));
     assertTrue(contract.elements().containsKey("script"));
     assertTrue(contract.elements().containsKey("mapper-2"));
     assertTrue(contract.elements().containsKey("condition"));

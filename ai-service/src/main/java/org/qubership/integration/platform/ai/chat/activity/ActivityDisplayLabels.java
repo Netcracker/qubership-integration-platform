@@ -124,7 +124,7 @@ public final class ActivityDisplayLabels {
 
   private static Map<String, String> exactMap() {
     return Map.ofEntries(
-        Map.entry("brainstorming", "Exploring requirements"),
+        Map.entry("brainstorming", "Thinking"),
         Map.entry("cip-requirement-analyzer", "Parsing requirements"),
         Map.entry("cip-design-generator", "Generating the design"),
         Map.entry("chain-semantic-design", "Capturing the chain design"),

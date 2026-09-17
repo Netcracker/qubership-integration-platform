@@ -80,12 +80,15 @@ public class GatherRequirementsPromptBuilder {
           question before asking for more requirements. Capture accepted requirement changes only;
           do not capture explanations, recommendations, or unselected alternatives.
           Before making a QIP-specific capability, element, constraint, or pattern claim, call
-          searchRequirementKnowledge with the user's question and ground the answer in its sources.
-          If the lookup fails or lacks support, say that the QIP-specific claim is unverified.
+          searchRequirementKnowledge with the user's question and ground a concise synthesis in the
+          result. Do not show source names or identifiers in the answer and do not reproduce long
+          passages; the server records provenance in logs. If the lookup fails or lacks support,
+          say that the QIP-specific claim is unverified.
           Call finishRequirementDiscoveryTurn exactly once as the final tool call, after any
-          required capture and before the final answer. Use STAY for questions, advice,
-          comparisons, or continued discussion. Use CONTINUE only when the user asked to proceed
-          with design or chain creation.
+          required capture and before the final answer. Complete all tool calls before writing
+          user-visible prose. After that tool returns, write exactly one final answer; do not repeat
+          or revise it. Use STAY for questions, advice, comparisons, or continued discussion. Use
+          CONTINUE only when the user asked to proceed with design or chain creation.
           Capture RequirementFlow before catalog lookup. That first capture may use
           NEEDS_INPUT with empty openQuestions. searchCatalogSystems does not bind an
           interaction.%s Reply in the
@@ -130,8 +133,10 @@ public class GatherRequirementsPromptBuilder {
     if (!uploaded.isBlank()) {
       return uploaded;
     }
-    return " after the flow is stored, call resolveApiOperation with the interactionId from the"
-        + " stored flow.";
+    return " after the flow is stored, call resolveApiOperation only for catalog-backed"
+        + " interactions. For a direct http-trigger, chain-trigger-2, or http-sender, capture its"
+        + " CAPABILITY fact and method/path or URL when applicable; do not search the catalog or"
+        + " API Hub.";
   }
 
   /**
