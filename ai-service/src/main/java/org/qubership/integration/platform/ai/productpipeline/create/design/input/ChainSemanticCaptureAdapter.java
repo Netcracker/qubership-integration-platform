@@ -233,6 +233,9 @@ public class ChainSemanticCaptureAdapter {
       }
       String nodeId = fact.sourceFactId();
       if (!interactionIds.add(nodeId)) {
+        if (matchesProjectedSender(nodes, nodeId, senderType)) {
+          continue;
+        }
         throw new IllegalArgumentException("Duplicate nodeId: " + nodeId);
       }
       List<String> provenance =
