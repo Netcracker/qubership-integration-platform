@@ -148,58 +148,42 @@ export const MatchersTable: React.FC<MatchersTableProps> = ({
         const key = String(rowKeyOf(matcher));
         const expanded = expandedDescriptions.includes(key);
         const text = (
-          <span
-            style={
-              expanded
-                ? undefined
-                : {
-                    display: "-webkit-box",
-                    WebkitLineClamp: 1,
-                    WebkitBoxOrient: "vertical",
-                    overflow: "hidden",
-                  }
-            }
+          <Typography.Paragraph
+            style={{ margin: 0 }}
+            ellipsis={{
+              rows: 1,
+              expandable: "collapsible",
+              expanded,
+              // A click on the viewer opens the inline editor, so the toggle stops propagation.
+              onExpand: (event) => {
+                event.stopPropagation();
+                toggleDescription(key);
+              },
+            }}
           >
             {formatOptional(matcher.description)}
-          </span>
+          </Typography.Paragraph>
         );
-        return (
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 4 }}>
-            {matcher.description ? (
-              <Button
-                type="text"
-                size="small"
-                aria-label={
-                  expanded ? "Collapse description" : "Expand description"
-                }
-                icon={<OverridableIcon name={expanded ? "up" : "down"} />}
-                onClick={() => toggleDescription(key)}
+        return readonly ? (
+          text
+        ) : (
+          <InlineEdit<{ description: string }>
+            values={{ description: matcher.description }}
+            editor={
+              <TextValueEdit
+                name="description"
+                rules={[]}
+                inputProps={{ "aria-label": "Matcher description" }}
               />
-            ) : null}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {readonly ? (
-                text
-              ) : (
-                <InlineEdit<{ description: string }>
-                  values={{ description: matcher.description }}
-                  editor={
-                    <TextValueEdit
-                      name="description"
-                      rules={[]}
-                      inputProps={{ "aria-label": "Matcher description" }}
-                    />
-                  }
-                  viewer={text}
-                  onSubmit={({ description }) =>
-                    updateMatcher(matcher, (current) => ({
-                      ...current,
-                      description,
-                    }))
-                  }
-                />
-              )}
-            </div>
-          </div>
+            }
+            viewer={text}
+            onSubmit={({ description }) =>
+              updateMatcher(matcher, (current) => ({
+                ...current,
+                description,
+              }))
+            }
+          />
         );
       },
     },

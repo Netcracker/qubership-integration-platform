@@ -268,6 +268,11 @@ export type ScriptProps = Omit<
   onChange?: (value: string) => void;
   mode?: "groovy" | "json";
   readOnly?: boolean;
+  /**
+   * Fills the scroll area the editor sits in. Turn it off where nothing around the editor
+   * scrolls, such as a plain modal body, and size the editor through `style` instead.
+   */
+  autoHeight?: boolean;
 };
 
 export const Script: React.FC<ScriptProps> = ({
@@ -275,6 +280,7 @@ export const Script: React.FC<ScriptProps> = ({
   onChange,
   mode = "groovy",
   readOnly = false,
+  autoHeight = true,
   ...props
 }): React.ReactNode => {
   const monacoTheme = useMonacoTheme();
@@ -302,8 +308,10 @@ export const Script: React.FC<ScriptProps> = ({
     };
   }, [overflowWidgetsDomNode]);
 
+  const Container = autoHeight ? AutoHeight : "div";
+
   return (
-    <AutoHeight {...props}>
+    <Container {...props}>
       <Editor
         height="100%"
         className="qip-editor"
@@ -372,6 +380,6 @@ export const Script: React.FC<ScriptProps> = ({
           },
         }}
       />
-    </AutoHeight>
+    </Container>
   );
 };

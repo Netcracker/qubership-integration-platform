@@ -93,6 +93,7 @@ export const JsonMatcherParametersModal: React.FC<
             mode="json"
             value={documentText}
             onChange={(value) => setDocumentText(value)}
+            autoHeight={false}
             style={{ height: 320 }}
           />
         </Form.Item>

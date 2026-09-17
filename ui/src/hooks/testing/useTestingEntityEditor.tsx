@@ -103,7 +103,8 @@ export function useTestingEntityEditor<T extends { name: string }, R>({
   const [storedViolations, setStoredViolations] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [hasChanges, setHasChanges] = useState(false);
+  // The stored entity serialized as a request. A draft that serializes the same has no changes.
+  const [baseline, setBaseline] = useState<string | null>(null);
   // The blocker reads the draft state at navigation time, which lets a save clear
   // the flag and leave in the same tick without prompting for its own navigation.
   const hasChangesRef = useRef(false);
@@ -123,8 +124,8 @@ export function useTestingEntityEditor<T extends { name: string }, R>({
     // before it on screen, or save it under the id now in the address.
     setEntity(null);
     setStoredViolations([]);
+    setBaseline(null);
     hasChangesRef.current = false;
-    setHasChanges(false);
     setLoading(true);
     void (async () => {
       try {
@@ -132,6 +133,7 @@ export function useTestingEntityEditor<T extends { name: string }, R>({
         if (!cancelled) {
           setEntity(loaded);
           setStoredViolations(violations(loaded));
+          setBaseline(JSON.stringify(toRequest(loaded)));
         }
       } catch (error) {
         if (!cancelled) {
@@ -149,13 +151,23 @@ export function useTestingEntityEditor<T extends { name: string }, R>({
     return () => {
       cancelled = true;
     };
-  }, [entityId, get, violations, singular, notificationService]);
+  }, [entityId, get, violations, toRequest, singular, notificationService]);
 
   const handleChange = useCallback((changes: Partial<T>) => {
     setEntity((current) => (current ? { ...current, ...changes } : current));
-    hasChangesRef.current = true;
-    setHasChanges(true);
   }, []);
+
+  const hasChanges = useMemo(
+    () =>
+      !!entity &&
+      baseline !== null &&
+      JSON.stringify(toRequest(entity)) !== baseline,
+    [entity, baseline, toRequest],
+  );
+
+  useEffect(() => {
+    hasChangesRef.current = hasChanges;
+  }, [hasChanges]);
 
   // The rules are checked against the entity as it was read, so a value the
   // service already tolerates keeps the save open and a value broken here shuts
@@ -177,8 +189,8 @@ export function useTestingEntityEditor<T extends { name: string }, R>({
       const saved = await update(entityId, toRequest(entity));
       setEntity(saved);
       setStoredViolations(violations(saved));
+      setBaseline(JSON.stringify(toRequest(saved)));
       hasChangesRef.current = false;
-      setHasChanges(false);
     } catch (error) {
       notificationService.requestFailed(
         `Failed to save the ${singular}`,
@@ -236,7 +248,6 @@ export function useTestingEntityEditor<T extends { name: string }, R>({
           }}
           onNo={() => {
             hasChangesRef.current = false;
-            setHasChanges(false);
             blocker.proceed?.();
           }}
           onCancelQuestion={() => blocker.reset?.()}
