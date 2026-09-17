@@ -444,7 +444,7 @@ public final class RequirementFlowValidator {
     return LookupAction.ASK;
   }
 
-  private static boolean inboundCatalogDirectionAllowed(
+  static boolean inboundCatalogDirectionAllowed(
       Interaction interaction,
       List<RequirementFact> facts,
       CatalogOperationDirection catalogDirection) {

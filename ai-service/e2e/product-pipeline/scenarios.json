@@ -55,6 +55,156 @@
       "pass_through"
     ]
   },
+  "product-create-chain-http-sender": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateHttpSenderSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". It receives POST on internal route \"/relay\" and forwards the body with http-sender to https://example.invalid/relay using POST. Flow: http-trigger then http-sender. No service calls. No scripts. No error handling. No RBAC. No MCP. No APIHub.",
+    "requiredFacts": ["POST /relay", "http-sender", "https://example.invalid/relay"],
+    "forbiddenFacts": ["service-call", "APIHub"],
+    "catalog": {
+      "requiredTypes": ["http-trigger", "http-sender"],
+      "forbiddenTypes": ["service-call"],
+      "properties": [
+        { "type": "http-trigger", "key": "contextPath", "equals": "/relay" },
+        { "type": "http-sender", "key": "httpMethod", "equals": "POST" },
+        { "type": "http-sender", "key": "uri", "contains": "example.invalid" }
+      ]
+    },
+    "discoveryAnswers": [
+      "Keep the native http-sender. Do not bind a catalog operation.",
+      "Use POST on internal route /relay and forward the body with http-sender to https://example.invalid/relay. No service calls."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge.",
+      "Forward the POST body unchanged from http-trigger to http-sender. No mapping on the relay path."
+    ]
+  },
+  "product-create-chain-kafka-trigger": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateKafkaTriggerSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". Start with kafka-trigger-2 consuming from MaaS topic classifier \"cip-auto-tests-topic1\" with consumer group \"CIP\". Flow: kafka-trigger-2 then script returning plain text \"consumed\". No service calls. No http-trigger. No APIHub. No MCP. No error handling. No RBAC.",
+    "requiredFacts": ["kafka-trigger-2", "cip-auto-tests-topic1", "script"],
+    "forbiddenFacts": ["service-call", "APIHub", "http-trigger"],
+    "catalog": {
+      "requiredTypes": ["kafka-trigger-2", "script"],
+      "forbiddenTypes": ["service-call", "http-trigger"],
+      "properties": [
+        { "type": "kafka-trigger-2", "key": "topicsClassifierName", "contains": "cip-auto-tests-topic1" },
+        { "type": "kafka-trigger-2", "key": "groupId", "nonBlank": true }
+      ],
+      "skeleton": {
+        "minDependencies": 1,
+        "triggerMustHaveOutgoing": true
+      },
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [
+      "Keep the native kafka-trigger-2. Do not bind a catalog operation and do not add a service call.",
+      "Use MaaS topic classifier cip-auto-tests-topic1, consumer group CIP, and a script that returns plain text consumed.",
+      "Start from kafka-trigger-2 only. No http-trigger and no APIHub.",
+      "Return plain text consumed from a script after the kafka-trigger-2 entry point."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-http-trigger-implemented-service": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateHttpImplementedSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". Expose Petstore Ext GET /pet/findByStatus as an implemented-service HTTP trigger from the runtime catalog. Do not use a custom contextPath and do not add a separate service-call. Return the JSON response unchanged through a script. No APIHub. No MCP. No error handling. No RBAC.",
+    "requiredFacts": [
+      "Petstore Ext",
+      "GET /pet/findByStatus",
+      "http-trigger",
+      "script"
+    ],
+    "forbiddenFacts": ["service-call", "APIHub"],
+    "catalog": {
+      "requiredTypes": ["http-trigger", "script"],
+      "forbiddenTypes": ["service-call"],
+      "properties": [
+        { "type": "http-trigger", "key": "integrationOperationMethod", "equals": "GET" },
+        { "type": "http-trigger", "key": "integrationOperationPath", "equals": "/pet/findByStatus" },
+        { "type": "http-trigger", "key": "integrationOperationId", "nonBlank": true }
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [
+      "Bind the implemented-service HTTP trigger to Petstore Ext GET /pet/findByStatus from the runtime catalog. Do not search APIHub.",
+      "Expose Petstore Ext GET /pet/findByStatus as the http-trigger entry point. No separate service-call and no custom contextPath.",
+      "Use Petstore Ext GET /pet/findByStatus already registered in the runtime catalog.",
+      "Return the JSON response unchanged through a script after the implemented-service HTTP trigger."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": [
+      "Pass the data through unchanged. No field mapping and no transformation on any edge."
+    ]
+  },
+  "product-create-chain-async-api-trigger": {
+    "tier": "product-pipeline",
+    "status": "active",
+    "pipeline": "create-chain-v1",
+    "profileId": "create-chain",
+    "profileVersion": "2",
+    "terminalState": "CHAIN_MATERIALIZED",
+    "expectsApproval": true,
+    "expectsImplement": true,
+    "uniqueChainNamePrefix": "AiCreateAsyncApiTriggerSmoke",
+    "retainCatalogChain": true,
+    "prompt": "Create chain named \"{{UNIQUE_CHAIN_NAME}}\". Start with async-api-trigger bound to catalog consume operation onTaskStart on system \"Auto tests kafka service\" (Kafka topic classifier cip-auto-tests-topic2, consumer group CIP). Flow: async-api-trigger then script returning plain text \"ack\". No kafka-trigger-2. No service-call. No APIHub. No MCP. No error handling. No RBAC.",
+    "requiredFacts": [
+      "async-api-trigger",
+      "onTaskStart",
+      "Auto tests kafka service",
+      "cip-auto-tests-topic2"
+    ],
+    "forbiddenFacts": ["service-call", "APIHub", "kafka-trigger-2"],
+    "catalog": {
+      "requiredTypes": ["async-api-trigger", "script"],
+      "forbiddenTypes": ["service-call", "kafka-trigger-2"],
+      "properties": [
+        { "type": "async-api-trigger", "key": "integrationOperationId", "nonBlank": true }
+      ],
+      "warnings": [
+        "Retention intentional: do not delete this chain after the run; inspect it in the catalog UI."
+      ]
+    },
+    "discoveryAnswers": [
+      "Bind async-api-trigger to Auto tests kafka service consume operation onTaskStart from the runtime catalog. Do not search APIHub."
+    ],
+    "designInputChoice": "Generate full IDS",
+    "designInputAnswers": ["pass_through"]
+  },
   "product-create-chain-greetings": {
     "tier": "product-pipeline",
     "status": "active",
