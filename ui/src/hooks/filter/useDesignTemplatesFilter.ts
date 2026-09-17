@@ -39,5 +39,5 @@ export const useDesignTemplatesFilter = (): {
     [],
   );
 
-  return useFilter(filterColumns);
+  return useFilter(filterColumns, "designTemplatesTable");
 };

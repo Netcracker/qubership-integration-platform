@@ -2,6 +2,66 @@ import { Uri } from "vscode";
 import { Element as ElementSchema } from "@netcracker/qip-schemas";
 import { fileApi } from "./file";
 
+export function normalizeAfterId(value: string): string {
+  for (const digit of ["1", "2", "3", "4", "5"]) {
+    if (value.startsWith(`${digit}00..`) && value === `${digit}00..${digit}99`) {
+      return `${digit}xx`;
+    }
+  }
+  return value;
+}
+
+export function buildCipFilename(id: string, segment: string, kind: string, extension: string): string {
+  return `${id}.${segment}.${kind}.cip.${extension}`;
+}
+
+export function getOrCreatePropertyFilename(
+  type: string,
+  propertyNames: string[] | undefined,
+  exportFileExtension: string | undefined,
+  id: string,
+  existingFilename?: string,
+): string {
+  if (existingFilename) {
+    return existingFilename;
+  }
+  let prefix: string;
+  if (!propertyNames || !exportFileExtension) {
+    throw new Error(`Property names and exportFileExtension should be presented`);
+  }
+  if (type.startsWith("mapper")) {
+    prefix = propertyNames.length === 1 ? propertyNames[0] : "mapper";
+  } else {
+    prefix = propertyNames.length === 1 ? propertyNames[0] : "properties";
+  }
+  let kind: string;
+  if (prefix === "mappingDescription") {
+    kind = "mapper";
+  } else if (prefix === "script") {
+    kind = "script";
+  } else {
+    kind = prefix;
+  }
+  return buildCipFilename(id, "element", kind, exportFileExtension);
+}
+
+export function buildServiceCallFilename(
+  elementId: string,
+  isBefore: boolean,
+  block: any,
+  kind: string,
+  extension: string,
+  existingFilename?: string,
+): string {
+  if (existingFilename) {
+    return existingFilename;
+  }
+  if (isBefore) {
+    return buildCipFilename(elementId, "before", kind, extension);
+  }
+  return buildCipFilename(elementId, `after-${normalizeAfterId(String(block.id ?? block.code ?? ""))}`, kind, extension);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }

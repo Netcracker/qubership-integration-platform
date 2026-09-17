@@ -29,6 +29,7 @@ The screen shows a table of chains (marked with icon ![chain](img/chain.svg)) an
     - Queue ([RabbitMQ Trigger](1__Graph/1__Elements_Library/6__Triggers/6__RabbitMQ_Trigger/rabbitmq_trigger.md), [RabbitMQ Sender](1__Graph/1__Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md),
     [AsyncAPI Trigger](1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md), [Service Call](1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md))
   - Folder name - if search query matches, all content (chains and child folders) under the folder will be shown.
+- ![refresh](img/refresh.svg) - reloads the current folder without reloading the page. Column settings, sorting, and filters stay active.
 - ![filter](img/filter.svg) - opens filter pop-up.
 - ![setting](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns except **Name**.
 - ![difference](img/diff.svg) - compares selected chains.
@@ -37,6 +38,11 @@ The screen shows a table of chains (marked with icon ![chain](img/chain.svg)) an
 - ![cloud-download](img/cloud-download.svg) - exports the chain(s).
 - ![cloud-upload](img/cloud-upload.svg) - opens a pop-up for chain import. As part of the upload/import operation, the user can additionally select an option to create a snapshot for the imported chain or even deploy it to the selected engine as soon as the import is successfully completed.
 - ![delete](img/delete.svg) - deletes selected chains or folders.
+
+Table settings are saved in the browser's localStorage: visible columns, column order and width, sorting, and applied
+filters. They are restored when the table is reopened. Search text and selected rows are not saved.
+For example, enable **Created At** in **Column settings** and sort that column in descending order to keep newer chains
+at the top. **Reset** in **Column settings** restores the default columns and widths and clears sorting and filters.
 
 Each **chain** contains the following parameters in the table:
 - **Name** - chain name, which is clickable reference to the chain [graph](1__Graph/graph.md).

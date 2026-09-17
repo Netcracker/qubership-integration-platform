@@ -21,7 +21,10 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -73,6 +76,11 @@ public class ConfigParameterService {
         newParameter = configParameterRepository.save(newParameter);
 
         return newParameter;
+    }
+
+    public boolean tryLock(String namespace, String name, Timestamp staleBefore) {
+        return configParameterRepository.acquireLock(UUID.randomUUID().toString(), namespace, name,
+                Timestamp.valueOf(LocalDateTime.now()), staleBefore) == 1;
     }
 
     public void flush() {

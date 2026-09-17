@@ -121,6 +121,7 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
                 .domainName(context.getBuildInfo().getOptions().getName())
                 .buildName(context.getBuildInfo().getName())
                 .buildTimestamp(context.getBuildInfo().getTimestamp())
+                .createdBy(context.getBuildInfo().getCreatedBy())
                 .integrationServiceCatalog(context.getServiceCatalog())
                 .build();
     }

@@ -20,6 +20,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import jakarta.persistence.EntityExistsException;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -177,11 +178,19 @@ public class CommonVariablesService {
     }
 
     public VariablesFileResponse exportVariables(List<String> variablesNames, boolean asArchive) {
-        Map<String, String> variablesForExport = CollectionUtils.isEmpty(variablesNames)
-                ? consulService.getAllCommonVariables()
-                : consulService.getCommonVariables(variablesNames);
+        Map<String, String> allVariables = consulService.getAllCommonVariables();
+        boolean exportAll = CollectionUtils.isEmpty(variablesNames);
+        if (!exportAll) {
+            List<String> missingNames = variablesNames.stream()
+                    .filter(name -> !allVariables.containsKey(name))
+                    .toList();
+            if (!missingNames.isEmpty()) {
+                throw new EntityNotFoundException("Can't find common variables: " + String.join(", ", missingNames));
+            }
+        }
 
-        variablesForExport = variablesForExport.entrySet().stream()
+        Map<String, String> variablesForExport = allVariables.entrySet().stream()
+                .filter(entry -> exportAll || variablesNames.contains(entry.getKey()))
                 .filter(name -> DEFAULT_VARIABLES_LIST
                         .stream()
                         .noneMatch(excludedName -> excludedName.equals(name.getKey())))

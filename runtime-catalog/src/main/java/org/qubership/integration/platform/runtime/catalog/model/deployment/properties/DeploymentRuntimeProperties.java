@@ -55,6 +55,10 @@ public class DeploymentRuntimeProperties {
     private SessionLogDetails sessionLogDetails = SessionLogDetails.OFF;
 
 
+    public SessionsLoggingLevel getSessionsLoggingLevel() {
+        return sessionsLoggingLevel == null ? SessionsLoggingLevel.OFF : sessionsLoggingLevel;
+    }
+
     public LogLoggingLevel getLogLoggingLevel() {
         return logLoggingLevel == null ? LogLoggingLevel.defaultLevel() : logLoggingLevel;
     }
