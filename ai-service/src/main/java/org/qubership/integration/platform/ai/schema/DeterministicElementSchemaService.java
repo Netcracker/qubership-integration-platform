@@ -317,10 +317,6 @@ public class DeterministicElementSchemaService {
     return java.util.Set.copyOf(model.unconditionalRequired());
   }
 
-  /**
-   * Required keys under {@code properties} for the given element type and current
-   * property values, including conditional branches selected by discriminators.
-   */
   /** Recovery sentence for missing branch-owned keys on a patch body. */
   public String missingBranchKeysMessage(String elementType, Map<String, String> properties) {
     if (elementType == null || elementType.isBlank()) {
@@ -335,6 +331,10 @@ public class DeterministicElementSchemaService {
     return ElementPatchValidationMessages.missingBranchKeysMessage(model, properties);
   }
 
+  /**
+   * Required keys under {@code properties} for the given element type and current property
+   * values, including conditional branches selected by discriminators.
+   */
   public java.util.Set<String> requiredPatchPropertyKeys(
       String elementType, Map<String, String> properties) {
     if (elementType == null || elementType.isBlank()) {

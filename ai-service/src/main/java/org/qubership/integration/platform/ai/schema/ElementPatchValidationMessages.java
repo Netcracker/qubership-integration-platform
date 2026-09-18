@@ -50,11 +50,15 @@ public final class ElementPatchValidationMessages {
       LinkedHashSet<String> parts) {
     for (SchemaIfThenBranch branch : branches) {
       String actual = properties.get(branch.discriminatorKey());
-      if (actual != null && !actual.isBlank()) {
-        parts.add(branch.discriminatorKey() + "=" + actual);
+      if (actual == null || actual.isBlank()) {
+        continue;
       }
-      collectDiscriminatorParts(branch.nestedThen(), properties, parts);
-      collectDiscriminatorParts(branch.nestedElse(), properties, parts);
+      parts.add(branch.discriminatorKey() + "=" + actual);
+      if (branch.discriminatorValue().equals(actual)) {
+        collectDiscriminatorParts(branch.nestedThen(), properties, parts);
+      } else {
+        collectDiscriminatorParts(branch.nestedElse(), properties, parts);
+      }
     }
   }
 

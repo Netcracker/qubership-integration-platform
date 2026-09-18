@@ -26,7 +26,7 @@ public final class CatalogNonRetryableResponseException extends WebApplicationEx
     return bodySnippet;
   }
 
-  /** Parsed {@code errorMessage} when the body is JSON; otherwise the raw snippet. */
+  /** Parsed {@code errorMessage} when the body is JSON; otherwise an empty string. */
   public String catalogErrorMessage() {
     if (bodySnippet == null || bodySnippet.isBlank()) {
       return "";
@@ -34,9 +34,9 @@ public final class CatalogNonRetryableResponseException extends WebApplicationEx
     try {
       JsonNode root = OBJECT_MAPPER.readTree(bodySnippet);
       String errorMessage = root.path("errorMessage").asText("");
-      return errorMessage.isBlank() ? bodySnippet.trim() : errorMessage;
+      return errorMessage.isBlank() ? "" : errorMessage;
     } catch (Exception parseFailed) {
-      return bodySnippet.trim();
+      return "";
     }
   }
 }

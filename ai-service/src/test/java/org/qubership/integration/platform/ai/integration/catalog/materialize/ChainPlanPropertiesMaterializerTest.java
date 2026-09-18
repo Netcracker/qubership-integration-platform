@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -14,9 +15,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.ws.rs.core.Response;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -646,6 +650,86 @@ class ChainPlanPropertiesMaterializerTest {
   }
 
   @Test
+  void catalogRejectionUsesParsedErrorMessageWhenBranchMessageAbsent() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    doThrow(catalog400("{\"errorMessage\":\"exchange not found\"}"))
+        .when(catalogRestClient)
+        .updateElement(anyString(), anyString(), anyMap());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        materializer.apply(scriptGraph("body"), materializationMap());
+
+    assertEquals(List.of("n1"), result.failedNodeIds());
+    assertTrue(result.firstValidationError().contains("exchange not found"));
+    assertFalse(result.firstValidationError().contains("[catalog:"));
+  }
+
+  @Test
+  void catalogRejectionFallsBackToGenericMessageWhenBodyUnparseable() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
+    when(schemaService.validateElementPatch(eq("script"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    doThrow(catalog400("<html>internal</html>"))
+        .when(catalogRestClient)
+        .updateElement(anyString(), anyString(), anyMap());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        materializer.apply(scriptGraph("body"), materializationMap());
+
+    assertEquals(List.of("n1"), result.failedNodeIds());
+    assertTrue(
+        result.firstValidationError().contains("The catalog did not confirm the element update."));
+    assertFalse(result.firstValidationError().contains("<html>"));
+    assertFalse(result.firstValidationError().contains("internal"));
+  }
+
+  @Test
+  void catalogRejectionCombinesBranchMessageAndCatalogSnippetOnlyWhenBothPresent()
+      throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("rabbitmq-sender-2"))
+        .thenReturn(Set.of("connectionSourceType", "exchange", "addresses"));
+    when(schemaService.validateElementPatch(eq("rabbitmq-sender-2"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(schemaService.missingBranchKeysMessage(eq("rabbitmq-sender-2"), anyMap()))
+        .thenReturn("missing addresses (connectionSourceType=manual)");
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+    doThrow(catalog400("{\"errorMessage\":\"catalog rejected patch\"}"))
+        .when(catalogRestClient)
+        .updateElement(anyString(), anyString(), anyMap());
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "rabbit-send",
+                    "rabbitmq-sender-2",
+                    "Send",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "manual"),
+                        new PlanProperty("exchange", "ex")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("rabbit-send", "el-rabbit"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(List.of("rabbit-send"), result.failedNodeIds());
+    assertTrue(result.firstValidationError().contains("missing addresses"));
+    assertTrue(result.firstValidationError().contains("[catalog: catalog rejected patch]"));
+  }
+
+  @Test
   void timeoutAfterWriteFailsSafelyWhenReadBackDoesNotMatch() throws Exception {
     when(schemaService.allowedPatchPropertyKeys("script")).thenReturn(Set.of("script"));
     when(schemaService.validateElementPatch(eq("script"), anyString()))
@@ -690,5 +774,14 @@ class ChainPlanPropertiesMaterializerTest {
     element.name = name;
     element.properties = properties;
     return element;
+  }
+
+  private static CatalogNonRetryableResponseException catalog400(String body) {
+    Response response =
+        Response.status(400)
+            .type("application/json")
+            .entity(body.getBytes(StandardCharsets.UTF_8))
+            .build();
+    return new CatalogNonRetryableResponseException(response);
   }
 }
