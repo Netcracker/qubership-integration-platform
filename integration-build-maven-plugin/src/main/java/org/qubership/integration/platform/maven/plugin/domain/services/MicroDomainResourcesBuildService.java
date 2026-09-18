@@ -161,7 +161,7 @@ public class MicroDomainResourcesBuildService {
             return paths
                 .filter(path -> !isInDirectory(path, outputDirectory))
                 .filter(Files::isRegularFile)
-                .filter(file -> ServiceFileUtil.isServiceFile(file.getFileName().toString()))
+                .filter(file -> ServiceFileUtil.isIntegrationSystemFile(file.getFileName().toString()))
                 .map(Path::toFile)
                 .toList();
         }
