@@ -157,6 +157,77 @@ class OwnedSchemaRequiredPropertyGateTest {
   }
 
   @Test
+  void maasRabbitSenderReportsMissingOwnedVhostClassifier() {
+    GraphPatchOwnershipPolicy ownership =
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of(),
+            Set.of(),
+            Map.of(
+                "rabbitmq-sender-2",
+                Set.of("exchange", "routingKey", "connectionSourceType", "vhostClassifierName")));
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("c", "c"),
+            List.of(
+                new ChainPlanNode(
+                    "rabbitmq-sender",
+                    "rabbitmq-sender-2",
+                    "Send",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "maas"),
+                        new PlanProperty("exchange", "cip-auto-tests-exchange")))),
+            List.of());
+    List<OwnedSchemaRequiredPropertyGate.Gap> gaps =
+        OwnedSchemaRequiredPropertyGate.findGaps(
+            graph,
+            ownership,
+            (ChainPlanNode node) ->
+                Set.of("connectionSourceType", "exchange", "vhostClassifierName"));
+    assertEquals(List.of("vhostClassifierName"), gaps.getFirst().missingPropertyKeys());
+  }
+
+  @Test
+  void routingKeyAbsenceIsNotAGateGap() {
+    GraphPatchOwnershipPolicy ownership =
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of(),
+            Set.of(),
+            Map.of(
+                "rabbitmq-sender-2",
+                Set.of("exchange", "routingKey", "connectionSourceType", "vhostClassifierName")));
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("c", "c"),
+            List.of(
+                new ChainPlanNode(
+                    "rabbitmq-sender",
+                    "rabbitmq-sender-2",
+                    "Send",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "maas"),
+                        new PlanProperty("exchange", "ex"),
+                        new PlanProperty("vhostClassifierName", "cip-auto-tests")))),
+            List.of());
+    assertTrue(
+        OwnedSchemaRequiredPropertyGate.findGaps(
+                graph,
+                ownership,
+                (ChainPlanNode node) ->
+                    Set.of("connectionSourceType", "exchange", "vhostClassifierName"))
+            .isEmpty());
+  }
+
+  @Test
   void messageListsNodeAndFieldsWithEmptyValueShapeNotCopyableSentinel() {
     List<OwnedSchemaRequiredPropertyGate.Gap> gaps =
         List.of(
