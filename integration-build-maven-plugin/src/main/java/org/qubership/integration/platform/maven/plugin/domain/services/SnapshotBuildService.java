@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.time.Instant;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.library.constants.CamelNames.*;
 import static org.qubership.integration.platform.library.constants.CamelOptions.SYSTEM_ID;
@@ -46,14 +47,15 @@ public class SnapshotBuildService {
         snapshot.setChain(chain);
         snapshot.setMaskedFields(chain.getMaskedFields());
 
-        Map<String, String> idMap = createElementIdMap(chain.getElements());
-        Collection<Element> elements = createElements(chain.getElements(), idMap, null);
+        Collection<Element> rootElements = rootElements(chain.getElements());
+        Map<String, String> idMap = createElementIdMap(rootElements);
+        Collection<Element> elements = flatten(createElements(rootElements, idMap, null));
         Map<String, Element> elementMap = createElementMap(elements);
 
         snapshot.setElements(elements);
         snapshot.setConnections(createConnections(chain, idMap, elementMap));
 
-        forEachElement(elements, element -> {
+        elements.forEach(element -> {
             ElementImpl elementImpl = (ElementImpl) element;
             elementImpl.setSnapshot(snapshot);
             elementImpl.setInputConnections(snapshot.getConnections()
@@ -83,16 +85,32 @@ public class SnapshotBuildService {
         });
     }
 
+    /**
+     * The elements the chain owns directly. {@link Chain#getElements()} is flat: a container and the
+     * elements it holds are both entries in it. Building from every entry would create each nested
+     * element twice, once under its container and once more with no parent, and the two copies would
+     * then compete for the chain's connections.
+     */
+    private static Collection<Element> rootElements(Collection<Element> elements) {
+        return elements.stream().filter(element -> element.getParent().isEmpty()).toList();
+    }
+
+    /** Every element of the built tree, each exactly once, the shape {@link Snapshot#getElements()} returns. */
+    private Collection<Element> flatten(Collection<Element> elements) {
+        List<Element> result = new ArrayList<>();
+        forEachElement(elements, result::add);
+        return result;
+    }
+
     private Map<String, String> createElementIdMap(Collection<Element> elements) {
         Map<String, String> idMap = new HashMap<>();
         forEachElement(elements, element -> idMap.put(element.getId(), UUID.randomUUID().toString()));
         return idMap;
     }
 
+    /** Duplicate ids here would mean an element was built twice, so let {@code toMap} say so. */
     private Map<String, Element> createElementMap(Collection<Element> elements) {
-        Map<String, Element> elementMap = new HashMap<>();
-        forEachElement(elements, element -> elementMap.put(element.getId(), element));
-        return elementMap;
+        return elements.stream().collect(Collectors.toMap(Element::getId, element -> element));
     }
 
     private Collection<Element> createElements(

@@ -183,6 +183,58 @@ class SnapshotBuildServiceTest {
         verify(verificationService).verifyElementProperties(chain);
     }
 
+    /**
+     * ChainReader hands over a flat element list: a container and the elements it holds are both
+     * entries in it, linked by parent and children. Building from every entry used to create each
+     * nested element twice, and only one of the two copies ended up carrying the connections.
+     */
+    @Test
+    void buildsEachElementOnceFromAFlatChain() {
+        when(elementDescriptorHelper.resolveDescriptor(CONTAINER)).thenReturn(descriptor(ElementType.CONTAINER, true));
+        ElementImpl child = element("child", SENDER);
+        ElementImpl parent = element("parent", CONTAINER);
+        parent.setChildren(List.of(child));
+        child.setParent(parent);
+        Chain chain = chain(List.of(parent, child), List.of(new ConnectionImpl(parent, child)));
+
+        Snapshot snapshot = snapshotBuildService.build(chain);
+
+        List<Element> elements = List.copyOf(snapshot.getElements());
+        assertEquals(2, elements.size());
+        assertEquals(2, elements.stream().map(Element::getId).distinct().count());
+
+        Element snapshotParent = byOriginalId(elements, "parent");
+        Element snapshotChild = byOriginalId(elements, "child");
+        assertSame(snapshotChild, snapshotParent.getChildren().iterator().next());
+        assertSame(snapshotParent, snapshotChild.getParent().orElseThrow());
+    }
+
+    /** The copy the container holds is the one the connections must reach, not a parentless twin. */
+    @Test
+    void wiresConnectionsToTheElementsTheContainerHolds() {
+        when(elementDescriptorHelper.resolveDescriptor(CONTAINER)).thenReturn(descriptor(ElementType.CONTAINER, true));
+        ElementImpl child = element("child", SENDER);
+        ElementImpl parent = element("parent", CONTAINER);
+        parent.setChildren(List.of(child));
+        child.setParent(parent);
+        Chain chain = chain(List.of(parent, child), List.of(new ConnectionImpl(parent, child)));
+
+        Snapshot snapshot = snapshotBuildService.build(chain);
+
+        Element snapshotParent = byOriginalId(List.copyOf(snapshot.getElements()), "parent");
+        Element snapshotChild = snapshotParent.getChildren().iterator().next();
+        assertEquals(1, snapshotChild.getInputConnections().size());
+        assertSame(snapshotChild, snapshotChild.getInputConnections().iterator().next().getTo());
+        assertSame(snapshotParent, snapshotChild.getInputConnections().iterator().next().getFrom());
+    }
+
+    private static Element byOriginalId(List<Element> elements, String originalId) {
+        return elements.stream()
+            .filter(element -> originalId.equals(element.getOriginalId().orElse(null)))
+            .findFirst()
+            .orElseThrow();
+    }
+
     private static ElementDescriptor descriptor(ElementType type, boolean container) {
         ElementDescriptor descriptor = new ElementDescriptor();
         descriptor.setType(type);
