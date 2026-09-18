@@ -6,7 +6,7 @@ Maven plugin, alongside the existing micro-domain deployment path in `runtime-ca
 - Reviewed: `main..feat-maven-plugin` at `5d0cbea6e`, September 18, 2026.
 - Fix status for every finding below: [FIXES.md](FIXES.md).
 
-Findings carry stable IDs (`F1`-`F12`). Keep them stable so the ledger stays readable.
+Findings carry stable IDs (`F1`-`F11`). Keep them stable so the ledger stays readable.
 
 ## How runtime-catalog deploys to a micro-domain
 
@@ -40,6 +40,12 @@ The plugin keeps stage 3 unchanged and replaces stages 1, 2, and 4:
 
 That is the right seam. `integration-build-pipeline` already exposed `IntegrationServiceCatalog` and
 the two-argument `ResourceBuildContext.create`, so the whole builder tree is reused unchanged.
+
+A build owns its whole target namespace: the micro-domains it generates are the only ones there. That
+is why the plugin has no counterpart to the catalog's read-before-write. runtime-catalog seeds existing
+`ServiceEntry` and `DestinationRule` specs into the build cache because domains it does not own can
+contribute to the same external host; the plugin has no such neighbor to preserve, so generating those
+documents from an empty cache is correct here.
 
 ## Findings
 
@@ -226,23 +232,6 @@ These ride along in `integration-build-pipeline` and deserve an explicit decisio
 - `ChainReader.getChainYamlFile` takes `chainFiles[0]`, so a directory holding two chain YAML files
   silently drops one. The plugin's directory walk makes this reachable.
 
-### F12. Host resources are generated from an unseeded cache (medium)
-
-Raised while reviewing the F2 fix, so it describes the build as it stands after that change.
-
-With `controlPlaneType` at its `ISTIO` default and `qip.istio.host-resources.enabled` at its own `true`
-default, the plugin emits a `ServiceEntry` and a `DestinationRule` per external host. runtime-catalog
-seeds every existing host spec into the build cache first, through
-`putHostResourceSpecsToBuildCache`, precisely so a generated document carries what other domains and
-an operator already contributed. The plugin's context factory has no equivalent, so its documents
-carry only this build's ports.
-
-Applying them to a namespace where another domain already contributed to the same host, or where an
-operator set `tls.credentialName`, drops those fields. The hazard is the one that factory's javadoc
-already spells out in the catalog. Either seed the cache, expose the flag as a mojo option next to
-`controlPlaneType` rather than an environment variable, or document that these two kinds are not safe
-to apply blindly in a shared namespace.
-
 ## What works well
 
 The seam is in the right place. `ResourceBuildContext.create(buildInfo, catalog)`, `BuildInfoFactory`,
@@ -258,4 +247,4 @@ the catalog benefits from too. The unit tests pass and read clearly.
 3. F4, before anything else depends on the current element graph.
 4. F5, which locks in F1, F2, and F4.
 5. F6, so the module is built and released like its siblings.
-6. Decide on F3, F7, and F12 before calling the plugin usable.
+6. Decide on F3 and F7 before calling the plugin usable.

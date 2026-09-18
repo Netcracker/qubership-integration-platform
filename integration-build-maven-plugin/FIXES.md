@@ -18,7 +18,6 @@ Statuses: `open`, `fixed`, `partial`, `out of scope`.
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | open | |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | open | |
 | F11 | Smaller items, see below | minor | partial | `bcdb973dc` |
-| F12 | ServiceEntry and DestinationRule built from an unseeded cache | medium | open | |
 
 ## F11 breakdown
 
@@ -90,7 +89,7 @@ Verified:
   plane a builder asks for, dropping the short-circuit, reverting `orElseThrow` to `orElse(false)`, and
   removing the scan exclusion each make them fail.
 
-Carried forward from reviewing this fix: F12 below, and a stray blank line in
+Carried forward from reviewing this fix: a stray blank line in
 `OptionControlledHttpRouteResourceBuilder.enabled`.
 
 ## Deferred
