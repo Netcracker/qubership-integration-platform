@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Human-readable summaries of {@link ElementPatchValidator} JSON for logs, tool results, and
@@ -13,6 +15,48 @@ import java.util.List;
 public final class ElementPatchValidationMessages {
 
   private ElementPatchValidationMessages() {}
+
+  /** Lists missing branch-owned keys and active discriminators for recovery hints. */
+  public static String missingBranchKeysMessage(
+      ElementPropertiesSchemaModel model, Map<String, String> properties) {
+    Map<String, String> props = properties == null ? Map.of() : properties;
+    List<String> missing = new ArrayList<>();
+    for (String key : model.requiredKeysFor(props)) {
+      String value = props.get(key);
+      if (value == null || value.isBlank()) {
+        missing.add(key);
+      }
+    }
+    if (missing.isEmpty()) {
+      return "";
+    }
+    String context = discriminatorContext(model, props);
+    if (context.isBlank()) {
+      return "missing " + String.join(", ", missing);
+    }
+    return "missing " + String.join(", ", missing) + " (" + context + ")";
+  }
+
+  static String discriminatorContext(
+      ElementPropertiesSchemaModel model, Map<String, String> properties) {
+    LinkedHashSet<String> parts = new LinkedHashSet<>();
+    collectDiscriminatorParts(model.conditionalBranches(), properties, parts);
+    return String.join(", ", parts);
+  }
+
+  private static void collectDiscriminatorParts(
+      List<SchemaIfThenBranch> branches,
+      Map<String, String> properties,
+      LinkedHashSet<String> parts) {
+    for (SchemaIfThenBranch branch : branches) {
+      String actual = properties.get(branch.discriminatorKey());
+      if (actual != null && !actual.isBlank()) {
+        parts.add(branch.discriminatorKey() + "=" + actual);
+      }
+      collectDiscriminatorParts(branch.nestedThen(), properties, parts);
+      collectDiscriminatorParts(branch.nestedElse(), properties, parts);
+    }
+  }
 
   /**
    * Compact summary for {@code IllegalArgumentException} messages and catalog tool errors (LLM +

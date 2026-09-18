@@ -14,7 +14,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogNonRetryableResponseException;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.schema.ElementPatchValidationMessages;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
 import org.qubership.integration.platform.ai.integration.catalog.util.HttpMethodRestrictCatalogShape;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -150,6 +152,13 @@ public class ChainPlanPropertiesMaterializer {
     try {
       catalogRestClient.updateElement(map.chainId(), elementId, validated.patchBody());
       return true;
+    } catch (CatalogNonRetryableResponseException catalogError) {
+      rememberFirstValidationError(
+          firstValidationError,
+          node.nodeId(),
+          node.type(),
+          catalogPatchFailureMessage(node.type(), validated.patchBody(), catalogError));
+      return false;
     } catch (RuntimeException error) {
       if (!isTimeout(error)) {
         throw error;
@@ -346,10 +355,12 @@ public class ChainPlanPropertiesMaterializer {
     String validationJson = schemaService.validateElementPatch(elementType, patchJson);
     JsonNode root = objectMapper.readTree(validationJson);
     if (root.has("error") || !root.path("valid").asBoolean(false)) {
+      String branchMessage =
+          schemaService.missingBranchKeysMessage(elementType, propertyStrings(patchBody));
       String validationMessage =
-          root.has("error")
-              ? root.get("error").asText()
-              : "Element patch validation failed for type=" + elementType;
+          !branchMessage.isBlank()
+              ? branchMessage
+              : ElementPatchValidationMessages.summarizeFailure(validationJson, objectMapper);
       LOG.warnf(
           "Element patch validation failed type=%s result=%s body=%s",
           elementType,
@@ -364,6 +375,42 @@ public class ChainPlanPropertiesMaterializer {
       return new ValidatedPatch(true, enriched, null);
     }
     return new ValidatedPatch(true, patchBody, null);
+  }
+
+  private String catalogPatchFailureMessage(
+      String elementType,
+      Map<String, Object> patchBody,
+      CatalogNonRetryableResponseException catalogError) {
+    String branchMessage =
+        schemaService.missingBranchKeysMessage(elementType, propertyStrings(patchBody));
+    String catalogMessage = catalogError.catalogErrorMessage();
+    if (!branchMessage.isBlank()) {
+      if (catalogMessage.isBlank()) {
+        return branchMessage;
+      }
+      return branchMessage + " [catalog: " + catalogMessage + "]";
+    }
+    if (!catalogMessage.isBlank()) {
+      return catalogMessage;
+    }
+    return "The catalog did not confirm the element update.";
+  }
+
+  private static Map<String, String> propertyStrings(Map<String, Object> patchBody) {
+    Object properties = patchBody.get("properties");
+    if (!(properties instanceof Map<?, ?> propertyMap)) {
+      return Map.of();
+    }
+    Map<String, String> strings = new LinkedHashMap<>();
+    for (Map.Entry<?, ?> entry : propertyMap.entrySet()) {
+      if (entry.getKey() == null) {
+        continue;
+      }
+      String key = String.valueOf(entry.getKey());
+      Object value = entry.getValue();
+      strings.put(key, value == null ? null : String.valueOf(value));
+    }
+    return strings;
   }
 
   private static void rememberFirstValidationError(
