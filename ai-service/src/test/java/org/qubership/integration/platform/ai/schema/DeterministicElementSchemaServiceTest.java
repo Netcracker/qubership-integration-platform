@@ -293,6 +293,14 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void kafkaSenderPropagateContextDoesNotRequireOverrideContextParams() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build("kafka-sender-2", schemaRefResolverForTests());
+    Set<String> keys = model.requiredKeysFor(Map.of("propagateContext", "true"));
+    assertFalse(keys.contains("overrideContextParams"));
+  }
+
+  @Test
   void withUnconditionalSchemaDefaultsKeepsExistingRetryCount() {
     List<PlanProperty> merged =
         service.withUnconditionalSchemaDefaults(

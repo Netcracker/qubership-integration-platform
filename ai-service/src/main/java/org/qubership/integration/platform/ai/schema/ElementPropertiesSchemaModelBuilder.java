@@ -149,13 +149,18 @@ public final class ElementPropertiesSchemaModelBuilder {
   }
 
   private static void collectIfThen(JsonNode node, List<SchemaIfThenBranch> branches) {
-    SchemaIfThenBranch parsed = parseIfThen(node);
+    collectIfThen(node, branches, false);
+  }
+
+  private static void collectIfThen(
+      JsonNode node, List<SchemaIfThenBranch> branches, boolean nested) {
+    SchemaIfThenBranch parsed = parseIfThen(node, nested);
     if (parsed != null) {
       branches.add(parsed);
     }
   }
 
-  private static SchemaIfThenBranch parseIfThen(JsonNode node) {
+  private static SchemaIfThenBranch parseIfThen(JsonNode node, boolean nested) {
     if (node == null || !node.isObject() || !node.has("if")) {
       return null;
     }
@@ -174,21 +179,21 @@ public final class ElementPropertiesSchemaModelBuilder {
     JsonNode elseNode = node.path("else");
     List<SchemaIfThenBranch> nestedThen = new ArrayList<>();
     List<SchemaIfThenBranch> nestedElse = new ArrayList<>();
-    collectIfThen(thenNode, nestedThen);
-    collectIfThen(elseNode, nestedElse);
+    collectIfThen(thenNode, nestedThen, true);
+    collectIfThen(elseNode, nestedElse, true);
     return new SchemaIfThenBranch(
         entry.getKey(),
         value,
-        requiredSet(thenNode),
+        requiredSet(thenNode, nested),
         nestedThen,
-        requiredSet(elseNode),
+        requiredSet(elseNode, nested),
         nestedElse);
   }
 
-  private static Set<String> requiredSet(JsonNode branch) {
+  private static Set<String> requiredSet(JsonNode branch, boolean allowPropertyKeyFallback) {
     Set<String> keys = new LinkedHashSet<>();
     mergeRequired(branch, keys);
-    if (keys.isEmpty()) {
+    if (allowPropertyKeyFallback && keys.isEmpty()) {
       mergeObjectPropertyKeys(branch, keys);
     }
     return keys;
