@@ -41,6 +41,7 @@ public final class ElementPropertiesSchemaModelBuilder {
     Map<String, JsonNode> props = new LinkedHashMap<>();
     Set<String> req = new LinkedHashSet<>();
     List<JsonNode> rootOneOfs = new ArrayList<>();
+    List<SchemaIfThenBranch> branches = new ArrayList<>();
     List<String> warnings = new ArrayList<>();
     Deque<String> refStack = new ArrayDeque<>();
 
@@ -52,7 +53,7 @@ public final class ElementPropertiesSchemaModelBuilder {
         DocumentContext innerCtx =
             documentContextForAllOfItem(resolver, elementRoot, docUri, inner, resolvedInner);
         absorbAllOfFragment(
-            resolvedInner, innerCtx, resolver, props, req, rootOneOfs, warnings, refStack);
+            resolvedInner, innerCtx, resolver, props, req, rootOneOfs, branches, warnings, refStack);
       }
     }
 
@@ -67,10 +68,11 @@ public final class ElementPropertiesSchemaModelBuilder {
         }
         DocumentContext ctx =
             documentContextForAllOfItem(resolver, elementRoot, docUri, item, resolved);
-        absorbAllOfFragment(resolved, ctx, resolver, props, req, rootOneOfs, warnings, refStack);
+        absorbAllOfFragment(resolved, ctx, resolver, props, req, rootOneOfs, branches, warnings, refStack);
       }
     }
 
+    collectIfThen(inner, branches);
     mergeConditionalThenElseProperties(inner, props);
 
     return new ElementPropertiesSchemaModel(
@@ -79,6 +81,7 @@ public final class ElementPropertiesSchemaModelBuilder {
         Map.copyOf(props),
         Set.copyOf(req),
         List.copyOf(rootOneOfs),
+        List.copyOf(branches),
         List.copyOf(warnings));
   }
 
@@ -110,6 +113,7 @@ public final class ElementPropertiesSchemaModelBuilder {
       Map<String, JsonNode> props,
       Set<String> req,
       List<JsonNode> rootOneOfs,
+      List<SchemaIfThenBranch> branches,
       List<String> warnings,
       Deque<String> refStack) {
     mergeConditionalWarnings(resolved, warnings);
@@ -132,7 +136,7 @@ public final class ElementPropertiesSchemaModelBuilder {
             documentContextForAllOfItem(
                 resolver, ctx.documentRoot, ctx.documentUri, sub, subResolved);
         absorbAllOfFragment(
-            subResolved, subCtx, resolver, props, req, rootOneOfs, warnings, refStack);
+            subResolved, subCtx, resolver, props, req, rootOneOfs, branches, warnings, refStack);
       }
     }
 
@@ -141,6 +145,63 @@ public final class ElementPropertiesSchemaModelBuilder {
       mergeRequired(resolved, req);
     }
     mergeConditionalThenElseProperties(resolved, props);
+    collectIfThen(resolved, branches);
+  }
+
+  private static void collectIfThen(JsonNode node, List<SchemaIfThenBranch> branches) {
+    SchemaIfThenBranch parsed = parseIfThen(node);
+    if (parsed != null) {
+      branches.add(parsed);
+    }
+  }
+
+  private static SchemaIfThenBranch parseIfThen(JsonNode node) {
+    if (node == null || !node.isObject() || !node.has("if")) {
+      return null;
+    }
+    JsonNode ifProps = node.path("if").path("properties");
+    if (!ifProps.isObject() || ifProps.size() != 1) {
+      return null;
+    }
+    var entry = ifProps.fields().next();
+    JsonNode constNode = entry.getValue().path("const");
+    if (constNode.isMissingNode() || constNode.isNull()) {
+      return null;
+    }
+    String value =
+        constNode.isBoolean() ? Boolean.toString(constNode.booleanValue()) : constNode.asText();
+    JsonNode thenNode = node.path("then");
+    JsonNode elseNode = node.path("else");
+    List<SchemaIfThenBranch> nestedThen = new ArrayList<>();
+    List<SchemaIfThenBranch> nestedElse = new ArrayList<>();
+    collectIfThen(thenNode, nestedThen);
+    collectIfThen(elseNode, nestedElse);
+    return new SchemaIfThenBranch(
+        entry.getKey(),
+        value,
+        requiredSet(thenNode),
+        nestedThen,
+        requiredSet(elseNode),
+        nestedElse);
+  }
+
+  private static Set<String> requiredSet(JsonNode branch) {
+    Set<String> keys = new LinkedHashSet<>();
+    mergeRequired(branch, keys);
+    if (keys.isEmpty()) {
+      mergeObjectPropertyKeys(branch, keys);
+    }
+    return keys;
+  }
+
+  private static void mergeObjectPropertyKeys(JsonNode node, Set<String> keys) {
+    if (node == null || !node.isObject()) {
+      return;
+    }
+    if (!node.has("properties") || !node.get("properties").isObject()) {
+      return;
+    }
+    node.get("properties").fields().forEachRemaining(e -> keys.add(e.getKey()));
   }
 
   private static void mergeOneOfBranchesIntoPropertyDefs(
