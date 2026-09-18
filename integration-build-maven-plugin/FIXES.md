@@ -10,7 +10,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `out of scope`.
 | F1 | AtlasMap custom actions unregistered, so mapper chains abort the build | blocker | fixed | `bcdb973dc` |
 | F2 | Route resources never generated; `${spring.application.cloud_service_name}` leaks into output | blocker | fixed | `5ef3c4185` |
 | F3 | DTO library location hardwired to runtime-catalog, no codegen on the plugin side | major | out of scope | |
-| F4 | Nested elements duplicated in the snapshot element graph | major | open | |
+| F4 | Nested elements duplicated in the snapshot element graph | major | fixed | `86b24ed33` |
 | F5 | No equivalence test against the runtime-catalog pipeline | major | open | |
 | F6 | Module missing from every CI workflow and from `scripts/modules.sh` | major | open | |
 | F7 | Generated resource contents differ between runs | medium | open | |
@@ -117,6 +117,27 @@ Also added the tests both file-name predicates were missing, `ServiceFileUtilTes
 `.yaml.bak` case `endsWith` alone lets through, and each predicate rejecting what the other accepts.
 Mutation-checked: restoring the MCP branches breaks two, dropping the extension gate from
 `ChainFileUtil` breaks three.
+
+### F4, `86b24ed33`
+
+`build()` mapped every entry of the flat `Chain.getElements()` to a new element and also recursed into
+children, so each nested element was created twice and the copies competed for the chain's connections
+through a last-writer-wins map. It now maps the roots, lets the existing recursion produce the rest, and
+flattens once, so `snapshot.getElements()` keeps the shape `SnapshotAdapter` returns in runtime-catalog.
+`createElementMap` collects with `toMap`, so a duplicate id fails loudly rather than silently picking a
+winner.
+
+Verified:
+
+- The probe from the review reports 2 distinct objects rather than 3, and the element the container
+  holds carries the input connection instead of an empty list.
+- Output is unchanged where it already worked: `try-catch-finally-2` still generates 13 element beans
+  with no duplicates, 7 routes, 3 `doCatch` and 1 `doFinally`, and the corpus still builds 30 resources.
+  Correctness there used to rest on `ChainModelMapper` inserting children before their container, which
+  nothing asserted; it no longer depends on that ordering.
+- Two tests added on the flat shape `ChainReader` produces, the gap the existing fixtures left by
+  passing a tree. Both fail on the previous implementation, one on object identity and one on the
+  container's child having no connections.
 
 ## Accepted
 
