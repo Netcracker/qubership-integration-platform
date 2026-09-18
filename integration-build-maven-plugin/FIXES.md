@@ -3,7 +3,7 @@
 Status of every finding in [REVIEW.md](REVIEW.md). Update a row when its status changes, and record the
 commit that changed it.
 
-Statuses: `open`, `fixed`, `partial`, `out of scope`.
+Statuses: `open`, `fixed`, `partial`, `accepted`, `out of scope`.
 
 | ID | Finding | Severity | Status | Commit |
 | --- | --- | --- | --- | --- |
@@ -16,7 +16,7 @@ Statuses: `open`, `fixed`, `partial`, `out of scope`.
 | F7 | Generated resource contents differ between runs | medium | open | |
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
-| F10 | Shared-module changes alter runtime-catalog behavior | medium | open | |
+| F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
 | F11 | Smaller items, see below | minor | partial | `bcdb973dc` |
 
 ## F11 breakdown
@@ -117,6 +117,26 @@ Also added the tests both file-name predicates were missing, `ServiceFileUtilTes
 `.yaml.bak` case `endsWith` alone lets through, and each predicate rejecting what the other accepts.
 Mutation-checked: restoring the MCP branches breaks two, dropping the extension gate from
 `ChainFileUtil` breaks three.
+
+## Accepted
+
+### F10, shared-module changes
+
+Closed by decision, September 18, 2026: the changes `integration-build-pipeline` carries into
+runtime-catalog are deliberate, not collateral. That covers the dropped `namespaceSelector`, the
+`MonitoringOptions.enabled` default, the `ImagePoolPolicy` to `ImagePullPolicy` rename, and the
+reproducible `SourceDslConfigMapNamingStrategy` suffix.
+
+Two leftovers the decision does not by itself remove, both dead code rather than behavior:
+`ServiceMonitorBuilder.getNamespace` with its `TemplateData.namespace`, which no template renders since
+`namespaceSelector` went, and `StringGenerator.generate(int)`, the `ThreadLocalRandom` overload that
+lost its last caller. `getNamespace` is worth knowing about for another reason: its
+`{{ .Release.namespace }}` fallback is the only thing in the pipeline that ever produced a Helm
+expression, so reviving `namespaceSelector` is what would give the placeholder stripping in
+`ResourceWriteService` an input.
+
+The rename still deserves a release note. `FAIL_ON_UNKNOWN_PROPERTIES` is disabled, so a stored
+`imagePoolPolicy` is dropped without a word and the option reverts to `IfNotPresent`.
 
 ## Deferred
 

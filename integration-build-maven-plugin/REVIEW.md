@@ -197,7 +197,8 @@ service. `ContextServiceReader` and `McpServiceReader` exist and go unused.
 
 ### F10. Shared-module changes that alter runtime-catalog behavior (medium)
 
-These ride along in `integration-build-pipeline` and deserve an explicit decision:
+Accepted as deliberate, September 18, 2026; see [FIXES.md](FIXES.md). Listed here because the effects
+on runtime-catalog are worth knowing about, not because they need undoing.
 
 - `cr/templates/service-monitor.hbs` drops `namespaceSelector`, which changes what the catalog generates
   today. `ServiceMonitorBuilder.getNamespace` and `TemplateData.namespace` are now dead.
