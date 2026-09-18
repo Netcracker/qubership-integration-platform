@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
@@ -45,7 +46,24 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPa
 record GeneratorPatchRegressionResult(GraphPatchArtifact artifact, ChainPlanGraph graph) {}
 
 /** Deterministic harness for promoted-generator graph-patch regression fixtures. */
-final class GeneratorPatchRegressionHarness {
+public final class GeneratorPatchRegressionHarness {
+
+  /** Flattened property ownership from pinned generator policies, keyed by element type. */
+  public static Map<String, Set<String>> pinnedOwnershipPropertiesByElementType() {
+    Map<String, Set<String>> byType = new LinkedHashMap<>();
+    pinnedOwnership()
+        .values()
+        .forEach(
+            policy ->
+                policy
+                    .properties()
+                    .forEach(
+                        (elementType, properties) ->
+                            byType
+                                .computeIfAbsent(elementType, ignored -> new TreeSet<>())
+                                .addAll(properties)));
+    return Map.copyOf(byType);
+  }
 
   private static final String FIXTURE_DIR =
       "product-pipeline/create/generator-regression";
@@ -549,13 +567,37 @@ final class GeneratorPatchRegressionHarness {
                         "maasClassifierNamespace",
                         "maasClassifierTenantEnabled",
                         "maasClassifierTenantId",
+                        "brokers",
+                        "topics",
+                        "securityProtocol",
+                        "saslMechanism",
                         "key",
                         "keySerializer",
                         "valueSerializer",
                         "propagateContext")),
                 entry("graphql-sender", Set.of("query", "uri", "operationName")),
-                entry("rabbitmq-sender-2", Set.of("exchange", "routingKey")),
-                entry("scs-sender", Set.of("bindingName", "useCorrelationId", "operation")),
+                entry(
+                    "rabbitmq-sender-2",
+                    Set.of(
+                        "connectionSourceType",
+                        "vhostClassifierName",
+                        "maasClassifierNamespace",
+                        "addresses",
+                        "exchange",
+                        "routingKey",
+                        "propagateContext")),
+                entry(
+                    "scs-sender",
+                    Set.of(
+                        "bindingName",
+                        "useCorrelationId",
+                        "operation",
+                        "sessionId",
+                        "key",
+                        "ttl",
+                        "keys",
+                        "target",
+                        "targetName")),
                 entry("mail-sender", Set.of("from", "url")),
                 entry("dbaas", Set.of("query")),
                 entry("mapper-2", Set.of("mapping")),
@@ -634,7 +676,9 @@ final class GeneratorPatchRegressionHarness {
                         "topicsClassifierName",
                         "maasClassifierNamespace",
                         "maasClassifierTenantEnabled",
-                        "maasClassifierTenantId")),
+                        "maasClassifierTenantId",
+                        "securityProtocol",
+                        "saslMechanism")),
                 entry(
                     "rabbitmq-trigger-2",
                     Set.of(
@@ -646,6 +690,78 @@ final class GeneratorPatchRegressionHarness {
                         "username",
                         "vhostClassifierName",
                         "maasClassifierNamespace")))));
+    ownership.put(
+        "cip-chain-failure-handler-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of(),
+            Set.of(),
+            Map.of(
+                "http-trigger",
+                Set.of("handleChainFailureAction", "chainFailureHandlerContainer"))));
+    ownership.put(
+        "cip-validation-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of(),
+            Set.of(),
+            Map.ofEntries(
+                entry(
+                    "http-trigger",
+                    Set.of(
+                        "validationSchema",
+                        "allowedContentTypes",
+                        "handleValidationAction",
+                        "handlerContainer")),
+                entry(
+                    "service-call",
+                    Set.of("handleValidationAction", "handlerContainer")))));
+    ownership.put(
+        "cip-quartz-scheduler-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of("quartz-scheduler"),
+            Set.of(),
+            Map.of("quartz-scheduler", Set.of("cron", "deleteJob"))));
+    ownership.put(
+        "cip-sds-trigger-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of("sds-trigger"),
+            Set.of(),
+            Map.of(
+                "sds-trigger",
+                Set.of("jobId", "prohibitParallelRun", "parallelRunTimeout", "cron"))));
+    ownership.put(
+        "cip-sftp-trigger-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of("sftp-trigger-2"),
+            Set.of(),
+            Map.of(
+                "sftp-trigger-2",
+                Set.of(
+                    "connectUrl",
+                    "scheduler.cron",
+                    "binary",
+                    "streamDownload",
+                    "idempotent",
+                    "idempotentKey",
+                    "autoCreate",
+                    "useUserKnownHostsFile"))));
+    ownership.put(
+        "cip-trigger-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of("chain-trigger-2"),
+            Set.of(),
+            Map.of("chain-trigger-2", Set.of("elementId"))));
     return Map.copyOf(ownership);
   }
 }
