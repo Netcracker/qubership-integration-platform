@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.schema;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,6 +10,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
@@ -243,6 +245,54 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void rabbitmqSenderMaasBranchRequiresVhostClassifier() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build(
+            "rabbitmq-sender-2", schemaRefResolverForTests());
+    Set<String> keys =
+        model.requiredKeysFor(Map.of("connectionSourceType", "maas", "exchange", "ex"));
+    assertTrue(keys.contains("connectionSourceType"));
+    assertTrue(keys.contains("exchange"));
+    assertTrue(keys.contains("vhostClassifierName"));
+    assertFalse(keys.contains("addresses"));
+    assertFalse(keys.contains("routingKey"));
+  }
+
+  @Test
+  void rabbitmqSenderManualBranchRequiresAddresses() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build(
+            "rabbitmq-sender-2", schemaRefResolverForTests());
+    Set<String> keys =
+        model.requiredKeysFor(Map.of("connectionSourceType", "manual", "exchange", "ex"));
+    assertTrue(keys.contains("addresses"));
+    assertFalse(keys.contains("vhostClassifierName"));
+  }
+
+  @Test
+  void rabbitmqSenderWithoutDiscriminatorDoesNotAssumeManual() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build(
+            "rabbitmq-sender-2", schemaRefResolverForTests());
+    Set<String> keys = model.requiredKeysFor(Map.of("exchange", "ex"));
+    assertTrue(keys.contains("connectionSourceType"));
+    assertFalse(keys.contains("addresses"));
+  }
+
+  @Test
+  void kafkaSenderTenantBranchRequiresTenantId() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build("kafka-sender-2", schemaRefResolverForTests());
+    Set<String> keys =
+        model.requiredKeysFor(
+            Map.of(
+                "connectionSourceType", "maas",
+                "topicsClassifierName", "t1",
+                "maasClassifierTenantEnabled", "true"));
+    assertTrue(keys.contains("maasClassifierTenantId"));
+  }
+
+  @Test
   void withUnconditionalSchemaDefaultsKeepsExistingRetryCount() {
     List<PlanProperty> merged =
         service.withUnconditionalSchemaDefaults(
@@ -260,6 +310,12 @@ class DeterministicElementSchemaServiceTest {
     }
     assertEquals("3", retryCount);
     assertEquals("5000", retryDelay);
+  }
+
+  private SchemaRefResolver schemaRefResolverForTests() {
+    SchemaResourceLoader schemaResourceLoader = new SchemaResourceLoader();
+    QipSchemaYamlParser qipSchemaYamlParser = new QipSchemaYamlParser();
+    return new SchemaRefResolver(schemaResourceLoader, qipSchemaYamlParser);
   }
 
   private static JsonNode findAlternative(JsonNode alternatives, String title, String name) {
