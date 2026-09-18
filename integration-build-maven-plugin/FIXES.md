@@ -12,7 +12,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `out of scope`.
 | F3 | DTO library location hardwired to runtime-catalog, no codegen on the plugin side | major | out of scope | |
 | F4 | Nested elements duplicated in the snapshot element graph | major | fixed | `86b24ed33` |
 | F5 | No equivalence test against the runtime-catalog pipeline | major | open | |
-| F6 | Module missing from every CI workflow and from `scripts/modules.sh` | major | open | |
+| F6 | Module missing from every CI workflow and from `scripts/modules.sh` | major | fixed | `c17abe0d8` |
 | F7 | Generated resource contents differ between runs | medium | open | |
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
@@ -139,6 +139,46 @@ Verified:
   passing a tree. Both fail on the previous implementation, one on object identity and one on the
   container's child having no connections.
 
+### F6, `c17abe0d8`
+
+Added `integration-build-maven-plugin-build.yaml` and `integration-build-maven-plugin-release.yaml`,
+both delegating to the existing `_maven-module-build.yaml` and `_maven-module-release.yaml` reusables,
+and registered the module in `release-all.yaml` (`ALL_MODULES`, the `prepare` output, its own release
+job, and the `publish-bom` and `create-drop-release` dependency lists), in `snapshot-publish.yaml`, and
+in `scripts/modules.sh`.
+
+This is the first pass, reverted on September 18, 2026 while the team considered another approach, then
+restored by decision the same day.
+
+Two changes the wiring needed to produce a working release:
+
+- The POM pinned the library at `${revision}${changelist}`, its own version, which holds only while the
+  two modules release on the same line. It now pins the literal released version and appends
+  `${changelist}`, the way `runtime-catalog` does, so `integration-build-pipeline-release.yaml` moves
+  the pin through `sync-poms` and a release resolves a library that exists.
+- `scripts/check-version-invariants.sh` checked that one pin; it now iterates `QIP_LIBRARY_CONSUMERS`.
+
+The release job runs after `release-integration-build-pipeline` for the same reason `runtime-catalog`
+does: the library release moves this plugin's pin, and the job has to check out a tree that carries it.
+The `profile=central` guard rejects a wave that releases the library beside either consumer.
+
+The module stays out of `main-build.yaml`, matching `integration-build-pipeline`, which is absent from
+that matrix and its `paths:` filter too.
+
+Verified:
+
+- `scripts/check-version-invariants.sh` passes, and fails with a clear message when the plugin's pin is
+  drifted to `1.2.9`.
+- `scripts/build-bom.sh` lists the module, `null` until its first tag.
+- `mvn verify -pl integration-build-maven-plugin -am -Dgpg.skip=true`, the command the PR build runs,
+  passes with the new pin resolving the library from the reactor.
+- Every workflow parses, and `release-all.yaml` carries the release job in both aggregate dependency
+  lists.
+
+`vars.SONAR_INTEGRATION_BUILD_MAVEN_PLUGIN_PROJECT_KEY` needs a SonarCloud project behind it. Until the
+variable is set the key is empty and the `sonar` job skips itself, which is how the reusable workflow
+handles an unset key.
+
 ## Accepted
 
 ### F10, shared-module changes
@@ -165,29 +205,9 @@ explicitly empty interval: the `MonitoringOptions` default is `30s`, and an empt
 The rename still deserves a release note. `FAIL_ON_UNKNOWN_PROPERTIES` is disabled, so a stored
 `imagePoolPolicy` is dropped without a word and the option reverts to `IfNotPresent`.
 
-## Deferred
-
-### F6, CI and release wiring
-
-A first pass wired the module into `_maven-module-build.yaml` and `_maven-module-release.yaml`,
-`release-all.yaml`, `snapshot-publish.yaml`, and `scripts/modules.sh`. It was reverted on
-September 18, 2026: the team is developing a different approach. F6 stays open.
-
-That pass also had to change the plugin's library pin from `${revision}${changelist}` to a literal
-version, so `integration-build-pipeline-release.yaml` could move it through `sync-poms` and a release
-could resolve a library that exists. Whatever shape the new approach takes has to answer the same
-question, so the second note under F6 in [REVIEW.md](REVIEW.md) records it.
-
 ## Out of scope
 
 ### F3, DTO library generation
 
 Deferred by decision, September 18, 2026. Chains whose service calls rely on a generated DTO library
 cannot be built by the plugin until this is addressed.
-
-## Notes
-
-Removing the dead `qip.cr.build` block under F8 does not address F2. F2 is about keys that are missing
-and needed: `qip.control-plane.mesh-type`, `qip.istio.enabled`, `qip.gateway.*`,
-`spring.application.cloud_service_name`, `qip.chains.external-routes.base-path`, and
-`camel.constants.request-filter-header.name`.
