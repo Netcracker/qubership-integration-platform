@@ -4,6 +4,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
+import org.qubership.integration.platform.camelk.model.BuildInfo;
+import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.services.ResourceBuildService;
 import org.qubership.integration.platform.chain.impl.ChainImpl;
@@ -69,6 +71,10 @@ class MicroDomainResourcesBuildServiceTest {
             return snapshot;
         });
         when(resourceBuildService.buildResources(any())).thenReturn(RESOURCE_TEXT);
+        when(buildContextFactory.createResourceBuildContext(any(), any())).thenAnswer(invocation -> {
+            BuildInfo buildInfo = BuildInfo.builder().options(invocation.getArgument(1)).build();
+            return ResourceBuildContext.create(buildInfo, null).updateTo(invocation.getArgument(0));
+        });
     }
 
     @Test

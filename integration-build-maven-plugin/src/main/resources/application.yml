@@ -1,11 +1,53 @@
 spring:
   application:
     deployment_version: ${DEPLOYMENT_VERSION:v1}
+    # Host of the DTO library URL the generated integrations-config carries. A Maven build has no
+    # catalog of its own, so this names the runtime-catalog service the engine resolves against.
+    cloud_service_name: ${QIP_CATALOG_SERVICE_NAME:qip-runtime-catalog}-${spring.application.deployment_version}
 
 app:
   prefix: qip
 
+camel:
+  constants:
+    request-filter-header:
+      name: requestFilterHeaderAllowlist
+
+# Read by GrpcCodeGenerator, which this module never invokes: specification code generation belongs
+# to the catalog. The values keep the bean constructible.
+protoc:
+  compiler: /usr/bin/protoc
+  grpc-java-plugin: /usr/bin/protoc-gen-grpc-java
+  work-directory: /tmp/tmp-data
+
 qip:
+  access-control:
+    resource-type:
+      chain: QIP-CHAIN
+  istio:
+    host-resources:
+      enabled: ${QIP_ISTIO_HOST_RESOURCES_ENABLED:true}
+  control-plane:
+    chain-routes-registration:
+      ingress-gateways: ${QIP_REGISTER_INGRESS_CHAIN_ROUTES:true} # public/private/internal gateway
+      egress-gateway: ${QIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
+    routes:
+      public:
+        v1-prefix: /api/v1/${app.prefix}/engine
+  chains:
+    external-routes:
+      base-path: /${app.prefix}-routes
+  gateway:
+    egress:
+      name: egress-gateway
+      protocol: http
+      url: ${QIP_EGRESS_GATEWAY_URL:egress-gateway:8080}
+    public:
+      name: public-gateway
+    private:
+      name: private-gateway
+    internal:
+      name: internal-gateway-service
   export:
     legacy-format: false
   cr:

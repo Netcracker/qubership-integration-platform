@@ -30,6 +30,8 @@ import static java.util.Objects.isNull;
 @Slf4j
 @Service
 public class MicroDomainResourcesBuildService {
+    public static final String BUILD_CRS_TASK_PARAMETERS = "build-crs-task-parameters";
+
     private final ChainReader chainReader;
     private final IntegrationSystemReader integrationSystemReader;
     private final IntegrationServiceCatalogImpl integrationServiceCatalog;
@@ -102,6 +104,7 @@ public class MicroDomainResourcesBuildService {
             resourceBuildOptionsFactory.createResourceBuildOptions(domain, parameters);
         ResourceBuildContext<List<Snapshot>> buildContext =
             resourceBuildContextFactory.createResourceBuildContext(snapshots, resourceBuildOptions);
+        buildContext.getBuildCache().put(BUILD_CRS_TASK_PARAMETERS, parameters);
         String resourceText = resourceBuildService.buildResources(buildContext);
         resourceWriteService.writeResources(parameters.getOutputDirectory(), resourceText);
     }

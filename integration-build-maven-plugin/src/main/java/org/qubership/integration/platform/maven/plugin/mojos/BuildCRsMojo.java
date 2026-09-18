@@ -23,6 +23,9 @@ public class BuildCRsMojo extends AbstractMojo {
     @Parameter(name = "defaultDomain", defaultValue = "default")
     private String defaultDomain;
 
+    @Parameter(name = "controlPlaneType", defaultValue = "ISTIO")
+    private ControlPlaneType controlPlaneType;
+
     @Parameter(name = "options")
     private BuildCRsOptions options = new BuildCRsOptions();
 
@@ -42,6 +45,7 @@ public class BuildCRsMojo extends AbstractMojo {
             .sourceRoots(sourceRoots)
             .outputDirectory(outputDirectory)
             .defaultDomain(defaultDomain)
+            .controlPlaneType(controlPlaneType)
             .options(options)
             .build();
     }
