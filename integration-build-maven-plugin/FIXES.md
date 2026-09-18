@@ -127,13 +127,19 @@ runtime-catalog are deliberate, not collateral. That covers the dropped `namespa
 `MonitoringOptions.enabled` default, the `ImagePoolPolicy` to `ImagePullPolicy` rename, and the
 reproducible `SourceDslConfigMapNamingStrategy` suffix.
 
-Two leftovers the decision does not by itself remove, both dead code rather than behavior:
-`ServiceMonitorBuilder.getNamespace` with its `TemplateData.namespace`, which no template renders since
-`namespaceSelector` went, and `StringGenerator.generate(int)`, the `ThreadLocalRandom` overload that
-lost its last caller. `getNamespace` is worth knowing about for another reason: its
-`{{ .Release.namespace }}` fallback is the only thing in the pipeline that ever produced a Helm
-expression, so reviving `namespaceSelector` is what would give the placeholder stripping in
-`ResourceWriteService` an input.
+The decision left two pieces of dead code behind, rather than behavior.
+`ServiceMonitorBuilder.getNamespace` and its `TemplateData.namespace` went in `7ca3b7e23`: no template
+had rendered them since `namespaceSelector` was dropped. `ResourceBuildOptions.namespace` stays,
+because runtime-catalog populates it and it is on the REST contract. Still outstanding:
+`StringGenerator.generate(int)`, the `ThreadLocalRandom` overload that lost its last caller.
+
+Removing `getNamespace` does not leave the placeholder stripping in `ResourceWriteService` without an
+input. `ServiceMonitorBuilder.getMetricsScrapeInterval` returns
+`{{ .Values.monitoring.interval | default "30s" }}` for a blank interval, and unlike the namespace, the
+template does render it, in scalar-leading position where it breaks the YAML parse. Reaching it takes an
+explicitly empty interval: the `MonitoringOptions` default is `30s`, and an empty or whitespace-only
+`<interval>` in the POM leaves that default standing. runtime-catalog reaches it through an empty
+`MICRO_DOMAIN_MONITORING_INTERVAL`.
 
 The rename still deserves a release note. `FAIL_ON_UNKNOWN_PROPERTIES` is disabled, so a stored
 `imagePoolPolicy` is dropped without a word and the option reverts to `IfNotPresent`.
