@@ -301,6 +301,30 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void validateElementPatchRejectsMaasRabbitmqWithoutVhostClassifier() throws Exception {
+    String patch =
+        """
+        {"name":"Send","properties":{"connectionSourceType":"maas","exchange":"ex"}}
+        """;
+    JsonNode result = objectMapper.readTree(service.validateElementPatch("rabbitmq-sender-2", patch));
+    assertFalse(result.path("valid").asBoolean());
+    assertTrue(result.toString().contains("vhostClassifierName"));
+  }
+
+  @Test
+  void validateElementPatchAcceptsMaasRabbitmqWithVhostClassifier() throws Exception {
+    String patch =
+        """
+        {"name":"Send","properties":{
+          "connectionSourceType":"maas",
+          "exchange":"ex",
+          "vhostClassifierName":"cip-auto-tests"}}
+        """;
+    JsonNode result = objectMapper.readTree(service.validateElementPatch("rabbitmq-sender-2", patch));
+    assertTrue(result.path("valid").asBoolean(), result.toString());
+  }
+
+  @Test
   void requiredPatchPropertyKeysHonorsRabbitMaasBranch() {
     Set<String> keys =
         service.requiredPatchPropertyKeys(

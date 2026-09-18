@@ -10,6 +10,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -120,6 +121,9 @@ public final class ElementPatchValidator {
     }
 
     for (String w : model.warnings()) {
+      if (isRedundantIfThenCatalogWarning(w, model)) {
+        continue;
+      }
       warnings.add(objectMapper.createObjectNode().put("path", "").put("message", w));
     }
     warnings.add(
@@ -169,7 +173,9 @@ public final class ElementPatchValidator {
     String docUri = model.elementDocumentUri();
     Deque<String> refStack = new ArrayDeque<>();
 
-    for (String req : model.unconditionalRequired()) {
+    Map<String, String> asText = new LinkedHashMap<>();
+    patchProps.fields().forEachRemaining(e -> asText.put(e.getKey(), textOrEmpty(e.getValue())));
+    for (String req : model.requiredKeysFor(asText)) {
       if (!patchProps.has(req) || patchProps.get(req).isNull()) {
         missingRequired.add(req);
         errors.add(
@@ -671,6 +677,20 @@ public final class ElementPatchValidator {
       return true;
     }
     return true;
+  }
+
+  private static boolean isRedundantIfThenCatalogWarning(
+      String warning, ElementPropertiesSchemaModel model) {
+    return warning.startsWith("Conditional rules (if/then/else)")
+        && !model.conditionalBranches().isEmpty();
+  }
+
+  private static String textOrEmpty(JsonNode node) {
+    if (node == null || node.isNull()) {
+      return "";
+    }
+    String text = node.asText();
+    return text == null ? "" : text;
   }
 
   private static boolean jsonEquals(JsonNode a, JsonNode b) {
