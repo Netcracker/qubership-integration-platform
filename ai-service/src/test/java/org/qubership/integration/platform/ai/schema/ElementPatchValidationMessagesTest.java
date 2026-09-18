@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.schema;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,5 +40,23 @@ class ElementPatchValidationMessagesTest {
             model,
             Map.of("connectionSourceType", "maas", "exchange", "ex"));
     assertEquals("missing vhostClassifierName (connectionSourceType=maas)", message);
+  }
+
+  @Test
+  void discriminatorContextIgnoresManualArmWhenMaasBranchIsActive() {
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build("kafka-sender-2", resolver);
+    String context =
+        ElementPatchValidationMessages.discriminatorContext(
+            model,
+            Map.of(
+                "connectionSourceType",
+                "maas",
+                "brokers",
+                "localhost:9092",
+                "topicsClassifierName",
+                "topic-1"));
+    assertEquals("connectionSourceType=maas", context);
+    assertFalse(context.contains("brokers="));
   }
 }

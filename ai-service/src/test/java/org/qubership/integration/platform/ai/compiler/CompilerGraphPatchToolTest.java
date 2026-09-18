@@ -904,6 +904,70 @@ class CompilerGraphPatchToolTest {
   }
 
   @Test
+  void emptyPatchIsRejectedWhenMaasRabbitSenderMissingVhostClassifier() {
+    ChainPlanGraph baseGraph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("publish", "Publish"),
+            List.of(
+                new ChainPlanNode(
+                    "rabbit-send",
+                    "rabbitmq-sender-2",
+                    "Send message",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "maas"),
+                        new PlanProperty("exchange", "cip-auto-tests-exchange")))),
+            List.of());
+    planStore.put(CONVERSATION_ID, baseGraph);
+    MDC.put(CompilerSkillMdc.CAPABILITY_ID, SERVICE_CALL_CAPABILITY_ID);
+    executionContextStore.set(
+        new GraphPatchExecutionContext(
+            "run-1",
+            SERVICE_CALL_CAPABILITY_ID,
+            "req-1",
+            null,
+            "compiler-1",
+            "24.4",
+            new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary"),
+            List.of(),
+            baseGraph,
+            new GraphPatchOwnershipPolicy(
+                false,
+                false,
+                Set.of("rabbitmq-sender-2"),
+                Set.of(),
+                Map.of(
+                    "rabbitmq-sender-2",
+                    Set.of("connectionSourceType", "exchange", "vhostClassifierName"))),
+            ""));
+
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "rabbit-empty",
+            SERVICE_CALL_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "RabbitMQ MaaS configuration is already complete");
+
+    String result = tool.captureGraphPatch(patch);
+
+    assertTrue(result.contains("vhostClassifierName"), result);
+    assertTrue(result.contains("rabbit-send"), result);
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, SERVICE_CALL_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
   void emptyServiceCallPatchIsRejectedWhenKafkaSenderConfigurationIsIncomplete() {
     ChainPlanGraph baseGraph =
         new ChainPlanGraph(
@@ -959,9 +1023,9 @@ class CompilerGraphPatchToolTest {
 
     String result = tool.captureGraphPatch(patch);
 
-    assertTrue(result.contains("Kafka sender configuration is incomplete"));
-    assertTrue(result.contains("kafka-send-event"));
-    assertTrue(result.contains("topicsClassifierName"));
+    assertTrue(result.contains("Owned schema required properties missing"), result);
+    assertTrue(result.contains("kafka-send-event"), result);
+    assertTrue(result.contains("keySerializer"), result);
     assertTrue(
         captureSession
             .get(
