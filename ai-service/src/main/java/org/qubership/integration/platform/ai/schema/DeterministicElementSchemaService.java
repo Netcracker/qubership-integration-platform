@@ -321,6 +321,20 @@ public class DeterministicElementSchemaService {
    * Required keys under {@code properties} for the given element type and current
    * property values, including conditional branches selected by discriminators.
    */
+  /** Recovery sentence for missing branch-owned keys on a patch body. */
+  public String missingBranchKeysMessage(String elementType, Map<String, String> properties) {
+    if (elementType == null || elementType.isBlank()) {
+      return "";
+    }
+    String trimmed = elementType.trim();
+    if (!schemaResourceLoader.existsElementSchema(trimmed)) {
+      return "";
+    }
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build(trimmed, schemaRefResolver);
+    return ElementPatchValidationMessages.missingBranchKeysMessage(model, properties);
+  }
+
   public java.util.Set<String> requiredPatchPropertyKeys(
       String elementType, Map<String, String> properties) {
     if (elementType == null || elementType.isBlank()) {
