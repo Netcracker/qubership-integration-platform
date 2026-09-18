@@ -1,7 +1,7 @@
 ---
-name: Integration Build Pipeline Release
+name: Integration Build Maven Plugin Release
 
-run-name: Integration Build Pipeline Release (${{ inputs.release-type }})
+run-name: Integration Build Maven Plugin Release (${{ inputs.release-type }})
 
 on:
   workflow_call:
@@ -66,15 +66,13 @@ jobs:
       packages: write
     uses: ./.github/workflows/_maven-module-release.yaml
     with:
-      module: integration-build-pipeline
+      module: integration-build-maven-plugin
       release-type: ${{ inputs.release-type }}
       profile: ${{ inputs.profile }}
       build-docker: false
       mvn-args: ${{ inputs.mvn-args }}
-      # runtime-catalog and the Maven plugin pin this library by property; move
-      # them onto the release in the same bump commit, before their jobs check out.
-      sync-property: qip-integration-build-pipeline.version
-      sync-poms: runtime-catalog/pom.xml integration-build-maven-plugin/pom.xml
+      # Nothing in the repository pins this plugin, so there are no consumer
+      # POMs to move onto the release.
     secrets:
       MAVEN_USER: ${{ secrets.MAVEN_USER }}
       MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
