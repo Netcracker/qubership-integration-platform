@@ -1049,7 +1049,7 @@ components:
           $ref: "#/components/schemas/CapabilitiesOptions"
         image:
           type: "string"
-        imagePoolPolicy:
+        imagePullPolicy:
           enum:
           - "Always"
           - "Never"
