@@ -760,78 +760,31 @@ class GeneratorReadinessEvaluatorTest {
   }
 
   @Test
-  void unmetCompletenessFlagsKafkaSenderWithIncompleteManualConnection() {
+  void serviceCallNodesMatchesRabbitmqSender() {
     ChainPlanGraph graph =
         new ChainPlanGraph(
             "1.0",
-            new ChainSection("publish", "Publish"),
+            new ChainSection("c", "c"),
             List.of(
                 new ChainPlanNode(
-                    "kafka-1",
-                    "kafka-sender-2",
-                    "Publish event",
-                    null,
-                    null,
-                    List.of(
-                        new PlanProperty("connectionSourceType", "manual"),
-                        new PlanProperty("securityProtocol", "PLAINTEXT"),
-                        new PlanProperty("saslMechanism", "GSSAPI")))),
+                    "rabbitmq-sender", "rabbitmq-sender-2", "Send", null, null, List.of())),
             List.of());
-
-    List<String> unmet =
-        evaluator.unmetCompleteness(
-            List.of("incomplete_kafka_sender_configuration"), graph);
-
-    assertEquals(List.of("incomplete_kafka_sender_configuration"), unmet);
-    assertEquals(List.of("kafka-1"), evaluator.kafkaSenderNodesMissingConfiguration(graph));
+    var result = evaluator.evaluate(List.of("service_call_nodes"), graph, NO_INTENTS);
+    assertEquals(GeneratorPlanStatus.READY, result.status());
   }
 
   @Test
-  void kafkaSenderMaaSConfigurationIsCompleteWithClassifier() {
+  void messagingNodesMatchesRabbitmqTrigger() {
     ChainPlanGraph graph =
         new ChainPlanGraph(
             "1.0",
-            new ChainSection("publish", "Publish"),
+            new ChainSection("c", "c"),
             List.of(
                 new ChainPlanNode(
-                    "kafka-1",
-                    "kafka-sender-2",
-                    "Publish event",
-                    null,
-                    null,
-                    List.of(
-                        new PlanProperty("connectionSourceType", "maas"),
-                        new PlanProperty("topicsClassifierName", "cip-auto-tests-topic1"),
-                        new PlanProperty("maasClassifierTenantEnabled", "false")))),
+                    "rabbitmq-trigger", "rabbitmq-trigger-2", "In", null, null, List.of())),
             List.of());
-
-    assertTrue(evaluator.kafkaSenderNodesMissingConfiguration(graph).isEmpty());
-    assertTrue(
-        evaluator
-            .unmetCompleteness(List.of("incomplete_kafka_sender_configuration"), graph)
-            .isEmpty());
-  }
-
-  @Test
-  void kafkaSenderMaaSConfigurationRequiresTenantIdWhenTenantIsEnabled() {
-    ChainPlanGraph graph =
-        new ChainPlanGraph(
-            "1.0",
-            new ChainSection("publish", "Publish"),
-            List.of(
-                new ChainPlanNode(
-                    "kafka-1",
-                    "kafka-sender-2",
-                    "Publish event",
-                    null,
-                    null,
-                    List.of(
-                        new PlanProperty("connectionSourceType", "maas"),
-                        new PlanProperty("topicsClassifierName", "cip-auto-tests-topic1"),
-                        new PlanProperty("maasClassifierTenantEnabled", "true")))),
-            List.of());
-
-    assertEquals(List.of("kafka-1"), evaluator.kafkaSenderNodesMissingConfiguration(graph));
+    var result = evaluator.evaluate(List.of("messaging_nodes"), graph, NO_INTENTS);
+    assertEquals(GeneratorPlanStatus.READY, result.status());
   }
 
   @Test
