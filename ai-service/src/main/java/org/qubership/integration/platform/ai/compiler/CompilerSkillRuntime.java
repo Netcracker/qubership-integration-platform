@@ -1358,7 +1358,11 @@ public class CompilerSkillRuntime {
     }
     List<OwnedSchemaRequiredPropertyGate.Gap> gaps =
         OwnedSchemaRequiredPropertyGate.findGaps(
-            graph, ownership, schemaService::requiredPatchPropertyKeys);
+            graph,
+            ownership,
+            (ChainPlanNode node) ->
+                schemaService.requiredPatchPropertyKeys(
+                    node.type(), OwnedSchemaRequiredPropertyGate.propertyMap(node)));
     if (targetNodeIds == null || targetNodeIds.isEmpty()) {
       return gaps;
     }

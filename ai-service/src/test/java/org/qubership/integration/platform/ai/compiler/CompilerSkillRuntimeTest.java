@@ -183,7 +183,8 @@ class CompilerSkillRuntimeTest {
   @Test
   void applyCapturedEmptyPatchFailsWhenOwnedRequiredMissing() {
     String quartzSkill = "cip-quartz-scheduler-generator";
-    when(schemaService.requiredPatchPropertyKeys("quartz-scheduler")).thenReturn(Set.of("cron"));
+    when(schemaService.requiredPatchPropertyKeys(eq("quartz-scheduler"), any()))
+        .thenReturn(Set.of("cron"));
 
     ChainPlanGraph graph =
         new ChainPlanGraph(
@@ -230,6 +231,68 @@ class CompilerSkillRuntimeTest {
     assertEquals(SkillRunStatus.FAILED, result.status());
     assertTrue(result.message().contains("cron"));
     assertTrue(result.message().contains("quartz-scheduler-1"));
+  }
+
+  @Test
+  void harvestReportsMissingOwnedBranchKey() {
+    String rabbitSkill = "cip-rabbitmq-sender-generator";
+    when(schemaService.requiredPatchPropertyKeys(eq("rabbitmq-sender-2"), any()))
+        .thenReturn(Set.of("connectionSourceType", "exchange", "vhostClassifierName"));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("orders", "Orders"),
+            List.of(
+                new ChainPlanNode(
+                    "rabbitmq-sender",
+                    "rabbitmq-sender-2",
+                    "Send",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "maas"),
+                        new PlanProperty("exchange", "cip-auto-tests-exchange")))),
+            List.of());
+    GraphPatch emptyPatch =
+        new GraphPatch(
+            "rabbit-empty",
+            rabbitSkill,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Exchange only");
+    MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
+    MDC.put(CompilerSkillMdc.CAPABILITY_ID, rabbitSkill);
+    executionContextStore.set(
+        new GraphPatchExecutionContext(
+            "run-rabbit",
+            rabbitSkill,
+            "req-1",
+            null,
+            "compiler-1",
+            "24.4",
+            new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary"),
+            List.of(),
+            graph,
+            new GraphPatchOwnershipPolicy(
+                false,
+                false,
+                Set.of(),
+                Set.of(),
+                Map.of(
+                    "rabbitmq-sender-2",
+                    Set.of("exchange", "routingKey", "connectionSourceType", "vhostClassifierName"))),
+            ""));
+
+    SkillExecutionResult result =
+        runtime.applyCapturedPatch(CONVERSATION_ID, graph, emptyPatch, rabbitSkill);
+
+    assertEquals(SkillRunStatus.FAILED, result.status());
+    assertTrue(result.message().contains("vhostClassifierName"));
+    assertTrue(result.message().contains("rabbitmq-sender"));
   }
 
   @Test
