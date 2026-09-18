@@ -119,8 +119,8 @@ public class SnapshotBuildService {
         snapshotElement.setChildren(createElements(element.getChildren(), idMap, snapshotElement));
         snapshotElement.setChain(element.getChain());
 
-        // Will be replaced after creation of all elements
-        snapshotElement.getSwimlane().ifPresent(snapshotElement::setSwimlane);
+        // Points at the source swimlane until build() remaps it to the snapshot element
+        element.getSwimlane().ifPresent(snapshotElement::setSwimlane);
 
         ElementDescriptor elementDescriptor = elementDescriptorHelper.resolveDescriptor(element.getType());
         snapshotElement.setContainer(elementDescriptor.isContainer());

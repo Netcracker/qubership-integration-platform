@@ -24,7 +24,7 @@ public class BuildCRsMojo extends AbstractMojo {
     private String defaultDomain;
 
     @Parameter(name = "options")
-    private BuildCRsOptions options;
+    private BuildCRsOptions options = new BuildCRsOptions();
 
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
