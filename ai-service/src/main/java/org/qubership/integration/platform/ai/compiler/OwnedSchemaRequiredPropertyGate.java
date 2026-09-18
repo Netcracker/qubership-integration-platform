@@ -24,13 +24,31 @@ public final class OwnedSchemaRequiredPropertyGate {
 
   public record Gap(String nodeId, String elementType, List<String> missingPropertyKeys) {}
 
+  @FunctionalInterface
+  public interface NodeRequiredKeys {
+    Set<String> apply(ChainPlanNode node);
+  }
+
   public static List<Gap> findGaps(
       ChainPlanGraph graph,
       GraphPatchOwnershipPolicy ownership,
       Function<String, Set<String>> unconditionalRequiredForType) {
+    Objects.requireNonNull(unconditionalRequiredForType, "unconditionalRequiredForType");
+    NodeRequiredKeys nodeRequiredKeys =
+        node ->
+            node == null || node.type() == null
+                ? Set.of()
+                : unconditionalRequiredForType.apply(node.type());
+    return findGaps(graph, ownership, nodeRequiredKeys);
+  }
+
+  public static List<Gap> findGaps(
+      ChainPlanGraph graph,
+      GraphPatchOwnershipPolicy ownership,
+      NodeRequiredKeys requiredKeys) {
     Objects.requireNonNull(graph, "graph");
     Objects.requireNonNull(ownership, "ownership");
-    Objects.requireNonNull(unconditionalRequiredForType, "unconditionalRequiredForType");
+    Objects.requireNonNull(requiredKeys, "requiredKeys");
 
     List<Gap> gaps = new ArrayList<>();
     for (ChainPlanNode node : graph.nodes()) {
@@ -41,7 +59,7 @@ public final class OwnedSchemaRequiredPropertyGate {
       if (owned == null || owned.isEmpty()) {
         continue;
       }
-      Set<String> schemaRequired = unconditionalRequiredForType.apply(node.type());
+      Set<String> schemaRequired = requiredKeys.apply(node);
       if (schemaRequired == null || schemaRequired.isEmpty()) {
         continue;
       }

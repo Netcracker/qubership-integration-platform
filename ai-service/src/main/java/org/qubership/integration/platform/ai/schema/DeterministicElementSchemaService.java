@@ -305,6 +305,25 @@ public class DeterministicElementSchemaService {
   }
 
   /**
+   * Required keys under {@code properties} for the given element type and current
+   * property values, including conditional branches selected by discriminators.
+   */
+  public java.util.Set<String> requiredPatchPropertyKeys(
+      String elementType, Map<String, String> properties) {
+    if (elementType == null || elementType.isBlank()) {
+      return java.util.Set.of();
+    }
+    String trimmed = elementType.trim();
+    if (!schemaResourceLoader.existsElementSchema(trimmed)) {
+      return java.util.Set.of();
+    }
+    ElementPropertiesSchemaModel model =
+        ElementPropertiesSchemaModelBuilder.build(trimmed, schemaRefResolver);
+    Map<String, String> props = properties == null ? Map.of() : properties;
+    return java.util.Set.copyOf(model.requiredKeysFor(props));
+  }
+
+  /**
    * Validates a structured capture value ({@link JsonNode}) against the element property schema.
    *
    * @return validation error message, or empty when valid or schema is unavailable
