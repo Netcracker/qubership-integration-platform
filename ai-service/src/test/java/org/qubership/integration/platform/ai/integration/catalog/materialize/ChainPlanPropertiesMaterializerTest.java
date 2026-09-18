@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
@@ -49,6 +50,9 @@ class ChainPlanPropertiesMaterializerTest {
     lenient()
         .when(schemaService.coercePatchPropertyValue(anyString(), anyString(), anyString()))
         .thenAnswer(invocation -> invocation.getArgument(2));
+    lenient()
+        .when(schemaService.missingBranchKeysMessage(anyString(), anyMap()))
+        .thenReturn("");
   }
 
   @Test
@@ -373,6 +377,44 @@ class ChainPlanPropertiesMaterializerTest {
     @SuppressWarnings("unchecked")
     Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
     assertEquals(0L, props.get("priority"));
+  }
+
+  @Test
+  void recordsMissingBranchKeysForManualRabbitmqWithoutAddresses() throws Exception {
+    DeterministicElementSchemaService realSchema =
+        DeterministicElementSchemaService.createForUnitTests(objectMapper);
+    ChainPlanPropertiesMaterializer realMaterializer =
+        new ChainPlanPropertiesMaterializer(catalogRestClient, realSchema, objectMapper);
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "rabbit-send",
+                    "rabbitmq-sender-2",
+                    "Send",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("connectionSourceType", "manual"),
+                        new PlanProperty("exchange", "ex")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("rabbit-send", "el-rabbit"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        realMaterializer.apply(graph, map);
+
+    assertEquals(0, result.patchedCount());
+    assertEquals(List.of("rabbit-send"), result.failedNodeIds());
+    assertNotNull(result.firstValidationError());
+    assertTrue(result.firstValidationError().contains("missing addresses"));
+    assertTrue(result.firstValidationError().contains("connectionSourceType=manual"));
+    verify(catalogRestClient, never()).updateElement(anyString(), anyString(), anyMap());
   }
 
   @Test
