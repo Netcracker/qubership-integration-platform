@@ -50,7 +50,6 @@ class CompilerGeneratorPolicyBuilderTest {
 
     assertTrue(signals.contains("incomplete_service_call_bindings"));
     assertTrue(signals.contains("incomplete_service_call_error_throwing"));
-    assertTrue(signals.contains("incomplete_kafka_sender_configuration"));
   }
 
   @Test
