@@ -1,0 +1,64 @@
+---
+id: "c54cf4a0-0e1f-4884-a768-e6ce666e9a21"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "split timeout"
+content:
+  labels: []
+  elements:
+  - id: "4382af5b-9143-4139-9a77-8b3546a96e08"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "4382af5b-9143-4139-9a77-8b3546a96e08"
+  - id: "db53ee55-6a68-4ef4-b522-a505454e53a9"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-db53ee55-6a68-4ef4-b522-a505454e53a9.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "dddaf4ec-7d54-42d2-9217-5669f7fc960a"
+    name: "Split"
+    type: "split-2"
+    children:
+    - id: "01aba511-5c3a-4f73-8432-1f69d7ca5e21"
+      name: "Split Element"
+      type: "split-element-2"
+      children:
+      - id: "1b04978c-98dc-4fc9-89ed-0a4d58bd416e"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-1b04978c-98dc-4fc9-89ed-0a4d58bd416e.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        propagateHeaders: true
+        propagateProperties: true
+        splitName: "secondary"
+    - id: "c7b9d029-6cf2-4847-9b0b-b1b51695ac52"
+      name: "Main Split Element"
+      type: "main-split-element-2"
+      children:
+      - id: "f3ae4bd2-daae-4618-9c6b-7227a24c9cb5"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-f3ae4bd2-daae-4618-9c6b-7227a24c9cb5.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        splitName: "main"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: "5000"
+  dependencies:
+  - from: "4382af5b-9143-4139-9a77-8b3546a96e08"
+    to: "dddaf4ec-7d54-42d2-9217-5669f7fc960a"
+  - from: "dddaf4ec-7d54-42d2-9217-5669f7fc960a"
+    to: "db53ee55-6a68-4ef4-b522-a505454e53a9"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

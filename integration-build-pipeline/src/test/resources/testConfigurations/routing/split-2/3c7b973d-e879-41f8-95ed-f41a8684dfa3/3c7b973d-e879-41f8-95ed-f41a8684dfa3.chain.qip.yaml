@@ -1,0 +1,64 @@
+---
+id: "3c7b973d-e879-41f8-95ed-f41a8684dfa3"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "split stop on execution false"
+content:
+  labels: []
+  elements:
+  - id: "2c566a19-fc4c-4efe-b8fe-b04aa1c214e7"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "2c566a19-fc4c-4efe-b8fe-b04aa1c214e7"
+  - id: "52a05d2c-95fb-4e56-84ba-934daf30ee3c"
+    name: "Split"
+    type: "split-2"
+    children:
+    - id: "71629633-30e7-4cd9-ba67-719720c25bbe"
+      name: "Split Element"
+      type: "split-element-2"
+      children:
+      - id: "63d21109-4406-4bd3-ac7a-e4768c32cf34"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-63d21109-4406-4bd3-ac7a-e4768c32cf34.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        propagateHeaders: true
+        propagateProperties: true
+        splitName: "secondary"
+    - id: "f7b222c5-e90e-4f73-8aa8-9f1367ab1e5a"
+      name: "Main Split Element"
+      type: "main-split-element-2"
+      children:
+      - id: "a53c1258-50a2-4e60-8af8-ae954203da33"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-a53c1258-50a2-4e60-8af8-ae954203da33.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        splitName: "main"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: false
+      timeout: 0
+  - id: "555c7f6e-1e3f-49d7-bd12-61db05c58eb0"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-555c7f6e-1e3f-49d7-bd12-61db05c58eb0.groovy"
+      propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "2c566a19-fc4c-4efe-b8fe-b04aa1c214e7"
+    to: "52a05d2c-95fb-4e56-84ba-934daf30ee3c"
+  - from: "52a05d2c-95fb-4e56-84ba-934daf30ee3c"
+    to: "555c7f6e-1e3f-49d7-bd12-61db05c58eb0"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

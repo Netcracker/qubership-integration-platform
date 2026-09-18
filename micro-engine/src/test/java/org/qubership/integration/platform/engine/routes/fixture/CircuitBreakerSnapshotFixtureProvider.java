@@ -21,6 +21,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -49,6 +50,11 @@ class CircuitBreakerSnapshotFixtureProvider implements SnapshotFixtureProvider {
     }
 
     @Override
+    public boolean supportsAwaitState() {
+        return true;
+    }
+
+    @Override
     public SnapshotFixture create(String deploymentId, List<SnapshotFixtureBinding> bindings) {
         SnapshotFixtureBinding binding = SnapshotFixtureValidation.requireSingleBinding(bindings, "Circuit breaker");
         SnapshotFixtureValidation.requireNoNodeId(binding.definition(), "Circuit breaker");
@@ -64,12 +70,14 @@ class CircuitBreakerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         if (interaction.getResponse() != null || interaction.getExpectedRequest() != null) {
             throw new IllegalArgumentException(
                     "Circuit breaker fixture '" + fixtureId
-                            + "' supports only transitionToState and expectedState."
+                            + "' supports only transitionToState, awaitState, and expectedState."
             );
         }
     }
 
     private static final class CircuitBreakerSnapshotFixture implements SnapshotFixture {
+        private static final long STATE_WAIT_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(10);
+        private static final long STATE_POLL_INTERVAL_MILLIS = 25;
         private final String deploymentId;
         private final SnapshotFixtureBinding binding;
         private final String fixtureId;
@@ -128,22 +136,36 @@ class CircuitBreakerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         }
 
         @Override
-        public void beforeInvocation(SnapshotScenarioInvocation invocation) {
+        public void beforeInvocation(SnapshotScenarioInvocation invocation) throws InterruptedException {
             SnapshotFixtureInteraction interaction = binding.interaction(invocation.getId());
             ResilienceProcessor processor = requireResilienceProcessor();
             String transitionToState = interaction.getTransitionToState();
-            if (transitionToState == null) {
-                return;
+            if (transitionToState != null) {
+                switch (normalizedState(transitionToState)) {
+                    case "CLOSED" -> processor.transitionToCloseState();
+                    case "OPEN" -> processor.transitionToOpenState();
+                    case "HALF_OPEN" -> processor.transitionToHalfOpenState();
+                    case "FORCED_OPEN" -> processor.transitionToForcedOpenState();
+                    default -> throw new IllegalArgumentException(
+                            "Circuit breaker fixture '" + fixtureId + "' invocation '" + invocation.getId()
+                                    + "' defines unsupported transition state '" + transitionToState + "'."
+                    );
+                }
             }
 
-            switch (normalizedState(transitionToState)) {
-                case "CLOSED" -> processor.transitionToCloseState();
-                case "OPEN" -> processor.transitionToOpenState();
-                case "HALF_OPEN" -> processor.transitionToHalfOpenState();
-                case "FORCED_OPEN" -> processor.transitionToForcedOpenState();
-                default -> throw new IllegalArgumentException(
-                        "Circuit breaker fixture '" + fixtureId + "' invocation '" + invocation.getId()
-                                + "' defines unsupported transition state '" + transitionToState + "'."
+            if (interaction.getAwaitState() != null) {
+                CircuitBreaker.State state = parseState(interaction.getAwaitState(), "awaitState", invocation.getId());
+                CircuitBreaker circuitBreaker = processor.getCircuitBreaker();
+                long startedAt = System.nanoTime();
+                while (circuitBreaker.getState() != state
+                        && System.nanoTime() - startedAt < STATE_WAIT_TIMEOUT_NANOS) {
+                    Thread.sleep(STATE_POLL_INTERVAL_MILLIS);
+                }
+                assertEquals(
+                        state,
+                        circuitBreaker.getState(),
+                        () -> "Circuit breaker fixture '" + fixtureId + "' invocation '" + invocation.getId()
+                                + "' did not reach state '" + state + "' within 10 seconds before execution."
                 );
             }
         }
@@ -156,22 +178,24 @@ class CircuitBreakerSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 return;
             }
 
-            CircuitBreaker.State parsedExpectedState;
-            try {
-                parsedExpectedState = CircuitBreaker.State.valueOf(normalizedState(expectedState));
-            } catch (IllegalArgumentException exception) {
-                throw new IllegalArgumentException(
-                        "Circuit breaker fixture '" + fixtureId + "' invocation '" + invocation.getId()
-                                + "' defines unsupported expected state '" + expectedState + "'.",
-                        exception
-                );
-            }
             assertEquals(
-                    parsedExpectedState,
+                    parseState(expectedState, "expectedState", invocation.getId()),
                     requireResilienceProcessor().getCircuitBreaker().getState(),
                     () -> "Circuit breaker fixture '" + fixtureId + "' invocation '" + invocation.getId()
                             + "' has an unexpected state."
             );
+        }
+
+        private CircuitBreaker.State parseState(String state, String fieldName, String invocationId) {
+            try {
+                return CircuitBreaker.State.valueOf(normalizedState(state));
+            } catch (IllegalArgumentException exception) {
+                throw new IllegalArgumentException(
+                        "Circuit breaker fixture '" + fixtureId + "' invocation '" + invocationId
+                                + "' defines unsupported " + fieldName + " '" + state + "'.",
+                        exception
+                );
+            }
         }
 
         @Override

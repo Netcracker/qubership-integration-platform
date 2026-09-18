@@ -1,4 +1,10 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
+subject: "choice"
+deployments:
+  - id: "choice"
+    route: "choice"
+  - id: "condition-priority"
+    route: "choise-priority"
 scenarios:
   - id: "choice-if"
     endpointUri: "cip-chain:49a56894-0819-4cdc-8f46-178070bc9b10"
@@ -20,3 +26,33 @@ scenarios:
     expectedBody: "Else"
     expectedHeaders:
       X-Test-Request: "request-value"
+
+  - id: "selects-lowest-priority-number-when-both-conditions-match"
+    endpointUri: "cip-chain:b26e3138-f99c-4ffd-814e-e923db1b03e5"
+    body: "Original"
+    properties:
+      condition: true
+      condition10: true
+      ifExecutions: 0
+      if10Executions: 0
+      elseExecutions: 0
+    expectedBody: "If"
+    expectedProperties:
+      ifExecutions: 1
+      if10Executions: 0
+      elseExecutions: 0
+
+  - id: "selects-later-priority-when-earlier-condition-does-not-match"
+    endpointUri: "cip-chain:b26e3138-f99c-4ffd-814e-e923db1b03e5"
+    body: "Original"
+    properties:
+      condition: false
+      condition10: true
+      ifExecutions: 0
+      if10Executions: 0
+      elseExecutions: 0
+    expectedBody: "If-10"
+    expectedProperties:
+      ifExecutions: 0
+      if10Executions: 1
+      elseExecutions: 0
