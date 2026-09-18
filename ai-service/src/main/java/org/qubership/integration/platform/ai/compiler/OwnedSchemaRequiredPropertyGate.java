@@ -1,8 +1,10 @@
 package org.qubership.integration.platform.ai.compiler;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
@@ -27,6 +29,19 @@ public final class OwnedSchemaRequiredPropertyGate {
   @FunctionalInterface
   public interface NodeRequiredKeys {
     Set<String> apply(ChainPlanNode node);
+  }
+
+  public static Map<String, String> propertyMap(ChainPlanNode node) {
+    if (node == null || node.properties() == null) {
+      return Map.of();
+    }
+    Map<String, String> values = new LinkedHashMap<>();
+    for (PlanProperty property : node.properties()) {
+      if (property != null && property.key() != null && !property.key().isBlank()) {
+        values.put(property.key(), property.value());
+      }
+    }
+    return values;
   }
 
   public static List<Gap> findGaps(
