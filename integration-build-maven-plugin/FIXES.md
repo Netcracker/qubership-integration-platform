@@ -15,7 +15,7 @@ Statuses: `open`, `fixed`, `partial`, `out of scope`.
 | F6 | Module missing from every CI workflow and from `scripts/modules.sh` | major | open | |
 | F7 | Generated resource contents differ between runs | medium | open | |
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
-| F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | open | |
+| F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | open | |
 | F11 | Smaller items, see below | minor | partial | `bcdb973dc` |
 
@@ -91,6 +91,32 @@ Verified:
 
 Carried forward from reviewing this fix: a stray blank line in
 `OptionControlledHttpRouteResourceBuilder.enabled`.
+
+### F9, `28833e817`
+
+`ServiceFileUtil.isServiceFile` matched context-service and mcp-service exports alongside integration
+system ones, and `MicroDomainResourcesBuildService` fed every match to `IntegrationSystemReader`. The
+filter now matches integration system exports only, and is named `isIntegrationSystemFile` so a file
+called `*.mcp-service.qip.yaml` returning false reads as intended rather than as a missing branch.
+
+Nothing is lost: no class under `camelk` reads `McpService` or `ContextService`,
+`IntegrationServiceCatalog` has no accessor for either, and `McpTriggerBeansBuilder` works from element
+properties alone. Both kinds keep their own readers, which this module does not call. Skipping them
+stays silent, which the team accepted as consistent with the plugin's other unsupported inputs.
+
+Verified by building the same project on both predicates. With an MCP service export carrying the id of
+a real integration service in the tree:
+
+| Predicate | Result |
+| --- | --- |
+| Before | `Duplicate integration service with id 1acc68e3-...`, nothing written |
+| After | build succeeds |
+
+Also added the tests both file-name predicates were missing, `ServiceFileUtilTest` and
+`ChainFileUtilTest`, 28 cases over the prefix and infix forms, the extension gate including the
+`.yaml.bak` case `endsWith` alone lets through, and each predicate rejecting what the other accepts.
+Mutation-checked: restoring the MCP branches breaks two, dropping the extension gate from
+`ChainFileUtil` breaks three.
 
 ## Deferred
 
