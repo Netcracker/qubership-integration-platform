@@ -229,6 +229,19 @@ public class DeterministicElementSchemaService {
     return schemaResourceLoader.existsElementSchema(elementType.trim());
   }
 
+  /** Merged catalog properties schema model for the element type. */
+  public ElementPropertiesSchemaModel elementPropertiesSchemaModel(String elementType) {
+    if (elementType == null || elementType.isBlank()) {
+      return ElementPropertiesSchemaModel.empty("", "", ERROR_ELEMENT_TYPE_REQUIRED);
+    }
+    String trimmed = elementType.trim();
+    if (!schemaResourceLoader.existsElementSchema(trimmed)) {
+      return ElementPropertiesSchemaModel.empty(
+          trimmed, "", ERROR_SCHEMA_NOT_FOUND_PREFIX + trimmed);
+    }
+    return ElementPropertiesSchemaModelBuilder.build(trimmed, schemaRefResolver);
+  }
+
   /**
    * Copies {@code properties} and appends schema defaults for missing unconditionally required
    * keys. Use this when adding a node to the graph; later identity overlays keep this list and add

@@ -22,6 +22,8 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.schema.ChainElementCatalog;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
+import org.qubership.integration.platform.ai.schema.ElementPropertiesSchemaModel;
+import org.qubership.integration.platform.ai.schema.SchemaIfThenBranch;
 
 /** Builds support evidence from the schema, runtime catalog, compiler contract, and ownership. */
 public final class ElementSupportMatrixBuilder {
@@ -127,8 +129,12 @@ public final class ElementSupportMatrixBuilder {
 
     Set<String> unownedRequired = new TreeSet<>();
     if (schemaPresent) {
-      unownedRequired.addAll(schemaService.requiredPatchPropertyKeys(elementType));
-      unownedRequired.removeAll(defaultedPropertyKeys(schemaService, elementType));
+      ElementPropertiesSchemaModel model = schemaService.elementPropertiesSchemaModel(elementType);
+      unownedRequired.addAll(model.unconditionalRequired());
+      addAllBranchRequiredKeys(unownedRequired, model.conditionalBranches());
+      Set<String> unconditionalDefaults = defaultedPropertyKeys(schemaService, elementType);
+      unconditionalDefaults.removeAll(discriminatorKeys(model.conditionalBranches()));
+      unownedRequired.removeAll(unconditionalDefaults);
       unownedRequired.removeAll(ownedProperties);
     }
 
@@ -205,6 +211,26 @@ public final class ElementSupportMatrixBuilder {
       if (property != null && property.key() != null) {
         keys.add(property.key());
       }
+    }
+    return keys;
+  }
+
+  private static void addAllBranchRequiredKeys(
+      Set<String> keys, List<SchemaIfThenBranch> branches) {
+    for (SchemaIfThenBranch branch : branches) {
+      keys.addAll(branch.thenRequired());
+      keys.addAll(branch.elseRequired());
+      branch.nestedThen().forEach(nested -> addAllBranchRequiredKeys(keys, List.of(nested)));
+      branch.nestedElse().forEach(nested -> addAllBranchRequiredKeys(keys, List.of(nested)));
+    }
+  }
+
+  private static Set<String> discriminatorKeys(List<SchemaIfThenBranch> branches) {
+    Set<String> keys = new LinkedHashSet<>();
+    for (SchemaIfThenBranch branch : branches) {
+      keys.add(branch.discriminatorKey());
+      branch.nestedThen().forEach(nested -> keys.addAll(discriminatorKeys(List.of(nested))));
+      branch.nestedElse().forEach(nested -> keys.addAll(discriminatorKeys(List.of(nested))));
     }
     return keys;
   }
