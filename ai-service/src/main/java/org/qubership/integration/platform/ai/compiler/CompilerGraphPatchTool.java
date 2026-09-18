@@ -447,10 +447,7 @@ public class CompilerGraphPatchTool {
   private String completenessSummary(List<String> unmet, ChainPlanGraph graph) {
     List<String> modelRepairSignals =
         unmet.stream()
-            .filter(
-                signal ->
-                    !"incomplete_service_call_bindings".equals(signal)
-                        && !"incomplete_kafka_sender_configuration".equals(signal))
+            .filter(signal -> !"incomplete_service_call_bindings".equals(signal))
             .toList();
     StringBuilder summary =
         new StringBuilder(repairMessageBuilder.completenessSummary(modelRepairSignals));
@@ -482,17 +479,6 @@ public class CompilerGraphPatchTool {
             .append(" Service-call errorThrowing is missing on node ids: ")
             .append(String.join(", ", missing))
             .append(". Patch errorThrowing; do not capture an empty patch.");
-      }
-    }
-    if (unmet.contains("incomplete_kafka_sender_configuration")) {
-      List<String> missing = readinessEvaluator.kafkaSenderNodesMissingConfiguration(graph);
-      if (!missing.isEmpty()) {
-        summary
-            .append(" Kafka sender configuration is incomplete on node ids: ")
-            .append(String.join(", ", missing))
-            .append(". Set connectionSourceType and the required branch properties in one patch:")
-            .append(" maas requires topicsClassifierName; manual requires brokers,")
-            .append(" securityProtocol, saslMechanism, and topics.");
       }
     }
     return summary.toString();

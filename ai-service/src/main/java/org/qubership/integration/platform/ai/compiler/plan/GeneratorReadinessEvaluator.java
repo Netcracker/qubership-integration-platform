@@ -81,12 +81,7 @@ public final class GeneratorReadinessEvaluator {
           "incomplete_routing_nodes",
           "rbac_roles_missing",
           "incomplete_service_call_bindings",
-          "incomplete_service_call_error_throwing",
-          "incomplete_kafka_sender_configuration",
-          "incomplete_kafka_trigger_configuration",
-          "incomplete_rabbitmq_messaging_configuration",
-          "incomplete_scs_sender_configuration",
-          "incomplete_sds_trigger_configuration");
+          "incomplete_service_call_error_throwing");
 
   public GeneratorReadinessEvaluator() {
     this(null, new ObjectMapper());
@@ -174,7 +169,8 @@ public final class GeneratorReadinessEvaluator {
               && !intents.contains("chain_failure_handler");
       case "try_catch_nodes", "incomplete_try_catch_nodes" -> hasIncompleteTryCatch(graph);
       case "service_call_nodes" ->
-          hasNodeType(graph, Set.of("service-call", "kafka-sender-2"));
+          hasNodeType(graph, ChainElementFamilies.SENDERS)
+              || hasNodeType(graph, Set.of("service-call"));
       case "backend_integration_intent" -> intents.contains("backend_integration");
       case "routing_nodes" -> hasNodeType(graph, ChainElementFamilies.ROUTING);
       case "branching_intent" -> intents.contains("branching");
@@ -203,14 +199,6 @@ public final class GeneratorReadinessEvaluator {
       case "incomplete_http_trigger_endpoint" -> hasIncompleteHttpTriggerEndpoint(graph);
       case "incomplete_service_call_bindings" -> hasIncompleteServiceCallBindings(graph);
       case "incomplete_service_call_error_throwing" -> hasIncompleteServiceCallErrorThrowing(graph);
-      case "incomplete_kafka_sender_configuration" ->
-          !kafkaSenderNodesMissingConfiguration(graph).isEmpty();
-      case "incomplete_kafka_trigger_configuration" ->
-          !kafkaTriggerNodesMissingConfiguration(graph).isEmpty();
-      case "incomplete_rabbitmq_messaging_configuration" ->
-          hasIncompleteRabbitmqMessagingConfiguration(graph);
-      case "incomplete_scs_sender_configuration" -> hasIncompleteScsSenderConfiguration(graph);
-      case "incomplete_sds_trigger_configuration" -> hasIncompleteSdsTriggerConfiguration(graph);
       case "file_operations_intent" -> intents.contains("file_operations");
       case "file_operations_nodes" ->
           hasNodeType(graph, Set.of("file-read", "file-write", "sftp-download", "sftp-upload"));
@@ -222,7 +210,15 @@ public final class GeneratorReadinessEvaluator {
       case "context_storage_nodes" -> hasNodeType(graph, Set.of("context-storage"));
       case "messaging_intent" -> intents.contains("messaging");
       case "messaging_nodes" ->
-          hasNodeType(graph, Set.of("jms-trigger", "jms-sender", "pubsub-trigger", "pubsub-sender"));
+          hasNodeType(
+              graph,
+              Set.of(
+                  "jms-trigger",
+                  "jms-sender",
+                  "pubsub-trigger",
+                  "pubsub-sender",
+                  "kafka-trigger-2",
+                  "rabbitmq-trigger-2"));
       case "xslt_intent" -> intents.contains("xslt");
       case "xslt_nodes" -> hasNodeType(graph, Set.of("xslt"));
       case "script_nodes_missing_body" -> hasScriptNodesMissingBody(graph);
@@ -334,68 +330,6 @@ public final class GeneratorReadinessEvaluator {
         .filter(nodeId -> nodeId != null && !nodeId.isBlank())
         .limit(MAX_TARGET_NODE_IDS)
         .toList();
-  }
-
-  public List<String> kafkaSenderNodesMissingConfiguration(ChainPlanGraph graph) {
-    if (graph == null || graph.nodes() == null) {
-      return List.of();
-    }
-    return graph.nodes().stream()
-        .filter(this::kafkaSenderMissingConfiguration)
-        .map(ChainPlanNode::nodeId)
-        .filter(nodeId -> nodeId != null && !nodeId.isBlank())
-        .limit(MAX_TARGET_NODE_IDS)
-        .toList();
-  }
-
-  public List<String> kafkaTriggerNodesMissingConfiguration(ChainPlanGraph graph) {
-    if (graph == null || graph.nodes() == null) {
-      return List.of();
-    }
-    return graph.nodes().stream()
-        .filter(this::kafkaTriggerMissingConfiguration)
-        .map(ChainPlanNode::nodeId)
-        .filter(nodeId -> nodeId != null && !nodeId.isBlank())
-        .limit(MAX_TARGET_NODE_IDS)
-        .toList();
-  }
-
-  private boolean kafkaSenderMissingConfiguration(ChainPlanNode node) {
-    if (node == null || !"kafka-sender-2".equals(node.type())) {
-      return false;
-    }
-    return kafkaConnectionMissingConfiguration(node, true);
-  }
-
-  private boolean kafkaTriggerMissingConfiguration(ChainPlanNode node) {
-    if (node == null || !"kafka-trigger-2".equals(node.type())) {
-      return false;
-    }
-    if (!hasNonBlankProperty(node, "groupId")) {
-      return true;
-    }
-    return kafkaConnectionMissingConfiguration(node, false);
-  }
-
-  private static boolean kafkaConnectionMissingConfiguration(
-      ChainPlanNode node, boolean requireTopics) {
-    String connectionSourceType = propertyValue(node, "connectionSourceType");
-    if ("maas".equals(connectionSourceType)) {
-      if (!hasNonBlankProperty(node, "topicsClassifierName")) {
-        return true;
-      }
-      return "true".equalsIgnoreCase(propertyValue(node, "maasClassifierTenantEnabled"))
-          && !hasNonBlankProperty(node, "maasClassifierTenantId");
-    }
-    if (!"manual".equals(connectionSourceType)) {
-      return true;
-    }
-    if (!hasNonBlankProperty(node, "brokers")
-        || !hasNonBlankProperty(node, "securityProtocol")
-        || !hasNonBlankProperty(node, "saslMechanism")) {
-      return true;
-    }
-    return requireTopics && !hasNonBlankProperty(node, "topics");
   }
 
   /**
@@ -543,66 +477,6 @@ public final class GeneratorReadinessEvaluator {
               && hasNonBlankProperty(node, "integrationOperationPath")
               && hasNonBlankProperty(node, "httpMethodRestrict");
       if (!custom && !implemented) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean hasIncompleteRabbitmqMessagingConfiguration(ChainPlanGraph graph) {
-    if (graph == null || graph.nodes() == null) {
-      return false;
-    }
-    for (ChainPlanNode node : graph.nodes()) {
-      if (rabbitmqMessagingMissingConfiguration(node)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean rabbitmqMessagingMissingConfiguration(ChainPlanNode node) {
-    if (node == null
-        || (!"rabbitmq-trigger-2".equals(node.type())
-            && !"rabbitmq-sender-2".equals(node.type()))) {
-      return false;
-    }
-    String connectionSourceType = propertyValue(node, "connectionSourceType");
-    if ("maas".equals(connectionSourceType)) {
-      return !hasNonBlankProperty(node, "vhostClassifierName");
-    }
-    if ("manual".equals(connectionSourceType)) {
-      return !hasNonBlankProperty(node, "addresses");
-    }
-    return true;
-  }
-
-  private static boolean hasIncompleteScsSenderConfiguration(ChainPlanGraph graph) {
-    if (graph == null || graph.nodes() == null) {
-      return false;
-    }
-    for (ChainPlanNode node : graph.nodes()) {
-      if (!"scs-sender".equals(node.type())) {
-        continue;
-      }
-      if (!hasNonBlankProperty(node, "operation")
-          || !hasNonBlankProperty(node, "useCorrelationId")) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean hasIncompleteSdsTriggerConfiguration(ChainPlanGraph graph) {
-    if (graph == null || graph.nodes() == null) {
-      return false;
-    }
-    for (ChainPlanNode node : graph.nodes()) {
-      if (!"sds-trigger".equals(node.type())) {
-        continue;
-      }
-      if ("true".equalsIgnoreCase(propertyValue(node, "prohibitParallelRun"))
-          && !hasNonBlankProperty(node, "parallelRunTimeout")) {
         return true;
       }
     }
