@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -20,7 +21,7 @@ public class IntegrationServiceCatalogImpl implements IntegrationServiceCatalog 
 
     @Override
     public Collection<IntegrationService> findAllByIds(Collection<String> ids) {
-        return ids.stream().map(integrationServiceMap::get).toList();
+        return ids.stream().map(integrationServiceMap::get).filter(Objects::nonNull).toList();
     }
 
     public void addService(IntegrationService integrationService) {
