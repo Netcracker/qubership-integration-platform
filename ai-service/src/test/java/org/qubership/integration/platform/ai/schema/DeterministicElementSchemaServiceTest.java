@@ -301,6 +301,14 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void requiredPatchPropertyKeysHonorsRabbitMaasBranch() {
+    Set<String> keys =
+        service.requiredPatchPropertyKeys(
+            "rabbitmq-sender-2", Map.of("connectionSourceType", "maas"));
+    assertTrue(keys.contains("vhostClassifierName"));
+  }
+
+  @Test
   void withUnconditionalSchemaDefaultsKeepsExistingRetryCount() {
     List<PlanProperty> merged =
         service.withUnconditionalSchemaDefaults(
