@@ -284,7 +284,11 @@ public class CompilerGraphPatchTool {
                 .orElse(GraphPatchOwnershipPolicy.denyAll());
         List<OwnedSchemaRequiredPropertyGate.Gap> gaps =
             OwnedSchemaRequiredPropertyGate.findGaps(
-                graphForGate, ownership, schemaService::requiredPatchPropertyKeys);
+                graphForGate,
+                ownership,
+                (ChainPlanNode node) ->
+                    schemaService.requiredPatchPropertyKeys(
+                        node.type(), OwnedSchemaRequiredPropertyGate.propertyMap(node)));
         if (!gaps.isEmpty()) {
           String message =
               OwnedSchemaRequiredPropertyGate.formatCorrectableMessage(capabilityId, gaps);
