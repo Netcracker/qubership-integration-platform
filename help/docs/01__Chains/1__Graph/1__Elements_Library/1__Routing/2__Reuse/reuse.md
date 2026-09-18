@@ -10,7 +10,7 @@
 ---
 ### "Parameters" Tab
 | Parameter   | Mandatory | Data Type | Description                              | Sample                     |
-| ----------- | :-------- | :-------- | ---------------------------------------- | -------------------------- |
+|-------------|:----------|:----------|------------------------------------------|----------------------------|
 | Name        | M         | String    | Name of the element.                     | Reuse                      |
 | Description | O         | String    | Free text field for element description. | Error Handling logic reuse |
 

@@ -2,11 +2,17 @@
 ## Description
 
 ---
-In order to determine failed elements in the chains and be able to utilize them within handling logic (via Scripting, Mapping, etc.) Qubership Integration Platform has introduced two additional properties:
+In order to determine failed elements in the chains and be able to utilize them within handling logic (via Scripting, Mapping, etc.) Cloud Integration Platform has introduced two additional properties:
 - failed-element-name
 - failed-element-id
 
 These properties are available in the sessions, when viewing **"Exchange properties"** tab for failed elements (both for [Graph](../../01__Chains/1__Graph/graph.md) and [Admin Tools](../../03__Admin_Tools/admin_tools.md) windows, under respective tab/section "Sessions"). This is only applicable for cases, when a chain is deployed with an option to produce logs, otherwise sessions won't be visible at all.
+
+## Process Initialization
+
+---
+
+System will automatically create **failed-element-name** and **failed-element-id** properties, as well as fill them with required values when error happens.
 
 ## User Interface
 
@@ -24,3 +30,16 @@ Another example, mentioned below, returns a custom error (that could be configur
 ```groovy
 exchange.getMessage().setBody("Element with id " + exchange.getProperty("failed-element-id") + " failed")
 ```
+
+## Data Storage
+
+---
+
+Values for **failed-element-name** and **failed-element-id** properties are stored in Camel context.
+
+## Configuration
+
+---
+
+No specific configuration required to populate value for **failed-element-name** and **failed-element-id,** but to operate with such values, user would require building a specific logic within a chain with help of chain elements.
+

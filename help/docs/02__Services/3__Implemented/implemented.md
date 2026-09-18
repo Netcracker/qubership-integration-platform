@@ -9,6 +9,13 @@ There are 2 options to configure the Implemented Service:
 
 - Create an API Specification from previously implemented chain(s) with HTTP Trigger element configured. In this case, validation scheme must be defined **manually**.
 
+## Process Initialization
+
+---
+
+- In CIP UI: to reach the Implemented Services management window, please click "**Services**" on the top of the Cloud Integration Platform screen and then go to **"Implemented"** tab.
+- In CIP VSCode Extension: to create and configure a service instance, navigate to **"Services"** subsection under the **"CIP"** section.
+
 ## User Interface
 
 ---
@@ -53,7 +60,7 @@ At the top of the table the following options are available:
 
 <ins>VS Code Extension</ins>
 
-Any implemented service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+Any implemented service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "CIP" folder in the left bottom.
 
 ### View Parameters
 Parameters tab contains the following information:
@@ -61,7 +68,7 @@ Parameters tab contains the following information:
 - **Description** - description of service.
 - **Protocol** - service's integration protocol.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
-  It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
+  It might contain **custom** labels, entered by user via Cloud Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
 
@@ -104,7 +111,6 @@ Column visibility and order can be adjusted using the ![setting](img/setting.svg
 
 At the right top the next operation is available only for <ins>Web UI</ins>:
 - ![cloud-download](img/cloud-download.svg) - Export service.
-
 
 ### View Specifications
 When particular specification group name is clicked, the system opens new page with the table of available specifications for clicked group. Next columns and elements are available for the table:
@@ -187,8 +193,8 @@ Specify the required fields and click **"Save"**. Notification about successful 
 To create any service using VS Code Extension, follow the steps outlined below:
 
 1. Open "VS Code Extension" in Visual Studio Code.
-2. In the left bottom find QIP section and expand it.
-3. Near the "Services" folder click on appearing button "QIP Create service".
+2. In the left bottom find CIP section and expand it.
+3. Near the "Services" folder click on appearing button "CIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
 
 ### Add Specification Group
@@ -308,10 +314,16 @@ When import is completed, system displays import result table with the following
 
 System allows to export service with all its API specifications, environments and sources. From **"Implemented Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
 
-### Constraints
+## Data Storage
 
 ---
 
-Please consider next constraints:
-- When implemented service is being created from HTTP Trigger element, it (trigger) **must** have a **single HTTP method** configured in the settings. Otherwise, creation will fail with error.
-- **Technical** labels cannot be imported via UI or exported.
+- In CIP UI: for any Implemented services, the service parameters and configuration is stored in CIP Catalog database. Please refer to [CIP Architecture](../../05__Architecture/cip_architecture.md) for common data storage overview.
+- In CIP VSCode Extension: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
+
+## Configuration
+
+---
+
+Environment configuration steps are fully covered by Installation Notes.
+

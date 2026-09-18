@@ -9,6 +9,13 @@ Services, located outside of environment are called **External Services**. To in
 
 > ℹ️ **Note:** External services might have **multiple environments** in the system, so it is possible to quickly switch between them according to the needs. To properly apply the changes after switching the environment, it is **required to redeploy all affected chains**, making new address registered in Egress Gateway.
 
+## Process Initialization
+
+---
+
+- In CIP UI: to reach the External Services management window, please click "**Services**" on the top of the Cloud Integration Platform screen and then go to **"External"** tab.
+- In CIP VSCode Extension: to create and configure a service instance, navigate to **"Services"** subsection under the **"CIP"** section.
+
 ## User Interface
 
 ---
@@ -53,7 +60,7 @@ At the top of the table the following options are available:
 
 <ins>VS Code Extension</ins>
 
-Any external service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+Any external service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "CIP" folder in the left bottom.
 
 ### View Parameters
 Parameters tab contains the following information:
@@ -61,7 +68,7 @@ Parameters tab contains the following information:
 - **Description** - description of service.
 - **Protocol** - service's integration protocol.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
-  It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
+  It might contain **custom** labels, entered by user via Cloud Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
 
@@ -149,7 +156,7 @@ In general at the right top the following operations are available:
 ### View Operations
 When specification is clicked, the system opens new page with the table of available operations for clicked specifications. Next columns and elements are available for the table:
 
-- **Name** - Clickable short operation name. If the name has not been found in the initial specification, QIP generates its own name by concatenating **method** with the first found **entity**,
+- **Name** - Clickable short operation name. If the name has not been found in the initial specification, CIP generates its own name by concatenating **method** with the first found **entity**,
 identified in the **path** (parameters, mentioned in the **{ }** are ignored). Resulted name will be put in square brackets (e.g. for method **GET** and path **/api/v1/test/config**, the name will be [getConfig]). When clicked, the system shows **"Operation info"** window with available details for specification and request/response schemes.
 - **Method** - method of the operation, mentioned in the specification (GET, POST, etc.)
 - **URL** - operation path. Applicable for services using **HTTP** and **gRPC** protocols.
@@ -185,8 +192,8 @@ Specify the required fields and click **"Save"**. Notification about successful 
 To create any service using VS Code Extension, follow the steps outlined below:
 
 1. Open "VS Code Extension" in Visual Studio Code.
-2. In the left bottom find QIP section and expand it.
-3. Near the "Services" folder click on appearing button "QIP Create service".
+2. In the left bottom find CIP section and expand it.
+3. Near the "Services" folder click on appearing button "CIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
 
 ### Add Specification Group
@@ -242,7 +249,7 @@ When environment is saved, it will be available under the environment tab. The e
 The environment could be easily modified by clicking the name of the environment, updating the parameters and confirming (saving) the changes via **"Save"** button.
 Default properties are unique for different protocols and described below:
 
-#### http
+### http
 
 | Parameter                | Data Type | Description                                                                                                                                                                            | Sample |
 | ------------------------ | :-------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
@@ -336,9 +343,16 @@ When import is completed, system displays import result table with the following
 
 System allows to export service with all its API specifications, environments and sources. From **"External Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) **Export**. Or simply click this button to export all services at once after confirmation.
 
-### Constraints
+## Data Storage
 
 ---
-Please consider next constraints:
-- When entering environment's **address** or **properties** on respective window, _avoid using runtime variables_, as they won't work due to technical limitations. Instead, use design time variables if it suits the requirements.
-- **Technical** labels cannot be imported via UI or exported.
+
+- In CIP UI: for any External Services created, the service parameters and configuration is stored in CIP Catalog database. Please refer to [CIP Architecture](../../05__Architecture/cip_architecture.md) for common data storage overview.
+- In CIP VSCode Extension: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
+
+## Configuration
+
+---
+
+Environment configuration steps are fully covered by Installation Notes.
+
