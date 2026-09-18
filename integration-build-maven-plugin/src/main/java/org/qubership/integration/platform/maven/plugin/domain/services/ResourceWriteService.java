@@ -87,7 +87,7 @@ public class ResourceWriteService {
     }
 
     private ResourceNameAndKind getResourceNameAndKind(String content) throws JsonProcessingException, ResourceWriteException {
-        JsonNode node = yamlMapper.readTree(content);
+        JsonNode node = yamlMapper.readTree(removeHelmTemplateExpressions(content));
         String kind = node.path("kind").asText();
         if (kind.isEmpty()) {
             throw new ResourceWriteException("Failed to get resource kind");
@@ -97,5 +97,9 @@ public class ResourceWriteService {
             throw new ResourceWriteException("Failed to get resource name");
         }
         return new ResourceNameAndKind(name, kind);
+    }
+
+    private String removeHelmTemplateExpressions(String content) {
+        return content.replaceAll("\\{\\{(:?(?!}}|[\\r\\n]).)*}}", "");
     }
 }
