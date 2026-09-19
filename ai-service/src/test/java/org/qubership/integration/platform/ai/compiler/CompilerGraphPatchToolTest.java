@@ -657,6 +657,267 @@ class CompilerGraphPatchToolTest {
   }
 
   @Test
+  void arrayValueCapturesHeaderModificationRemoveListWhenValueIsObjectPlaceholder() {
+    bindHeaderModificationContext();
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "header-mod",
+            TRANSFORMATION_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToAdd",
+                    objectMapper.valueToTree(
+                        Map.of(
+                            "test-adding",
+                            "initial-test-value-of-header",
+                            "test-keeping",
+                            "",
+                            "test-keeping-modification",
+                            "new-test-value"))),
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToRemove",
+                    objectMapper.createObjectNode(),
+                    null,
+                    List.of("test-removing"))),
+            List.of(),
+            List.of(),
+            "Header add map plus remove list");
+
+    CaptureValidationException terminal =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(terminal.getMessage().contains("Graph patch captured"));
+    GraphPatch stored =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    assertEquals(2, stored.propertyPatches().size());
+    assertTrue(
+        stored.propertyPatches().get(0).property().value().contains("test-adding"),
+        stored.propertyPatches().get(0).property().value());
+    assertEquals(
+        "[\"test-removing\"]", stored.propertyPatches().get(1).property().value());
+  }
+
+  @Test
+  void mapValueCapturesHeaderAddWhenValueIsObjectPlaceholder() {
+    bindHeaderModificationContext();
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "header-mod-map",
+            TRANSFORMATION_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToAdd",
+                    objectMapper.createObjectNode(),
+                    null,
+                    null,
+                    Map.of(
+                        "test-adding",
+                        "initial-test-value-of-header",
+                        "test-keeping",
+                        "",
+                        "test-keeping-modification",
+                        "new-test-value")),
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToRemove",
+                    objectMapper.createObjectNode(),
+                    null,
+                    List.of("test-removing"))),
+            List.of(),
+            List.of(),
+            "Header add map via mapValue plus remove list");
+
+    CaptureValidationException terminal =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(terminal.getMessage().contains("Graph patch captured"));
+    GraphPatch stored =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    String addJson = stored.propertyPatches().get(0).property().value();
+    assertTrue(addJson.contains("test-adding"), addJson);
+    assertTrue(addJson.contains("initial-test-value-of-header"), addJson);
+    assertTrue(addJson.contains("test-keeping-modification"), addJson);
+    assertEquals("[\"test-removing\"]", stored.propertyPatches().get(1).property().value());
+  }
+
+  @Test
+  void mapEntriesCapturesHeaderAddWhenValueIsObjectPlaceholder() {
+    bindHeaderModificationContext();
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "header-mod-entries",
+            TRANSFORMATION_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToAdd",
+                    objectMapper.createObjectNode(),
+                    null,
+                    null,
+                    List.of(
+                        "test-adding=initial-test-value-of-header",
+                        "test-keeping=",
+                        "test-keeping-modification=new-test-value"),
+                    null),
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToRemove",
+                    objectMapper.createObjectNode(),
+                    null,
+                    List.of("test-removing"))),
+            List.of(),
+            List.of(),
+            "Header add map via mapEntries plus remove list");
+
+    CaptureValidationException terminal =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(terminal.getMessage().contains("Graph patch captured"));
+    GraphPatch stored =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    String addJson = stored.propertyPatches().get(0).property().value();
+    assertTrue(addJson.contains("test-adding"), addJson);
+    assertTrue(addJson.contains("initial-test-value-of-header"), addJson);
+    assertTrue(addJson.contains("\"test-keeping\":\"\""), addJson);
+    assertEquals("[\"test-removing\"]", stored.propertyPatches().get(1).property().value());
+  }
+
+  @Test
+  void objectKeysBecomeHeaderModificationRemoveList() {
+    bindHeaderModificationContext();
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "header-mod-keys",
+            TRANSFORMATION_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToRemove",
+                    objectMapper.valueToTree(Map.of("test-removing", "")))),
+            List.of(),
+            List.of(),
+            "Remove list sent as an object map");
+
+    CaptureValidationException terminal =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(terminal.getMessage().contains("Graph patch captured"));
+    GraphPatch stored =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    assertEquals("[\"test-removing\"]", stored.propertyPatches().get(0).property().value());
+  }
+
+  @Test
+  void emptyObjectHeaderModificationRemoveAsksForArrayValue() {
+    bindHeaderModificationContext();
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "header-mod-empty-remove",
+            TRANSFORMATION_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToRemove",
+                    objectMapper.createObjectNode())),
+            List.of(),
+            List.of(),
+            "Empty object placeholder for a list property");
+
+    String result = tool.captureGraphPatch(patch);
+
+    assertTrue(result.contains("Invalid property value"), result);
+    assertTrue(result.contains("arrayValue"), result);
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
+  void emptyHeaderAddMapIsRejectedEvenWhenRemoveListIsPresent() {
+    bindHeaderModificationContext();
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "header-mod-empty-add",
+            TRANSFORMATION_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToAdd",
+                    objectMapper.createObjectNode()),
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD,
+                    "op-header-modification",
+                    "headerModificationToRemove",
+                    objectMapper.createObjectNode(),
+                    null,
+                    List.of("test-removing"))),
+            List.of(),
+            List.of(),
+            "Empty add map placeholder plus a remove list");
+
+    String result = tool.captureGraphPatch(patch);
+
+    assertTrue(result.contains("Invalid property value"), result);
+    assertTrue(result.contains("headerModificationToAdd"), result);
+    assertTrue(result.contains("Do not send {}"), result);
+    assertTrue(
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
+                GraphPatch.class)
+            .isEmpty());
+  }
+
+  @Test
   void repeatedConversionFailureTerminatesStream() {
     planStore.put(
         CONVERSATION_ID,
@@ -2069,6 +2330,44 @@ class CompilerGraphPatchToolTest {
                     CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
                 GraphPatch.class)
             .isEmpty());
+  }
+
+  private void bindHeaderModificationContext() {
+    MDC.put(CompilerSkillMdc.CAPABILITY_ID, TRANSFORMATION_CAPABILITY_ID);
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("header-mod", "Header modification"),
+            List.of(
+                new ChainPlanNode(
+                    "op-header-modification",
+                    "header-modification",
+                    "Header Modification",
+                    null,
+                    null,
+                    List.of())),
+            List.of());
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(
+        new GraphPatchExecutionContext(
+            "run-1",
+            TRANSFORMATION_CAPABILITY_ID,
+            "req-1",
+            null,
+            "compiler-1",
+            "2026.1",
+            new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary"),
+            List.of(),
+            graph,
+            new GraphPatchOwnershipPolicy(
+                false,
+                false,
+                Set.of("header-modification"),
+                Set.of(),
+                Map.of(
+                    "header-modification",
+                    Set.of("headerModificationToAdd", "headerModificationToRemove"))),
+            ""));
   }
 
   private void bindMappingCapture(

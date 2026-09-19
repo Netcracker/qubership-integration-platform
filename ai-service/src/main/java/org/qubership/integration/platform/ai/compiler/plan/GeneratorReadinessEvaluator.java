@@ -81,7 +81,8 @@ public final class GeneratorReadinessEvaluator {
           "incomplete_routing_nodes",
           "rbac_roles_missing",
           "incomplete_service_call_bindings",
-          "incomplete_service_call_error_throwing");
+          "incomplete_service_call_error_throwing",
+          "incomplete_header_modification");
 
   public GeneratorReadinessEvaluator() {
     this(null, new ObjectMapper());
@@ -221,6 +222,7 @@ public final class GeneratorReadinessEvaluator {
                   "rabbitmq-trigger-2"));
       case "xslt_intent" -> intents.contains("xslt");
       case "xslt_nodes" -> hasNodeType(graph, Set.of("xslt"));
+      case "incomplete_header_modification" -> hasIncompleteHeaderModification(graph);
       case "script_nodes_missing_body" -> hasScriptNodesMissingBody(graph);
       case "rbac_roles_missing" -> hasRbacRolesMissing(graph);
       default -> false;
@@ -554,6 +556,34 @@ public final class GeneratorReadinessEvaluator {
       }
     }
     return null;
+  }
+
+  private static boolean hasIncompleteHeaderModification(ChainPlanGraph graph) {
+    if (graph == null || graph.nodes() == null) {
+      return false;
+    }
+    for (ChainPlanNode node : graph.nodes()) {
+      if (!"header-modification".equals(node.type())) {
+        continue;
+      }
+      if (!hasNonEmptyObjectProperty(node, "headerModificationToAdd")
+          && !hasNonEmptyListProperty(node, "headerModificationToRemove")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean hasNonEmptyObjectProperty(ChainPlanNode node, String key) {
+    String value = propertyValue(node, key);
+    if (value == null || value.isBlank()) {
+      return false;
+    }
+    String trimmed = value.trim();
+    if (!trimmed.startsWith("{")) {
+      return true;
+    }
+    return !trimmed.equals("{}");
   }
 
   private static boolean hasNonEmptyListProperty(ChainPlanNode node, String key) {

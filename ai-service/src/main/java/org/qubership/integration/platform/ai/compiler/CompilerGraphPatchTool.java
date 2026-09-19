@@ -3,6 +3,9 @@ package org.qubership.integration.platform.ai.compiler;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -10,6 +13,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import org.jboss.logging.Logger;
@@ -151,8 +155,11 @@ public class CompilerGraphPatchTool {
         "propertyPatches": [
           {"operation": "ADD", "targetNodeId": "http-trigger-1", "key": "accessControlType",
            "scalarValue": "RBAC", "value": {}},
-          {"operation": "ADD", "targetNodeId": "http-trigger-1", "key": "roles",
-           "value": ["qip-viewer"]}
+          {"operation": "ADD", "targetNodeId": "op-header-modification",
+           "key": "headerModificationToAdd",
+           "mapEntries": ["X-Trace=1", "X-Keep="], "value": {}},
+          {"operation": "ADD", "targetNodeId": "op-header-modification",
+           "key": "headerModificationToRemove", "arrayValue": ["X-Internal-Debug"], "value": {}}
         ],
         "chainPatches": [],
         "usedKnowledgeRefs": ["exact-refId-from-runtime-context"],
@@ -162,9 +169,11 @@ public class CompilerGraphPatchTool {
       node.properties must be an array of {key,value} objects. Prefer properties:[] when only changing labels.
       Never send a bare Groovy string or string array as properties.
       Only cip-script-generator may set property key "script" (bodies). Other skills must omit it.
-      Property patches use scalarValue for strings, numbers, and booleans. Use value only for arrays
-      and objects. When the tool schema requires value beside scalarValue, send value={} and the server
-      will use scalarValue. Chain patches use key plus structured value.
+      Property patches use scalarValue for strings, numbers, and booleans. Use mapEntries for
+      add/keep header pairs as name=value strings. Use arrayValue for string lists such as
+      headerModificationToRemove. When the tool schema requires value beside those fields, send
+      value={} and the server uses scalarValue, mapEntries, or arrayValue. Chain patches use key
+      plus structured value.
       Do not put JSON arrays or objects inside string values.""")
   public String captureGraphPatch(GraphPatchCapture patch) {
 
@@ -512,6 +521,15 @@ public class CompilerGraphPatchTool {
       String conversationId, GraphPatchCapture patch, PropertyPatchCapture propertyPatch) {
     String elementType = resolveTargetNodeType(conversationId, patch, propertyPatch.targetNodeId());
     JsonNode capturedValue = capturedPropertyValue(elementType, propertyPatch);
+    if (isEmptyHeaderAddMap(propertyPatch.key(), capturedValue)) {
+      throw new IllegalArgumentException(
+          "node '"
+              + propertyPatch.targetNodeId()
+              + "' ("
+              + elementType
+              + ") property 'headerModificationToAdd' is {}. Put add/keep pairs in mapEntries as"
+              + " name=value strings, for example [\"X-Trace=1\", \"X-Keep=\"]. Do not send {}.");
+    }
     if (elementType != null) {
       Optional<String> validationError = schemaService.validateCapturePropertyValue(
           elementType, propertyPatch.key(), capturedValue);
@@ -526,7 +544,8 @@ public class CompilerGraphPatchTool {
                 + "': "
                 + validationError.get()
                 + "; received value: "
-                + capturedValue);
+                + capturedValue
+                + arrayCaptureHint(elementType, propertyPatch.key(), capturedValue));
       }
     }
     try {
@@ -554,13 +573,108 @@ public class CompilerGraphPatchTool {
 
   private JsonNode capturedPropertyValue(
       String elementType, PropertyPatchCapture propertyPatch) {
+    JsonNode fromMapEntries = mapEntriesAsNode(propertyPatch);
+    if (fromMapEntries != null) {
+      return fromMapEntries;
+    }
+    JsonNode fromMapValue = mapValueAsNode(propertyPatch);
+    if (fromMapValue != null) {
+      return fromMapValue;
+    }
+    JsonNode fromArrayValue = arrayValueAsNode(propertyPatch);
+    if (fromArrayValue != null) {
+      return fromArrayValue;
+    }
     if (propertyPatch.scalarValue() != null && !propertyPatch.scalarValue().isBlank()) {
       Object coerced =
           schemaService.coercePatchPropertyValue(
               elementType, propertyPatch.key(), propertyPatch.scalarValue());
       return objectMapper.valueToTree(coerced);
     }
-    return propertyPatch.value();
+    JsonNode value = propertyPatch.value();
+    if (value != null
+        && value.isObject()
+        && !value.isEmpty()
+        && schemaService.isArrayProperty(elementType, propertyPatch.key())) {
+      ArrayNode names = objectMapper.createArrayNode();
+      value.fieldNames().forEachRemaining(name -> {
+        if (name != null && !name.isBlank()) {
+          names.add(name);
+        }
+      });
+      return names;
+    }
+    return value;
+  }
+
+  private static JsonNode arrayValueAsNode(PropertyPatchCapture propertyPatch) {
+    List<String> arrayValue = propertyPatch.arrayValue();
+    if (arrayValue == null || arrayValue.isEmpty()) {
+      return null;
+    }
+    ArrayNode names = JsonNodeFactory.instance.arrayNode();
+    for (String item : arrayValue) {
+      if (item != null && !item.isBlank()) {
+        names.add(item);
+      }
+    }
+    return names.isEmpty() ? null : names;
+  }
+
+  private JsonNode mapEntriesAsNode(PropertyPatchCapture propertyPatch) {
+    List<String> entries = propertyPatch.mapEntries();
+    if (entries == null || entries.isEmpty()) {
+      return null;
+    }
+    ObjectNode object = JsonNodeFactory.instance.objectNode();
+    for (String entry : entries) {
+      if (entry == null || entry.isBlank()) {
+        continue;
+      }
+      int eq = entry.indexOf('=');
+      if (eq <= 0) {
+        continue;
+      }
+      String name = entry.substring(0, eq).trim();
+      if (name.isBlank()) {
+        continue;
+      }
+      object.put(name, entry.substring(eq + 1));
+    }
+    return object.isEmpty() ? null : object;
+  }
+
+  private JsonNode mapValueAsNode(PropertyPatchCapture propertyPatch) {
+    Map<String, String> mapValue = propertyPatch.mapValue();
+    if (mapValue == null || mapValue.isEmpty()) {
+      return null;
+    }
+    ObjectNode object = JsonNodeFactory.instance.objectNode();
+    for (Map.Entry<String, String> entry : mapValue.entrySet()) {
+      String key = entry.getKey();
+      if (key == null || key.isBlank()) {
+        continue;
+      }
+      object.put(key, entry.getValue() == null ? "" : entry.getValue());
+    }
+    return object.isEmpty() ? null : object;
+  }
+
+  private static boolean isEmptyHeaderAddMap(String key, JsonNode capturedValue) {
+    return "headerModificationToAdd".equals(key)
+        && capturedValue != null
+        && capturedValue.isObject()
+        && capturedValue.isEmpty();
+  }
+
+  private String arrayCaptureHint(String elementType, String key, JsonNode capturedValue) {
+    if (capturedValue != null
+        && capturedValue.isObject()
+        && schemaService.isArrayProperty(elementType, key)) {
+      return ". Put string names in arrayValue (for example [\"X-Internal-Debug\"]) and keep"
+          + " value={}";
+    }
+    return "";
   }
 
   private String resolveTargetNodeType(

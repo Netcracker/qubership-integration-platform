@@ -29,7 +29,7 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 class GeneratorPlanManifestBuilderTest {
 
-  private static final int GENERATOR_COUNT = 24;
+  private static final int GENERATOR_COUNT = 25;
 
   private static CompilerGeneratorPolicy policy;
   private static List<String> generationSkillIds;
