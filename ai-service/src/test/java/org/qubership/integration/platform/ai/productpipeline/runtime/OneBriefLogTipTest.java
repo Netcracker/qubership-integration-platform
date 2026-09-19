@@ -23,11 +23,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
@@ -477,7 +479,8 @@ class OneBriefLogTipTest {
         runStore,
         artifactStore,
         graphCompiler,
-        new ClasspathCompilerContractRepository());
+        new ClasspathCompilerContractRepository(),
+        new CompositionCatalogBinder(mock(CatalogRestClient.class)));
   }
 
   private static ChainPlanGraph engineGraph() {

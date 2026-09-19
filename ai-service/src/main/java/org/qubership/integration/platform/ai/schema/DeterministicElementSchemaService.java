@@ -392,6 +392,35 @@ public class DeterministicElementSchemaService {
     }
   }
 
+  /**
+   * True when the catalog schema types this property as a JSON array (for example
+   * {@code headerModificationToRemove}).
+   */
+  public boolean isArrayProperty(String elementType, String propertyKey) {
+    if (elementType == null
+        || elementType.isBlank()
+        || propertyKey == null
+        || propertyKey.isBlank()) {
+      return false;
+    }
+    try {
+      String trimmedType = elementType.trim();
+      if (!schemaResourceLoader.existsElementSchema(trimmedType)) {
+        return false;
+      }
+      ElementPropertiesSchemaModel model =
+          ElementPropertiesSchemaModelBuilder.build(trimmedType, schemaRefResolver);
+      JsonNode schema = model.propertyDefs().get(propertyKey.trim());
+      if (schema == null || schema.isMissingNode() || !schema.has("type")) {
+        return false;
+      }
+      JsonNode type = schema.get("type");
+      return type.isTextual() && "array".equals(type.asText());
+    } catch (Exception e) {
+      return false;
+    }
+  }
+
   public Object coercePatchPropertyValue(String elementType, String propertyKey, String rawValue) {
     if (elementType == null || elementType.isBlank() || propertyKey == null || propertyKey.isBlank()) {
       return rawValue;

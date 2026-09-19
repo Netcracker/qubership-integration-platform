@@ -186,6 +186,27 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  void productionCreateChainPinIncludesTransformationInClosure() {
+    CompilerRunPin pin =
+        resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
+
+    assertTrue(
+        pin.capabilityClosure().contains("cip-transformation-generator"),
+        "header-modification must be in pin closure via all-generation-skills expansion from skill-catalog");
+    assertTrue(
+        pin.resolvedDag().nodes().stream()
+            .anyMatch(node -> "cip-transformation-generator".equals(node.skillId())));
+    assertTrue(
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-chain-assembler".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .dependsOn()
+            .contains("cip-transformation-generator"),
+        "assembler dependsOn must include transformation so resolveClosure walks to it");
+  }
+
+  @Test
   void productionCreateChainPinIncludesHttpTriggerEndpointInClosure() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);

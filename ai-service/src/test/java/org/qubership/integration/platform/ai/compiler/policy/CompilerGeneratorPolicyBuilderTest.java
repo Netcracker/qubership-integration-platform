@@ -17,7 +17,7 @@ import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackV
 
 class CompilerGeneratorPolicyBuilderTest {
 
-  private static final int GENERATOR_COUNT = 24;
+  private static final int GENERATOR_COUNT = 25;
 
   private static CompilerGeneratorPolicy policy;
 
@@ -58,6 +58,14 @@ class CompilerGeneratorPolicyBuilderTest {
   }
 
   @Test
+  void readinessSignalsForTransformationGeneratorIncludesIncompleteHeaderModification() {
+    assertTrue(
+        policy
+            .readinessSignalsFor("cip-transformation-generator")
+            .contains("incomplete_header_modification"));
+  }
+
+  @Test
   void policyIncludesExpectedGenerators() {
     List<String> expectedOrder =
         List.of(
@@ -84,7 +92,8 @@ class CompilerGeneratorPolicyBuilderTest {
             "cip-messaging-generator",
             "cip-context-storage-generator",
             "cip-xslt-generator",
-            "cip-abac-generator");
+            "cip-abac-generator",
+            "cip-transformation-generator");
 
     assertEquals(GENERATOR_COUNT, policy.generators().size());
     assertEquals(
