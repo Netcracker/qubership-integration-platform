@@ -20,6 +20,8 @@ import org.qubership.integration.platform.ai.compiler.contract.CompilerContractR
 import org.qubership.integration.platform.ai.llm.agent.ChainSemanticDesignAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
@@ -289,6 +291,24 @@ public class DesignInputCapability implements StageCapability {
           .append(" role=INBOUND capabilityKey=")
           .append(entryPoint.capabilityKey());
     }
+    for (RequirementFact fact : brief.facts()) {
+      if (fact == null) {
+        continue;
+      }
+      String outboundKey =
+          RequirementFlowValidator.nativeDirectOutboundCapabilityKey(
+                  fact.sourceFactId(), brief.facts())
+              .orElse(null);
+      if (outboundKey == null) {
+        continue;
+      }
+      anyAnchor = true;
+      prompt
+          .append("\n- nodeId=")
+          .append(fact.sourceFactId())
+          .append(" role=OUTBOUND capabilityKey=")
+          .append(outboundKey);
+    }
     Set<String> triggerFactIds = ChainSemanticCaptureAdapter.triggerFactIds(brief.entryPoints());
     for (RequirementServiceCall call : brief.serviceCalls()) {
       CatalogBindingHint hint = call.catalogBinding();
@@ -343,7 +363,12 @@ public class DesignInputCapability implements StageCapability {
          the region lists when the chain is linear. A reuse container is a standalone subtree:\
          attach its first child through containment with role=body. Keep the main execution path\
          on reuse-reference and continue from that reference to the next node. Do not connect\
-         execution edges to the reuse container or across the reuse containment boundary.""");
+         execution edges to the reuse container or across the reuse containment boundary.\
+         Native outbound capabilities (direct senders and chain-call-2) are server-owned anchors\
+         at nodeId equal to the capability sourceFactId. Reference those ids from edges. Do not\
+         add another operation with the same elementType. You may list that nodeId under\
+         operations only to attach extra sourceFactIds; the server keeps one node. Do not invent\
+         the chain-call trigger UUID; gathering already stored it on the capability path.""");
     if (repairSection != null && !repairSection.isBlank()) {
       prompt.append(repairSection);
     }

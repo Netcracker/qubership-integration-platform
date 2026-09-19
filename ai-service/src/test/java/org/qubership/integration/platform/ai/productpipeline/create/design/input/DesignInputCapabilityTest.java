@@ -35,10 +35,17 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
@@ -240,6 +247,78 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("Do not mint a mapping id"), prompt);
     assertTrue(prompt.contains("reuse container is a standalone subtree"), prompt);
     assertTrue(prompt.contains("role=body"), prompt);
+  }
+
+  @Test
+  void authoringPromptListsChainCallAsServerOwnedAnchor() {
+    RequirementBrief brief =
+        new RequirementBrief(
+            "Chain call",
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            "Call another chain",
+            "draft-1",
+            "draft",
+            List.of(
+                new RequirementFact(
+                    "http-entry",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "http-trigger",
+                    "Expose GET /auto-tests/chain-call",
+                    "",
+                    "",
+                    "",
+                    "GET",
+                    "/auto-tests/chain-call"),
+                new RequirementFact(
+                    "call-header-modification-test-chain",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "chain-call-2",
+                    "Call the header modification chain",
+                    "Chain trigger + Header modification",
+                    "",
+                    "",
+                    "",
+                    "")),
+            List.of(
+                new RequirementEntryPoint(
+                    "http-entry",
+                    "http-entry",
+                    "http-trigger",
+                    "",
+                    "GET",
+                    "/auto-tests/chain-call",
+                    "GET /auto-tests/chain-call")),
+            List.of(),
+            List.of(),
+            List.of(),
+            new RequirementFlow(
+                List.of(
+                    new Interaction(
+                        "http-entry",
+                        Direction.INBOUND,
+                        "External caller",
+                        "GET /auto-tests/chain-call",
+                        ""),
+                    new Interaction(
+                        "call-header-modification-test-chain",
+                        Direction.OUTBOUND,
+                        "Chain trigger + Header modification",
+                        "chain call",
+                        "")),
+                List.of(
+                    new Transition(
+                        "http-entry", "call-header-modification-test-chain"))),
+            List.of());
+    String prompt = DesignInputCapability.authoringPrompt(brief, CONTRACT);
+    assertTrue(
+        prompt.contains("nodeId=call-header-modification-test-chain"), prompt);
+    assertTrue(prompt.contains("capabilityKey=chain-call-2"), prompt);
+    assertFalse(prompt.contains("A chain-call-2 operation invokes"), prompt);
   }
 
   @Test

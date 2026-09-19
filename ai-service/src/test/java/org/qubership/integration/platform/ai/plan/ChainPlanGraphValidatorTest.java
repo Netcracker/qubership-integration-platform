@@ -608,6 +608,30 @@ class ChainPlanGraphValidatorTest {
   }
 
   @Test
+  void acceptsStandaloneReuseContainerBesideMainFlow() {
+    List<String> errors = validator.validate(standaloneReuseGraph());
+
+    assertEquals(List.of(), errors);
+  }
+
+  @Test
+  void doesNotWireStandaloneReuseIntoMainFlowWhenNormalizingSiblings() {
+    ChainPlanGraph normalized = validator.normalizeMissingSiblingExecutionEdges(standaloneReuseGraph());
+
+    assertTrue(
+        normalized.edges().stream()
+            .noneMatch(
+                edge ->
+                    "reuse-container".equals(edge.fromNodeId())
+                        || "reuse-container".equals(edge.toNodeId())));
+  }
+
+  @Test
+  void acceptsCompiledReuseGraph() {
+    validator.validate(standaloneReuseGraph(), CONTRACT, reuseRevision());
+  }
+
+  @Test
   void rejectsTriggerWithoutOutgoingFlowEdge() {
     List<String> errors =
         validator.validate(
@@ -794,6 +818,80 @@ class ChainPlanGraphValidatorTest {
   @Test
   void acceptsCompiledConditionGraph() {
     validator.validate(compiledConditionGraph(), CONTRACT, conditionRevision());
+  }
+
+  private static ChainPlanGraph standaloneReuseGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection(
+            "reuse-chain", null, null, null, "revision-reuse", CONTRACT.contractVersion()),
+        List.of(
+            new ChainPlanNode(
+                "trigger-http", "http-trigger", "trigger-http", null, null, List.of()),
+            new ChainPlanNode(
+                "reuse-reference",
+                "reuse-reference",
+                "reuse-reference",
+                null,
+                null,
+                List.of()),
+            new ChainPlanNode(
+                "after-reuse", "script", "after-reuse", null, null, List.of()),
+            new ChainPlanNode(
+                "reuse-container", "reuse", "reuse-container", null, null, List.of()),
+            new ChainPlanNode(
+                "reuse-body", "script", "reuse-body", "reuse-container", null, List.of())),
+        List.of(
+            new ChainPlanEdge("edge-entry", "trigger-http", "reuse-reference", null),
+            new ChainPlanEdge("edge-after", "reuse-reference", "after-reuse", null)));
+  }
+
+  private static ChainSemanticRevision reuseRevision() {
+    return new ChainSemanticRevision(
+        CONTRACT.semanticSchemaVersion(),
+        "revision-reuse",
+        "reuse-chain",
+        CONTRACT.contractVersion(),
+        List.of(
+            new SemanticEntryPoint(
+                "http-in",
+                "trigger-http",
+                "reuse-reference",
+                0,
+                new SemanticProvenance(List.of()),
+                null)),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "reuse-reference", "reuse-reference", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "after-reuse", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "reuse-container", "reuse", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "reuse-body", "script", new SemanticProvenance(List.of()))),
+        List.of(),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-entry",
+                "trigger-http",
+                "reuse-reference",
+                null,
+                new SemanticRoute.Sequence(),
+                null),
+            new SemanticExecutionEdge(
+                "edge-after",
+                "reuse-reference",
+                "after-reuse",
+                null,
+                new SemanticRoute.Sequence(),
+                null)),
+        List.of(new SemanticContainment("reuse-container", "reuse-body", "body")),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
   }
 
   private static ChainPlanGraph graphWithHttpTriggerProperty(PlanProperty... properties) {

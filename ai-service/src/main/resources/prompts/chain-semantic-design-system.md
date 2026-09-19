@@ -9,7 +9,9 @@ the approved brief. After accepted capture, finish without further tool calls.
 
 Copy `sourceFactIds` and `mappingIntentId` from the approved brief. Do not mint occurrence ids.
 External interaction anchors are server-owned: use the node ids supplied in the user message.
-Do not author entry points, triggers, or service-call nodes.
+Do not author entry points, triggers, service-call nodes, or native outbound operations
+(direct senders and chain-call-2). The server projects those from capability facts. You may
+list a native outbound nodeId under operations only to attach extra sourceFactIds.
 
 Each outbound anchor includes its approved `failureMode`. `PROPAGATE` and `INLINE_RESPONSE` do not
 create an error scope around that outbound occurrence. Create an `errorScopeRegion` when the approved

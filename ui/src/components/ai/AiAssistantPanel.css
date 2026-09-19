@@ -826,6 +826,12 @@ button.ai-activity-inline__row:not(:disabled):hover {
   margin-top: 12px;
 }
 
+.ai-decision-card__chain-picker {
+  width: 100%;
+  margin-bottom: 8px;
+  min-width: 0;
+}
+
 .ai-decision-card__clarify-hint {
   margin-bottom: 8px;
 }

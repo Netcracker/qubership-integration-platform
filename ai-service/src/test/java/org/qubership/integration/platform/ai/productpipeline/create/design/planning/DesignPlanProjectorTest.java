@@ -1011,6 +1011,29 @@ class DesignPlanProjectorTest {
   }
 
   @Test
+  void keepsTransformationGeneratorForNonMappingStepsWhileMapper2IsOff() {
+    ChainSemanticRevision revision = SemanticFixtures.linearOrders();
+    String report =
+        """
+        1. Generate HTTP Trigger element (cip-trigger-generator)
+        2. Generate Service Call element (cip-service-call-generator)
+        3. Configure header modification (cip-transformation-generator)
+        4. Generate execution structure (cip-structure-generator)
+        5. Assemble generated-chain.cip.yaml + scripts (cip-chain-assembler)
+        6. Validate the assembled chain (cip-chain-validator)
+        If you agree, reply **Agree** or **Execute plan** to proceed.
+        """
+            .trim();
+
+    DesignExecutionPlan projected =
+        projector.project(new DesignPlanReport("1", report), revision, pin(revision), briefFrom(revision));
+
+    assertTrue(
+        projected.steps().stream()
+            .anyMatch(step -> step.owningSkillIds().contains("cip-transformation-generator")));
+  }
+
+  @Test
   void extraMappingStepWithoutIdIsDroppedOnPassThroughRevision() {
     ChainSemanticRevision revision = SemanticFixtures.linearOrders();
     String report =

@@ -2,12 +2,44 @@
  * @jest-environment jsdom
  */
 
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: jest.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: jest.fn(),
+    removeListener: jest.fn(),
+    addEventListener: jest.fn(),
+    removeEventListener: jest.fn(),
+    dispatchEvent: jest.fn(),
+  })),
+});
+
 import { describe, expect, it, jest } from "@jest/globals";
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement, ReactNode } from "react";
 import { AiDecisionCard } from "../../../src/components/ai/AiDecisionCard.tsx";
 import type { ChatDecision } from "../../../src/ai/modelProviders/types.ts";
+
+const mockGetElementsByType = jest.fn();
+jest.mock("../../../src/api/api", () => ({
+  api: {
+    getElementsByType: (...args: unknown[]): unknown =>
+      mockGetElementsByType(...args) as unknown,
+  },
+}));
+
+const mockNotificationService = { requestFailed: jest.fn() };
+jest.mock("../../../src/hooks/useNotificationService", () => ({
+  useNotificationService: () => mockNotificationService,
+}));
+
+jest.mock("../../../src/api/rest/vscodeExtensionApi", () => ({
+  isVsCode: false,
+  VSCodeExtensionApi: class MockedVSCode {},
+}));
 
 jest.mock("../../../src/components/ai/AiMarkdownRenderer.tsx", () => {
   const R = require("react") as typeof import("react");
@@ -1256,5 +1288,51 @@ describe("AiDecisionCard", () => {
       }),
     );
     expect(onStartSameTask).toHaveBeenCalled();
+  });
+
+  it("should submit the selected chain-trigger id from the picker", async () => {
+    mockGetElementsByType.mockResolvedValue([
+      {
+        id: "trig-header",
+        name: "Trigger",
+        chainName: "Header chain",
+      },
+    ]);
+    const onSubmitClarification = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question:
+            "Chain-call call-other has no unique chain-trigger yet. Choose the catalog chain to call.",
+          reason:
+            "Chain-call call-other has no unique chain-trigger yet. Choose the catalog chain to call.",
+          actions: [],
+        })}
+        onAnswer={jest.fn()}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+
+    expect(
+      screen.queryByPlaceholderText("Provide the missing information"),
+    ).not.toBeInTheDocument();
+    const submitButton = screen.getByRole("button", { name: "Submit" });
+    expect(submitButton).toBeDisabled();
+
+    await waitFor(() => {
+      expect(mockGetElementsByType).toHaveBeenCalledWith(
+        "any-chain",
+        "chain-trigger-2",
+      );
+    });
+
+    fireEvent.mouseDown(
+      screen.getByRole("combobox", { name: "Catalog chain to call" }),
+    );
+    fireEvent.click(await screen.findByText("Header chain: Trigger"));
+    expect(submitButton).not.toBeDisabled();
+    fireEvent.click(submitButton);
+    expect(onSubmitClarification).toHaveBeenCalledWith("trig-header");
   });
 });

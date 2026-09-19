@@ -20,7 +20,8 @@ public record RequirementFact(
                 + " jms-trigger, kafka-trigger-2, pubsub-trigger, quartz-scheduler,"
                 + " rabbitmq-trigger-2, sds-trigger, or sftp-trigger-2. Outbound direct:"
                 + " graphql-sender, http-sender, jms-sender, kafka-sender-2, mail-sender,"
-                + " pubsub-sender, rabbitmq-sender-2, or scs-sender. Do not use mcp-trigger;"
+                + " pubsub-sender, rabbitmq-sender-2, or scs-sender. Composition: chain-call-2,"
+                + " reuse, or reuse-reference. Do not use mcp-trigger;"
                 + " that trigger is not supported in create-chain yet.")
         String capabilityKey,
     String text,
@@ -31,7 +32,10 @@ public record RequirementFact(
     @Description("Kafka topic when capabilityKey is kafka-trigger-2") String topic,
     @Description("HTTP method when capabilityKey is http-trigger or http-sender, e.g. GET")
         String httpMethod,
-    @Description("HTTP path or URL when capabilityKey is http-trigger or http-sender") String path,
+    @Description(
+            "HTTP path or URL when capabilityKey is http-trigger or http-sender. Catalog"
+                + " chain-trigger-2 UUID when capabilityKey is chain-call-2")
+        String path,
     @Description(
             "Stable SERVICE_CALL occurrence id, or catalog Kafka consume id when capabilityKey is async-api-trigger")
         String serviceCallId) {

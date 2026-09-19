@@ -16,6 +16,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -88,6 +89,19 @@ public class RequirementDraftTool {
   static final String CAPABILITY_SOFT_DOWNGRADE_HINT =
       "Recapture the same RequirementFlow with the correction named in the validation finding.";
 
+  static final String CHAIN_CALL_SOFT_DOWNGRADE_PREFIX =
+      "Requirement draft stored as NEEDS_INPUT (not READY_FOR_PLAN): chain-call needs a catalog"
+          + " chain-trigger. ";
+
+  static final String CHAIN_CALL_SOFT_DOWNGRADE_HINT =
+      "A chain picker is shown to the user. Do not list trigger UUIDs in chat and do not ask for"
+          + " a catalog trigger ID. Match the user's target chain to one listed catalog trigger"
+          + " by meaning. Display title, catalog chainName, hyphens, spaces, and plus signs name"
+          + " the same chain. Recapture chain-call-2 with that trigger id in path. Do not pick a"
+          + " trigger only because it is the only one listed. Stop the tool loop when none or"
+          + " more than one listed trigger could match, so the user can pick. Do not invent"
+          + " catalog UUIDs.";
+
   static final String CATALOG_BOUND_CAPTURE_HINT =
       " Recapture READY_FOR_PLAN with empty openQuestions when every catalog-backed interaction"
           + " is bound. Do not ask the user for a specification name.";
@@ -139,6 +153,26 @@ public class RequirementDraftTool {
   private final ConversationApiResolutions resolutions;
   private final ConversationService conversationService;
   private final CatalogOperationLookup catalogOperationLookup;
+  private final CompositionCatalogBinder compositionBinder;
+
+  RequirementDraftTool(
+      RequirementDraftStore store,
+      QipKnowledgePackRepository repository,
+      ConversationCatalogCache catalogCache,
+      org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
+      ConversationApiResolutions resolutions,
+      ConversationService conversationService,
+      CatalogOperationLookup catalogOperationLookup) {
+    this(
+        store,
+        repository,
+        catalogCache,
+        apiHubCache,
+        resolutions,
+        conversationService,
+        catalogOperationLookup,
+        null);
+  }
 
   @Inject
   RequirementDraftTool(
@@ -148,7 +182,8 @@ public class RequirementDraftTool {
       org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache apiHubCache,
       ConversationApiResolutions resolutions,
       ConversationService conversationService,
-      CatalogOperationLookup catalogOperationLookup) {
+      CatalogOperationLookup catalogOperationLookup,
+      CompositionCatalogBinder compositionBinder) {
     this.store = store;
     this.repository = repository;
     this.catalogCache = catalogCache;
@@ -156,6 +191,7 @@ public class RequirementDraftTool {
     this.resolutions = resolutions;
     this.conversationService = conversationService;
     this.catalogOperationLookup = catalogOperationLookup;
+    this.compositionBinder = compositionBinder;
   }
 
   public RequirementDraftTool(RequirementDraftStore store) {
@@ -212,6 +248,12 @@ public class RequirementDraftTool {
   static RequirementDraftTool withConversationService(
       RequirementDraftStore store, ConversationService conversationService) {
     return new RequirementDraftTool(store, null, null, null, null, conversationService, null);
+  }
+
+  static RequirementDraftTool withCompositionBinder(
+      RequirementDraftStore store, CompositionCatalogBinder compositionBinder) {
+    return new RequirementDraftTool(
+        store, null, null, null, null, null, null, compositionBinder);
   }
 
   @Tool("""
@@ -285,10 +327,22 @@ public class RequirementDraftTool {
       outbound interactionId, capabilityKey=http-sender, and httpMethod plus an absolute or
       relative URI in path. In-scope direct sender keys: graphql-sender, http-sender, jms-sender,
       kafka-sender-2, mail-sender, pubsub-sender, rabbitmq-sender-2, and scs-sender.
+      Chain-call configuration uses a CAPABILITY fact whose sourceFactId matches the outbound
+      interactionId and capabilityKey=chain-call-2. Put the target chain's name in participant
+      (the catalog chainName or the name the user used). Leave path blank unless you already
+      have a chain-trigger-2 UUID from the user or from a gather list. Do not invent UUIDs.
+      Capture READY_FOR_PLAN when the chain name is known; gather binds an exact unique
+      catalog chainName or lists triggers. When gather lists triggers, pick the one that
+      matches the user's chain by meaning (display title versus slug, hyphens versus spaces
+      or plus signs). Recapture with that trigger id in path.
+      A chain picker is shown to the user when none or more than one listed trigger could
+      match. Do not list trigger UUIDs in chat and do not ask for a catalog trigger ID.
+      Do not call resolveApiOperation. Reuse and reuse-reference are internal
+      operations, not RequirementFlow interactions.
       Call resolveApiOperation for catalog-backed outbound interactions (no sender CAPABILITY),
       async-api-trigger, and implemented-service HTTP triggers (http-trigger with a catalog service
-      participant and blank path). Do not call it for direct senders, custom HTTP triggers with a
-      path, or ambiguous HTTP triggers.
+      participant and blank path). Do not call it for direct senders, chain-call-2, custom HTTP
+      triggers with a path, or ambiguous HTTP triggers.
       Distill facts from assembledText yourself; never ask the user for polarity labels.
       When READY_FOR_PLAN is sent without facts, the server soft-stores NEEDS_INPUT. Retry the
       same turn with facts, or keep NEEDS_INPUT with one open question.
@@ -405,6 +459,8 @@ public class RequirementDraftTool {
       boolean softDowngradedForImport = false;
       boolean softDowngradedForBinding = false;
       boolean softDowngradedForCapability = false;
+      boolean softDowngradedForChainCall = false;
+      String chainCallCatalogListing = "";
       boolean softDowngradedBlockedWithCandidate = false;
       if (decision == DraftDecision.READY_FOR_PLAN && facts.isEmpty()) {
         // Soft-advance: keep the draft instead of rejecting the turn (no CAPTURE_REQUIRED leak).
@@ -551,17 +607,56 @@ public class RequirementDraftTool {
           if (openQuestions.isEmpty()) {
             openQuestions = List.of(capabilityError.get());
           }
-        } else if (!hasAllowedUploadedSpecs(conversationId)) {
-          Optional<String> bindingError =
-              RequirementFlowValidator.validateBindings(boundFlow, facts, catalogBindings);
-          if (bindingError.isPresent()) {
-            decision = DraftDecision.NEEDS_INPUT;
-            if (openQuestions.isEmpty()) {
-              openQuestions = List.of(bindingError.get());
-            }
-            if (hasMissingRequiredCatalogBinding(boundFlow, capturedFacts, catalogBindings)) {
-              softDowngradedForBinding = true;
-            }
+        }
+      }
+
+      if (compositionBinder != null
+          && !boundFlow.interactions().isEmpty()
+          && (decision == DraftDecision.READY_FOR_PLAN
+              || decision == DraftDecision.NEEDS_INPUT)) {
+        CompositionCatalogBinder.ChainCallGatherResult chainCallGather =
+            CompositionCatalogBinder.gatherChainCalls(
+                boundFlow,
+                facts,
+                capture.assembledText(),
+                compositionBinder.listChainTriggers());
+        facts = chainCallGather.facts();
+        if (chainCallGather.openQuestion().isPresent()) {
+          if (decision == DraftDecision.READY_FOR_PLAN) {
+            LOG.warnf(
+                "captureRequirementDraft: soft-downgraded READY_FOR_PLAN for chain-call gather"
+                    + " conversationId=%s",
+                conversationId);
+          }
+          softDowngradedForChainCall = true;
+          decision = DraftDecision.NEEDS_INPUT;
+          chainCallCatalogListing = chainCallGather.catalogListing();
+          openQuestions =
+              replaceChainCallUuidQuestions(
+                  openQuestions, chainCallGather.openQuestion().get());
+        } else {
+          int questionCount = openQuestions.size();
+          openQuestions = dropChainCallUuidQuestions(openQuestions);
+          if (decision == DraftDecision.NEEDS_INPUT
+              && openQuestions.isEmpty()
+              && questionCount > 0) {
+            decision = DraftDecision.READY_FOR_PLAN;
+          }
+        }
+      }
+
+      if (decision == DraftDecision.READY_FOR_PLAN
+          && !boundFlow.interactions().isEmpty()
+          && !hasAllowedUploadedSpecs(conversationId)) {
+        Optional<String> bindingError =
+            RequirementFlowValidator.validateBindings(boundFlow, facts, catalogBindings);
+        if (bindingError.isPresent()) {
+          decision = DraftDecision.NEEDS_INPUT;
+          if (openQuestions.isEmpty()) {
+            openQuestions = List.of(bindingError.get());
+          }
+          if (hasMissingRequiredCatalogBinding(boundFlow, capturedFacts, catalogBindings)) {
+            softDowngradedForBinding = true;
           }
         }
       }
@@ -657,6 +752,7 @@ public class RequirementDraftTool {
                       || softDowngradedForImport
                       || softDowngradedForBinding
                       || softDowngradedForCapability
+                      || softDowngradedForChainCall
                       || softDowngradedBlockedWithCandidate
                   ? false
                   : capture.complete(),
@@ -741,6 +837,22 @@ public class RequirementDraftTool {
             startMs,
             IMPORT_PENDING_SOFT_DOWNGRADE_PREFIX
                 + IMPORT_PENDING_SOFT_DOWNGRADE_HINT
+                + " "
+                + storedPreview);
+      }
+      if (softDowngradedForChainCall) {
+        String catalogListing =
+            chainCallCatalogListing.isBlank()
+                ? ""
+                : " Catalog chain-triggers: " + chainCallCatalogListing + ".";
+        return finish(
+            conversationId,
+            startMs,
+            CHAIN_CALL_SOFT_DOWNGRADE_PREFIX
+                + openQuestions.getFirst()
+                + catalogListing
+                + " "
+                + CHAIN_CALL_SOFT_DOWNGRADE_HINT
                 + " "
                 + storedPreview);
       }
@@ -838,6 +950,58 @@ public class RequirementDraftTool {
         System.currentTimeMillis() - startMs,
         result);
     return result;
+  }
+
+  static List<String> replaceChainCallUuidQuestions(
+      List<String> openQuestions, String gatherQuestion) {
+    List<String> kept = new ArrayList<>();
+    boolean replaced = false;
+    List<String> questions = openQuestions == null ? List.of() : openQuestions;
+    for (String question : questions) {
+      if (isChainCallTriggerUuidQuestion(question)) {
+        if (!replaced) {
+          kept.add(gatherQuestion);
+          replaced = true;
+        }
+        continue;
+      }
+      kept.add(question);
+    }
+    if (!replaced) {
+      kept.add(0, gatherQuestion);
+    }
+    return List.copyOf(kept);
+  }
+
+  static List<String> dropChainCallUuidQuestions(List<String> openQuestions) {
+    if (openQuestions == null || openQuestions.isEmpty()) {
+      return List.of();
+    }
+    List<String> kept = new ArrayList<>();
+    for (String question : openQuestions) {
+      if (!isChainCallTriggerUuidQuestion(question)) {
+        kept.add(question);
+      }
+    }
+    return List.copyOf(kept);
+  }
+
+  static boolean isChainCallTriggerUuidQuestion(String question) {
+    if (question == null || question.isBlank()) {
+      return false;
+    }
+    String lowered = question.toLowerCase(Locale.ROOT);
+    boolean mentionsChainCall =
+        lowered.contains("chain-trigger")
+            || lowered.contains("chain trigger")
+            || lowered.contains("chain-call")
+            || lowered.contains("chain call");
+    boolean asksForId =
+        lowered.contains("uuid")
+            || lowered.contains("trigger id")
+            || lowered.contains("catalog id")
+            || lowered.contains("(id=");
+    return mentionsChainCall && asksForId;
   }
 
   private static String validateDecision(

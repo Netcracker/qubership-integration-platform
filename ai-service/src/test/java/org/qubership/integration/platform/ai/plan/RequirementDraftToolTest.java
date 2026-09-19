@@ -29,6 +29,8 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogL
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
+import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -120,6 +122,297 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureWritesUniqueChainCallTriggerIdAndStaysReadyForPlan() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.getElementsByType("any-chain", "chain-trigger-2"))
+        .thenReturn(
+            List.of(
+                catalogTrigger("trig-other", "Other chain"),
+                catalogTrigger("trig-header", "Chain trigger + Header modification")));
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withCompositionBinder(store, new CompositionCatalogBinder(catalog));
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "GET /auto-tests/chain-call then call Chain trigger + Header modification",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(
+                    new RequirementFact(
+                        "http-entry",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "http-trigger",
+                        "Expose GET /auto-tests/chain-call",
+                        "",
+                        "",
+                        "",
+                        "GET",
+                        "/auto-tests/chain-call"),
+                    new RequirementFact(
+                        "call-other",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "chain-call-2",
+                        "Call the header modification chain",
+                        "Chain trigger + Header modification",
+                        "",
+                        "",
+                        "",
+                        "")),
+                null,
+                chainCallFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertTrue(result.contains("Requirement draft captured"), result);
+    assertTrue(draft.readyForPlan());
+    assertEquals(
+        "trig-header",
+        draft.facts().stream()
+            .filter(fact -> "chain-call-2".equals(fact.capabilityKey()))
+            .map(RequirementFact::path)
+            .findFirst()
+            .orElse(""));
+  }
+
+  @Test
+  void captureAsksChainCallPickerWhenCatalogChainNameAppearsWithoutCapability() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.getElementsByType("any-chain", "chain-trigger-2"))
+        .thenReturn(List.of(catalogTrigger("trig-header", "Chain trigger + Header modification")));
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withCompositionBinder(store, new CompositionCatalogBinder(catalog));
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "GET /auto-tests/chain-call then invoke Chain trigger + Header modification",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(
+                    new RequirementFact(
+                        "http-entry",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "http-trigger",
+                        "Expose GET /auto-tests/chain-call",
+                        "",
+                        "",
+                        "",
+                        "GET",
+                        "/auto-tests/chain-call")),
+                null,
+                chainCallFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertTrue(result.contains("NEEDS_INPUT"), result);
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    assertTrue(
+        draft
+            .openQuestions()
+            .getFirst()
+            .contains("Choose the catalog chain to call"),
+        draft.openQuestions().toString());
+    assertFalse(
+        draft.openQuestions().getFirst().contains("trig-header"),
+        draft.openQuestions().toString());
+    assertTrue(result.contains("trig-header"), result);
+  }
+
+  @Test
+  void captureBindsUniqueChainCallWhenAgentAsksForTriggerUuid() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.getElementsByType("any-chain", "chain-trigger-2"))
+        .thenReturn(
+            List.of(
+                catalogTrigger("trig-other", "Other chain"),
+                catalogTrigger("trig-header", "Chain trigger + Header modification")));
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withCompositionBinder(store, new CompositionCatalogBinder(catalog));
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            false,
+            "GET /auto-tests/chain-call then call Chain trigger + Header modification",
+            DraftDecision.NEEDS_INPUT,
+            List.of(
+                "Please provide the catalog UUID of the chain-trigger for the"
+                    + " Chain trigger + Header modification chain."),
+            null,
+            List.of(
+                new RequirementFact(
+                    "http-entry",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "http-trigger",
+                    "Expose GET /auto-tests/chain-call",
+                    "",
+                    "",
+                    "",
+                    "GET",
+                    "/auto-tests/chain-call"),
+                new RequirementFact(
+                    "call-other",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "chain-call-2",
+                    "Call the header modification chain",
+                    "Chain trigger + Header modification",
+                    "",
+                    "",
+                    "",
+                    "")),
+            null,
+            chainCallFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertTrue(draft.readyForPlan(), draft.openQuestions().toString());
+    assertTrue(draft.openQuestions().isEmpty(), draft.openQuestions().toString());
+    assertEquals(
+        "trig-header",
+        draft.facts().stream()
+            .filter(fact -> "chain-call-2".equals(fact.capabilityKey()))
+            .map(RequirementFact::path)
+            .findFirst()
+            .orElse(""));
+  }
+
+  @Test
+  void captureReplacesAgentUuidPromptWithCatalogChainTriggerPicker() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.getElementsByType("any-chain", "chain-trigger-2"))
+        .thenReturn(
+            List.of(
+                catalogTrigger("trig-other", "Other chain"),
+                catalogTrigger("trig-header", "Chain trigger + Header modification")));
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withCompositionBinder(store, new CompositionCatalogBinder(catalog));
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            false,
+            "GET /auto-tests/chain-call then call another chain",
+            DraftDecision.NEEDS_INPUT,
+            List.of("Please provide the catalog UUID of the chain-trigger."),
+            null,
+            List.of(
+                new RequirementFact(
+                    "http-entry",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "http-trigger",
+                    "Expose GET /auto-tests/chain-call",
+                    "",
+                    "",
+                    "",
+                    "GET",
+                    "/auto-tests/chain-call"),
+                new RequirementFact(
+                    "call-other",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "chain-call-2",
+                    "Call another chain",
+                    "",
+                    "",
+                    "",
+                    "",
+                    "")),
+            null,
+            chainCallFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    String question = draft.openQuestions().getFirst();
+    assertTrue(
+        question.contains("Choose the catalog chain to call"), question);
+    assertFalse(question.contains("trig-header"), question);
+    assertFalse(question.contains("Please provide the catalog UUID"), question);
+  }
+
+  @Test
+  void captureTellsModelToMatchListedChainTriggerByMeaningWhenExactNameMisses() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.getElementsByType("any-chain", "chain-trigger-2"))
+        .thenReturn(
+            List.of(catalogTrigger("trig-header", "chain-trigger-header-modification")));
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withCompositionBinder(store, new CompositionCatalogBinder(catalog));
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "GET /auto-tests/chain-call then call Chain trigger + Header modification",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(
+                    new RequirementFact(
+                        "http-entry",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "http-trigger",
+                        "Expose GET /auto-tests/chain-call",
+                        "",
+                        "",
+                        "",
+                        "GET",
+                        "/auto-tests/chain-call"),
+                    new RequirementFact(
+                        "call-other",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "chain-call-2",
+                        "Call the header modification chain",
+                        "Chain trigger + Header modification",
+                        "",
+                        "",
+                        "",
+                        "")),
+                null,
+                chainCallFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    assertTrue(result.contains("by meaning"), result);
+    assertTrue(
+        result.contains("Do not pick a trigger only because it is the only one listed"), result);
+    assertTrue(result.contains("trig-header"), result);
+    assertTrue(
+        draft
+            .openQuestions()
+            .getFirst()
+            .contains("Choose the catalog chain to call"),
+        draft.openQuestions().toString());
+    assertFalse(
+        draft.openQuestions().getFirst().contains("trig-header"),
+        draft.openQuestions().toString());
+    assertEquals(
+        "",
+        draft.facts().stream()
+            .filter(fact -> "chain-call-2".equals(fact.capabilityKey()))
+            .map(RequirementFact::path)
+            .findFirst()
+            .orElse("missing"));
+  }
+
+  @Test
   void finishDiscoveryTurnStoresStayDirectiveWithoutCapturingADraft() {
     store.beginTurn("draft-conv");
 
@@ -169,6 +462,8 @@ class RequirementDraftToolTest {
     assertTrue(example.contains("order-received"), example);
     assertTrue(description.contains("process checkpoint"), description);
     assertTrue(description.contains("do not invent a user question"), description);
+    assertTrue(description.contains("by meaning"), description);
+    assertTrue(description.contains("A chain picker is shown to the user"), description);
   }
 
   @Test
@@ -691,6 +986,7 @@ class RequirementDraftToolTest {
         "rabbitmq-trigger-2",
         "sds-trigger",
         "sftp-trigger-2",
+        "chain-call-2",
         "graphql-sender",
         "http-sender",
         "jms-sender",
@@ -2826,6 +3122,29 @@ class RequirementDraftToolTest {
     return new RequirementFlow(
         List.of(new Interaction("orders-http", Direction.INBOUND, "Caller", "GET /orders", "")),
         List.of());
+  }
+
+  private static RequirementFlow chainCallFlow() {
+    return new RequirementFlow(
+        List.of(
+            new Interaction(
+                "http-entry", Direction.INBOUND, "Caller", "GET /auto-tests/chain-call", ""),
+            new Interaction(
+                "call-other",
+                Direction.OUTBOUND,
+                "Chain trigger + Header modification",
+                "chain-trigger",
+                "")),
+        List.of(new Transition("http-entry", "call-other")));
+  }
+
+  private static CatalogElementResponseDto catalogTrigger(String id, String chainName) {
+    CatalogElementResponseDto dto = new CatalogElementResponseDto();
+    dto.id = id;
+    dto.type = "chain-trigger-2";
+    dto.chainName = chainName;
+    dto.name = "Trigger";
+    return dto;
   }
 
   private static CatalogOperationLookup tiedCreateTaskLookup(String titleOpId) {

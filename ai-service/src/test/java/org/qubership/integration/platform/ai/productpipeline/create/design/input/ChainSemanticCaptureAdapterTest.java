@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -247,6 +248,102 @@ class ChainSemanticCaptureAdapterTest {
     if (CONTRACT.elements().containsKey(senderType)) {
       new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
     }
+  }
+
+  @Test
+  void projectsChainCallFromCapabilityFactWithoutCatalogBinding() {
+    RequirementBrief brief =
+        nativeSenderBrief(
+            "chain-call-2",
+            "call-other",
+            List.of(
+                new RequirementServiceCall(
+                    "call-other",
+                    "call-other",
+                    "Chain trigger + Header modification",
+                    "chain-trigger")));
+    ChainSemanticRevision revision = adapt(nativeSenderCapture("call-other"), brief);
+
+    assertEquals("chain-call-2", senderOperation(revision, "call-other").elementType());
+    assertTrue(revision.nodes().stream().noneMatch(SemanticNode.ServiceCall.class::isInstance));
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+  }
+
+  @Test
+  void rejectsExtraChainCallOperationWithNewNodeId() {
+    RequirementBrief brief =
+        nativeSenderBrief(
+            "chain-call-2",
+            "call-other",
+            List.of());
+    ChainSemanticCapture capture =
+        withAddedOperations(
+            nativeSenderCapture("call-other"),
+            List.of(
+                new CapturedOperation(
+                    "op-chain-call", "chain-call-2", List.of("call-other"))));
+
+    IllegalArgumentException failure =
+        assertThrows(IllegalArgumentException.class, () -> adapt(capture, brief));
+
+    assertTrue(failure.getMessage().contains("op-chain-call"), failure.getMessage());
+    assertTrue(failure.getMessage().contains("chain-call-2"), failure.getMessage());
+    assertTrue(failure.getMessage().contains("call-other"), failure.getMessage());
+  }
+
+  @Test
+  void mergesExtraSourceFactIdsOntoProjectedChainCall() {
+    RequirementBrief base =
+        nativeSenderBrief("chain-call-2", "call-other", List.of());
+    RequirementBrief brief =
+        base.withFacts(
+            List.of(
+                base.facts().get(0),
+                base.facts().get(1),
+                new RequirementFact(
+                    "call-failure-behavior",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.BEHAVIOR,
+                    "",
+                    "The chain-call is blocking and failures propagate")));
+    ChainSemanticCapture capture =
+        withAddedOperations(
+            nativeSenderCapture("call-other"),
+            List.of(
+                new CapturedOperation(
+                    "call-other",
+                    "chain-call-2",
+                    List.of("call-other", "call-failure-behavior"))));
+
+    ChainSemanticRevision revision = adapt(capture, brief);
+
+    long chainCallCount =
+        revision.nodes().stream()
+            .filter(SemanticNode.Operation.class::isInstance)
+            .map(SemanticNode.Operation.class::cast)
+            .filter(operation -> "chain-call-2".equals(operation.elementType()))
+            .count();
+    assertEquals(1, chainCallCount);
+    assertEquals(
+        List.of("call-other", "call-failure-behavior"),
+        senderOperation(revision, "call-other").provenance().sourceFactIds());
+  }
+
+  @Test
+  void rejectsExtraChainCallWhenTwoCallsAlreadyProjected() {
+    RequirementBrief brief = twoChainCallBrief();
+    ChainSemanticCapture capture =
+        withAddedOperations(
+            twoChainCallCapture(),
+            List.of(
+                new CapturedOperation(
+                    "op-chain-call", "chain-call-2", List.of("call-a"))));
+
+    IllegalArgumentException failure =
+        assertThrows(IllegalArgumentException.class, () -> adapt(capture, brief));
+
+    assertTrue(failure.getMessage().contains("op-chain-call"), failure.getMessage());
+    assertFalse(failure.getMessage().contains("merge"), failure.getMessage());
   }
 
   @Test
@@ -1249,6 +1346,93 @@ class ChainSemanticCaptureAdapterTest {
         List.of(),
         List.of(new CapturedEdge("http-in", outboundId, null, null, null, null, null, null)),
         List.of());
+  }
+
+  private static RequirementBrief twoChainCallBrief() {
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-in", Direction.INBOUND, "Caller", "GET /start", ""),
+                new Interaction("call-a", Direction.OUTBOUND, "Chain A", "call", ""),
+                new Interaction("call-b", Direction.OUTBOUND, "Chain B", "call", "")),
+            List.of(
+                new Transition("http-in", "call-a"),
+                new Transition("call-a", "call-b")));
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "trigger-1",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose GET /start"),
+            new RequirementFact(
+                "call-a",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "chain-call-2",
+                "Call chain A"),
+            new RequirementFact(
+                "call-b",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "chain-call-2",
+                "Call chain B"));
+    return new RequirementBrief(
+        "Two calls",
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        "Two calls",
+        "draft-1",
+        "draft",
+        facts,
+        List.of(
+            new RequirementEntryPoint(
+                "http-in", "trigger-1", "http-trigger", "", "GET", "/start", "GET /start")),
+        List.of(),
+        List.of(),
+        List.of(),
+        flow,
+        List.of());
+  }
+
+  private static ChainSemanticCapture twoChainCallCapture() {
+    return new ChainSemanticCapture(
+        "chain-two-calls",
+        List.of(
+            new CapturedEntryPoint(
+                "http-in", "trigger-http", "call-a", 0, List.of("trigger-1"), null, null)),
+        List.of(new CapturedTrigger("trigger-http", List.of("trigger-1"))),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(
+            new CapturedEdge("http-in", "call-a", null, null, null, null, null, null),
+            new CapturedEdge("call-a", "call-b", null, null, null, null, null, null)),
+        List.of());
+  }
+
+  private static ChainSemanticCapture withAddedOperations(
+      ChainSemanticCapture capture, List<CapturedOperation> extra) {
+    List<CapturedOperation> operations = new ArrayList<>(capture.operations());
+    operations.addAll(extra);
+    return new ChainSemanticCapture(
+        capture.chainIdentity(),
+        operations,
+        capture.sequenceRegions(),
+        capture.conditionRegions(),
+        capture.splitRegions(),
+        capture.loopRegions(),
+        capture.retryRegions(),
+        capture.errorScopeRegions(),
+        capture.edges(),
+        capture.containment());
   }
 
   private static SemanticNode.Operation senderOperation(

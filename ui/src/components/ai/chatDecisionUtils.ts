@@ -108,6 +108,26 @@ export function decisionCardText(decision: ChatDecision): string {
   return decision.question.trim();
 }
 
+const CHAIN_TRIGGER_PICKER_PROMPT = /choose the catalog chain to call/i;
+
+export function isChainTriggerPickerQuestion(text: string): boolean {
+  return CHAIN_TRIGGER_PICKER_PROMPT.test(text);
+}
+
+export function isChainTriggerPickerDecision(decision: ChatDecision): boolean {
+  return (
+    decision.kind === "clarify" &&
+    isChainTriggerPickerQuestion(decisionCardText(decision))
+  );
+}
+
+const CHAIN_TRIGGER_ID_ASK =
+  /catalog trigger id|trigger uuid|choose one catalog chain-trigger|\(id=/i;
+
+function isChainTriggerIdAsk(text: string): boolean {
+  return CHAIN_TRIGGER_ID_ASK.test(text);
+}
+
 /**
  * Missing-evidence rows that are not already the card question. Discovery often
  * repeats the same open question in `reason` and `missingEvidence`.
@@ -251,6 +271,9 @@ export function visibleDecisionNarrative(
     trimmed === question ||
     (reason !== "" && trimmed === reason)
   ) {
+    return "";
+  }
+  if (isChainTriggerPickerDecision(decision) && isChainTriggerIdAsk(trimmed)) {
     return "";
   }
   return content;

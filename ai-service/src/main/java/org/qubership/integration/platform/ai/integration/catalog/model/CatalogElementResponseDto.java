@@ -12,6 +12,8 @@ public class CatalogElementResponseDto {
   public String id;
   public String name;
   public String description;
+  public String chainId;
+  public String chainName;
   public String type;
   public String parentElementId;
   public String swimlaneId;

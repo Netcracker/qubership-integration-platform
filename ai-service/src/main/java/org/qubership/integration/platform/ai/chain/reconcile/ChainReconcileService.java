@@ -78,7 +78,7 @@ public class ChainReconcileService {
           labelMismatches.add(nodeId);
         }
         checkParentMismatch(node, elementId, nodeMap, facts, parentMismatches);
-        checkPropertyMismatches(node, element, propertyMismatches);
+        checkPropertyMismatches(node, element, nodeMap, propertyMismatches);
       }
     }
 
@@ -135,7 +135,10 @@ public class ChainReconcileService {
   }
 
   private static void checkPropertyMismatches(
-      ChainPlanNode node, ChainCatalogElement element, List<String> propertyMismatches) {
+      ChainPlanNode node,
+      ChainCatalogElement element,
+      Map<String, String> nodeMap,
+      List<String> propertyMismatches) {
     List<PlanProperty> planProperties = node.properties() == null ? List.of() : node.properties();
     Map<String, Object> catalogProperties =
         element.properties() == null ? Map.of() : element.properties();
@@ -147,10 +150,26 @@ public class ChainReconcileService {
         continue;
       }
       Object catalogValue = catalogProperties.get(property.key());
-      if (!canonicalEquals(property.key(), property.value(), catalogValue)) {
+      Object planValue = remappedPlanValue(property.key(), property.value(), nodeMap);
+      if (!canonicalEquals(property.key(), planValue, catalogValue)) {
         propertyMismatches.add(node.nodeId() + "." + property.key());
       }
     }
+  }
+
+  private static Object remappedPlanValue(
+      String propertyKey, Object planValue, Map<String, String> nodeMap) {
+    if (!"reuseElementId".equals(propertyKey) || !(planValue instanceof String planNodeId)) {
+      return planValue;
+    }
+    if (planNodeId.isBlank()) {
+      return planValue;
+    }
+    String catalogId = nodeMap.get(planNodeId);
+    if (catalogId == null || catalogId.isBlank()) {
+      return planValue;
+    }
+    return catalogId;
   }
 
   private static boolean canonicalEquals(String propertyKey, Object planValue, Object catalogValue) {
