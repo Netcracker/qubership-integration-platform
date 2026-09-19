@@ -187,7 +187,7 @@ public class CompilerPlanValidator {
       int issueCounter) {
     Set<String> reachable = computeReachable(graph, triggerNodeIds);
     for (ChainPlanNode node : graph.nodes()) {
-      if (isTriggerType(node.type())) {
+      if (isTriggerType(node.type()) || ChainPlanGraphValidator.isReuseContainer(node.type())) {
         continue;
       }
       if (!reachable.contains(node.nodeId())) {
@@ -205,6 +205,13 @@ public class CompilerPlanValidator {
 
   private static Set<String> computeReachable(ChainPlanGraph graph, Set<String> triggerNodeIds) {
     Set<String> reachable = new HashSet<>(triggerNodeIds);
+    if (graph.nodes() != null) {
+      for (ChainPlanNode node : graph.nodes()) {
+        if (ChainPlanGraphValidator.isReuseContainer(node.type()) && node.nodeId() != null) {
+          reachable.add(node.nodeId());
+        }
+      }
+    }
     boolean changed = true;
     while (changed) {
       changed = false;

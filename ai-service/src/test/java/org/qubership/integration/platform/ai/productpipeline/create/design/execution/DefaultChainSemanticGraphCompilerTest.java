@@ -144,6 +144,59 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void compilesChainCallWithoutCatalogBinding() {
+    ChainSemanticRevision revision =
+        revision(
+            List.of(entry("http-in", "trigger-http", "call-other")),
+            List.of(
+                new SemanticNode.Trigger(
+                    "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "call-other", "chain-call-2", new SemanticProvenance(List.of()))),
+            List.of(),
+            List.of(sequence("edge-entry", "trigger-http", "call-other", null)),
+            List.of(),
+            List.of());
+
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+    assertEquals("chain-call-2", node(graph, "call-other").type());
+    assertNull(property(node(graph, "call-other"), "elementId"));
+    assertTrue(new ChainPlanGraphValidator(schemaService).validate(graph).isEmpty());
+  }
+
+  @Test
+  void compilesStandaloneReuseContainerBesideMainFlow() {
+    ChainSemanticRevision revision =
+        revision(
+            List.of(entry("http-in", "trigger-http", "reuse-reference")),
+            List.of(
+                new SemanticNode.Trigger(
+                    "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "reuse-reference", "reuse-reference", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "after-reuse", "header-modification", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "reuse-container", "reuse", new SemanticProvenance(List.of())),
+                new SemanticNode.Operation(
+                    "reuse-body", "header-modification", new SemanticProvenance(List.of()))),
+            List.of(),
+            List.of(
+                sequence("edge-entry", "trigger-http", "reuse-reference", null),
+                sequence("edge-after", "reuse-reference", "after-reuse", null)),
+            List.of(new SemanticContainment("reuse-container", "reuse-body", "body")),
+            List.of());
+
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+    assertEquals("reuse", node(graph, "reuse-container").type());
+    assertEquals("reuse-container", node(graph, "reuse-body").parentNodeId());
+    assertNull(property(node(graph, "reuse-reference"), "reuseElementId"));
+    assertTrue(new ChainPlanGraphValidator(schemaService).validate(graph).isEmpty());
+  }
+
+  @Test
   void stampsKafkaCatalogBindingOntoAsyncApiTrigger() {
     ResolvedServiceCallBinding consume =
         kafkaBinding("trigger-async", "consume-om", "task.wfms_createWorkOrder.start", "wfms", "g-1");

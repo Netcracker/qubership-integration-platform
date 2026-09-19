@@ -8,6 +8,8 @@ import {
   findDecision,
   hasUnansweredDecision,
   isBlankClarifyHalt,
+  isChainTriggerPickerDecision,
+  isChainTriggerPickerQuestion,
   isDecisionMessage,
   markDecisionAnswered,
   openingUserAssignment,
@@ -317,6 +319,26 @@ describe("decision card display helpers", () => {
     expect(visibleDecisionNarrative("Working on it", undefined)).toBe(
       "Working on it",
     );
+  });
+
+  it("should hide trigger-id asks when the card is a chain picker", () => {
+    const decision = buildDecision({
+      kind: "clarify",
+      question:
+        "Chain-call call-other has no unique chain-trigger yet. Choose the catalog chain to call.",
+      reason:
+        "Chain-call call-other has no unique chain-trigger yet. Choose the catalog chain to call.",
+      actions: [],
+    });
+
+    expect(isChainTriggerPickerQuestion(decision.question)).toBe(true);
+    expect(isChainTriggerPickerDecision(decision)).toBe(true);
+    expect(
+      visibleDecisionNarrative(
+        "Please provide the exact catalog trigger ID for Get Context Headers.",
+        decision,
+      ),
+    ).toBe("");
   });
 });
 

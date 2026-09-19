@@ -401,10 +401,11 @@ public final class DesignPlanProjector {
       return;
     }
     for (ParsedPlannerReport.Step step : parsed.steps()) {
-      if (step.owningSkillIds().contains(TRANSFORMATION_GENERATOR_SKILL_ID)) {
+      if (step.owningSkillIds().contains(TRANSFORMATION_GENERATOR_SKILL_ID)
+          && !step.mappingIntentId().isBlank()) {
         throw new PlannerContractException(
-            "cip-transformation-generator is disabled because mapper-2 is off. Plan mapping with"
-                + " cip-script-generator.");
+            "cip-transformation-generator is disabled for mapping because mapper-2 is off. Plan"
+                + " mapping with cip-script-generator.");
       }
     }
   }
@@ -931,8 +932,10 @@ public final class DesignPlanProjector {
 
   private static boolean hasMappingGeneratorSkill(ParsedPlannerReport.Step step) {
     for (String skillId : step.owningSkillIds()) {
-      if (SCRIPT_GENERATOR_SKILL_ID.equals(skillId)
-          || TRANSFORMATION_GENERATOR_SKILL_ID.equals(skillId)) {
+      if (SCRIPT_GENERATOR_SKILL_ID.equals(skillId)) {
+        return true;
+      }
+      if (TRANSFORMATION_GENERATOR_SKILL_ID.equals(skillId) && !step.mappingIntentId().isBlank()) {
         return true;
       }
     }

@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
+import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
@@ -43,11 +44,18 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
   /** Always scoped on CREATE so RBAC is not dropped when the plan treated it as topology. */
   static final String SECURITY_GENERATOR_SKILL_ID = "cip-security-generator";
 
+  /**
+   * Always scoped on CREATE so header-modification properties are not dropped when the planner
+   * folds them into structure instead of naming this skill.
+   */
+  static final String TRANSFORMATION_GENERATOR_SKILL_ID = "cip-transformation-generator";
+
   private final CompilerDagExecutionEngine engine;
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineArtifactStore artifactStore;
   private final ChainSemanticGraphCompiler graphCompiler;
   private final CompilerContractRepository contractRepository;
+  private final CompositionCatalogBinder compositionBinder;
 
   @Inject
   public DefaultApprovedCompilerExecutionRunner(
@@ -55,12 +63,14 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       ProductPipelineRunStore runStore,
       ProductPipelineArtifactStore artifactStore,
       ChainSemanticGraphCompiler graphCompiler,
-      CompilerContractRepository contractRepository) {
+      CompilerContractRepository contractRepository,
+      CompositionCatalogBinder compositionBinder) {
     this.engine = Objects.requireNonNull(engine, "engine");
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.graphCompiler = Objects.requireNonNull(graphCompiler, "graphCompiler");
     this.contractRepository = Objects.requireNonNull(contractRepository, "contractRepository");
+    this.compositionBinder = Objects.requireNonNull(compositionBinder, "compositionBinder");
   }
 
   @Override
@@ -160,6 +170,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
                 ? pin.compilerContractVersion()
                 : CompilerContract.V1);
     ChainPlanGraph graph = graphCompiler.compile(revision, contract, resolvedBindings, storedBrief);
+    graph = compositionBinder.bind(graph, storedBrief);
     RequirementBrief brief =
         DesignExecutionBriefFactory.build(
             storedBrief,
@@ -223,6 +234,11 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
    *
    * <p>{@code cip-security-generator} is always seeded when it exists in the pin. Access control
    * is properties on the HTTP trigger, not a plan step, so the planner may omit this skill.
+   *
+   * <p>{@code cip-transformation-generator} is always seeded when it exists in the pin.
+   * Header-modification add/remove maps are properties, not topology. The planner often assigns
+   * that work to structure, which would leave {@code headerModificationToAdd} and
+   * {@code headerModificationToRemove} empty.
    */
   static Set<String> skillClosureIds(
       DesignExecutionPlan plan, ResolvedCompilerDag fullDag) {
@@ -272,7 +288,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
         queue.addLast(skillId);
       }
     }
-    enqueueAlwaysScheduledGenerator(byId, queue);
+    enqueueAlwaysScheduledGenerators(byId, queue);
     while (!queue.isEmpty()) {
       String skillId = queue.removeFirst();
       ResolvedCompilerNode node = byId.get(skillId);
@@ -284,11 +300,17 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     return closure;
   }
 
-  private static void enqueueAlwaysScheduledGenerator(
+  private static void enqueueAlwaysScheduledGenerators(
       LinkedHashMap<String, ResolvedCompilerNode> byId, ArrayDeque<String> queue) {
-    ResolvedCompilerNode security = byId.get(SECURITY_GENERATOR_SKILL_ID);
-    if (security != null && !isExecutionTerminal(security)) {
-      queue.addLast(SECURITY_GENERATOR_SKILL_ID);
+    enqueueIfPresent(byId, queue, SECURITY_GENERATOR_SKILL_ID);
+    enqueueIfPresent(byId, queue, TRANSFORMATION_GENERATOR_SKILL_ID);
+  }
+
+  private static void enqueueIfPresent(
+      LinkedHashMap<String, ResolvedCompilerNode> byId, ArrayDeque<String> queue, String skillId) {
+    ResolvedCompilerNode node = byId.get(skillId);
+    if (node != null && !isExecutionTerminal(node)) {
+      queue.addLast(skillId);
     }
   }
 

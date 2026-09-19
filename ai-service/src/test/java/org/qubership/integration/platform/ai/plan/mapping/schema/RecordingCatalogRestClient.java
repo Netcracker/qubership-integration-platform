@@ -349,6 +349,12 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public List<org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto>
+      getElementsByType(String chainId, String type) {
+    throw unsupported("getElementsByType");
+  }
+
+  @Override
   public org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto getElement(
       String chainId, String elementId) {
     throw unsupported("getElement");

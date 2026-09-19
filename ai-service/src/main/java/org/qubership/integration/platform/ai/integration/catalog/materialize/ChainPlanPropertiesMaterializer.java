@@ -100,17 +100,12 @@ public class ChainPlanPropertiesMaterializer {
       String[] firstValidationError) {
     try {
       CatalogElementResponseDto current = catalogRestClient.getElement(map.chainId(), elementId);
-      Map<String, Object> patchBody = buildPatchBody(node);
+      Map<String, Object> patchBody = buildPatchBody(node, map);
       if (patchBody.isEmpty()) {
         return;
       }
-      // Catalog PatchElementRequest defaults properties to {} and MapStruct replaces the whole
-      // map. Merge with the current element so label-only or partial patches keep mandatory
-      // defaults (same contract as CatalogElementWriteTools.updateElement).
-      Map<String, Object> mergedPatch = mergeWithCurrentElement(current, patchBody);
-      HttpMethodRestrictCatalogShape.applyToPatchBody(mergedPatch);
       if (patchValidatedProperties(
-          map, node, elementId, current, mergedPatch, firstValidationError)) {
+          map, node, elementId, current, patchBody, firstValidationError)) {
         patchedCount[0]++;
       } else {
         failedNodeIds.add(node.nodeId());
@@ -148,16 +143,21 @@ public class ChainPlanPropertiesMaterializer {
           validated.validationMessage());
       return false;
     }
-    preservePlacementFields(validated.patchBody(), current);
+    // Catalog PatchElementRequest defaults properties to {} and MapStruct replaces the whole map.
+    // Validate the plan overlay against the JSON schema, then merge the live element so catalog
+    // keys the schema does not list (hidden defaults such as chain-call-2.block) stay on the PATCH.
+    Map<String, Object> mergedPatch = mergeWithCurrentElement(current, validated.patchBody());
+    HttpMethodRestrictCatalogShape.applyToPatchBody(mergedPatch);
+    preservePlacementFields(mergedPatch, current);
     try {
-      catalogRestClient.updateElement(map.chainId(), elementId, validated.patchBody());
+      catalogRestClient.updateElement(map.chainId(), elementId, mergedPatch);
       return true;
     } catch (CatalogNonRetryableResponseException catalogError) {
       rememberFirstValidationError(
           firstValidationError,
           node.nodeId(),
           node.type(),
-          catalogPatchFailureMessage(node.type(), validated.patchBody(), catalogError));
+          catalogPatchFailureMessage(node.type(), mergedPatch, catalogError));
       return false;
     } catch (RuntimeException error) {
       if (!isTimeout(error)) {
@@ -171,7 +171,7 @@ public class ChainPlanPropertiesMaterializer {
       try {
         CatalogElementResponseDto readBack =
             catalogRestClient.getElement(map.chainId(), elementId);
-        if (containsPatch(readBack, validated.patchBody())) {
+        if (containsPatch(readBack, mergedPatch)) {
           return true;
         }
       } catch (RuntimeException readError) {
@@ -222,7 +222,7 @@ public class ChainPlanPropertiesMaterializer {
     return false;
   }
 
-  private Map<String, Object> buildPatchBody(ChainPlanNode node) {
+  private Map<String, Object> buildPatchBody(ChainPlanNode node, MaterializationMap map) {
     Map<String, Object> body = new LinkedHashMap<>();
     if (node.label() != null && !node.label().isBlank()) {
       body.put("name", node.label());
@@ -252,10 +252,26 @@ public class ChainPlanPropertiesMaterializer {
         }
       }
     }
+    remapReuseElementId(node, properties, map);
     if (!properties.isEmpty()) {
       body.put("properties", properties);
     }
     return body;
+  }
+
+  private static void remapReuseElementId(
+      ChainPlanNode node, Map<String, Object> properties, MaterializationMap map) {
+    if (!"reuse-reference".equals(node.type())) {
+      return;
+    }
+    Object raw = properties.get("reuseElementId");
+    if (!(raw instanceof String planNodeId) || planNodeId.isBlank()) {
+      return;
+    }
+    String catalogId = map.nodeIdToElementId().get(planNodeId);
+    if (catalogId != null && !catalogId.isBlank()) {
+      properties.put("reuseElementId", catalogId);
+    }
   }
 
   /**
@@ -305,8 +321,9 @@ public class ChainPlanPropertiesMaterializer {
   }
 
   /**
-   * Merges a plan patch with the live catalog element so MapStruct property replacement does not
-   * wipe mandatory defaults when the plan only carries a subset of keys (for example name).
+   * Overlays the plan patch on the live catalog element. Catalog keys stay in the map even when
+   * the plan (or schema defaults) omit them, so MapStruct replacement does not wipe hidden
+   * defaults.
    */
   static Map<String, Object> mergeWithCurrentElement(
       CatalogElementResponseDto current, Map<String, Object> patch) {

@@ -329,6 +329,51 @@ class RequirementFlowValidatorTest {
   }
 
   @Test
+  void acceptsChainCallCapabilityWithoutCatalogBinding() {
+    RequirementFlow flow =
+        flow(
+            List.of(
+                interaction("http-entry", INBOUND, "Caller", "GET /auto-tests/chain-call"),
+                interaction(
+                    "call-other",
+                    OUTBOUND,
+                    "Chain trigger + Header modification",
+                    "chain-trigger")),
+            List.of(edge("http-entry", "call-other")));
+    RequirementFact nativeHttp =
+        new RequirementFact(
+            "http-entry",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "http-trigger",
+            "Expose GET /auto-tests/chain-call",
+            "",
+            "",
+            "",
+            "GET",
+            "/auto-tests/chain-call");
+    RequirementFact chainCall =
+        new RequirementFact(
+            "call-other",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY,
+            "chain-call-2",
+            "Call the header modification chain",
+            "Chain trigger + Header modification",
+            "",
+            "",
+            "",
+            "");
+
+    assertEquals(
+        Optional.empty(),
+        RequirementFlowValidator.validateBindings(flow, List.of(nativeHttp, chainCall), List.of()));
+    assertFalse(
+        RequirementFlowValidator.requiresCatalogBinding(
+            flow.interaction("call-other").orElseThrow(), List.of(nativeHttp, chainCall)));
+  }
+
+  @Test
   void acceptsDirectHttpSenderWithoutCatalogBinding() {
     RequirementFlow flow =
         flow(

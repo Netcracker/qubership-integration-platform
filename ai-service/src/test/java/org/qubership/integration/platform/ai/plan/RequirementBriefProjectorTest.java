@@ -79,6 +79,53 @@ class RequirementBriefProjectorTest {
   }
 
   @Test
+  void skipsChainCallCapabilityFromServiceCalls() {
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("http-start", Direction.INBOUND, "Caller", "GET /auto-tests/chain-call", ""),
+                new Interaction(
+                    "call-other",
+                    Direction.OUTBOUND,
+                    "Chain trigger + Header modification",
+                    "chain-trigger",
+                    "")),
+            List.of(new Transition("http-start", "call-other")));
+    List<RequirementFact> facts =
+        List.of(
+            new RequirementFact(
+                "http-start",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "http-trigger",
+                "Expose GET /auto-tests/chain-call",
+                "",
+                "",
+                "",
+                "GET",
+                "/auto-tests/chain-call"),
+            new RequirementFact(
+                "call-other",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.CAPABILITY,
+                "chain-call-2",
+                "Call the header modification chain",
+                "Chain trigger + Header modification",
+                "",
+                "",
+                "",
+                ""));
+    RequirementBrief projected =
+        RequirementBriefProjector.project(
+            briefWithCalls(facts, List.of()).withFlow(flow).withCatalogBindings(List.of()));
+
+    assertEquals(
+        List.of("http-start"),
+        projected.entryPoints().stream().map(RequirementEntryPoint::entryPointId).toList());
+    assertTrue(projected.serviceCalls().isEmpty());
+  }
+
+  @Test
   void projectsImplementedServiceHttpTriggerWithCatalogBinding() {
     Instant observedAt = Instant.parse("2026-08-27T12:00:00Z");
     CatalogBindingHint geoHint =

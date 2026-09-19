@@ -511,8 +511,7 @@ public final class GeneratorPatchRegressionHarness {
                 "scs-sender",
                 "mail-sender",
                 "dbaas",
-                "mapper-2",
-                "header-modification"),
+                "mapper-2"),
             Set.of(),
             Map.ofEntries(
                 entry(
@@ -600,10 +599,19 @@ public final class GeneratorPatchRegressionHarness {
                         "targetName")),
                 entry("mail-sender", Set.of("from", "url")),
                 entry("dbaas", Set.of("query")),
-                entry("mapper-2", Set.of("mapping")),
-                entry(
-                    "header-modification",
-                    Set.of("headerModificationToAdd", "headerModificationToRemove")))));
+                entry("mapper-2", Set.of("mapping")))));
+    ownership.put(
+        "cip-transformation-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of("mapper-2", "header-modification"),
+            Set.of(),
+            Map.of(
+                "mapper-2",
+                Set.of("properties-filename", "throwException", "mappingDescription"),
+                "header-modification",
+                Set.of("headerModificationToAdd", "headerModificationToRemove"))));
     ownership.put(
         "cip-timeout-generator",
         new GraphPatchOwnershipPolicy(

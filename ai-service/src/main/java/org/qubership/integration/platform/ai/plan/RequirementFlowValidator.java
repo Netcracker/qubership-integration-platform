@@ -63,7 +63,8 @@ public final class RequirementFlowValidator {
     if (interaction.direction() == Direction.INBOUND) {
       return inboundCatalogLookupAction(interaction, factList);
     }
-    if (hasSenderCapabilityFact(interaction.interactionId(), factList)) {
+    if (hasSenderCapabilityFact(interaction.interactionId(), factList)
+        || hasCompositionCapabilityFact(interaction.interactionId(), factList)) {
       return LookupAction.SKIP;
     }
     return LookupAction.ASK;
@@ -474,6 +475,16 @@ public final class RequirementFlowValidator {
         .anyMatch(fact -> ChainElementFamilies.isSender(fact.capabilityKey()));
   }
 
+  private static boolean hasCompositionCapabilityFact(
+      String interactionId, List<RequirementFact> facts) {
+    return facts.stream()
+        .filter(Objects::nonNull)
+        .filter(fact -> interactionId.equals(fact.sourceFactId()))
+        .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
+        .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
+        .anyMatch(fact -> ChainElementFamilies.CHAIN_CALL.contains(fact.capabilityKey()));
+  }
+
   private static Optional<String> inboundCapabilityKey(
       Interaction interaction, List<RequirementFact> facts) {
     if (interaction.direction() != Direction.INBOUND) {
@@ -509,8 +520,12 @@ public final class RequirementFlowValidator {
         .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
         .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
         .map(RequirementFact::capabilityKey)
-        .filter(ChainElementFamilies::isSender)
+        .filter(RequirementFlowValidator::isNativeOutboundCapabilityKey)
         .findFirst();
+  }
+
+  public static boolean isNativeOutboundCapabilityKey(String capabilityKey) {
+    return ChainElementFamilies.isSender(capabilityKey) || "chain-call-2".equals(capabilityKey);
   }
 
   private static String outboundClassificationQuestion(Interaction interaction) {
@@ -523,7 +538,8 @@ public final class RequirementFlowValidator {
         + ", "
         + interaction.direction()
         + ") needs a sender type (http-sender, kafka-sender-2, jms-sender, mail-sender, and"
-        + " others) or confirmation that it is a catalog service call."
+        + " others), capabilityKey=chain-call-2, or confirmation that it is a catalog service"
+        + " call."
         + " interactionId="
         + interaction.interactionId()
         + ".";

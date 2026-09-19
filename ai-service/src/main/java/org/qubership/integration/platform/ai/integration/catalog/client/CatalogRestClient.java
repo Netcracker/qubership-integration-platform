@@ -182,6 +182,15 @@ public interface CatalogRestClient {
   @Path("/v1/chains/{chainId}/elements")
   List<CatalogElementResponseDto> listElements(@PathParam("chainId") String chainId);
 
+  /**
+   * Lists elements of one type. Pass {@code any-chain} as {@code chainId} to search every chain,
+   * matching the UI chain-call picker.
+   */
+  @GET
+  @Path("/v1/chains/{chainId}/elements/type/{type}")
+  List<CatalogElementResponseDto> getElementsByType(
+      @PathParam("chainId") String chainId, @PathParam("type") String type);
+
   @GET
   @Path("/v1/chains/{chainId}/elements/{elementId}")
   CatalogElementResponseDto getElement(
