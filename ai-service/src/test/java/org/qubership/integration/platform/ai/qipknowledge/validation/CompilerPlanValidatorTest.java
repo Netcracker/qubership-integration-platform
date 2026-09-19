@@ -154,6 +154,16 @@ class CompilerPlanValidatorTest {
   }
 
   @Test
+  void passesStandaloneReuseContainerBesideMainFlow() {
+    ValidationResult result = validator.validate(new PlanGraphValidationInput(reuseGraph()));
+
+    assertTrue(
+        result.issues().stream()
+            .noneMatch(issue -> issue.message().contains("is not reachable from any trigger")),
+        result.issues().toString());
+  }
+
+  @Test
   void structuralDuplicateNodeIdProducesBlockerWithoutVrRef() {
     ValidationResult result =
         validator.validate(
@@ -318,6 +328,47 @@ class CompilerPlanValidatorTest {
                 null,
                 List.of(new PlanProperty("script", "return 'ok';")))),
         List.of(new ChainPlanEdge("e1", "n1", "n2", null)));
+  }
+
+  private static ChainPlanGraph reuseGraph() {
+    return new ChainPlanGraph(
+        "1.0",
+        new ChainSection("reuse-chain", "Reuse"),
+        List.of(
+            new ChainPlanNode(
+                "trigger-http",
+                "http-trigger",
+                "HTTP Trigger",
+                null,
+                null,
+                List.of(
+                    new PlanProperty("contextPath", "/auto-tests/reuse"),
+                    new PlanProperty("httpMethodRestrict", "GET"))),
+            new ChainPlanNode(
+                "reuse-reference",
+                "reuse-reference",
+                "Reuse Reference",
+                null,
+                null,
+                List.of(new PlanProperty("reuseElementId", "reuse-container"))),
+            new ChainPlanNode(
+                "after-reuse",
+                "script",
+                "Check value",
+                null,
+                null,
+                List.of(new PlanProperty("script", "return 'ok';"))),
+            new ChainPlanNode("reuse-container", "reuse", "Reuse", null, null, List.of()),
+            new ChainPlanNode(
+                "reuse-body",
+                "script",
+                "Set test property",
+                "reuse-container",
+                null,
+                List.of(new PlanProperty("script", "return 'ok';")))),
+        List.of(
+            new ChainPlanEdge("edge-entry", "trigger-http", "reuse-reference", null),
+            new ChainPlanEdge("edge-after", "reuse-reference", "after-reuse", null)));
   }
 
   private static ChainPlanGraph wrappedHttpGraph(String scriptId, String scriptParentId) {

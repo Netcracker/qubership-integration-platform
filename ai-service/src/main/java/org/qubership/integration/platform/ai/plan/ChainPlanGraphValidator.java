@@ -84,6 +84,27 @@ public class ChainPlanGraphValidator {
     return ChainElementFamilies.isTrigger(normalized);
   }
 
+  public static boolean isReuseContainer(String type) {
+    return "reuse".equals(trim(type));
+  }
+
+  private static boolean belongsToReuseSubtree(
+      ChainPlanNode node, Map<String, ChainPlanNode> nodesById) {
+    String currentId = node == null ? null : node.nodeId();
+    Set<String> visited = new HashSet<>();
+    while (currentId != null && visited.add(currentId)) {
+      ChainPlanNode current = nodesById.get(currentId);
+      if (current == null) {
+        return false;
+      }
+      if (isReuseContainer(current.type())) {
+        return true;
+      }
+      currentId = blankToNull(current.parentNodeId());
+    }
+    return false;
+  }
+
   private static String trim(String type) {
     return type != null ? type.trim() : null;
   }
@@ -360,6 +381,9 @@ public class ChainPlanGraphValidator {
   private static boolean isFlowSibling(ChainPlanNode node, ChainPlanNode parent) {
     String type = trim(node.type());
     if (type == null) {
+      return false;
+    }
+    if (isReuseContainer(type)) {
       return false;
     }
     if (parent == null) {
@@ -815,9 +839,12 @@ public class ChainPlanGraphValidator {
         }
       }
     }
+    Map<String, ChainPlanNode> nodesById = indexNodes(graph.nodes());
     Set<String> roots = new HashSet<>();
     for (ChainPlanNode node : graph.nodes()) {
-      if (node.nodeId() != null && !incoming.contains(node.nodeId())) {
+      if (node.nodeId() != null
+          && !incoming.contains(node.nodeId())
+          && !belongsToReuseSubtree(node, nodesById)) {
         roots.add(node.nodeId());
       }
     }
@@ -905,11 +932,17 @@ public class ChainPlanGraphValidator {
       ChainPlanGraph graph,
       CompilerContract contract,
       List<String> errors) {
+    Map<String, ChainPlanNode> nodesById = indexNodes(graph.nodes());
     Map<String, Map<String, Integer>> roleCounts = new HashMap<>();
     for (ChainPlanNode child : graph.nodes()) {
       String parentNodeId = trim(child.parentNodeId());
-      String role = trim(child.type());
-      if (parentNodeId == null || role == null) {
+      if (parentNodeId == null) {
+        continue;
+      }
+      ChainPlanNode parent = nodesById.get(parentNodeId);
+      String role =
+          parent != null && isReuseContainer(parent.type()) ? "body" : trim(child.type());
+      if (role == null) {
         continue;
       }
       roleCounts

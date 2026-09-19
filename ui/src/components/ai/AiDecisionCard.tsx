@@ -1,15 +1,29 @@
 import { DownOutlined } from "@ant-design/icons";
-import { Button, Dropdown, Input, List, Radio, Space, Typography } from "antd";
-import React, { useId, useRef, useState } from "react";
+import {
+  Button,
+  Dropdown,
+  Input,
+  List,
+  Radio,
+  Select,
+  Space,
+  Typography,
+} from "antd";
+import React, { useEffect, useId, useRef, useState } from "react";
+import type { SelectProps } from "antd";
 import type {
   CatalogSystemType,
   ChatDecision,
   ChatDecisionSpec,
 } from "../../ai/modelProviders/types.ts";
+import { api } from "../../api/api.ts";
+import type { ElementWithChainName } from "../../api/apiTypes.ts";
+import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
 import {
   decisionCardText,
   isBlankClarifyHalt,
+  isChainTriggerPickerDecision,
   recoveryCardActions,
   visibleMissingEvidence,
 } from "./chatDecisionUtils.ts";
@@ -182,6 +196,91 @@ function commentPlaceholder(
   return "Add a comment (optional)";
 }
 
+function chainTriggerOptionLabel(
+  element: Pick<ElementWithChainName, "id" | "name" | "chainName">,
+  all: Array<Pick<ElementWithChainName, "id" | "name" | "chainName">>,
+): string {
+  const chainName = element.chainName?.trim() || "Unnamed chain";
+  const triggerName = element.name?.trim() || "chain-trigger";
+  const base = `${chainName}: ${triggerName}`;
+  const collisions = all.filter((candidate) => {
+    const candidateChain = candidate.chainName?.trim() || "Unnamed chain";
+    const candidateTrigger = candidate.name?.trim() || "chain-trigger";
+    return `${candidateChain}: ${candidateTrigger}` === base;
+  });
+  if (collisions.length <= 1) {
+    return base;
+  }
+  return `${base} (${element.id.slice(0, 8)})`;
+}
+
+const ChainTriggerPickerSelect: React.FC<{
+  disabled: boolean;
+  value: string | undefined;
+  onChange: (id: string) => void;
+  getPopupContainer: () => HTMLElement;
+}> = ({ disabled, value, onChange, getPopupContainer }) => {
+  const [options, setOptions] = useState<SelectProps["options"]>([]);
+  const [loading, setLoading] = useState(true);
+  const notificationService = useNotificationService();
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const elements: ElementWithChainName[] = await api.getElementsByType(
+          "any-chain",
+          "chain-trigger-2",
+        );
+        if (cancelled) {
+          return;
+        }
+        setOptions(
+          elements.map((element) => ({
+            value: element.id,
+            label: chainTriggerOptionLabel(element, elements),
+          })),
+        );
+      } catch (error) {
+        if (!cancelled) {
+          notificationService.requestFailed(
+            "Failed to load chain trigger elements",
+            error,
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [notificationService]);
+
+  return (
+    <div className="ai-decision-card__chain-picker">
+      <Select
+        showSearch
+        optionFilterProp="label"
+        placeholder="Select a chain"
+        aria-label="Catalog chain to call"
+        loading={loading}
+        disabled={disabled || loading}
+        value={value}
+        options={options}
+        notFoundContent="Nothing found"
+        getPopupContainer={getPopupContainer}
+        style={{ width: "100%" }}
+        onChange={(next) => onChange(next)}
+      />
+    </div>
+  );
+};
+
 function answeredLabel(decision: ChatDecision): string {
   const answered = decision.answeredAction;
   if (answered === undefined) {
@@ -236,17 +335,22 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   const isMappingGapClarify =
     isClarify && decision.actions.includes("pass_through");
   const blankClarifyHalt = isBlankClarifyHalt(decision);
+  const isChainTriggerPicker = isChainTriggerPickerDecision(decision);
   const isFreeTextClarify =
     isClarify &&
     decision.actions.every((action) => RESTART_ACTIONS.has(action)) &&
     !decision.recovery &&
-    !blankClarifyHalt;
+    !blankClarifyHalt &&
+    !isChainTriggerPicker;
   const answeredAction = decision.answeredAction;
   const specRows = decision.specs ?? [];
   const usePerSpecImport = specRows.length > 0;
   const titleId = useId();
   const summaryId = useId();
   const [text, setText] = useState("");
+  const [selectedTriggerId, setSelectedTriggerId] = useState<
+    string | undefined
+  >();
   const [specTypes, setSpecTypes] = useState<Record<string, CatalogSystemType>>(
     () => initialSpecSystemTypes(specRows),
   );
@@ -277,7 +381,9 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   };
 
   const handleSubmitClarification = () => {
-    const trimmed = text.trim();
+    const trimmed = isChainTriggerPicker
+      ? (selectedTriggerId ?? "").trim()
+      : text.trim();
     if (disabled || clickedRef.current || !trimmed) return;
     clickedRef.current = true;
     onSubmitClarification?.(trimmed);
@@ -288,6 +394,11 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
   const showTextArea = isFreeTextClarify || isMappingGapClarify || !isClarify;
   const showYesNoHint =
     isFreeTextClarify && /yes or no|yes\/no/i.test(cardText);
+  const showChainPicker =
+    isClarify && isChainTriggerPicker && answeredAction === undefined;
+  const clarificationReady = showChainPicker
+    ? Boolean(selectedTriggerId)
+    : text.trim() !== "";
 
   const haltDecision: ChatDecision = blankClarifyHalt
     ? {
@@ -484,6 +595,14 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
               ))}
             </div>
           ) : null}
+          {showChainPicker ? (
+            <ChainTriggerPickerSelect
+              disabled={disabled}
+              value={selectedTriggerId}
+              onChange={setSelectedTriggerId}
+              getPopupContainer={() => cardRef.current ?? document.body}
+            />
+          ) : null}
           {showTextArea ? (
             <Input.TextArea
               className="ai-decision-card__comment"
@@ -506,11 +625,11 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
             </Typography.Paragraph>
           ) : null}
           <Space className="ai-decision-card__actions" wrap>
-            {isFreeTextClarify ? (
+            {isFreeTextClarify || showChainPicker ? (
               <Button
                 size="small"
                 type="primary"
-                disabled={disabled || text.trim() === ""}
+                disabled={disabled || !clarificationReady}
                 onClick={handleSubmitClarification}
               >
                 Submit

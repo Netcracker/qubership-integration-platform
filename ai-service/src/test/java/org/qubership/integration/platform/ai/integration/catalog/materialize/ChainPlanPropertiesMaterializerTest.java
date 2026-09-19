@@ -596,6 +596,116 @@ class ChainPlanPropertiesMaterializerTest {
   }
 
   @Test
+  void keepsLiveCatalogPropertiesThatThePlanSchemaDoesNotList() throws Exception {
+    DeterministicElementSchemaService realSchema =
+        DeterministicElementSchemaService.createForUnitTests(objectMapper);
+    ChainPlanPropertiesMaterializer realMaterializer =
+        new ChainPlanPropertiesMaterializer(catalogRestClient, realSchema, objectMapper);
+    CatalogElementResponseDto current = new CatalogElementResponseDto();
+    current.name = "Chain Call";
+    current.properties =
+        Map.of(
+            "elementId", "b8256d62-5baa-44bf-9d58-7af0eb7d70b2",
+            "timeout", 30000,
+            "block", true,
+            "failIfNoConsumers", false);
+    when(catalogRestClient.getElement("chain-1", "el-call")).thenReturn(current);
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "call",
+                    "chain-call-2",
+                    "Call header modification",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("elementId", "b8256d62-5baa-44bf-9d58-7af0eb7d70b2"),
+                        new PlanProperty("timeout", "30000")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("call", "el-call"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        realMaterializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount(), result.firstValidationError());
+    assertTrue(result.failedNodeIds().isEmpty());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-call"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("b8256d62-5baa-44bf-9d58-7af0eb7d70b2", props.get("elementId"));
+    assertEquals(Boolean.TRUE, props.get("block"));
+    assertEquals(Boolean.FALSE, props.get("failIfNoConsumers"));
+  }
+
+  @Test
+  void restoresLiveCatalogPropertiesAfterSchemaDefaultsReplaceThePatch() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("chain-call-2"))
+        .thenReturn(Set.of("elementId", "timeout"));
+    when(schemaService.validateElementPatch(eq("chain-call-2"), anyString()))
+        .thenReturn(
+            """
+            {
+              "valid": true,
+              "patchWithDefaults": {
+                "name": "Call",
+                "properties": {
+                  "elementId": "trigger-1",
+                  "timeout": 30000
+                }
+              }
+            }
+            """);
+    CatalogElementResponseDto current = new CatalogElementResponseDto();
+    current.name = "Call";
+    current.properties =
+        Map.of(
+            "elementId", "trigger-1",
+            "timeout", 30000,
+            "block", true,
+            "failIfNoConsumers", false);
+    when(catalogRestClient.getElement("chain-1", "el-call")).thenReturn(current);
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "call",
+                    "chain-call-2",
+                    "Call",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("elementId", "trigger-1"),
+                        new PlanProperty("timeout", "30000")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap("chain-1", Map.of("call", "el-call"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-call"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("trigger-1", props.get("elementId"));
+    assertEquals(Boolean.TRUE, props.get("block"));
+    assertEquals(Boolean.FALSE, props.get("failIfNoConsumers"));
+  }
+
+  @Test
   void mergesCurrentCatalogPropertiesSoNameOnlyPatchKeepsDefaults() throws Exception {
     when(schemaService.allowedPatchPropertyKeys("catch-2")).thenReturn(Set.of("exception", "priority"));
     when(schemaService.validateElementPatch(eq("catch-2"), anyString()))
@@ -747,6 +857,46 @@ class ChainPlanPropertiesMaterializerTest {
     assertEquals(List.of("n1"), result.failedNodeIds());
     assertTrue(result.firstValidationError().contains("read-back did not confirm"));
     assertTrue(!result.firstValidationError().contains("internal host details"));
+  }
+
+  @Test
+  void remapsReuseElementIdFromPlanNodeIdToCatalogElementId() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("reuse-reference"))
+        .thenReturn(Set.of("reuseElementId"));
+    when(schemaService.validateElementPatch(eq("reuse-reference"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    when(catalogRestClient.updateElement(anyString(), anyString(), anyMap()))
+        .thenReturn(new CatalogRestClient.ChainDiffDto(List.of(), List.of(), List.of()));
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("demo-chain", null),
+            List.of(
+                new ChainPlanNode(
+                    "reuse-ref",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    null,
+                    List.of(new PlanProperty("reuseElementId", "reuse-container")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap(
+            "chain-1",
+            Map.of("reuse-ref", "el-ref", "reuse-container", "el-reuse"),
+            Map.of(),
+            Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result = materializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-ref"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> properties =
+        (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals("el-reuse", properties.get("reuseElementId"));
   }
 
   private static ChainPlanGraph scriptGraph(String script) {

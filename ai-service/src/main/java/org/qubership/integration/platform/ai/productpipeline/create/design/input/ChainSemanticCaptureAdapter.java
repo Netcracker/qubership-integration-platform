@@ -44,7 +44,6 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
-import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /**
  * Projects a model-owned {@link ChainSemanticCapture} onto the canonical {@link
@@ -297,12 +296,16 @@ public class ChainSemanticCaptureAdapter {
               requireText(operation.elementType(), "elementType"));
       if (interactionIds.contains(nodeId)) {
         if (matchesProjectedSender(nodes, nodeId, elementType)) {
+          mergeNativeOutboundProvenance(nodes, nodeId, operation.sourceFactIds(), factIds);
           continue;
         }
         throw new IllegalArgumentException(
             "Operation node '"
                 + nodeId
                 + "' reuses an interaction id. Do not list server-owned anchors under operations.");
+      }
+      if (RequirementFlowValidator.isNativeOutboundCapabilityKey(elementType)) {
+        throw nativeOutboundOwnedException(nodeId, elementType, nodes);
       }
       if (!contract.elements().containsKey(elementType)) {
         throw new IllegalArgumentException(
@@ -1041,7 +1044,7 @@ public class ChainSemanticCaptureAdapter {
 
   private static boolean matchesProjectedSender(
       List<SemanticNode> nodes, String nodeId, String elementType) {
-    if (!ChainElementFamilies.isSender(elementType)) {
+    if (!RequirementFlowValidator.isNativeOutboundCapabilityKey(elementType)) {
       return false;
     }
     for (SemanticNode node : nodes) {
@@ -1052,6 +1055,59 @@ public class ChainSemanticCaptureAdapter {
       }
     }
     return false;
+  }
+
+  private static void mergeNativeOutboundProvenance(
+      List<SemanticNode> nodes, String nodeId, List<String> extraFactIds, Set<String> factIds) {
+    requireFacts(extraFactIds, factIds, "operation node '" + nodeId + "'");
+    for (int index = 0; index < nodes.size(); index++) {
+      SemanticNode node = nodes.get(index);
+      if (!(node instanceof SemanticNode.Operation operation)
+          || !nodeId.equals(operation.nodeId())) {
+        continue;
+      }
+      LinkedHashSet<String> sourceFactIds =
+          new LinkedHashSet<>(operation.provenance().sourceFactIds());
+      if (extraFactIds != null) {
+        sourceFactIds.addAll(extraFactIds);
+      }
+      nodes.set(
+          index,
+          new SemanticNode.Operation(
+              operation.nodeId(),
+              operation.elementType(),
+              new SemanticProvenance(List.copyOf(sourceFactIds))));
+      return;
+    }
+  }
+
+  private static IllegalArgumentException nativeOutboundOwnedException(
+      String nodeId, String elementType, List<SemanticNode> nodes) {
+    List<String> ownedIds = new ArrayList<>();
+    for (SemanticNode node : nodes) {
+      if (node instanceof SemanticNode.Operation operation
+          && elementType.equals(operation.elementType())) {
+        ownedIds.add(operation.nodeId());
+      }
+    }
+    if (ownedIds.isEmpty()) {
+      return new IllegalArgumentException(
+          "Native outbound elementType '"
+              + elementType
+              + "' is server-owned from a capability fact. Do not add operation node '"
+              + nodeId
+              + "'.");
+    }
+    return new IllegalArgumentException(
+        "Operation node '"
+            + nodeId
+            + "' uses native outbound elementType '"
+            + elementType
+            + "'. That node is server-owned from the capability fact. Use nodeId "
+            + String.join(" or ", ownedIds)
+            + "; do not add another "
+            + elementType
+            + " operation.");
   }
 
   private record TriggerBinding(RequirementEntryPoint approved, int order) {

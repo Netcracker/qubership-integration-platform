@@ -221,6 +221,25 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public List<CatalogElementResponseDto> getElementsByType(String chainId, String type) {
+    List<ChainState> sources =
+        "any-chain".equals(chainId) ? List.copyOf(chains.values()) : List.of(requireChain(chainId));
+    List<CatalogElementResponseDto> matches = new ArrayList<>();
+    for (ChainState chain : sources) {
+      for (StoredElement element : chain.elements.values()) {
+        if (type != null && type.equals(element.type)) {
+          CatalogElementResponseDto dto = toResponseTree(element);
+          dto.chainId = chain.chainId;
+          dto.chainName = chain.name;
+          dto.children = List.of();
+          matches.add(dto);
+        }
+      }
+    }
+    return matches;
+  }
+
+  @Override
   public CatalogElementResponseDto getElement(String chainId, String elementId) {
     StoredElement element = requireElement(requireChain(chainId), elementId);
     return toResponseTree(element);

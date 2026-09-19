@@ -157,6 +157,99 @@ class ChainReconcileServiceTest {
   }
 
   @Test
+  void matchesReuseElementIdWhenCatalogHasRemappedElementId() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("reuse-chain", null),
+            List.of(
+                new ChainPlanNode("reuse-container", "reuse", "Reuse", null, null, List.of()),
+                new ChainPlanNode(
+                    "reuse-reference",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    null,
+                    List.of(new PlanProperty("reuseElementId", "reuse-container")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap(
+            "chain-1",
+            Map.of("reuse-container", "el-reuse", "reuse-reference", "el-ref"),
+            Map.of(),
+            Map.of());
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "reuse-chain",
+            "",
+            2,
+            0,
+            "",
+            List.of(
+                new ChainCatalogElement("el-reuse", "reuse", "Reuse", null, Map.of()),
+                new ChainCatalogElement(
+                    "el-ref",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    Map.of("reuseElementId", "el-reuse"))),
+            List.of(),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertTrue(result.matches(), result.summary());
+    assertTrue(result.propertyMismatches().isEmpty());
+  }
+
+  @Test
+  void reportsReuseElementIdMismatchWhenCatalogPointsAtWrongElement() {
+    ChainPlanGraph plan =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("reuse-chain", null),
+            List.of(
+                new ChainPlanNode("reuse-container", "reuse", "Reuse", null, null, List.of()),
+                new ChainPlanNode(
+                    "reuse-reference",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    null,
+                    List.of(new PlanProperty("reuseElementId", "reuse-container")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap(
+            "chain-1",
+            Map.of("reuse-container", "el-reuse", "reuse-reference", "el-ref"),
+            Map.of(),
+            Map.of());
+    ChainCatalogFacts facts =
+        new ChainCatalogFacts(
+            "chain-1",
+            "reuse-chain",
+            "",
+            2,
+            0,
+            "",
+            List.of(
+                new ChainCatalogElement("el-reuse", "reuse", "Reuse", null, Map.of()),
+                new ChainCatalogElement(
+                    "el-ref",
+                    "reuse-reference",
+                    "Reuse Reference",
+                    null,
+                    Map.of("reuseElementId", "el-other"))),
+            List.of(),
+            "built_in_catalog");
+
+    ReconcileResult result = service.compare(plan, map, facts);
+
+    assertEquals(List.of("reuse-reference.reuseElementId"), result.propertyMismatches());
+  }
+
+  @Test
   void reportsElementLabelMismatch() {
     ReconcileResult result = service.compare(planLabelled("Handler"), map(), factsLabelled("Script"));
     assertEquals(List.of("script-1"), result.labelMismatches());

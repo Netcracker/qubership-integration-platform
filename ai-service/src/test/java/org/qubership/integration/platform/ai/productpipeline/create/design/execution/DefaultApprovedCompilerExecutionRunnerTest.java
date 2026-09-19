@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
@@ -44,6 +45,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionEngine;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerDagExecutionResult;
@@ -106,7 +108,8 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             runStore,
             artifactStore,
             graphCompiler,
-            new ClasspathCompilerContractRepository());
+            new ClasspathCompilerContractRepository(),
+            new CompositionCatalogBinder(mock(CatalogRestClient.class)));
   }
 
   @Test
@@ -516,6 +519,7 @@ class DefaultApprovedCompilerExecutionRunnerTest {
                 generationNode("cip-naming-generator", List.of()),
                 generationNode("cip-trigger-generator", List.of("cip-naming-generator")),
                 generationNode("cip-security-generator", List.of("cip-naming-generator")),
+                generationNode("cip-transformation-generator", List.of("cip-naming-generator")),
                 generationNode("cip-quartz-scheduler-generator", List.of("cip-naming-generator")),
                 terminalNode(
                     "cip-chain-assembler",
@@ -523,6 +527,7 @@ class DefaultApprovedCompilerExecutionRunnerTest {
                     List.of(
                         "cip-trigger-generator",
                         "cip-security-generator",
+                        "cip-transformation-generator",
                         "cip-quartz-scheduler-generator")),
                 terminalNode(
                     "cip-structural-validator",
@@ -531,9 +536,11 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             List.of(
                 edge("cip-naming-generator", "cip-trigger-generator"),
                 edge("cip-naming-generator", "cip-security-generator"),
+                edge("cip-naming-generator", "cip-transformation-generator"),
                 edge("cip-naming-generator", "cip-quartz-scheduler-generator"),
                 edge("cip-trigger-generator", "cip-chain-assembler"),
                 edge("cip-security-generator", "cip-chain-assembler"),
+                edge("cip-transformation-generator", "cip-chain-assembler"),
                 edge("cip-quartz-scheduler-generator", "cip-chain-assembler"),
                 edge("cip-chain-assembler", "cip-structural-validator")),
             "full-dag");
@@ -551,12 +558,16 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             "cip-naming-generator",
             "cip-trigger-generator",
             "cip-security-generator",
+            "cip-transformation-generator",
             "cip-chain-assembler",
             "cip-structural-validator"),
         skillIds);
     assertFalse(skillIds.contains("cip-quartz-scheduler-generator"));
     assertEquals(
-        List.of("cip-trigger-generator", "cip-security-generator"),
+        List.of(
+            "cip-trigger-generator",
+            "cip-security-generator",
+            "cip-transformation-generator"),
         node(scoped, "cip-chain-assembler").dependsOn());
   }
 
