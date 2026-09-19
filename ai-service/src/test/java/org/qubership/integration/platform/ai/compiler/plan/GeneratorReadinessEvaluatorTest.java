@@ -361,6 +361,116 @@ class GeneratorReadinessEvaluatorTest {
   }
 
   @Test
+  void incompleteHeaderModificationMatchesEmptyShell() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("headers", "Headers"),
+            List.of(
+                new ChainPlanNode(
+                    "hm-1", "header-modification", "Headers", null, null, List.of())),
+            List.of());
+
+    var result = evaluator.evaluate(List.of("incomplete_header_modification"), graph, NO_INTENTS);
+
+    assertEquals(GeneratorPlanStatus.READY, result.status());
+    assertTrue(result.matchedSignals().contains("incomplete_header_modification"));
+  }
+
+  @Test
+  void incompleteHeaderModificationMatchesEmptyAddAndRemove() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("headers", "Headers"),
+            List.of(
+                new ChainPlanNode(
+                    "hm-1",
+                    "header-modification",
+                    "Headers",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("headerModificationToAdd", "{}"),
+                        new PlanProperty("headerModificationToRemove", "[]")))),
+            List.of());
+
+    assertEquals(
+        GeneratorPlanStatus.READY,
+        evaluator.evaluate(List.of("incomplete_header_modification"), graph, NO_INTENTS).status());
+  }
+
+  @Test
+  void incompleteHeaderModificationSkipsWhenAddMapIsPopulated() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("headers", "Headers"),
+            List.of(
+                new ChainPlanNode(
+                    "hm-1",
+                    "header-modification",
+                    "Headers",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty(
+                            "headerModificationToAdd", "{\"X-Request-Id\":\"#{REQUEST_ID}\"}")))),
+            List.of());
+
+    assertEquals(
+        GeneratorPlanStatus.SKIPPED,
+        evaluator.evaluate(List.of("incomplete_header_modification"), graph, NO_INTENTS).status());
+  }
+
+  @Test
+  void incompleteHeaderModificationSkipsWhenRemoveListIsPopulated() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("headers", "Headers"),
+            List.of(
+                new ChainPlanNode(
+                    "hm-1",
+                    "header-modification",
+                    "Headers",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("headerModificationToRemove", "[\"X-Internal-Debug\"]")))),
+            List.of());
+
+    assertEquals(
+        GeneratorPlanStatus.SKIPPED,
+        evaluator.evaluate(List.of("incomplete_header_modification"), graph, NO_INTENTS).status());
+  }
+
+  @Test
+  void unmetCompletenessFlagsIncompleteHeaderModification() {
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("headers", "Headers"),
+            List.of(
+                new ChainPlanNode(
+                    "hm-1", "header-modification", "Headers", null, null, List.of())),
+            List.of());
+
+    assertEquals(
+        List.of("incomplete_header_modification"),
+        evaluator.unmetCompleteness(List.of("incomplete_header_modification"), graph));
+  }
+
+  @Test
+  void incompleteHeaderModificationSkipsWhenNoHeaderModificationNodes() {
+    assertEquals(
+        GeneratorPlanStatus.SKIPPED,
+        evaluator
+            .evaluate(List.of("incomplete_header_modification"), emptyGraph(), NO_INTENTS)
+            .status());
+  }
+
+  @Test
   void branchingIntentMatchesWhenClassified() {
     assertEquals(
         GeneratorPlanStatus.READY,

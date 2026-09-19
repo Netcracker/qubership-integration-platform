@@ -33,6 +33,14 @@ class CompilerPipelineIndexBuilderTest {
     assertEquals(
         "captureChainStructure", node(index, "cip-structure-generator").captureTool());
     assertTrue(node(index, "cip-structure-generator").runtimeReadinessFindings().isEmpty());
+    assertEquals("GEN-28", node(index, "cip-transformation-generator").generatorId());
+    assertTrue(node(index, "cip-transformation-generator").runtimeReady());
+    assertEquals(
+        "captureGraphPatch", node(index, "cip-transformation-generator").captureTool());
+    assertTrue(
+        node(index, "cip-chain-assembler")
+            .dependsOn()
+            .contains("cip-transformation-generator"));
     assertFalse(node(index, "cip-routing-generator").applicabilitySignals().isEmpty());
     assertEquals(
         CompilerNodeExecutionMode.JAVA_ADAPTER,

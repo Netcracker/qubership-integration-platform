@@ -193,6 +193,17 @@ class CaptureRepairMessageBuilderTest {
   }
 
   @Test
+  void headerModificationCompletenessAsksForArrayValue() {
+    String message =
+        builder.completenessSummary(List.of("incomplete_header_modification"));
+
+    assertTrue(message.contains("headerModificationToAdd"), message);
+    assertTrue(message.contains("arrayValue"), message);
+    assertTrue(message.contains("mapEntries"), message);
+    assertTrue(message.contains("headerModificationToRemove"), message);
+  }
+
+  @Test
   void validationMessageTruncatesManyErrors() {
     String summary =
         "Plan validation failed:\n"

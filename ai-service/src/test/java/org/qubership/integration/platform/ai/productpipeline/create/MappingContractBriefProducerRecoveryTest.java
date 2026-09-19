@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
@@ -43,6 +44,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.catalog.CompilerSkillCatalog;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorSpecIndex;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
@@ -1254,7 +1256,8 @@ class MappingContractBriefProducerRecoveryTest {
             runStore,
             artifactStore,
             graphCompiler,
-            new ClasspathCompilerContractRepository());
+            new ClasspathCompilerContractRepository(),
+            new CompositionCatalogBinder(mock(CatalogRestClient.class)));
     ExecutorCatalogBindingAdapter bindingAdapter = mock(ExecutorCatalogBindingAdapter.class);
     when(bindingAdapter.resolve(eq(CONV_ID), any(), anyList(), any()))
         .thenReturn(List.of(new BindingResolutionResult.Resolved(sampleBinding())));

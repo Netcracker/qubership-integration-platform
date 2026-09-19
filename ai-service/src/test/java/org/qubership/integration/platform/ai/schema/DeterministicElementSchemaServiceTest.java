@@ -76,6 +76,12 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void headerModificationRemoveIsArrayTyped() {
+    assertTrue(service.isArrayProperty("header-modification", "headerModificationToRemove"));
+    assertFalse(service.isArrayProperty("header-modification", "headerModificationToAdd"));
+  }
+
+  @Test
   void coercesHttpTriggerBooleanPropertyBeforeValidation() throws Exception {
     Object externalRoute =
         service.coercePatchPropertyValue("http-trigger", "externalRoute", "true");

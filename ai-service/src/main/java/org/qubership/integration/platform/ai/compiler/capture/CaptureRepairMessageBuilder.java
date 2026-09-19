@@ -315,6 +315,12 @@ public class CaptureRepairMessageBuilder {
         "incomplete_service_call_error_throwing",
         "Each service-call needs errorThrowing. Set true to fail the chain, or false to return an"
             + " inline response.");
+    instructions.put(
+        "incomplete_header_modification",
+        "Each header-modification needs at least one of headerModificationToAdd or"
+            + " headerModificationToRemove. Put add/keep pairs in mapEntries as name=value strings;"
+            + " do not send {}. Put names to strip in arrayValue as a string array; do not send {}"
+            + " for that list.");
     return Map.copyOf(instructions);
   }
 }
