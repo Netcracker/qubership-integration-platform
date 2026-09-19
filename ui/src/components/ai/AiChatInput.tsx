@@ -99,7 +99,11 @@ export const AiChatInput: React.FC<AiChatInputProps> = ({
       ref={inputRef as React.LegacyRef<TextAreaRef>}
       value={inputValue}
       onChange={(e) => setInputValue(e.target.value)}
-      placeholder="Type your message..."
+      placeholder={
+        isLoading || isStreaming
+          ? "Rocky is still working…"
+          : "Type your message..."
+      }
       rows={textareaRows}
       disabled={isLoading || isStreaming}
       onKeyDown={(e) => {

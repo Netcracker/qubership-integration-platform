@@ -36,7 +36,7 @@ class LlmRateLimitBackoffSinkTest {
     assertEquals("llm:rate-limit-backoff", step.id());
     assertEquals("llm", step.kind());
     assertEquals("running", step.status());
-    assertEquals("rate-limit backoff 4s", step.label());
+    assertEquals("Taking another pass", step.label());
   }
 
   @Test
@@ -57,7 +57,7 @@ class LlmRateLimitBackoffSinkTest {
     assertEquals("llm:rate-limit-backoff", completed.id());
     assertEquals("llm", completed.kind());
     assertEquals("completed", completed.status());
-    assertEquals("rate-limit backoff 2s", completed.label());
+    assertEquals("Ready to continue", completed.label());
   }
 
   @Test
@@ -129,11 +129,11 @@ class LlmRateLimitBackoffSinkTest {
     assertEquals(2, out.size());
     ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
     assertEquals("skill:worker-skill", running.parentId());
-    assertEquals("rate-limit backoff 5s", running.label());
+    assertEquals("Taking another pass", running.label());
 
     ChatEvent.Step completed = assertInstanceOf(ChatEvent.Step.class, out.get(1));
     assertEquals("completed", completed.status());
-    assertEquals("rate-limit backoff 5s", completed.label());
+    assertEquals("Ready to continue", completed.label());
   }
 
   @Test
@@ -162,11 +162,11 @@ class LlmRateLimitBackoffSinkTest {
     assertEquals(2, out.size());
     ChatEvent.Step running = assertInstanceOf(ChatEvent.Step.class, out.get(0));
     assertEquals("skill:worker-skill", running.parentId());
-    assertEquals("rate-limit backoff 7s", running.label());
+    assertEquals("Taking another pass", running.label());
 
     ChatEvent.Step completed = assertInstanceOf(ChatEvent.Step.class, out.get(1));
     assertEquals("completed", completed.status());
-    assertEquals("rate-limit backoff 7s", completed.label());
+    assertEquals("Ready to continue", completed.label());
   }
 
   @Test
