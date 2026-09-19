@@ -73,6 +73,7 @@ describe("AiAssistantPanel.css polish contracts", () => {
 
     const content = declarationsFor(css, ".ai-message-list__content");
     expect(content).toContain("min-height: 100%");
+    expect(content).toContain("position: relative");
 
     const drawerBody = declarationsFor(
       css,
@@ -152,6 +153,28 @@ describe("AiAssistantPanel.css polish contracts", () => {
     );
     expect(summary).toContain("--vscode-textLink-foreground");
     expect(summary).toContain("text-decoration: underline");
+  });
+
+  it("should animate the empty greeting, messages, and activity rows", () => {
+    const empty = declarationsFor(css, ".ai-empty-state");
+    const emptyOut = declarationsFor(css, ".ai-empty-state.ai-chat-motion-out");
+    const message = declarationsFor(css, ".ai-message");
+    const card = declarationsFor(css, ".ai-activity-inline__card");
+    const childRow = declarationsFor(css, ".ai-activity-inline__row--child");
+    const thinking = declarationsFor(css, ".ai-activity-inline__thinking");
+    const thinkingOpen = declarationsFor(
+      css,
+      ".ai-activity-inline__thinking--open",
+    );
+
+    expect(empty).toContain("animation: ai-chat-in 0.4s ease both");
+    expect(emptyOut).toContain("animation: ai-chat-out 0.4s ease both");
+    expect(emptyOut).toContain("position: absolute");
+    expect(message).toContain("animation: ai-chat-in 0.4s ease both");
+    expect(card).toContain("animation: ai-chat-in 0.4s ease both");
+    expect(childRow).toContain("animation: ai-chat-in 0.4s ease both");
+    expect(thinking).toContain("transition: grid-template-rows 0.4s ease");
+    expect(thinkingOpen).toContain("grid-template-rows: 1fr");
   });
 
   it("should keep every painted color on a vscode token", () => {

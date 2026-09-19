@@ -77,6 +77,7 @@ import {
 } from "./chainModificationContent.ts";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
 import { SEND_KEY } from "./aiAssistantConstants.ts";
+import { revealStreamText, waitForNextPaint } from "./streamReveal.ts";
 import { AiEmptyState } from "./AiEmptyState.tsx";
 import { AiAssistantHeaderActions } from "./AiAssistantHeaderActions.tsx";
 import { AiComposerActions } from "./AiComposerActions.tsx";
@@ -428,12 +429,31 @@ export const AiAssistant: React.FC = () => {
       activityStore.reset();
 
       let accumulatedContent = "";
+      let visibleContent = "";
       let currentMessages = ensureAssistantPlaceholder([...requestMessages]);
       sessionStore.updateSessionMessages(sessionId, currentMessages);
       refreshSessions();
       let periodicalChainRefreshAt = performance.now() + 2000;
       let activeConversationId = conversationId;
       let turnFailed = false;
+      let streamOps: Promise<void> = Promise.resolve();
+
+      const paintVisible = (chunk: string) => {
+        visibleContent += chunk;
+        currentMessages = upsertAssistantMessage(
+          currentMessages,
+          visibleContent,
+        );
+        sessionStore.updateSessionMessages(sessionId, currentMessages);
+        throttledRefreshSessions();
+        scrollToBottom();
+      };
+
+      const enqueueOp = (op: () => Promise<void>) => {
+        streamOps = streamOps.then(op).catch((err: unknown) => {
+          console.error("[AiAssistant] stream reveal failed", err);
+        });
+      };
 
       await aiProvider.streamChat!(requestPayload, (chunk: StreamingChunk) => {
         if (chunk.type === "meta" && chunk.conversationId) {
@@ -450,18 +470,22 @@ export const AiAssistant: React.FC = () => {
         }
 
         if (chunk.type === "decision" && chunk.decision) {
-          // Keep whatever the assistant streamed before the gate, then park the card after it.
-          if (accumulatedContent.trim()) {
-            currentMessages = upsertAssistantMessage(
-              currentMessages,
-              accumulatedContent,
-            );
-            accumulatedContent = "";
-          }
-          currentMessages = appendDecision(currentMessages, chunk.decision);
-          sessionStore.updateSessionMessages(sessionId, currentMessages);
-          refreshSessions();
-          scrollToBottom();
+          const decision = chunk.decision;
+          enqueueOp(async () => {
+            // Keep whatever the assistant streamed before the gate, then park the card after it.
+            if (accumulatedContent.trim()) {
+              currentMessages = upsertAssistantMessage(
+                currentMessages,
+                accumulatedContent,
+              );
+              accumulatedContent = "";
+            }
+            visibleContent = "";
+            currentMessages = appendDecision(currentMessages, decision);
+            sessionStore.updateSessionMessages(sessionId, currentMessages);
+            refreshSessions();
+            scrollToBottom();
+          });
           return;
         }
 
@@ -469,80 +493,88 @@ export const AiAssistant: React.FC = () => {
           if (turnFailed) {
             return;
           }
-          accumulatedContent += chunk.contentDelta;
-          currentMessages = upsertAssistantMessage(
-            currentMessages,
-            accumulatedContent,
-          );
-          sessionStore.updateSessionMessages(sessionId, currentMessages);
-          throttledRefreshSessions();
-          scrollToBottom();
-          if (chainContext) {
-            const now = performance.now();
-            if (now >= periodicalChainRefreshAt) {
-              periodicalChainRefreshAt = now + 2000;
-              void refreshChainContexts();
+          const delta = chunk.contentDelta;
+          accumulatedContent += delta;
+          enqueueOp(async () => {
+            await revealStreamText(
+              delta,
+              paintVisible,
+              waitForNextPaint,
+              () => abortControllerRef.current?.signal.aborted === true,
+            );
+            if (chainContext) {
+              const now = performance.now();
+              if (now >= periodicalChainRefreshAt) {
+                periodicalChainRefreshAt = now + 2000;
+                void refreshChainContexts();
+              }
             }
-          }
+          });
           return;
         }
 
         if (chunk.type === "done") {
-          const durationMs = Math.round(performance.now() - start);
-          let finalMessages = applyStreamingDoneMessages(
-            currentMessages,
-            accumulatedContent,
-            {
-              turnFailed,
+          enqueueOp(async () => {
+            const durationMs = Math.round(performance.now() - start);
+            let finalMessages = applyStreamingDoneMessages(
+              currentMessages,
+              accumulatedContent,
+              {
+                turnFailed,
+                durationMs,
+                finishReason: chunk.finishReason,
+                usage: chunk.usage,
+              },
+            );
+            finalMessages = attachActivityToLastAssistant(
+              finalMessages,
+              activityStore.getRows(),
               durationMs,
-              finishReason: chunk.finishReason,
-              usage: chunk.usage,
-            },
-          );
-          finalMessages = attachActivityToLastAssistant(
-            finalMessages,
-            activityStore.getRows(),
-            durationMs,
-          );
-          finalMessages = discardEmptyAssistantPlaceholder(finalMessages);
-          activityStore.reset();
-          handleResponseComplete(sessionId, {
-            finalMessages,
-            conversationId: chunk.conversationId ?? activeConversationId,
+            );
+            finalMessages = discardEmptyAssistantPlaceholder(finalMessages);
+            activityStore.reset();
+            handleResponseComplete(sessionId, {
+              finalMessages,
+              conversationId: chunk.conversationId ?? activeConversationId,
+            });
+            setIsStreaming(false);
+            scrollToBottom();
           });
-          setIsStreaming(false);
-          scrollToBottom();
           return;
         }
 
         if (chunk.type === "error" && chunk.errorMessage) {
-          // The turn ended without a "done" event: check whether the server still has
-          // a gate open so an aborted or failed turn does not leave a stale card.
-          void reconcileOpenDecision(activeConversationId, sessionId);
-          if (!shouldShowErrorToastForAbort(new Error(chunk.errorMessage))) {
-            setIsStreaming(false);
-            return;
-          }
+          const errorMessage = chunk.errorMessage;
           turnFailed = true;
-          const durationMs = Math.round(performance.now() - start);
-          currentMessages = appendTurnFailure(
-            currentMessages,
-            chunk.errorMessage,
-            accumulatedContent,
-            hasUnansweredDecision(currentMessages) ? "valid" : "stale",
-          );
-          currentMessages = attachActivityToLastAssistant(
-            currentMessages,
-            activityStore.getRows(),
-            durationMs,
-          );
-          currentMessages = discardEmptyAssistantPlaceholder(currentMessages);
-          activityStore.reset();
-          sessionStore.updateSessionMessages(sessionId, currentMessages);
-          flushRefresh();
-          setIsStreaming(false);
+          enqueueOp(async () => {
+            // The turn ended without a "done" event: check whether the server still has
+            // a gate open so an aborted or failed turn does not leave a stale card.
+            void reconcileOpenDecision(activeConversationId, sessionId);
+            if (!shouldShowErrorToastForAbort(new Error(errorMessage))) {
+              setIsStreaming(false);
+              return;
+            }
+            const durationMs = Math.round(performance.now() - start);
+            currentMessages = appendTurnFailure(
+              currentMessages,
+              errorMessage,
+              accumulatedContent,
+              hasUnansweredDecision(currentMessages) ? "valid" : "stale",
+            );
+            currentMessages = attachActivityToLastAssistant(
+              currentMessages,
+              activityStore.getRows(),
+              durationMs,
+            );
+            currentMessages = discardEmptyAssistantPlaceholder(currentMessages);
+            activityStore.reset();
+            sessionStore.updateSessionMessages(sessionId, currentMessages);
+            flushRefresh();
+            setIsStreaming(false);
+          });
         }
       });
+      await streamOps;
     },
     [
       chainContext,
@@ -1511,9 +1543,11 @@ export const AiAssistant: React.FC = () => {
             onScroll={handleScroll}
           >
             <div ref={contentRef} className="ai-message-list__content">
-              {visibleMessages.length === 0 ? (
-                <AiEmptyState assistantName={assistantName} />
-              ) : (
+              <AiEmptyState
+                assistantName={assistantName}
+                visible={visibleMessages.length === 0}
+              />
+              {visibleMessages.length === 0 ? null : (
                 <>
                   {visibleMessages.map((message, index) => {
                     const isLastVisible = index === visibleMessages.length - 1;
@@ -1590,6 +1624,7 @@ export const AiAssistant: React.FC = () => {
                             <AiActivityInline
                               rows={activityStore.rows}
                               collapsed={false}
+                              inFlight
                             />
                           ) : null}
                           {showPersistedActivity && message.activity ? (
@@ -1769,6 +1804,7 @@ export const AiAssistant: React.FC = () => {
                             <AiActivityInline
                               rows={activityStore.rows}
                               collapsed={false}
+                              inFlight
                             />
                           ) : (
                             <Typography.Text

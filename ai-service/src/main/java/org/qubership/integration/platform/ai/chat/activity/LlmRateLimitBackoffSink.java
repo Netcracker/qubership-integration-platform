@@ -11,6 +11,9 @@ import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitTurnBudgetEx
 /**
  * Emits {@code step(kind=llm)} events while an LLM rate-limit backoff is active.
  *
+ * <p>User-facing labels stay calm: {@code Taking another pass} while waiting, then {@code Ready to
+ * continue}. The provider delay stays out of the transcript.
+ *
  * <p>Propagation uses Mutiny {@link Context}, not a bare {@link ThreadLocal} alone. Call
  * {@link #bind(Consumer, String, int)} before the chat turn {@code Multi} subscription and
  * {@link #unbind()} on termination. Use {@link #setParentSkillId(String)} while a skill runs
@@ -24,6 +27,8 @@ public final class LlmRateLimitBackoffSink {
 
   static final String CONTEXT_KEY = "llm-rate-limit-backoff-sink-binding";
   static final String STEP_ID = "llm:rate-limit-backoff";
+  static final String RUNNING_LABEL = "Taking another pass";
+  static final String COMPLETED_LABEL = "Ready to continue";
 
   private static final ThreadLocal<Binding> THREAD_BINDING = new ThreadLocal<>();
   private static final ThreadLocal<Context> THREAD_CONTEXT = new ThreadLocal<>();
@@ -126,28 +131,20 @@ public final class LlmRateLimitBackoffSink {
     if (binding.backoffCount() >= binding.maxTurnBackoffs()) {
       throw new RateLimitTurnBudgetExhaustedException(binding.maxTurnBackoffs());
     }
-    String label = "rate-limit backoff " + waitSeconds + "s";
     Binding updated =
         new Binding(
             binding.emit(),
             binding.parentSkillId(),
-            label,
+            RUNNING_LABEL,
             binding.backoffCount() + 1,
             binding.maxTurnBackoffs());
     installBinding(updated, Context.of(CONTEXT_KEY, updated));
-    emit(updated, "running", label);
+    emit(updated, "running", RUNNING_LABEL);
   }
 
   public static void onBackoffCompleted() {
     resolveBinding()
-        .ifPresent(
-            binding -> {
-              String label = binding.lastBackoffLabel();
-              if (label == null) {
-                label = "rate-limit backoff";
-              }
-              emit(binding, "completed", label);
-            });
+        .ifPresent(binding -> emit(binding, "completed", COMPLETED_LABEL));
   }
 
   private static void emit(Binding binding, String status, String label) {

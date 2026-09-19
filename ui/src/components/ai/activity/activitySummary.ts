@@ -7,7 +7,7 @@ import type {
 export type { PersistedActivitySnapshot };
 
 /** Visual card variant for the Activity UI (maps from SSE `kind`). */
-export type ActivityVisualKind = "skill" | "tool" | "api";
+export type ActivityVisualKind = "skill" | "tool" | "api" | "ai";
 
 export function formatActivityDuration(durationMs: number): string {
   if (durationMs < 60_000) {
@@ -62,6 +62,8 @@ export function resolveActivityVisualKind(
       return "tool";
     case "pipeline":
       return "api";
+    case "llm":
+      return "ai";
     default: {
       const _exhaustive: never = kind;
       return _exhaustive;
@@ -76,12 +78,17 @@ export function resolveActivityVisualKind(
 export function resolveDisplayedActivityStatus(
   row: ActivityStepPayload,
   rows: ActivityStepPayload[],
+  inFlight = false,
 ): ActivityStepPayload["status"] {
-  if (row.status !== "running" || row.kind === "tool") {
+  if (inFlight && row.status === "error") {
+    return "running";
+  }
+  if (row.status !== "running" || row.kind === "tool" || row.kind === "llm") {
     return row.status;
   }
   const hasRunningChild = rows.some(
-    (candidate) => candidate.parentId === row.id && candidate.status === "running",
+    (candidate) =>
+      candidate.parentId === row.id && candidate.status === "running",
   );
   if (hasRunningChild) {
     return "running";
@@ -96,6 +103,52 @@ export function resolveDisplayedActivityStatus(
   return laterParentStarted ? "completed" : "running";
 }
 
+/** True when any activity row currently looks in progress to the user. */
+export function hasDisplayedRunningActivity(
+  rows: ActivityStepPayload[],
+  inFlight = false,
+): boolean {
+  return rows.some(
+    (row) => resolveDisplayedActivityStatus(row, rows, inFlight) === "running",
+  );
+}
+
+export function shouldShowTurnContinuation(
+  rows: ActivityStepPayload[],
+  inFlight: boolean,
+): boolean {
+  return (
+    inFlight && rows.length > 0 && !hasDisplayedRunningActivity(rows, inFlight)
+  );
+}
+
+export function resolveErrorRecoveryParentId(
+  rows: ActivityStepPayload[],
+): string | undefined {
+  const errorRow = [...rows].reverse().find((row) => row.status === "error");
+  if (!errorRow) {
+    return undefined;
+  }
+  if (errorRow.kind === "skill" || errorRow.kind === "pipeline") {
+    return errorRow.id;
+  }
+  return errorRow.parentId ?? errorRow.id;
+}
+
+export function shouldShowErrorRecoveryPass(
+  rows: ActivityStepPayload[],
+  inFlight: boolean,
+): boolean {
+  if (!inFlight) {
+    return false;
+  }
+  const hasError = rows.some((row) => row.status === "error");
+  const hasRunningLlm = rows.some(
+    (row) => row.kind === "llm" && row.status === "running",
+  );
+  return hasError && !hasRunningLlm;
+}
+
 export function visualKindBadgeLabel(visual: ActivityVisualKind): string {
   switch (visual) {
     case "skill":
@@ -104,6 +157,8 @@ export function visualKindBadgeLabel(visual: ActivityVisualKind): string {
       return "tool";
     case "api":
       return "api";
+    case "ai":
+      return "AI";
     default: {
       const _exhaustive: never = visual;
       return _exhaustive;

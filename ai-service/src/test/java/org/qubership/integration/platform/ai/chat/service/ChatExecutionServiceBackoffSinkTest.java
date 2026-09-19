@@ -60,7 +60,7 @@ class ChatExecutionServiceBackoffSinkTest {
     assertEquals(2, out.size());
     ChatEvent.Step step = assertInstanceOf(ChatEvent.Step.class, out.get(0));
     assertEquals("llm:rate-limit-backoff", step.id());
-    assertEquals("rate-limit backoff 4s", step.label());
+    assertEquals("Taking another pass", step.label());
     assertInstanceOf(ChatEvent.Token.class, out.get(1));
   }
 
