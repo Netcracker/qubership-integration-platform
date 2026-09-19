@@ -5,7 +5,7 @@ export type ChatMessageVariant = "error";
 
 export interface ActivityStepPayload {
   id: string;
-  kind: "skill" | "pipeline" | "tool";
+  kind: "skill" | "pipeline" | "tool" | "llm";
   status: "running" | "completed" | "error" | "cancelled";
   label?: string;
   parentId?: string | null;

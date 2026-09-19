@@ -35,6 +35,25 @@ describe("parseCipSseBlock", () => {
     ]);
   });
 
+  it("parses an llm recovery step nested under a skill", () => {
+    const chunks = parseCipSseBlock(
+      'event: step\ndata: {"id":"llm:rate-limit-backoff","kind":"llm","status":"running",' +
+        '"label":"Taking another pass","parentId":"skill:cip-design-planner"}\n',
+    );
+    expect(chunks).toEqual([
+      {
+        type: "step",
+        step: {
+          id: "llm:rate-limit-backoff",
+          kind: "llm",
+          status: "running",
+          label: "Taking another pass",
+          parentId: "skill:cip-design-planner",
+        },
+      },
+    ]);
+  });
+
   it("parses an approval decision with its binding and actions", () => {
     const chunks = parseCipSseBlock(
       'event: decision\ndata: {"id":"approve:sha256:abc","kind":"approve","question":"Approve the plan?",' +

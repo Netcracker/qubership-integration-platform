@@ -23,7 +23,12 @@ function parseStepPayload(payload: string): ActivityStepPayload | null {
     ) {
       return null;
     }
-    if (kind !== "skill" && kind !== "pipeline" && kind !== "tool") {
+    if (
+      kind !== "skill" &&
+      kind !== "pipeline" &&
+      kind !== "tool" &&
+      kind !== "llm"
+    ) {
       return null;
     }
     if (

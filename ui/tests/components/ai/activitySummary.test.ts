@@ -6,6 +6,8 @@ import {
   formatActivityDuration,
   resolveActivityVisualKind,
   resolveDisplayedActivityStatus,
+  shouldShowErrorRecoveryPass,
+  shouldShowTurnContinuation,
 } from "../../../src/components/ai/activity/activitySummary.ts";
 
 describe("formatActivityDuration", () => {
@@ -85,6 +87,10 @@ describe("resolveActivityVisualKind", () => {
   it("should map pipeline to the api visual variant without inventing SSE fields", () => {
     expect(resolveActivityVisualKind("pipeline")).toBe("api");
   });
+
+  it("should map llm to the ai visual variant", () => {
+    expect(resolveActivityVisualKind("llm")).toBe("ai");
+  });
 });
 
 describe("resolveDisplayedActivityStatus", () => {
@@ -148,6 +154,155 @@ describe("resolveDisplayedActivityStatus", () => {
     expect(
       resolveDisplayedActivityStatus(brainstorming, [brainstorming, working]),
     ).toBe("running");
+  });
+
+  it("should keep a running llm step running after a later skill starts", () => {
+    const llm: ActivityStepPayload = {
+      id: "llm:rate-limit-backoff",
+      kind: "llm",
+      status: "running",
+      label: "Taking another pass",
+      parentId: "skill:brainstorming",
+    };
+    expect(
+      resolveDisplayedActivityStatus(llm, [brainstorming, llm, analyzer]),
+    ).toBe("running");
+  });
+
+  it("should show an in-flight error skill as running", () => {
+    const capturing: ActivityStepPayload = {
+      id: "skill:chain-semantic-design",
+      kind: "skill",
+      status: "error",
+      label: "Capturing the chain design",
+    };
+    expect(resolveDisplayedActivityStatus(capturing, [capturing], true)).toBe(
+      "running",
+    );
+  });
+
+  it("should keep an error skill as error after the turn ends", () => {
+    const capturing: ActivityStepPayload = {
+      id: "skill:chain-semantic-design",
+      kind: "skill",
+      status: "error",
+      label: "Capturing the chain design",
+    };
+    expect(resolveDisplayedActivityStatus(capturing, [capturing])).toBe(
+      "error",
+    );
+  });
+});
+
+describe("shouldShowTurnContinuation", () => {
+  it("should hide a continuation while a skill still looks in progress", () => {
+    const planner: ActivityStepPayload = {
+      id: "skill:cip-design-planner",
+      kind: "skill",
+      status: "running",
+      label: "Planning the implementation",
+    };
+    const tool: ActivityStepPayload = {
+      id: "tool:library",
+      kind: "tool",
+      status: "completed",
+      label: "Loading an element type",
+      parentId: "skill:cip-design-planner",
+    };
+    expect(shouldShowTurnContinuation([planner, tool], true)).toBe(false);
+  });
+
+  it("should hide a continuation while a tool or llm step is running", () => {
+    const planner: ActivityStepPayload = {
+      id: "skill:cip-design-planner",
+      kind: "skill",
+      status: "running",
+      label: "Planning the implementation",
+    };
+    const llm: ActivityStepPayload = {
+      id: "llm:rate-limit-backoff",
+      kind: "llm",
+      status: "running",
+      label: "Taking another pass",
+      parentId: "skill:cip-design-planner",
+    };
+    expect(shouldShowTurnContinuation([planner, llm], true)).toBe(false);
+  });
+
+  it("should show a continuation when the turn is in flight and every row looks finished", () => {
+    const planner: ActivityStepPayload = {
+      id: "skill:cip-design-planner",
+      kind: "skill",
+      status: "completed",
+      label: "Planning the implementation",
+    };
+    const tool: ActivityStepPayload = {
+      id: "tool:library",
+      kind: "tool",
+      status: "completed",
+      label: "Loading an element type",
+      parentId: "skill:cip-design-planner",
+    };
+    expect(shouldShowTurnContinuation([planner, tool], true)).toBe(true);
+  });
+
+  it("should hide a continuation when the turn is not in flight", () => {
+    const planner: ActivityStepPayload = {
+      id: "skill:cip-design-planner",
+      kind: "skill",
+      status: "completed",
+      label: "Planning the implementation",
+    };
+    expect(shouldShowTurnContinuation([planner], false)).toBe(false);
+  });
+
+  it("should hide Thinking while an in-flight error skill is still recovering", () => {
+    const capturing: ActivityStepPayload = {
+      id: "skill:chain-semantic-design",
+      kind: "skill",
+      status: "error",
+      label: "Capturing the chain design",
+    };
+    expect(shouldShowTurnContinuation([capturing], true)).toBe(false);
+  });
+});
+
+describe("shouldShowErrorRecoveryPass", () => {
+  it("should show a recovery pass for an in-flight error skill", () => {
+    const capturing: ActivityStepPayload = {
+      id: "skill:chain-semantic-design",
+      kind: "skill",
+      status: "error",
+      label: "Capturing the chain design",
+    };
+    expect(shouldShowErrorRecoveryPass([capturing], true)).toBe(true);
+  });
+
+  it("should hide a recovery pass when a live llm step is already present", () => {
+    const capturing: ActivityStepPayload = {
+      id: "skill:chain-semantic-design",
+      kind: "skill",
+      status: "error",
+      label: "Capturing the chain design",
+    };
+    const llm: ActivityStepPayload = {
+      id: "llm:rate-limit-backoff",
+      kind: "llm",
+      status: "running",
+      label: "Taking another pass",
+      parentId: "skill:chain-semantic-design",
+    };
+    expect(shouldShowErrorRecoveryPass([capturing, llm], true)).toBe(false);
+  });
+
+  it("should hide a recovery pass after the turn ends", () => {
+    const capturing: ActivityStepPayload = {
+      id: "skill:chain-semantic-design",
+      kind: "skill",
+      status: "error",
+      label: "Capturing the chain design",
+    };
+    expect(shouldShowErrorRecoveryPass([capturing], false)).toBe(false);
   });
 });
 

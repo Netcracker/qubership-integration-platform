@@ -4,12 +4,13 @@
 
 import { describe, expect, it } from "@jest/globals";
 import "@testing-library/jest-dom";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   AI_EMPTY_STATE_HINT,
   AiEmptyState,
+  CHAT_MOTION_MS,
 } from "../../../src/components/ai/AiEmptyState.tsx";
 
 function declarationsFor(css: string, selector: string): string {
@@ -65,5 +66,24 @@ describe("AiEmptyState", () => {
 
     expect(title).toContain("--vscode-foreground");
     expect(hint).toContain("--vscode-descriptionForeground");
+  });
+
+  it("should keep the greeting mounted while it fades out", () => {
+    jest.useFakeTimers();
+    const { rerender } = render(<AiEmptyState assistantName="Rocky" visible />);
+    rerender(<AiEmptyState assistantName="Rocky" visible={false} />);
+
+    const greeting = document.querySelector(".ai-empty-state");
+    expect(greeting).toHaveClass("ai-chat-motion-out");
+    expect(
+      screen.getByRole("heading", { name: "Rocky", hidden: true }),
+    ).toBeInTheDocument();
+
+    act(() => {
+      jest.advanceTimersByTime(CHAT_MOTION_MS);
+    });
+
+    expect(document.querySelector(".ai-empty-state")).toBeNull();
+    jest.useRealTimers();
   });
 });

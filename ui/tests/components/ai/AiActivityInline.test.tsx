@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from "@jest/globals";
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { AiActivityInline } from "../../../src/components/ai/activity/AiActivityInline.tsx";
@@ -139,7 +139,9 @@ describe("AiActivityInline", () => {
 
     const label = screen.getByText("POST /v1/systems/search");
     expect(label).toHaveClass("ai-activity-inline__label");
-    expect(label.parentElement).toHaveClass("ai-activity-inline__row");
+    expect(label.closest(".ai-activity-inline__row")).toHaveClass(
+      "ai-activity-inline__row",
+    );
   });
 
   it("should render every nested tool row when seven tools are in flight", () => {
@@ -213,8 +215,18 @@ describe("AiActivityInline", () => {
     expect(hasDeclaration(children, "width", "100%")).toBe(true);
     expect(hasDeclaration(children, "max-width", "100%")).toBe(true);
     expect(hasDeclaration(children, "min-width", "0")).toBe(true);
-    expect(hasDeclaration(children, "overflow", "visible")).toBe(true);
+    expect(hasDeclaration(children, "overflow", "hidden")).toBe(true);
+    expect(hasDeclaration(children, "display", "grid")).toBe(true);
     expect(hasDeclaration(children, "box-sizing", "border-box")).toBe(true);
+    expect(children).toContain("transition: grid-template-rows 0.4s ease");
+
+    const childrenOpen = declarationsFor(
+      css,
+      ".ai-activity-inline__children--open",
+    );
+    expect(hasDeclaration(childrenOpen, "grid-template-rows", "1fr")).toBe(
+      true,
+    );
 
     const childRow = declarationsFor(css, ".ai-activity-inline__row--child");
     expect(hasDeclaration(childRow, "max-width", "100%")).toBe(true);
@@ -271,6 +283,21 @@ describe("AiActivityInline", () => {
     const label = declarationsFor(css, ".ai-activity-inline__label");
     expect(label).toContain("overflow-wrap: anywhere");
     expect(label).toContain("white-space: normal");
+
+    const copy = declarationsFor(css, ".ai-activity-inline__copy");
+    expect(hasDeclaration(copy, "flex", "1 1 0")).toBe(true);
+
+    const runningIcon = declarationsFor(
+      css,
+      ".ai-activity-inline__row--running .ai-activity-inline__icon",
+    );
+    expect(runningIcon).toContain("--vscode-textLink-foreground");
+    expect(runningIcon).not.toContain("--vscode-testing-iconFailed");
+
+    const aiBadge = declarationsFor(css, ".ai-activity-inline__badge--ai");
+    expect(aiBadge).toContain("--vscode-textLink-foreground");
+    expect(aiBadge).not.toContain("--vscode-testing-iconFailed");
+    expect(aiBadge).not.toContain("--vscode-charts-orange");
   });
 
   it("should nest tool rows inside the skill card so CSS can share its width", () => {
@@ -311,7 +338,9 @@ describe("AiActivityInline", () => {
     expect(card).not.toBeNull();
     expect(nestedRows).toHaveLength(2);
     expect(nestedRows[0]).toHaveTextContent("POST /v1/systems/search");
-    expect(card?.querySelector(".ai-activity-inline__badge--skill")).not.toBeNull();
+    expect(
+      card?.querySelector(".ai-activity-inline__badge--skill"),
+    ).not.toBeNull();
     expect(
       nestedRows[0]?.querySelector(".ai-activity-inline__badge--tool"),
     ).not.toBeNull();
@@ -351,9 +380,13 @@ describe("AiActivityInline", () => {
     const analyzer = screen
       .getByText("cip-requirement-analyzer")
       .closest(".ai-activity-inline__row");
-    expect(brainstorming?.querySelector(".ai-activity-inline__spinner")).toBeNull();
+    expect(
+      brainstorming?.querySelector(".ai-activity-inline__spinner"),
+    ).toBeNull();
     expect(brainstorming).toHaveClass("ai-activity-inline__row--completed");
-    expect(analyzer?.querySelector(".ai-activity-inline__spinner")).not.toBeNull();
+    expect(
+      analyzer?.querySelector(".ai-activity-inline__spinner"),
+    ).not.toBeNull();
   });
 
   it("should omit a parent chevron when the skill has no nested tools", () => {
@@ -376,5 +409,445 @@ describe("AiActivityInline", () => {
       screen.queryByRole("button", { name: /materialization/i }),
     ).not.toBeInTheDocument();
     expect(document.querySelector(".ai-activity-inline__chevron")).toBeNull();
+  });
+
+  it("should nest a running llm pass under the active skill with an AI badge", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+          {
+            id: "llm:rate-limit-backoff",
+            kind: "llm",
+            status: "running",
+            label: "Taking another pass",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText(/Taking another pass/)).toBeInTheDocument();
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    const llmRow = screen
+      .getByText(/Taking another pass/)
+      .closest(".ai-activity-inline__row");
+    expect(llmRow).toHaveClass("ai-activity-inline__row--running");
+    expect(llmRow).not.toHaveClass("ai-activity-inline__row--error");
+    expect(
+      llmRow?.querySelector(".ai-activity-inline__spinner"),
+    ).not.toBeNull();
+    expect(llmRow?.querySelector(".ai-thinking-dots")).not.toBeNull();
+  });
+
+  it("should replace the llm label with Ready to continue when the pass completes", () => {
+    const { rerender } = render(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+          {
+            id: "llm:rate-limit-backoff",
+            kind: "llm",
+            status: "running",
+            label: "Taking another pass",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+
+    rerender(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+          {
+            id: "llm:rate-limit-backoff",
+            kind: "llm",
+            status: "completed",
+            label: "Ready to continue",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Ready to continue")).toBeInTheDocument();
+    expect(screen.queryByText(/Taking another pass/)).not.toBeInTheDocument();
+    const llmRow = screen
+      .getByText("Ready to continue")
+      .closest(".ai-activity-inline__row");
+    expect(llmRow).toHaveClass("ai-activity-inline__row--completed");
+    expect(llmRow).not.toHaveClass("ai-activity-inline__row--error");
+  });
+
+  it("should collapse a completed skill once a later skill is running", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:chain-semantic-design",
+            kind: "skill",
+            status: "completed",
+            label: "Capturing the chain design",
+          },
+          {
+            id: "tool:library",
+            kind: "tool",
+            status: "completed",
+            label: "Loading an element type",
+            parentId: "skill:chain-semantic-design",
+          },
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+        ]}
+      />,
+    );
+
+    const capturing = screen.getByRole("button", {
+      name: /Capturing the chain design/i,
+    });
+    const panel = capturing
+      .closest(".ai-activity-inline__card")
+      ?.querySelector(".ai-activity-inline__children");
+    expect(capturing).toHaveAttribute("aria-expanded", "false");
+    expect(panel).not.toHaveClass("ai-activity-inline__children--open");
+    expect(panel).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByText("Loading an element type")).toBeInTheDocument();
+  });
+
+  it("should expand a collapsed completed skill when its row is clicked", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:chain-semantic-design",
+            kind: "skill",
+            status: "completed",
+            label: "Capturing the chain design",
+          },
+          {
+            id: "tool:library",
+            kind: "tool",
+            status: "completed",
+            label: "Loading an element type",
+            parentId: "skill:chain-semantic-design",
+          },
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+        ]}
+      />,
+    );
+
+    const capturing = screen.getByRole("button", {
+      name: /Capturing the chain design/i,
+    });
+    fireEvent.click(capturing);
+    expect(capturing).toHaveAttribute("aria-expanded", "true");
+    expect(
+      capturing
+        .closest(".ai-activity-inline__card")
+        ?.querySelector(".ai-activity-inline__children"),
+    ).toHaveClass("ai-activity-inline__children--open");
+    expect(screen.getByText("Loading an element type")).toBeInTheDocument();
+  });
+
+  it("should show a wait hint after eight seconds on a running llm step", () => {
+    jest.useFakeTimers();
+    render(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+          {
+            id: "llm:rate-limit-backoff",
+            kind: "llm",
+            status: "running",
+            label: "Taking another pass",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.queryByText("Rocky is still working. No action is needed."),
+    ).not.toBeInTheDocument();
+    act(() => {
+      jest.advanceTimersByTime(8000);
+    });
+    expect(
+      screen.getByText("Rocky is still working. No action is needed."),
+    ).toBeInTheDocument();
+    jest.useRealTimers();
+  });
+
+  it("should hide the wait hint when the llm step completes", () => {
+    jest.useFakeTimers();
+    const { rerender } = render(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+          {
+            id: "llm:rate-limit-backoff",
+            kind: "llm",
+            status: "running",
+            label: "Taking another pass",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(8000);
+    });
+    rerender(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+          {
+            id: "llm:rate-limit-backoff",
+            kind: "llm",
+            status: "completed",
+            label: "Ready to continue",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+    expect(
+      screen.queryByText("Rocky is still working. No action is needed."),
+    ).not.toBeInTheDocument();
+    jest.useRealTimers();
+  });
+
+  it("should show Thinking below the list when the turn is in flight and every row looks finished", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        inFlight
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "completed",
+            label: "Planning the implementation",
+          },
+          {
+            id: "tool:library",
+            kind: "tool",
+            status: "completed",
+            label: "Loading an element type",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+
+    const thinking = document.querySelector(".ai-activity-inline__thinking");
+    expect(thinking).toHaveClass("ai-activity-inline__thinking--open");
+    expect(thinking).toHaveAttribute("aria-hidden", "false");
+    expect(thinking).toHaveTextContent("Thinking");
+    expect(thinking?.querySelector(".ai-thinking-dots")).not.toBeNull();
+    expect(
+      document.querySelector(".ai-activity-inline__row--continuation"),
+    ).toBeNull();
+  });
+
+  it("should hide Thinking while a skill still looks in progress", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        inFlight
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+          {
+            id: "tool:library",
+            kind: "tool",
+            status: "completed",
+            label: "Loading an element type",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+
+    const thinking = document.querySelector(".ai-activity-inline__thinking");
+    expect(thinking).not.toHaveClass("ai-activity-inline__thinking--open");
+    expect(thinking).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("should hide Thinking while a tool or llm step is running", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        inFlight
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "running",
+            label: "Planning the implementation",
+          },
+          {
+            id: "tool:library",
+            kind: "tool",
+            status: "running",
+            label: "Loading an element type",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+
+    const thinking = document.querySelector(".ai-activity-inline__thinking");
+    expect(thinking).not.toHaveClass("ai-activity-inline__thinking--open");
+    expect(thinking).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("should not show Thinking when inFlight is false", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:cip-design-planner",
+            kind: "skill",
+            status: "completed",
+            label: "Planning the implementation",
+          },
+          {
+            id: "tool:library",
+            kind: "tool",
+            status: "completed",
+            label: "Loading an element type",
+            parentId: "skill:cip-design-planner",
+          },
+        ]}
+      />,
+    );
+
+    const thinking = document.querySelector(".ai-activity-inline__thinking");
+    expect(thinking).not.toHaveClass("ai-activity-inline__thinking--open");
+    expect(thinking).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("should show Taking another pass instead of an error mark while the turn is in flight", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        inFlight
+        rows={[
+          {
+            id: "skill:chain-semantic-design",
+            kind: "skill",
+            status: "error",
+            label: "Capturing the chain design",
+          },
+          {
+            id: "tool:captureChainSemanticRevision",
+            kind: "tool",
+            status: "completed",
+            label: "Capturing chain semantic revision",
+            parentId: "skill:chain-semantic-design",
+          },
+        ]}
+      />,
+    );
+
+    const skillRow = screen
+      .getByText("Capturing the chain design")
+      .closest(".ai-activity-inline__row");
+    expect(skillRow).toHaveClass("ai-activity-inline__row--running");
+    expect(skillRow).not.toHaveClass("ai-activity-inline__row--error");
+    expect(
+      skillRow?.querySelector(".ai-activity-inline__spinner"),
+    ).not.toBeNull();
+    expect(screen.getByText(/Taking another pass/)).toBeInTheDocument();
+    expect(screen.getByText("AI")).toBeInTheDocument();
+    expect(
+      document.querySelector(".ai-activity-inline__thinking--open"),
+    ).toBeNull();
+    const passRow = screen
+      .getByText(/Taking another pass/)
+      .closest(".ai-activity-inline__row");
+    expect(passRow).toHaveClass("ai-activity-inline__row--pass");
+    expect(passRow).toHaveClass("ai-activity-inline__row--running");
+    expect(
+      passRow?.querySelector(".ai-activity-inline__spinner"),
+    ).not.toBeNull();
+    expect(passRow?.querySelector(".ai-thinking-dots")).not.toBeNull();
+  });
+
+  it("should keep the error mark after the turn ends", () => {
+    render(
+      <AiActivityInline
+        collapsed={false}
+        rows={[
+          {
+            id: "skill:chain-semantic-design",
+            kind: "skill",
+            status: "error",
+            label: "Capturing the chain design",
+          },
+        ]}
+      />,
+    );
+
+    const skillRow = screen
+      .getByText("Capturing the chain design")
+      .closest(".ai-activity-inline__row");
+    expect(skillRow).toHaveClass("ai-activity-inline__row--error");
+    expect(screen.queryByText(/Taking another pass/)).not.toBeInTheDocument();
   });
 });
