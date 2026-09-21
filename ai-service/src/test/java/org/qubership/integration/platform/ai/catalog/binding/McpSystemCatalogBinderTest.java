@@ -51,8 +51,11 @@ class McpSystemCatalogBinderTest {
     RequirementFact fact = mcpFact("in-1", "Orders", "");
     McpSystemCatalogBinder.McpSystemGatherResult result =
         McpSystemCatalogBinder.gather(flow("in-1"), List.of(fact), "Orders MCP", catalog);
-    assertTrue(result.openQuestion().orElseThrow().contains("Choose the MCP service"));
-    assertTrue(result.openQuestion().orElseThrow().contains("new MCP service"));
+    String question = result.openQuestion().orElseThrow();
+    assertTrue(question.contains("Choose the MCP service"));
+    assertTrue(question.contains("new MCP service"));
+    assertTrue(question.contains("Orders (orders)"));
+    assertTrue(question.contains("Orders (orders-2)"));
     assertEquals("", mcpFactIn(result.facts()).path());
   }
 
@@ -93,8 +96,11 @@ class McpSystemCatalogBinderTest {
     RequirementFact fact = mcpFact("in-1", "", "", "orders");
     McpSystemCatalogBinder.McpSystemGatherResult result =
         McpSystemCatalogBinder.gather(flow("in-1"), List.of(fact), "Orders MCP", catalog);
-    assertTrue(result.openQuestion().orElseThrow().contains("Choose the MCP service"));
-    assertTrue(result.openQuestion().orElseThrow().contains("new MCP service"));
+    String question = result.openQuestion().orElseThrow();
+    assertTrue(question.contains("Choose the MCP service"));
+    assertTrue(question.contains("new MCP service"));
+    assertTrue(question.contains("Orders (orders)"));
+    assertTrue(question.contains("Orders Alt (orders)"));
     assertEquals("", mcpFactIn(result.facts()).path());
   }
 
@@ -160,15 +166,37 @@ class McpSystemCatalogBinderTest {
   }
 
   @Test
-  void bindSuffixesIdentifierForSecondCreateInSameGraph() {
+  void bindMatchesUserIdentifierCaseInsensitively() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.listMcpSystems()).thenReturn(List.of(system("sys-1", "Orders MCP", "Orders_SVC")));
+    McpSystemCatalogBinder binder = new McpSystemCatalogBinder(catalog);
+    ChainPlanGraph out =
+        binder.bind(
+            graphWithTrigger("in-1"),
+            briefWith(mcpFact("in-1", "Brand New", "", "orders_svc")));
+    assertEquals("[\"sys-1\"]", property(node(out, "in-1"), "mcpServiceIds"));
+    verify(catalog, never()).createMcpSystem(any());
+  }
+
+  @Test
+  void bindReusesGeneratedSystemOnRecompileInsteadOfCreatingDuplicate() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.listMcpSystems())
+        .thenReturn(List.of(system("existing-id", "Brand New", "brand-new")));
+    McpSystemCatalogBinder binder = new McpSystemCatalogBinder(catalog);
+    ChainPlanGraph out =
+        binder.bind(graphWithTrigger("in-1"), briefWith(mcpFact("in-1", "Brand New", "")));
+    assertEquals("[\"existing-id\"]", property(node(out, "in-1"), "mcpServiceIds"));
+    verify(catalog, never()).createMcpSystem(any());
+  }
+
+  @Test
+  void bindReusesSameGeneratedSystemForMatchingTriggersInOneGraph() {
     CatalogRestClient catalog = mock(CatalogRestClient.class);
     when(catalog.listMcpSystems()).thenReturn(List.of());
-    CatalogMcpSystemDto first = system("sys-1", "Brand New", "brand-new");
-    CatalogMcpSystemDto second = system("sys-2", "Brand New", "brand-new-2");
+    CatalogMcpSystemDto created = system("sys-1", "Brand New", "brand-new");
     when(catalog.createMcpSystem(new CatalogCreateMcpSystemRequest("Brand New", "brand-new", null)))
-        .thenReturn(first);
-    when(catalog.createMcpSystem(new CatalogCreateMcpSystemRequest("Brand New", "brand-new-2", null)))
-        .thenReturn(second);
+        .thenReturn(created);
     McpSystemCatalogBinder binder = new McpSystemCatalogBinder(catalog);
     ChainPlanGraph graph = graphWithTriggers("in-1", "in-2");
     RequirementBrief brief =
@@ -177,9 +205,9 @@ class McpSystemCatalogBinderTest {
             mcpFact("in-2", "Brand New", ""));
     ChainPlanGraph out = binder.bind(graph, brief);
     assertEquals("[\"sys-1\"]", property(node(out, "in-1"), "mcpServiceIds"));
-    assertEquals("[\"sys-2\"]", property(node(out, "in-2"), "mcpServiceIds"));
+    assertEquals("[\"sys-1\"]", property(node(out, "in-2"), "mcpServiceIds"));
     verify(catalog).createMcpSystem(new CatalogCreateMcpSystemRequest("Brand New", "brand-new", null));
-    verify(catalog)
+    verify(catalog, never())
         .createMcpSystem(new CatalogCreateMcpSystemRequest("Brand New", "brand-new-2", null));
   }
 
