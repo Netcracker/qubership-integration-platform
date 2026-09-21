@@ -265,6 +265,23 @@ whatever the component scan produces.
 
 ### F13. Active environment selection diverges from runtime-catalog (major)
 
+Both hosts resolve an environment on the snapshot path, for the same three element types. The catalog's
+is:
+
+```text
+SnapshotService.build
+  -> fillServiceEnvironments
+     -> ElementService.fillElementsEnvironment:137
+        -> getElementsBySystemId:155                    the same three types the plugin switches on
+        -> SystemEnvironmentsGenerator.generateSystemEnvironments:30
+           -> getActiveEnvironmentsBySystems            the per-type switch below
+           -> lines 37-45: a placeholder marked notActivated for anything that yielded nothing
+        -> mergeElementsBySystemIdWithEnvironments      element.setEnvironment(...)
+```
+
+So the catalog always attaches an environment object, real or placeholder, exactly as the plugin's
+three-way fallback does. The structure matches; only the selection differs.
+
 The catalog picks an environment per service type, in
 `runtime-catalog/.../service/SystemEnvironmentsGenerator.java`:
 
@@ -299,8 +316,32 @@ the four divergent rows the catalog refuses to build while the plugin bakes some
 into the chain. The failure is not a build that fails differently; it is a build that succeeds against
 an endpoint nobody selected.
 
-One thing left unchecked: the catalog reads environments from JPA and the plugin in export-file order,
-so even the agreeing rows could resolve "first" to different environments.
+"First" is not the same thing on both sides either. `IntegrationSystem.environments` carries
+`@OrderBy("id")`, so the catalog takes the lowest id; the plugin takes whichever the export file lists
+first. The rows that agree on the rule still agree on the environment only when the file happens to be
+in id order.
+
+Two adjacent divergences sit on the same path and are worth deciding alongside the table.
+
+**An empty `systemId`.** `getElementsBySystemId:170` skips the element:
+
+```java
+if (StringUtils.isEmpty(systemId)) {
+    continue;
+}
+```
+
+The plugin maps the property straight through to `getIntegrationServiceActiveEnvironment("")`, which
+raises `NoSuchElementException: Integration service not found: `.
+
+**A `systemId` naming no existing service.** `generateSystemEnvironments:31-32` resolves through
+`systemService::getByIdOrNull` and filters the nulls out, and the placeholder loop iterates the resolved
+systems, so such an element gets no environment and no placeholder: the catalog leaves it silently
+unresolved. The plugin fails the build with `Integration service not found: <id>`.
+
+The second of those is the one case where the plugin's behavior looks better than the catalog's. A chain
+naming a service that is not there failing loudly beats compiling one whose endpoint resolution was
+quietly skipped, so it is a divergence to decide on rather than a defect to close.
 
 ### F14. Smaller items from the second round
 
