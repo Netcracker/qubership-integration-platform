@@ -23,6 +23,7 @@ import java.util.function.BiConsumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
+import org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
@@ -109,7 +110,8 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             artifactStore,
             graphCompiler,
             new ClasspathCompilerContractRepository(),
-            new CompositionCatalogBinder(mock(CatalogRestClient.class)));
+            new CompositionCatalogBinder(mock(CatalogRestClient.class)),
+            new McpSystemCatalogBinder(mock(CatalogRestClient.class)));
   }
 
   @Test

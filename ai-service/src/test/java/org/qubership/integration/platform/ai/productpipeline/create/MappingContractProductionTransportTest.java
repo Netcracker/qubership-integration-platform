@@ -198,7 +198,9 @@ class MappingContractProductionTransportTest {
             artifactStore,
             graphCompiler,
             new ClasspathCompilerContractRepository(),
-            new CompositionCatalogBinder(mock(CatalogRestClient.class)));
+            new CompositionCatalogBinder(mock(CatalogRestClient.class)),
+            new org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder(
+                mock(CatalogRestClient.class)));
     ExecutorCatalogBindingAdapter bindingAdapter = mock(ExecutorCatalogBindingAdapter.class);
     when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any()))
         .thenReturn(List.of(new BindingResolutionResult.Resolved(binding)));

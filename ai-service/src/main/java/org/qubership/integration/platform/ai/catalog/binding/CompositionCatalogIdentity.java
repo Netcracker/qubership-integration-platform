@@ -21,6 +21,15 @@ public final class CompositionCatalogIdentity {
     return upsertProperty(graph, nodeId, "reuseElementId", reuseNodeId);
   }
 
+  public static ChainPlanGraph upsertMcpServiceIds(
+      ChainPlanGraph graph, String nodeId, String mcpSystemId) {
+    if (mcpSystemId == null || !mcpSystemId.matches("[A-Za-z0-9_-]+")) {
+      throw new IllegalArgumentException("invalid MCP system id: " + mcpSystemId);
+    }
+    String json = "[\"" + mcpSystemId + "\"]";
+    return upsertProperty(graph, nodeId, "mcpServiceIds", json);
+  }
+
   private static ChainPlanGraph upsertProperty(
       ChainPlanGraph graph, String nodeId, String key, String value) {
     ChainPlanNode target = findNode(graph, nodeId);
