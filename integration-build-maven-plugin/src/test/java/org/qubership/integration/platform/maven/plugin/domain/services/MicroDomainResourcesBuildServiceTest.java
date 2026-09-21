@@ -51,10 +51,13 @@ class MicroDomainResourcesBuildServiceTest {
     private final MicroDomainResourceBuildContextFactory buildContextFactory =
         mock(MicroDomainResourceBuildContextFactory.class);
 
+    // Real, not a mock: these tests assert on the services the load leaves in the catalog.
+    private final IntegrationServiceLoadService integrationServiceLoadService =
+        new IntegrationServiceLoadService(integrationSystemReader, catalog);
+
     private final MicroDomainResourcesBuildService buildService = new MicroDomainResourcesBuildService(
         chainReader,
-        integrationSystemReader,
-        catalog,
+        integrationServiceLoadService,
         snapshotBuildService,
         resourceBuildService,
         resourceWriteService,

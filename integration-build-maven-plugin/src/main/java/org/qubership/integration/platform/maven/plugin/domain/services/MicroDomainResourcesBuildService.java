@@ -2,7 +2,6 @@ package org.qubership.integration.platform.maven.plugin.domain.services;
 
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.function.Failable;
-import org.apache.commons.lang3.function.FailableFunction;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.services.ResourceBuildService;
@@ -10,9 +9,6 @@ import org.qubership.integration.platform.chain.model.ImportChain;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.io.readers.chain.ChainFileUtil;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
-import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
-import org.qubership.integration.platform.io.readers.system.ServiceFileUtil;
-import org.qubership.integration.platform.maven.plugin.domain.adapters.ImportSystemAdapter;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -26,6 +22,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Objects.isNull;
+import static org.qubership.integration.platform.maven.plugin.domain.util.FileUtil.isInDirectory;
+import static org.qubership.integration.platform.maven.plugin.domain.util.FileUtil.processFile;
 
 @Slf4j
 @Service
@@ -33,8 +31,7 @@ public class MicroDomainResourcesBuildService {
     public static final String BUILD_CRS_TASK_PARAMETERS = "build-crs-task-parameters";
 
     private final ChainReader chainReader;
-    private final IntegrationSystemReader integrationSystemReader;
-    private final IntegrationServiceCatalogImpl integrationServiceCatalog;
+    private final IntegrationServiceLoadService integrationServiceLoadService;
     private final SnapshotBuildService snapshotBuildService;
     private final ResourceBuildService resourceBuildService;
     private final ResourceWriteService resourceWriteService;
@@ -44,8 +41,7 @@ public class MicroDomainResourcesBuildService {
     @Autowired
     public MicroDomainResourcesBuildService(
         ChainReader chainReader,
-        IntegrationSystemReader integrationSystemReader,
-        IntegrationServiceCatalogImpl integrationServiceCatalog,
+        IntegrationServiceLoadService integrationServiceLoadService,
         SnapshotBuildService snapshotBuildService,
         ResourceBuildService resourceBuildService,
         ResourceWriteService resourceWriteService,
@@ -53,8 +49,7 @@ public class MicroDomainResourcesBuildService {
         ResourceBuildOptionsFactory resourceBuildOptionsFactory
     ) {
         this.chainReader = chainReader;
-        this.integrationSystemReader = integrationSystemReader;
-        this.integrationServiceCatalog = integrationServiceCatalog;
+        this.integrationServiceLoadService = integrationServiceLoadService;
         this.snapshotBuildService = snapshotBuildService;
         this.resourceBuildService = resourceBuildService;
         this.resourceWriteService = resourceWriteService;
@@ -68,17 +63,7 @@ public class MicroDomainResourcesBuildService {
     }
 
     private void processServices(BuildCRsTaskParameters parameters) throws IOException {
-        Path outputDirectory = Path.of(parameters.getOutputDirectory());
-        Stream<File> serviceFiles = Failable.stream(parameters.getSourceRoots())
-            .map(File::new)
-            .map(sourceRoot -> listServiceFiles(sourceRoot, outputDirectory))
-            .stream()
-            .flatMap(Collection::stream);
-        Failable.stream(serviceFiles)
-            .map(file -> processFile(file, integrationSystemReader::read))
-            .map(ImportSystemAdapter::new)
-            .stream()
-            .forEach(integrationServiceCatalog::addService);
+        integrationServiceLoadService.loadServices(parameters.getSourceRoots(), parameters.getOutputDirectory());
     }
 
     private void buildChainResources(BuildCRsTaskParameters parameters) throws IOException {
@@ -145,6 +130,10 @@ public class MicroDomainResourcesBuildService {
     }
 
     private Collection<File> listDirectoriesThatContainChainFiles(File directory, Path outputDirectory) throws IOException {
+        if (!directory.isDirectory()) {
+            log.warn("Skipping source root '{}': not a directory.", directory);
+            return Collections.emptyList();
+        }
         try (Stream<Path> paths = Files.walk(directory.toPath())) {
             return paths
                 .filter(path -> !isInDirectory(path, outputDirectory))
@@ -153,32 +142,6 @@ public class MicroDomainResourcesBuildService {
                 .map(Path::getParent)
                 .map(Path::toFile)
                 .collect(Collectors.toSet());
-        }
-    }
-
-    private Collection<File> listServiceFiles(File directory, Path outputDirectory) throws IOException {
-        try (Stream<Path> paths = Files.walk(directory.toPath())) {
-            return paths
-                .filter(path -> !isInDirectory(path, outputDirectory))
-                .filter(Files::isRegularFile)
-                .filter(file -> ServiceFileUtil.isIntegrationSystemFile(file.getFileName().toString()))
-                .map(Path::toFile)
-                .toList();
-        }
-    }
-
-    private boolean isInDirectory(Path path, Path directory) {
-        Path p = path.normalize().toAbsolutePath();
-        Path d = directory.normalize().toAbsolutePath();
-        return p.startsWith(d);
-    }
-
-    private <R, E extends Throwable> R processFile(File file, FailableFunction<File, R, E> processor) throws Exception {
-        try {
-            return processor.apply(file);
-        } catch (Throwable error) {
-            String message = String.format("%s: %s", file.getAbsolutePath(), error.getMessage());
-            throw new Exception(message, error);
         }
     }
 }
