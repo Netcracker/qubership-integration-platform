@@ -3,7 +3,7 @@
 Status of every finding in [REVIEW.md](REVIEW.md). Update a row when its status changes, and record the
 commit that changed it.
 
-Statuses: `open`, `fixed`, `partial`, `accepted`, `out of scope`.
+Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `out of scope`.
 
 | ID | Finding | Severity | Status | Commit |
 | --- | --- | --- | --- | --- |
@@ -13,7 +13,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `out of scope`.
 | F4 | Nested elements duplicated in the snapshot element graph | major | fixed | `86b24ed33` |
 | F5 | No equivalence test against the runtime-catalog pipeline | major | out of scope | |
 | F6 | Module missing from every CI workflow and from `scripts/modules.sh` | major | fixed | `c17abe0d8` |
-| F7 | Generated resource contents differ between runs | medium | open | |
+| F7 | Generated resource contents differ between runs | medium | postponed | |
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
@@ -204,6 +204,20 @@ explicitly empty interval: the `MonitoringOptions` default is `30s`, and an empt
 
 The rename still deserves a release note. `FAIL_ON_UNKNOWN_PROPERTIES` is disabled, so a stored
 `imagePoolPolicy` is dropped without a word and the option reverts to `IfNotPresent`.
+
+## Postponed
+
+### F7, reproducible output
+
+Postponed by decision, September 21, 2026, with the design and the implementation plan written first so
+it can be picked up without redoing the analysis:
+
+- [`docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md`](../docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md), committed in `172d4ec7a` and `be7913a6e`
+- [`docs/superpowers/plans/2026-09-21-reproducible-maven-plugin-output.md`](../docs/superpowers/plans/2026-09-21-reproducible-maven-plugin-output.md), committed in `51ff166af`
+
+Nothing was implemented. Six generators draw random ids or read the clock, five of them shared with
+runtime-catalog, so two builds of the same sources still differ in the two ConfigMaps that carry the
+Camel source and the integrations configuration. Every rebuild reads as a change in a GitOps diff.
 
 ## Out of scope
 
