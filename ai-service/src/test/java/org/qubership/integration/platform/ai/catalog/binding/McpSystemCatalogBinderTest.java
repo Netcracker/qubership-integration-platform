@@ -63,6 +63,51 @@ class McpSystemCatalogBinderTest {
     assertTrue(result.openQuestion().orElseThrow().contains("MCP service name"));
   }
 
+  @Test
+  void gatherWritesPathWhenOperationMatchesOneSystem() {
+    CatalogMcpSystemDto system = system("sys-id", "Orders MCP", "orders-mcp");
+    RequirementFact fact = mcpFact("in-1", "", "", "orders-mcp");
+    McpSystemCatalogBinder.McpSystemGatherResult result =
+        McpSystemCatalogBinder.gather(
+            flow("in-1"), List.of(fact), "expose as MCP tool", List.of(system));
+    assertTrue(result.openQuestion().isEmpty());
+    assertEquals("sys-id", mcpFactIn(result.facts()).path());
+  }
+
+  @Test
+  void gatherAsksPickerWhenOperationMatchesSeveralSystems() {
+    List<CatalogMcpSystemDto> catalog =
+        List.of(system("a", "Orders", "orders"), system("b", "Orders Alt", "orders"));
+    RequirementFact fact = mcpFact("in-1", "", "", "orders");
+    McpSystemCatalogBinder.McpSystemGatherResult result =
+        McpSystemCatalogBinder.gather(flow("in-1"), List.of(fact), "Orders MCP", catalog);
+    assertTrue(result.openQuestion().orElseThrow().contains("Choose the MCP service"));
+    assertTrue(result.openQuestion().orElseThrow().contains("new MCP service"));
+    assertEquals("", mcpFactIn(result.facts()).path());
+  }
+
+  @Test
+  void gatherAsksForNameWhenCreateNewPhraseButParticipantBlank() {
+    RequirementFact fact = mcpFact("in-1", "", "");
+    McpSystemCatalogBinder.McpSystemGatherResult result =
+        McpSystemCatalogBinder.gather(
+            flow("in-1"), List.of(fact), "create a new MCP service", List.of());
+    assertTrue(result.openQuestion().orElseThrow().contains("MCP service name"));
+  }
+
+  @Test
+  void gatherSkipsAutoBindWhenCreateNewWithParticipantName() {
+    List<CatalogMcpSystemDto> catalog =
+        List.of(system("a", "Orders", "orders"), system("b", "Orders", "orders-2"));
+    RequirementFact fact = mcpFact("in-1", "Fresh MCP", "");
+    McpSystemCatalogBinder.McpSystemGatherResult result =
+        McpSystemCatalogBinder.gather(
+            flow("in-1"), List.of(fact), "create a new MCP service named Fresh MCP", catalog);
+    assertTrue(result.openQuestion().isEmpty());
+    assertEquals("", mcpFactIn(result.facts()).path());
+    assertEquals("Fresh MCP", mcpFactIn(result.facts()).participant());
+  }
+
   private static CatalogMcpSystemDto system(String id, String name, String identifier) {
     CatalogMcpSystemDto dto = new CatalogMcpSystemDto();
     dto.id = id;
@@ -76,7 +121,7 @@ class McpSystemCatalogBinderTest {
   }
 
   private static RequirementFact mcpFact(
-      String interactionId, String participant, String path, String identifier) {
+      String interactionId, String participant, String path, String operation) {
     return new RequirementFact(
         interactionId,
         RequirementFactPolarity.POSITIVE,
@@ -84,7 +129,7 @@ class McpSystemCatalogBinderTest {
         "mcp-trigger",
         "Expose the chain as an MCP tool",
         participant,
-        identifier,
+        operation,
         "",
         "",
         path,
