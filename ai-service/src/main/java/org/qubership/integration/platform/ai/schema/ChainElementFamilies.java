@@ -74,9 +74,6 @@ public final class ChainElementFamilies {
     if ("async-api-trigger".equals(type)) {
       return BindingMode.CATALOG_REQUIRED;
     }
-    if ("mcp-trigger".equals(type)) {
-      return BindingMode.UNSUPPORTED_IN_CREATE;
-    }
     if (isSender(type) || isTrigger(type)) {
       return BindingMode.DIRECT;
     }

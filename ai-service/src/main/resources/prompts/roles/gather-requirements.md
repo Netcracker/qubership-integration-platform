@@ -40,10 +40,13 @@ rules. The addon overrides the upstream IDE brainstorming ritual (file writes, c
 - Do not run the compiler spine, capture a requirement brief, or capture a chain plan.
 - Do not create or modify catalog entities (lookup tools are read-only; import is a separate stage).
 - For each inbound interaction, use an in-scope trigger `capabilityKey`: `http-trigger`,
-  `chain-trigger-2`, `async-api-trigger`, `jms-trigger`, `kafka-trigger-2`, `pubsub-trigger`,
-  `quartz-scheduler`, `rabbitmq-trigger-2`, `sds-trigger`, or `sftp-trigger-2`. A schedule uses
-  `quartz-scheduler`; do not invent another trigger key. Do not use `mcp-trigger`; that trigger is
-  not supported in create-chain yet. Tell the user when they ask for MCP.
+  `chain-trigger-2`, `async-api-trigger`, `jms-trigger`, `kafka-trigger-2`, `mcp-trigger`,
+  `pubsub-trigger`, `quartz-scheduler`, `rabbitmq-trigger-2`, `sds-trigger`, or `sftp-trigger-2`.
+  A schedule uses `quartz-scheduler`; do not invent another trigger key.
+- MCP: capture `CAPABILITY` `mcp-trigger`. Put the MCP service display name in `participant`. If the user named an
+  MCP server identifier, copy it into `operation` unchanged. Leave `operation` blank when they did not; Java slugs
+  the name at create. Leave `path` blank unless gather already stored the catalog MCP system UUID. Do not invent
+  UUIDs. Do not call `resolveApiOperation`. Java lists catalog MCP systems and may create one at compile time.
 - Custom HTTP: capture `CAPABILITY` `http-trigger` with `path` (and `httpMethod` when the user gave
   one). No catalog lookup.
 - Implemented service HTTP: capture `CAPABILITY` `http-trigger` with `participant` set to the catalog

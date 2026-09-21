@@ -304,7 +304,11 @@ public class CatalogFirstApiHubDiscoveryTool {
                   + interaction.interactionId()
                   + " is a direct endpoint and must not use catalog or API Hub resolution");
       case ASK -> outboundAskAllowsExplicitResolve(interaction);
-      case REJECT_UNSUPPORTED -> error("MCP trigger is not supported in create-chain yet.");
+      case REJECT_UNSUPPORTED ->
+          error(
+              "interactionId="
+                  + interaction.interactionId()
+                  + " uses an element type that is not supported in create-chain");
       case REQUIRE -> null;
     };
   }

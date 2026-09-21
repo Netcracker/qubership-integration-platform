@@ -626,7 +626,7 @@ class RequirementFlowValidatorTest {
   }
 
   @Test
-  void mcpTriggerFactAfterHttpTriggerStillRejects() {
+  void mcpTriggerFactAfterHttpTriggerUsesFirstCapability() {
     Interaction inbound = interaction("dual-in", INBOUND, "Caller", "GET /orders");
     RequirementFact httpFact =
         new RequirementFact(
@@ -648,13 +648,12 @@ class RequirementFlowValidatorTest {
             "mcp-trigger",
             "Also expose as an MCP tool");
     assertEquals(
-        RequirementFlowValidator.LookupAction.REJECT_UNSUPPORTED,
+        RequirementFlowValidator.LookupAction.SKIP,
         RequirementFlowValidator.catalogLookupAction(inbound, List.of(httpFact, mcpFact)));
     Optional<String> error =
         RequirementFlowValidator.validateBindings(
             flow(List.of(inbound), List.of()), List.of(httpFact, mcpFact), List.of());
-    assertTrue(error.isPresent());
-    assertEquals("MCP trigger is not supported in create-chain yet.", error.orElseThrow());
+    assertTrue(error.isEmpty(), error::orElseThrow);
   }
 
   @Test
@@ -689,7 +688,7 @@ class RequirementFlowValidatorTest {
   }
 
   @Test
-  void mcpTriggerIsRejectedAsUnsupported() {
+  void mcpTriggerSkipsCatalogLookup() {
     Interaction inbound = interaction("mcp-in", INBOUND, "Agent", "tool");
     RequirementFact fact =
         new RequirementFact(
@@ -699,12 +698,11 @@ class RequirementFlowValidatorTest {
             "mcp-trigger",
             "Expose the chain as an MCP tool");
     assertEquals(
-        RequirementFlowValidator.LookupAction.REJECT_UNSUPPORTED,
+        RequirementFlowValidator.LookupAction.SKIP,
         RequirementFlowValidator.catalogLookupAction(inbound, List.of(fact)));
     Optional<String> error =
         RequirementFlowValidator.validateBindings(flow(List.of(inbound), List.of()), List.of(fact), List.of());
-    assertTrue(error.isPresent());
-    assertTrue(error.get().contains("not supported"), error.get());
+    assertTrue(error.isEmpty(), error::orElseThrow);
   }
 
   @ParameterizedTest
@@ -713,6 +711,7 @@ class RequirementFlowValidatorTest {
         "chain-trigger-2",
         "jms-trigger",
         "kafka-trigger-2",
+        "mcp-trigger",
         "pubsub-trigger",
         "quartz-scheduler",
         "rabbitmq-trigger-2",

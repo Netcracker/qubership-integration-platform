@@ -430,6 +430,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
         "chain-trigger-2",
         "jms-trigger",
         "kafka-trigger-2",
+        "mcp-trigger",
         "pubsub-trigger",
         "quartz-scheduler",
         "rabbitmq-trigger-2",
@@ -565,7 +566,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
     }
 
     assertTrue(result.contains("ERROR"), result);
-    assertTrue(result.contains("MCP trigger is not supported in create-chain yet."), result);
+    assertTrue(result.contains("must not use catalog or API Hub resolution"), result);
     verifyNoInteractions(lookup);
     verifyNoInteractions(apiHub);
   }
