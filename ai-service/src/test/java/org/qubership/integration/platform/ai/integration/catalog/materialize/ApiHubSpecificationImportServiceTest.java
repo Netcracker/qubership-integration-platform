@@ -34,6 +34,7 @@ class ApiHubSpecificationImportServiceTest {
   private ConversationCatalogCache catalogCache;
   private CatalogSpecificationImporter catalogSpecificationImporter;
   private ApiHubMcpTools apiHubMcpTools;
+  private InternalAsyncMaasEnvironmentConfigurer maasConfigurer;
   private ApiHubSpecificationImportService service;
 
   @BeforeEach
@@ -42,13 +43,15 @@ class ApiHubSpecificationImportServiceTest {
     catalogCache = mock(ConversationCatalogCache.class);
     catalogSpecificationImporter = mock(CatalogSpecificationImporter.class);
     apiHubMcpTools = mock(ApiHubMcpTools.class);
+    maasConfigurer = mock(InternalAsyncMaasEnvironmentConfigurer.class);
     service =
         new ApiHubSpecificationImportService(
             catalogRestClient,
             catalogCache,
             catalogSpecificationImporter,
             apiHubMcpTools,
-            new ObjectMapper());
+            new ObjectMapper(),
+            maasConfigurer);
   }
 
   @Test

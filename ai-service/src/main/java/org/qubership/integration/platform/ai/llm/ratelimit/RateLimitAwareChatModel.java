@@ -11,17 +11,24 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import org.jboss.logging.Logger;
 
 public final class RateLimitAwareChatModel implements ChatModel {
+
+  private static final Logger LOG = Logger.getLogger(RateLimitAwareChatModel.class);
 
   public record BackoffEvent(int attempt, int waitSeconds) {}
 
   private final ChatModel delegate;
-  private final RateLimitErrorClassifier classifier;
-  private final RateLimitWaitPolicy policy;
+  private final RateLimitErrorClassifier rateLimitClassifier;
+  private final TransientErrorClassifier transientClassifier;
+  private final RateLimitWaitPolicy rateLimitPolicy;
+  private final TransientWaitPolicy transientPolicy;
   private final RateLimitBackoffSleeper sleeper;
-  private final boolean enabled;
-  private final int maxAttempts;
+  private final boolean rateLimitEnabled;
+  private final int rateLimitMaxAttempts;
+  private final boolean transientEnabled;
+  private final int transientMaxAttempts;
   private final Consumer<BackoffEvent> onBackoff;
 
   public RateLimitAwareChatModel(
@@ -32,34 +39,93 @@ public final class RateLimitAwareChatModel implements ChatModel {
       boolean enabled,
       int maxAttempts,
       Consumer<BackoffEvent> onBackoff) {
+    this(
+        delegate,
+        classifier,
+        new TransientErrorClassifier(),
+        policy,
+        TransientWaitPolicy.fromCsv("2,5,10"),
+        sleeper,
+        enabled,
+        maxAttempts,
+        false,
+        0,
+        onBackoff);
+  }
+
+  public RateLimitAwareChatModel(
+      ChatModel delegate,
+      RateLimitErrorClassifier rateLimitClassifier,
+      TransientErrorClassifier transientClassifier,
+      RateLimitWaitPolicy rateLimitPolicy,
+      TransientWaitPolicy transientPolicy,
+      RateLimitBackoffSleeper sleeper,
+      boolean rateLimitEnabled,
+      int rateLimitMaxAttempts,
+      boolean transientEnabled,
+      int transientMaxAttempts,
+      Consumer<BackoffEvent> onBackoff) {
     this.delegate = Objects.requireNonNull(delegate, "delegate");
-    this.classifier = Objects.requireNonNull(classifier, "classifier");
-    this.policy = Objects.requireNonNull(policy, "policy");
+    this.rateLimitClassifier = Objects.requireNonNull(rateLimitClassifier, "rateLimitClassifier");
+    this.transientClassifier = Objects.requireNonNull(transientClassifier, "transientClassifier");
+    this.rateLimitPolicy = Objects.requireNonNull(rateLimitPolicy, "rateLimitPolicy");
+    this.transientPolicy = Objects.requireNonNull(transientPolicy, "transientPolicy");
     this.sleeper = Objects.requireNonNull(sleeper, "sleeper");
-    this.enabled = enabled;
-    this.maxAttempts = maxAttempts;
+    this.rateLimitEnabled = rateLimitEnabled;
+    this.rateLimitMaxAttempts = rateLimitMaxAttempts;
+    this.transientEnabled = transientEnabled;
+    this.transientMaxAttempts = transientMaxAttempts;
     this.onBackoff = Objects.requireNonNull(onBackoff, "onBackoff");
   }
 
   @Override
   public ChatResponse chat(ChatRequest chatRequest) {
-    if (!enabled) {
+    if (!rateLimitEnabled && !transientEnabled) {
       return delegate.chat(chatRequest);
     }
-    int attempt = 0;
+    int rateLimitAttempt = 0;
+    int transientAttempt = 0;
     while (true) {
       try {
         return delegate.chat(chatRequest);
       } catch (RuntimeException error) {
-        if (!classifier.isRateLimit(error) || !policy.shouldRetry(attempt, maxAttempts)) {
-          throw error;
+        if (rateLimitEnabled
+            && rateLimitClassifier.isRateLimit(error)
+            && rateLimitPolicy.shouldRetry(rateLimitAttempt, rateLimitMaxAttempts)) {
+          int waitSeconds =
+              rateLimitPolicy.resolveWaitSeconds(
+                  rateLimitClassifier.extractWait(error), rateLimitAttempt);
+          onBackoff.accept(new BackoffEvent(rateLimitAttempt + 1, waitSeconds));
+          sleeper.sleepSeconds(waitSeconds);
+          rateLimitAttempt++;
+          continue;
         }
-        int waitSeconds = policy.resolveWaitSeconds(classifier.extractWait(error), attempt);
-        onBackoff.accept(new BackoffEvent(attempt + 1, waitSeconds));
-        sleeper.sleepSeconds(waitSeconds);
-        attempt++;
+        if (transientEnabled
+            && transientClassifier.isTransient(error)
+            && transientPolicy.shouldRetry(transientAttempt, transientMaxAttempts)) {
+          int waitSeconds = transientPolicy.waitSeconds(transientAttempt);
+          LOG.infof(
+              "LLM transient retry attempt=%d/%d wait=%ds reason=%s",
+              transientAttempt + 1,
+              transientMaxAttempts,
+              waitSeconds,
+              rootMessage(error));
+          sleeper.sleepSeconds(waitSeconds);
+          transientAttempt++;
+          continue;
+        }
+        throw error;
       }
     }
+  }
+
+  private static String rootMessage(Throwable error) {
+    Throwable root = error;
+    while (root.getCause() != null) {
+      root = root.getCause();
+    }
+    String message = root.getMessage();
+    return message == null ? root.getClass().getSimpleName() : message;
   }
 
   @Override
