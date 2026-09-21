@@ -25,7 +25,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ChainSemanticCapture(
     @Description("Short chain name, e.g. orders-intake") String chainIdentity,
-    @Description("Processing nodes such as script, mapper-2, condition, split, loop, or try-catch")
+    @Description("Processing nodes such as script, mapper-2, checkpoint, condition, split, loop, or try-catch")
         List<CapturedOperation> operations,
     @Description("Plain sequence regions; omit when there is no control-flow region")
         List<CapturedSequenceRegion> sequenceRegions,
