@@ -67,7 +67,8 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("sftp-trigger-2"), input);
     assertTrue(input.contains("mail-sender"), input);
     assertTrue(input.contains("mcp-trigger"), input);
-    assertTrue(input.contains("not supported"), input);
+    assertTrue(input.contains("skips catalog lookup"), input);
+    assertFalse(input.contains("not supported in create-chain"), input);
     assertTrue(input.contains("Custom HTTP"), input);
     assertTrue(input.contains("Implemented service HTTP"), input);
     assertTrue(input.contains("Native triggers and direct senders"), input);
