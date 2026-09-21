@@ -109,6 +109,18 @@ class CompilerPipelineIndexBuilderTest {
   }
 
   @Test
+  void mcpTriggerGeneratorEffectiveOwnershipExcludesMcpServiceIds() {
+    CompilerPipelineIndex index = buildProductionIndex();
+
+    Set<String> owned =
+        node(index, "cip-mcp-trigger-generator")
+            .ownership()
+            .properties()
+            .getOrDefault("mcp-trigger", Set.of());
+    assertFalse(owned.contains("mcpServiceIds"));
+  }
+
+  @Test
   void compiledOwnershipCannotWidenTheGeneratorEnvelope() {
     CompilerPipelineSourceLoader.SourceSet sources =
         withAddonOwnership(

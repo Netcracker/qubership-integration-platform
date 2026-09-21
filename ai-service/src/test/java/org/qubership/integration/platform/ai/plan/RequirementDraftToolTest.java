@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -412,6 +414,39 @@ class RequirementDraftToolTest {
             .map(RequirementFact::path)
             .findFirst()
             .orElse("missing"));
+  }
+
+  @Test
+  void captureDoesNotListMcpSystemsWithoutMcpTriggerInbound() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withMcpSystemBinder(store, new McpSystemCatalogBinder(catalog));
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "HTTP GET /orders returns status",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            List.of(
+                new RequirementFact(
+                    "orders-http",
+                    RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY,
+                    "http-trigger",
+                    "Expose /orders",
+                    "",
+                    "",
+                    "",
+                    "GET",
+                    "/orders")),
+            null,
+            nativeHttpFlow()));
+
+    verify(catalog, never()).listMcpSystems();
   }
 
   @Test

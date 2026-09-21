@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.catalog.binding;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -221,6 +222,41 @@ class McpSystemCatalogBinderTest {
     McpSystemCatalogBinder binder = new McpSystemCatalogBinder(catalog);
     binder.bind(graphWithTrigger("in-1"), briefWith(mcpFact("in-1", "Brand New", "")));
     verify(catalog).createMcpSystem(new CatalogCreateMcpSystemRequest("Brand New", "brand-new-2", null));
+  }
+
+  @Test
+  void bindCreatesNewSystemWhenCreateNewRequestedDespiteMatchingName() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.listMcpSystems())
+        .thenReturn(List.of(system("existing", "Orders", "orders")));
+    CatalogMcpSystemDto created = system("sys-new", "Orders", "orders-2");
+    when(catalog.createMcpSystem(new CatalogCreateMcpSystemRequest("Orders", "orders-2", null)))
+        .thenReturn(created);
+    McpSystemCatalogBinder binder = new McpSystemCatalogBinder(catalog);
+    RequirementBrief brief =
+        brief()
+            .withApprovedDraftText("create a new MCP service for Orders")
+            .withFacts(List.of(mcpFact("in-1", "Orders", "")));
+    ChainPlanGraph out = binder.bind(graphWithTrigger("in-1"), brief);
+    assertEquals("[\"sys-new\"]", property(node(out, "in-1"), "mcpServiceIds"));
+    verify(catalog).createMcpSystem(new CatalogCreateMcpSystemRequest("Orders", "orders-2", null));
+    verify(catalog, never()).createMcpSystem(new CatalogCreateMcpSystemRequest("Orders", "orders", null));
+  }
+
+  @Test
+  void bindRejectsUserIdentifierWhenCreateNewAndSystemExists() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.listMcpSystems())
+        .thenReturn(List.of(system("sys-1", "Orders MCP", "Orders_SVC")));
+    McpSystemCatalogBinder binder = new McpSystemCatalogBinder(catalog);
+    RequirementBrief brief =
+        brief()
+            .withApprovedDraftText("create a new MCP service")
+            .withFacts(List.of(mcpFact("in-1", "Brand New", "", "Orders_SVC")));
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> binder.bind(graphWithTrigger("in-1"), brief));
+    verify(catalog, never()).createMcpSystem(any());
   }
 
   @Test
