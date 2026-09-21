@@ -70,3 +70,6 @@ qip:
         egress-suffix: -egress-routes
       engine-routes:
         suffix: -routes
+    build:
+      container:
+        image: ${MICRO_DOMAIN_CONTAINER_IMAGE:ghcr.io/netcracker/qubership-integration-micro-engine:latest}

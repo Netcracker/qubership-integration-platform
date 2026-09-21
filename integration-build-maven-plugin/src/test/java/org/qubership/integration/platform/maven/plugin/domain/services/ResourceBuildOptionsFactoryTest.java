@@ -15,15 +15,18 @@ import org.qubership.integration.platform.maven.plugin.mojos.BuildCRsOptions;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 class ResourceBuildOptionsFactoryTest {
 
-    private final ResourceBuildOptionsFactory factory = new ResourceBuildOptionsFactory();
+    private static final String DEFAULT_IMAGE = "qip/micro-engine:test";
+
+    private final ResourceBuildOptionsFactory factory = new ResourceBuildOptionsFactory(DEFAULT_IMAGE);
 
     @Test
     void namesTheResourcesAfterTheDomainAndCarriesTheMojoOptionsOver() {
-        ContainerOptions container = new ContainerOptions();
+        ContainerOptions container = ContainerOptions.builder().image("chosen/image:1").build();
         HealthOptions health = new HealthOptions();
         JvmOptions jvm = new JvmOptions();
         MonitoringOptions monitoring = new MonitoringOptions();
@@ -48,7 +51,7 @@ class ResourceBuildOptionsFactoryTest {
 
         assertEquals("orders", result.getName());
         assertEquals(3, result.getReplicas());
-        assertSame(container, result.getContainer());
+        assertEquals(container, result.getContainer());
         assertSame(health, result.getHealth());
         assertSame(jvm, result.getJvm());
         assertSame(monitoring, result.getMonitoring());
@@ -67,6 +70,42 @@ class ResourceBuildOptionsFactoryTest {
         assertEquals(1, result.getReplicas());
         assertEquals("default", result.getServiceAccount());
         assertEquals(Map.of(), result.getEnvironment());
+    }
+
+    /** Without an image the resources are unusable, so the configured one fills the gap. */
+    @Test
+    void usesTheConfiguredImageWhenTheMojoLeavesItUnset() {
+        ResourceBuildOptions result =
+            factory.createResourceBuildOptions("default", parameters(new BuildCRsOptions()));
+
+        assertEquals(DEFAULT_IMAGE, result.getContainer().getImage());
+    }
+
+    @Test
+    void keepsTheImageTheMojoSets() {
+        BuildCRsOptions options = BuildCRsOptions.builder()
+            .container(ContainerOptions.builder().image("chosen/image:1").build())
+            .build();
+
+        ResourceBuildOptions result = factory.createResourceBuildOptions("orders", parameters(options));
+
+        assertEquals("chosen/image:1", result.getContainer().getImage());
+    }
+
+    /** toBuilder() copies the rest of the container, so filling the image must not drop the others. */
+    @Test
+    void keepsTheOtherContainerOptionsWhenItFillsInTheImage() {
+        ContainerOptions container = ContainerOptions.builder()
+            .runAsUser(1000)
+            .readOnlyRootFilesystem(false)
+            .build();
+        BuildCRsOptions options = BuildCRsOptions.builder().container(container).build();
+
+        ResourceBuildOptions result = factory.createResourceBuildOptions("orders", parameters(options));
+
+        assertEquals(DEFAULT_IMAGE, result.getContainer().getImage());
+        assertEquals(1000, result.getContainer().getRunAsUser());
+        assertFalse(result.getContainer().isReadOnlyRootFilesystem());
     }
 
     @Test

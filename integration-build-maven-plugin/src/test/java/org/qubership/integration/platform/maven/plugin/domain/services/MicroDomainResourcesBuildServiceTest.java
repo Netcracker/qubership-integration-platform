@@ -40,6 +40,7 @@ import static org.mockito.Mockito.when;
 class MicroDomainResourcesBuildServiceTest {
 
     private static final String RESOURCE_TEXT = "---\nkind: Deployment\n";
+    private static final String DEFAULT_IMAGE = "qip/micro-engine:test";
 
     private final ChainReader chainReader = mock(ChainReader.class);
     private final IntegrationSystemReader integrationSystemReader = mock(IntegrationSystemReader.class);
@@ -58,7 +59,7 @@ class MicroDomainResourcesBuildServiceTest {
         resourceBuildService,
         resourceWriteService,
         buildContextFactory,
-        new ResourceBuildOptionsFactory());
+        new ResourceBuildOptionsFactory(DEFAULT_IMAGE));
 
     @TempDir
     private Path sourceRoot;
