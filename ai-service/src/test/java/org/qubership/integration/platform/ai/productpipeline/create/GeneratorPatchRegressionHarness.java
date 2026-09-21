@@ -771,6 +771,26 @@ public final class GeneratorPatchRegressionHarness {
             Set.of("chain-trigger-2"),
             Set.of(),
             Map.of("chain-trigger-2", Set.of("elementId"))));
+    ownership.put(
+        "cip-mcp-trigger-generator",
+        new GraphPatchOwnershipPolicy(
+            false,
+            false,
+            Set.of("mcp-trigger"),
+            Set.of(),
+            Map.of(
+                "mcp-trigger",
+                Set.of(
+                    "mcpServiceIds",
+                    "name",
+                    "description",
+                    "inputSchema",
+                    "title",
+                    "outputSchema",
+                    "readOnly",
+                    "destructive",
+                    "idempotent",
+                    "openWorld"))));
     return Map.copyOf(ownership);
   }
 }
