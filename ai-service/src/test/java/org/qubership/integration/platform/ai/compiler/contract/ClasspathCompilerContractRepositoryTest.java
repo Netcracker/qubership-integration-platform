@@ -121,6 +121,7 @@ class ClasspathCompilerContractRepositoryTest {
     assertTrue(contract.elements().containsKey("service-call"));
     assertTrue(contract.elements().containsKey("kafka-sender-2"));
     assertTrue(contract.elements().containsKey("script"));
+    assertTrue(contract.elements().containsKey("checkpoint"));
     assertTrue(contract.elements().containsKey("mapper-2"));
     assertTrue(contract.elements().containsKey("condition"));
     assertTrue(contract.elements().containsKey("split-2"));
