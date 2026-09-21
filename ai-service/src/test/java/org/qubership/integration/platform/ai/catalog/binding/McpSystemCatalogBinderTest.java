@@ -160,6 +160,30 @@ class McpSystemCatalogBinderTest {
   }
 
   @Test
+  void bindSuffixesIdentifierForSecondCreateInSameGraph() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.listMcpSystems()).thenReturn(List.of());
+    CatalogMcpSystemDto first = system("sys-1", "Brand New", "brand-new");
+    CatalogMcpSystemDto second = system("sys-2", "Brand New", "brand-new-2");
+    when(catalog.createMcpSystem(new CatalogCreateMcpSystemRequest("Brand New", "brand-new", null)))
+        .thenReturn(first);
+    when(catalog.createMcpSystem(new CatalogCreateMcpSystemRequest("Brand New", "brand-new-2", null)))
+        .thenReturn(second);
+    McpSystemCatalogBinder binder = new McpSystemCatalogBinder(catalog);
+    ChainPlanGraph graph = graphWithTriggers("in-1", "in-2");
+    RequirementBrief brief =
+        briefWith(
+            mcpFact("in-1", "Brand New", ""),
+            mcpFact("in-2", "Brand New", ""));
+    ChainPlanGraph out = binder.bind(graph, brief);
+    assertEquals("[\"sys-1\"]", property(node(out, "in-1"), "mcpServiceIds"));
+    assertEquals("[\"sys-2\"]", property(node(out, "in-2"), "mcpServiceIds"));
+    verify(catalog).createMcpSystem(new CatalogCreateMcpSystemRequest("Brand New", "brand-new", null));
+    verify(catalog)
+        .createMcpSystem(new CatalogCreateMcpSystemRequest("Brand New", "brand-new-2", null));
+  }
+
+  @Test
   void bindSuffixesIdentifierWhenSlugAlreadyExists() {
     CatalogRestClient catalog = mock(CatalogRestClient.class);
     when(catalog.listMcpSystems()).thenReturn(List.of(system("other", "Other", "brand-new")));
@@ -222,15 +246,21 @@ class McpSystemCatalogBinderTest {
   }
 
   private static ChainPlanGraph graphWithTrigger(String nodeId) {
-    return new ChainPlanGraph(
-        "1.0",
-        new ChainSection("n", "n"),
-        List.of(new ChainPlanNode(nodeId, "mcp-trigger", "MCP", null, null, List.of())),
-        List.of());
+    return graphWithTriggers(nodeId);
   }
 
-  private static RequirementBrief briefWith(RequirementFact fact) {
-    return brief().withFacts(List.of(fact));
+  private static ChainPlanGraph graphWithTriggers(String... nodeIds) {
+    List<ChainPlanNode> nodes =
+        java.util.Arrays.stream(nodeIds)
+            .map(
+                nodeId ->
+                    new ChainPlanNode(nodeId, "mcp-trigger", "MCP", null, null, List.of()))
+            .toList();
+    return new ChainPlanGraph("1.0", new ChainSection("n", "n"), nodes, List.of());
+  }
+
+  private static RequirementBrief briefWith(RequirementFact... facts) {
+    return brief().withFacts(List.of(facts));
   }
 
   private static RequirementBrief brief() {
