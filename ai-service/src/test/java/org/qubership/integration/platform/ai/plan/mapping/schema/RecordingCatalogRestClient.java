@@ -320,6 +320,18 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public List<org.qubership.integration.platform.ai.integration.catalog.model.CatalogMcpSystemDto>
+      listMcpSystems() {
+    throw unsupported("listMcpSystems");
+  }
+
+  @Override
+  public org.qubership.integration.platform.ai.integration.catalog.model.CatalogMcpSystemDto createMcpSystem(
+      org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateMcpSystemRequest body) {
+    throw unsupported("createMcpSystem");
+  }
+
+  @Override
   public org.qubership.integration.platform.ai.integration.catalog.descriptor.CatalogElementDescriptorDto
       getLibraryElement(String name) {
     throw unsupported("getLibraryElement");
