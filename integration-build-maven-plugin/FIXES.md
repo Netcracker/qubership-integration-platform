@@ -11,7 +11,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `out of scope`.
 | F2 | Route resources never generated; `${spring.application.cloud_service_name}` leaks into output | blocker | fixed | `5ef3c4185` |
 | F3 | DTO library location hardwired to runtime-catalog, no codegen on the plugin side | major | out of scope | |
 | F4 | Nested elements duplicated in the snapshot element graph | major | fixed | `86b24ed33` |
-| F5 | No equivalence test against the runtime-catalog pipeline | major | open | |
+| F5 | No equivalence test against the runtime-catalog pipeline | major | out of scope | |
 | F6 | Module missing from every CI workflow and from `scripts/modules.sh` | major | fixed | `c17abe0d8` |
 | F7 | Generated resource contents differ between runs | medium | open | |
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
@@ -206,6 +206,15 @@ The rename still deserves a release note. `FAIL_ON_UNKNOWN_PROPERTIES` is disabl
 `imagePoolPolicy` is dropped without a word and the option reverts to `IfNotPresent`.
 
 ## Out of scope
+
+### F5, equivalence test against the runtime-catalog pipeline
+
+Ruled out by decision, September 21, 2026.
+
+The test would have built the same `testConfigurations` corpus through both the catalog and the plugin
+and compared the generated Camel DSL. Nothing else compares the two implementations, so the divergences
+each remaining and future difference produces are found by reading rather than by a build: F1, F2 and F4
+were all of that kind.
 
 ### F3, DTO library generation
 
