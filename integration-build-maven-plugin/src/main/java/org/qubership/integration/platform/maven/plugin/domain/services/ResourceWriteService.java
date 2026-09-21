@@ -99,7 +99,16 @@ public class ResourceWriteService {
         return new ResourceNameAndKind(name, kind);
     }
 
+    /**
+     * Strips Helm expressions so the document parses. A {@code {{ ... }}} in a value position starts a
+     * YAML flow mapping and fails the parse, and only the kind and the name are read here — the file is
+     * written from the original content.
+     *
+     * <p>The group is non-capturing on purpose. Written {@code (:?} it is a capturing group holding an
+     * optional colon, which Java compiles to a recursive matcher: an unterminated {@code &#123;&#123;}
+     * followed by about 1500 characters before the next newline overflows the stack.
+     */
     private String removeHelmTemplateExpressions(String content) {
-        return content.replaceAll("\\{\\{(:?(?!}}|[\\r\\n]).)*}}", "");
+        return content.replaceAll("\\{\\{(?:(?!}}|[\\r\\n]).)*}}", "");
     }
 }

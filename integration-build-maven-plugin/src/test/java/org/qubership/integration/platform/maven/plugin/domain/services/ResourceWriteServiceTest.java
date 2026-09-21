@@ -29,6 +29,51 @@ class ResourceWriteServiceTest {
 
     private final ResourceWriteService resourceWriteService = new ResourceWriteService(new YAMLMapper());
 
+    /**
+     * A Helm expression in a value position starts a YAML flow mapping, so the document only parses once
+     * it is stripped. The file still carries the original content.
+     */
+    @Test
+    void readsTheKindAndNameOfATemplatedResource(@TempDir Path directory) throws IOException {
+        String templated = """
+            ---
+            kind: ServiceMonitor
+            metadata:
+              name: qip-engine-default
+            spec:
+              namespaceSelector:
+                matchNames:
+                - {{ .Release.Namespace }}
+            """;
+
+        resourceWriteService.writeResources(directory.toString(), templated);
+
+        Path written = directory.resolve("ServiceMonitor-qip-engine-default.yaml");
+        assertTrue(Files.exists(written));
+        assertTrue(Files.readString(written).contains("{{ .Release.Namespace }}"),
+            "the template must survive into the file; only the parse input is stripped");
+    }
+
+    /**
+     * Guards the group staying non-capturing. Written {@code (:?} rather than {@code (?:} the matcher
+     * recurses, and a long unterminated expression overflows the stack instead of being left alone.
+     */
+    @Test
+    void survivesALongUnterminatedExpression(@TempDir Path directory) throws IOException {
+        String unterminated = """
+            ---
+            kind: ConfigMap
+            metadata:
+              name: qip-engine-default
+            data:
+              content: "{{ %s"
+            """.formatted("x".repeat(4000));
+
+        resourceWriteService.writeResources(directory.toString(), unterminated);
+
+        assertTrue(Files.exists(directory.resolve("ConfigMap-qip-engine-default.yaml")));
+    }
+
     @Test
     void writesOneFilePerResourceNamedAfterKindAndName(@TempDir Path directory) throws IOException {
         Path outputDirectory = directory.resolve("crs");
