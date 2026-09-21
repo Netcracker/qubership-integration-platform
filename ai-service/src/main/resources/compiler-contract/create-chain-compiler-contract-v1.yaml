@@ -99,6 +99,18 @@ elements:
       type: sftp-trigger-2
       container: false
       deprecated: false
+  mcp-trigger:
+    containmentRoles: {}
+    requiredProperties:
+      - mcpServiceIds
+      - name
+      - description
+      - inputSchema
+    materializationRuleId: materialize-mcp-trigger
+    runtimeDescriptor:
+      type: mcp-trigger
+      container: false
+      deprecated: false
   service-call:
     containmentRoles: {}
     requiredProperties:

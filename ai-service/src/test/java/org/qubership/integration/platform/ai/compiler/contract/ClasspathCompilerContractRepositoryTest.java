@@ -97,7 +97,7 @@ class ClasspathCompilerContractRepositoryTest {
         inScope.add(type);
       }
     }
-    assertEquals(18, inScope.size());
+    assertEquals(19, inScope.size());
     CompilerContract contract = repository.require(V1);
     for (String type : inScope) {
       assertTrue(contract.elements().containsKey(type), type);
