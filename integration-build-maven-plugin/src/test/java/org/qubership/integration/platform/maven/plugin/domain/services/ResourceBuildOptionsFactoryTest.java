@@ -58,7 +58,7 @@ class ResourceBuildOptionsFactoryTest {
         assertSame(service, result.getService());
         assertSame(mount, result.getMount());
         assertSame(integrations, result.getIntegrations());
-        assertEquals(environment, result.getEnvironment());
+        assertEquals("DEBUG", result.getEnvironment().get("LOG_LEVEL"));
         assertEquals("qip", result.getServiceAccount());
     }
 
@@ -69,7 +69,38 @@ class ResourceBuildOptionsFactoryTest {
 
         assertEquals(1, result.getReplicas());
         assertEquals("default", result.getServiceAccount());
-        assertEquals(Map.of(), result.getEnvironment());
+        assertEquals(Map.of("MONITORING_ENABLED", "false", "DEFAULT_SECRET_ENABLED", "false"), result.getEnvironment());
+    }
+
+    /**
+     * The engine reads MONITORING_ENABLED, so a ServiceMonitor without it scrapes a pod with metrics
+     * off. Both values default to false, so only the enabled case tells reading the option apart from
+     * returning a constant.
+     */
+    @Test
+    void derivesTheEngineEnvironmentFromTheOptionsThatDriveIt() {
+        BuildCRsOptions options = BuildCRsOptions.builder()
+            .monitoring(MonitoringOptions.builder().enabled(true).build())
+            .build();
+
+        ResourceBuildOptions result = factory.createResourceBuildOptions(
+            "orders", BuildCRsTaskParameters.builder().options(options).defaultSecretEnabled(true).build());
+
+        assertEquals("true", result.getEnvironment().get("MONITORING_ENABLED"));
+        assertEquals("true", result.getEnvironment().get("DEFAULT_SECRET_ENABLED"));
+    }
+
+    /** The derived values are the single source of truth, so a hand-set one does not shadow them. */
+    @Test
+    void overridesAnEnvironmentEntryTheMojoSetsByHand() {
+        BuildCRsOptions options = BuildCRsOptions.builder()
+            .monitoring(MonitoringOptions.builder().enabled(true).build())
+            .environment(Map.of("MONITORING_ENABLED", "false"))
+            .build();
+
+        ResourceBuildOptions result = factory.createResourceBuildOptions("orders", parameters(options));
+
+        assertEquals("true", result.getEnvironment().get("MONITORING_ENABLED"));
     }
 
     /** Without an image the resources are unusable, so the configured one fills the gap. */

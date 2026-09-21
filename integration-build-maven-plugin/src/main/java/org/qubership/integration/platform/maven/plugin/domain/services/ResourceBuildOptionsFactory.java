@@ -9,8 +9,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Component
 public class ResourceBuildOptionsFactory {
+    private static final String DEFAULT_SECRET_ENABLED_ENV = "DEFAULT_SECRET_ENABLED";
+
     private final String defaultContainerName;
 
     @Autowired
@@ -36,9 +41,16 @@ public class ResourceBuildOptionsFactory {
             .monitoring(options.getMonitoring())
             .service(options.getService())
             .mount(options.getMount())
-            .environment(options.getEnvironment())
+            .environment(buildEnvironment(parameters))
             .integrations(options.getIntegrations())
             .serviceAccount(options.getServiceAccount())
             .build();
+    }
+
+    private Map<String, String> buildEnvironment(BuildCRsTaskParameters parameters) {
+        Map<String, String> env = new HashMap<>(parameters.getOptions().getEnvironment());
+        env.put("MONITORING_ENABLED", Boolean.toString(parameters.getOptions().getMonitoring().isEnabled()));
+        env.put(DEFAULT_SECRET_ENABLED_ENV, Boolean.toString(parameters.isDefaultSecretEnabled()));
+        return env;
     }
 }

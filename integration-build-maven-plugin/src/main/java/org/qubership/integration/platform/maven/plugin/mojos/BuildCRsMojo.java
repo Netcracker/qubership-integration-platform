@@ -26,6 +26,9 @@ public class BuildCRsMojo extends AbstractMojo {
     @Parameter(name = "controlPlaneType", defaultValue = "ISTIO")
     private ControlPlaneType controlPlaneType;
 
+    @Parameter(name = "defaultSecretEnabled", defaultValue = "false")
+    private boolean defaultSecretEnabled;
+
     @Parameter(name = "options")
     private BuildCRsOptions options = new BuildCRsOptions();
 

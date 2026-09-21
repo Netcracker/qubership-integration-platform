@@ -14,5 +14,6 @@ public class BuildCRsTaskParameters {
     String outputDirectory;
     String defaultDomain;
     ControlPlaneType controlPlaneType;
+    boolean defaultSecretEnabled;
     BuildCRsOptions options;
 }
