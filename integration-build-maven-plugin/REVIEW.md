@@ -3,10 +3,12 @@
 Review of the `feat-maven-plugin` branch: the integration chain compilation pipeline packaged as a
 Maven plugin, alongside the existing micro-domain deployment path in `runtime-catalog`.
 
-- Reviewed: `main..feat-maven-plugin` at `5d0cbea6e`, September 18, 2026.
+- First round: `main..feat-maven-plugin` at `5d0cbea6e`, September 18, 2026, findings `F1`-`F11`.
+- Second round: at `0c229fe44`, September 21, 2026, findings `F12`-`F14`. Reviewed independently,
+  without reading this file, so an overlap with the first round is corroboration rather than a copy.
 - Fix status for every finding below: [FIXES.md](FIXES.md).
 
-Findings carry stable IDs (`F1`-`F11`). Keep them stable so the ledger stays readable.
+Findings carry stable IDs. Keep them stable so the ledger stays readable.
 
 ## How runtime-catalog deploys to a micro-domain
 
@@ -232,6 +234,79 @@ on runtime-catalog are worth knowing about, not because they need undoing.
   or a dedicated directory would surprise fewer people.
 - `ChainReader.getChainYamlFile` takes `chainFiles[0]`, so a directory holding two chain YAML files
   silently drops one. The plugin's directory walk makes this reachable.
+
+### F12. The chain version fallback answers for service exports too (major)
+
+`integration-build-maven-plugin/.../domain/migrations/chain/AssumeActualChainVersion.java` implements the
+shared `VersionsGetterStrategy`, and `IntegrationSystemReader` resolves versions through the same
+`VersionsGetterService` the chain reader uses. The strategy answers for any document by returning the
+versions of the `ChainImportFileMigration` beans, which are V100 to V108. Service migrations are V100 to
+V102.
+
+So for a service export carrying no migration metadata, the strategy claims V100 to V108 are applied.
+`FileMigrationService.migrate` then computes `documentVersions - migrationVersions` as V103 to V108 and
+throws:
+
+```text
+Unable to import an entity exported from a newer version
+```
+
+Two things go wrong at once. The service migrations V101, which moves fields under `content`, and V102,
+which generates operation names, are reported as already applied when they are not; and the message
+tells the user the file came from a newer version when in fact the plugin mislabelled it.
+
+The strategy is only consulted when the ones before it return nothing, so this bites a service export
+without a `migrations` or `version` field rather than a current one. It compounds the `@Order` gap noted
+under F11: the strategy declares no order, so its position relative to `VersionFieldStrategy` is
+whatever the component scan produces.
+
+### F13. Active environment selection diverges from runtime-catalog (major)
+
+The catalog picks an environment per service type, in
+`runtime-catalog/.../service/SystemEnvironmentsGenerator.java`:
+
+```java
+case INTERNAL    -> systemEnvironments.get(0);                       // activeEnvironmentId ignored
+case IMPLEMENTED -> blank(activeId) ? get(0) : findById(activeId);   // unresolvable -> null
+case EXTERNAL    -> blank(activeId) ? null   : findById(activeId);   // never falls back
+```
+
+Anything yielding null, including a service with no environments, becomes a `ServiceEnvironment` marked
+not activated.
+
+The plugin applies one rule to every type, in
+`SnapshotBuildService.getIntegrationServiceActiveEnvironment`: the environment matching
+`activeEnvironmentId`, else the first environment, else a not-activated placeholder.
+`ImportSystemAdapter:93` is what makes the first step mean "matches `activeEnvironmentId`".
+
+| Type | `activeEnvironmentId` | Catalog | Plugin |
+| --- | --- | --- | --- |
+| INTERNAL | points at B | first (A) | B |
+| INTERNAL | blank | first | first |
+| IMPLEMENTED | resolvable | that one | that one |
+| IMPLEMENTED | blank | first | first |
+| IMPLEMENTED | unresolvable | not activated | first |
+| EXTERNAL | blank | not activated | first |
+| EXTERNAL | resolvable | that one | that one |
+| EXTERNAL | unresolvable | not activated | first |
+| any | no environments | not activated | not activated |
+
+`EndpointHelperSource:105` throws `TemplateInstantiationException` on a not-activated environment, so in
+the four divergent rows the catalog refuses to build while the plugin bakes some environment's address
+into the chain. The failure is not a build that fails differently; it is a build that succeeds against
+an endpoint nobody selected.
+
+One thing left unchecked: the catalog reads environments from JPA and the plugin in export-file order,
+so even the agreeing rows could resolve "first" to different environments.
+
+### F14. Smaller items from the second round
+
+| Item | Where |
+| --- | --- |
+| A chain with no `deployments` is built into `defaultDomain`; the catalog only deploys when the list is non-empty | `MicroDomainResourcesBuildService:127-130` |
+| `deployAction` is never read, so a chain exported with `NONE` still produces resources | no references in the plugin, confirmed by grep |
+| With default configuration the goal writes nothing and says nothing, because `sourceRoots` defaults to `${project.compileSourceRoots}`, which never holds chain exports | `BuildCRsMojo:17-18` |
+| Container hardening defaults are weaker than the catalog's: `capabilities` defaults to empty where the catalog drops `ALL` | `ContainerOptions:39-40` |
 
 ## What works well
 

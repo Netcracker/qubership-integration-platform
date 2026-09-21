@@ -18,6 +18,9 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `out of scope`.
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
 | F11 | Smaller items, see below | minor | partial | `bcdb973dc` |
+| F12 | Chain version fallback answers for service exports too | major | open | |
+| F13 | Active environment selection diverges from runtime-catalog | major | open | |
+| F14 | Smaller items from the second round, see below | medium | open | |
 
 ## F11 breakdown
 
@@ -31,6 +34,15 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `out of scope`.
 | `BuildCRsMojo` lacks `property =`, `skip`, and `threadSafe = true` | open | |
 | Chains are read from `${project.compileSourceRoots}` | open | |
 | `ChainReader.getChainYamlFile` silently drops a second chain YAML | open | |
+
+## F14 breakdown
+
+| Item | Status | Commit |
+| --- | --- | --- |
+| A chain with no `deployments` is built into `defaultDomain` | open | |
+| `deployAction` is never read, so `NONE` still produces resources | open | |
+| With default configuration the goal writes nothing and says nothing | open | |
+| Container hardening defaults are weaker than the catalog's | open | |
 
 ## Fixed
 
