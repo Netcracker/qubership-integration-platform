@@ -329,6 +329,22 @@ public interface AppConfig {
     @WithName("rate-limit")
     RateLimitConfig rateLimit();
 
+    @WithName("transient-retry")
+    TransientRetryConfig transientRetry();
+
+    interface TransientRetryConfig {
+      @WithDefault("true")
+      boolean enabled();
+
+      @WithName("max-attempts")
+      @WithDefault("3")
+      int maxAttempts();
+
+      @WithName("backoff-seconds")
+      @WithDefault("2,5,10")
+      String backoffSeconds();
+    }
+
     interface RateLimitConfig {
       @WithDefault("true")
       boolean enabled();

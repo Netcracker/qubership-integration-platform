@@ -415,6 +415,14 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public EnvironmentDto updateEnvironment(
+      String systemId,
+      String environmentId,
+      org.qubership.integration.platform.ai.integration.catalog.model.CatalogUpdateEnvironmentRequest body) {
+    throw unsupported("updateEnvironment");
+  }
+
+  @Override
   public SpecificationDto getModel(String modelId) {
     throw unsupported("getModel");
   }
