@@ -510,6 +510,91 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void capturePrefersMcpPickerOverChainCallWhenInboundIsMcpTrigger() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.getElementsByType("any-chain", "chain-trigger-2"))
+        .thenReturn(
+            List.of(
+                catalogTrigger("trig-a", "Orders"),
+                catalogTrigger("trig-b", "Orders")));
+    when(catalog.listMcpSystems())
+        .thenReturn(
+            List.of(
+                mcpSystem("sys-a", "Orders", "orders"),
+                mcpSystem("sys-b", "Orders", "orders-2")));
+    RequirementDraftTool captureTool =
+        new RequirementDraftTool(
+            store,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new CompositionCatalogBinder(catalog),
+            new McpSystemCatalogBinder(catalog));
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Expose Orders as an MCP tool, then call the Orders chain",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(
+                    new RequirementFact(
+                        "mcp-entry",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "mcp-trigger",
+                        "Expose the chain as an MCP tool",
+                        "Orders",
+                        "",
+                        "",
+                        "",
+                        ""),
+                    new RequirementFact(
+                        "call-other",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "chain-call-2",
+                        "Call the Orders chain",
+                        "Orders",
+                        "",
+                        "",
+                        "",
+                        "")),
+                null,
+                mcpTriggerWithChainCallFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertTrue(result.contains("NEEDS_INPUT"), result);
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    assertEquals(1, draft.openQuestions().size(), draft.openQuestions().toString());
+    String question = draft.openQuestions().getFirst();
+    assertTrue(question.contains("new MCP service"), question);
+    assertFalse(question.contains("Choose the catalog chain to call"), question);
+    assertFalse(question.toLowerCase().contains("uuid"), question);
+    assertEquals(
+        "",
+        draft.facts().stream()
+            .filter(fact -> "mcp-trigger".equals(fact.capabilityKey()))
+            .map(RequirementFact::path)
+            .findFirst()
+            .orElse("missing"));
+    assertEquals(
+        "",
+        draft.facts().stream()
+            .filter(fact -> "chain-call-2".equals(fact.capabilityKey()))
+            .map(RequirementFact::path)
+            .findFirst()
+            .orElse("missing"));
+  }
+
+  @Test
   void finishDiscoveryTurnStoresStayDirectiveWithoutCapturingADraft() {
     store.beginTurn("draft-conv");
 
@@ -3240,6 +3325,14 @@ class RequirementDraftToolTest {
         List.of(
             new Interaction("mcp-entry", Direction.INBOUND, "Agent", "tool", "")),
         List.of());
+  }
+
+  private static RequirementFlow mcpTriggerWithChainCallFlow() {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("mcp-entry", Direction.INBOUND, "Agent", "tool", ""),
+            new Interaction("call-other", Direction.OUTBOUND, "Orders", "chain-trigger", "")),
+        List.of(new Transition("mcp-entry", "call-other")));
   }
 
   private static CatalogMcpSystemDto mcpSystem(String id, String name, String identifier) {
