@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.maven.plugin.domain.services;
 
+import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.impl.ConnectionImpl;
 import org.qubership.integration.platform.chain.impl.ElementImpl;
@@ -10,6 +11,7 @@ import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.maven.plugin.domain.adapters.SnapshotImpl;
 import org.qubership.integration.platform.verification.ElementPropertiesVerificationService;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +24,7 @@ import static org.qubership.integration.platform.library.constants.CamelNames.*;
 import static org.qubership.integration.platform.library.constants.CamelOptions.SYSTEM_ID;
 
 @Service
+@Slf4j
 public class SnapshotBuildService {
     private final ElementDescriptorHelper elementDescriptorHelper;
     private final ElementPropertiesVerificationService elementPropertiesVerificationService;
@@ -195,6 +198,29 @@ public class SnapshotBuildService {
     }
 
     private void verifyElementProperties(Chain chain) {
-        elementPropertiesVerificationService.verifyElementProperties(chain);
+        String chainName = chain.getName();
+        String chainId = chain.getId();
+        Map<Element, Collection<VerificationError>> errors = elementPropertiesVerificationService.verifyElementProperties(chain);
+        errors.forEach((element, verificationErrors) -> {
+            String elementId = element.getId();
+            String elementName = element.getName();
+            String elementType = element.getType();
+            verificationErrors.forEach(verificationError -> {
+                log.error("Chain '{}' ({}), element '{}' ({}) of type '{}': {}",
+                    chainName, chainId, elementName, elementId, elementType, verificationError.message());
+            });
+        });
+        if (!errors.isEmpty()) {
+            // The log above carries every error; the exception carries one, so a build failure reported
+            // without the log still says what is wrong rather than only which chain failed.
+            String firstError = errors.values().stream()
+                .flatMap(Collection::stream)
+                .findFirst()
+                .map(VerificationError::message)
+                .orElse("");
+            String message = String.format("Failed to build snapshot for chain '%s' (%s): %s",
+                chainName, chainId, firstError);
+            throw new RuntimeException(message);
+        }
     }
 }

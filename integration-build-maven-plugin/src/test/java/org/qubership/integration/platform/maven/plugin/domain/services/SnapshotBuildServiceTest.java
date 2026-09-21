@@ -16,7 +16,9 @@ import org.qubership.integration.platform.library.components.ElementDescriptorHe
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
 import org.qubership.integration.platform.verification.ElementPropertiesVerificationService;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -233,6 +235,40 @@ class SnapshotBuildServiceTest {
             .filter(element -> originalId.equals(element.getOriginalId().orElse(null)))
             .findFirst()
             .orElseThrow();
+    }
+
+    /**
+     * The verification result used to be discarded, so a chain runtime-catalog refuses to snapshot was
+     * compiled into resources anyway. Asserting only that the service was called is what let that ship.
+     */
+    @Test
+    void refusesAChainWhoseElementsFailVerification() {
+        ElementImpl invalid = element("e1", SENDER);
+        Chain chain = chain(List.of(invalid), List.of());
+        Map<Element, Collection<VerificationError>> errors =
+            Map.of(invalid, List.of(new VerificationError("Required fields not specified")));
+        when(verificationService.verifyElementProperties(chain)).thenReturn(errors);
+
+        RuntimeException exception =
+            assertThrows(RuntimeException.class, () -> snapshotBuildService.build(chain));
+
+        assertTrue(exception.getMessage().contains("chain-1"), exception.getMessage());
+        assertTrue(exception.getMessage().contains("Required fields not specified"), exception.getMessage());
+    }
+
+    /** Every error is logged, but the exception names one so a failure without the log still explains itself. */
+    @Test
+    void namesOneOfTheErrorsInTheFailure() {
+        ElementImpl invalid = element("e1", SENDER);
+        Chain chain = chain(List.of(invalid), List.of());
+        Map<Element, Collection<VerificationError>> errors = Map.of(invalid,
+            List.of(new VerificationError("Required fields not specified")));
+        when(verificationService.verifyElementProperties(chain)).thenReturn(errors);
+
+        RuntimeException exception =
+            assertThrows(RuntimeException.class, () -> snapshotBuildService.build(chain));
+
+        assertFalse(exception.getMessage().endsWith(": "), "the reason is missing from the message");
     }
 
     private static ElementDescriptor descriptor(ElementType type, boolean container) {
