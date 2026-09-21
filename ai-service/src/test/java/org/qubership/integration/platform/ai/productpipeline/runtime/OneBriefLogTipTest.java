@@ -480,7 +480,9 @@ class OneBriefLogTipTest {
         artifactStore,
         graphCompiler,
         new ClasspathCompilerContractRepository(),
-        new CompositionCatalogBinder(mock(CatalogRestClient.class)));
+        new CompositionCatalogBinder(mock(CatalogRestClient.class)),
+        new org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder(
+            mock(CatalogRestClient.class)));
   }
 
   private static ChainPlanGraph engineGraph() {

@@ -9,8 +9,12 @@ import java.util.Objects;
 import java.util.Optional;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateMcpSystemRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogMcpSystemDto;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -54,6 +58,21 @@ public class McpSystemCatalogBinder {
   public List<CatalogMcpSystemDto> listMcpSystems() {
     List<CatalogMcpSystemDto> systems = catalogRestClient.listMcpSystems();
     return systems == null ? List.of() : List.copyOf(systems);
+  }
+
+  public ChainPlanGraph bind(ChainPlanGraph graph, RequirementBrief brief) {
+    Objects.requireNonNull(graph, "graph");
+    List<ChainPlanNode> triggers = nodesOfType(graph, "mcp-trigger");
+    if (triggers.isEmpty()) {
+      return graph;
+    }
+    List<CatalogMcpSystemDto> systems = listMcpSystems();
+    ChainPlanGraph result = graph;
+    for (ChainPlanNode trigger : triggers) {
+      String systemId = resolveSystemId(trigger, brief, triggers.size(), systems);
+      result = CompositionCatalogIdentity.upsertMcpServiceIds(result, trigger.nodeId(), systemId);
+    }
+    return result;
   }
 
   public static String identifierFromName(String name) {
@@ -111,6 +130,127 @@ public class McpSystemCatalogBinder {
       rewritten.add(withPath(fact, ""));
     }
     return new McpSystemGatherResult(List.copyOf(rewritten), Optional.empty());
+  }
+
+  private String resolveSystemId(
+      ChainPlanNode trigger,
+      RequirementBrief brief,
+      int triggerCount,
+      List<CatalogMcpSystemDto> systems) {
+    RequirementFact matched = matchingMcpFact(trigger, brief, triggerCount);
+    if (matched == null) {
+      throw new IllegalArgumentException(
+          "MCP trigger " + trigger.nodeId() + " has no matching mcp-trigger capability fact.");
+    }
+    String path = matched.path();
+    if (path != null && !path.isBlank()) {
+      String systemId = path.trim();
+      if (!systemIdExists(systemId, systems)) {
+        throw new IllegalArgumentException(
+            "MCP trigger "
+                + trigger.nodeId()
+                + " path '"
+                + systemId
+                + "' is not a catalog MCP system. Recapture with a system id from the catalog.");
+      }
+      return systemId;
+    }
+    String participant = matched.participant();
+    if (participant == null || participant.isBlank()) {
+      throw new IllegalArgumentException(
+          "MCP trigger " + trigger.nodeId() + " has no MCP service name for catalog create.");
+    }
+    boolean userSupplied = matched.operation() != null && !matched.operation().isBlank();
+    String identifier =
+        userSupplied ? matched.operation().trim() : identifierFromName(participant);
+    if (userSupplied) {
+      List<CatalogMcpSystemDto> matches = systemsWithIdentifier(identifier, systems);
+      if (matches.size() == 1) {
+        return matches.getFirst().id;
+      }
+      if (matches.size() > 1) {
+        throw new IllegalArgumentException(
+            "MCP trigger "
+                + trigger.nodeId()
+                + " identifier '"
+                + identifier
+                + "' matches several catalog MCP systems.");
+      }
+      CatalogMcpSystemDto created =
+          catalogRestClient.createMcpSystem(
+              new CatalogCreateMcpSystemRequest(participant.trim(), identifier, null));
+      return requireCreatedId(created);
+    }
+    String unusedIdentifier = uniqueIdentifier(identifier, systems);
+    CatalogMcpSystemDto created =
+        catalogRestClient.createMcpSystem(
+            new CatalogCreateMcpSystemRequest(participant.trim(), unusedIdentifier, null));
+    return requireCreatedId(created);
+  }
+
+  private static RequirementFact matchingMcpFact(
+      ChainPlanNode trigger, RequirementBrief brief, int triggerCount) {
+    List<RequirementFact> facts =
+        brief == null || brief.facts() == null ? List.of() : brief.facts();
+    List<RequirementFact> mcpFacts = mcpTriggerFacts(facts);
+    for (RequirementFact fact : mcpFacts) {
+      if (trigger.nodeId().equals(fact.sourceFactId())) {
+        return fact;
+      }
+    }
+    if (triggerCount == 1 && mcpFacts.size() == 1) {
+      return mcpFacts.getFirst();
+    }
+    return null;
+  }
+
+  private static String requireCreatedId(CatalogMcpSystemDto created) {
+    if (created == null || created.id == null || created.id.isBlank()) {
+      throw new IllegalStateException("catalog createMcpSystem returned no system id");
+    }
+    return created.id.trim();
+  }
+
+  private static String uniqueIdentifier(String base, List<CatalogMcpSystemDto> systems) {
+    if (!identifierTaken(base, systems)) {
+      return base;
+    }
+    for (int suffix = 2; ; suffix++) {
+      String candidate = base + "-" + suffix;
+      if (!identifierTaken(candidate, systems)) {
+        return candidate;
+      }
+    }
+  }
+
+  private static boolean identifierTaken(String identifier, List<CatalogMcpSystemDto> systems) {
+    for (CatalogMcpSystemDto system : systems) {
+      if (system.identifier != null && identifier.equals(system.identifier.trim())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static List<CatalogMcpSystemDto> systemsWithIdentifier(
+      String identifier, List<CatalogMcpSystemDto> systems) {
+    List<CatalogMcpSystemDto> matches = new ArrayList<>();
+    for (CatalogMcpSystemDto system : systems) {
+      if (system.identifier != null && identifier.equals(system.identifier.trim())) {
+        matches.add(system);
+      }
+    }
+    return matches;
+  }
+
+  private static List<ChainPlanNode> nodesOfType(ChainPlanGraph graph, String type) {
+    List<ChainPlanNode> nodes = new ArrayList<>();
+    for (ChainPlanNode node : graph.nodes()) {
+      if (type.equals(node.type())) {
+        nodes.add(node);
+      }
+    }
+    return nodes;
   }
 
   private static List<RequirementFact> mcpTriggerFacts(List<RequirementFact> facts) {
