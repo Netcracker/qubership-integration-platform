@@ -11,6 +11,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
+import org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
@@ -56,6 +57,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
   private final ChainSemanticGraphCompiler graphCompiler;
   private final CompilerContractRepository contractRepository;
   private final CompositionCatalogBinder compositionBinder;
+  private final McpSystemCatalogBinder mcpSystemCatalogBinder;
 
   @Inject
   public DefaultApprovedCompilerExecutionRunner(
@@ -64,13 +66,16 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       ProductPipelineArtifactStore artifactStore,
       ChainSemanticGraphCompiler graphCompiler,
       CompilerContractRepository contractRepository,
-      CompositionCatalogBinder compositionBinder) {
+      CompositionCatalogBinder compositionBinder,
+      McpSystemCatalogBinder mcpSystemCatalogBinder) {
     this.engine = Objects.requireNonNull(engine, "engine");
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
     this.graphCompiler = Objects.requireNonNull(graphCompiler, "graphCompiler");
     this.contractRepository = Objects.requireNonNull(contractRepository, "contractRepository");
     this.compositionBinder = Objects.requireNonNull(compositionBinder, "compositionBinder");
+    this.mcpSystemCatalogBinder =
+        Objects.requireNonNull(mcpSystemCatalogBinder, "mcpSystemCatalogBinder");
   }
 
   @Override
@@ -171,6 +176,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
                 : CompilerContract.V1);
     ChainPlanGraph graph = graphCompiler.compile(revision, contract, resolvedBindings, storedBrief);
     graph = compositionBinder.bind(graph, storedBrief);
+    graph = mcpSystemCatalogBinder.bind(graph, storedBrief);
     RequirementBrief brief =
         DesignExecutionBriefFactory.build(
             storedBrief,
