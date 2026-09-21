@@ -66,7 +66,7 @@ public class McpSystemCatalogBinder {
     if (triggers.isEmpty()) {
       return graph;
     }
-    List<CatalogMcpSystemDto> systems = listMcpSystems();
+    List<CatalogMcpSystemDto> systems = new ArrayList<>(listMcpSystems());
     ChainPlanGraph result = graph;
     for (ChainPlanNode trigger : triggers) {
       String systemId = resolveSystemId(trigger, brief, triggers.size(), systems);
@@ -179,13 +179,13 @@ public class McpSystemCatalogBinder {
       CatalogMcpSystemDto created =
           catalogRestClient.createMcpSystem(
               new CatalogCreateMcpSystemRequest(participant.trim(), identifier, null));
-      return requireCreatedId(created);
+      return trackCreatedSystem(created, systems);
     }
     String unusedIdentifier = uniqueIdentifier(identifier, systems);
     CatalogMcpSystemDto created =
         catalogRestClient.createMcpSystem(
             new CatalogCreateMcpSystemRequest(participant.trim(), unusedIdentifier, null));
-    return requireCreatedId(created);
+    return trackCreatedSystem(created, systems);
   }
 
   private static RequirementFact matchingMcpFact(
@@ -202,6 +202,13 @@ public class McpSystemCatalogBinder {
       return mcpFacts.getFirst();
     }
     return null;
+  }
+
+  private static String trackCreatedSystem(
+      CatalogMcpSystemDto created, List<CatalogMcpSystemDto> systems) {
+    String id = requireCreatedId(created);
+    systems.add(created);
+    return id;
   }
 
   private static String requireCreatedId(CatalogMcpSystemDto created) {
