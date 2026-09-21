@@ -92,22 +92,21 @@ public class McpSystemCatalogBinder {
         rewritten.add(fact);
         continue;
       }
-      if (wantsNewMcpService(text)) {
-        rewritten.add(withPath(fact, ""));
-        continue;
+      List<CatalogMcpSystemDto> matches =
+          matchesSystem(fact.participant(), fact.operation(), catalog);
+      boolean skipAutoBind = wantsNewMcpService(text) && !fact.participant().isBlank();
+      if (!skipAutoBind) {
+        if (matches.size() == 1) {
+          rewritten.add(withPath(fact, matches.getFirst().id));
+          continue;
+        }
+        if (matches.size() > 1) {
+          return new McpSystemGatherResult(
+              input, Optional.of(pickerQuestion(matches)), systemList(catalog));
+        }
       }
       if (fact.participant().isBlank()) {
         return new McpSystemGatherResult(input, Optional.of(ASK_NAME_PROMPT));
-      }
-      List<CatalogMcpSystemDto> matches =
-          matchesSystem(fact.participant(), fact.operation(), catalog);
-      if (matches.size() == 1) {
-        rewritten.add(withPath(fact, matches.getFirst().id));
-        continue;
-      }
-      if (matches.size() > 1) {
-        return new McpSystemGatherResult(
-            input, Optional.of(pickerQuestion(matches)), systemList(catalog));
       }
       rewritten.add(withPath(fact, ""));
     }
