@@ -17,6 +17,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
+import org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
@@ -154,6 +155,7 @@ public class RequirementDraftTool {
   private final ConversationService conversationService;
   private final CatalogOperationLookup catalogOperationLookup;
   private final CompositionCatalogBinder compositionBinder;
+  private final McpSystemCatalogBinder mcpSystemCatalogBinder;
 
   RequirementDraftTool(
       RequirementDraftStore store,
@@ -171,6 +173,7 @@ public class RequirementDraftTool {
         resolutions,
         conversationService,
         catalogOperationLookup,
+        null,
         null);
   }
 
@@ -183,7 +186,8 @@ public class RequirementDraftTool {
       ConversationApiResolutions resolutions,
       ConversationService conversationService,
       CatalogOperationLookup catalogOperationLookup,
-      CompositionCatalogBinder compositionBinder) {
+      CompositionCatalogBinder compositionBinder,
+      McpSystemCatalogBinder mcpSystemCatalogBinder) {
     this.store = store;
     this.repository = repository;
     this.catalogCache = catalogCache;
@@ -192,6 +196,7 @@ public class RequirementDraftTool {
     this.conversationService = conversationService;
     this.catalogOperationLookup = catalogOperationLookup;
     this.compositionBinder = compositionBinder;
+    this.mcpSystemCatalogBinder = mcpSystemCatalogBinder;
   }
 
   public RequirementDraftTool(RequirementDraftStore store) {
@@ -253,7 +258,13 @@ public class RequirementDraftTool {
   static RequirementDraftTool withCompositionBinder(
       RequirementDraftStore store, CompositionCatalogBinder compositionBinder) {
     return new RequirementDraftTool(
-        store, null, null, null, null, null, null, compositionBinder);
+        store, null, null, null, null, null, null, compositionBinder, null);
+  }
+
+  static RequirementDraftTool withMcpSystemBinder(
+      RequirementDraftStore store, McpSystemCatalogBinder mcpSystemCatalogBinder) {
+    return new RequirementDraftTool(
+        store, null, null, null, null, null, null, null, mcpSystemCatalogBinder);
   }
 
   @Tool("""
@@ -320,9 +331,14 @@ public class RequirementDraftTool {
       and optional kind (GOAL, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY, VISIBILITY, ROUTING).
       Native trigger configuration uses a CAPABILITY fact whose sourceFactId matches the inbound
       interactionId. In-scope trigger keys: http-trigger, chain-trigger-2, async-api-trigger,
-      jms-trigger, kafka-trigger-2, pubsub-trigger, quartz-scheduler, rabbitmq-trigger-2,
-      sds-trigger, and sftp-trigger-2. Do not use mcp-trigger; that trigger is not supported in
-      create-chain yet.
+      jms-trigger, kafka-trigger-2, mcp-trigger, pubsub-trigger, quartz-scheduler,
+      rabbitmq-trigger-2, sds-trigger, and sftp-trigger-2.
+      MCP trigger configuration uses capabilityKey=mcp-trigger with participant set to the MCP
+      service name. Put a user-supplied MCP server identifier in operation when the user named one
+      (copy verbatim; do not slug). Leave operation blank when the user did not give an identifier.
+      Leave path blank unless you already have an MCP system UUID from the user or from gather. Do
+      not invent UUIDs. Capture READY_FOR_PLAN when the service name is known; gather binds a
+      unique catalog match or asks the user to choose or create an MCP service.
       Direct HTTP sender configuration uses a CAPABILITY fact whose sourceFactId matches the
       outbound interactionId, capabilityKey=http-sender, and httpMethod plus an absolute or
       relative URI in path. In-scope direct sender keys: graphql-sender, http-sender, jms-sender,
@@ -641,6 +657,25 @@ public class RequirementDraftTool {
               && openQuestions.isEmpty()
               && questionCount > 0) {
             decision = DraftDecision.READY_FOR_PLAN;
+          }
+        }
+      }
+
+      if (mcpSystemCatalogBinder != null
+          && !boundFlow.interactions().isEmpty()
+          && (decision == DraftDecision.READY_FOR_PLAN
+              || decision == DraftDecision.NEEDS_INPUT)) {
+        McpSystemCatalogBinder.McpSystemGatherResult mcpGather =
+            McpSystemCatalogBinder.gather(
+                boundFlow,
+                facts,
+                capture.assembledText(),
+                mcpSystemCatalogBinder.listMcpSystems());
+        facts = mcpGather.facts();
+        if (mcpGather.openQuestion().isPresent()) {
+          decision = DraftDecision.NEEDS_INPUT;
+          if (openQuestions.isEmpty() || hasMcpTriggerInbound(boundFlow, facts)) {
+            openQuestions = List.of(mcpGather.openQuestion().get());
           }
         }
       }
@@ -984,6 +1019,30 @@ public class RequirementDraftTool {
       }
     }
     return List.copyOf(kept);
+  }
+
+  private static boolean hasMcpTriggerInbound(
+      RequirementFlow flow, List<RequirementFact> facts) {
+    if (flow == null || flow.interactions().isEmpty()) {
+      return false;
+    }
+    List<RequirementFact> factList = facts == null ? List.of() : facts;
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      if (interaction.direction() != RequirementFlow.Direction.INBOUND) {
+        continue;
+      }
+      for (RequirementFact fact : factList) {
+        if (fact == null
+            || !interaction.interactionId().equals(fact.sourceFactId())
+            || fact.polarity() != RequirementFactPolarity.POSITIVE
+            || fact.kind() != RequirementFactKind.CAPABILITY
+            || !"mcp-trigger".equals(fact.capabilityKey())) {
+          continue;
+        }
+        return true;
+      }
+    }
+    return false;
   }
 
   static boolean isChainCallTriggerUuidQuestion(String question) {

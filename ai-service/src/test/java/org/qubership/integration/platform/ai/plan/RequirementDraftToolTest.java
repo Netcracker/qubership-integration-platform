@@ -31,6 +31,8 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogO
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
+import org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogMcpSystemDto;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -407,6 +409,101 @@ class RequirementDraftToolTest {
         "",
         draft.facts().stream()
             .filter(fact -> "chain-call-2".equals(fact.capabilityKey()))
+            .map(RequirementFact::path)
+            .findFirst()
+            .orElse("missing"));
+  }
+
+  @Test
+  void captureWritesUniqueMcpSystemIdAndStaysReadyForPlan() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.listMcpSystems())
+        .thenReturn(List.of(mcpSystem("sys-1", "Orders MCP", "orders-mcp")));
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withMcpSystemBinder(store, new McpSystemCatalogBinder(catalog));
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Expose the chain as an MCP tool on Orders MCP",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(
+                    new RequirementFact(
+                        "mcp-entry",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "mcp-trigger",
+                        "Expose the chain as an MCP tool",
+                        "Orders MCP",
+                        "",
+                        "",
+                        "",
+                        "")),
+                null,
+                mcpTriggerFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertTrue(result.contains("Requirement draft captured"), result);
+    assertEquals(
+        "sys-1",
+        draft.facts().stream()
+            .filter(fact -> "mcp-trigger".equals(fact.capabilityKey()))
+            .map(RequirementFact::path)
+            .findFirst()
+            .orElse(""));
+  }
+
+  @Test
+  void captureAsksMcpPickerWhenSeveralSystemsMatch() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.listMcpSystems())
+        .thenReturn(
+            List.of(
+                mcpSystem("a", "Orders", "orders"),
+                mcpSystem("b", "Orders", "orders-2")));
+    RequirementDraftTool captureTool =
+        RequirementDraftTool.withMcpSystemBinder(store, new McpSystemCatalogBinder(catalog));
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+
+    String result =
+        captureTool.captureRequirementDraft(
+            new RequirementDraftCapture(
+                true,
+                "Expose the chain as an MCP tool on Orders",
+                DraftDecision.READY_FOR_PLAN,
+                List.of(),
+                null,
+                List.of(
+                    new RequirementFact(
+                        "mcp-entry",
+                        RequirementFactPolarity.POSITIVE,
+                        RequirementFactKind.CAPABILITY,
+                        "mcp-trigger",
+                        "Expose the chain as an MCP tool",
+                        "Orders",
+                        "",
+                        "",
+                        "",
+                        "")),
+                null,
+                mcpTriggerFlow()));
+
+    RequirementDraft draft = store.get("draft-conv").orElseThrow();
+    assertTrue(result.contains("NEEDS_INPUT"), result);
+    assertEquals(DraftDecision.NEEDS_INPUT, draft.decision());
+    assertTrue(
+        draft.openQuestions().getFirst().contains("new MCP service"),
+        draft.openQuestions().toString());
+    assertEquals(
+        "",
+        draft.facts().stream()
+            .filter(fact -> "mcp-trigger".equals(fact.capabilityKey()))
             .map(RequirementFact::path)
             .findFirst()
             .orElse("missing"));
@@ -3136,6 +3233,21 @@ class RequirementDraftToolTest {
                 "chain-trigger",
                 "")),
         List.of(new Transition("http-entry", "call-other")));
+  }
+
+  private static RequirementFlow mcpTriggerFlow() {
+    return new RequirementFlow(
+        List.of(
+            new Interaction("mcp-entry", Direction.INBOUND, "Agent", "tool", "")),
+        List.of());
+  }
+
+  private static CatalogMcpSystemDto mcpSystem(String id, String name, String identifier) {
+    CatalogMcpSystemDto dto = new CatalogMcpSystemDto();
+    dto.id = id;
+    dto.name = name;
+    dto.identifier = identifier;
+    return dto;
   }
 
   private static CatalogElementResponseDto catalogTrigger(String id, String chainName) {

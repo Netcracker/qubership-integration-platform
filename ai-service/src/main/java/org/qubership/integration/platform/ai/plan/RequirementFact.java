@@ -17,24 +17,29 @@ public record RequirementFact(
     RequirementFactKind kind,
     @Description(
             "Native chain-element key. Inbound: http-trigger, chain-trigger-2, async-api-trigger,"
-                + " jms-trigger, kafka-trigger-2, pubsub-trigger, quartz-scheduler,"
+                + " jms-trigger, kafka-trigger-2, mcp-trigger, pubsub-trigger, quartz-scheduler,"
                 + " rabbitmq-trigger-2, sds-trigger, or sftp-trigger-2. Outbound direct:"
                 + " graphql-sender, http-sender, jms-sender, kafka-sender-2, mail-sender,"
                 + " pubsub-sender, rabbitmq-sender-2, or scs-sender. Composition: chain-call-2,"
-                + " reuse, or reuse-reference. Do not use mcp-trigger;"
-                + " that trigger is not supported in create-chain yet.")
+                + " reuse, or reuse-reference.")
         String capabilityKey,
     String text,
-    @Description("SERVICE_CALL catalog or system display name, e.g. Petstore Ext")
+    @Description(
+            "SERVICE_CALL catalog or system display name, e.g. Petstore Ext. MCP service name when"
+                + " capabilityKey is mcp-trigger.")
         String participant,
-    @Description("Kafka consume operation, HTTP operation id, or SERVICE_CALL operationQuery")
+    @Description(
+            "Kafka consume operation, HTTP operation id, or SERVICE_CALL operationQuery."
+                + " User-supplied MCP server identifier when capabilityKey is mcp-trigger (copy"
+                + " verbatim; leave blank when the user did not name one).")
         String operation,
     @Description("Kafka topic when capabilityKey is kafka-trigger-2") String topic,
     @Description("HTTP method when capabilityKey is http-trigger or http-sender, e.g. GET")
         String httpMethod,
     @Description(
             "HTTP path or URL when capabilityKey is http-trigger or http-sender. Catalog"
-                + " chain-trigger-2 UUID when capabilityKey is chain-call-2")
+                + " chain-trigger-2 UUID when capabilityKey is chain-call-2. Catalog MCP system"
+                + " UUID when capabilityKey is mcp-trigger.")
         String path,
     @Description(
             "Stable SERVICE_CALL occurrence id, or catalog Kafka consume id when capabilityKey is async-api-trigger")
