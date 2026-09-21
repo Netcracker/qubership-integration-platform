@@ -19,7 +19,9 @@ import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCr
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateDependencyRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateElementRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateEnvironmentRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateMcpSystemRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateSystemRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogMcpSystemDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogDependencyDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemFilter;
@@ -157,6 +159,16 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   @Override
   public List<DomainDto> listDomains() {
     return List.of(new DomainDto("default", "CLASSIC"));
+  }
+
+  @Override
+  public List<CatalogMcpSystemDto> listMcpSystems() {
+    return List.of();
+  }
+
+  @Override
+  public CatalogMcpSystemDto createMcpSystem(CatalogCreateMcpSystemRequest body) {
+    throw new UnsupportedOperationException("createMcpSystem");
   }
 
   @Override
