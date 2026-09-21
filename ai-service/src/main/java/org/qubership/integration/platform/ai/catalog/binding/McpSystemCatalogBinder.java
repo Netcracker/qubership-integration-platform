@@ -181,6 +181,11 @@ public class McpSystemCatalogBinder {
               new CatalogCreateMcpSystemRequest(participant.trim(), identifier, null));
       return trackCreatedSystem(created, systems);
     }
+    Optional<CatalogMcpSystemDto> reusable =
+        findReusableGeneratedSystem(participant, identifier, systems);
+    if (reusable.isPresent()) {
+      return reusable.get().id;
+    }
     String unusedIdentifier = uniqueIdentifier(identifier, systems);
     CatalogMcpSystemDto created =
         catalogRestClient.createMcpSystem(
@@ -230,9 +235,24 @@ public class McpSystemCatalogBinder {
     }
   }
 
+  private static Optional<CatalogMcpSystemDto> findReusableGeneratedSystem(
+      String participant, String identifier, List<CatalogMcpSystemDto> systems) {
+    List<CatalogMcpSystemDto> matches = new ArrayList<>();
+    for (CatalogMcpSystemDto system : systems) {
+      if (fieldEquals(system.name, participant)
+          && identifierEquals(system.identifier, identifier)) {
+        matches.add(system);
+      }
+    }
+    if (matches.size() == 1) {
+      return Optional.of(matches.getFirst());
+    }
+    return Optional.empty();
+  }
+
   private static boolean identifierTaken(String identifier, List<CatalogMcpSystemDto> systems) {
     for (CatalogMcpSystemDto system : systems) {
-      if (system.identifier != null && identifier.equals(system.identifier.trim())) {
+      if (identifierEquals(system.identifier, identifier)) {
         return true;
       }
     }
@@ -243,11 +263,18 @@ public class McpSystemCatalogBinder {
       String identifier, List<CatalogMcpSystemDto> systems) {
     List<CatalogMcpSystemDto> matches = new ArrayList<>();
     for (CatalogMcpSystemDto system : systems) {
-      if (system.identifier != null && identifier.equals(system.identifier.trim())) {
+      if (identifierEquals(system.identifier, identifier)) {
         matches.add(system);
       }
     }
     return matches;
+  }
+
+  private static boolean identifierEquals(String actual, String expected) {
+    if (actual == null || actual.isBlank() || expected == null || expected.isBlank()) {
+      return false;
+    }
+    return actual.trim().equalsIgnoreCase(expected.trim());
   }
 
   private static List<ChainPlanNode> nodesOfType(ChainPlanGraph graph, String type) {
@@ -354,11 +381,19 @@ public class McpSystemCatalogBinder {
   }
 
   private static String pickerQuestion(List<CatalogMcpSystemDto> matches) {
-    List<String> names = new ArrayList<>();
+    List<String> labels = new ArrayList<>();
     for (CatalogMcpSystemDto system : matches) {
-      names.add(displayName(system));
+      labels.add(pickerLabel(system));
     }
-    return PICKER_PROMPT + " Existing: " + String.join(", ", names) + ".";
+    return PICKER_PROMPT + " Existing: " + String.join(", ", labels) + ".";
+  }
+
+  private static String pickerLabel(CatalogMcpSystemDto system) {
+    String name = displayName(system);
+    if (system.identifier != null && !system.identifier.isBlank()) {
+      return name + " (" + system.identifier.trim() + ")";
+    }
+    return name;
   }
 
   private static String systemList(List<CatalogMcpSystemDto> systems) {

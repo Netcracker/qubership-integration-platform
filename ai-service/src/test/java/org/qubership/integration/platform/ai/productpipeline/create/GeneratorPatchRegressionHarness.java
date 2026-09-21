@@ -781,7 +781,6 @@ public final class GeneratorPatchRegressionHarness {
             Map.of(
                 "mcp-trigger",
                 Set.of(
-                    "mcpServiceIds",
                     "name",
                     "description",
                     "inputSchema",
