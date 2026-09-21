@@ -320,6 +320,7 @@ public final class DesignPlanContractValidator {
       case "quartz-scheduler" -> "cip-quartz-scheduler-generator";
       case "sds-trigger" -> "cip-sds-trigger-generator";
       case "sftp-trigger-2" -> "cip-sftp-trigger-generator";
+      case "mcp-trigger" -> "cip-mcp-trigger-generator";
       case "async-api-trigger" -> DesignPlanProjector.SERVICE_CALL_GENERATOR_SKILL_ID;
       case "http-trigger" -> "cip-http-trigger-endpoint-generator";
       default -> "cip-trigger-generator";

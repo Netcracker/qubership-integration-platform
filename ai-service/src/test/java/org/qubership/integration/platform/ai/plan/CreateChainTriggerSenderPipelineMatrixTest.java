@@ -163,6 +163,7 @@ class CreateChainTriggerSenderPipelineMatrixTest {
             "chain-trigger-2",
             "jms-trigger",
             "kafka-trigger-2",
+            "mcp-trigger",
             "pubsub-trigger",
             "quartz-scheduler",
             "rabbitmq-trigger-2",
@@ -411,6 +412,13 @@ class CreateChainTriggerSenderPipelineMatrixTest {
     seeds.put("jms-trigger", jmsProperties());
     seeds.put("jms-sender", jmsSenderProperties());
     seeds.put("kafka-trigger-2", Map.of("groupId", "grp", "topicsClassifierName", "orders-in"));
+    seeds.put(
+        "mcp-trigger",
+        Map.of(
+            "mcpServiceIds", "[\"sys-1\"]",
+            "name", "example_tool",
+            "description", "Example MCP tool",
+            "inputSchema", "{ \"type\": \"object\", \"additionalProperties\": false }"));
     seeds.put("pubsub-trigger", pubsubProperties());
     seeds.put("pubsub-sender", pubsubProperties());
     seeds.put("quartz-scheduler", Map.of("cron", "0 */5 * ? * *", "deleteJob", "false"));
@@ -535,11 +543,15 @@ class CreateChainTriggerSenderPipelineMatrixTest {
   private void putPlanProperty(ObjectNode props, PlanProperty property)
       throws JsonProcessingException {
     String value = property.value();
-    if ("integrationOperationAsyncProperties".equals(property.key())
-        && value != null
-        && !value.isBlank()) {
-      props.set(property.key(), objectMapper.readTree(value.trim()));
-      return;
+    if (value != null && !value.isBlank()) {
+      if ("integrationOperationAsyncProperties".equals(property.key())) {
+        props.set(property.key(), objectMapper.readTree(value.trim()));
+        return;
+      }
+      if ("mcpServiceIds".equals(property.key()) && value.trim().startsWith("[")) {
+        props.set(property.key(), objectMapper.readTree(value.trim()));
+        return;
+      }
     }
     props.put(property.key(), value);
   }

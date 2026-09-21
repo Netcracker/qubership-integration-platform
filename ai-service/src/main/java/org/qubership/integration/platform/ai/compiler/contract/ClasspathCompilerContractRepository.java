@@ -38,6 +38,7 @@ public class ClasspathCompilerContractRepository implements CompilerContractRepo
           "rabbitmq-trigger-2",
           "sds-trigger",
           "sftp-trigger-2",
+          "mcp-trigger",
           "graphql-sender",
           "http-sender",
           "jms-sender",

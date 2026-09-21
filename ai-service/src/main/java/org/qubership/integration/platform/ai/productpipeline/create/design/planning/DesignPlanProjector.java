@@ -818,7 +818,8 @@ public final class DesignPlanProjector {
           "cip-messaging-generator",
           "cip-quartz-scheduler-generator",
           "cip-sds-trigger-generator",
-          "cip-sftp-trigger-generator");
+          "cip-sftp-trigger-generator",
+          "cip-mcp-trigger-generator");
 
   private static void validateTriggerCoverage(ParsedPlannerReport parsed) {
     boolean hasTrigger =
