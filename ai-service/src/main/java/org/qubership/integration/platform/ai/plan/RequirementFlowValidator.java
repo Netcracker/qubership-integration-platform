@@ -35,9 +35,6 @@ public final class RequirementFlowValidator {
     REJECT_UNSUPPORTED
   }
 
-  private static final String MCP_UNSUPPORTED_MESSAGE =
-      "MCP trigger is not supported in create-chain yet.";
-
   private RequirementFlowValidator() {}
 
   public static Interaction interactionForEntryPoint(RequirementBrief brief, String entryPointId) {
@@ -57,9 +54,6 @@ public final class RequirementFlowValidator {
 
   public static LookupAction catalogLookupAction(Interaction interaction, List<RequirementFact> facts) {
     List<RequirementFact> factList = facts == null ? List.of() : facts;
-    if (hasMcpTriggerFact(interaction.interactionId(), factList)) {
-      return LookupAction.REJECT_UNSUPPORTED;
-    }
     if (interaction.direction() == Direction.INBOUND) {
       return inboundCatalogLookupAction(interaction, factList);
     }
@@ -240,9 +234,6 @@ public final class RequirementFlowValidator {
       String interactionId = interaction.interactionId();
       LookupAction action = catalogLookupAction(interaction, factList);
       CatalogBindingHint hint = byInteraction.get(interactionId);
-      if (action == LookupAction.REJECT_UNSUPPORTED) {
-        return Optional.of(MCP_UNSUPPORTED_MESSAGE);
-      }
       if (action == LookupAction.SKIP && hint != null) {
         return Optional.of(
             "requirement flow interaction "
@@ -321,10 +312,6 @@ public final class RequirementFlowValidator {
     List<RequirementFact> factList = facts == null ? List.of() : facts;
     for (Interaction interaction : checked.interactions()) {
       Optional<String> inboundCapability = inboundCapabilityKey(interaction, factList);
-      if (inboundCapability.isPresent()
-          && "mcp-trigger".equals(inboundCapability.get())) {
-        continue;
-      }
       if (inboundCapability.isPresent()
           && !supportedInboundCapabilityKeys().contains(inboundCapability.get())) {
         return Optional.of(
@@ -455,15 +442,6 @@ public final class RequirementFlowValidator {
     return catalogDirection == CatalogOperationDirection.CONSUMED_BY_SYSTEM
         && inboundCapabilityKey(interaction, facts).filter("http-trigger"::equals).isPresent()
         && requiresCatalogBinding(interaction, facts);
-  }
-
-  private static boolean hasMcpTriggerFact(String interactionId, List<RequirementFact> facts) {
-    return facts.stream()
-        .filter(Objects::nonNull)
-        .filter(fact -> interactionId.equals(fact.sourceFactId()))
-        .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
-        .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
-        .anyMatch(fact -> "mcp-trigger".equals(fact.capabilityKey()));
   }
 
   private static boolean hasSenderCapabilityFact(String interactionId, List<RequirementFact> facts) {

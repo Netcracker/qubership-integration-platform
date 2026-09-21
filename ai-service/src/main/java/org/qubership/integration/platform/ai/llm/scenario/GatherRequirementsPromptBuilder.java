@@ -142,8 +142,8 @@ public class GatherRequirementsPromptBuilder {
         + " catalog. Implemented service HTTP uses CAPABILITY http-trigger with participant set"
         + " and a blank path, then resolveApiOperation. Catalog outbound calls do not invent a"
         + " sender key; resolveApiOperation is that classification. Ambiguous HTTP or outbound"
-        + " needs one question; do not search. mcp-trigger"
-        + " is not supported yet; tell the user that trigger is not supported in create-chain."
+        + " needs one question; do not search. mcp-trigger skips catalog lookup; capture"
+        + " participant and optional operation, and do not call resolveApiOperation for it."
         + " Do not search the catalog or API Hub for direct elements.";
   }
 

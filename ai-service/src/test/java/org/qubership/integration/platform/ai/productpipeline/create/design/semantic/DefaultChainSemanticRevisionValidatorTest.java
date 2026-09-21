@@ -7,7 +7,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
@@ -19,6 +21,8 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.ElementContract;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract.RuntimeDescriptorConstraints;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
@@ -316,7 +320,7 @@ class DefaultChainSemanticRevisionValidatorTest {
   }
 
   @Test
-  void rejectsMcpTriggerCapabilityInSemanticInput() {
+  void acceptsMcpTriggerCapabilityInSemanticInput() {
     SemanticNode trigger =
         new SemanticNode.Trigger("trigger-http", "mcp-trigger", new SemanticProvenance(List.of()));
     SemanticNode call =
@@ -339,11 +343,7 @@ class DefaultChainSemanticRevisionValidatorTest {
                 "mcp-trigger",
                 "Expose MCP tools"));
 
-    IllegalArgumentException error =
-        assertThrows(
-            IllegalArgumentException.class, () -> validator.validate(revision, CONTRACT, brief));
-
-    assertTrue(error.getMessage().contains("not supported"), error.getMessage());
+    assertDoesNotThrow(() -> validator.validate(revision, contractWithMcpTrigger(), brief));
   }
 
   @Test
@@ -1478,6 +1478,26 @@ class DefaultChainSemanticRevisionValidatorTest {
       String edgeId, String from, String to, String regionId, String mappingId) {
     return new SemanticExecutionEdge(
         edgeId, from, to, regionId, new SemanticRoute.Sequence(), mappingId);
+  }
+
+  private static CompilerContract contractWithMcpTrigger() {
+    Map<String, ElementContract> elements = new LinkedHashMap<>(CONTRACT.elements());
+    elements.put(
+        "mcp-trigger",
+        new ElementContract(
+            Map.of(),
+            List.of(),
+            "materialize-mcp-trigger",
+            new RuntimeDescriptorConstraints("mcp-trigger", false, null, false)));
+    return new CompilerContract(
+        CONTRACT.contractVersion(),
+        CONTRACT.semanticSchemaVersion(),
+        elements,
+        CONTRACT.topology(),
+        CONTRACT.requiredArtifacts(),
+        CONTRACT.requiredAddons(),
+        CONTRACT.requiredKnowledgeFragments(),
+        CONTRACT.sha256());
   }
 
   private static ChainSemanticRevision revision(

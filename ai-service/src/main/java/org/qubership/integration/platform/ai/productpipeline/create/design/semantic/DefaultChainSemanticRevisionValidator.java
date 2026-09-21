@@ -38,9 +38,6 @@ import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 @ApplicationScoped
 public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevisionValidator {
 
-  private static final String MCP_UNSUPPORTED_MESSAGE =
-      "MCP trigger is not supported in create-chain yet.";
-
   private enum Color {
     WHITE,
     GRAY,
@@ -959,20 +956,6 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     }
     List<RequirementFact> facts = brief.facts() == null ? List.of() : brief.facts();
     RequirementFlow flow = brief.flow() == null ? RequirementFlow.EMPTY : brief.flow();
-    for (RequirementFact fact : facts) {
-      if (fact != null
-          && fact.polarity() == RequirementFactPolarity.POSITIVE
-          && fact.kind() == RequirementFactKind.CAPABILITY
-          && "mcp-trigger".equals(fact.capabilityKey())) {
-        errors.add(MCP_UNSUPPORTED_MESSAGE);
-      }
-    }
-    for (SemanticNode node : revision.nodes()) {
-      if (node instanceof SemanticNode.Trigger trigger
-          && "mcp-trigger".equals(trigger.capabilityKey())) {
-        errors.add(MCP_UNSUPPORTED_MESSAGE);
-      }
-    }
     for (SemanticNode node : revision.nodes()) {
       if (!(node instanceof SemanticNode.ServiceCall call)) {
         continue;

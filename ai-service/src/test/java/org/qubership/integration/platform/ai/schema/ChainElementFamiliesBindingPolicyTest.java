@@ -20,6 +20,7 @@ class ChainElementFamiliesBindingPolicyTest {
           "chain-trigger-2",
           "jms-trigger",
           "kafka-trigger-2",
+          "mcp-trigger",
           "pubsub-trigger",
           "quartz-scheduler",
           "rabbitmq-trigger-2",
@@ -38,7 +39,7 @@ class ChainElementFamiliesBindingPolicyTest {
   @CsvSource({
       "http-trigger, HTTP_TRIGGER_DUAL_MODE",
       "async-api-trigger, CATALOG_REQUIRED",
-      "mcp-trigger, UNSUPPORTED_IN_CREATE",
+      "mcp-trigger, DIRECT",
       "chain-trigger-2, DIRECT",
       "http-sender, DIRECT",
       "kafka-sender-2, DIRECT",
@@ -74,7 +75,7 @@ class ChainElementFamiliesBindingPolicyTest {
     }
     assertEquals(expected, new TreeSet<>(ChainElementFamilies.classifiedTriggerAndSenderTypes()));
     assertTrue(expected.contains("mcp-trigger"));
-    assertFalse(IN_SCOPE_DIRECT.contains("mcp-trigger"));
+    assertTrue(IN_SCOPE_DIRECT.contains("mcp-trigger"));
   }
 
   @Test

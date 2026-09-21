@@ -111,7 +111,7 @@ class CreateChainTriggerSenderPipelineMatrixTest {
   }
 
   @Test
-  void mcpTriggerCapabilityIsRejected() {
+  void mcpTriggerSkipsCatalogLookup() {
     Interaction inbound = interaction(INBOUND_ID, Direction.INBOUND, "Agent", "tool");
     RequirementFact fact =
         new RequirementFact(
@@ -124,13 +124,12 @@ class CreateChainTriggerSenderPipelineMatrixTest {
     RequirementBrief brief = brief(flow, List.of(fact), List.of(), List.of());
 
     assertEquals(
-        LookupAction.REJECT_UNSUPPORTED,
+        LookupAction.SKIP,
         RequirementFlowValidator.catalogLookupAction(inbound, brief.facts()));
 
     Optional<String> error =
         RequirementFlowValidator.validateBindings(flow, brief.facts(), List.of());
-    assertTrue(error.isPresent());
-    assertTrue(error.orElseThrow().contains("not supported"));
+    assertTrue(error.isEmpty(), error::orElseThrow);
   }
 
   private static Stream<PipelineCase> passingCases() {
