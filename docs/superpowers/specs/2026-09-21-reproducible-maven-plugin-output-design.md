@@ -67,19 +67,22 @@ returns a random UUID.
 
 | Bean | Call site | Seed | Plugin derivation |
 | --- | --- | --- | --- |
-| `RouteIdGenerator` | `ChainRouteBuilder`, 2 sites | the head element's **element id** | `nameUUIDFromBytes(elementId)` |
-| `RouteRegistrationIdGenerator` | `RoutesGetterService`, 3 sites | snapshot id and the site's own route key | `nameUUIDFromBytes(seed)` |
+| `RouteIdGenerator` | `ChainRouteBuilder`, 2 sites | the head element's element id | `nameUUIDFromBytes("route" + elementId)` |
+| `RouteRegistrationIdGenerator` | `RoutesGetterService`, 3 sites | the element's element id | `nameUUIDFromBytes("registration" + elementId)` |
 | `MappingIdGenerator` | `AtlasMapInterpreter:419` | `action.getId()` | `"mapping." + nameUUIDFromBytes(actionId)` |
 | `MapperMappingIdGenerator` | `MapperInterpreterHelper.mappingId` | the mapper element's id | `nameUUIDFromBytes("mapping" + elementId)` |
 
-`RouteRegistrationIdGenerator`'s three call sites do not share one shape, so the interface takes a
-single seed string and each site supplies what it has. The sender and service sites pass their
-`gatewayPrefix`, which already embeds the element's original id; the trigger site has no gateway prefix
-and passes its path. Each site prepends the snapshot id, which every one of the three methods already
-receives. Without it, two chains in the same domain that share a trigger path would produce one
-`RouteRegistrationInfo` id between them, where today they get two random ones.
+Three of the four seed from an element id, so each carries a discriminator naming what it produces.
+Without one, an HTTP trigger — which is both a route head and a route registration — would drive two
+generators from the identical string and get one UUID for both. Nothing breaks, since a `direct:`
+endpoint and a bean name never meet, but the coincidence is the kind that costs someone an afternoon.
+This is the opposite of the element and snapshot ids, where the seeds already differ and a prefix would
+be ceremony.
 
-Two of these seeds need their reasoning recorded, because the obvious choice is wrong in both cases.
+An element id is a UUID and unique across chains and domains, so it needs nothing else alongside it.
+Each element yields at most one route registration: the three call sites filter on mutually exclusive
+element types, and the service site iterates a `groupingBy` partition, so an element appears under
+exactly one service.
 
 **`RouteIdGenerator` seeds from the element id, not the original id.** The route-id namespace already
 holds raw element ids: `ChainRouteBuilder` names container and branch routes
@@ -95,10 +98,10 @@ parser so any description that parses has one, unique within the description by 
 across edits, so adding a mapping does not renumber the ones after it. The generator returns the whole
 value including the `mapping.` prefix, so one place knows that format.
 
-`MapperMappingIdGenerator` is the only generator with no naturally unique seed of its own. It can use
-only the mapper element's id, which `RouteIdGenerator` may also be seeded with when that element heads a
-route. Both would then emit the same UUID. Nothing breaks — one value is a `direct:` endpoint, the other
-an exchange property — but the coincidence is misleading, so its seed carries a discriminator.
+**The trigger call site needs the element back in scope.** `buildTriggersRoutes` runs
+`.map(TriggerUtils::getHttpTriggerRoute)` and then builds the `Route` from that, so the element is gone
+by the time the id is set. Collapsing the two `map` calls into one that closes over the element restores
+it. The other two sites already hold theirs.
 
 ### Overriding in the plugin
 
