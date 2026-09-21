@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Map;
@@ -31,6 +32,14 @@ class CompilerGeneratorPatchRegressionTest {
     assertEquals(
         harness.digest().sha256(fixture.expectedGraph()), result.artifact().resultGraphDigest());
     assertEquals(fixture.expectedGraph(), result.graph());
+  }
+
+  @Test
+  void mcpTriggerGeneratorDoesNotOwnMcpServiceIds() {
+    Set<String> owned =
+        GeneratorPatchRegressionHarness.pinnedOwnershipPropertiesByElementType()
+            .getOrDefault("mcp-trigger", Set.of());
+    assertFalse(owned.contains("mcpServiceIds"));
   }
 
   @Test

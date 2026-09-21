@@ -15,6 +15,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.GeneratorPat
 
 class SchemaBranchOwnershipMatrixTest {
 
+  private static final Map<String, Set<String>> CATALOG_BINDER_OWNED =
+      Map.of("mcp-trigger", Set.of("mcpServiceIds"));
+
   @Test
   void everyInScopeBranchRequiredKeyHasAnOwner() {
     ObjectMapper objectMapper = new ObjectMapper();
@@ -38,6 +41,7 @@ class SchemaBranchOwnershipMatrixTest {
       Set<String> unconditionalDefaults = unconditionalDefaultKeys(schemaService, type);
       unconditionalDefaults.removeAll(discriminatorKeys(model.conditionalBranches()));
       needed.removeAll(unconditionalDefaults);
+      needed.removeAll(CATALOG_BINDER_OWNED.getOrDefault(type, Set.of()));
       needed.removeAll(owned.getOrDefault(type, Set.of()));
       if (!needed.isEmpty()) {
         violations.add(type + " missing owners for " + needed);
