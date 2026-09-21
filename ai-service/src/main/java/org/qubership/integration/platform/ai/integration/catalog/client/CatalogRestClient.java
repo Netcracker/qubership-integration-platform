@@ -22,6 +22,7 @@ import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCr
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateElementRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateEnvironmentRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateSystemRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogUpdateEnvironmentRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogDependencyDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemFilter;
@@ -241,6 +242,13 @@ public interface CatalogRestClient {
   @Path("/v1/systems/{systemId}/environments")
   EnvironmentDto createEnvironment(
       @PathParam("systemId") String systemId, CatalogCreateEnvironmentRequest body);
+
+  @PUT
+  @Path("/v1/systems/{systemId}/environments/{environmentId}")
+  EnvironmentDto updateEnvironment(
+      @PathParam("systemId") String systemId,
+      @PathParam("environmentId") String environmentId,
+      CatalogUpdateEnvironmentRequest body);
 
   @GET
   @Path("/v1/specificationGroups")
