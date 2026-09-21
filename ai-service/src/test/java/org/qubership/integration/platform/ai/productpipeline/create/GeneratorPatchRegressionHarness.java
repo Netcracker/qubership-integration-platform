@@ -417,10 +417,11 @@ public final class GeneratorPatchRegressionHarness {
         new GraphPatchOwnershipPolicy(
             true,
             true,
-            Set.of("log-record"),
+            Set.of("log-record", "checkpoint"),
             Set.of(),
             Map.of(
                 "log-record", Set.of("message", "level"),
+                "checkpoint", Set.of("httpMethodRestrict", "externalRoute"),
                 "service-call", Set.of("propagateContext"))));
     ownership.put(
         "cip-parallel-generator",

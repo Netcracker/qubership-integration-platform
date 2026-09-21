@@ -124,6 +124,7 @@ class QipKnowledgePackBuildGeneratorTest {
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("context-storage").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("file-write").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("log-record").status());
+    assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("checkpoint").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("http-trigger").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("service-call").status());
     assertEquals(ElementSupportStatus.SUPPORTED, supportMatrix.require("split-async-2").status());

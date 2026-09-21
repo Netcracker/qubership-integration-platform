@@ -495,6 +495,7 @@ class DesignInputCapabilityTest {
     outcome(capability, context("design-input", attributes));
     String prompt = seenPrompt.get();
     assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
+    assertTrue(prompt.contains("checkpoint"), prompt);
     assertTrue(prompt.contains("try-catch-finally-2"), prompt);
     assertTrue(prompt.contains(rejection));
     assertTrue(prompt.contains("Treat onTaskResult as a Kafka produce, not a trigger"));

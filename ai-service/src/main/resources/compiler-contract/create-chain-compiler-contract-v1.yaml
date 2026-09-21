@@ -252,6 +252,14 @@ elements:
       type: log-record
       container: false
       deprecated: false
+  checkpoint:
+    containmentRoles: {}
+    requiredProperties: []
+    materializationRuleId: materialize-checkpoint
+    runtimeDescriptor:
+      type: checkpoint
+      container: false
+      deprecated: false
   condition:
     containmentRoles:
       if:

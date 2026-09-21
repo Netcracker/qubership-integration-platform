@@ -951,6 +951,50 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void acceptsCheckpointAsAnInternalOperation() {
+    ChainSemanticCapture capture = ChainSemanticCaptureFixtures.linearCapture();
+    ChainSemanticCapture withCheckpoint =
+        new ChainSemanticCapture(
+            capture.chainIdentity(),
+            List.of(),
+            List.of(),
+            List.of(
+                new CapturedOperation("op-checkpoint", "checkpoint", List.of()),
+                new CapturedOperation("op-shared", "script", List.of("fact-script"))),
+            capture.sequenceRegions(),
+            capture.conditionRegions(),
+            capture.splitRegions(),
+            capture.loopRegions(),
+            capture.retryRegions(),
+            capture.errorScopeRegions(),
+            List.of(
+                new CapturedEdge("http-in", "op-checkpoint", null, null, null, null, null, null),
+                new CapturedEdge(
+                    "op-checkpoint", "op-shared", null, null, null, null, null, null),
+                new CapturedEdge(
+                    "op-shared",
+                    ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null)),
+            capture.containment());
+
+    ChainSemanticRevision revision = adapt(withCheckpoint);
+
+    assertTrue(
+        revision.nodes().stream()
+            .anyMatch(
+                node ->
+                    node instanceof SemanticNode.Operation operation
+                        && "checkpoint".equals(operation.elementType())));
+    new DefaultChainSemanticRevisionValidator()
+        .validate(revision, CONTRACT, ChainSemanticCaptureFixtures.approvedBrief());
+  }
+
+  @Test
   void rejectsAnElementTypeTheCompilerContractDoesNotDeclare() {
     ChainSemanticCapture capture = ChainSemanticCaptureFixtures.linearCapture();
     ChainSemanticCapture unknown =
