@@ -21,10 +21,12 @@ import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCr
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateDependencyRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateElementRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateEnvironmentRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateMcpSystemRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogCreateSystemRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogUpdateEnvironmentRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogDependencyDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogMcpSystemDto;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemFilter;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogSystemSearchRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogTransferElementsRequest;
@@ -143,6 +145,16 @@ public interface CatalogRestClient {
   @GET
   @Path("/v1/catalog/domains")
   List<DomainDto> listDomains();
+
+  // ── MCP systems ──────────────────────────────────────────────────────────
+
+  @GET
+  @Path("/v1/catalog/mcp-system")
+  List<CatalogMcpSystemDto> listMcpSystems();
+
+  @POST
+  @Path("/v1/catalog/mcp-system")
+  CatalogMcpSystemDto createMcpSystem(CatalogCreateMcpSystemRequest body);
 
   // ── Element library ──────────────────────────────────────────────────────
 
