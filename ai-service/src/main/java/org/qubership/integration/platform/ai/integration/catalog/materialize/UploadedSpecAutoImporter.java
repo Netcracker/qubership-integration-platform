@@ -36,17 +36,20 @@ public class UploadedSpecAutoImporter {
   private final CatalogRestClient catalogRestClient;
   private final CatalogSpecificationImporter catalogSpecificationImporter;
   private final ConversationCatalogCache conversationCatalogCache;
+  private final InternalAsyncMaasEnvironmentConfigurer internalAsyncMaasEnvironmentConfigurer;
 
   @Inject
   public UploadedSpecAutoImporter(
       S3Service s3Service,
       @RestClient CatalogRestClient catalogRestClient,
       CatalogSpecificationImporter catalogSpecificationImporter,
-      ConversationCatalogCache conversationCatalogCache) {
+      ConversationCatalogCache conversationCatalogCache,
+      InternalAsyncMaasEnvironmentConfigurer internalAsyncMaasEnvironmentConfigurer) {
     this.s3Service = s3Service;
     this.catalogRestClient = catalogRestClient;
     this.catalogSpecificationImporter = catalogSpecificationImporter;
     this.conversationCatalogCache = conversationCatalogCache;
+    this.internalAsyncMaasEnvironmentConfigurer = internalAsyncMaasEnvironmentConfigurer;
   }
 
   public UploadedSpecImportOutcome importSpec(
@@ -119,6 +122,8 @@ public class UploadedSpecAutoImporter {
         List.of(
             new CatalogRestClient.SpecificationDto(
                 specificationId, specName, specificationGroupId, system.id())));
+
+    internalAsyncMaasEnvironmentConfigurer.configure(system.id());
 
     return new UploadedSpecImportOutcome(
         attachment.s3Key(),

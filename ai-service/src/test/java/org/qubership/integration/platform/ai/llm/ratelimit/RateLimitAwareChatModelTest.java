@@ -10,6 +10,8 @@ import static org.mockito.Mockito.when;
 
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.exception.HttpException;
+import dev.langchain4j.exception.InternalServerException;
 import dev.langchain4j.exception.RateLimitException;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
@@ -73,6 +75,54 @@ class RateLimitAwareChatModelTest {
     assertThrows(RateLimitException.class, () -> model.chat(request));
     assertEquals(2, sleeper.sleptSeconds.size());
     assertEquals(List.of(1, 2), sleeper.sleptSeconds);
+  }
+
+  @Test
+  void retriesTransientGatewayErrorThenSucceeds() {
+    ChatModel delegate = mock(ChatModel.class);
+    Throwable transientError =
+        new InternalServerException(
+            "upstream connect error or disconnect/reset before headers. reset reason: connection termination",
+            new HttpException(
+                500,
+                "upstream connect error or disconnect/reset before headers. reset reason: connection termination"));
+    when(delegate.chat(any(ChatRequest.class)))
+        .thenThrow(transientError)
+        .thenThrow(transientError)
+        .thenReturn(successResponse);
+
+    RecordingSleeper sleeper = new RecordingSleeper();
+    ChatModel model =
+        new RateLimitAwareChatModel(
+            delegate,
+            classifier,
+            new TransientErrorClassifier(),
+            policy,
+            TransientWaitPolicy.fromCsv("2,5,10"),
+            sleeper,
+            false,
+            3,
+            true,
+            3,
+            events::add);
+
+    ChatResponse out = model.chat(request);
+    assertSame(successResponse, out);
+    assertEquals(List.of(2, 5), sleeper.sleptSeconds);
+  }
+
+  @Test
+  void transientDisabledDoesNotRetryGatewayError() {
+    ChatModel delegate = mock(ChatModel.class);
+    Throwable transientError =
+        new InternalServerException(
+            "upstream connect error or disconnect/reset before headers. reset reason: connection termination");
+    when(delegate.chat(any(ChatRequest.class))).thenThrow(transientError);
+    RecordingSleeper sleeper = new RecordingSleeper();
+    ChatModel model = new RateLimitAwareChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+
+    assertThrows(InternalServerException.class, () -> model.chat(request));
+    assertTrue(sleeper.sleptSeconds.isEmpty());
   }
 
   @Test

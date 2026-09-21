@@ -35,6 +35,7 @@ public class ApiHubSpecificationImportService {
   private final CatalogSpecificationImporter catalogSpecificationImporter;
   private final ApiHubMcpTools apiHubMcpTools;
   private final ObjectMapper objectMapper;
+  private final InternalAsyncMaasEnvironmentConfigurer internalAsyncMaasEnvironmentConfigurer;
 
   @Inject
   public ApiHubSpecificationImportService(
@@ -42,12 +43,14 @@ public class ApiHubSpecificationImportService {
       ConversationCatalogCache catalogCache,
       CatalogSpecificationImporter catalogSpecificationImporter,
       ApiHubMcpTools apiHubMcpTools,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      InternalAsyncMaasEnvironmentConfigurer internalAsyncMaasEnvironmentConfigurer) {
     this.catalogRestClient = catalogRestClient;
     this.catalogCache = catalogCache;
     this.catalogSpecificationImporter = catalogSpecificationImporter;
     this.apiHubMcpTools = apiHubMcpTools;
     this.objectMapper = objectMapper;
+    this.internalAsyncMaasEnvironmentConfigurer = internalAsyncMaasEnvironmentConfigurer;
   }
 
   public ApiHubSpecificationImportResult importFromRefs(
@@ -73,6 +76,7 @@ public class ApiHubSpecificationImportService {
         reuseExistingCatalogSpecification(
             conversationId, system.id(), system.type(), groupName, refs);
     if (reused.isPresent()) {
+      internalAsyncMaasEnvironmentConfigurer.configure(system.id());
       return reused.get();
     }
 
@@ -87,8 +91,10 @@ public class ApiHubSpecificationImportService {
         catalogSpecificationImporter.importOpenApiDocument(
             system.id(), groupName, null, document.content(), document.fileName());
 
-    return finalizeImport(
-        conversationId, refs, system.id(), system.type(), groupName, imported);
+    ApiHubSpecificationImportResult result =
+        finalizeImport(conversationId, refs, system.id(), system.type(), groupName, imported);
+    internalAsyncMaasEnvironmentConfigurer.configure(system.id());
+    return result;
   }
 
   private Optional<ApiHubSpecificationImportResult> reuseExistingCatalogSpecification(
