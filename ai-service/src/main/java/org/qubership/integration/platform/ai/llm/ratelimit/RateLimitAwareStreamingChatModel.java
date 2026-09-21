@@ -20,15 +20,22 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import org.jboss.logging.Logger;
 
 public final class RateLimitAwareStreamingChatModel implements StreamingChatModel {
 
+  private static final Logger LOG = Logger.getLogger(RateLimitAwareStreamingChatModel.class);
+
   private final StreamingChatModel delegate;
-  private final RateLimitErrorClassifier classifier;
-  private final RateLimitWaitPolicy policy;
+  private final RateLimitErrorClassifier rateLimitClassifier;
+  private final TransientErrorClassifier transientClassifier;
+  private final RateLimitWaitPolicy rateLimitPolicy;
+  private final TransientWaitPolicy transientPolicy;
   private final RateLimitBackoffSleeper sleeper;
-  private final boolean enabled;
-  private final int maxAttempts;
+  private final boolean rateLimitEnabled;
+  private final int rateLimitMaxAttempts;
+  private final boolean transientEnabled;
+  private final int transientMaxAttempts;
   private final Consumer<RateLimitAwareChatModel.BackoffEvent> onBackoff;
 
   public RateLimitAwareStreamingChatModel(
@@ -39,31 +46,72 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
       boolean enabled,
       int maxAttempts,
       Consumer<RateLimitAwareChatModel.BackoffEvent> onBackoff) {
+    this(
+        delegate,
+        classifier,
+        new TransientErrorClassifier(),
+        policy,
+        TransientWaitPolicy.fromCsv("2,5,10"),
+        sleeper,
+        enabled,
+        maxAttempts,
+        false,
+        0,
+        onBackoff);
+  }
+
+  public RateLimitAwareStreamingChatModel(
+      StreamingChatModel delegate,
+      RateLimitErrorClassifier rateLimitClassifier,
+      TransientErrorClassifier transientClassifier,
+      RateLimitWaitPolicy rateLimitPolicy,
+      TransientWaitPolicy transientPolicy,
+      RateLimitBackoffSleeper sleeper,
+      boolean rateLimitEnabled,
+      int rateLimitMaxAttempts,
+      boolean transientEnabled,
+      int transientMaxAttempts,
+      Consumer<RateLimitAwareChatModel.BackoffEvent> onBackoff) {
     this.delegate = Objects.requireNonNull(delegate, "delegate");
-    this.classifier = Objects.requireNonNull(classifier, "classifier");
-    this.policy = Objects.requireNonNull(policy, "policy");
+    this.rateLimitClassifier = Objects.requireNonNull(rateLimitClassifier, "rateLimitClassifier");
+    this.transientClassifier = Objects.requireNonNull(transientClassifier, "transientClassifier");
+    this.rateLimitPolicy = Objects.requireNonNull(rateLimitPolicy, "rateLimitPolicy");
+    this.transientPolicy = Objects.requireNonNull(transientPolicy, "transientPolicy");
     this.sleeper = Objects.requireNonNull(sleeper, "sleeper");
-    this.enabled = enabled;
-    this.maxAttempts = maxAttempts;
+    this.rateLimitEnabled = rateLimitEnabled;
+    this.rateLimitMaxAttempts = rateLimitMaxAttempts;
+    this.transientEnabled = transientEnabled;
+    this.transientMaxAttempts = transientMaxAttempts;
     this.onBackoff = Objects.requireNonNull(onBackoff, "onBackoff");
   }
 
   @Override
   public void chat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
-    if (!enabled) {
+    if (!rateLimitEnabled && !transientEnabled) {
       delegate.chat(chatRequest, handler);
       return;
     }
-    chatWithRetry(chatRequest, handler, 0);
+    chatWithRetry(chatRequest, handler, 0, 0);
   }
 
-  private void chatWithRetry(ChatRequest chatRequest, StreamingChatResponseHandler handler, int attempt) {
+  private void chatWithRetry(
+      ChatRequest chatRequest,
+      StreamingChatResponseHandler handler,
+      int rateLimitAttempt,
+      int transientAttempt) {
     AtomicBoolean tokensStarted = new AtomicBoolean(false);
-    delegate.chat(chatRequest, observingHandler(handler, chatRequest, attempt, tokensStarted));
+    delegate.chat(
+        chatRequest,
+        observingHandler(
+            handler, chatRequest, rateLimitAttempt, transientAttempt, tokensStarted));
   }
 
   private StreamingChatResponseHandler observingHandler(
-      StreamingChatResponseHandler handler, ChatRequest chatRequest, int attempt, AtomicBoolean tokensStarted) {
+      StreamingChatResponseHandler handler,
+      ChatRequest chatRequest,
+      int rateLimitAttempt,
+      int transientAttempt,
+      AtomicBoolean tokensStarted) {
     return new StreamingChatResponseHandler() {
 
       @Override
@@ -112,18 +160,47 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
 
       @Override
       public void onError(Throwable error) {
-        if (tokensStarted.get()
-            || !classifier.isRateLimit(error)
-            || !policy.shouldRetry(attempt, maxAttempts)) {
+        if (tokensStarted.get()) {
           handler.onError(error);
           return;
         }
-        int waitSeconds = policy.resolveWaitSeconds(classifier.extractWait(error), attempt);
-        onBackoff.accept(new RateLimitAwareChatModel.BackoffEvent(attempt + 1, waitSeconds));
-        sleeper.sleepSeconds(waitSeconds);
-        chatWithRetry(chatRequest, handler, attempt + 1);
+        if (rateLimitEnabled
+            && rateLimitClassifier.isRateLimit(error)
+            && rateLimitPolicy.shouldRetry(rateLimitAttempt, rateLimitMaxAttempts)) {
+          int waitSeconds =
+              rateLimitPolicy.resolveWaitSeconds(
+                  rateLimitClassifier.extractWait(error), rateLimitAttempt);
+          onBackoff.accept(new RateLimitAwareChatModel.BackoffEvent(rateLimitAttempt + 1, waitSeconds));
+          sleeper.sleepSeconds(waitSeconds);
+          chatWithRetry(chatRequest, handler, rateLimitAttempt + 1, transientAttempt);
+          return;
+        }
+        if (transientEnabled
+            && transientClassifier.isTransient(error)
+            && transientPolicy.shouldRetry(transientAttempt, transientMaxAttempts)) {
+          int waitSeconds = transientPolicy.waitSeconds(transientAttempt);
+          LOG.infof(
+              "LLM transient retry attempt=%d/%d wait=%ds reason=%s",
+              transientAttempt + 1,
+              transientMaxAttempts,
+              waitSeconds,
+              rootMessage(error));
+          sleeper.sleepSeconds(waitSeconds);
+          chatWithRetry(chatRequest, handler, rateLimitAttempt, transientAttempt + 1);
+          return;
+        }
+        handler.onError(error);
       }
     };
+  }
+
+  private static String rootMessage(Throwable error) {
+    Throwable root = error;
+    while (root.getCause() != null) {
+      root = root.getCause();
+    }
+    String message = root.getMessage();
+    return message == null ? root.getClass().getSimpleName() : message;
   }
 
   @Override
