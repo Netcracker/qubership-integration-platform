@@ -663,6 +663,7 @@ public class RequirementDraftTool {
 
       if (mcpSystemCatalogBinder != null
           && !boundFlow.interactions().isEmpty()
+          && hasMcpTriggerInbound(boundFlow, facts)
           && (decision == DraftDecision.READY_FOR_PLAN
               || decision == DraftDecision.NEEDS_INPUT)) {
         McpSystemCatalogBinder.McpSystemGatherResult mcpGather =

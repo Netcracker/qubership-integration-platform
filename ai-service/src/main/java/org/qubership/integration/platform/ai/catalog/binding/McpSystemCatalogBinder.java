@@ -68,8 +68,9 @@ public class McpSystemCatalogBinder {
     }
     List<CatalogMcpSystemDto> systems = new ArrayList<>(listMcpSystems());
     ChainPlanGraph result = graph;
+    boolean createNew = wantsNewMcpService(brief);
     for (ChainPlanNode trigger : triggers) {
-      String systemId = resolveSystemId(trigger, brief, triggers.size(), systems);
+      String systemId = resolveSystemId(trigger, brief, triggers.size(), systems, createNew);
       result = CompositionCatalogIdentity.upsertMcpServiceIds(result, trigger.nodeId(), systemId);
     }
     return result;
@@ -136,7 +137,8 @@ public class McpSystemCatalogBinder {
       ChainPlanNode trigger,
       RequirementBrief brief,
       int triggerCount,
-      List<CatalogMcpSystemDto> systems) {
+      List<CatalogMcpSystemDto> systems,
+      boolean createNew) {
     RequirementFact matched = matchingMcpFact(trigger, brief, triggerCount);
     if (matched == null) {
       throw new IllegalArgumentException(
@@ -165,26 +167,48 @@ public class McpSystemCatalogBinder {
         userSupplied ? matched.operation().trim() : identifierFromName(participant);
     if (userSupplied) {
       List<CatalogMcpSystemDto> matches = systemsWithIdentifier(identifier, systems);
-      if (matches.size() == 1) {
-        return matches.getFirst().id;
-      }
-      if (matches.size() > 1) {
-        throw new IllegalArgumentException(
-            "MCP trigger "
-                + trigger.nodeId()
-                + " identifier '"
-                + identifier
-                + "' matches several catalog MCP systems.");
+      if (createNew) {
+        if (!matches.isEmpty()) {
+          if (matches.size() == 1) {
+            throw new IllegalArgumentException(
+                "MCP trigger "
+                    + trigger.nodeId()
+                    + " identifier '"
+                    + identifier
+                    + "' already exists in the catalog. Choose a different identifier for a new"
+                    + " MCP service.");
+          }
+          throw new IllegalArgumentException(
+              "MCP trigger "
+                  + trigger.nodeId()
+                  + " identifier '"
+                  + identifier
+                  + "' matches several catalog MCP systems.");
+        }
+      } else {
+        if (matches.size() == 1) {
+          return matches.getFirst().id;
+        }
+        if (matches.size() > 1) {
+          throw new IllegalArgumentException(
+              "MCP trigger "
+                  + trigger.nodeId()
+                  + " identifier '"
+                  + identifier
+                  + "' matches several catalog MCP systems.");
+        }
       }
       CatalogMcpSystemDto created =
           catalogRestClient.createMcpSystem(
               new CatalogCreateMcpSystemRequest(participant.trim(), identifier, null));
       return trackCreatedSystem(created, systems);
     }
-    Optional<CatalogMcpSystemDto> reusable =
-        findReusableGeneratedSystem(participant, identifier, systems);
-    if (reusable.isPresent()) {
-      return reusable.get().id;
+    if (!createNew) {
+      Optional<CatalogMcpSystemDto> reusable =
+          findReusableGeneratedSystem(participant, identifier, systems);
+      if (reusable.isPresent()) {
+        return reusable.get().id;
+      }
     }
     String unusedIdentifier = uniqueIdentifier(identifier, systems);
     CatalogMcpSystemDto created =
@@ -355,6 +379,15 @@ public class McpSystemCatalogBinder {
       return false;
     }
     return actual.trim().equalsIgnoreCase(expected);
+  }
+
+  private static boolean wantsNewMcpService(RequirementBrief brief) {
+    if (brief == null) {
+      return false;
+    }
+    return wantsNewMcpService(brief.approvedDraftText())
+        || wantsNewMcpService(brief.goal())
+        || wantsNewMcpService(brief.summary());
   }
 
   private static boolean wantsNewMcpService(String assembledText) {

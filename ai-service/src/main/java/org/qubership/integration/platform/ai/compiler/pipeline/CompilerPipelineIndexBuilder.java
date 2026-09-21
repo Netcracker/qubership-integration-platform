@@ -34,6 +34,10 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 /** Builds {@link CompilerPipelineIndex} from pack metadata and canonical schema-v2 sources. */
 public final class CompilerPipelineIndexBuilder {
 
+  private static final String MCP_TRIGGER_GENERATOR_SKILL = "cip-mcp-trigger-generator";
+  private static final String MCP_TRIGGER_NODE_TYPE = "mcp-trigger";
+  private static final String MCP_SERVICE_IDS_PROPERTY = "mcpServiceIds";
+
   public static final int SCHEMA_VERSION = 2;
   public static final int SCHEMA_VERSION_V1 = 1;
 
@@ -826,6 +830,7 @@ public final class CompilerPipelineIndexBuilder {
         runtimeMetadata == null || runtimeMetadata.ownership() == null
             ? GraphPatchOwnershipPolicy.denyAll()
             : runtimeMetadata.ownership();
+    declared = stripMcpServiceIdsFromMcpTriggerGenerator(skillId, declared);
     if (runtimeMetadata != null && runtimeMetadata.ownership() != null) {
       validateNoWildcards(skillId, declared);
     }
@@ -839,6 +844,30 @@ public final class CompilerPipelineIndexBuilder {
     validateNoWildcards(skillId, envelope);
     validateNarrowedOwnership(skillId, declared, envelope);
     return declared;
+  }
+
+  private static GraphPatchOwnershipPolicy stripMcpServiceIdsFromMcpTriggerGenerator(
+      String skillId, GraphPatchOwnershipPolicy policy) {
+    if (!MCP_TRIGGER_GENERATOR_SKILL.equals(skillId)) {
+      return policy;
+    }
+    Map<String, Set<String>> properties = policy.properties();
+    Set<String> mcpTriggerProperties = properties.get(MCP_TRIGGER_NODE_TYPE);
+    if (mcpTriggerProperties == null || !mcpTriggerProperties.contains(MCP_SERVICE_IDS_PROPERTY)) {
+      return policy;
+    }
+    Set<String> trimmed = new LinkedHashSet<>(mcpTriggerProperties);
+    trimmed.remove(MCP_SERVICE_IDS_PROPERTY);
+    Map<String, Set<String>> updated = new LinkedHashMap<>(properties);
+    updated.put(MCP_TRIGGER_NODE_TYPE, Set.copyOf(trimmed));
+    return new GraphPatchOwnershipPolicy(
+        policy.mayAddNodes(),
+        policy.mayAddEdges(),
+        policy.mayRemoveNodes(),
+        policy.mayRemoveEdges(),
+        policy.nodeTypes(),
+        policy.chainFields(),
+        updated);
   }
 
   private static void validateNoWildcards(String skillId, GraphPatchOwnershipPolicy policy) {
