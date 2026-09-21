@@ -332,6 +332,14 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public EnvironmentDto updateEnvironment(
+      String systemId,
+      String environmentId,
+      org.qubership.integration.platform.ai.integration.catalog.model.CatalogUpdateEnvironmentRequest body) {
+    throw new UnsupportedOperationException("updateEnvironment");
+  }
+
+  @Override
   public List<SpecificationDto> getApiSpecifications(String systemId) {
     throw new UnsupportedOperationException("getApiSpecifications");
   }

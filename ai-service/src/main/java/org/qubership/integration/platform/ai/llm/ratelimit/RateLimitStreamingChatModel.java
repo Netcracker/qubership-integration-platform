@@ -27,7 +27,9 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
   private final AppConfig appConfig;
   private final RateLimitBackoffSleeper sleeper;
   private final RateLimitErrorClassifier classifier;
+  private final TransientErrorClassifier transientClassifier;
   private final RateLimitWaitPolicy policy;
+  private final TransientWaitPolicy transientPolicy;
 
   RateLimitStreamingChatModel(
       StreamingChatModel delegate,
@@ -35,11 +37,31 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
       RateLimitBackoffSleeper sleeper,
       RateLimitErrorClassifier classifier,
       RateLimitWaitPolicy policy) {
+    this(
+        delegate,
+        appConfig,
+        sleeper,
+        classifier,
+        new TransientErrorClassifier(),
+        policy,
+        TransientWaitPolicy.fromCsv(appConfig.llm().transientRetry().backoffSeconds()));
+  }
+
+  RateLimitStreamingChatModel(
+      StreamingChatModel delegate,
+      AppConfig appConfig,
+      RateLimitBackoffSleeper sleeper,
+      RateLimitErrorClassifier classifier,
+      TransientErrorClassifier transientClassifier,
+      RateLimitWaitPolicy policy,
+      TransientWaitPolicy transientPolicy) {
     this.delegate = Objects.requireNonNull(delegate, "delegate");
     this.appConfig = Objects.requireNonNull(appConfig, "appConfig");
     this.sleeper = Objects.requireNonNull(sleeper, "sleeper");
     this.classifier = Objects.requireNonNull(classifier, "classifier");
+    this.transientClassifier = Objects.requireNonNull(transientClassifier, "transientClassifier");
     this.policy = Objects.requireNonNull(policy, "policy");
+    this.transientPolicy = Objects.requireNonNull(transientPolicy, "transientPolicy");
   }
 
   /** Upstream OpenAI (or other) streaming model being rate-limit wrapped. */
@@ -54,14 +76,26 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
             .toBuilder()
             .parameters(delegate.defaultRequestParameters().overrideWith(chatRequest.parameters()))
             .build();
-    boolean enabled = appConfig.llm().rateLimit().enabled();
-    int maxAttempts = appConfig.llm().rateLimit().maxAttempts();
+    boolean rateLimitEnabled = appConfig.llm().rateLimit().enabled();
+    int rateLimitMaxAttempts = appConfig.llm().rateLimit().maxAttempts();
+    boolean transientEnabled = appConfig.llm().transientRetry().enabled();
+    int transientMaxAttempts = appConfig.llm().transientRetry().maxAttempts();
     AtomicBoolean backoffInCall = new AtomicBoolean(false);
     Consumer<RateLimitAwareChatModel.BackoffEvent> onBackoff =
         RateLimitSinkSupport.backoffNotifier(backoffInCall);
     RateLimitAwareStreamingChatModel rateLimited =
         new RateLimitAwareStreamingChatModel(
-            delegate, classifier, policy, sleeper, enabled, maxAttempts, onBackoff);
+            delegate,
+            classifier,
+            transientClassifier,
+            policy,
+            transientPolicy,
+            sleeper,
+            rateLimitEnabled,
+            rateLimitMaxAttempts,
+            transientEnabled,
+            transientMaxAttempts,
+            onBackoff);
     rateLimited.chat(
         requestWithDefaults, RateLimitSinkSupport.completionAwareHandler(handler, backoffInCall));
   }

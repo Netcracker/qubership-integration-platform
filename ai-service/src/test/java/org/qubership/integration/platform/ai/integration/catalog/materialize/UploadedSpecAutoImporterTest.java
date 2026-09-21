@@ -18,6 +18,19 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 
 class UploadedSpecAutoImporterTest {
 
+  private static UploadedSpecAutoImporter newImporter(
+      S3Service s3,
+      CatalogRestClient client,
+      CatalogSpecificationImporter importer,
+      ConversationCatalogCache cache) {
+    return new UploadedSpecAutoImporter(
+        s3,
+        client,
+        importer,
+        cache,
+        mock(InternalAsyncMaasEnvironmentConfigurer.class));
+  }
+
   @Test
   void importsNewSpecWithoutTitleFallsBackToFilename() {
     S3Service s3 = mock(S3Service.class);
@@ -37,7 +50,7 @@ class UploadedSpecAutoImporterTest {
             eq("sys-1"), eq("orders-api"), isNull(), any(byte[].class), eq("orders-api.yaml")))
         .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
         service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders-api.yaml"));
 
@@ -81,7 +94,7 @@ class UploadedSpecAutoImporterTest {
                     "spec-1", "orders-api", "sg-1", "sys-1")));
     when(client.getModelSource("spec-1")).thenReturn("{}");
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
         service.importSpec(
             "conv-2", new UploadedSpecAttachment("existing-key", "orders-api.yaml"));
@@ -128,7 +141,7 @@ class UploadedSpecAutoImporterTest {
             eq("sys-1"), eq("sg-1"), any(byte[].class), eq("orders-api.yaml")))
         .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
         service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders-api.yaml"));
 
@@ -160,7 +173,7 @@ class UploadedSpecAutoImporterTest {
             eq("sys-1"), eq("Order API"), isNull(), any(byte[].class), eq("orders-api.yaml")))
         .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
         service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders-api.yaml"));
 
@@ -209,7 +222,7 @@ class UploadedSpecAutoImporterTest {
     when(client.getModelSource("spec-1"))
         .thenReturn("{\"info\":{\"title\":\"Salesforce WFM\"}}");
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
         service.importSpec(
             "conv-1", new UploadedSpecAttachment("key", "Salesforce WFM.json"), "EXTERNAL");
@@ -260,7 +273,7 @@ class UploadedSpecAutoImporterTest {
              "info":{"version":"1.0.0","title":"Order API"},"openapi":"3.0.3"}
             """);
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
         service.importSpec(
             "conv-1", new UploadedSpecAttachment("renamed-key", "completely-different-name.yml"));
@@ -317,7 +330,7 @@ class UploadedSpecAutoImporterTest {
             eq("sys-1"), eq("sg-1"), any(byte[].class), eq("renamed-orders.yaml")))
         .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-2", "sg-1", "import-2"));
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
         service.importSpec(
             "conv-1", new UploadedSpecAttachment("changed-key", "renamed-orders.yaml"));
@@ -351,7 +364,7 @@ class UploadedSpecAutoImporterTest {
                     "spec-1", "Order API", "sg-1", "sys-1")));
     when(client.getModelSource("spec-1")).thenThrow(new RuntimeException("catalog unavailable"));
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
 
     assertThrows(
         IllegalStateException.class,
@@ -380,7 +393,7 @@ class UploadedSpecAutoImporterTest {
             eq("sys-1"), eq("Order API"), isNull(), any(byte[].class), eq("orders-api.yaml")))
         .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
         service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders-api.yaml"));
 
@@ -405,7 +418,7 @@ class UploadedSpecAutoImporterTest {
     when(importer.importOpenApiDocument(eq("sys-1"), eq("orders-api"), isNull(), any(), any()))
         .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders-api.yaml"), "INTERNAL");
 
     verify(client, never()).createSystem(any());
@@ -427,7 +440,7 @@ class UploadedSpecAutoImporterTest {
     when(importer.importOpenApiDocument(eq("sys-1"), eq("orders-api"), isNull(), any(), any()))
         .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     UploadedSpecImportOutcome outcome =
         service.importSpec(
             "conv-1", new UploadedSpecAttachment("key", "orders-api.yaml"), "INTERNAL");
@@ -452,10 +465,38 @@ class UploadedSpecAutoImporterTest {
     when(importer.importOpenApiDocument(eq("sys-1"), eq("orders-api"), isNull(), any(), any()))
         .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
 
-    UploadedSpecAutoImporter service = new UploadedSpecAutoImporter(s3, client, importer, cache);
+    UploadedSpecAutoImporter service = newImporter(s3, client, importer, cache);
     service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders-api.yaml"), "EXTERNAL");
 
     verify(client).createSystem(new CatalogCreateSystemRequest("orders-api", "EXTERNAL"));
     verify(client, never()).createEnvironment(any(), any());
+  }
+
+  @Test
+  void configuresMaasEnvironmentAfterKafkaImport() {
+    S3Service s3 = mock(S3Service.class);
+    CatalogRestClient client = mock(CatalogRestClient.class);
+    CatalogSpecificationImporter importer = mock(CatalogSpecificationImporter.class);
+    ConversationCatalogCache cache = mock(ConversationCatalogCache.class);
+    InternalAsyncMaasEnvironmentConfigurer maasConfigurer =
+        mock(InternalAsyncMaasEnvironmentConfigurer.class);
+
+    when(s3.readObjectBytes("key")).thenReturn("asyncapi: 2.0.0".getBytes());
+    when(client.searchSystems(any())).thenReturn(List.of());
+    when(client.createSystem(any(CatalogCreateSystemRequest.class)))
+        .thenReturn(new CatalogRestClient.SystemDto("sys-1", "orders-events", "INTERNAL", null));
+    when(client.getEnvironments("sys-1")).thenReturn(List.of());
+    when(client.getSpecificationGroups("sys-1")).thenReturn(List.of());
+    when(client.createEnvironment(eq("sys-1"), any(CatalogCreateEnvironmentRequest.class)))
+        .thenReturn(new CatalogRestClient.EnvironmentDto("env-1", "default", null));
+    when(importer.importOpenApiDocument(
+            eq("sys-1"), eq("orders-events"), isNull(), any(byte[].class), eq("orders-events.yaml")))
+        .thenReturn(new CatalogSpecificationImporter.ImportOutcome("spec-1", "sg-1", "import-1"));
+
+    UploadedSpecAutoImporter service =
+        new UploadedSpecAutoImporter(s3, client, importer, cache, maasConfigurer);
+    service.importSpec("conv-1", new UploadedSpecAttachment("key", "orders-events.yaml"));
+
+    verify(maasConfigurer).configure("sys-1");
   }
 }
