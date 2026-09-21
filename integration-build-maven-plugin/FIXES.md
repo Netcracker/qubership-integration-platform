@@ -3,7 +3,7 @@
 Status of every finding in [REVIEW.md](REVIEW.md). Update a row when its status changes, and record the
 commit that changed it.
 
-Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `out of scope`.
+Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out of scope`.
 
 | ID | Finding | Severity | Status | Commit |
 | --- | --- | --- | --- | --- |
@@ -18,7 +18,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `out of scope`.
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
 | F11 | Smaller items, see below | minor | partial | `bcdb973dc` |
-| F12 | Chain version fallback answers for service exports too | major | open | |
+| F12 | Chain version fallback answers for service exports too | major | won't fix | |
 | F13 | Active environment selection diverges from runtime-catalog | major | open | |
 | F14 | Smaller items from the second round, see below | medium | open | |
 
@@ -216,6 +216,17 @@ explicitly empty interval: the `MonitoringOptions` default is `30s`, and an empt
 
 The rename still deserves a release note. `FAIL_ON_UNKNOWN_PROPERTIES` is disabled, so a stored
 `imagePoolPolicy` is dropped without a word and the option reverts to `IfNotPresent`.
+
+## Won't fix
+
+### F12, chain version fallback
+
+Closed by decision, September 21, 2026: the fallback is fine for chains and services alike.
+
+Scope of what that accepts, for the record. The fallback only answers when the strategies before it find
+no migration metadata, so an export carrying `migrations` or `version` is unaffected either way. A
+service export without that metadata is told it carries chain migrations V103 to V108, which the service
+reader rejects as coming from a newer version.
 
 ## Postponed
 

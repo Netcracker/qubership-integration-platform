@@ -237,6 +237,9 @@ on runtime-catalog are worth knowing about, not because they need undoing.
 
 ### F12. The chain version fallback answers for service exports too (major)
 
+Closed as won't fix, September 21, 2026; see [FIXES.md](FIXES.md). Kept here because the behavior is
+worth knowing about, not because it needs changing.
+
 `integration-build-maven-plugin/.../domain/migrations/chain/AssumeActualChainVersion.java` implements the
 shared `VersionsGetterStrategy`, and `IntegrationSystemReader` resolves versions through the same
 `VersionsGetterService` the chain reader uses. The strategy answers for any document by returning the
