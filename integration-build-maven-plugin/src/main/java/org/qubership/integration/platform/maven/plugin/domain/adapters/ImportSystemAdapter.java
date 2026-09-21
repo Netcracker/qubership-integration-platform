@@ -10,7 +10,9 @@ import org.qubership.integration.platform.chain.model.IntegrationService;
 import org.qubership.integration.platform.chain.model.Label;
 import org.qubership.integration.platform.chain.model.Protocol;
 import org.qubership.integration.platform.chain.model.ServiceEnvironment;
+import org.qubership.integration.platform.chain.model.ServiceSpecification;
 import org.qubership.integration.platform.chain.model.ServiceType;
+import org.qubership.integration.platform.chain.model.SpecificationGroup;
 
 import java.util.Collection;
 import java.util.Map;
@@ -26,7 +28,8 @@ import java.util.Optional;
  * applies to its own entities. Labels come back non-technical, because the export records names
  * only.
  *
- * <p>Specification groups are not exposed: {@link IntegrationService} has no accessor for them.
+ * <p>A specification group exposes its system models as {@link ServiceSpecification}s, and each
+ * source carries the text the reader loaded from the archive file.
  */
 public class ImportSystemAdapter implements IntegrationService {
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -64,6 +67,13 @@ public class ImportSystemAdapter implements IntegrationService {
     @Override
     public Collection<Label> getLabels() {
         return importSystem.getLabels().stream().<Label>map(name -> new LabelImpl(name, false)).toList();
+    }
+
+    @Override
+    public Collection<SpecificationGroup> getSpecificationGroups() {
+        return importSystem.getSpecificationGroups().stream()
+            .<SpecificationGroup>map(ImportSpecificationGroupAdapter::new)
+            .toList();
     }
 
     @Override

@@ -48,6 +48,14 @@ public class IntegrationServiceAdapter implements IntegrationService {
     }
 
     @Override
+    public Collection<SpecificationGroup> getSpecificationGroups() {
+        return integrationSystem.getSpecificationGroups()
+            .stream()
+            .<SpecificationGroup>map(SpecificationGroupAdapter::new)
+            .toList();
+    }
+
+    @Override
     public String getId() {
         return integrationSystem.getId();
     }
