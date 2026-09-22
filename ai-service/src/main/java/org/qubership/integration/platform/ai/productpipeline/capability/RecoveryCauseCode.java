@@ -26,6 +26,12 @@ public enum RecoveryCauseCode {
   /** The stage contract rejected a model or adapter payload. */
   CONTRACT_SHAPE,
 
+  /**
+   * The compiled graph breaks a structural contract, such as a container below its minimum child
+   * count. Retrying the observing stage cannot add the missing node.
+   */
+  GRAPH_STRUCTURE,
+
   /** A blocker finding that names no more specific cause. */
   VALIDATION_BLOCKER,
 

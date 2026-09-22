@@ -392,8 +392,9 @@ public class DesignInputCapability implements StageCapability {
       extra.append("\n\nAuthor correction:\n").append(repair.haltFollowUpText().trim());
     }
     extra.append(
-        "\nRebuild the topology so this rejection cannot recur. Call captureChainSemanticRevision"
-            + " once.");
+        "\nRebuild the topology so this rejection cannot recur. When a container is below its"
+            + " minimum child count, add the missing child operation and parent it under that"
+            + " container. Call captureChainSemanticRevision once.");
     return extra.toString();
   }
 
