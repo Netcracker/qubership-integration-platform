@@ -546,11 +546,12 @@ public class DesignPlanningCapability implements StageCapability {
       } else if (node instanceof SemanticNode.Trigger trigger) {
         text.append(" capability=").append(trigger.capabilityKey());
       } else if (node instanceof SemanticNode.Operation operation
-          && ChainElementFamilies.isSender(operation.elementType())) {
+          && (ChainElementFamilies.isSender(operation.elementType())
+              || ChainElementFamilies.isFileTransfer(operation.elementType()))) {
         text.append(" targetKind=ELEMENT_NODE targetId=")
             .append(operation.nodeId())
             .append(" producer=")
-            .append(DesignPlanContractValidator.ownerForSender(operation.elementType()))
+            .append(DesignPlanContractValidator.ownerForDirectOperation(operation.elementType()))
             .append(" elementType=")
             .append(operation.elementType());
       }

@@ -2959,6 +2959,132 @@ class RequirementDraftToolTest {
   }
 
   @Test
+  void captureDoesNotCountTwoStructuredFactsAsTwoCalls() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "task-start",
+            new InteractionAssessment.Intent("onTaskStart", "OM", "onTaskStart", null, null),
+            omStartMatch()));
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "create-task",
+            new InteractionAssessment.Intent("createTask", "Salesforce", "createTask", null, null),
+            salesforceMatch()));
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "task-result",
+            new InteractionAssessment.Intent("onTaskResult", "OM", "onTaskResult", null, null),
+            omResultMatch()));
+    RequirementDraftTool captureTool =
+        new RequirementDraftTool(
+            store, null, rockyCatalogCache(), null, resolutions, null, rockyCatalogLookup());
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    List<RequirementFact> facts =
+        List.of(
+            rockyFacts().getFirst(),
+            new RequirementFact(
+                "create-task-mapping",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "Map the createTask request",
+                "Salesforce",
+                "createTask",
+                "",
+                "",
+                ""),
+            new RequirementFact(
+                "create-task-success",
+                RequirementFactPolarity.POSITIVE,
+                RequirementFactKind.BEHAVIOR,
+                "",
+                "Handle the createTask response",
+                "Salesforce",
+                "createTask",
+                "",
+                "",
+                ""));
+
+    captureTool.captureRequirementDraft(
+        new RequirementDraftCapture(
+            true,
+            "OM onTaskStart calls Salesforce createTask, then OM onTaskResult returns the result.",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            facts,
+            null,
+            rockyFlow()));
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, stored.decision());
+    assertEquals(
+        1,
+        stored.catalogBindings().stream()
+            .filter(binding -> "op-create".equals(binding.integrationOperationId()))
+            .count());
+  }
+
+  @Test
+  void captureRequiresASeparateBindingForEachFlowCall() {
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    RequirementDraftTool captureTool =
+        new RequirementDraftTool(
+            store, null, rockyCatalogCache(), null, resolutions, null, null);
+    MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");
+    store.beginTurn("draft-conv");
+    RequirementFlow flow =
+        new RequirementFlow(
+            List.of(
+                new Interaction("entry", Direction.INBOUND, "Caller", "GET /start", ""),
+                new Interaction("create-task-first", Direction.OUTBOUND, "Salesforce", "createTask", ""),
+                new Interaction("create-task-second", Direction.OUTBOUND, "Salesforce", "createTask", "")),
+            List.of(
+                new Transition("entry", "create-task-first"),
+                new Transition("create-task-first", "create-task-second")));
+    RequirementDraftCapture capture =
+        new RequirementDraftCapture(
+            true,
+            "Call Salesforce createTask twice after GET /start",
+            DraftDecision.READY_FOR_PLAN,
+            List.of(),
+            null,
+            List.of(RequirementFactFixtures.httpTriggerFact("entry", "GET", "/start")),
+            null,
+            flow);
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "create-task-first",
+            new InteractionAssessment.Intent("createTask", "Salesforce", "createTask", null, null),
+            salesforceMatch()));
+
+    captureTool.captureRequirementDraft(capture);
+    assertEquals(DraftDecision.NEEDS_INPUT, store.get("draft-conv").orElseThrow().decision());
+
+    resolutions.remember(
+        "draft-conv",
+        InteractionAssessment.resolved(
+            "create-task-second",
+            new InteractionAssessment.Intent("createTask", "Salesforce", "createTask", null, null),
+            salesforceMatch()));
+    captureTool.captureRequirementDraft(capture);
+
+    RequirementDraft stored = store.get("draft-conv").orElseThrow();
+    assertEquals(DraftDecision.READY_FOR_PLAN, stored.decision());
+    assertEquals(
+        2,
+        stored.catalogBindings().stream()
+            .filter(binding -> "op-create".equals(binding.integrationOperationId()))
+            .count());
+  }
+
+  @Test
   void captureDoesNotCountMappingHeadersAsRepeatedCalls() {
     RequirementDraftTool captureTool = rockyCatalogCaptureTool(null);
     MDC.put(ChatMdc.CONVERSATION_ID, "draft-conv");

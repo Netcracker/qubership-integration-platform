@@ -131,6 +131,11 @@ class ClasspathCompilerContractRepositoryTest {
     assertTrue(contract.elements().containsKey("loop-2"));
     assertTrue(contract.elements().containsKey("try-catch-finally-2"));
     assertTrue(contract.elements().containsKey("header-modification"));
+    assertEquals(List.of("connectUrl"), contract.elements().get("sftp-download").requiredProperties());
+    assertEquals(List.of("connectUrl"), contract.elements().get("sftp-upload").requiredProperties());
+    assertEquals(
+        List.of("connectUrl", "scheduler.cron"),
+        contract.elements().get("sftp-trigger-2").requiredProperties());
     assertTrue(contract.elements().containsKey("reuse"));
     assertTrue(contract.elements().containsKey("reuse-reference"));
     assertEquals(1, contract.elements().get("reuse").containmentRoles().get("body").min());
