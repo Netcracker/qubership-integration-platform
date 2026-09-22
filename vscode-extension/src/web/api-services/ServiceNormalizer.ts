@@ -50,9 +50,6 @@ export class ServiceNormalizer {
       if (!service.content.labels) {
         service.content.labels = [];
       }
-      if (!service.content.migrations) {
-        service.content.migrations = [];
-      }
 
       // Normalize environments
       if (
