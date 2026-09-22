@@ -42,10 +42,10 @@ public final class OwnerCandidateSet {
    * <ul>
    *   <li>{@link FindingOwnerCategory#POLICY_OR_BRIEF} — missing brief facts or mapping contract
    *       owned by the requirement brief
-   *   <li>{@link FindingOwnerCategory#PLAN_FILL} — plan structure, bindings, step properties, or
-   *       HTTP-trigger access control when the brief already allows them
-   *   <li>{@link FindingOwnerCategory#EXECUTION} — transient compile/runtime with good upstream
-   *       inputs
+   *   <li>{@link FindingOwnerCategory#PLAN_FILL} — plan structure or bindings when a cause still
+   *       selects this category
+   *   <li>{@link FindingOwnerCategory#EXECUTION} — missing required properties, credential
+   *       findings, and other repairs the observing stage can apply
    *   <li>{@link FindingOwnerCategory#UNSPECIFIED} — no automatic remap preference
    * </ul>
    */
@@ -554,10 +554,63 @@ public final class OwnerCandidateSet {
     }
   }
 
+  /**
+   * Recovery type among every artifact this stage produces. The first produce is not enough:
+   * design-planning produces {@code design-plan-contract} before {@code implementation-plan}.
+   */
   private static OwnerCandidate candidateFor(ProfileStage stage) {
-    List<ArtifactTypeRef> produced = declaredProduces(stage);
-    String type = produced.isEmpty() ? "" : produced.get(0).type();
-    return new OwnerCandidate(stage.stageId(), type == null ? "" : type);
+    return new OwnerCandidate(stage.stageId(), recoveryArtifactType(declaredProduces(stage)));
+  }
+
+  static String recoveryArtifactType(List<ArtifactTypeRef> produced) {
+    String first = "";
+    String plan = "";
+    String brief = "";
+    String semantic = "";
+    String catalog = "";
+    String draft = "";
+    if (produced != null) {
+      for (ArtifactTypeRef ref : produced) {
+        String type = ref == null || ref.type() == null ? "" : ref.type();
+        if (type.isBlank()) {
+          continue;
+        }
+        if (first.isEmpty()) {
+          first = type;
+        }
+        if (plan.isEmpty() && PLAN_ARTIFACT_TYPES.contains(type)) {
+          plan = type;
+        }
+        if (brief.isEmpty() && BRIEF_ARTIFACT_TYPES.contains(type)) {
+          brief = type;
+        }
+        if (semantic.isEmpty() && SEMANTIC_REVISION_TYPES.contains(type)) {
+          semantic = type;
+        }
+        if (catalog.isEmpty() && CATALOG_BINDING_HINT_TYPES.contains(type)) {
+          catalog = type;
+        }
+        if (draft.isEmpty() && DRAFT_ARTIFACT_TYPES.contains(type)) {
+          draft = type;
+        }
+      }
+    }
+    if (!plan.isEmpty()) {
+      return plan;
+    }
+    if (!brief.isEmpty()) {
+      return brief;
+    }
+    if (!semantic.isEmpty()) {
+      return semantic;
+    }
+    if (!catalog.isEmpty()) {
+      return catalog;
+    }
+    if (!draft.isEmpty()) {
+      return draft;
+    }
+    return first;
   }
 
   private static boolean produces(ProfileStage stage, ArtifactTypeRef consumed) {

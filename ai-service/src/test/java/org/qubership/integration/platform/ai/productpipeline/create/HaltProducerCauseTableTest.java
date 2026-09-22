@@ -63,10 +63,13 @@ class HaltProducerCauseTableTest {
   }
 
   @Test
-  void securityPolicySelectsThePlanProducerCategory() {
+  void securityPolicySelectsTheExecutionCategory() {
     assertEquals(
-        FindingOwnerCategory.PLAN_FILL,
+        FindingOwnerCategory.EXECUTION,
         HaltProducerCauseTable.ownerCategory(RecoveryCauseCode.SECURITY_POLICY));
+    assertEquals(
+        FindingOwnerCategory.EXECUTION,
+        HaltProducerCauseTable.ownerCategory(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY));
   }
 
   @Test

@@ -87,7 +87,7 @@ public class CompilerSecurityValidator {
       if (property == null || property.key() == null || property.value() == null) {
         continue;
       }
-      if (!containsCredentialKey(property.key())) {
+      if (!isCredentialKey(property.key())) {
         continue;
       }
       String value = property.value().trim();
@@ -104,7 +104,11 @@ public class CompilerSecurityValidator {
     return counter;
   }
 
-  private static boolean containsCredentialKey(String propertyKey) {
+  /** True when {@code propertyKey} is a credential the security check rejects as a literal. */
+  public static boolean isCredentialKey(String propertyKey) {
+    if (propertyKey == null || propertyKey.isBlank()) {
+      return false;
+    }
     String lowered = propertyKey.toLowerCase(Locale.ROOT);
     for (String key : CREDENTIAL_KEYS) {
       if (lowered.contains(key.toLowerCase(Locale.ROOT))) {
@@ -114,8 +118,13 @@ public class CompilerSecurityValidator {
     return false;
   }
 
-  private static boolean isSecuredVariableReference(String value) {
-    return value.startsWith("#{") && value.endsWith("}") && value.length() > 3;
+  /** True when {@code value} is already a secured reference such as {@code #{NAME}}. */
+  public static boolean isSecuredVariableReference(String value) {
+    if (value == null) {
+      return false;
+    }
+    String trimmed = value.trim();
+    return trimmed.startsWith("#{") && trimmed.endsWith("}") && trimmed.length() > 3;
   }
 
   private static String propertyValue(ChainPlanNode node, String key) {
