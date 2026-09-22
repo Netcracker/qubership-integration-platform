@@ -164,7 +164,7 @@ class FailureNarrativeTest {
                 "the quartz job is required");
 
     assertEquals("The brief omitted the scheduler.", diagnosis.narrative());
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("planning", diagnosis.owner().orElseThrow());
     assertFalse(diagnosis.ambiguous());
     assertEquals(
         "planning:plan-validation-result,design-planning:implementation-plan,analysis:requirement-brief",
@@ -258,7 +258,7 @@ class FailureNarrativeTest {
                 "add rbac");
 
     assertEquals("Design execution could not complete.", diagnosis.narrative());
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("design-execution", diagnosis.owner().orElseThrow());
     assertFalse(diagnosis.ambiguous());
     assertEquals("add rbac", agent.lastFollowUp.get());
   }
@@ -284,7 +284,7 @@ class FailureNarrativeTest {
                 candidates,
                 "add rbac");
 
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("design-execution", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -308,7 +308,7 @@ class FailureNarrativeTest {
                 "",
                 RecoveryCause.of(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY));
 
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("design-execution", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -330,7 +330,7 @@ class FailureNarrativeTest {
                     new OwnerCandidate("requirement-analysis", "requirement-brief")),
                 "");
 
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("design-execution", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -357,7 +357,7 @@ class FailureNarrativeTest {
                 "");
 
     assertTrue(diagnosis.narrative().contains(FakeFailureNarrativeAgent.GO_BACK_OFFER));
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("design-execution", diagnosis.owner().orElseThrow());
     assertEquals("VALIDATION_FAILURE", agent.lastOutcome.get());
     assertTrue(agent.lastFindings.get().toLowerCase(Locale.ROOT).contains("rbac"));
     assertTrue(agent.lastClarifyRoles.get().contains("design-planning:the plan"));
@@ -411,7 +411,7 @@ class FailureNarrativeTest {
                 "");
 
     assertFalse(diagnosis.ambiguous());
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("design-execution", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -453,7 +453,7 @@ class FailureNarrativeTest {
                 "");
 
     assertTrue(findings.toLowerCase(Locale.ROOT).startsWith("security-1:"));
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("design-execution", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -464,10 +464,12 @@ class FailureNarrativeTest {
 
     OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
 
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
-    assertEquals("Set accessControlType on the HTTP trigger in the plan.", diagnosis.instruction());
+    assertEquals("planning", diagnosis.owner().orElseThrow());
     assertEquals(
-        "The brief omitted the scheduler.\n\nSet accessControlType on the HTTP trigger in the plan.",
+        "Set accessControlType on the HTTP trigger in the plan validation result.",
+        diagnosis.instruction());
+    assertEquals(
+        "The brief omitted the scheduler.\n\nSet accessControlType on the HTTP trigger in the plan validation result.",
         diagnosis.cardBody("raw evidence"));
   }
 
@@ -478,9 +480,11 @@ class FailureNarrativeTest {
 
     OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
 
-    assertEquals("Set accessControlType on the HTTP trigger in the plan.", diagnosis.instruction());
+    assertEquals(
+        "Set accessControlType on the HTTP trigger in the plan validation result.",
+        diagnosis.instruction());
     assertEquals("The brief omitted the scheduler.", diagnosis.narrative());
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("planning", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -489,11 +493,13 @@ class FailureNarrativeTest {
 
     OwnerDiagnosis diagnosis = diagnose(new FailureNarrative(agent), "run-1");
 
-    assertEquals("Set accessControlType on the HTTP trigger in the plan.", diagnosis.instruction());
     assertEquals(
-        "planning validation failed\n\nSet accessControlType on the HTTP trigger in the plan.",
+        "Set accessControlType on the HTTP trigger in the plan validation result.",
+        diagnosis.instruction());
+    assertEquals(
+        "planning validation failed\n\nSet accessControlType on the HTTP trigger in the plan validation result.",
         diagnosis.cardBody("planning validation failed"));
-    assertEquals("design-planning", diagnosis.owner().orElseThrow());
+    assertEquals("planning", diagnosis.owner().orElseThrow());
   }
 
   @Test
@@ -506,8 +512,10 @@ class FailureNarrativeTest {
     OwnerDiagnosis afterTheBudget = diagnose(narrative, "run-1");
 
     assertEquals("", afterTheBudget.narrative());
-    assertEquals("design-planning", afterTheBudget.owner().orElseThrow());
-    assertEquals("Set accessControlType on the HTTP trigger in the plan.", afterTheBudget.instruction());
+    assertEquals("planning", afterTheBudget.owner().orElseThrow());
+    assertEquals(
+        "Set accessControlType on the HTTP trigger in the plan validation result.",
+        afterTheBudget.instruction());
     assertEquals(1, agent.calls.get());
   }
 

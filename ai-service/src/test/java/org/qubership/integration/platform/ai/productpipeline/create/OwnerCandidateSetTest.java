@@ -305,7 +305,7 @@ class OwnerCandidateSetTest {
             RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
-    assertEquals("design-planning", remapped.owner().orElseThrow());
+    assertEquals("design-execution", remapped.owner().orElseThrow());
   }
 
   @Test
@@ -336,7 +336,7 @@ class OwnerCandidateSetTest {
             RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
-    assertEquals("design-planning", remapped.owner().orElseThrow());
+    assertEquals("design-execution", remapped.owner().orElseThrow());
   }
 
   @Test
@@ -352,7 +352,7 @@ class OwnerCandidateSetTest {
             RecoveryCause.of(RecoveryCauseCode.MISSING_REQUIRED_PROPERTY),
             "");
 
-    assertEquals("design-planning", remapped.owner().orElseThrow());
+    assertEquals("design-execution", remapped.owner().orElseThrow());
   }
 
   @Test
@@ -377,13 +377,14 @@ class OwnerCandidateSetTest {
         OwnerCandidateSet.selectOwner(
             "Either the brief or the plan could be wrong.",
             List.of(
+                new OwnerCandidate("design-execution", "plan-validation-result"),
                 new OwnerCandidate("design-planning", "implementation-plan"),
                 new OwnerCandidate("requirement-analysis", "requirement-brief")),
             "design-execution",
             RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
-    assertEquals("design-planning", selected.owner().orElseThrow());
+    assertEquals("design-execution", selected.owner().orElseThrow());
     assertFalse(selected.ambiguous());
   }
 
@@ -399,7 +400,7 @@ class OwnerCandidateSetTest {
             RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
-    assertEquals("design-planning", remapped.owner().orElseThrow());
+    assertEquals("design-execution", remapped.owner().orElseThrow());
   }
 
   @Test
@@ -415,7 +416,7 @@ class OwnerCandidateSetTest {
             RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
             "");
 
-    assertEquals("design-planning", remapped.owner().orElseThrow());
+    assertEquals("design-execution", remapped.owner().orElseThrow());
   }
 
   @Test
@@ -432,6 +433,46 @@ class OwnerCandidateSetTest {
             "");
 
     assertEquals("design-execution", remapped.owner().orElseThrow());
+  }
+
+  @Test
+  void planProducerMatchesImplementationPlanWhenItIsNotTheFirstProduce() {
+    ArtifactTypeRef contract = new ArtifactTypeRef("design-plan-contract", 1);
+    ArtifactTypeRef plan = new ArtifactTypeRef("implementation-plan", 2);
+    ArtifactTypeRef validation = new ArtifactTypeRef("plan-validation-result", 1);
+    ProductPipelineProfile profile =
+        new ProductPipelineProfile(
+            1,
+            "create",
+            "1",
+            List.of(),
+            List.of(
+                new ProfileStage(
+                    "design-planning",
+                    "design-planning",
+                    List.of(),
+                    List.of(contract, plan),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L)),
+                new ProfileStage(
+                    "design-execution",
+                    "design-execution",
+                    List.of(plan),
+                    List.of(validation),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L))),
+            new TerminalPolicy("design-execution", "DONE"),
+            List.of());
+
+    List<OwnerCandidate> first = OwnerCandidateSet.firstLayer(profile, "design-execution");
+
+    assertEquals(
+        Optional.of("design-planning"),
+        OwnerCandidateSet.planProducerStageId(first, "design-execution"));
+    assertEquals(
+        "implementation-plan", OwnerCandidateSet.recoveryArtifactType(List.of(contract, plan)));
   }
 
   private static ProductPipelineProfile threeStageProfile() {

@@ -6,9 +6,11 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.jboss.logging.Logger;
 import org.jboss.logmanager.MDC;
@@ -24,6 +26,8 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairRunne
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureMetrics;
+import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
+import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlan;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest;
@@ -87,6 +91,9 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
  */
 @ApplicationScoped
 public class CompilerSkillRuntime {
+
+  private static final CompilerContract CREATE_CHAIN_CONTRACT =
+      new ClasspathCompilerContractRepository().require(CompilerContract.V1);
 
   private static final Logger LOG = Logger.getLogger(CompilerSkillRuntime.class);
 
@@ -1341,6 +1348,18 @@ public class CompilerSkillRuntime {
     }
   }
 
+  private Set<String> requiredKeysForGap(ChainPlanNode node) {
+    Set<String> keys =
+        new LinkedHashSet<>(
+            schemaService.requiredPatchPropertyKeys(
+                node.type(), OwnedSchemaRequiredPropertyGate.propertyMap(node)));
+    CompilerContract.ElementContract element = CREATE_CHAIN_CONTRACT.elements().get(node.type());
+    if (element != null && element.requiredProperties() != null) {
+      keys.addAll(element.requiredProperties());
+    }
+    return keys;
+  }
+
   private List<OwnedSchemaRequiredPropertyGate.Gap> findOwnedSchemaGaps(
       String conversationId, String capabilityId, ChainPlanGraph graph) {
     GraphPatchOwnershipPolicy ownership = GraphPatchOwnershipPolicy.denyAll();
@@ -1357,12 +1376,7 @@ public class CompilerSkillRuntime {
       }
     }
     List<OwnedSchemaRequiredPropertyGate.Gap> gaps =
-        OwnedSchemaRequiredPropertyGate.findGaps(
-            graph,
-            ownership,
-            (ChainPlanNode node) ->
-                schemaService.requiredPatchPropertyKeys(
-                    node.type(), OwnedSchemaRequiredPropertyGate.propertyMap(node)));
+        OwnedSchemaRequiredPropertyGate.findGaps(graph, ownership, this::requiredKeysForGap);
     if (targetNodeIds == null || targetNodeIds.isEmpty()) {
       return gaps;
     }
