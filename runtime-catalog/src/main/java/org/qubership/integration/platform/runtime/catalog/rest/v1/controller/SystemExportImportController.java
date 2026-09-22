@@ -40,7 +40,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1")
+@RequestMapping({"/v1", "/api/v1/cip/systems-catalog"})
 @Tag(name = "system-export-import-controller", description = "System Export Import Controller")
 public class SystemExportImportController {
     private final SystemExportImportService systemExportImportService;

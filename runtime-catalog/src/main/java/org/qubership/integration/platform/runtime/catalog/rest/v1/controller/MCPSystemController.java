@@ -32,7 +32,8 @@ import static java.util.Objects.isNull;
 @ComponentScan
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping(value = "/v1/catalog/mcp-system", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/catalog/mcp-system", "/api/v1/cip/catalog/mcp-system"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "mcp-system-controller", description = "MCP System Controller")
 public class MCPSystemController {
     private final MCPSystemService mcpSystemService;

@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v2/catalog/actions-log")
+@RequestMapping(value = {"/v2/catalog/actions-log", "/api/v2/cip/catalog/actions-log"})
 @CrossOrigin(origins = "*")
 @Tag(name = "actions-log-controller-v2", description = "Actions Log Controller V2")
 public class ActionsLogControllerV2 {

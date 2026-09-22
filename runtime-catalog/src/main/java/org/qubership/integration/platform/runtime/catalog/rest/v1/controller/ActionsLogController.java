@@ -37,7 +37,7 @@ import java.util.List;
  */
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/catalog/actions-log")
+@RequestMapping({"/v1/catalog/actions-log", "/api/v1/cip/catalog/actions-log"})
 @CrossOrigin(origins = "*")
 @Deprecated(since = "2026.3")
 @Tag(name = "actions-log-controller", description = "Actions Log Controller")

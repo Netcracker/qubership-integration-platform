@@ -30,7 +30,10 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/chains/{chainId}/elements/properties-modification", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {
+    "/v1/chains/{chainId}/elements/properties-modification",
+    "/api/v1/cip/catalog/chains/{chainId}/elements/properties-modification"
+}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "element-modification-controller", description = "Element Modification Controller")
 public class ElementModificationController {

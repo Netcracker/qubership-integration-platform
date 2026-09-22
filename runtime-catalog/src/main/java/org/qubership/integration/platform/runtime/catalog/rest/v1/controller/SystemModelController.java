@@ -40,7 +40,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/models")
+@RequestMapping({"/v1/models", "/api/v1/cip/systems-catalog/models"})
 @Tag(name = "system-model-controller", description = "System Model Controller")
 public class SystemModelController {
     private final SystemModelMapper systemModelMapper;

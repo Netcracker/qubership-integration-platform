@@ -20,6 +20,7 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
@@ -37,6 +38,15 @@ public class SwaggerAutoConfiguration {
         return new OpenAPI()
             .addServersItem(new Server().url("/"))
             .info(getInfo());
+    }
+
+    @Bean
+    public OpenApiCustomizer hidePublicRoutes() {
+        return openApi -> {
+            if (openApi.getPaths() != null) {
+                openApi.getPaths().keySet().removeIf(path -> path.startsWith("/api/v1/cip/engine"));
+            }
+        };
     }
 
     private Info getInfo() {

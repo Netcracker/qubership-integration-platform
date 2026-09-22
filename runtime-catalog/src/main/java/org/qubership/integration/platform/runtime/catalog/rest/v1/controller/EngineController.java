@@ -44,7 +44,7 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/catalog/domains")
+@RequestMapping(value = {"/v1/catalog/domains", "/api/v1/cip/catalog/domains"})
 @CrossOrigin(origins = "*")
 @Tag(name = "engine-controller", description = "Engine Controller")
 public class EngineController {

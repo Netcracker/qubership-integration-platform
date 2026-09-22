@@ -38,7 +38,11 @@ import java.util.List;
 @Slf4j
 @RestController
 @Validated
-@RequestMapping(value = {"/v1/catalog/chains/roles", "/v1/catalog/chains/access-control"}, produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {
+    "/v1/catalog/chains/roles",
+    "/v1/catalog/chains/access-control",
+    "/api/v1/cip/catalog/chains/access-control"
+}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "chain-roles-controller", description = "Chain Roles Controller")
 public class ChainRolesController {

@@ -35,7 +35,8 @@ import java.util.stream.Stream;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/detailed-design", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/detailed-design", "/api/v1/cip/catalog/detailed-design"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @Tag(name = "detailed-design-controller", description = "Detailed Design Controller")
 @CrossOrigin(origins = "*")
 public class DetailedDesignController {

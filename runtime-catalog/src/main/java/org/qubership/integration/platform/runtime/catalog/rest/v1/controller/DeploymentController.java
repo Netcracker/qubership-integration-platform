@@ -42,7 +42,9 @@ import javax.validation.Valid;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/catalog/chains/{chainId}/deployments", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {
+    "/v1/catalog/chains/{chainId}/deployments",
+    "/api/v1/cip/catalog/chains/{chainId}/deployments"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "deployment-controller", description = "Deployment Controller")
 public class DeploymentController {

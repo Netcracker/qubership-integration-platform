@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/systems")
+@RequestMapping({"/v1/systems", "/api/v1/cip/systems-catalog/systems"})
 @Tag(name = "system-controller", description = "System Controller")
 public class SystemController {
 

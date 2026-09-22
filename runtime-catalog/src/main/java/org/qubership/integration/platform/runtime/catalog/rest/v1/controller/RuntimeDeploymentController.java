@@ -39,7 +39,8 @@ import java.util.Set;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/catalog/runtime-deployments", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/catalog/runtime-deployments", "/api/v1/cip/catalog/runtime-deployments"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "runtime-deployment-controller", description = "Runtime Deployment Controller")
 public class RuntimeDeploymentController {

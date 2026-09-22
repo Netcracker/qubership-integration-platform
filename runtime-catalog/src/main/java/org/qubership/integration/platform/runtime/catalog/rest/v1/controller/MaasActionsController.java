@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/maas-actions", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/maas-actions", "/api/cip/v1/maas-actions"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Validated
 @Tag(name = "maas-actions-controller", description = "Maas Actions Controller")

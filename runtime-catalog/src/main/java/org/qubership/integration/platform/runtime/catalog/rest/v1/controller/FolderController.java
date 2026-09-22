@@ -58,7 +58,7 @@ import java.util.stream.Stream;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/folders", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/folders", "/api/v1/cip/catalog/folders"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "folder-controller", description = "Folder Controller")
 public class FolderController {

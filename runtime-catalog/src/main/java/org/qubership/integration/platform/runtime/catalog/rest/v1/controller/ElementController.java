@@ -46,7 +46,8 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/chains/{chainId}/elements", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/chains/{chainId}/elements", "/api/v1/cip/catalog/chains/{chainId}/elements"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "element-controller", description = "Element Controller")
 public class ElementController {

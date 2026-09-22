@@ -35,7 +35,8 @@ import java.util.List;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/catalog/chains/{chainId}/snapshots", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/catalog/chains/{chainId}/snapshots", "/api/v1/cip/catalog/chains/{chainId}/snapshots"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "snapshot-controller", description = "Snapshot Controller")
 public class SnapshotController {

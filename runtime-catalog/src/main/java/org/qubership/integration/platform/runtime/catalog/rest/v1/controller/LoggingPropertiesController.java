@@ -30,7 +30,7 @@ import org.springframework.web.bind.annotation.*;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/chains", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/chains", "/api/v1/cip/catalog/chains"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "logging-properties-controller", description = "Logging Properties Controller")
 public class LoggingPropertiesController {

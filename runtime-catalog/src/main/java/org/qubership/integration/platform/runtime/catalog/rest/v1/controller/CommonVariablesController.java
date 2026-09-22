@@ -47,7 +47,7 @@ import static org.qubership.integration.platform.runtime.catalog.validation.Enti
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/common-variables")
+@RequestMapping(value = {"/v1/common-variables", "/api/v1/cip/variables-management/common-variables"})
 @CrossOrigin(origins = "*")
 @Validated
 @Tag(name = "common-variables-controller", description = "Common Variables Controller")

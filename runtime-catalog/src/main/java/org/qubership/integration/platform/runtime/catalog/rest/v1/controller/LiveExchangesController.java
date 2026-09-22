@@ -34,7 +34,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping(value = "/v1/catalog/live-exchanges", produces = MediaType.APPLICATION_JSON_VALUE)
+@RequestMapping(value = {"/v1/catalog/live-exchanges", "/api/v1/cip/catalog/live-exchanges"},
+    produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Validated
 @Tag(name = "live-exchanges-controller", description = "Live Exchanges Controller")

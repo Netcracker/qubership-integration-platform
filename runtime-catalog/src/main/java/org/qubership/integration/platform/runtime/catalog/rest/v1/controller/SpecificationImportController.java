@@ -32,7 +32,7 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/import")
+@RequestMapping({"/v1/import", "/api/v1/cip/systems-catalog/import"})
 @Tag(name = "specification-import-controller", description = "Specification Import Controller")
 public class SpecificationImportController {
     private final SpecificationImportService specificationImportService;

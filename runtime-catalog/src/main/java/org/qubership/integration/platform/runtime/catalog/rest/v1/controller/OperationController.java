@@ -36,7 +36,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @CrossOrigin(origins = "*")
-@RequestMapping("/v1/operations")
+@RequestMapping({"/v1/operations", "/api/v1/cip/systems-catalog/operations"})
 @Tag(name = "operation-controller", description = "Operation Controller")
 public class OperationController {
     private final OperationService operationService;

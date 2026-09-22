@@ -40,7 +40,7 @@ import java.util.function.Supplier;
 
 @Slf4j
 @RestController
-@RequestMapping(value = "/v1/engine/chains/{chainId}",
+@RequestMapping(value = {"/v1/engine/chains/{chainId}", "/api/v1/cip/engine/chains/{chainId}"},
     produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
 @Tag(name = "checkpoint-session-controller", description = "Checkpoint Session Controller")
