@@ -23,7 +23,6 @@ export class ServiceNormalizer {
         specification: "",
         environments: [],
         labels: [],
-        migrations: [],
       };
     } else {
       const now = Date.now();
