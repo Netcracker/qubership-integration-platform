@@ -8,6 +8,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanism;
@@ -202,12 +203,15 @@ public final class DesignPlanContractValidator {
     revision.nodes().stream()
         .filter(SemanticNode.Operation.class::isInstance)
         .map(SemanticNode.Operation.class::cast)
-        .filter(operation -> ChainElementFamilies.isSender(operation.elementType()))
+        .filter(
+            operation ->
+                ChainElementFamilies.isSender(operation.elementType())
+                    || ChainElementFamilies.isFileTransfer(operation.elementType()))
         .forEach(
             operation ->
                 owners.put(
                     new TargetKey(TargetKind.ELEMENT_NODE, operation.nodeId()),
-                    ownerForSender(operation.elementType())));
+                    ownerForDirectOperation(operation.elementType())));
     revision.nodes().stream()
         .filter(SemanticNode.Operation.class::isInstance)
         .map(SemanticNode.Operation.class::cast)
@@ -294,6 +298,37 @@ public final class DesignPlanContractValidator {
     return ownerForTriggerCapability(capabilityKey);
   }
 
+  /**
+   * Skill that writes this element type. Empty when the type has no owner in the create-chain
+   * table.
+   */
+  public static Optional<String> ownerSkillId(String elementType) {
+    if (elementType == null || elementType.isBlank()) {
+      return Optional.empty();
+    }
+    String type = elementType.trim();
+    if (ChainElementFamilies.isFileTransfer(type) || ChainElementFamilies.isSender(type)) {
+      return Optional.of(ownerForDirectOperation(type));
+    }
+    if (ChainElementFamilies.isTrigger(type)) {
+      return Optional.of(ownerForTriggerCapability(type));
+    }
+    if ("script".equals(type)) {
+      return Optional.of(DesignPlanProjector.SCRIPT_GENERATOR_SKILL_ID);
+    }
+    if (ChainElementFamilies.LOOP.contains(type)) {
+      return Optional.of("cip-loop-generator");
+    }
+    return Optional.empty();
+  }
+
+  static String ownerForDirectOperation(String elementType) {
+    if (ChainElementFamilies.isFileTransfer(elementType)) {
+      return "cip-file-operations-generator";
+    }
+    return ownerForSender(elementType);
+  }
+
   static String ownerForSender(String elementType) {
     return switch (elementType) {
       case "jms-sender", "pubsub-sender" -> "cip-messaging-generator";
@@ -328,8 +363,9 @@ public final class DesignPlanContractValidator {
   }
 
   static String producerForOperation(SemanticNode.Operation operation) {
-    if (ChainElementFamilies.isSender(operation.elementType())) {
-      return ownerForSender(operation.elementType());
+    if (ChainElementFamilies.isSender(operation.elementType())
+        || ChainElementFamilies.isFileTransfer(operation.elementType())) {
+      return ownerForDirectOperation(operation.elementType());
     }
     return null;
   }

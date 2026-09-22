@@ -749,7 +749,9 @@ class RequirementFlowValidatorTest {
         "mail-sender",
         "pubsub-sender",
         "rabbitmq-sender-2",
-        "scs-sender"
+        "scs-sender",
+        "sftp-download",
+        "sftp-upload"
       })
   void directSenderCapabilitySkipsCatalogLookup(String capabilityKey) {
     String interactionId = "send";
