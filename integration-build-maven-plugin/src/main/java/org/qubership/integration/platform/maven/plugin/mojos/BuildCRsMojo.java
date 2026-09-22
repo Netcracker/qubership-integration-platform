@@ -20,8 +20,11 @@ public class BuildCRsMojo extends AbstractMojo {
     @Parameter(name = "outputDirectory", defaultValue = "${project.build.directory}")
     private String outputDirectory;
 
-    @Parameter(name = "defaultDomain", defaultValue = "default")
+    @Parameter(name = "defaultDomain", defaultValue = "me-domain")
     private String defaultDomain;
+
+    @Parameter(name = "deployAll", defaultValue = "false")
+    private boolean deployAll;
 
     @Parameter(name = "controlPlaneType", defaultValue = "ISTIO")
     private ControlPlaneType controlPlaneType;
@@ -48,6 +51,7 @@ public class BuildCRsMojo extends AbstractMojo {
             .sourceRoots(sourceRoots)
             .outputDirectory(outputDirectory)
             .defaultDomain(defaultDomain)
+            .deployAll(deployAll)
             .controlPlaneType(controlPlaneType)
             .options(options)
             .build();

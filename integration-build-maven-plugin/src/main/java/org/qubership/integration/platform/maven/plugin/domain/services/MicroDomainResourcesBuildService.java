@@ -7,6 +7,7 @@ import org.qubership.integration.platform.camelk.model.options.ResourceBuildOpti
 import org.qubership.integration.platform.camelk.services.ResourceBuildService;
 import org.qubership.integration.platform.chain.model.ImportChain;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 import org.qubership.integration.platform.io.readers.chain.ChainFileUtil;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -28,6 +30,7 @@ import static org.qubership.integration.platform.maven.plugin.domain.util.FileUt
 @Slf4j
 @Service
 public class MicroDomainResourcesBuildService {
+    private static final String CLASSIC_DOMAIN_NAME = "default";
     public static final String BUILD_CRS_TASK_PARAMETERS = "build-crs-task-parameters";
 
     private final ChainReader chainReader;
@@ -68,7 +71,11 @@ public class MicroDomainResourcesBuildService {
 
     private void buildChainResources(BuildCRsTaskParameters parameters) throws IOException {
         Path outputDirectory = Path.of(parameters.getOutputDirectory());
-        Collection<ImportChain> chains = readChains(parameters.getSourceRoots(), outputDirectory);
+        Predicate<ImportChain> isDeployAllowed = getChainFilter(parameters);
+        Collection<ImportChain> chains = readChains(parameters.getSourceRoots(), outputDirectory)
+            .stream()
+            .filter(isDeployAllowed)
+            .toList();
         Map<String, Collection<ImportChain>> chainsByDomain = groupChainsByDomain(chains, parameters.getDefaultDomain());
         Failable.stream(chainsByDomain.entrySet()).forEach(entry -> {
             String domain = entry.getKey();
@@ -143,5 +150,13 @@ public class MicroDomainResourcesBuildService {
                 .map(Path::toFile)
                 .collect(Collectors.toSet());
         }
+    }
+
+    private Predicate<ImportChain> getChainFilter(BuildCRsTaskParameters parameters) {
+        return chain ->
+            parameters.isDeployAll()
+            || (ChainCommitRequestAction.DEPLOY.equals(chain.getDeployAction())
+                && chain.getDeployments().stream()
+                    .anyMatch(domain -> !CLASSIC_DOMAIN_NAME.equals(domain)));
     }
 }

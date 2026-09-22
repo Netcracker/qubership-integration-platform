@@ -11,6 +11,7 @@ import org.qubership.integration.platform.camelk.services.ResourceBuildService;
 import org.qubership.integration.platform.chain.impl.ChainImpl;
 import org.qubership.integration.platform.chain.impl.ImportSystemImpl;
 import org.qubership.integration.platform.chain.model.Snapshot;
+import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
 import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.maven.plugin.domain.adapters.SnapshotImpl;
@@ -82,15 +83,15 @@ class MicroDomainResourcesBuildServiceTest {
     }
 
     @Test
-    void groupsChainsByDeploymentDomainAndFallsBackToTheDefaultDomain() throws IOException {
+    void groupsChainsByDeploymentDomain() throws IOException {
         chainDirectory("orders", "chain-orders.yaml", "orders-domain");
         chainDirectory("billing", "billing.chain.yml", "orders-domain");
-        chainDirectory("legacy", "chain-legacy.yaml");
+        chainDirectory("payments", "chain-payments.yaml", "payments-domain");
 
         buildService.buildResources(parameters());
 
         assertEquals(
-            Map.of("orders-domain", Set.of("orders", "billing"), "fallback-domain", Set.of("legacy")),
+            Map.of("orders-domain", Set.of("orders", "billing"), "payments-domain", Set.of("payments")),
             capturedChainIdsByDomain());
         verify(resourceWriteService, times(2)).writeResources(outputDirectory().toString(), RESOURCE_TEXT);
     }
@@ -103,6 +104,62 @@ class MicroDomainResourcesBuildServiceTest {
 
         assertEquals(
             Map.of("orders-domain", Set.of("orders"), "backup-domain", Set.of("orders")),
+            capturedChainIdsByDomain());
+    }
+
+    @Test
+    void skipsChainsThatAreNotRequestedForDeployment() throws IOException {
+        chainDirectory("orders", "chain-orders.yaml", ChainCommitRequestAction.NONE, "orders-domain");
+        chainDirectory("billing", "billing.chain.yml", ChainCommitRequestAction.SNAPSHOT, "orders-domain");
+        chainDirectory("payments", "chain-payments.yaml", (ChainCommitRequestAction) null, "payments-domain");
+
+        buildService.buildResources(parameters());
+
+        verifyNoInteractions(buildContextFactory, resourceWriteService);
+    }
+
+    @Test
+    void skipsAChainThatNamesNoDeploymentDomain() throws IOException {
+        chainDirectory("legacy", "chain-legacy.yaml");
+
+        buildService.buildResources(parameters());
+
+        verifyNoInteractions(buildContextFactory, resourceWriteService);
+    }
+
+    @Test
+    void skipsAChainDeployedToTheClassicDomainAlone() throws IOException {
+        chainDirectory("legacy", "chain-legacy.yaml", "default");
+
+        buildService.buildResources(parameters());
+
+        verifyNoInteractions(buildContextFactory, resourceWriteService);
+    }
+
+    @Test
+    void buildsAChainDeployedToTheClassicDomainAlongsideAnotherDomain() throws IOException {
+        chainDirectory("orders", "chain-orders.yaml", "default", "orders-domain");
+
+        buildService.buildResources(parameters());
+
+        assertEquals(
+            Map.of("default", Set.of("orders"), "orders-domain", Set.of("orders")),
+            capturedChainIdsByDomain());
+    }
+
+    @Test
+    void buildsEveryChainWhenDeployAllIsSet() throws IOException {
+        chainDirectory("orders", "chain-orders.yaml", ChainCommitRequestAction.NONE, "orders-domain");
+        chainDirectory("billing", "billing.chain.yml", "default");
+        chainDirectory("legacy", "chain-legacy.yaml");
+
+        buildService.buildResources(parameters(true));
+
+        assertEquals(
+            Map.of(
+                "orders-domain", Set.of("orders"),
+                "default", Set.of("billing"),
+                "fallback-domain", Set.of("legacy")),
             capturedChainIdsByDomain());
     }
 
@@ -161,11 +218,21 @@ class MicroDomainResourcesBuildServiceTest {
     }
 
     private Path chainDirectory(String chainId, String fileName, String... deployments) throws IOException {
+        return chainDirectory(chainId, fileName, ChainCommitRequestAction.DEPLOY, deployments);
+    }
+
+    private Path chainDirectory(
+        String chainId,
+        String fileName,
+        ChainCommitRequestAction deployAction,
+        String... deployments
+    ) throws IOException {
         Path directory = sourceRoot.resolve(chainId);
         Files.createDirectories(directory);
         Files.writeString(directory.resolve(fileName), "");
         ChainImpl chain = new ChainImpl();
         chain.setId(chainId);
+        chain.setDeployAction(deployAction);
         chain.setDeployments(List.of(deployments));
         when(chainReader.read(directory.toFile())).thenReturn(chain);
         return directory;
@@ -176,10 +243,15 @@ class MicroDomainResourcesBuildServiceTest {
     }
 
     private BuildCRsTaskParameters parameters() {
+        return parameters(false);
+    }
+
+    private BuildCRsTaskParameters parameters(boolean deployAll) {
         return BuildCRsTaskParameters.builder()
             .sourceRoots(List.of(sourceRoot.toString()))
             .outputDirectory(outputDirectory().toString())
             .defaultDomain("fallback-domain")
+            .deployAll(deployAll)
             .options(new BuildCRsOptions())
             .build();
     }
