@@ -71,6 +71,4 @@ public class SourceDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<
         Snapshot snapshot = context.getData();
         context.getBuildCache().put(getKey(snapshot), name);
     }
-
-
 }
