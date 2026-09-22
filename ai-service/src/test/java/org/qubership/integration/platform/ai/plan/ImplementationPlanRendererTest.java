@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.presentation.PlanCompilerAddition;
+import org.qubership.integration.platform.ai.plan.presentation.PlanPresentationEdge;
 import org.qubership.integration.platform.ai.plan.presentation.PlanPresentationFacts;
 import org.qubership.integration.platform.ai.plan.presentation.PlanPresentationNode;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
@@ -35,6 +37,10 @@ class ImplementationPlanRendererTest {
     assertTrue(plan.planText().contains("preferredLang"));
     assertTrue(plan.planText().contains("preferredLang == 'fr'"));
     assertTrue(plan.planText().contains("English greeting"));
+    assertTrue(plan.planText().contains("## Planned chain structure"));
+    assertTrue(plan.planText().contains("n1 -> n2"));
+    assertTrue(plan.planText().contains("n2: script (Reply) inside n1"));
+    assertTrue(plan.planText().contains("Add the error handler"));
     assertTrue(plan.planText().contains("No service calls"));
     assertTrue(plan.planText().contains("No MCP"));
     assertTrue(ImplementationPlanRenderer.verifyCoverage(plan).isEmpty());
@@ -98,9 +104,11 @@ class ImplementationPlanRendererTest {
         "",
         4,
         3,
-        List.of(new PlanPresentationNode("n1", "http-trigger", "HTTP", null)),
-        List.of(),
-        List.of(),
+        List.of(
+            new PlanPresentationNode("n1", "http-trigger", "HTTP", null),
+            new PlanPresentationNode("n2", "script", "Reply", "n1")),
+        List.of(new PlanPresentationEdge("n1", "n2", "HTTP", "Reply")),
+        List.of(new PlanCompilerAddition("error-handler", "Add the error handler", List.of("script"))),
         "GP-01",
         "summary",
         "",

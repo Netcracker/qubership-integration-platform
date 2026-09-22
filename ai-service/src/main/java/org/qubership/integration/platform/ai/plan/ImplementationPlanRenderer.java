@@ -4,7 +4,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import org.qubership.integration.platform.ai.plan.presentation.PlanPresentationEdge;
 import org.qubership.integration.platform.ai.plan.presentation.PlanPresentationFacts;
+import org.qubership.integration.platform.ai.plan.presentation.PlanPresentationNode;
 
 /**
  * Deterministic schema-version-2 implementation-plan renderer. Presenter wording is accepted only
@@ -112,6 +114,7 @@ public final class ImplementationPlanRenderer {
     if (facts.selectedPatternId() != null && !facts.selectedPatternId().isBlank()) {
       body.append("Pattern: ").append(facts.selectedPatternId()).append('\n');
     }
+    appendPlannedStructure(body, facts);
     appendSection(body, "Endpoints", endpoints);
     appendSection(body, "Branches", branches);
     appendSection(body, "Script outcomes", scripts);
@@ -133,6 +136,38 @@ public final class ImplementationPlanRenderer {
     body.append('\n').append("## ").append(title).append('\n');
     for (String fact : facts) {
       body.append("- ").append(fact).append('\n');
+    }
+  }
+
+  private static void appendPlannedStructure(StringBuilder body, PlanPresentationFacts facts) {
+    if (facts.coreFlowNodes().isEmpty() && facts.compilerAdditions().isEmpty()) {
+      return;
+    }
+    body.append("\n## Planned chain structure\n");
+    if (!facts.coreFlowNodes().isEmpty()) {
+      body.append("\n### Core elements\n\n");
+      for (PlanPresentationNode node : facts.coreFlowNodes()) {
+        body.append("- ").append(node.nodeId()).append(": ").append(node.type());
+        if (node.label() != null && !node.label().isBlank()) {
+          body.append(" (").append(node.label()).append(')');
+        }
+        if (node.parentNodeId() != null && !node.parentNodeId().isBlank()) {
+          body.append(" inside ").append(node.parentNodeId());
+        }
+        body.append('\n');
+      }
+    }
+    if (!facts.coreFlowEdges().isEmpty()) {
+      body.append("\n### Connections\n\n");
+      for (PlanPresentationEdge edge : facts.coreFlowEdges()) {
+        body.append("- ").append(edge.fromNodeId()).append(" -> ").append(edge.toNodeId())
+            .append('\n');
+      }
+    }
+    if (!facts.compilerAdditions().isEmpty()) {
+      body.append("\n### Compiler additions\n\n");
+      facts.compilerAdditions().forEach(addition ->
+          body.append("- ").append(addition.description()).append('\n'));
     }
   }
 
