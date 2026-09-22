@@ -34,6 +34,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
+import org.qubership.integration.platform.ai.plan.ImplementationPlanChatView;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
@@ -166,12 +167,19 @@ class DesignPlanningCapabilityTest {
   @Test
   void approvalTargetIsImplementationPlanWithCatalogFirstPolicyAndReusableInputs() {
     startRun();
+    List<PipelineSignal> afterInput = acceptInput("seed");
     PipelineSignal.WaitingForApproval waiting =
-        acceptInput("seed").stream()
+        afterInput.stream()
             .filter(PipelineSignal.WaitingForApproval.class::isInstance)
             .map(PipelineSignal.WaitingForApproval.class::cast)
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected WaitingForApproval"));
+    assertTrue(
+        afterInput.stream()
+            .anyMatch(
+                signal ->
+                    signal instanceof PipelineSignal.Message message
+                        && message.text().contains("## Planned chain structure")));
 
     StageSnapshot beforeApproval = currentStage("design-planning");
     Set<Kind> beforeKinds =
@@ -457,6 +465,39 @@ class DesignPlanningCapabilityTest {
     }
     assertTrue(plan.planText().contains(ApprovalPolicy.CATALOG_FIRST_V1));
     assertTrue(plan.scriptOutcomes().isEmpty(), "pass-through mappings do not require scripts");
+  }
+
+  @Test
+  void rendererShowsPlannedChainStructureBeforeApproval() {
+    ChainSemanticRevision revision = sampleRevision();
+    DesignPlanReport report = new DesignPlanReport("1", validReport());
+    DesignExecutionPlan projection =
+        new DesignPlanProjector()
+            .project(
+                report,
+                revision,
+                samplePin(
+                    revision,
+                    sampleDag(),
+                    Map.of(CipDesignPlannerAdapter.SKILL_ID, PINNED_SKILL_HASH),
+                    Map.of(CipDesignPlannerAdapter.SKILL_ID, "addon-hash")));
+
+    String chatPlan =
+        ImplementationPlanChatView.forChatReview(
+            new DesignImplementationPlanRenderer().render(report, projection, revision).planText());
+
+    assertTrue(chatPlan.contains("## Planned chain structure"), chatPlan);
+    assertTrue(chatPlan.contains("Orders API: trigger-http -> node-call"), chatPlan);
+    assertTrue(chatPlan.contains("node-call: service call (createOrder)"), chatPlan);
+    assertTrue(chatPlan.contains("trigger-http -> node-call (sequence)"), chatPlan);
+
+    String branchedPlan =
+        new DesignImplementationPlanRenderer()
+            .render(report, projection, SemanticFixtures.conditionReconvergence())
+            .planText();
+    assertTrue(branchedPlan.contains("condition-1 -> script-true (condition branch: true-branch)"));
+    assertTrue(branchedPlan.contains("region-condition: condition"));
+    assertTrue(branchedPlan.contains("condition-1 contains script-false (else)"));
   }
 
   @Test

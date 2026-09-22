@@ -1,7 +1,9 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.planning;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
@@ -10,6 +12,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionPlan;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanReport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
@@ -53,6 +59,8 @@ public final class DesignImplementationPlanRenderer {
     body.append("Design input hash: ").append(projection.designInputHash()).append('\n');
     body.append("Source report hash: ").append(projection.sourceReportHash()).append('\n');
     body.append("Compiler catalog hash: ").append(projection.compilerCatalogHash()).append('\n');
+    body.append('\n');
+    appendPlannedStructure(body, revision);
     body.append('\n');
     body.append("## Planner steps").append('\n');
 
@@ -205,5 +213,65 @@ public final class DesignImplementationPlanRenderer {
         + ", integrationOperationId="
         + binding.integrationOperationId()
         + "]";
+  }
+
+  private static void appendPlannedStructure(StringBuilder body, ChainSemanticRevision revision) {
+    body.append("## Planned chain structure\n\n");
+    body.append("### Entry points\n\n");
+    for (SemanticEntryPoint entry :
+        revision.entryPoints().stream()
+            .sorted(Comparator.comparingInt(SemanticEntryPoint::order))
+            .toList()) {
+      String label = entry.presentation().label();
+      body.append("- ")
+          .append(label == null || label.isBlank() ? entry.entryPointId() : label)
+          .append(": ")
+          .append(entry.triggerNodeId())
+          .append(" -> ")
+          .append(entry.initialTargetNodeId())
+          .append('\n');
+    }
+    body.append("\n### Elements\n\n");
+    for (SemanticNode node : revision.nodes()) {
+      body.append("- ").append(node.nodeId()).append(": ");
+      switch (node) {
+        case SemanticNode.Trigger trigger ->
+            body.append("trigger (").append(trigger.capabilityKey()).append(')');
+        case SemanticNode.ServiceCall call ->
+            body.append("service call (").append(call.operation()).append(')');
+        case SemanticNode.Operation operation -> body.append(operation.elementType());
+      }
+      body.append('\n');
+    }
+    body.append("\n### Connections\n\n");
+    for (SemanticExecutionEdge edge : revision.executionEdges()) {
+      body.append("- ").append(edge.sourceNodeId()).append(" -> ").append(edge.targetNodeId());
+      if (edge.route() != null) {
+        body.append(" (")
+            .append(edge.route().kind().name().toLowerCase(Locale.ROOT).replace('_', ' '));
+        if (edge.route() instanceof SemanticRoute.ConditionBranch branch) {
+          body.append(": ").append(branch.branchId());
+        } else if (edge.route() instanceof SemanticRoute.SplitBranch branch) {
+          body.append(": ").append(branch.branchId());
+        } else if (edge.route() instanceof SemanticRoute.CatchPath catchPath) {
+          body.append(": ").append(catchPath.handlerId());
+        }
+        body.append(')');
+      }
+      body.append('\n');
+    }
+    if (!revision.regions().isEmpty()) {
+      body.append("\n### Regions\n\n");
+      revision.regions().forEach(region ->
+          body.append("- ").append(region.regionId()).append(": ")
+              .append(region.kind().name().toLowerCase(Locale.ROOT).replace('_', ' '))
+              .append('\n'));
+    }
+    if (!revision.containment().isEmpty()) {
+      body.append("\n### Containment\n\n");
+      revision.containment().forEach(relation ->
+          body.append("- ").append(relation.parentNodeId()).append(" contains ")
+              .append(relation.childNodeId()).append(" (").append(relation.role()).append(")\n"));
+    }
   }
 }
