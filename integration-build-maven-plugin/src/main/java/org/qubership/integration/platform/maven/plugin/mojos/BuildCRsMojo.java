@@ -53,6 +53,7 @@ public class BuildCRsMojo extends AbstractMojo {
             .defaultDomain(defaultDomain)
             .deployAll(deployAll)
             .controlPlaneType(controlPlaneType)
+            .defaultSecretEnabled(defaultSecretEnabled)
             .options(options)
             .build();
     }
