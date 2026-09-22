@@ -1,4 +1,10 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
+subject: "reuse"
+deployments:
+  - id: "reuse"
+    route: "reuse"
+  - id: "reuse-errors"
+    route: "reuse w/ errors"
 scenarios:
   - id: "propagates-exchange-through-four-reuse-references"
     endpointUri: "cip-chain:241f78fa-58e3-4f86-b844-111ccf97bb97"
@@ -13,3 +19,37 @@ scenarios:
     expectedProperties:
       reuseTrace: "property|reuse|reuse|reuse|reuse"
       reuseCount: 4
+
+  - id: "executes-all-reuse-references-and-runs-finally"
+    endpointUri: "cip-chain:15396432-48c7-4de8-8451-d4fd7b57337d"
+    body: "body"
+    headers:
+      X-Reuse-Trace: "header"
+    properties:
+      failAt2: false
+      reuseTrace: "property"
+    expectedBody: "body"
+    expectedHeaders:
+      X-Reuse-Trace: "header"
+    expectedProperties:
+      reuseTrace: "property"
+      reuseCount: 3
+      atCatch: null
+      atFinally: true
+
+  - id: "handles-reuse-failure-and-skips-remaining-references"
+    endpointUri: "cip-chain:15396432-48c7-4de8-8451-d4fd7b57337d"
+    body: "body"
+    headers:
+      X-Reuse-Trace: "header"
+    properties:
+      failAt2: true
+      reuseTrace: "property"
+    expectedBody: "body"
+    expectedHeaders:
+      X-Reuse-Trace: "header"
+    expectedProperties:
+      reuseTrace: "property"
+      reuseCount: 2
+      atCatch: true
+      atFinally: true

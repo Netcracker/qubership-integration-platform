@@ -67,7 +67,7 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
   const notificationService = useNotificationService();
   const navigate = useNavigate();
   const { showModal } = useModalsContext();
-  const { filters, filterButton, resetFilters } = useServiceFilters();
+  const { filters, filterButton } = useServiceFilters();
 
   const { loading, execute: loadServices } = useAsyncRequest(
     async () => {
@@ -99,10 +99,6 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
   useEffect(() => {
     void loadServices();
   }, [filters, searchString, tab]);
-
-  useEffect(() => {
-    resetFilters();
-  }, [tab]);
 
   const buildDataSource = useMemo((): ServiceEntity[] => {
     return services.map((service: IntegrationSystem | ContextSystem) => {
@@ -435,6 +431,15 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
 
   return (
     <GenericServiceListPage
+      refresh={{
+        onRefresh: async () => {
+          await loadServices();
+          setExpandedRowKeys([]);
+          setSpecGroupsByService({});
+          setSpecsByGroup({});
+        },
+        loading,
+      }}
       title={`${capitalize(tab)} Services`}
       icon={
         <OverridableIcon

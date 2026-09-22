@@ -1,1 +1,2 @@
-exchange.getMessage().setBody("IndexOutOfBoundsException occurred");
+exchange.getMessage().setBody('IndexOutOfBoundsException occurred')
+

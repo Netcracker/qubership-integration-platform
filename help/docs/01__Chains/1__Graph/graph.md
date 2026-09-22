@@ -4,6 +4,13 @@
 ---
 **Graph** is a work environment, presented in a "blueprint-like" way, that provides ability to connect multiple chain elements in particular order to form an integration chain and solve specific integration task.
 
+## Process Initialization
+
+---
+
+- In CIP UI: user is able to reach configuration graph via simply clicking on any particular chain (to open it's detailed configuration).
+- In CIP VSCode Extension: once the extension is launched, user should expand 'CIP' section (available on the left side of the window), then expand "Chains" and further click on any particular chain to open configuration graph UI.
+
 ## User Interface
 
 ---
@@ -44,7 +51,6 @@ The next actions are available upper right corner:
 * ![send](img/send.svg) - save and deploy the chain.
 * Label "**Unsaved changes**" - appears above "Save and Deploy" button only if there are changes, that are not saved in a snapshot.
 * **Overridden By** - expandable parameter, that contains a reference to the chain that overrides it.
-
 
 #### <ins>VS Code Extension</ins>
 * ![column-width](img/column-width.svg) - show sequence diagram based on the chain.
@@ -94,3 +100,16 @@ Chain is also available in a text view, that could be used to compare one chain 
 **`⛔ Not available via VS Code extension`**
 
 To initiate document generation, click ![file](img/file.svg) **"Generate DDS"** on control panel, select desired template from the list, specify document name and click "**Generate**". System will show preview screen, where it is possible to get familiar with the finalized view of the document. Click "**Download**" to get the archive, that contains design document in .md format and other supplementary files, like pictures, etc. Data from the archive can be further processed by Markdown editors or processors to build proper human-readable document, presented on preview step.
+
+## Data Storage
+
+---
+
+- In CIP UI: chain configuration is being saved in the CIP catalog database in a real-time manner.
+- In CIP VSCode Extension: chain configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of respective machine.
+
+## Configuration
+
+---
+
+Please refer to UI elements and tools described above.

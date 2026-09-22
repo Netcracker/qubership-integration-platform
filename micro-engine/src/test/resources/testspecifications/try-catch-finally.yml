@@ -1,11 +1,17 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
+subject: "try-catch-finally"
+deployments:
+  - id: "try-catch-finally"
+    route: "try-catch-finally"
+  - id: "try-catch-finally-errors"
+    route: "try-catch-finally unexpected errors"
 scenarios:
   - id: "completes-try-and-runs-finally"
     endpointUri: "cip-chain:7bb7fece-7b9e-440b-abe7-ac736163df59"
     body: "Original"
     properties:
       exceptionType: ""
-    expectedBody: "Chain completed successfully"
+    expectedBody: "Chain completed successful"
     expectedHeaders:
       X-Finally-Step: "true"
     expectedProperties:
@@ -48,3 +54,63 @@ scenarios:
       X-Finally-Step: "true"
     expectedProperties:
       internalProperty_element_warning: "true"
+
+  - id: "propagates-unmatched-exception-and-runs-finally"
+    endpointUri: "cip-chain:9632d452-1209-4922-b1a7-7303fbd15f14"
+    invocations:
+      - id: "fails-in-try"
+        body: "Original"
+        properties:
+          exceptionType: "index"
+          catchError: false
+          finallyError: false
+        expectedFailure:
+          type: "java.lang.ArrayIndexOutOfBoundsException"
+          message: "Index 8 out of bounds for length 2"
+          cause: null
+        expectedBody: "Original"
+        expectedHeaders:
+          X-Finally-Step: "true"
+        expectedProperties:
+          atCatch: null
+          finallyCount: 1
+
+  - id: "propagates-catch-failure-and-runs-finally"
+    endpointUri: "cip-chain:9632d452-1209-4922-b1a7-7303fbd15f14"
+    invocations:
+      - id: "fails-in-catch"
+        body: "Original"
+        properties:
+          exceptionType: "arithmetic"
+          catchError: true
+          finallyError: false
+        expectedFailure:
+          type: "java.lang.Exception"
+          message: "catchError"
+          cause: null
+        expectedBody: "Original"
+        expectedHeaders:
+          X-Finally-Step: "true"
+        expectedProperties:
+          atCatch: true
+          finallyCount: 1
+
+  - id: "propagates-finally-failure-after-successful-try"
+    endpointUri: "cip-chain:9632d452-1209-4922-b1a7-7303fbd15f14"
+    invocations:
+      - id: "fails-in-finally"
+        body: "Original"
+        properties:
+          exceptionType: ""
+          catchError: false
+          finallyError: true
+        expectedFailure:
+          type: "java.lang.Exception"
+          message: "finallyError"
+          cause: null
+        expectedBody: "Chain completed successful"
+        expectedAbsentHeaders:
+          - "X-Finally-Step"
+        expectedProperties:
+          atCatch: null
+          finallyCount: 1

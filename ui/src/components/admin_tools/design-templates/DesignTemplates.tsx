@@ -1,4 +1,5 @@
-import { Flex, Table, Tag } from "antd";
+import { Table } from "antd";
+import { Flex, Tag } from "antd";
 import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { useNotificationService } from "../../../hooks/useNotificationService";
 import commonStyles from "../CommonStyle.module.css";
@@ -14,7 +15,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
@@ -107,16 +108,21 @@ export const DesignTemplates: React.FC = () => {
       columns,
     );
 
-  const { columnsWithResize, components, scrollX } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        name: 280,
-        type: 160,
-        createdWhen: 180,
-      },
-      { selectionColumnWidth: DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH },
-    );
+  const {
+    columnsWithResize,
+    components,
+    scrollX,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      name: 280,
+      type: 160,
+      createdWhen: 180,
+    },
+    { selectionColumnWidth: DESIGN_TEMPLATES_SELECTION_COLUMN_WIDTH },
+    "designTemplatesTable",
+  );
 
   const onSelectChange = (newSelectedRowKeys: React.Key[]) => {
     setSelectedRowKeys(newSelectedRowKeys);
@@ -311,6 +317,7 @@ export const DesignTemplates: React.FC = () => {
           loading={isLoading}
           scroll={tableScroll(scrollX, filteredTableData.length)}
           components={components}
+          onChange={handleConfiguredTableChange}
         />
       </Flex>
     </Flex>

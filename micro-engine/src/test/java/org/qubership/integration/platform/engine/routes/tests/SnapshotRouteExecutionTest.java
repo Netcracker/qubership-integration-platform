@@ -32,10 +32,10 @@ import org.qubership.integration.platform.engine.routes.entrypoint.execution.Sna
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotExchangeHeaders;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotExecutionScenario;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotExecutionTarget;
-import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFailureExpectation;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioInvocation;
 import org.qubership.integration.platform.engine.routes.fixture.SnapshotFixture;
 import org.qubership.integration.platform.engine.routes.fixture.SnapshotFixtureRegistry;
+import org.qubership.integration.platform.engine.routes.support.SnapshotFailureAssertions;
 import org.qubership.integration.platform.engine.routes.support.SnapshotValueAssertions;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.ObjectMappers;
@@ -51,8 +51,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.parallel.ExecutionMode.SAME_THREAD;
 
 @Tag("component")
@@ -87,6 +85,7 @@ abstract class SnapshotRouteExecutionTest {
             SnapshotExecutionScenario scenario
     ) throws Exception {
         SnapshotScenarioDriver driver = DRIVER_REGISTRY.createDriver(target, scenario);
+        List<InvocationResult> invocationResults = new ArrayList<>();
         try (DeploymentEnvironment environment = new DeploymentEnvironment();
                 SnapshotInvocationRunner invocationRunner = SnapshotInvocationRunner.fromSystemProperties()) {
             ProducerTemplate producerTemplate = environment.deploy(target, scenario, driver);
@@ -100,6 +99,7 @@ abstract class SnapshotRouteExecutionTest {
                         currentExecution.set(executionName(scenario, invocation, repetition));
                         Exchange exchange = driver.execute(producerTemplate, invocation);
                         assertScenarioResult(exchange, scenario, invocation, repetition);
+                        invocationResults.add(new InvocationResult(exchange, invocation, repetition));
                     }
                     currentExecution.set(invocationStageName(scenario, invocation, "verification"));
                     environment.verifyInvocation(invocation);
@@ -110,6 +110,14 @@ abstract class SnapshotRouteExecutionTest {
                     () -> "Snapshot scenario '" + scenario.getId() + "' fixture verification",
                     () -> {
                         environment.verifyFixtures();
+                        for (InvocationResult result : invocationResults) {
+                            assertExpectedProperties(
+                                    result.exchange(),
+                                    result.invocation(),
+                                    executionName(scenario, result.invocation(), result.repetition())
+                                            + " after fixture completion"
+                            );
+                        }
                         return null;
                     },
                     environment::abort
@@ -124,24 +132,7 @@ abstract class SnapshotRouteExecutionTest {
             int repetition
     ) throws JsonProcessingException {
         String executionName = executionName(scenario, invocation, repetition);
-        Throwable failure = exchange.getException();
-        if (invocation.isExpectedFailure()) {
-            assertNotNull(
-                    failure,
-                    () -> executionName + " was expected to fail, but completed successfully."
-            );
-            assertExpectedFailure(
-                    failure,
-                    invocation.getExpectedFailure(),
-                    executionName,
-                    "failure"
-            );
-        } else {
-            assertNull(
-                    failure,
-                    () -> executionName + " failed: " + failure
-            );
-        }
+        SnapshotFailureAssertions.assertMatches(invocation.getExpectedFailure(), exchange.getException(), executionName);
         if (invocation.hasExpectedBody()) {
             assertExpectedBody(exchange, invocation, executionName);
         }
@@ -164,50 +155,19 @@ abstract class SnapshotRouteExecutionTest {
                 exchangeHeaders.containsKey(headerName),
                 () -> executionName + " retained unexpected exchange header '" + headerName + "'."
         ));
+        assertExpectedProperties(exchange, invocation, executionName);
+    }
+
+    private static void assertExpectedProperties(
+            Exchange exchange,
+            SnapshotScenarioInvocation invocation,
+            String executionName
+    ) {
         SnapshotValueAssertions.assertValues(
                 invocation.getExpectedProperties(),
                 exchange::getProperty,
                 executionName + " returned an unexpected property"
         );
-    }
-
-    private static void assertExpectedFailure(
-            Throwable actual,
-            SnapshotFailureExpectation expected,
-            String executionName,
-            String failurePath
-    ) {
-        assertEquals(
-                expected.getType(),
-                actual.getClass().getName(),
-                () -> executionName + " failed with an unexpected exception type at '"
-                        + failurePath + "'."
-        );
-        assertEquals(
-                expected.getMessage(),
-                actual.getMessage(),
-                () -> executionName + " failed with an unexpected exception message at '"
-                        + failurePath + "'."
-        );
-
-        String causePath = failurePath + ".cause";
-        Throwable actualCause = actual.getCause();
-        SnapshotFailureExpectation expectedCause = expected.getCause();
-        if (expectedCause == null) {
-            assertNull(
-                    actualCause,
-                    () -> executionName + " failed with an unexpected exception at '"
-                            + causePath + "'."
-            );
-            return;
-        }
-
-        assertNotNull(
-                actualCause,
-                () -> executionName + " did not provide the expected exception at '"
-                        + causePath + "'."
-        );
-        assertExpectedFailure(actualCause, expectedCause, executionName, causePath);
     }
 
     private static void assertExpectedBody(
@@ -279,6 +239,9 @@ abstract class SnapshotRouteExecutionTest {
             DefaultCamelContext camelContext,
             String routeSourceLocation
     ) throws Exception;
+
+    private record InvocationResult(Exchange exchange, SnapshotScenarioInvocation invocation, int repetition) {
+    }
 
     private final class DeploymentEnvironment implements AutoCloseable {
         private static final long CONTEXT_SHUTDOWN_TIMEOUT_SECONDS = 5;

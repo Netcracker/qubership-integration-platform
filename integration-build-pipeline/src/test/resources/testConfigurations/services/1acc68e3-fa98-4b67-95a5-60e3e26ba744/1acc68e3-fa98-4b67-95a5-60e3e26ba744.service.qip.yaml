@@ -7,10 +7,11 @@ content:
   protocol: "HTTP"
   environments:
   - id: "edcb8daf-82d5-4f06-ae0a-b54d938ed02f"
-    name: "Test internal service"
-    address: "/"
+    name: "QA"
+    address: "http://petstore.test:8080"
     sourceType: "MANUAL"
-    labels: []
+    labels:
+    - "QA"
     properties:
       soTimeout: "120000"
       getWithBody: "false"

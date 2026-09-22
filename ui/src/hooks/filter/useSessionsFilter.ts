@@ -58,5 +58,8 @@ export const useSessionsFilter = (
     [chainId],
   );
 
-  return useFilter(filterColumns);
+  return useFilter(
+    filterColumns,
+    chainId ? "sessionsTableChain" : "sessionsTableAdmin",
+  );
 };

@@ -14,6 +14,7 @@ public class SnapshotFixtureInteraction {
     private final List<SnapshotFixtureExchangeExpectation> expectedExchanges;
     private final boolean expectedExchangesDefined;
     private final String transitionToState;
+    private final String awaitState;
     private final String expectedState;
 
     @JsonCreator
@@ -24,6 +25,7 @@ public class SnapshotFixtureInteraction {
             @JsonProperty("expectedLogs") List<SnapshotFixtureLogExpectation> expectedLogs,
             @JsonProperty("expectedExchanges") List<SnapshotFixtureExchangeExpectation> expectedExchanges,
             @JsonProperty("transitionToState") String transitionToState,
+            @JsonProperty("awaitState") String awaitState,
             @JsonProperty("expectedState") String expectedState
     ) {
         this.fixtureId = requireNonBlank(fixtureId);
@@ -34,16 +36,18 @@ public class SnapshotFixtureInteraction {
         this.expectedExchangesDefined = expectedExchanges != null;
         this.expectedExchanges = expectedExchanges == null ? List.of() : List.copyOf(expectedExchanges);
         this.transitionToState = optionalNonBlank(transitionToState, "transitionToState");
+        this.awaitState = optionalNonBlank(awaitState, "awaitState");
         this.expectedState = optionalNonBlank(expectedState, "expectedState");
         if (response == null
                 && expectedRequest == null
                 && !expectedLogsDefined
                 && !expectedExchangesDefined
                 && this.transitionToState == null
+                && this.awaitState == null
                 && this.expectedState == null) {
             throw new IllegalArgumentException(
                     "Snapshot fixture interaction must define a response, an expected request, expected logs, "
-                            + "expected exchanges, a state transition, or an expected state."
+                            + "expected exchanges, a state transition, a state to await, or an expected state."
             );
         }
     }
@@ -82,6 +86,10 @@ public class SnapshotFixtureInteraction {
 
     public String getExpectedState() {
         return expectedState;
+    }
+
+    public String getAwaitState() {
+        return awaitState;
     }
 
     private static String requireNonBlank(String value) {

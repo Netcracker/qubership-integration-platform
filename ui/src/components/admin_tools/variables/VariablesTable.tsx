@@ -1,15 +1,13 @@
 import React, { useRef, useEffect } from "react";
-import { Table, Input, Button, Popconfirm, TableProps } from "antd";
+import { Input, Button, Popconfirm, Table, TableProps } from "antd";
 import type { GetRef, InputRef } from "antd";
 import "./Resizable.css";
 import { NEW_VARIABLE_KEY } from "./useVariablesState";
 import styles from "./VariablesTable.module.css";
 import type { Variable } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import {
-  attachResizeToColumns,
-  useTableColumnResize,
-} from "../../table/useTableColumnResize.tsx";
+import { attachResizeToColumns } from "../../table/useTableColumnResize.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import {
   createActionsSizing,
   DEFAULT_ACTIONS_COLUMN_WIDTH,
@@ -35,6 +33,7 @@ interface VariablesTableProps {
   flex?: boolean;
   enableEdit?: boolean;
   enableDelete?: boolean;
+  storageKey?: string;
   loading?: boolean;
 }
 
@@ -58,6 +57,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
   enableEdit = true,
   enableDelete = true,
   loading,
+  storageKey = "commonVariablesTable",
 }) => {
   const newKeyInputRef = useRef<InputRef>(null);
   const newValueInputRef = useRef<GetRef<typeof Input.TextArea>>(null);
@@ -66,10 +66,18 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
     key: "",
     value: "",
   });
-  const variablesColumnResize = useTableColumnResize({
-    key: 300,
-    value: 400,
-  });
+  const {
+    columnResize: variablesColumnResize,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration<Variable>(
+    undefined,
+    {
+      key: 300,
+      value: 400,
+    },
+    {},
+    storageKey,
+  );
 
   useEffect(() => {
     if (isAddingNew && newKeyInputRef.current) {
@@ -280,6 +288,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
       dataSource={dataWithNewRow}
       columns={columnsWithResizeNoRightActionsHandle}
       components={variablesColumnResize.resizableHeaderComponents}
+      onChange={handleConfiguredTableChange}
       rowKey="key"
       pagination={false}
       size="small"

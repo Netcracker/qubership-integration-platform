@@ -1,1 +1,1 @@
-exchange.getMessage().setBody("If");
+exchange.getMessage().setBody('If')

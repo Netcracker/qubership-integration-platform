@@ -10,7 +10,7 @@ Session represents chain processing step by step. Chain session is being created
 ### Async Request & Callback Linkage in Sessions
 There are technical specifics available for asynchronous integrations, that can cause losing linkage between request and callback.
 Due to the fact that callback for such integration type is being provided with a significant delay, it leads to the challenges related to identifying the original request.
-To deal with this challenge, Qubership Integration Platform links request and callbacks with correlation id.
+To deal with this challenge, Cloud Integration Platform links request and callbacks with correlation id.
 This also gives an ability to group up sessions with the same id on the table **"Sessions"**, available for each chain.
 
 Correlation id can be passed by the following chain modules:
@@ -19,10 +19,15 @@ Correlation id can be passed by the following chain modules:
 - [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md)
 - [GraphQL Sender](../1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/graphql_sender.md)
 
-
 In case of asynchronous request during chain design time user has to configure correlation id source and its name (key).
 
 > ℹ️ **Note**: Correlation id will be added to the list of camel exchange properties in Runtime.
+
+## Process Initialization
+
+---
+
+Sessions are available for user on **"Sessions"** tab under the chain. Session records are going to be populated to the table during chain processing, according to the settled logging level.
 
 ## User Interface
 
@@ -93,3 +98,16 @@ To retry failed session, find it in the table and click retry ![Redo|20](img/red
 
 ### Export Sessions
 To export session(s) to a **JSON** file, please mark all required sessions via checkbox and click **Export** button ![Download|20](img/cloud-download.svg). To limit the amount of exported data, **Export** button is disabled when all sessions are marked via global checkbox on top of the table. Export is also possible from sessions details window, where all session's steps are presented.
+
+## Data Storage
+
+---
+
+Please refer to the main [logging article] for details about session logs storage aspect.
+
+## Configuration
+
+---
+
+Please refer to the main [logging article] for details about session logs configuration and retention settings.
+
