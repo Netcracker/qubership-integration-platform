@@ -57,6 +57,7 @@ public final class HaltProducerCauseTable {
               RecoveryCauseCode.CATALOG_RESOLUTION,
               RecoveryCauseCode.MAPPING_CONTRACT,
               RecoveryCauseCode.CONTRACT_SHAPE,
+              RecoveryCauseCode.GRAPH_STRUCTURE,
               RecoveryCauseCode.VALIDATION_BLOCKER,
               RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED);
       case SPECIFICATION_IMPORT ->
@@ -133,6 +134,8 @@ public final class HaltProducerCauseTable {
       }
       case MISSING_MANDATORY_INPUT -> "Supply the missing input and continue.";
       case CONTRACT_SHAPE -> "Correct the contract of " + role + ".";
+      case GRAPH_STRUCTURE ->
+          "Rebuild the topology in " + role + " so every container meets its child count.";
       case POLICY_FAILURE -> "Adjust the policy this stage rejected.";
       case TECHNICAL_RETRY_EXHAUSTED -> "Change the inputs this stage consumed, then retry.";
       case DOMAIN_FAILURE -> "Correct the domain error in " + role + ".";
@@ -171,9 +174,10 @@ public final class HaltProducerCauseTable {
   static FindingOwnerCategory ownerCategory(RecoveryCauseCode causeCode) {
     return switch (causeCode) {
       case MISSING_BRIEF_FACTS, MAPPING_CONTRACT -> FindingOwnerCategory.POLICY_OR_BRIEF;
-      case SECURITY_POLICY, MISSING_REQUIRED_PROPERTY -> FindingOwnerCategory.PLAN_FILL;
-      case UNKNOWN_PROPERTY -> FindingOwnerCategory.EXECUTION;
+      case SECURITY_POLICY, MISSING_REQUIRED_PROPERTY, UNKNOWN_PROPERTY ->
+          FindingOwnerCategory.EXECUTION;
       case CONTRACT_SHAPE,
+              GRAPH_STRUCTURE,
               POLICY_FAILURE,
               TECHNICAL_RETRY_EXHAUSTED,
               CATALOG_RESOLUTION,

@@ -32,6 +32,8 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 import org.qubership.integration.platform.ai.qipknowledge.patch.ValidatedGraphPatchApplier;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.ChainEditSkillContext;
+import org.qubership.integration.platform.ai.compiler.ContractRequiredPropertyGrant;
+import org.qubership.integration.platform.ai.compiler.CredentialPlaceholderApplicator;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
@@ -728,8 +730,14 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             .map(a -> ((SkillArtifactPayload.ChainPlanGraphPayload) a.payload()).graph())
             .orElse(null);
     if (currentGraph != null) {
+      ChainPlanGraph secured = CredentialPlaceholderApplicator.apply(currentGraph);
+      if (secured != currentGraph) {
+        LOG.infof(
+            "Replaced literal credentials with secured references conversationId=%s",
+            workspace == null ? "" : workspace.conversationId());
+      }
       return graphAssemblyService.assembleFromGraph(
-          currentGraph, patchLedger.orderedReferences(), patchLedger.ownershipFacts());
+          secured, patchLedger.orderedReferences(), patchLedger.ownershipFacts());
     }
     ChainStructure structure =
         workspace
@@ -838,7 +846,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             request.requirementBrief(),
             consumedArtifacts,
             inputGraph,
-            node.ownership(),
+            ownershipFor(node),
             request.attemptId(),
             ChainEditSkillContext.targetNodeIds(workspace, node.skillId()));
     var applied = validatedGraphPatchApplier.apply(context, patch);
@@ -1220,8 +1228,16 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         .orElse(List.of());
   }
 
-  private static GraphPatchOwnershipPolicy ownershipFor(ResolvedCompilerNode node) {
-    return node.ownership() == null ? GraphPatchOwnershipPolicy.denyAll() : node.ownership();
+  private GraphPatchOwnershipPolicy ownershipFor(ResolvedCompilerNode node) {
+    GraphPatchOwnershipPolicy policy =
+        node == null || node.ownership() == null
+            ? GraphPatchOwnershipPolicy.denyAll()
+            : node.ownership();
+    if (node == null || node.skillId() == null || node.skillId().isBlank()) {
+      return policy;
+    }
+    return ContractRequiredPropertyGrant.grant(
+        policy, node.skillId(), contractRepository.require(CompilerContract.V1));
   }
 
   private static String sha256Text(String value) {
