@@ -14,7 +14,7 @@ import java.util.List;
 
 @Mojo(name = "build-libs", defaultPhase = LifecyclePhase.COMPILE)
 public class BuildLibsMojo extends AbstractMojo {
-    @Parameter(name = "sourceRoots", defaultValue = "${project.compileSourceRoots}")
+    @Parameter(name = "sourceRoots", defaultValue = "${project.basedir}/src/main/integration")
     private List<String> sourceRoots;
 
     @Parameter(name = "outputDirectory", defaultValue = "${project.build.directory}")
