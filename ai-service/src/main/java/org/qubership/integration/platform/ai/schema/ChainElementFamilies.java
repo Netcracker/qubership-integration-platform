@@ -36,6 +36,9 @@ public final class ChainElementFamilies {
       "rabbitmq-sender-2",
       "scs-sender");
 
+  /** Mid-chain SFTP transfer. Direct configuration, no catalog lookup. */
+  public static final Set<String> FILE_TRANSFER = Set.of("sftp-download", "sftp-upload");
+
   public static final Set<String> ROUTING = Set.of("condition", "choice", "if", "else", "when", "otherwise");
   public static final Set<String> ROUTING_MODERN = Set.of("condition", "if", "else");
   public static final Set<String> ROUTING_DEPRECATED = Set.of("choice", "when", "otherwise");
@@ -63,6 +66,10 @@ public final class ChainElementFamilies {
     return contains(SENDERS, type);
   }
 
+  public static boolean isFileTransfer(String type) {
+    return contains(FILE_TRANSFER, type);
+  }
+
   public static BindingMode bindingMode(String elementType) {
     if (elementType == null) {
       throw new IllegalArgumentException("null");
@@ -74,7 +81,7 @@ public final class ChainElementFamilies {
     if ("async-api-trigger".equals(type)) {
       return BindingMode.CATALOG_REQUIRED;
     }
-    if (isSender(type) || isTrigger(type)) {
+    if (isSender(type) || isTrigger(type) || isFileTransfer(type)) {
       return BindingMode.DIRECT;
     }
     throw new IllegalArgumentException(type);

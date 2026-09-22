@@ -343,6 +343,7 @@ public class RequirementDraftTool {
       outbound interactionId, capabilityKey=http-sender, and httpMethod plus an absolute or
       relative URI in path. In-scope direct sender keys: graphql-sender, http-sender, jms-sender,
       kafka-sender-2, mail-sender, pubsub-sender, rabbitmq-sender-2, and scs-sender.
+      SFTP file transfer uses capabilityKey sftp-download or sftp-upload. No catalog lookup.
       Chain-call configuration uses a CAPABILITY fact whose sourceFactId matches the outbound
       interactionId and capabilityKey=chain-call-2. Put the target chain's name in participant
       (the catalog chainName or the name the user used). Leave path blank unless you already
@@ -357,7 +358,8 @@ public class RequirementDraftTool {
       operations, not RequirementFlow interactions.
       Call resolveApiOperation for catalog-backed outbound interactions (no sender CAPABILITY),
       async-api-trigger, and implemented-service HTTP triggers (http-trigger with a catalog service
-      participant and blank path). Do not call it for direct senders, chain-call-2, custom HTTP
+      participant and blank path). Do not call it for direct senders, sftp-download, sftp-upload,
+      chain-call-2, custom HTTP
       triggers with a path, or ambiguous HTTP triggers.
       Distill facts from assembledText yourself; never ask the user for polarity labels.
       When READY_FOR_PLAN is sent without facts, the server soft-stores NEEDS_INPUT. Retry the
@@ -701,7 +703,7 @@ public class RequirementDraftTool {
           && !boundFlow.interactions().isEmpty()) {
         List<CatalogRestClient.OperationDto> missingOperations =
             missingExplicitCatalogOperations(
-                conversationId, capture.assembledText(), facts, catalogBindings);
+                conversationId, capture.assembledText(), facts, boundFlow, catalogBindings);
         if (!missingOperations.isEmpty()) {
           List<String> missingDescriptions = new ArrayList<>();
           for (CatalogRestClient.OperationDto operation : missingOperations) {
@@ -1685,6 +1687,7 @@ public class RequirementDraftTool {
       String conversationId,
       String assembledText,
       List<RequirementFact> facts,
+      RequirementFlow flow,
       List<CatalogBindingHint> catalogBindings) {
     if (catalogCache == null) {
       return List.of();
@@ -1696,8 +1699,12 @@ public class RequirementDraftTool {
         continue;
       }
       int textOccurrences = operationOccurrences(assembledText, operation, remembered);
-      int factOccurrences = positiveFactOccurrences(facts, operation, remembered);
-      int requiredOccurrences = Math.max(textOccurrences, factOccurrences);
+      int factPresence = positiveFactPresence(facts, operation, remembered);
+      long flowOccurrences =
+          flow.interactions().stream()
+              .filter(interaction -> operationOccurrences(interaction.operation(), operation, remembered) > 0)
+              .count();
+      long requiredOccurrences = Math.max(flowOccurrences, Math.max(textOccurrences, factPresence));
       long boundOccurrences =
           catalogBindings.stream()
               .filter(Objects::nonNull)
@@ -1718,23 +1725,20 @@ public class RequirementDraftTool {
         .toList();
   }
 
-  private static int positiveFactOccurrences(
+  private static int positiveFactPresence(
       List<RequirementFact> facts,
       CatalogRestClient.OperationDto operation,
       List<CatalogRestClient.OperationDto> remembered) {
-    int structuredOccurrences = 0;
-    int proseOccurrences = 0;
     for (RequirementFact fact : facts) {
       if (fact == null || fact.polarity() != RequirementFactPolarity.POSITIVE) {
         continue;
       }
-      int mentioned = operationOccurrences(fact.text(), operation, remembered);
-      proseOccurrences = Math.max(proseOccurrences, mentioned);
-      if (structuredOperationMatches(fact.operation(), operation)) {
-        structuredOccurrences++;
+      if (operationOccurrences(fact.text(), operation, remembered) > 0
+          || structuredOperationMatches(fact.operation(), operation)) {
+        return 1;
       }
     }
-    return Math.max(structuredOccurrences, proseOccurrences);
+    return 0;
   }
 
   private static boolean structuredOperationMatches(

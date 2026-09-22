@@ -57,6 +57,16 @@ class DesignPlanContractValidatorTest {
           Map.entry("send-kafka", "cip-service-call-generator"),
           Map.entry("script-behavior", "cip-script-generator"));
 
+  @Test
+  void fileTransferOwnerIsFileOperationsGenerator() {
+    assertEquals(
+        "cip-file-operations-generator",
+        DesignPlanContractValidator.ownerForDirectOperation("sftp-upload"));
+    assertEquals(
+        "cip-file-operations-generator",
+        DesignPlanContractValidator.ownerForDirectOperation("sftp-download"));
+  }
+
   private final DesignPlanContractValidator validator = new DesignPlanContractValidator();
 
   @Test

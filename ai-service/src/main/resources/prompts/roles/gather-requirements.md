@@ -55,6 +55,7 @@ rules. The addon overrides the upstream IDE brainstorming ritual (file writes, c
 - Direct sender: capture `CAPABILITY` with that sender key (`graphql-sender`, `http-sender`,
   `jms-sender`, `kafka-sender-2`, `mail-sender`, `pubsub-sender`, `rabbitmq-sender-2`, or
   `scs-sender`). No catalog lookup.
+- SFTP file transfer: capture `CAPABILITY` `sftp-download` or `sftp-upload`. No catalog lookup.
 - Catalog outbound: do not invent a sender key; call `resolveApiOperation` after the flow is stored.
 - Ambiguous HTTP trigger or outbound interaction: ask one clarifying question. Do not search the
   catalog.

@@ -237,6 +237,109 @@ class CompilerRunPinResolverTest {
   }
 
   @Test
+  void productionCreateChainPinIncludesMcpTriggerInClosure() {
+    CompilerRunPin pin =
+        resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
+
+    assertTrue(
+        pin.capabilityClosure().contains("cip-mcp-trigger-generator"),
+        "mcp-trigger specialist must be in pin closure via all-generation-skills");
+    GraphPatchOwnershipPolicy ownership =
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-mcp-trigger-generator".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .ownership();
+    assertEquals(
+        Set.of(
+            "name",
+            "description",
+            "title",
+            "inputSchema",
+            "outputSchema",
+            "readOnly",
+            "destructive",
+            "idempotent",
+            "openWorld"),
+        ownership.properties().get("mcp-trigger"));
+    assertFalse(ownership.properties().get("mcp-trigger").contains("mcpServiceIds"));
+    assertTrue(
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-chain-assembler".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .dependsOn()
+            .contains("cip-mcp-trigger-generator"),
+        "assembler dependsOn must include the MCP trigger specialist");
+  }
+
+  @Test
+  void productionCreateChainPinIncludesSftpTriggerInClosure() {
+    CompilerRunPin pin =
+        resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
+
+    assertTrue(
+        pin.capabilityClosure().contains("cip-sftp-trigger-generator"),
+        "sftp-trigger specialist must be in pin closure via all-generation-skills");
+    GraphPatchOwnershipPolicy ownership =
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-sftp-trigger-generator".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .ownership();
+    assertEquals(
+        Set.of(
+            "connectUrl",
+            "scheduler.cron",
+            "binary",
+            "streamDownload",
+            "idempotent",
+            "idempotentKey",
+            "autoCreate",
+            "useUserKnownHostsFile"),
+        ownership.properties().get("sftp-trigger-2"));
+    assertFalse(ownership.properties().get("sftp-trigger-2").contains("cron"));
+    assertTrue(
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-chain-assembler".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .dependsOn()
+            .contains("cip-sftp-trigger-generator"),
+        "assembler dependsOn must include the SFTP trigger specialist");
+  }
+
+  @Test
+  void productionCreateChainPinIncludesFileOperationsInClosure() {
+    CompilerRunPin pin =
+        resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);
+
+    assertTrue(
+        pin.capabilityClosure().contains("cip-file-operations-generator"),
+        "file and SFTP transfer specialist must be in pin closure via all-generation-skills");
+    GraphPatchOwnershipPolicy ownership =
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-file-operations-generator".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .ownership();
+    assertEquals(
+        Set.of("connectUrl", "antInclude", "streamDownload", "binary", "idempotent"),
+        ownership.properties().get("sftp-download"));
+    assertEquals(
+        Set.of("connectUrl", "fileName", "autoCreate", "binary", "allowNullBody"),
+        ownership.properties().get("sftp-upload"));
+    assertTrue(
+        pin.resolvedDag().nodes().stream()
+            .filter(node -> "cip-chain-assembler".equals(node.skillId()))
+            .findFirst()
+            .orElseThrow()
+            .dependsOn()
+            .contains("cip-file-operations-generator"),
+        "assembler dependsOn must include the file operations specialist");
+  }
+
+  @Test
   void productionCreateChainPinOwnsNativeKafkaAndRabbitTriggerIdentityOnMessaging() {
     CompilerRunPin pin =
         resolverFor(buildProductionIndex()).resolve(createChainProfile, fullKnowledgeContext);

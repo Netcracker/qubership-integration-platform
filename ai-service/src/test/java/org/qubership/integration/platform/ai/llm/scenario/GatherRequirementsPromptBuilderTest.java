@@ -65,13 +65,14 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("only for catalog-backed interactions"), input);
     assertTrue(input.contains("no sender CAPABILITY"), input);
     assertTrue(input.contains("sftp-trigger-2"), input);
+    assertTrue(input.contains("sftp-upload"), input);
     assertTrue(input.contains("mail-sender"), input);
     assertTrue(input.contains("mcp-trigger"), input);
     assertTrue(input.contains("skips catalog lookup"), input);
     assertFalse(input.contains("not supported in create-chain"), input);
     assertTrue(input.contains("Custom HTTP"), input);
     assertTrue(input.contains("Implemented service HTTP"), input);
-    assertTrue(input.contains("Native triggers and direct senders"), input);
+    assertTrue(input.contains("Native triggers and direct elements"), input);
     assertTrue(input.contains("empty openQuestions"), input);
     assertFalse(input.contains("after you pick a catalog operation"), input);
     assertFalse(input.contains("with serviceCallId"), input);

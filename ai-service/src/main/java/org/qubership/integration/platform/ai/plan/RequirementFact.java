@@ -20,7 +20,8 @@ public record RequirementFact(
                 + " jms-trigger, kafka-trigger-2, mcp-trigger, pubsub-trigger, quartz-scheduler,"
                 + " rabbitmq-trigger-2, sds-trigger, or sftp-trigger-2. Outbound direct:"
                 + " graphql-sender, http-sender, jms-sender, kafka-sender-2, mail-sender,"
-                + " pubsub-sender, rabbitmq-sender-2, or scs-sender. Composition: chain-call-2,"
+                + " pubsub-sender, rabbitmq-sender-2, or scs-sender. File transfer: sftp-download"
+                + " or sftp-upload. Composition: chain-call-2,"
                 + " reuse, or reuse-reference.")
         String capabilityKey,
     String text,

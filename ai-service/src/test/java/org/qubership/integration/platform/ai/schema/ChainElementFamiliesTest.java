@@ -42,6 +42,7 @@ class ChainElementFamiliesTest {
     return Stream.of(
             ChainElementFamilies.TRIGGERS,
             ChainElementFamilies.SENDERS,
+            ChainElementFamilies.FILE_TRANSFER,
             ChainElementFamilies.ROUTING,
             ChainElementFamilies.TRY_CATCH,
             ChainElementFamilies.TRY_CATCH_DEPRECATED,

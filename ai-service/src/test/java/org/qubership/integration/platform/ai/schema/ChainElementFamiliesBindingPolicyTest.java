@@ -44,6 +44,8 @@ class ChainElementFamiliesBindingPolicyTest {
       "http-sender, DIRECT",
       "kafka-sender-2, DIRECT",
       "mail-sender, DIRECT",
+      "sftp-upload, DIRECT",
+      "sftp-download, DIRECT",
       "scs-sender, DIRECT"
   })
   void classifiesKnownTypes(String type, ChainElementFamilies.BindingMode mode) {

@@ -256,6 +256,24 @@ elements:
       type: file-write
       container: false
       deprecated: false
+  sftp-download:
+    containmentRoles: {}
+    requiredProperties:
+      - connectUrl
+    materializationRuleId: materialize-sftp-download
+    runtimeDescriptor:
+      type: sftp-download
+      container: false
+      deprecated: false
+  sftp-upload:
+    containmentRoles: {}
+    requiredProperties:
+      - connectUrl
+    materializationRuleId: materialize-sftp-upload
+    runtimeDescriptor:
+      type: sftp-upload
+      container: false
+      deprecated: false
   log-record:
     containmentRoles: {}
     requiredProperties: []

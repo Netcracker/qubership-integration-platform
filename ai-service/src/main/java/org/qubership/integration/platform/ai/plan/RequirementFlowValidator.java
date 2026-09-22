@@ -450,7 +450,10 @@ public final class RequirementFlowValidator {
         .filter(fact -> interactionId.equals(fact.sourceFactId()))
         .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
         .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
-        .anyMatch(fact -> ChainElementFamilies.isSender(fact.capabilityKey()));
+        .anyMatch(
+            fact ->
+                ChainElementFamilies.isSender(fact.capabilityKey())
+                    || ChainElementFamilies.isFileTransfer(fact.capabilityKey()));
   }
 
   private static boolean hasCompositionCapabilityFact(
@@ -503,7 +506,9 @@ public final class RequirementFlowValidator {
   }
 
   public static boolean isNativeOutboundCapabilityKey(String capabilityKey) {
-    return ChainElementFamilies.isSender(capabilityKey) || "chain-call-2".equals(capabilityKey);
+    return ChainElementFamilies.isSender(capabilityKey)
+        || ChainElementFamilies.isFileTransfer(capabilityKey)
+        || "chain-call-2".equals(capabilityKey);
   }
 
   private static String outboundClassificationQuestion(Interaction interaction) {
