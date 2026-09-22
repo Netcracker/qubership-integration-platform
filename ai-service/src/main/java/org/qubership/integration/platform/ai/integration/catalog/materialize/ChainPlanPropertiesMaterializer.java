@@ -277,13 +277,13 @@ public class ChainPlanPropertiesMaterializer {
   /**
    * Renders one property's plan-model string value as the object the catalog PATCH body carries.
    *
-   * <p>Object/array/boolean shapes are recognized from the string itself -- a script body never
-   * looks like JSON true/false or starts with {@code {}}/{@code []}, so no schema lookup is needed
-   * to tell them apart safely. A number is not safe to guess this way: a string property can
-   * legitimately hold digits only (a version, a zip code), so the value keeps its schema-typed
-   * shape -- integer, number, or otherwise left as a string -- via
-   * {@link DeterministicElementSchemaService#coercePatchPropertyValue}, the same coercion the
-   * CREATE-side compiler validation pipeline already uses.
+   * <p>Object/array/boolean shapes are recognized from the string itself. A script body never
+   * looks like JSON true/false or starts with {@code {}}/{@code []}. A property the catalog
+   * schema types as string keeps its text, including JSON stored as text (MCP trigger
+   * {@code inputSchema} and {@code outputSchema}). A number is not safe to guess from digits
+   * alone: a string property can hold a version or a zip code, so that value keeps its
+   * schema-typed shape via {@link DeterministicElementSchemaService#coercePatchPropertyValue},
+   * the same coercion the CREATE-side compiler validation pipeline already uses.
    */
   private Object propertyValueAsObject(String elementType, PlanProperty property)
       throws JsonProcessingException {
@@ -294,6 +294,9 @@ public class ChainPlanPropertiesMaterializer {
     String trimmed = value.trim();
     if (trimmed.isEmpty()) {
       return "";
+    }
+    if (schemaService.isStringProperty(elementType, property.key())) {
+      return value;
     }
     if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
       JsonNode node = objectMapper.readTree(trimmed);
