@@ -19,10 +19,19 @@ public class CommonVariablesUpdateParser implements Function<List<KeyValue>, Map
     @ConfigProperty(name = "consul.keys.prefix")
     String keyPrefix;
 
+    @ConfigProperty(name = "consul.keys.engine-config-root")
+    String keyEngineConfigRoot;
+
+    @ConfigProperty(name = "consul.keys.common-variables-v2")
+    String keyCommonVariablesV2;
+
     @Override
     public Map<String, String> apply(List<KeyValue> entries) {
+        // must match the key UpdateGetterProducer#commonVariablesUpdateGetter() queries,
+        // so that a variable entry directly under it is recognized as an L1 path
+        String commonVariablesPath = keyPrefix + keyEngineConfigRoot + keyCommonVariablesV2;
         return entries.stream()
-                .filter(kv -> hasL1NonEmptyPath(keyPrefix, kv.getKey()))
+                .filter(kv -> hasL1NonEmptyPath(commonVariablesPath, kv.getKey()))
                 .map(CommonVariablesUpdateParser::parseCommonVariable)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -41,7 +50,14 @@ public class CommonVariablesUpdateParser implements Function<List<KeyValue>, Map
     }
 
     private static boolean hasL1NonEmptyPath(String pathPrefix, String path) {
-        String[] split = path.substring(pathPrefix.length()).split("/");
+        String remainder = path.substring(pathPrefix.length());
+        // pathPrefix (consul.keys.prefix + engine-config-root + common-variables-v2) has no
+        // trailing slash, so the remainder starts with the "/" separating it from the variable
+        // name; strip it before splitting, otherwise every remainder has a leading empty segment
+        if (remainder.startsWith("/")) {
+            remainder = remainder.substring(1);
+        }
+        String[] split = remainder.split("/");
         return split.length == 1 && StringUtils.isNotEmpty(split[0]);
     }
 }

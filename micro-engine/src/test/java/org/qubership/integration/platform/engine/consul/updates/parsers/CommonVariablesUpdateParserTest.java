@@ -15,17 +15,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @QuarkusComponentTest
-@TestConfigProperty(key = "consul.keys.prefix", value = "config/test-env/")
+@TestConfigProperty(key = "consul.keys.prefix", value = "config/test-env")
+@TestConfigProperty(key = "consul.keys.engine-config-root", value = "/qip-engine-configurations")
+@TestConfigProperty(key = "consul.keys.common-variables-v2", value = "/variables/common")
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 class CommonVariablesUpdateParserTest {
+
+    private static final String COMMON_VARIABLES_PATH =
+            "config/test-env/qip-engine-configurations/variables/common";
 
     @Inject
     CommonVariablesUpdateParser parser;
 
     @Test
     void shouldReturnVariablesMappedByLastPathSegmentWhenEntriesContainL1Keys() {
-        KeyValue firstEntry = entry("config/test-env/customerId", "123");
-        KeyValue secondEntry = entry("config/test-env/orderId", "456");
+        KeyValue firstEntry = entry(COMMON_VARIABLES_PATH + "/customerId", "123");
+        KeyValue secondEntry = entry(COMMON_VARIABLES_PATH + "/orderId", "456");
 
         Map<String, String> result = parser.apply(List.of(firstEntry, secondEntry));
 
@@ -40,8 +45,8 @@ class CommonVariablesUpdateParserTest {
 
     @Test
     void shouldConvertBlankValueToEmptyStringWhenVariableValueBlank() {
-        KeyValue firstEntry = entry("config/test-env/customerId", "   ");
-        KeyValue secondEntry = entry("config/test-env/orderId", null);
+        KeyValue firstEntry = entry(COMMON_VARIABLES_PATH + "/customerId", "   ");
+        KeyValue secondEntry = entry(COMMON_VARIABLES_PATH + "/orderId", null);
 
         Map<String, String> result = parser.apply(List.of(firstEntry, secondEntry));
 
@@ -56,9 +61,9 @@ class CommonVariablesUpdateParserTest {
 
     @Test
     void shouldIgnoreEntriesWhenPathIsNestedOrEmpty() {
-        KeyValue validEntry = entry("config/test-env/customerId", "123");
-        KeyValue nestedEntry = entry("config/test-env/customer/id", "456");
-        KeyValue emptyEntry = entry("config/test-env/", "789");
+        KeyValue validEntry = entry(COMMON_VARIABLES_PATH + "/customerId", "123");
+        KeyValue nestedEntry = entry(COMMON_VARIABLES_PATH + "/customer/id", "456");
+        KeyValue emptyEntry = entry(COMMON_VARIABLES_PATH + "/", "789");
 
         Map<String, String> result = parser.apply(List.of(validEntry, nestedEntry, emptyEntry));
 
