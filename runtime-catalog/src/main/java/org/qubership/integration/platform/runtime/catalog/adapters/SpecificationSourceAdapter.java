@@ -12,6 +12,11 @@ public class SpecificationSourceAdapter implements SpecificationSource {
     }
 
     @Override
+    public String getName() {
+        return specificationSource.getName();
+    }
+
+    @Override
     public boolean isMainSource() {
         return specificationSource.isMainSource();
     }
