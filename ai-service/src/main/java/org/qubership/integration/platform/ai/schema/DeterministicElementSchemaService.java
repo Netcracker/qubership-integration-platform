@@ -393,31 +393,44 @@ public class DeterministicElementSchemaService {
   }
 
   /**
+   * True when the catalog schema types this property as a JSON string. JSON text stored in that
+   * string (MCP trigger {@code inputSchema} and {@code outputSchema}) must stay a string in the
+   * catalog PATCH body.
+   */
+  public boolean isStringProperty(String elementType, String propertyKey) {
+    return "string".equals(propertySchemaType(elementType, propertyKey));
+  }
+
+  /**
    * True when the catalog schema types this property as a JSON array (for example
    * {@code headerModificationToRemove}).
    */
   public boolean isArrayProperty(String elementType, String propertyKey) {
+    return "array".equals(propertySchemaType(elementType, propertyKey));
+  }
+
+  private String propertySchemaType(String elementType, String propertyKey) {
     if (elementType == null
         || elementType.isBlank()
         || propertyKey == null
         || propertyKey.isBlank()) {
-      return false;
+      return null;
     }
     try {
       String trimmedType = elementType.trim();
       if (!schemaResourceLoader.existsElementSchema(trimmedType)) {
-        return false;
+        return null;
       }
       ElementPropertiesSchemaModel model =
           ElementPropertiesSchemaModelBuilder.build(trimmedType, schemaRefResolver);
       JsonNode schema = model.propertyDefs().get(propertyKey.trim());
       if (schema == null || schema.isMissingNode() || !schema.has("type")) {
-        return false;
+        return null;
       }
       JsonNode type = schema.get("type");
-      return type.isTextual() && "array".equals(type.asText());
+      return type.isTextual() ? type.asText() : null;
     } catch (Exception e) {
-      return false;
+      return null;
     }
   }
 

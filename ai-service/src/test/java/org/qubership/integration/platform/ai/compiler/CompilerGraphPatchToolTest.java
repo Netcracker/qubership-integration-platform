@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -80,6 +81,7 @@ class CompilerGraphPatchToolTest {
   private static final String SECURITY_CAPABILITY_ID = "cip-security-generator";
   private static final String SERVICE_CALL_CAPABILITY_ID = "cip-service-call-generator";
   private static final String TRANSFORMATION_CAPABILITY_ID = "cip-transformation-generator";
+  private static final String MCP_TRIGGER_CAPABILITY_ID = "cip-mcp-trigger-generator";
 
   private static CompilerGeneratorPolicy policy;
 
@@ -2330,6 +2332,95 @@ class CompilerGraphPatchToolTest {
                     CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
                 GraphPatch.class)
             .isEmpty());
+  }
+
+  @Test
+  void keepsMcpTriggerSchemaTextWhenCaptureSendsObjects() {
+    bindMcpTriggerContext();
+    ObjectNode inputSchema = objectMapper.createObjectNode();
+    inputSchema.put("type", "object");
+    inputSchema.put("additionalProperties", false);
+    ObjectNode outputSchema = objectMapper.createObjectNode();
+    outputSchema.put("a", "1");
+    GraphPatchCapture patch =
+        new GraphPatchCapture(
+            "mcp-schemas",
+            MCP_TRIGGER_CAPABILITY_ID,
+            List.of(),
+            List.of(),
+            List.of(
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD, "mcp-trigger-abc", "inputSchema", inputSchema),
+                new PropertyPatchCapture(
+                    GraphPatchOperation.ADD, "mcp-trigger-abc", "outputSchema", outputSchema)),
+            List.of(),
+            List.of(),
+            "Store MCP schemas as JSON text");
+
+    CaptureValidationException terminal =
+        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+
+    assertTrue(terminal.getMessage().contains("Graph patch captured"), terminal.getMessage());
+    GraphPatch stored =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, MCP_TRIGGER_CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    assertEquals(
+        "{\"type\":\"object\",\"additionalProperties\":false}",
+        stored.propertyPatches().get(0).property().value());
+    assertEquals("{\"a\":\"1\"}", stored.propertyPatches().get(1).property().value());
+  }
+
+  private void bindMcpTriggerContext() {
+    MDC.put(CompilerSkillMdc.CAPABILITY_ID, MCP_TRIGGER_CAPABILITY_ID);
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("mcp-abc", "MCP"),
+            List.of(
+                new ChainPlanNode(
+                    "mcp-trigger-abc",
+                    "mcp-trigger",
+                    "abc",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("name", "abc"),
+                        new PlanProperty("description", "test mcp")))),
+            List.of());
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(
+        new GraphPatchExecutionContext(
+            "run-1",
+            MCP_TRIGGER_CAPABILITY_ID,
+            "req-1",
+            null,
+            "compiler-1",
+            "2026.1",
+            new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary"),
+            List.of(),
+            graph,
+            new GraphPatchOwnershipPolicy(
+                false,
+                false,
+                Set.of("mcp-trigger"),
+                Set.of(),
+                Map.of(
+                    "mcp-trigger",
+                    Set.of(
+                        "name",
+                        "description",
+                        "title",
+                        "inputSchema",
+                        "outputSchema",
+                        "readOnly",
+                        "destructive",
+                        "idempotent",
+                        "openWorld"))),
+            ""));
   }
 
   private void bindHeaderModificationContext() {
