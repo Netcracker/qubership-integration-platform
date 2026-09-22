@@ -2258,7 +2258,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         && (cause.isBindingIdentityMismatch()
             || (cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
                 && "materialization".equals(doc.run().currentStageId())
-                && "design-execution".equals(owner)));
+                && "design-execution".equals(owner))
+            || (cause.causeCode() == RecoveryCauseCode.GRAPH_STRUCTURE
+                && "design-execution".equals(doc.run().currentStageId())
+                && "design-input".equals(owner)));
   }
 
   private HaltRecoveryGuard diagnoseAutomaticReopenRefusal(

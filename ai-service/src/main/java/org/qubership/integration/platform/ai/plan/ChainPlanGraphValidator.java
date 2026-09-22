@@ -145,22 +145,36 @@ public class ChainPlanGraphValidator {
     if (graph == null) {
       throw new IllegalStateException("Chain plan graph is required for contract validation");
     }
-    List<String> errors = new ArrayList<>();
     if (graph.nodes() == null || graph.nodes().isEmpty()) {
-      errors.add("nodes must not be empty");
-      throw new IllegalStateException(String.join("; ", errors));
+      throw new GraphStructureViolation("nodes must not be empty");
     }
-    Set<String> knownIds = collectNodeIds(graph.nodes(), errors);
-    checkParentRefs(graph.nodes(), knownIds, errors);
-    checkExecutionDagAcyclic(graph, errors);
-    checkRootsMatchEntryPoints(graph, expectedRevision, errors);
-    checkSemanticNodesRepresented(graph, expectedRevision, errors);
-    checkSemanticEdgesRepresented(graph, expectedRevision, errors);
-    checkRuntimeTypes(graph, expectedRevision, errors);
-    checkContractCardinality(graph, contract, errors);
-    checkRuntimeDescriptors(graph, contract, errors);
-    if (!errors.isEmpty()) {
-      throw new IllegalStateException(String.join("; ", errors));
+    List<String> structure = new ArrayList<>();
+    Set<String> knownIds = collectNodeIds(graph.nodes(), structure);
+    checkParentRefs(graph.nodes(), knownIds, structure);
+    checkExecutionDagAcyclic(graph, structure);
+    checkRootsMatchEntryPoints(graph, expectedRevision, structure);
+    checkSemanticNodesRepresented(graph, expectedRevision, structure);
+    checkSemanticEdgesRepresented(graph, expectedRevision, structure);
+    checkRuntimeTypes(graph, expectedRevision, structure);
+    checkContractCardinality(graph, contract, structure);
+    List<String> descriptor = new ArrayList<>();
+    checkRuntimeDescriptors(graph, contract, descriptor);
+    if (!structure.isEmpty() && descriptor.isEmpty()) {
+      throw new GraphStructureViolation(String.join("; ", structure));
+    }
+    if (!structure.isEmpty() || !descriptor.isEmpty()) {
+      structure.addAll(descriptor);
+      throw new IllegalStateException(String.join("; ", structure));
+    }
+  }
+
+  /**
+   * The compiled graph breaks a structural contract. The semantic revision has to change; patching
+   * properties on the current graph cannot add the missing node.
+   */
+  public static final class GraphStructureViolation extends IllegalStateException {
+    public GraphStructureViolation(String message) {
+      super(message);
     }
   }
 

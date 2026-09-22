@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeed
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
+import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
@@ -214,6 +215,13 @@ public class DesignExecutionCapability implements StageCapability {
               null,
               result.recoveryCause()));
     } catch (RuntimeException ex) {
+      if (ex instanceof ChainPlanGraphValidator.GraphStructureViolation) {
+        return completedSignal(
+            StageOutcome.of(
+                StageOutcomeClass.CONTRACT_FAILURE,
+                ex.getMessage(),
+                RecoveryCause.of(RecoveryCauseCode.GRAPH_STRUCTURE)));
+      }
       if (TransientFailures.isTransient(ex)) {
         return completedSignal(
             StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, ex.getMessage()));

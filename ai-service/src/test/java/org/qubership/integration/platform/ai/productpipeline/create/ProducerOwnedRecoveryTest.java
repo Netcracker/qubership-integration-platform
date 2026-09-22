@@ -20,6 +20,24 @@ class ProducerOwnedRecoveryTest {
           new OwnerCandidate("requirement-analysis", "requirement-brief"));
 
   @Test
+  void graphStructureReopensTheSemanticRevisionProducer() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.of(RecoveryCauseCode.GRAPH_STRUCTURE),
+            List.of(
+                new OwnerCandidate("design-execution", "chain-plan-graph"),
+                new OwnerCandidate("design-input", "chain-semantic-revision"),
+                new OwnerCandidate("design-planning", "implementation-plan")),
+            false,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, route.action());
+    assertEquals("design-input", route.producerStageId());
+  }
+
+  @Test
   void unknownPropertyKeyRepairsTheObservingExecutionStage() {
     ProducerOwnedRecovery.Route route =
         route(

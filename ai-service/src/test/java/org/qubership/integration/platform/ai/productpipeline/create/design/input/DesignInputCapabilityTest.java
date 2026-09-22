@@ -500,6 +500,7 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains(rejection));
     assertTrue(prompt.contains("Treat onTaskResult as a Kafka produce, not a trigger"));
     assertTrue(prompt.contains("Rebuild the topology so this rejection cannot recur"));
+    assertTrue(prompt.contains("minimum child count"));
     assertFalse(prompt.contains("OM to Salesforce WFM original request"));
   }
 

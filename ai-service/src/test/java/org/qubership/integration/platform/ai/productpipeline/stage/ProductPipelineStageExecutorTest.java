@@ -2668,6 +2668,75 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void graphStructureReopensSucceededDesignInput() {
+    ArtifactTypeRef revision = new ArtifactTypeRef("chain-semantic-revision", 1);
+    StageCapability designInput =
+        capability(
+            "design-input-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            new StageOutcome(
+                                StageOutcomeClass.SUCCEEDED,
+                                List.of(
+                                    new ArtifactCandidate(
+                                        Kind.CHAIN_SEMANTIC_REVISION,
+                                        SemanticFixtures.linearOrders(),
+                                        List.of())),
+                                "semantic revision ready",
+                                null))));
+    StageCapability execution =
+        capability(
+            "execution-cap",
+            context ->
+                Multi.createFrom()
+                    .item(
+                        new CapabilitySignal.Completed(
+                            StageOutcome.of(
+                                StageOutcomeClass.CONTRACT_FAILURE,
+                                "loop-2 node op-loop-2 has 0 child; the runtime descriptor requires"
+                                    + " at least 1",
+                                RecoveryCause.of(RecoveryCauseCode.GRAPH_STRUCTURE)))));
+    ProductPipelineProfile profile =
+        new ProductPipelineProfile(
+            1,
+            "graph-structure-recovery",
+            "2",
+            List.of(new ArtifactTypeRef("user-input", 1)),
+            List.of(
+                new ProfileStage(
+                    "design-input",
+                    "design-input-cap",
+                    List.of(new ArtifactTypeRef("user-input", 1)),
+                    List.of(revision),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L)),
+                new ProfileStage(
+                    "design-execution",
+                    "execution-cap",
+                    List.of(revision),
+                    List.of(new ArtifactTypeRef("chain-plan-graph", 1)),
+                    null,
+                    null,
+                    new RetryPolicy(0, 1L))),
+            new TerminalPolicy("design-execution", "CHAIN_MATERIALIZED"),
+            List.of("design-input", "design-execution"));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, designInput, execution);
+    startAndRecordInput(runtime, profile);
+    StageExecutionResult captured = execute(runtime, "design-input");
+    assertInstanceOf(StageDecision.Continue.class, captured.decision());
+    applyLifecycle(runtime, captured);
+
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    StageDecision.ReopenProducer reopen =
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
+
+    assertEquals("design-input", reopen.producerStageId());
+  }
+
+  @Test
   void preWriteMaterializationContractShapeReopensSucceededDesignExecution() {
     ArtifactTypeRef request = new ArtifactTypeRef("materialization-request", 1);
     StageCapability execution =
