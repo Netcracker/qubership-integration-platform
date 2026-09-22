@@ -238,6 +238,7 @@ public record RecoveryCause(
       case "UNKNOWN_PROPERTY", "else.condition", "else.priority" ->
           RecoveryCauseCode.UNKNOWN_PROPERTY;
       case "MISSING_REQUIRED_PROPERTY" -> RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
+      case "GRAPH_STRUCTURE" -> RecoveryCauseCode.GRAPH_STRUCTURE;
       case "MISSING_BRIEF_FACTS" -> RecoveryCauseCode.MISSING_BRIEF_FACTS;
       case "CATALOG_RESOLUTION" -> RecoveryCauseCode.CATALOG_RESOLUTION;
       case "MAPPING_CONTRACT",
