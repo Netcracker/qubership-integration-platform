@@ -10,8 +10,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Collection;
@@ -60,9 +60,7 @@ public class ResourceWriteService {
         File file = new File(outputDirectory, name);
         log.info("Writing resource '{}' of kind '{}' to file '{}'",
             resourceNameAndKind.name, resourceNameAndKind.kind, file.getAbsolutePath());
-        try (FileWriter fileWriter = new FileWriter(file)) {
-            fileWriter.write(content);
-        }
+        Files.writeString(file.toPath(), content, StandardCharsets.UTF_8);
     }
 
     private static String getResourceFileName(ResourceNameAndKind resourceNameAndKind) {
@@ -72,7 +70,7 @@ public class ResourceWriteService {
     private static Collection<String> splitResources(String resourceText) {
         return Stream.of(resourceText.split("(^|\\n)---[\\r\\n]"))
             .filter(text -> !text.isEmpty())
-            .map(text -> "---" + System.lineSeparator() + text)
+            .map(text -> "---\n" + text)
             .toList();
     }
 
