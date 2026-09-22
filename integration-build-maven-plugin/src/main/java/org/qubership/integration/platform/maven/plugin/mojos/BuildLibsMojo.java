@@ -35,7 +35,6 @@ public class BuildLibsMojo extends AbstractMojo {
         return BuildLibsTaskParameters.builder()
             .sourceRoots(sourceRoots)
             .outputDirectory(outputDirectory)
-            // TODO
             .build();
     }
 }
