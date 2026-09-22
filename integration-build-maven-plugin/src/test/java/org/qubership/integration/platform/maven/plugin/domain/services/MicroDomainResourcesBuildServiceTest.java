@@ -143,7 +143,7 @@ class MicroDomainResourcesBuildServiceTest {
         buildService.buildResources(parameters());
 
         assertEquals(
-            Map.of("default", Set.of("orders"), "orders-domain", Set.of("orders")),
+            Map.of("orders-domain", Set.of("orders")),
             capturedChainIdsByDomain());
     }
 
@@ -158,8 +158,7 @@ class MicroDomainResourcesBuildServiceTest {
         assertEquals(
             Map.of(
                 "orders-domain", Set.of("orders"),
-                "default", Set.of("billing"),
-                "fallback-domain", Set.of("legacy")),
+                "fallback-domain", Set.of("billing", "legacy")),
             capturedChainIdsByDomain());
     }
 

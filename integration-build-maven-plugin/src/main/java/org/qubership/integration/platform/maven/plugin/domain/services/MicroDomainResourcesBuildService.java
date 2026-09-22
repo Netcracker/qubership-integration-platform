@@ -116,7 +116,9 @@ public class MicroDomainResourcesBuildService {
     private Map<String, Collection<ImportChain>> groupChainsByDomain(Collection<ImportChain> chains, String defaultDomain) {
         Map<String, Collection<ImportChain>> chainsByDomain = new HashMap<>();
         chains.forEach(chain -> {
-            List<String> domains = chain.getDeployments();
+            List<String> domains = chain.getDeployments().stream()
+                .filter(domain -> !CLASSIC_DOMAIN_NAME.equals(domain))
+                .toList();
             if (domains.isEmpty()) {
                 domains = Collections.singletonList(defaultDomain);
             }
