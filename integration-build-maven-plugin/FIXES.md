@@ -17,10 +17,10 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
-| F11 | Smaller items, see below | minor | partial | `bcdb973dc` |
+| F11 | Smaller items, see below | minor | partial | `bcdb973dc`, `1366eaa3a` |
 | F12 | Chain version fallback answers for service exports too | major | won't fix | |
 | F13 | Active environment selection diverges from runtime-catalog | major | open | |
-| F14 | Smaller items from the second round, see below | medium | open | |
+| F14 | Smaller items from the second round, see below | medium | partial | `1366eaa3a` |
 
 ## F11 breakdown
 
@@ -32,7 +32,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | One bad chain aborts the whole run | open | |
 | Generated resources are not attached as build artifacts | open | |
 | `BuildCRsMojo` lacks `property =`, `skip`, and `threadSafe = true` | open | |
-| Chains are read from `${project.compileSourceRoots}` | open | |
+| Chains are read from `${project.compileSourceRoots}` | fixed | `1366eaa3a` |
 | `ChainReader.getChainYamlFile` silently drops a second chain YAML | open | |
 
 ## F14 breakdown
@@ -41,7 +41,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | --- | --- | --- |
 | A chain with no `deployments` is built into `defaultDomain` | open | |
 | `deployAction` is never read, so `NONE` still produces resources | open | |
-| With default configuration the goal writes nothing and says nothing | open | |
+| With default configuration the goal writes nothing and says nothing | fixed | `1366eaa3a` |
 | Container hardening defaults are weaker than the catalog's | open | |
 
 ## Fixed
@@ -190,6 +190,26 @@ Verified:
 `vars.SONAR_INTEGRATION_BUILD_MAVEN_PLUGIN_PROJECT_KEY` needs a SonarCloud project behind it. Until the
 variable is set the key is empty and the `sonar` job skips itself, which is how the reusable workflow
 handles an unset key.
+
+### F11 and F14, the `sourceRoots` default, `1366eaa3a`
+
+Both goals now default `sourceRoots` to `${project.basedir}/src/main/integration`.
+`${project.compileSourceRoots}` resolves to `src/main/java` plus the `generated-sources` roots earlier
+plugins append, and chain exports never live there, so a default run walked directories that hold
+nothing either goal reads. A dedicated directory follows the convention other non-Java plugins use,
+`src/main/proto` and `src/main/avro`, and one root serves both goals because each walks it recursively
+and filters by file name.
+
+That also answers the F14 half. A project without the directory now gets a warning naming the path the
+goal expected, from the `not a directory` branch both loaders already had, rather than silence.
+
+Verified:
+
+- `mvn process-classes` regenerates the descriptor, and `plugin.xml` carries
+  `default-value="${project.basedir}/src/main/integration"` for `build-crs` and `build-libs`.
+- A plain string default on a `List<String>` parameter is safe. `CollectionConverter.fromConfiguration`
+  in `org.eclipse.sisu.plexus` splits the value on commas through `csvToXml`, so the field gets a
+  one-element list rather than a type-mismatch failure.
 
 ## Accepted
 

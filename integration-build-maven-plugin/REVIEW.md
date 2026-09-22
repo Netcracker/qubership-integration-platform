@@ -231,7 +231,8 @@ on runtime-catalog are worth knowing about, not because they need undoing.
 - `BuildCRsMojo` has no `property =` on its parameters, so nothing is settable from the command line,
   and no `skip` parameter or `threadSafe = true`.
 - Chains are read from `${project.compileSourceRoots}`, which is `src/main/java`. `src/main/resources`
-  or a dedicated directory would surprise fewer people.
+  or a dedicated directory would surprise fewer people. Fixed in `1366eaa3a`; see
+  [FIXES.md](FIXES.md).
 - `ChainReader.getChainYamlFile` takes `chainFiles[0]`, so a directory holding two chain YAML files
   silently drops one. The plugin's directory walk makes this reachable.
 
@@ -349,7 +350,7 @@ quietly skipped, so it is a divergence to decide on rather than a defect to clos
 | --- | --- |
 | A chain with no `deployments` is built into `defaultDomain`; the catalog only deploys when the list is non-empty | `MicroDomainResourcesBuildService:127-130` |
 | `deployAction` is never read, so a chain exported with `NONE` still produces resources | no references in the plugin, confirmed by grep |
-| With default configuration the goal writes nothing and says nothing, because `sourceRoots` defaults to `${project.compileSourceRoots}`, which never holds chain exports | `BuildCRsMojo:17-18` |
+| With default configuration the goal writes nothing and says nothing, because `sourceRoots` defaults to `${project.compileSourceRoots}`, which never holds chain exports. Fixed in `1366eaa3a` | `BuildCRsMojo:17-18` |
 | Container hardening defaults are weaker than the catalog's: `capabilities` defaults to empty where the catalog drops `ALL` | `ContainerOptions:39-40` |
 
 ## What works well
