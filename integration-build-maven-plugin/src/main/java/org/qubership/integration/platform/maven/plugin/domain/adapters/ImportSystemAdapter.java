@@ -14,10 +14,7 @@ import org.qubership.integration.platform.chain.model.ServiceSpecification;
 import org.qubership.integration.platform.chain.model.ServiceType;
 import org.qubership.integration.platform.chain.model.SpecificationGroup;
 
-import java.util.Collection;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * Presents an {@link ImportSystem} read from a service file as the {@link IntegrationService} the
@@ -99,7 +96,8 @@ public class ImportSystemAdapter implements IntegrationService {
             .systemId(importSystem.getId())
             .address(environment.getAddress())
             .sourceType(environment.getSourceType())
-            .properties(MAPPER.convertValue(environment.getProperties(), new TypeReference<Map<String, Object>>() {}))
+            .properties(Optional.ofNullable(MAPPER.convertValue(environment.getProperties(), new TypeReference<Map<String, Object>>() {}))
+                .orElseGet(HashMap::new))
             .activated(Objects.equals(importSystem.getActiveEnvironmentId(), environment.getId()))
             .build();
     }
