@@ -42,8 +42,8 @@ public class LlmExchangeListener implements ChatModelListener {
       return;
     }
     requestContext.attributes().put(START_TIME_KEY, System.currentTimeMillis());
-    LOG.info(
-        formatter.formatRequest(
+    LOG.info("model=" + appConfig.llm().modelName() + " "
+        + formatter.formatRequest(
             requestContext.chatRequest().messages(),
             readMdcContext(),
             -1,
@@ -55,8 +55,8 @@ public class LlmExchangeListener implements ChatModelListener {
     if (!appConfig.llm().exchange().enabled()) {
       return;
     }
-    LOG.info(
-        formatter.formatResponse(
+    LOG.info("model=" + appConfig.llm().modelName() + " "
+        + formatter.formatResponse(
             responseContext.chatResponse(),
             readMdcContext(),
             durationMs(responseContext.attributes()),
@@ -68,8 +68,8 @@ public class LlmExchangeListener implements ChatModelListener {
     if (!appConfig.llm().exchange().enabled()) {
       return;
     }
-    LOG.error(
-        formatter.formatError(
+    LOG.error("model=" + appConfig.llm().modelName() + " "
+        + formatter.formatError(
             readMdcContext(), durationMs(errorContext.attributes()), errorContext.error()));
   }
 
