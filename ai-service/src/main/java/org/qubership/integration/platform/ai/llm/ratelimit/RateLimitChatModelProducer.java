@@ -3,11 +3,14 @@ package org.qubership.integration.platform.ai.llm.ratelimit;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import io.quarkiverse.langchain4j.ModelName;
+import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
 import java.net.URI;
 import java.util.Locale;
+import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 
 /**
@@ -19,6 +22,8 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
  */
 @ApplicationScoped
 public class RateLimitChatModelProducer {
+
+  private static final Logger LOG = Logger.getLogger(RateLimitChatModelProducer.class);
 
   public static final String OPENAI_UPSTREAM_MODEL_NAME = "openai-upstream";
   public static final String ANTHROPIC_UPSTREAM_MODEL_NAME = "anthropic-upstream";
@@ -56,6 +61,10 @@ public class RateLimitChatModelProducer {
           throw new IllegalArgumentException(
               "Unsupported LLM provider '" + provider + "'. Use auto, openai, or anthropic.");
     };
+  }
+
+  void onStart(@Observes StartupEvent ignored) {
+    LOG.infof("LLM chat model configured model=%s", appConfig.llm().modelName());
   }
 
   @Produces

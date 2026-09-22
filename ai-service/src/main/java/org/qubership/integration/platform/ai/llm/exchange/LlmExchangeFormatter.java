@@ -37,7 +37,8 @@ public class LlmExchangeFormatter {
         + " chars="
         + chars
         + " preview="
-        + AiTraceLog.preview(text, maxChars);
+        + preview(text, maxChars)
+        + formatToolRequests(aiMessage, maxChars);
   }
 
   public String formatError(LlmExchangeMdcContext mdc, long durationMs, Throwable error) {
@@ -67,7 +68,8 @@ public class LlmExchangeFormatter {
     }
     if (message instanceof AiMessage aiMessage) {
       return formatRoleLine(
-          index, "assistant", aiMessage.text(), formatToolCallNames(aiMessage), maxChars);
+              index, "assistant", aiMessage.text(), formatToolCallNames(aiMessage), maxChars)
+          + formatToolRequests(aiMessage, maxChars);
     }
     if (message instanceof ToolExecutionResultMessage toolMessage) {
       String label = toolMessage.toolName() != null ? toolMessage.toolName() : toolMessage.id();
@@ -75,6 +77,8 @@ public class LlmExchangeFormatter {
           + index
           + "] tool name="
           + label
+          + " id="
+          + toolMessage.id()
           + " chars="
           + textLength(toolMessage.text())
           + " preview="
@@ -116,6 +120,20 @@ public class LlmExchangeFormatter {
     return names.toString();
   }
 
+  private static String formatToolRequests(AiMessage aiMessage, int maxChars) {
+    if (aiMessage == null || !aiMessage.hasToolExecutionRequests()) {
+      return "";
+    }
+    var lines = new StringBuilder();
+    aiMessage.toolExecutionRequests().forEach(request -> lines.append("\n    tool id=")
+        .append(request.id())
+        .append(" name=")
+        .append(request.name())
+        .append(" arguments=")
+        .append(preview(request.arguments(), maxChars)));
+    return lines.toString();
+  }
+
   private String formatHeader(
       String kind, LlmExchangeMdcContext mdc, int messageCount, long durationMs) {
     LlmExchangeMdcContext ctx = mdc != null ? mdc : LlmExchangeMdcContext.none();
@@ -133,7 +151,7 @@ public class LlmExchangeFormatter {
   }
 
   private static String preview(String text, int maxChars) {
-    return AiTraceLog.preview(text, maxChars);
+    return maxChars <= 0 ? (text != null ? text : "(null)") : AiTraceLog.preview(text, maxChars);
   }
 
   private static int messageCount(List<ChatMessage> messages) {

@@ -70,8 +70,9 @@ class LlmExchangeFormatterTest {
             "done",
             List.of(
                 dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
+                    .id("call-1")
                     .name("captureChainPlan")
-                    .arguments("{}")
+                    .arguments("{\"interactionId\":\"create-task\"}")
                     .build()));
     ChatResponse response =
         ChatResponse.builder()
@@ -86,7 +87,25 @@ class LlmExchangeFormatterTest {
     assertTrue(text.contains("durationMs=42"));
     assertTrue(text.contains("finishReason=TOOL_EXECUTION"));
     assertTrue(text.contains("toolCalls=[captureChainPlan]"));
+    assertTrue(text.contains("tool id=call-1 name=captureChainPlan arguments={\"interactionId\":\"create-task\"}"));
     assertTrue(text.contains("preview=done"));
+  }
+
+  @Test
+  void zeroLimitPreservesToolArgumentsAndHistory() {
+    String arguments = "{\"interactionId\":\"create-task\"}";
+    AiMessage message = new AiMessage("", List.of(
+        dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
+            .id("call-1")
+            .name("resolveApiOperation")
+            .arguments(arguments)
+            .build()));
+
+    String text = formatter.formatMessages(List.of(message,
+        ToolExecutionResultMessage.from("call-1", "resolveApiOperation", "resolved")), 0);
+
+    assertTrue(text.contains("tool id=call-1 name=resolveApiOperation arguments=" + arguments));
+    assertTrue(text.contains("tool name=resolveApiOperation id=call-1 chars=8 preview=resolved"));
   }
 
   @Test
