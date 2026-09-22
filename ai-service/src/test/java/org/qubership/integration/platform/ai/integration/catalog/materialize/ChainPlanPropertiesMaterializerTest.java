@@ -899,6 +899,55 @@ class ChainPlanPropertiesMaterializerTest {
     assertEquals("el-reuse", properties.get("reuseElementId"));
   }
 
+  @Test
+  void sendsMcpTriggerSchemaPropertiesAsJsonText() throws Exception {
+    DeterministicElementSchemaService realSchema =
+        DeterministicElementSchemaService.createForUnitTests(objectMapper);
+    ChainPlanPropertiesMaterializer realMaterializer =
+        new ChainPlanPropertiesMaterializer(catalogRestClient, realSchema, objectMapper);
+    when(catalogRestClient.getElement(anyString(), anyString()))
+        .thenReturn(new CatalogElementResponseDto());
+
+    ChainPlanGraph graph =
+        new ChainPlanGraph(
+            "1.0",
+            new ChainSection("mcp-abc", null),
+            List.of(
+                new ChainPlanNode(
+                    "mcp-trigger-abc",
+                    "mcp-trigger",
+                    "abc",
+                    null,
+                    null,
+                    List.of(
+                        new PlanProperty("mcpServiceIds", "[\"sys-1\"]"),
+                        new PlanProperty("name", "abc"),
+                        new PlanProperty("description", "test mcp"),
+                        new PlanProperty(
+                            "inputSchema",
+                            "{ \"type\": \"object\", \"additionalProperties\": false }"),
+                        new PlanProperty("outputSchema", "{\"a\":\"1\"}"),
+                        new PlanProperty("readOnly", "true")))),
+            List.of());
+    MaterializationMap map =
+        new MaterializationMap(
+            "chain-1", Map.of("mcp-trigger-abc", "el-mcp"), Map.of(), Map.of());
+
+    ChainPlanPropertiesMaterializer.PropertiesApplyResult result =
+        realMaterializer.apply(graph, map);
+
+    assertEquals(1, result.patchedCount(), result.firstValidationError());
+    ArgumentCaptor<Map<String, Object>> patchCaptor = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("el-mcp"), patchCaptor.capture());
+    @SuppressWarnings("unchecked")
+    Map<String, Object> props = (Map<String, Object>) patchCaptor.getValue().get("properties");
+    assertEquals(
+        "{ \"type\": \"object\", \"additionalProperties\": false }", props.get("inputSchema"));
+    assertEquals("{\"a\":\"1\"}", props.get("outputSchema"));
+    assertEquals(List.of("sys-1"), props.get("mcpServiceIds"));
+    assertEquals(Boolean.TRUE, props.get("readOnly"));
+  }
+
   private static ChainPlanGraph scriptGraph(String script) {
     return new ChainPlanGraph(
         "1.0",

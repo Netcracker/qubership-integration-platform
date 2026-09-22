@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -592,6 +593,11 @@ public class CompilerGraphPatchTool {
       return objectMapper.valueToTree(coerced);
     }
     JsonNode value = propertyPatch.value();
+    if (value != null
+        && (value.isObject() || value.isArray())
+        && schemaService.isStringProperty(elementType, propertyPatch.key())) {
+      return TextNode.valueOf(value.toString());
+    }
     if (value != null
         && value.isObject()
         && !value.isEmpty()
