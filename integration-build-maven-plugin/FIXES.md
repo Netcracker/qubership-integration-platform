@@ -17,7 +17,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
-| F11 | Smaller items, see below | minor | partial | `bcdb973dc`, `1366eaa3a`, `bc7b32c22`, `8858d3aad`, `fe61c79be` |
+| F11 | Smaller items, see below | minor | partial | `bcdb973dc`, `1366eaa3a`, `bc7b32c22`, `8858d3aad`, `fe61c79be`, `7bd3fef96` |
 | F12 | Chain version fallback answers for service exports too | major | won't fix | |
 | F13 | Active environment selection diverges from runtime-catalog | major | open | |
 | F14 | Smaller items from the second round, see below | medium | partial | `1366eaa3a` |
@@ -29,7 +29,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | `IntegrationServiceCatalogImpl.findAllByIds` returns `null` entries for unknown ids | fixed | `bcdb973dc` |
 | `AssumeActualChainVersion` has no `@Order` | fixed | `bc7b32c22` |
 | `MavenPluginYamlMapperConfiguration` relies on parameter-name bean matching | open | |
-| One bad chain aborts the whole run | open | |
+| One bad chain aborts the whole run | fixed | `7bd3fef96` |
 | Generated resources are not attached as build artifacts | fixed | `fe61c79be` |
 | `BuildCRsMojo` lacks `property =`, `skip`, and `threadSafe = true` | partial | `8858d3aad` |
 | Chains are read from `${project.compileSourceRoots}` | fixed | `1366eaa3a` |
@@ -258,6 +258,42 @@ Verified:
   `ResourceWriteService` reports each written file, that each resource is attached as `yaml` under its
   extensionless file name, and that each JAR is attached under its specification id. Mutation-checked:
   putting the extension back into either classifier fails the matching test.
+
+### F11, collecting errors instead of stopping at the first, `7bd3fef96`
+
+Both goals take a `failFast` parameter, `cip.failFast`, `true` by default, which keeps the previous
+behavior. With `false`, `SkippableFailableOperationWrapper` catches each failure, counts it, logs it with
+its stack trace, and lets the loop go on; each stage then throws one `... %d error(s) occurred` summary
+when its count is above zero. In fail-fast mode the wrapper counts and rethrows without logging, so Maven
+prints each error once.
+
+A failure skips one service file, one chain read, one chain snapshot, one domain, or one service's DTO
+libraries. Services are loaded first and their summary is thrown before any chain is read: chains resolve
+services from the catalog, so the team decided a failed service stops the goal there.
+
+Two defects were found in review and fixed before the tests were written:
+
+- `loadServices` mapped a failed read's `null` into an `ImportSystemAdapter` before filtering nulls, so
+  `addService` hit a `NullPointerException` and every broken service file counted twice. Reproduced with
+  one malformed service file: `Failed to load services: 2 error(s) occurred`, with the NPE logged.
+- `wrapConsumer` logged only when rethrowing, so skipped chain, domain, and library failures were counted
+  but never shown.
+
+Verified:
+
+- `mvn clean verify -pl integration-build-maven-plugin -Dgpg.skip=true` passes, 98 tests.
+- `SkippableFailableOperationWrapperTest`, 7 cases, pins the pass-through on success, the rethrow of the
+  same exception without logging when failing fast, one `ERROR` log with the original exception when
+  skipping, and one shared counter across both wrappers.
+- New `failFast=false` cases: two broken service files count as 2 errors and the good one loads; a
+  duplicate service id counts as 1; a failing specification leaves the other service's JAR written; a chain
+  that fails to read leaves the other domains built; a chain that fails its snapshot drops out of its
+  domain and the rest of the domain is built; a failed service stops before any domain is built.
+- Mutation-checked: mapping the adapter before the null filter fails
+  `countsEachBrokenServiceFileOnceWhenNotFailingFast` with `2 ... but was 4`, and moving the consumer's
+  log back to the rethrow branch fails three wrapper tests.
+
+Not covered: a domain whose chains all fail is still built from an empty snapshot list.
 
 ## Accepted
 
