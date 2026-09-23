@@ -62,6 +62,7 @@ public class ProductPipelineRunResource {
           Kind.RECONCILE_RESULT,
           Kind.IDS_DOCUMENT,
           Kind.CATALOG_BINDING_HINT,
+          Kind.CHAIN_SEMANTIC_REVISION,
           Kind.DESIGN_PLAN_CONTRACT,
           Kind.DESIGN_PLAN_REPORT,
           Kind.DESIGN_EXECUTION_PLAN,
