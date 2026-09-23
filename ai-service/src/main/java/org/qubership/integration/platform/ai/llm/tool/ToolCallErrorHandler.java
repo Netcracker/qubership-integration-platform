@@ -6,11 +6,15 @@ import dev.langchain4j.service.tool.ToolErrorHandlerResult;
 import dev.langchain4j.service.tool.ToolExecutionErrorHandler;
 import io.quarkiverse.langchain4j.DefaultToolExecutionErrorHandler;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool.CaptureIssue;
+import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool;
+import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
+import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.Mode;
 
 /**
  * Turns a failed tool call into a tool result the model can act on. Without it a malformed call
@@ -25,6 +29,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.input
 public class ToolCallErrorHandler implements ToolExecutionErrorHandler, ToolArgumentsErrorHandler {
 
   private static final Logger LOG = Logger.getLogger(ToolCallErrorHandler.class);
+
+  @Inject ProductRequirementBriefTool productBriefTool;
 
   /** Longest upstream message copied into the answer; beyond this the tail is dropped. */
   static final int MAX_REASON_CHARS = 500;
@@ -47,6 +53,20 @@ public class ToolCallErrorHandler implements ToolExecutionErrorHandler, ToolArgu
           conversationId,
           new CaptureIssue("INVALID_TYPE", "/capture",
               "Arguments do not match the design capture schema.")));
+    }
+    if ("captureRequirementBrief".equals(toolName)
+        && ToolArgumentsFailures.isToolArgumentsFailure(error)
+        && productBriefTool != null) {
+      Object memoryId = context == null ? null : context.memoryId();
+      String conversationId = memoryId == null
+          ? ToolSession.resolveConversationId() : memoryId.toString();
+      if (ProductCapabilityCaptureContext.binding(conversationId)
+          .filter(binding -> binding.mode() == Mode.ANALYSIS).isPresent()) {
+        return ToolErrorHandlerResult.text(productBriefTool.rejectArguments(
+            conversationId,
+            new StructuredCaptureArguments.Issue("INVALID_TYPE", "/capture",
+                "Arguments do not match the requirement capture schema.")));
+      }
     }
     return ToolErrorHandlerResult.text(message(toolName, error));
   }

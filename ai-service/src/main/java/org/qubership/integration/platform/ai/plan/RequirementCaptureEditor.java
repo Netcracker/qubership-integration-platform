@@ -364,6 +364,39 @@ public final class RequirementCaptureEditor {
             "State a negative fact as a clear prohibition, such as 'Do not log the input body.'");
       }
       checkTargets(issues, fact.interactionIds(), ids, path + "/interactionIds", fact.sourceFactId());
+      if (fact.kind() == RequirementCaptureInput.FactKind.FIELD_MAPPING) {
+        var mapping = fact.fieldMapping();
+        if (mapping == null) {
+          add(issues, "MAPPING_FIELDS_REQUIRED", path + "/fieldMapping", fact.sourceFactId(),
+              "Specify the approved source, target, and field paths.");
+          continue;
+        }
+        if (blank(mapping.sourceInteractionId()) || blank(mapping.targetInteractionId())
+            || !ids.contains(mapping.sourceInteractionId())
+            || !ids.contains(mapping.targetInteractionId())
+            || !draft.flow().transitions().contains(new TransitionInput(
+                mapping.sourceInteractionId(), mapping.targetInteractionId()))) {
+          add(issues, "MAPPING_TRANSITION_REQUIRED", path + "/fieldMapping",
+              fact.sourceFactId(), "Use one approved flow transition for this field mapping.");
+        }
+        if (!fact.interactionIds().contains(mapping.sourceInteractionId())
+            || !fact.interactionIds().contains(mapping.targetInteractionId())) {
+          add(issues, "MAPPING_TARGETS_REQUIRED", path + "/interactionIds",
+              fact.sourceFactId(), "Target the source and destination interactions of this mapping.");
+        }
+        if (blank(mapping.targetPath()) || blank(mapping.sourcePath())
+            && blank(mapping.expression())) {
+          add(issues, "MAPPING_FIELD_REQUIRED", path + "/fieldMapping",
+              fact.sourceFactId(), "Provide a target field and a source field or expression.");
+        }
+        if (fact.polarity() != RequirementCaptureInput.Polarity.POSITIVE) {
+          add(issues, "MAPPING_POLARITY_INVALID", path + "/polarity", fact.sourceFactId(),
+              "Use a positive mapping fact; record prohibitions as constraints.");
+        }
+      } else if (fact.fieldMapping() != null) {
+        add(issues, "MAPPING_KIND_REQUIRED", path + "/kind", fact.sourceFactId(),
+            "Use FIELD_MAPPING for a structured field mapping.");
+      }
     }
     Set<String> questionIds = new HashSet<>();
     for (int i = 0; i < draft.openQuestions().size(); i++) {
