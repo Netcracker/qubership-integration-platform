@@ -71,6 +71,8 @@ public class RequirementCaptureTools {
   @Tool("""
       Save the initial requirements known so far. The server owns readiness and the readable review.
       A partial draft is valid. Call once for initialization; later edits use updateRequirementDraft.
+      For each requested field adaptation, record a FIELD_MAPPING fact with fieldMapping source
+      and target interactions, exact field paths, and an expression when needed.
       Never send complete, decision, assembledText, catalog bindings, or revision references.
       """)
   public String captureRequirementDraft(@P("Authored requirement snapshot") DraftInput draft) {

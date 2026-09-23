@@ -41,6 +41,7 @@ public final class ProductCapabilityCaptureContext {
       String runId,
       String conversationId,
       RequirementDraft approvedDraft,
+      String approvedDraftReference,
       RequirementBrief approvedBrief,
       AtomicReference<RequirementDraft> draftCandidate,
       AtomicReference<RequirementBrief> briefCandidate,
@@ -56,6 +57,7 @@ public final class ProductCapabilityCaptureContext {
             Mode.DISCOVERY,
             runId,
             conversationId,
+            null,
             null,
             null,
             new AtomicReference<>(),
@@ -74,12 +76,22 @@ public final class ProductCapabilityCaptureContext {
       String conversationId,
       RequirementDraft approvedDraft,
       Consumer<Object> onCandidate) {
+    return bindAnalysis(runId, conversationId, approvedDraft, null, onCandidate);
+  }
+
+  public static Context bindAnalysis(
+      String runId,
+      String conversationId,
+      RequirementDraft approvedDraft,
+      String approvedDraftReference,
+      Consumer<Object> onCandidate) {
     Binding binding =
         new Binding(
             Mode.ANALYSIS,
             runId,
             conversationId,
             approvedDraft,
+            approvedDraftReference,
             null,
             new AtomicReference<>(),
             new AtomicReference<>(),
@@ -102,6 +114,7 @@ public final class ProductCapabilityCaptureContext {
             Mode.DESIGN,
             runId,
             conversationId,
+            null,
             null,
             approvedBrief,
             new AtomicReference<>(),

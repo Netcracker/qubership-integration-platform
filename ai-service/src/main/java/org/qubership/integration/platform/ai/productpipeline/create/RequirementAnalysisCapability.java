@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer;
 import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
+import org.qubership.integration.platform.ai.llm.agent.ProductDiscoveryAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.MappingTurnAdapter;
@@ -83,6 +84,7 @@ public class RequirementAnalysisCapability implements StageCapability {
   private final CaptureSession captureSession;
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final DiscoveryAgent discoveryAgent;
+  private ProductDiscoveryAgent productDiscoveryAgent;
   private final Function<StageExecutionContext, RequirementBrief> briefProducer;
   private final BiFunction<String, String, Multi<ChatEvent>> analysisRunner;
   private final EvidenceEmitter evidenceEmitter;
@@ -98,7 +100,7 @@ public class RequirementAnalysisCapability implements StageCapability {
       KnowledgeContextProvider knowledgeContextProvider,
       CaptureSession captureSession,
       CaptureAttemptFeedbackStore feedbackStore,
-      DiscoveryAgent discoveryAgent,
+      ProductDiscoveryAgent productDiscoveryAgent,
       EvidenceEmitter evidenceEmitter,
       RequirementDraftStore draftStore,
       CaptureRepairRunner captureRepairRunner,
@@ -111,7 +113,7 @@ public class RequirementAnalysisCapability implements StageCapability {
         new RequirementBriefCoverageValidator(),
         captureSession,
         feedbackStore,
-        discoveryAgent,
+        null,
         null,
         null,
         evidenceEmitter,
@@ -120,6 +122,7 @@ public class RequirementAnalysisCapability implements StageCapability {
         chatMemorySanitizer,
         mappingTurnInterpreter,
         mappingTurnTelemetry);
+    this.productDiscoveryAgent = productDiscoveryAgent;
   }
 
   /** Test helper: knowledge-only construction without analyzer agent. */
@@ -364,6 +367,10 @@ public class RequirementAnalysisCapability implements StageCapability {
         context.runId(),
         context.conversationId(),
         approved,
+        context.inputRefs().stream()
+            .filter(ref -> ref.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT)
+            .map(CompilationArtifacts.Reference::artifactId)
+            .findFirst().orElse(null),
         payload -> {
           if (payload instanceof RequirementBrief brief) {
             captured.set(brief);
@@ -637,6 +644,9 @@ public class RequirementAnalysisCapability implements StageCapability {
                 .onItem()
                 .transform(RequirementAnalysisCapability::tokenText);
           }
+          if (productDiscoveryAgent != null) {
+            return productDiscoveryAgent.chat(context.conversationId(), safeMessage);
+          }
           if (discoveryAgent == null) {
             return Multi.createFrom().empty();
           }
@@ -723,12 +733,30 @@ public class RequirementAnalysisCapability implements StageCapability {
               + ". This locale is authoritative; do not infer another language from Planning text, "
               + "conversation history, approval controls, tool output, or this English instruction.\n\n");
     }
-    if (hasProjectedOutbound(approved)) {
+    if (approved.authoredDraft() != null) {
+      sb.append(
+          "The server projects FIELD_MAPPING facts into brief mapping intents. Leave "
+              + "mappingIntents empty. Do not supply field names from examples or replace an "
+              + "approved source path. If a requested field adaptation has no structured "
+              + "FIELD_MAPPING fact, report that the approved draft needs correction.\n\n");
+      for (var fact : approved.authoredDraft().facts()) {
+        if (fact.kind() != org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.FIELD_MAPPING
+            || fact.fieldMapping() == null) {
+          continue;
+        }
+        var mapping = fact.fieldMapping();
+        sb.append("Approved field mapping: ")
+            .append(mapping.sourceInteractionId()).append('.')
+            .append(mapping.sourcePath() == null ? "expression" : mapping.sourcePath())
+            .append(" -> ").append(mapping.targetInteractionId()).append('.')
+            .append(mapping.targetPath()).append('\n');
+      }
+      sb.append('\n');
+    } else if (hasProjectedOutbound(approved)) {
       sb.append(
           "Do not invent mappingIntents for trigger-to-call edges that only "
               + "forward the payload. Pass-through is the absence of a mapping intent. When the "
-              + "user requested field adaptation, capture mappingIntents. Prose is enough: "
-              + "Subject = name becomes sourcePath=name and targetPath=Subject. A computed rule "
+              + "user requested field adaptation, capture mappingIntents. A computed rule "
               + "such as a priority bucket, a default, or JSON construction sets expression on "
               + "that rule. One intent per approved flow transition. sourceRef and targetRef "
               + "must match a listed transition. Put preserve or echo rules on the transition "
@@ -775,8 +803,7 @@ public class RequirementAnalysisCapability implements StageCapability {
     sb.append("Planning text:\n").append(planning).append('\n');
     if (!approved.facts().isEmpty()) {
       sb.append(
-          "\nApproved facts (server pins these sourceFactId values on capture. Still include"
-              + " goal/summary/inputs/constraints):\n");
+          "\nApproved facts (the server pins these values; supply only model-owned brief fields):\n");
       for (var fact : approved.facts()) {
         sb.append("- id=")
             .append(fact.sourceFactId())

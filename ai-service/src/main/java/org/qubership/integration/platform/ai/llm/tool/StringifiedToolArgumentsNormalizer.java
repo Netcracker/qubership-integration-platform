@@ -13,6 +13,7 @@ import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonReferenceSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchemaElement;
 import dev.langchain4j.service.tool.ToolExecutionResult;
+import io.quarkiverse.langchain4j.runtime.ToolsRecorder;
 import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor;
 import io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo;
 import jakarta.annotation.Priority;
@@ -25,7 +26,7 @@ import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
-import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignCaptureArguments;
+import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool;
 
 /**
  * Removes one accidental JSON-string layer from object and array tool parameters before binding.
@@ -39,10 +40,17 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
   private static final Logger LOG = Logger.getLogger(StringifiedToolArgumentsNormalizer.class);
 
   private final ObjectMapper objectMapper;
+  private final ProductRequirementBriefTool productBriefTool;
 
   @Inject
-  public StringifiedToolArgumentsNormalizer(ObjectMapper objectMapper) {
+  public StringifiedToolArgumentsNormalizer(
+      ObjectMapper objectMapper, ProductRequirementBriefTool productBriefTool) {
     this.objectMapper = objectMapper;
+    this.productBriefTool = productBriefTool;
+  }
+
+  StringifiedToolArgumentsNormalizer(ObjectMapper objectMapper) {
+    this(objectMapper, null);
   }
 
   @Override
@@ -53,19 +61,42 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
       QuarkusToolExecutor executor) {
     ToolMethodCreateInfo method = executor.getMethodCreateInfo();
     if (method != null && ChainSemanticCaptureTool.TOOL_NAME.equals(method.methodName())) {
-      DesignCaptureArguments.Result inspected =
-          DesignCaptureArguments.inspect(request, method, objectMapper);
+      StructuredCaptureArguments.Result inspected =
+          StructuredCaptureArguments.inspect(request, method, objectMapper);
       if (inspected.issue() != null) {
         Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
         String conversationId = memoryId == null
             ? ToolSession.resolveConversationId() : memoryId.toString();
         String result = ChainSemanticCaptureTool.rejectArguments(
-            conversationId, inspected.issue());
+            conversationId, new ChainSemanticCaptureTool.CaptureIssue(
+                inspected.issue().code(), inspected.issue().path(), inspected.issue().message()));
+        return ToolExecutionResult.builder().result(result).resultText(result).build();
+      }
+      return next.apply(inspected.request(), invocationContext);
+    }
+    if (isProductBriefCapture(method)) {
+      StructuredCaptureArguments.Result inspected =
+          StructuredCaptureArguments.inspect(request, method, objectMapper);
+      if (inspected.issue() != null) {
+        Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
+        String conversationId = memoryId == null
+            ? ToolSession.resolveConversationId() : memoryId.toString();
+        String result = productBriefTool.rejectArguments(conversationId, inspected.issue());
         return ToolExecutionResult.builder().result(result).resultText(result).build();
       }
       return next.apply(inspected.request(), invocationContext);
     }
     return next.apply(normalize(request, executor.getMethodCreateInfo()), invocationContext);
+  }
+
+  private static boolean isProductBriefCapture(ToolMethodCreateInfo method) {
+    if (method == null || !"captureRequirementBrief".equals(method.methodName())) {
+      return false;
+    }
+    List<ToolMethodCreateInfo> productMethods =
+        ToolsRecorder.getMetadata().get(ProductRequirementBriefTool.class.getName());
+    return productMethods != null && productMethods.stream()
+        .anyMatch(product -> product.invokerClassName().equals(method.invokerClassName()));
   }
 
   ToolExecutionRequest normalize(ToolExecutionRequest request, ToolMethodCreateInfo method) {
