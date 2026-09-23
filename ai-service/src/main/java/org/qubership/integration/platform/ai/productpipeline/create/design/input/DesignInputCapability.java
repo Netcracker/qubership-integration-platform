@@ -181,6 +181,7 @@ public class DesignInputCapability implements StageCapability {
     }
     AtomicReference<ChainSemanticRevision> captured = new AtomicReference<>();
     AtomicReference<String> rejection = new AtomicReference<>();
+    AtomicReference<Boolean> terminalRejection = new AtomicReference<>(false);
     String captureConversationId = captureConversationId(context);
     ToolSession.bind(captureConversationId);
     ProductCapabilityCaptureContext.bindDesign(
@@ -197,9 +198,10 @@ public class DesignInputCapability implements StageCapability {
     try {
       agentText =
           runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context));
-      ProductCapabilityCaptureContext.designBinding(captureConversationId)
-          .map(binding -> binding.captureRejection().get())
-          .ifPresent(rejection::set);
+      ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
+        rejection.set(binding.captureRejection().get());
+        terminalRejection.set(binding.captureTerminal().get());
+      });
     } finally {
       ProductCapabilityCaptureContext.unbind(captureConversationId);
       ToolSession.clear();
@@ -212,6 +214,9 @@ public class DesignInputCapability implements StageCapability {
           context.runId(),
           captureConversationId,
           AiTraceLog.previewOneLine(agentText, AiTraceLog.DEFAULT_TOOL_RESULT_CHARS));
+      if (Boolean.TRUE.equals(terminalRejection.get())) {
+        return StageOutcome.of(StageOutcomeClass.INTERNAL_FAILURE, message);
+      }
       // The stage recovery ledger bounds regeneration of rejected topology.
       // A rejected capture alone does not establish a defect in the approved brief.
       return StageOutcome.of(

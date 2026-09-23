@@ -20,6 +20,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRoute;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
@@ -31,7 +32,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 @ApplicationScoped
 public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer {
 
-  static final String RENDERER_VERSION = "chain-semantic-ids-renderer@3";
+  static final String RENDERER_VERSION = "chain-semantic-ids-renderer@4";
 
   @Override
   public IdsDocument render(ChainSemanticRevision revision, CompilerContract contract) {
@@ -130,18 +131,25 @@ public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer
           .append(escape(triggerPresentation.operation()))
           .append('\n');
     }
-    for (SemanticRegion region : revision.regions()) {
-      if (!ownerReachable(region, reachable)) {
-        continue;
-      }
-      appendRegion(body, region, nodes, calls);
-    }
+    Set<String> renderedRegions = new HashSet<>();
     for (SemanticExecutionEdge edge : edges) {
       if (edge.regionId() != null) {
         continue;
       }
       SemanticNode target = nodes.get(edge.targetNodeId());
       appendMessage(body, target, calls);
+      for (SemanticRegion region : revision.regions()) {
+        if (edge.targetNodeId().equals(regionOwnerId(region))
+            && ownerReachable(region, reachable)
+            && renderedRegions.add(region.regionId())) {
+          appendRegion(body, region, nodes, calls, outgoing);
+        }
+      }
+    }
+    for (SemanticRegion region : revision.regions()) {
+      if (ownerReachable(region, reachable) && renderedRegions.add(region.regionId())) {
+        appendRegion(body, region, nodes, calls, outgoing);
+      }
     }
   }
 
@@ -168,7 +176,8 @@ public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer
       StringBuilder body,
       SemanticRegion region,
       Map<String, SemanticNode> nodes,
-      Map<String, CallPresentation> calls) {
+      Map<String, CallPresentation> calls,
+      Map<String, List<SemanticExecutionEdge>> outgoing) {
     switch (region) {
       case SemanticRegion.Condition condition -> {
         List<SemanticBranch.Condition> branches = condition.branches();
@@ -197,10 +206,16 @@ public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer
         body.append("    end\n");
       }
       case SemanticRegion.ErrorScope error -> {
-        appendMessage(body, nodes.get(error.tryEntryNodeId()), calls);
+        appendRegionPath(body, error.tryEntryNodeId(), error.regionId(), nodes, calls, outgoing);
         for (ErrorHandler handler : error.handlers()) {
           body.append("    opt catch ").append(escape(handler.exceptionClass())).append('\n');
-          appendMessage(body, nodes.get(handler.entryNodeId()), calls);
+          appendRegionPath(body, handler.entryNodeId(), error.regionId(), nodes, calls, outgoing);
+          body.append("    end\n");
+        }
+        if (error.finallyEntryNodeId() != null) {
+          body.append("    opt finally\n");
+          appendRegionPath(
+              body, error.finallyEntryNodeId(), error.regionId(), nodes, calls, outgoing);
           body.append("    end\n");
         }
       }
@@ -213,6 +228,42 @@ public class DefaultChainSemanticIdsRenderer implements ChainSemanticIdsRenderer
       }
       case SemanticRegion.Sequence ignored -> {}
     }
+  }
+
+  private static void appendRegionPath(
+      StringBuilder body,
+      String entryNodeId,
+      String regionId,
+      Map<String, SemanticNode> nodes,
+      Map<String, CallPresentation> calls,
+      Map<String, List<SemanticExecutionEdge>> outgoing) {
+    List<String> pending = new ArrayList<>();
+    Set<String> rendered = new HashSet<>();
+    pending.add(entryNodeId);
+    for (int i = 0; i < pending.size(); i++) {
+      String nodeId = pending.get(i);
+      if (!rendered.add(nodeId)) {
+        continue;
+      }
+      appendMessage(body, nodes.get(nodeId), calls);
+      for (SemanticExecutionEdge edge : outgoing.getOrDefault(nodeId, List.of())) {
+        if (regionId.equals(edge.regionId())
+            && edge.route() instanceof SemanticRoute.Sequence) {
+          pending.add(edge.targetNodeId());
+        }
+      }
+    }
+  }
+
+  private static String regionOwnerId(SemanticRegion region) {
+    return switch (region) {
+      case SemanticRegion.Sequence ignored -> null;
+      case SemanticRegion.Condition condition -> condition.ownerNodeId();
+      case SemanticRegion.Split split -> split.ownerNodeId();
+      case SemanticRegion.Loop loop -> loop.ownerNodeId();
+      case SemanticRegion.Retry retry -> retry.ownerNodeId();
+      case SemanticRegion.ErrorScope error -> error.ownerNodeId();
+    };
   }
 
   private static void appendMessage(

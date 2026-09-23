@@ -124,13 +124,12 @@ class ChainSemanticCaptureSchemaTest {
   }
 
   @Test
-  void generatedMapperIgnoresUnknownFieldsAndAbsentOptionalLists() {
+  void boundaryRejectsUnknownFieldsWithoutDiscardingTheCapture() {
     ProductCapabilityCaptureContext.bindDesign(
         "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
-    // A model still holding the old contract sends serviceCalls; the mapper drops it, and the
-    // edge into a node the server never created is what fails.
+    // An obsolete serviceCalls field must be reported, so the model cannot believe it was saved.
     String result =
-        execute(
+        executeThroughFactory(
             linearArguments(
                 "ghost-call",
                 """
@@ -138,7 +137,62 @@ class ChainSemanticCaptureSchemaTest {
                   {"nodeId": "ghost-call", "serviceCallId": "ghost-call"}
                 ],
                 """));
-    assertTrue(result.contains("ghost-call"), result);
+    assertTrue(result.contains("UNEXPECTED_FIELD"), result);
+    assertTrue(result.contains("/capture/serviceCalls"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
+  void boundaryRejectsDuplicateKeysBeforeTheGeneratedMapperRuns() {
+    ProductCapabilityCaptureContext.bindDesign(
+        "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
+    String arguments = linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "")
+        .replace("\"chainIdentity\": \"chain-orders\"",
+            "\"chainIdentity\": \"chain-orders\", \"chainIdentity\": \"other\"");
+    String result = executeThroughFactory(arguments);
+    assertTrue(result.contains("DUPLICATE_JSON_KEY"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
+  void boundaryRejectsDuplicateKeysInsideAStringifiedCapture() throws Exception {
+    ProductCapabilityCaptureContext.bindDesign(
+        "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
+    ObjectMapper mapper = new ObjectMapper();
+    JsonNode arguments = mapper.readTree(
+        linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, ""));
+    String capture = arguments.get(parameterName()).toString()
+        .replace("\"chainIdentity\":\"chain-orders\"",
+            "\"chainIdentity\":\"chain-orders\",\"chainIdentity\":\"other\"");
+    ((ObjectNode) arguments).put(parameterName(), capture);
+    String result = executeThroughFactory(mapper.writeValueAsString(arguments));
+    assertTrue(result.contains("DUPLICATE_JSON_KEY"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
+  void boundaryRejectsUnknownFieldsInsideAnOperation() {
+    ProductCapabilityCaptureContext.bindDesign(
+        "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
+    String arguments = linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "")
+        .replace("\"elementType\": \"script\"",
+            "\"elementType\": \"script\", \"serviceCallId\": \"invented\"");
+    String result = executeThroughFactory(arguments);
+    assertTrue(result.contains("UNEXPECTED_FIELD"), result);
+    assertTrue(result.contains("/capture/operations/0/serviceCallId"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
+  void boundaryRejectsWrongFieldTypeWithAPointer() {
+    ProductCapabilityCaptureContext.bindDesign(
+        "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
+    String arguments = linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "")
+        .replace("\"chainIdentity\": \"chain-orders\"", "\"chainIdentity\": 42");
+    String result = executeThroughFactory(arguments);
+    assertTrue(result.contains("INVALID_TYPE"), result);
+    assertTrue(result.contains("/capture/chainIdentity"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
   }
 
   /**
