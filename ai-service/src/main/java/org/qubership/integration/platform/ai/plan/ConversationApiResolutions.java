@@ -53,6 +53,18 @@ public class ConversationApiResolutions {
     return Optional.ofNullable(byInteraction(conversationId).get(id));
   }
 
+  public void forgetInteraction(String conversationId, String interactionId) {
+    String id = CatalogStrings.blankToNull(conversationId);
+    String target = CatalogStrings.blankToNull(interactionId);
+    if (id == null || target == null) {
+      return;
+    }
+    Map<String, InteractionAssessment> assessments = byConversation.get(id);
+    if (assessments != null) {
+      assessments.remove(target);
+    }
+  }
+
   /** Drops assessments whose interaction ids are no longer in the captured draft. */
   public void retainInteractions(String conversationId, Set<String> interactionIds) {
     String id = CatalogStrings.blankToNull(conversationId);

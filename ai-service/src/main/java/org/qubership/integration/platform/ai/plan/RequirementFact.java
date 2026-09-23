@@ -6,6 +6,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -44,7 +45,8 @@ public record RequirementFact(
         String path,
     @Description(
             "Stable SERVICE_CALL occurrence id, or catalog Kafka consume id when capabilityKey is async-api-trigger")
-        String serviceCallId) {
+        String serviceCallId,
+        List<String> interactionIds) {
 
   public RequirementFact {
     // LLM tool JSON omits fields; throwing here becomes ToolArgumentsException before the tool runs.
@@ -95,6 +97,23 @@ public record RequirementFact(
         serviceCallId = "";
       }
     }
+    interactionIds = interactionIds == null ? List.of() : List.copyOf(interactionIds);
+  }
+
+  public RequirementFact(
+      String sourceFactId,
+      RequirementFactPolarity polarity,
+      RequirementFactKind kind,
+      String capabilityKey,
+      String text,
+      String participant,
+      String operation,
+      String topic,
+      String httpMethod,
+      String path,
+      String serviceCallId) {
+    this(sourceFactId, polarity, kind, capabilityKey, text, participant, operation, topic,
+        httpMethod, path, serviceCallId, List.of());
   }
 
   /** Compatibility constructor used by tests and older capture JSON without identity fields. */
@@ -165,7 +184,8 @@ public record RequirementFact(
         topic,
         httpMethod,
         path,
-        serviceCallId);
+        serviceCallId,
+        interactionIds);
   }
 
   public static String deriveSourceFactId(RequirementFactPolarity polarity, String text) {

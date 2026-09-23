@@ -516,6 +516,7 @@ class DesignPlanningCapabilityTest {
                     Map.of(CipDesignPlannerAdapter.SKILL_ID, "addon-hash")));
     String endpoint = "Expose GET /recovery-materialization as an internal route.";
     String behavior = "Return plain text recovered from a script.";
+    String exclusion = "Do not log the input body.";
     RequirementBrief brief =
         sampleBrief()
             .withFacts(
@@ -535,15 +536,23 @@ class DesignPlanningCapabilityTest {
                         RequirementFactPolarity.POSITIVE,
                         RequirementFactKind.BEHAVIOR,
                         "script",
-                        behavior)));
+                        behavior),
+                    RequirementFact.of(
+                        RequirementFactPolarity.NEGATIVE,
+                        RequirementFactKind.CONSTRAINT,
+                        "",
+                        exclusion)));
 
     ImplementationPlan plan =
         new DesignImplementationPlanRenderer().render(report, projection, revision, brief);
 
     assertTrue(plan.endpointFacts().contains(endpoint), plan.endpointFacts().toString());
     assertTrue(plan.scriptOutcomes().contains(behavior), plan.scriptOutcomes().toString());
+    assertTrue(plan.negativeConstraints().contains(exclusion),
+        plan.negativeConstraints().toString());
     assertTrue(plan.planText().contains(endpoint), plan.planText());
     assertTrue(plan.planText().contains(behavior), plan.planText());
+    assertTrue(plan.planText().contains(exclusion), plan.planText());
   }
 
   @Test

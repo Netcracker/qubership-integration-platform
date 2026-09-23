@@ -233,7 +233,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
             captured.set(draft);
           }
         });
-    draftStore.beginTurn(conversationId);
+    draftStore.beginTurn(conversationId, userMessage);
 
     String skillId = RequirementDraftTool.SOURCE_SKILL_ID;
     SkillActivitySupport.bindParents(skillId);

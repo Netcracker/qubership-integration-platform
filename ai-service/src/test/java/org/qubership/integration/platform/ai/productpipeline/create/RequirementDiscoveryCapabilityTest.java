@@ -166,6 +166,7 @@ class RequirementDiscoveryCapabilityTest {
               store.beginTurn(conversationId);
               store.put(conversationId, draft);
               store.markCaptured(conversationId);
+              store.finishTurn(conversationId, RequirementDiscoveryDirective.CONTINUE);
               ProductCapabilityCaptureContext.offerDraft(draft);
               return Multi.createFrom().empty();
             });

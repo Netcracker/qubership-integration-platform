@@ -341,6 +341,14 @@ public final class RequirementFlowValidator {
     return catalogLookupAction(interaction, facts) == LookupAction.REQUIRE;
   }
 
+  public static boolean isDirectHttpTarget(String participant) {
+    if (participant == null) {
+      return false;
+    }
+    String target = participant.strip().toLowerCase(java.util.Locale.ROOT);
+    return target.startsWith("https://") || target.startsWith("http://");
+  }
+
   /** Returns true when an interaction is configured without a catalog operation. */
   public static boolean isNativeDirectInteraction(
       Interaction interaction, List<RequirementFact> facts) {
@@ -353,8 +361,13 @@ public final class RequirementFlowValidator {
    */
   static boolean hasEntryPointCapabilityFact(String interactionId, List<RequirementFact> facts) {
     for (RequirementFact fact : facts) {
-      if (fact != null && interactionId.equals(fact.sourceFactId())) {
-        return fact.capabilityKey() != null && !fact.capabilityKey().isBlank();
+      if (fact != null
+          && interactionId.equals(fact.sourceFactId())
+          && (fact.kind() == RequirementFactKind.CAPABILITY
+              || fact.kind() == RequirementFactKind.ENDPOINT)
+          && fact.capabilityKey() != null
+          && !fact.capabilityKey().isBlank()) {
+        return true;
       }
     }
     return false;

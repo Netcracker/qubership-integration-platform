@@ -107,9 +107,16 @@ public final class DesignImplementationPlanRenderer {
     List<String> approvedRequirementFacts = new ArrayList<>();
     if (brief != null) {
       for (var fact : brief.facts()) {
-        if (fact == null
-            || fact.polarity() != RequirementFactPolarity.POSITIVE
-            || fact.text().isBlank()) {
+        if (fact == null || fact.text().isBlank()) {
+          continue;
+        }
+        if (fact.polarity() == RequirementFactPolarity.NEGATIVE) {
+          if (!negativeConstraints.contains(fact.text())) {
+            negativeConstraints.add(fact.text());
+          }
+          continue;
+        }
+        if (fact.polarity() != RequirementFactPolarity.POSITIVE) {
           continue;
         }
         boolean endpoint =
@@ -135,6 +142,13 @@ public final class DesignImplementationPlanRenderer {
       body.append('\n').append("## Approved requirement facts").append('\n');
       for (String fact : approvedRequirementFacts) {
         body.append("- ").append(fact).append('\n');
+      }
+    }
+
+    if (!negativeConstraints.isEmpty()) {
+      body.append('\n').append("## Approved exclusions").append('\n');
+      for (String constraint : negativeConstraints) {
+        body.append("- ").append(constraint).append('\n');
       }
     }
 

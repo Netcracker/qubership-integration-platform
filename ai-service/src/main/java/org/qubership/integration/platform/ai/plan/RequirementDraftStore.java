@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.UUID;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.ArtifactDecision;
@@ -32,6 +33,9 @@ public class RequirementDraftStore {
   private final ConcurrentHashMap<String, RequirementDiscoveryDirective> turnDirectives =
       new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, String> lastCaptureRejection = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, String> captureMutationScopes = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, Boolean> captureMutationRejected = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, String> currentAuthorText = new ConcurrentHashMap<>();
   private final CompilationArtifacts artifacts;
   private final CompilationSessions sessions;
 
@@ -157,6 +161,9 @@ public class RequirementDraftStore {
     capturedThisTurn.remove(conversationId);
     turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
+    captureMutationScopes.remove(conversationId);
+    captureMutationRejected.remove(conversationId);
+    currentAuthorText.remove(conversationId);
   }
 
   /** Clears per-turn gather flags without starting a new compilation. */
@@ -164,6 +171,9 @@ public class RequirementDraftStore {
     capturedThisTurn.remove(conversationId);
     turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
+    captureMutationScopes.remove(conversationId);
+    captureMutationRejected.remove(conversationId);
+    currentAuthorText.remove(conversationId);
   }
 
   /** Returns the active compilation identity used for subsequent artifact revisions. */
@@ -177,11 +187,36 @@ public class RequirementDraftStore {
     turnDirectives.remove(conversationId);
   }
 
+  public void beginTurn(String conversationId, String authorText) {
+    beginTurn(conversationId);
+    if (authorText == null) {
+      currentAuthorText.remove(conversationId);
+    } else {
+      currentAuthorText.put(conversationId, authorText);
+    }
+  }
+
+  public Optional<String> currentAuthorText(String conversationId) {
+    return Optional.ofNullable(currentAuthorText.get(conversationId));
+  }
+
   public void finishTurn(String conversationId, RequirementDiscoveryDirective directive) {
     Objects.requireNonNull(conversationId, "conversationId");
     turnDirectives.put(
         conversationId,
         directive == null ? RequirementDiscoveryDirective.NONE : directive);
+    if (!Boolean.TRUE.equals(captureMutationRejected.get(conversationId))) {
+      captureMutationScopes.remove(conversationId);
+    }
+  }
+
+  public String captureMutationScope(String conversationId) {
+    return captureMutationScopes.computeIfAbsent(conversationId,
+        ignored -> UUID.randomUUID().toString());
+  }
+
+  public void recordCaptureAttempt(String conversationId, boolean accepted) {
+    captureMutationRejected.put(conversationId, !accepted);
   }
 
   public RequirementDiscoveryDirective turnDirective(String conversationId) {
@@ -347,7 +382,8 @@ public class RequirementDraftStore {
               next.idsRequested(),
               next.flow(),
               next.catalogBindings(),
-              next.preferredSystemType());
+              next.preferredSystemType(),
+              next.authoredDraft());
     }
     if (next != current) {
       put(conversationId, next);

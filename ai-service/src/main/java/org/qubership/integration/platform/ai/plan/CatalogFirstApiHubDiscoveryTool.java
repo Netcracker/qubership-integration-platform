@@ -319,6 +319,11 @@ public class CatalogFirstApiHubDiscoveryTool {
    */
   private String outboundAskAllowsExplicitResolve(RequirementFlow.Interaction interaction) {
     if (interaction.direction() == RequirementFlow.Direction.OUTBOUND) {
+      if (RequirementFlowValidator.isDirectHttpTarget(interaction.participant())) {
+        return error("interactionId=" + interaction.interactionId()
+            + " names a direct HTTP URI. Capture its http-sender capability with method and URI"
+            + " instead of searching the catalog.");
+      }
       return null;
     }
     return error(

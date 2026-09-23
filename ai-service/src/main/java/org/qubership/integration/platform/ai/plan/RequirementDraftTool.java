@@ -2019,6 +2019,71 @@ public class RequirementDraftTool {
     return List.copyOf(hints);
   }
 
+  List<CatalogBindingHint> canonicalBindings(
+      RequirementCaptureInput.DraftInput input,
+      RequirementDraft previous,
+      String conversationId) {
+    Map<String, RequirementCaptureInput.InteractionInput> oldInteractions = new HashMap<>();
+    Map<String, RequirementCaptureInput.CapabilityInput> oldCapabilities = new HashMap<>();
+    if (previous != null && previous.authoredDraft() != null) {
+      for (var interaction : previous.authoredDraft().flow().interactions()) {
+        oldInteractions.put(interaction.interactionId(), interaction);
+      }
+      for (var capability : previous.authoredDraft().capabilities()) {
+        oldCapabilities.put(capability.interactionId(), capability);
+      }
+    }
+    Map<String, RequirementCaptureInput.CapabilityInput> capabilities = new HashMap<>();
+    for (var capability : input.capabilities()) {
+      capabilities.put(capability.interactionId(), capability);
+    }
+    Set<String> unchanged = new LinkedHashSet<>();
+    for (var interaction : input.flow().interactions()) {
+      var old = oldInteractions.get(interaction.interactionId());
+      var oldCapability = oldCapabilities.get(interaction.interactionId());
+      var newCapability = capabilities.get(interaction.interactionId());
+      if (old != null
+          && Objects.equals(old.direction(), interaction.direction())
+          && Objects.equals(old.participant(), interaction.participant())
+          && Objects.equals(old.operation(), interaction.operation())
+          && Objects.equals(
+              oldCapability == null ? null : oldCapability.capabilityKey(),
+              newCapability == null ? null : newCapability.capabilityKey())
+          && Objects.equals(
+              oldCapability == null ? null : oldCapability.httpMode(),
+              newCapability == null ? null : newCapability.httpMode())
+          && Objects.equals(
+              oldCapability == null ? null : oldCapability.targetReference(),
+              newCapability == null ? null : newCapability.targetReference())) {
+        unchanged.add(interaction.interactionId());
+      } else if (resolutions != null) {
+        resolutions.forgetInteraction(conversationId, interaction.interactionId());
+      }
+    }
+    if (resolutions != null) {
+      resolutions.retainInteractions(
+          conversationId,
+          input.flow().interactions().stream()
+              .map(RequirementCaptureInput.InteractionInput::interactionId)
+              .collect(Collectors.toSet()));
+    }
+    RequirementFlow flow = RequirementCaptureProjection.flow(input);
+    List<RequirementFact> facts = RequirementCaptureProjection.facts(input);
+    resolveUnboundFromCatalog(flow, facts, conversationId);
+    return reconcileCatalogBindings(flow, previous, conversationId).stream()
+        .filter(hint -> {
+          RequirementFlow.Interaction owner = flow.interaction(hint.interactionId()).orElse(null);
+          if (owner == null
+              || RequirementFlowValidator.isNativeDirectInteraction(owner, facts)) {
+            return false;
+          }
+          return unchanged.contains(hint.interactionId())
+              || resolutions != null && resolutions.forInteraction(conversationId, hint.interactionId())
+                  .filter(InteractionAssessment::isResolved).isPresent();
+        })
+        .toList();
+  }
+
   /** A cached API Hub candidate is stale when its flow interaction already has a catalog bind. */
   private static boolean candidateSatisfiedByCatalog(
       ApiHubRequirementRefs candidate,
@@ -2117,7 +2182,7 @@ public class RequirementDraftTool {
     return apiHubCache.latestCandidate(conversationId).orElse(null);
   }
 
-  private String sourceSkillVersion(String conversationId) {
+  String sourceSkillVersion(String conversationId) {
     return store
         .get(conversationId)
         .map(RequirementDraft::sourceSkillVersion)
@@ -2125,7 +2190,7 @@ public class RequirementDraftTool {
         .orElseGet(this::activePackVersion);
   }
 
-  private String sourceSkillHash(String conversationId) {
+  String sourceSkillHash(String conversationId) {
     return store
         .get(conversationId)
         .map(RequirementDraft::sourceSkillHash)

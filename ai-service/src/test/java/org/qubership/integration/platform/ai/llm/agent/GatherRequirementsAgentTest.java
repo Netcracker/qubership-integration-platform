@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubMcpTools;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools;
 import org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool;
-import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureToolProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool;
 
 class GatherRequirementsAgentTest {
@@ -19,7 +19,8 @@ class GatherRequirementsAgentTest {
     RegisterAiService annotation = GatherRequirementsAgent.class.getAnnotation(RegisterAiService.class);
     Class<?>[] tools = annotation.tools();
 
-    assertTrue(Arrays.asList(tools).contains(RequirementDraftTool.class));
+    assertTrue(annotation.toolProviderSupplier()
+        .equals(RequirementCaptureToolProvider.ProviderSupplier.class));
     assertTrue(Arrays.asList(tools).contains(CatalogSystemTools.class));
     assertTrue(Arrays.asList(tools).contains(CatalogFirstApiHubDiscoveryTool.class));
     assertTrue(Arrays.asList(tools).contains(RequirementDiscoveryKnowledgeTool.class));

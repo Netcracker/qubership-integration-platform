@@ -226,4 +226,22 @@ class CaptureToolOutcomeGatewayTest {
     assertEquals(3, fingerprintStore.softCreditsUsed("conv-1"));
     // Bound: sequential=3 cuts further softs at the agent layer; policy itself allows distinct fps.
   }
+
+  @Test
+  void requirementIssuesKeepTheirCreditAcrossEditsAndArrayPositions() {
+    List<CaptureToolOutcomeGateway.TypedIssue> initial = List.of(
+        new CaptureToolOutcomeGateway.TypedIssue(
+            "UNKNOWN_INTERACTION_REFERENCE", "/draft/facts/0/interactionIds/0"),
+        new CaptureToolOutcomeGateway.TypedIssue(
+            "INVALID_VALUE", "/draft/capabilities/1/path"));
+    assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-1", initial));
+
+    List<CaptureToolOutcomeGateway.TypedIssue> remaining = List.of(
+        new CaptureToolOutcomeGateway.TypedIssue(
+            "UNKNOWN_INTERACTION_REFERENCE", "/changes/updateFacts/2/interactionIds/1"));
+    assertTrue(gateway.repeatedRequirementIssue("conv-1", "scope-1", remaining));
+    assertEquals(CaptureFailureClass.IDENTICAL_SPAM,
+        feedbackStore.lastRequirementFailure("conv-1").orElseThrow().failureClass());
+    assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-2", remaining));
+  }
 }
