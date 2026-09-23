@@ -17,7 +17,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
-| F11 | Smaller items, see below | minor | partial | `bcdb973dc`, `1366eaa3a`, `bc7b32c22`, `8858d3aad` |
+| F11 | Smaller items, see below | minor | partial | `bcdb973dc`, `1366eaa3a`, `bc7b32c22`, `8858d3aad`, `fe61c79be` |
 | F12 | Chain version fallback answers for service exports too | major | won't fix | |
 | F13 | Active environment selection diverges from runtime-catalog | major | open | |
 | F14 | Smaller items from the second round, see below | medium | partial | `1366eaa3a` |
@@ -30,7 +30,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | `AssumeActualChainVersion` has no `@Order` | fixed | `bc7b32c22` |
 | `MavenPluginYamlMapperConfiguration` relies on parameter-name bean matching | open | |
 | One bad chain aborts the whole run | open | |
-| Generated resources are not attached as build artifacts | open | |
+| Generated resources are not attached as build artifacts | fixed | `fe61c79be` |
 | `BuildCRsMojo` lacks `property =`, `skip`, and `threadSafe = true` | partial | `8858d3aad` |
 | Chains are read from `${project.compileSourceRoots}` | fixed | `1366eaa3a` |
 | `ChainReader.getChainYamlFile` silently drops a second chain YAML | open | |
@@ -229,6 +229,35 @@ Verified:
   order in the real context: a `fileVersion: 2` document reports `[1, 2]`, and a document without
   metadata reaches the fallback. Mutation-checked: moving `AssumeActualVersion` to
   `Ordered.HIGHEST_PRECEDENCE` fails it with `expected: <[1, 2]> but was: <[100, ..., 108]>`.
+
+### F11, generated files attached as artifacts, `fe61c79be`
+
+Both goals attach what they write to the Maven project through `MavenProjectHelper`, so `install` and
+`deploy` publish it. The mojos inject `MavenProject` and `MavenProjectHelper` and hand them to the build
+services in a `TaskContext`, next to the task parameters.
+
+- `build-crs` attaches each resource file as type `yaml`, classified by the file name without `.yaml`.
+  `ResourceWriteService.writeResources` reports every file it writes to a callback, which does the
+  attaching.
+- `build-libs` attaches each DTO library as type `jar`, classified by the specification id.
+
+The classifier is what keeps the files apart. `MavenProject.addAttachedArtifact` replaces an attachment
+with the same coordinates rather than adding a second one, so without a classifier only the last file
+survived. A `jar` with no classifier would also share its coordinates with a `jar`-packaged project's own
+artifact.
+
+Verified:
+
+- In a scratch project, `build-crs` over `triggers/http-trigger` with `deployAll` writes 6 resources, and
+  `mvn install` puts all 6 in the local repository, named
+  `<artifactId>-<version>-<Kind>-<name>.yaml`. Before the classifier, it installed one `probe-1.yaml`
+  and logged `already attached, replace previous instance` five times.
+- The `build-libs` attachment was not run end to end: the only protocols with a code generator are gRPC,
+  which needs `protoc`, and GraphQL, which has no test service.
+- `mvn verify -pl integration-build-maven-plugin -Dgpg.skip=true` passes, 85 tests. New tests check that
+  `ResourceWriteService` reports each written file, that each resource is attached as `yaml` under its
+  extensionless file name, and that each JAR is attached under its specification id. Mutation-checked:
+  putting the extension back into either classifier fails the matching test.
 
 ## Accepted
 
