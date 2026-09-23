@@ -8,6 +8,7 @@ import org.qubership.integration.platform.chain.model.ServiceSpecification;
 import org.qubership.integration.platform.chain.model.SpecificationGroup;
 import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildLibsTaskParameters;
+import org.qubership.integration.platform.maven.plugin.domain.util.SkippableFailableOperationWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -38,11 +39,17 @@ public class DtoLibrariesBuildService {
 
     public void buildLibraries(TaskContext<BuildLibsTaskParameters> taskContext) throws IOException {
         BuildLibsTaskParameters parameters = taskContext.getTaskParameters();
-        integrationServiceLoadService.loadServices(parameters.getSourceRoots(), parameters.getOutputDirectory());
-        Failable.stream(integrationServiceCatalog.findAll()).forEach(integrationService ->
+        integrationServiceLoadService.loadServices(parameters.getSourceRoots(), parameters.getOutputDirectory(), parameters.isFailFast());
+        SkippableFailableOperationWrapper failableOperationWrapper = new SkippableFailableOperationWrapper(parameters.isFailFast());
+        Failable.stream(integrationServiceCatalog.findAll()).forEach(failableOperationWrapper.wrapConsumer(integrationService ->
             Failable.stream(integrationService.getSpecificationGroups()).forEach(specificationGroup ->
                 Failable.stream(specificationGroup.getSpecifications()).forEach(specification ->
-                    buildJar(integrationService, specificationGroup, specification, taskContext))));
+                    buildJar(integrationService, specificationGroup, specification, taskContext)))));
+        if (failableOperationWrapper.getErrorCount() > 0) {
+            String message = String.format("Failed to build DTO libraries for services: %d error(s) occurred",
+                failableOperationWrapper.getErrorCount());
+            throw new RuntimeException(message);
+        }
     }
 
     private void buildJar(

@@ -5,6 +5,7 @@ import org.apache.commons.lang3.function.Failable;
 import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
 import org.qubership.integration.platform.io.readers.system.ServiceFileUtil;
 import org.qubership.integration.platform.maven.plugin.domain.adapters.ImportSystemAdapter;
+import org.qubership.integration.platform.maven.plugin.domain.util.SkippableFailableOperationWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -14,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 import static org.qubership.integration.platform.maven.plugin.domain.util.FileUtil.isInDirectory;
@@ -34,7 +36,8 @@ public class IntegrationServiceLoadService {
         this.integrationServiceCatalog = integrationServiceCatalog;
     }
 
-    public void loadServices(Collection<String> sourceRoots, String outputDirectory) {
+    public void loadServices(Collection<String> sourceRoots, String outputDirectory, boolean failFast) throws IOException {
+        SkippableFailableOperationWrapper failableOperationWrapper = new SkippableFailableOperationWrapper(failFast);
         Path outputDirectoryPath = Path.of(outputDirectory);
         Stream<File> serviceFiles = Failable.stream(sourceRoots)
             .map(File::new)
@@ -42,10 +45,15 @@ public class IntegrationServiceLoadService {
             .stream()
             .flatMap(Collection::stream);
         Failable.stream(serviceFiles)
-            .map(file -> processFile(file, integrationSystemReader::read))
+            .map(failableOperationWrapper.wrapFunction(file -> processFile(file, integrationSystemReader::read)))
+            .filter(Objects::nonNull)
             .map(ImportSystemAdapter::new)
-            .stream()
-            .forEach(integrationServiceCatalog::addService);
+            .forEach(failableOperationWrapper.wrapConsumer(integrationServiceCatalog::addService));
+        if (failableOperationWrapper.getErrorCount() > 0) {
+            String message = String.format("Failed to load services: %d error(s) occurred",
+                failableOperationWrapper.getErrorCount());
+            throw new RuntimeException(message);
+        }
     }
 
     private Collection<File> listServiceFiles(File directory, Path outputDirectory) throws IOException {

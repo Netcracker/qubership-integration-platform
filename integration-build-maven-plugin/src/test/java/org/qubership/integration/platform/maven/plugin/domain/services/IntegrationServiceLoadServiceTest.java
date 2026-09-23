@@ -41,7 +41,7 @@ class IntegrationServiceLoadServiceTest {
     void addsAServiceFileOfEitherNamingFormToTheCatalog(String fileName) throws IOException {
         serviceFile(sourceRoot, fileName, "system-1");
 
-        loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString());
+        loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString(), true);
 
         assertEquals("system-1", catalog.findById("system-1").orElseThrow().getId());
     }
@@ -50,7 +50,7 @@ class IntegrationServiceLoadServiceTest {
     void findsServiceFilesBelowTheSourceRoot() throws IOException {
         serviceFile(sourceRoot.resolve("payments/export"), "service-payments.yaml", "system-1");
 
-        loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString());
+        loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString(), true);
 
         assertTrue(catalog.findById("system-1").isPresent());
     }
@@ -61,7 +61,7 @@ class IntegrationServiceLoadServiceTest {
         serviceFile(secondSourceRoot, "service-orders.yaml", "system-2");
 
         loadService.loadServices(
-            List.of(sourceRoot.toString(), secondSourceRoot.toString()), outputDirectory().toString());
+            List.of(sourceRoot.toString(), secondSourceRoot.toString()), outputDirectory().toString(), true);
 
         assertEquals(2, catalog.findAllByIds(List.of("system-1", "system-2")).size());
     }
@@ -73,7 +73,7 @@ class IntegrationServiceLoadServiceTest {
         Files.writeString(sourceRoot.resolve("services.yaml"), "");
         Files.writeString(sourceRoot.resolve("README.md"), "");
 
-        loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString());
+        loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString(), true);
 
         verifyNoInteractions(integrationSystemReader);
     }
@@ -83,7 +83,7 @@ class IntegrationServiceLoadServiceTest {
     void ignoresServiceFilesUnderTheOutputDirectory() throws IOException {
         serviceFile(outputDirectory().resolve("generated"), "service-generated.yaml", "system-1");
 
-        loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString());
+        loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString(), true);
 
         verifyNoInteractions(integrationSystemReader);
     }
@@ -95,12 +95,45 @@ class IntegrationServiceLoadServiceTest {
             .thenThrow(new IllegalArgumentException("broken service"));
 
         Exception exception = assertThrows(Exception.class,
-            () -> loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString()));
+            () -> loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString(), true));
 
         // Failable rethrows the checked wrapper undeclared, so the named file sits one level down.
         Throwable cause = exception.getCause();
         assertTrue(cause.getMessage().contains(serviceFile.toFile().getAbsolutePath()));
         assertTrue(cause.getMessage().contains("broken service"));
+    }
+
+    /** Each broken file is one error, and the files that read cleanly still reach the catalog. */
+    @Test
+    void countsEachBrokenServiceFileOnceWhenNotFailingFast() throws IOException {
+        serviceFile(sourceRoot, "service-payments.yaml", "system-1");
+        brokenServiceFile("service-orders.yaml");
+        brokenServiceFile("service-billing.yaml");
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+            () -> loadService.loadServices(List.of(sourceRoot.toString()), outputDirectory().toString(), false));
+
+        assertEquals("Failed to load services: 2 error(s) occurred", exception.getMessage());
+        assertTrue(catalog.findById("system-1").isPresent());
+    }
+
+    @Test
+    void countsADuplicateServiceIdAsOneErrorWhenNotFailingFast() throws IOException {
+        serviceFile(sourceRoot, "service-a.yaml", "system-1");
+        serviceFile(secondSourceRoot, "service-b.yaml", "system-1");
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+            () -> loadService.loadServices(
+                List.of(sourceRoot.toString(), secondSourceRoot.toString()), outputDirectory().toString(), false));
+
+        assertEquals("Failed to load services: 1 error(s) occurred", exception.getMessage());
+        assertEquals(1, catalog.findAll().size());
+    }
+
+    private void brokenServiceFile(String fileName) throws IOException {
+        Path file = sourceRoot.resolve(fileName);
+        Files.writeString(file, "");
+        when(integrationSystemReader.read(file.toFile())).thenThrow(new IllegalArgumentException("broken service"));
     }
 
     private Path serviceFile(Path directory, String fileName, String systemId) throws IOException {

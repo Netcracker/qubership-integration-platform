@@ -38,6 +38,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -176,7 +177,7 @@ class MicroDomainResourcesBuildServiceTest {
         chainDirectory("billing", "billing.chain.yml", "default");
         chainDirectory("legacy", "chain-legacy.yaml");
 
-        buildService.buildResources(taskContext(true));
+        buildService.buildResources(taskContext(true, true));
 
         assertEquals(
             Map.of(
@@ -224,6 +225,61 @@ class MicroDomainResourcesBuildServiceTest {
         assertTrue(cause.getMessage().contains("broken chain"));
     }
 
+    @Test
+    void buildsTheOtherDomainsWhenAChainFailsToReadAndNotFailingFast() throws IOException {
+        Path broken = chainDirectory("orders", "chain-orders.yaml", "orders-domain");
+        when(chainReader.read(broken.toFile())).thenThrow(new IllegalStateException("broken chain"));
+        chainDirectory("payments", "chain-payments.yaml", "payments-domain");
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+            () -> buildService.buildResources(taskContext(false, false)));
+
+        assertEquals("Failed to generate K8s resources: 1 error(s) occurred", exception.getMessage());
+        assertEquals(Map.of("payments-domain", Set.of("payments")), capturedChainIdsByDomain());
+        verify(resourceWriteService).writeResources(any(), any(), any());
+    }
+
+    /** A chain that fails verification drops out of its domain; the rest of the domain is still built. */
+    @Test
+    void buildsTheRestOfTheDomainWhenAChainFailsToBuildAndNotFailingFast() throws IOException {
+        chainDirectory("orders", "chain-orders.yaml", "orders-domain");
+        chainDirectory("billing", "chain-billing.yaml", "orders-domain");
+        chainDirectory("payments", "chain-payments.yaml", "payments-domain");
+        doAnswer(invocation -> {
+            ChainImpl chain = invocation.getArgument(0);
+            if ("orders".equals(chain.getId())) {
+                throw new IllegalStateException("invalid chain");
+            }
+            SnapshotImpl snapshot = new SnapshotImpl();
+            snapshot.setName(chain.getId());
+            return snapshot;
+        }).when(snapshotBuildService).build(any());
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+            () -> buildService.buildResources(taskContext(false, false)));
+
+        assertEquals("Failed to generate K8s resources: 1 error(s) occurred", exception.getMessage());
+        assertEquals(
+            Map.of("orders-domain", Set.of("billing"), "payments-domain", Set.of("payments")),
+            capturedChainIdsByDomain());
+        verify(resourceWriteService, times(2)).writeResources(any(), any(), any());
+    }
+
+    /** Chains resolve their services from the catalog, so a service that failed to load stops the build. */
+    @Test
+    void stopsBeforeReadingChainsWhenAServiceFailsToLoad() throws IOException {
+        Path serviceFile = sourceRoot.resolve("service-payments.yaml");
+        Files.writeString(serviceFile, "");
+        when(integrationSystemReader.read(serviceFile.toFile())).thenThrow(new IllegalArgumentException("broken service"));
+        chainDirectory("orders", "chain-orders.yaml", "orders-domain");
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+            () -> buildService.buildResources(taskContext(false, false)));
+
+        assertEquals("Failed to load services: 1 error(s) occurred", exception.getMessage());
+        verifyNoInteractions(buildContextFactory, resourceWriteService);
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Set<String>> capturedChainIdsByDomain() {
         ArgumentCaptor<List<Snapshot>> snapshots = ArgumentCaptor.forClass(List.class);
@@ -265,15 +321,16 @@ class MicroDomainResourcesBuildServiceTest {
     }
 
     private TaskContext<BuildCRsTaskParameters> taskContext() {
-        return taskContext(false);
+        return taskContext(false, true);
     }
 
-    private TaskContext<BuildCRsTaskParameters> taskContext(boolean deployAll) {
+    private TaskContext<BuildCRsTaskParameters> taskContext(boolean deployAll, boolean failFast) {
         BuildCRsTaskParameters parameters = BuildCRsTaskParameters.builder()
             .sourceRoots(List.of(sourceRoot.toString()))
             .outputDirectory(outputDirectory().toString())
             .defaultDomain("fallback-domain")
             .deployAll(deployAll)
+            .failFast(failFast)
             .options(new BuildCRsOptions())
             .build();
         return TaskContext.<BuildCRsTaskParameters>builder()

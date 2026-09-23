@@ -35,6 +35,13 @@ public class BuildCRsMojo extends AbstractMojo {
     private String outputDirectory;
 
     @Parameter(
+        name = "failFast",
+        property = PARAMETER_PROPERTY_PREFIX + "failFast",
+        defaultValue = "true"
+    )
+    private boolean failFast;
+
+    @Parameter(
         name = "defaultDomain",
         property = PARAMETER_PROPERTY_PREFIX + "defaultDomain",
         defaultValue = "me-domain"
@@ -94,6 +101,7 @@ public class BuildCRsMojo extends AbstractMojo {
         return BuildCRsTaskParameters.builder()
             .sourceRoots(sourceRoots)
             .outputDirectory(outputDirectory)
+            .failFast(failFast)
             .defaultDomain(defaultDomain)
             .deployAll(deployAll)
             .controlPlaneType(controlPlaneType)

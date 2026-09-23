@@ -13,6 +13,7 @@ import org.qubership.integration.platform.io.readers.chain.ChainFileUtil;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
 import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
+import org.qubership.integration.platform.maven.plugin.domain.util.SkippableFailableOperationWrapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -70,33 +71,42 @@ public class MicroDomainResourcesBuildService {
 
     private void processServices(TaskContext<BuildCRsTaskParameters> taskContext) throws IOException {
         BuildCRsTaskParameters parameters = taskContext.getTaskParameters();
-        integrationServiceLoadService.loadServices(parameters.getSourceRoots(), parameters.getOutputDirectory());
+        integrationServiceLoadService.loadServices(parameters.getSourceRoots(), parameters.getOutputDirectory(), parameters.isFailFast());
     }
 
     private void buildChainResources(TaskContext<BuildCRsTaskParameters> taskContext) throws IOException {
         BuildCRsTaskParameters parameters = taskContext.getTaskParameters();
+        SkippableFailableOperationWrapper failableOperationWrapper = new SkippableFailableOperationWrapper(parameters.isFailFast());
         Path outputDirectory = Path.of(parameters.getOutputDirectory());
         Predicate<ImportChain> isDeployAllowed = getChainFilter(parameters);
-        Collection<ImportChain> chains = readChains(parameters.getSourceRoots(), outputDirectory)
+        Collection<ImportChain> chains = readChains(parameters.getSourceRoots(), outputDirectory, failableOperationWrapper)
             .stream()
             .filter(isDeployAllowed)
             .toList();
         Map<String, Collection<ImportChain>> chainsByDomain = groupChainsByDomain(chains, parameters.getDefaultDomain());
-        Failable.stream(chainsByDomain.entrySet()).forEach(entry -> {
-            String domain = entry.getKey();
-            Collection<ImportChain> chainsForDomain = entry.getValue();
-            buildChainResourcesForDomain(domain, chainsForDomain, taskContext);
-        });
+        Failable.stream(chainsByDomain.entrySet())
+            .forEach(failableOperationWrapper.wrapConsumer(entry -> {
+                String domain = entry.getKey();
+                Collection<ImportChain> chainsForDomain = entry.getValue();
+                buildChainResourcesForDomain(domain, chainsForDomain, taskContext, failableOperationWrapper);
+            }));
+        if (failableOperationWrapper.getErrorCount() > 0) {
+            String message = String.format("Failed to generate K8s resources: %d error(s) occurred",
+                failableOperationWrapper.getErrorCount());
+            throw new RuntimeException(message);
+        }
     }
 
     public void buildChainResourcesForDomain(
         String domain,
         Collection<ImportChain> chains,
-        TaskContext<BuildCRsTaskParameters> taskContext
+        TaskContext<BuildCRsTaskParameters> taskContext,
+        SkippableFailableOperationWrapper failableOperationWrapper
     ) throws IOException {
         BuildCRsTaskParameters parameters = taskContext.getTaskParameters();
         List<Snapshot> snapshots = Failable.stream(chains)
-            .map(snapshotBuildService::build)
+            .map(failableOperationWrapper.wrapFunction(snapshotBuildService::build))
+            .filter(Objects::nonNull)
             .collect(Collectors.toList());
         ResourceBuildOptions resourceBuildOptions =
             resourceBuildOptionsFactory.createResourceBuildOptions(domain, parameters);
@@ -111,14 +121,19 @@ public class MicroDomainResourcesBuildService {
         );
     }
 
-    private Collection<ImportChain> readChains(Collection<String> sourceRoots, Path outputDirectory) throws IOException {
+    private Collection<ImportChain> readChains(
+        Collection<String> sourceRoots,
+        Path outputDirectory,
+        SkippableFailableOperationWrapper failableOperationWrapper
+    ) throws IOException {
         Stream<File> chainDirectories = Failable.stream(sourceRoots)
             .map(File::new)
             .map(rootDir -> listDirectoriesThatContainChainFiles(rootDir, outputDirectory))
             .stream()
             .flatMap(Collection::stream);
         return Failable.stream(chainDirectories)
-            .map(directory -> processFile(directory, chainReader::read))
+            .map(failableOperationWrapper.wrapFunction(directory -> processFile(directory, chainReader::read)))
+            .filter(Objects::nonNull)
             .stream()
             .toList();
     }

@@ -34,6 +34,13 @@ public class BuildLibsMojo extends AbstractMojo {
     )
     private String outputDirectory;
 
+    @Parameter(
+        name = "failFast",
+        property = PARAMETER_PROPERTY_PREFIX + "failFast",
+        defaultValue = "true"
+    )
+    private boolean failFast;
+
     @Parameter(defaultValue = "${project}", readonly = true, required = true)
     private MavenProject project;
 
@@ -63,6 +70,7 @@ public class BuildLibsMojo extends AbstractMojo {
         return BuildLibsTaskParameters.builder()
             .sourceRoots(sourceRoots)
             .outputDirectory(outputDirectory)
+            .failFast(failFast)
             .build();
     }
 }

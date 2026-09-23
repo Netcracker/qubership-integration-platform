@@ -12,6 +12,7 @@ import java.util.Collection;
 public class BuildCRsTaskParameters {
     Collection<String> sourceRoots;
     String outputDirectory;
+    boolean failFast;
     boolean deployAll;
     String defaultDomain;
     ControlPlaneType controlPlaneType;

@@ -18,7 +18,9 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -79,7 +81,7 @@ class DtoLibrariesBuildServiceTest {
 
         var order = inOrder(integrationServiceLoadService, dtoLibraryCompilationService);
         order.verify(integrationServiceLoadService)
-            .loadServices(List.of(sourceRoot.toString()), outputDirectory().toString());
+            .loadServices(List.of(sourceRoot.toString()), outputDirectory().toString(), true);
         order.verify(dtoLibraryCompilationService).generateJar(any(), any(), any());
     }
 
@@ -117,6 +119,23 @@ class DtoLibrariesBuildServiceTest {
             .generateJar(service, group, group.getSpecifications().iterator().next());
     }
 
+    @Test
+    void buildsTheOtherServicesWhenOneFailsAndNotFailingFast() throws Exception {
+        ServiceSpecification broken = specification("orders");
+        registerService("payments", broken);
+        registerService("billing", specification("invoices"));
+        when(dtoLibraryCompilationService.generateJar(any(), any(), any())).thenReturn(JAR_DATA);
+        when(dtoLibraryCompilationService.generateJar(any(), any(), eq(broken)))
+            .thenThrow(new IllegalStateException("broken specification"));
+
+        RuntimeException exception = assertThrows(RuntimeException.class,
+            () -> buildService.buildLibraries(taskContext(false)));
+
+        assertEquals("Failed to build DTO libraries for services: 1 error(s) occurred", exception.getMessage());
+        assertTrue(Files.exists(outputDirectory().resolve("invoices.jar")));
+        assertFalse(Files.exists(outputDirectory().resolve("orders.jar")));
+    }
+
     private IntegrationService registerService(String id, ServiceSpecification... specifications) {
         SpecificationGroup group = mock(SpecificationGroup.class);
         when(group.getSpecifications()).thenReturn(List.of(specifications));
@@ -140,9 +159,14 @@ class DtoLibrariesBuildServiceTest {
     }
 
     private TaskContext<BuildLibsTaskParameters> taskContext() {
+        return taskContext(true);
+    }
+
+    private TaskContext<BuildLibsTaskParameters> taskContext(boolean failFast) {
         BuildLibsTaskParameters parameters = BuildLibsTaskParameters.builder()
             .sourceRoots(List.of(sourceRoot.toString()))
             .outputDirectory(outputDirectory().toString())
+            .failFast(failFast)
             .build();
         return TaskContext.<BuildLibsTaskParameters>builder()
             .project(project)

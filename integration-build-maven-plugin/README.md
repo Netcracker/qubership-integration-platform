@@ -32,7 +32,8 @@ The generated YAML files and JAR files land in `target/`.
 | `build-crs` | `compile` | One YAML file per Kubernetes resource: the Camel K `Integration`, its ConfigMaps, `Service`, `ServiceMonitor`, and the Istio route resources. |
 | `build-libs` | `compile` | One `<specificationId>.jar` per service specification whose protocol has a code generator. |
 
-Each goal starts its own Spring context, reads every source root, and fails the build on the first error.
+Each goal starts its own Spring context and reads every source root. By default it fails the build on the
+first error; see [Error handling](#error-handling) to collect every error in one run instead.
 
 ## Source layout
 
@@ -87,6 +88,7 @@ continues. With no chains found, `build-crs` writes nothing.
 | --- | --- | --- | --- | --- |
 | `sourceRoots` | `List<String>` | `cip.sourceRoots` | `${project.basedir}/src/main/integration` | Directories to read chains and services from. |
 | `outputDirectory` | `String` | `cip.outputDirectory` | `${project.build.directory}` | Directory the resource files are written to. |
+| `failFast` | `boolean` | `cip.failFast` | `true` | Stops at the first error; `false` skips what fails and reports every error. See [Error handling](#error-handling). |
 | `deployAll` | `boolean` | `cip.deployAll` | `false` | Builds every chain found, whatever its deployment settings. |
 | `defaultDomain` | `String` | `cip.defaultDomain` | `me-domain` | Domain for a chain with no micro-domain deployment, reached only with `deployAll`. |
 | `controlPlaneType` | `ISTIO` or `CORE` | `cip.controlPlaneType` | `ISTIO` | `ISTIO` generates the route resources; `CORE` skips them. |
@@ -240,6 +242,7 @@ Placeholder resolution is strict. A property the plugin needs and does not defin
 | --- | --- | --- | --- | --- |
 | `sourceRoots` | `List<String>` | `cip.sourceRoots` | `${project.basedir}/src/main/integration` | Directories to read services from. |
 | `outputDirectory` | `String` | `cip.outputDirectory` | `${project.build.directory}` | Directory the JAR files are written to. |
+| `failFast` | `boolean` | `cip.failFast` | `true` | Stops at the first error; `false` skips what fails and reports every error. See [Error handling](#error-handling). |
 
 For every specification of every integration service, the goal generates DTO classes with the code
 generator for the service's protocol, compiles them, and writes `<outputDirectory>/<specificationId>.jar`
@@ -253,6 +256,38 @@ The integrations configuration from `build-crs` points the engine at
 `http://qip-runtime-catalog-v1:8080/v1/models/<specificationId>/dto/jar`, not at these files. Nothing in
 the plugin publishes the JARs there, so a deployment that uses them has to serve them at that URL or
 override the host through `QIP_CATALOG_SERVICE_NAME`.
+
+## Error handling
+
+With `failFast` left at `true`, a goal stops at the first error and Maven reports it.
+
+With `failFast` set to `false`, a goal skips what fails, logs each error at `ERROR` level, and carries on.
+The build still fails at the end, with the number of errors:
+
+```text
+Failed to generate K8s resources: 3 error(s) occurred
+```
+
+What a failure skips depends on where it happens:
+
+| Stage | A failure skips | Build continues with |
+| --- | --- | --- |
+| Loading services, both goals | that service file | the other services, then stops before any chain or library is built |
+| Reading chains, `build-crs` | that chain | the other chains |
+| Building a snapshot, `build-crs` | that chain | the rest of its domain |
+| Building and writing a domain's resources, `build-crs` | that domain | the other domains |
+| Building DTO libraries, `build-libs` | the rest of that service's specifications | the other services |
+
+Chains and libraries depend on the services, so a service that fails to load stops the goal once every
+service file has been read. Chains that name the missing service would only fail again.
+
+The resources and libraries that did build are written and attached as usual, so you can inspect them. A
+domain is built from the chains that remain, even when none does. The build still fails, so nothing is
+installed or deployed.
+
+```bash
+mvn compile -Dcip.failFast=false
+```
 
 ## Migrations
 
@@ -324,7 +359,6 @@ in a GitOps diff. A design for reproducible output is in
 
 ## Limitations
 
-- One invalid chain fails the whole build; there is no per-chain skip.
 - No `skip` parameter, and the goals are not marked thread-safe.
 - Output is not reproducible, see [Snapshots](#snapshots).
 

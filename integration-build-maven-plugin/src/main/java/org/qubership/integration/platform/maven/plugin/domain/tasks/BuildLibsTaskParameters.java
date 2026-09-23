@@ -10,4 +10,5 @@ import java.util.Collection;
 public class BuildLibsTaskParameters {
     Collection<String> sourceRoots;
     String outputDirectory;
+    boolean failFast;
 }
