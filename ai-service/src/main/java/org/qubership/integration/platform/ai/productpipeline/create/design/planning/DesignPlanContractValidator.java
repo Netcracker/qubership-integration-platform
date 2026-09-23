@@ -185,7 +185,7 @@ public final class DesignPlanContractValidator {
         .collect(java.util.stream.Collectors.joining("\n"));
   }
 
-  private static Map<TargetKey, String> expectedOwners(
+  static Map<TargetKey, String> expectedOwners(
       ChainSemanticRevision revision, RequirementBrief brief, BindingPolicy bindingPolicy) {
     Map<TargetKey, String> owners = new LinkedHashMap<>();
     revision.entryPoints().forEach(entry -> {
@@ -566,7 +566,7 @@ public final class DesignPlanContractValidator {
     return new DesignPlanContractFinding(code, kind, targetId, stepId, true, message);
   }
 
-  private record TargetKey(TargetKind kind, String id) {
+  record TargetKey(TargetKind kind, String id) {
     @Override
     public String toString() {
       return kind + " targetId=" + id;

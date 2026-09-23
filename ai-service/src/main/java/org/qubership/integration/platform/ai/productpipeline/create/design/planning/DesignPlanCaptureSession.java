@@ -6,6 +6,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -39,7 +40,8 @@ public final class DesignPlanCaptureSession {
             pin,
             new AtomicReference<>(),
             new AtomicReference<>(),
-            new AtomicReference<>(List.of()));
+            new AtomicReference<>(List.of()),
+            new AtomicBoolean());
     if (BY_CONVERSATION.putIfAbsent(id, binding) != null) {
       throw new IllegalStateException("Design plan capture is already active for " + id);
     }
@@ -71,5 +73,6 @@ public final class DesignPlanCaptureSession {
       CompilerRunPin pin,
       AtomicReference<DesignPlanContract> candidate,
       AtomicReference<String> rejection,
-      AtomicReference<List<DesignPlanContractFinding>> rejectionFindings) {}
+      AtomicReference<List<DesignPlanContractFinding>> rejectionFindings,
+      AtomicBoolean terminal) {}
 }

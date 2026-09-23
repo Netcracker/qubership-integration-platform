@@ -40,6 +40,9 @@ public final class TypedCipDesignPlannerAdapter {
     if (first.contract() != null) {
       return new Result(first.contract(), first.rawResponse());
     }
+    if (first.terminal()) {
+      throw new PlannerContractException(rejection(first), first.findings());
+    }
     String firstFailure = rejection(first);
     DesignPlanSkillRunner.Result second =
         runner.runOnce(

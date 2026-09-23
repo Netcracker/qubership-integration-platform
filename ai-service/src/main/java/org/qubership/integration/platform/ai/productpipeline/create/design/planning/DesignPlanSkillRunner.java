@@ -24,10 +24,16 @@ public interface DesignPlanSkillRunner {
       DesignPlanContract contract,
       String rawResponse,
       String rejection,
-      java.util.List<DesignPlanContractFinding> findings) {
+      java.util.List<DesignPlanContractFinding> findings,
+      boolean terminal) {
 
     public Result(DesignPlanContract contract, String rawResponse, String rejection) {
-      this(contract, rawResponse, rejection, java.util.List.of());
+      this(contract, rawResponse, rejection, java.util.List.of(), false);
+    }
+
+    public Result(DesignPlanContract contract, String rawResponse, String rejection,
+        java.util.List<DesignPlanContractFinding> findings) {
+      this(contract, rawResponse, rejection, findings, false);
     }
 
     public Result {

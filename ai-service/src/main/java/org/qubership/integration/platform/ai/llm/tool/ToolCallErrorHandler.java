@@ -15,6 +15,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.input
 import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.Mode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanCaptureSession;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanCaptureTool;
 
 /**
  * Turns a failed tool call into a tool result the model can act on. Without it a malformed call
@@ -31,6 +33,7 @@ public class ToolCallErrorHandler implements ToolExecutionErrorHandler, ToolArgu
   private static final Logger LOG = Logger.getLogger(ToolCallErrorHandler.class);
 
   @Inject ProductRequirementBriefTool productBriefTool;
+  @Inject DesignPlanCaptureTool designPlanTool;
 
   /** Longest upstream message copied into the answer; beyond this the tail is dropped. */
   static final int MAX_REASON_CHARS = 500;
@@ -66,6 +69,18 @@ public class ToolCallErrorHandler implements ToolExecutionErrorHandler, ToolArgu
             conversationId,
             new StructuredCaptureArguments.Issue("INVALID_TYPE", "/capture",
                 "Arguments do not match the requirement capture schema.")));
+      }
+    }
+    if ("captureDesignPlan".equals(toolName)
+        && ToolArgumentsFailures.isToolArgumentsFailure(error)
+        && designPlanTool != null) {
+      Object memoryId = context == null ? null : context.memoryId();
+      String conversationId = memoryId == null
+          ? ToolSession.resolveConversationId() : memoryId.toString();
+      if (DesignPlanCaptureSession.binding(conversationId).isPresent()) {
+        return ToolErrorHandlerResult.text(designPlanTool.rejectArguments(
+            conversationId, new StructuredCaptureArguments.Issue(
+                "INVALID_TYPE", "/capture", "Arguments do not match the plan capture schema.")));
       }
     }
     return ToolErrorHandlerResult.text(message(toolName, error));

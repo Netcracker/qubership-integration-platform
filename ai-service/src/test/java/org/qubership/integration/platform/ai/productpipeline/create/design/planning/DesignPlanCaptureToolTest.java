@@ -10,8 +10,6 @@ import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ToolSession;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.ClaimRole;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.OwnerKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 
@@ -31,13 +29,11 @@ class DesignPlanCaptureToolTest {
     DesignPlanCaptureSession.Binding binding = bind("conversation-a", "2026.1");
     ToolSession.bind("conversation-a");
 
-    assertEquals(
-        DesignPlanCaptureTool.CAPTURED_MESSAGE,
-        tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call")));
+    assertTrue(tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call"))
+        .contains("\"nextAction\":\"HANDOFF\""));
     assertEquals("2026.1", binding.candidate().get().apiRelease());
-    assertEquals(
-        DesignPlanCaptureTool.DUPLICATE_MESSAGE,
-        tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Other", "Other")));
+    assertTrue(tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Other", "Other"))
+        .contains("\"code\":\"DUPLICATE_CAPTURE\""));
   }
 
   @Test
@@ -46,22 +42,15 @@ class DesignPlanCaptureToolTest {
     ToolSession.bind("conversation-a");
     DesignPlanCapture invalid =
         new DesignPlanCapture(
-            List.of(
-                new DesignPlanCapture.Step(
-                    "ghost",
-                    "Unknown target",
-                    new DesignPlanCapture.Owner(OwnerKind.SKILL, "cip-trigger-generator"),
-                    List.of(
-                        new DesignPlanCapture.Claim(
-                            TargetKind.ENTRY_POINT, "ghost", ClaimRole.PRODUCER)),
-                    List.of())));
+            List.of(new DesignPlanCapture.Note(
+                TargetKind.ENTRY_POINT, "ghost", "Unknown target")));
 
     String rejection = tool.captureDesignPlan(invalid);
-    assertTrue(rejection.contains("UNKNOWN_TARGET"), rejection);
+    assertTrue(rejection.contains("Unknown planning target"), rejection);
+    assertTrue(rejection.contains("\"nextAction\":\"REPAIR_CAPTURE\""), rejection);
     assertNull(binding.candidate().get());
-    assertEquals(
-        DesignPlanCaptureTool.CAPTURED_MESSAGE,
-        tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call")));
+    assertTrue(tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call"))
+        .contains("\"nextAction\":\"HANDOFF\""));
     assertNotNull(binding.candidate().get());
   }
 
@@ -89,6 +78,6 @@ class DesignPlanCaptureToolTest {
         "revision-hash",
         apiRelease,
         DesignPlanTestFixtures.brief(),
-        DesignPlanTestFixtures.pin(revision));
+        DesignPlanTestFixtures.planningPin(revision));
   }
 }
