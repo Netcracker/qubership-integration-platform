@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.compiler.runtimepkg.CompilerRuntime
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
+import org.qubership.integration.platform.ai.plan.mapping.MappingCaptureValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
 import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
@@ -244,6 +245,20 @@ public class CompilerSkillContextBuilder {
       }
       section.append(" [").append(rule.status()).append("]\n");
     }
+    List<String> approvedCoverage =
+        new MappingCaptureValidator()
+            .hopBodyCoverage(
+                intent.rules().stream().map(MappingIntentRule::targetPath).toList(), envelope);
+    section.append("Approved hop-body mappingCoverage paths: ")
+        .append(formatJson(approvedCoverage))
+        .append("\n");
+    section.append(
+        "Use these exact paths in mappingCoverage for rules implemented by the script. "
+            + "Do not add source, header, or wrapper paths.\n");
+    section.append(
+        "These paths refer to the outgoing request BODY. Build a target body map and assign it "
+            + "to exchange.in.body. Setting exchange.in.headers does not implement a body "
+            + "mapping, even if the header has the same field name.\n");
     section.append('\n');
     appendExchangePropertyGuidance(
         section, intent, revisionIntents, sourceContractsByIntentId);

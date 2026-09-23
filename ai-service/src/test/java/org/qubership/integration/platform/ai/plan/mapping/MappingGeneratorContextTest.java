@@ -103,6 +103,8 @@ class MappingGeneratorContextTest {
     assertTrue(message.contains("Mapping generation"));
     assertTrue(message.contains(sourceSide.sha256()));
     assertTrue(message.contains("$.orderId"));
+    assertTrue(message.contains("Approved hop-body mappingCoverage paths: [\"$.orderId\"]"));
+    assertTrue(message.contains("assign it to exchange.in.body"));
     assertTrue(message.contains("must be copied unchanged"));
   }
 
@@ -179,6 +181,7 @@ class MappingGeneratorContextTest {
     assertTrue(mappingContext.contains("setProperty"));
     assertTrue(mappingContext.contains("getProperty"));
     assertTrue(mappingContext.contains("map-request"));
+    assertTrue(mappingContext.contains("Approved hop-body mappingCoverage paths: [\"$.processId\"]"));
     assertTrue(mappingContext.contains("must be copied unchanged"));
   }
 
