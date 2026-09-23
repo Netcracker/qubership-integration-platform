@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.compiler.HttpTriggerCaptureTool;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
 import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool;
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanCaptureTool;
@@ -43,18 +44,20 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
   private final ObjectMapper objectMapper;
   private final ProductRequirementBriefTool productBriefTool;
   private final DesignPlanCaptureTool designPlanTool;
+  private final HttpTriggerCaptureTool httpTriggerTool;
 
   @Inject
   public StringifiedToolArgumentsNormalizer(
       ObjectMapper objectMapper, ProductRequirementBriefTool productBriefTool,
-      DesignPlanCaptureTool designPlanTool) {
+      DesignPlanCaptureTool designPlanTool, HttpTriggerCaptureTool httpTriggerTool) {
     this.objectMapper = objectMapper;
     this.productBriefTool = productBriefTool;
     this.designPlanTool = designPlanTool;
+    this.httpTriggerTool = httpTriggerTool;
   }
 
   StringifiedToolArgumentsNormalizer(ObjectMapper objectMapper) {
-    this(objectMapper, null, null);
+    this(objectMapper, null, null, null);
   }
 
   @Override
@@ -102,6 +105,18 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
       }
       return next.apply(inspected.request(), invocationContext);
     }
+    if (isHttpTriggerCapture(method)) {
+      StructuredCaptureArguments.Result inspected =
+          StructuredCaptureArguments.inspect(request, method, objectMapper);
+      if (inspected.issue() != null) {
+        Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
+        String conversationId = memoryId == null
+            ? ToolSession.resolveConversationId() : memoryId.toString();
+        String result = httpTriggerTool.rejectArguments(conversationId, inspected.issue());
+        return ToolExecutionResult.builder().result(result).resultText(result).build();
+      }
+      return next.apply(inspected.request(), invocationContext);
+    }
     return next.apply(normalize(request, executor.getMethodCreateInfo()), invocationContext);
   }
 
@@ -123,6 +138,16 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
         ToolsRecorder.getMetadata().get(DesignPlanCaptureTool.class.getName());
     return methods != null && methods.stream()
         .anyMatch(plan -> plan.invokerClassName().equals(method.invokerClassName()));
+  }
+
+  private static boolean isHttpTriggerCapture(ToolMethodCreateInfo method) {
+    if (method == null || !"captureHttpTriggers".equals(method.methodName())) {
+      return false;
+    }
+    List<ToolMethodCreateInfo> methods =
+        ToolsRecorder.getMetadata().get(HttpTriggerCaptureTool.class.getName());
+    return methods != null && methods.stream()
+        .anyMatch(tool -> tool.invokerClassName().equals(method.invokerClassName()));
   }
 
   ToolExecutionRequest normalize(ToolExecutionRequest request, ToolMethodCreateInfo method) {

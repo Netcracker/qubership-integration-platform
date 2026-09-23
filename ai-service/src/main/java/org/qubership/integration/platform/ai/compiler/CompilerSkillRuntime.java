@@ -36,6 +36,7 @@ import org.qubership.integration.platform.ai.llm.agent.ChainPlanRepairAgent;
 import org.qubership.integration.platform.ai.llm.agent.CompilerSkillAgent;
 import org.qubership.integration.platform.ai.llm.agent.CreateChainPlanAgent;
 import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
+import org.qubership.integration.platform.ai.llm.agent.HttpTriggerCaptureAgent;
 import org.qubership.integration.platform.ai.llm.agent.PatternSelectorAgent;
 import org.qubership.integration.platform.ai.llm.agent.ScriptBodyRepairAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
@@ -101,6 +102,7 @@ public class CompilerSkillRuntime {
   private final CompilerSkillContextBuilder contextBuilder;
   private final CaptureRouter captureRouter;
   private final CompilerSkillAgent generatorAgent;
+  private final HttpTriggerCaptureAgent httpTriggerAgent;
   private final CreateChainPlanAgent createChainPlanAgent;
   private final ChainPlanRepairAgent chainPlanRepairAgent;
   private final ScriptBodyRepairAgent scriptBodyRepairAgent;
@@ -131,6 +133,7 @@ public class CompilerSkillRuntime {
       CompilerSkillContextBuilder contextBuilder,
       CaptureRouter captureRouter,
       CompilerSkillAgent generatorAgent,
+      HttpTriggerCaptureAgent httpTriggerAgent,
       CreateChainPlanAgent createChainPlanAgent,
       ChainPlanRepairAgent chainPlanRepairAgent,
       ScriptBodyRepairAgent scriptBodyRepairAgent,
@@ -158,6 +161,7 @@ public class CompilerSkillRuntime {
     this.contextBuilder = contextBuilder;
     this.captureRouter = captureRouter;
     this.generatorAgent = generatorAgent;
+    this.httpTriggerAgent = httpTriggerAgent;
     this.createChainPlanAgent = createChainPlanAgent;
     this.chainPlanRepairAgent = chainPlanRepairAgent;
     this.scriptBodyRepairAgent = scriptBodyRepairAgent;
@@ -191,6 +195,7 @@ public class CompilerSkillRuntime {
       CompilerSkillContextBuilder contextBuilder,
       CaptureRouter captureRouter,
       CompilerSkillAgent generatorAgent,
+      HttpTriggerCaptureAgent httpTriggerAgent,
       CreateChainPlanAgent createChainPlanAgent,
       ChainPlanRepairAgent chainPlanRepairAgent,
       ScriptBodyRepairAgent scriptBodyRepairAgent,
@@ -217,6 +222,7 @@ public class CompilerSkillRuntime {
         contextBuilder,
         captureRouter,
         generatorAgent,
+        httpTriggerAgent,
         createChainPlanAgent,
         chainPlanRepairAgent,
         scriptBodyRepairAgent,
@@ -263,6 +269,21 @@ public class CompilerSkillRuntime {
     snapshot = overlayMappingGenerationContext(conversationId, capabilityId, snapshot);
     GeneratorPlan activePlan = readActivePlan(workspace, capabilityId);
     String userMessage = buildUserMessage(conversationId, document, snapshot, activePlan, route);
+    HttpTriggerCaptureSession.unbind(conversationId);
+    if (route.captureTool() == CaptureTool.CAPTURE_CONFIGURED_TRIGGER_SET) {
+      var revision = workspace.get(SkillArtifactType.CHAIN_SEMANTIC_REVISION)
+          .map(artifact -> ((SkillArtifactPayload.ChainSemanticRevisionPayload)
+              artifact.payload()).revision()).orElse(null);
+      var brief = workspace.get(SkillArtifactType.REQUIREMENT_BRIEF)
+          .map(artifact -> ((SkillArtifactPayload.RequirementBriefPayload)
+              artifact.payload()).brief()).orElse(null);
+      var skeleton = workspace.get(SkillArtifactType.ELEMENT_SKELETON)
+          .map(artifact -> ((SkillArtifactPayload.ElementSkeletonPayload)
+              artifact.payload()).skeleton()).orElse(null);
+      if (HttpTriggerCaptureSession.bind(conversationId, revision, brief, skeleton)) {
+        userMessage += httpTriggerCaptureInstructions(conversationId);
+      }
+    }
     ChainPlanGraph inputGraph = snapshot.chainPlanGraph();
 
     Context toolSinkContext = ToolInvocationSink.attachedContext();
@@ -288,6 +309,7 @@ public class CompilerSkillRuntime {
                     () -> {
                       ToolSession.clear();
                       MDC.remove(CompilerSkillMdc.CAPABILITY_ID);
+                      HttpTriggerCaptureSession.unbind(conversationId);
                     })
                 .subscribe()
                 .with(item -> {
@@ -828,8 +850,11 @@ public class CompilerSkillRuntime {
       }
       case CAPTURE_CONFIGURED_TRIGGER_SET -> {
         chatMemorySanitizer.repairDanglingToolCalls(memoryId);
+        boolean typedHttp = HttpTriggerCaptureSession.get(conversationId).isPresent();
         yield captureRepairRunner.runWithRepair(
-            message -> generatorAgent.chat(memoryId, message),
+            message -> typedHttp
+                ? httpTriggerAgent.chat(memoryId, message)
+                : generatorAgent.chat(memoryId, message),
             () ->
                 captureSession.isPresent(
                     CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, conversationId)),
@@ -839,7 +864,7 @@ public class CompilerSkillRuntime {
                 () ->
                     feedbackStore.recordPlanToolArgumentsFailure(
                         conversationId, "ToolArgumentsException")),
-            route.captureTool().toolName(),
+            typedHttp ? "captureHttpTriggers" : route.captureTool().toolName(),
             userMessage,
             true,
             null,
@@ -1224,6 +1249,31 @@ public class CompilerSkillRuntime {
     }
     return contextBuilder.buildUserMessage(
         conversationId, document, snapshot, activePlan, route.captureTool());
+  }
+
+  private static String httpTriggerCaptureInstructions(String conversationId) {
+    HttpTriggerCaptureSession.Binding binding =
+        HttpTriggerCaptureSession.get(conversationId).orElseThrow();
+    StringBuilder text = new StringBuilder();
+    text.append("\n\n## Active HTTP trigger capture\n\n");
+    text.append("Call captureHttpTriggers with endpoints only. This tool replaces ");
+    text.append("captureConfiguredTriggerSet for this HTTP-only run. Do not send trigger ");
+    text.append("properties or copy JSON examples above. Use each approved role and node once.\n");
+    text.append("Approved role ids: ")
+        .append(String.join(", ", binding.skeleton().entryPointRoleIds())).append("\n");
+    for (var entry : binding.revision().entryPoints()) {
+      var approved = binding.brief().entryPoints().stream()
+          .filter(candidate -> candidate.entryPointId().equals(entry.entryPointId()))
+          .findFirst().orElse(null);
+      if (approved != null) {
+        text.append("Approved node ").append(entry.triggerNodeId())
+            .append(": ").append(approved.httpMethod()).append(' ')
+            .append(approved.path()).append("\n");
+      }
+    }
+    text.append("externalRoute must be a JSON boolean. Choose true only for an ");
+    text.append("explicit external or public route; otherwise choose false.\n");
+    return text.toString();
   }
 
   private CompilerSkillInputSnapshot overlayMappingGenerationContext(

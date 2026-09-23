@@ -55,8 +55,11 @@ public class SkillHarnessResource {
     if (request == null) {
       return badRequest("Request body is required");
     }
-    if (isBlank(request.plannerResponse())) {
-      return badRequest("plannerResponse is required");
+    if (request.designPlanContract() == null && isBlank(request.plannerResponse())) {
+      return badRequest("plannerResponse or designPlanContract is required");
+    }
+    if (request.designPlanContract() != null && request.designPlanReport() == null) {
+      return badRequest("designPlanReport is required with designPlanContract");
     }
     if (request.semanticRevision() == null) {
       return badRequest("semanticRevision is required");

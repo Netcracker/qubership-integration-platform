@@ -100,6 +100,7 @@ class CompilerSkillRuntimeTest {
   private static final String CONVERSATION_ID = "conv-compiler-runtime";
 
   @Mock private CompilerSkillAgent generatorAgent;
+  @Mock private org.qubership.integration.platform.ai.llm.agent.HttpTriggerCaptureAgent httpTriggerAgent;
   @Mock private CreateChainPlanAgent createChainPlanAgent;
   @Mock private ChainPlanRepairAgent chainPlanRepairAgent;
   @Mock private ScriptBodyRepairAgent scriptBodyRepairAgent;
@@ -157,6 +158,7 @@ class CompilerSkillRuntimeTest {
                 knowledgeClient),
             new CaptureRouter(addonRepository),
         generatorAgent,
+        httpTriggerAgent,
         createChainPlanAgent,
         chainPlanRepairAgent,
         scriptBodyRepairAgent,
@@ -556,6 +558,43 @@ class CompilerSkillRuntimeTest {
 
     verify(generatorAgent, never()).chat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     verify(scriptBodyRepairAgent, times(1)).chat(eq(memoryId(SCRIPT_GENERATOR_ID)), any());
+  }
+
+  @Test
+  void httpOnlyTriggerRunUsesTypedCaptureAgent() {
+    var approved = HttpTriggerCaptureAdapterTest.binding();
+    HttpTriggerCaptureSession.unbind("http-capture-test");
+    SkillWorkspace workspace = new InMemorySkillWorkspace(CONVERSATION_ID);
+    workspace.put(SkillArtifact.of(
+        SkillArtifactType.CHAIN_SEMANTIC_REVISION, "design-input",
+        new SkillArtifactPayload.ChainSemanticRevisionPayload(approved.revision())));
+    workspace.put(SkillArtifact.of(
+        SkillArtifactType.REQUIREMENT_BRIEF, "requirement-analysis",
+        new SkillArtifactPayload.RequirementBriefPayload(approved.brief())));
+    workspace.put(SkillArtifact.of(
+        SkillArtifactType.ELEMENT_SKELETON, "pattern-selector",
+        new SkillArtifactPayload.ElementSkeletonPayload(approved.skeleton())));
+    when(httpTriggerAgent.chat(eq(memoryId("cip-trigger-generator")), any()))
+        .thenAnswer(invocation -> {
+          var binding = HttpTriggerCaptureSession.get(CONVERSATION_ID).orElseThrow();
+          var triggers = new HttpTriggerCaptureAdapter().adapt(
+              new HttpTriggerCapture(List.of(new HttpTriggerCapture.Endpoint(
+                  "http-entry", "http-trigger-1", false))), binding);
+          captureSession.accept(
+              CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, CONVERSATION_ID),
+              triggers, "ok", "duplicate");
+          return Multi.createFrom().empty();
+        });
+
+    runtime.runStreaming(runContext("cip-trigger-generator", 2), workspace,
+        "cip-trigger-generator").collect().asList().await().indefinitely();
+
+    verify(httpTriggerAgent).chat(eq(memoryId("cip-trigger-generator")),
+        org.mockito.ArgumentMatchers.contains("captureHttpTriggers"));
+    verify(generatorAgent, never()).chat(any(), any());
+    assertTrue(captureSession.isPresent(
+        CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, CONVERSATION_ID)));
+    assertTrue(HttpTriggerCaptureSession.get(CONVERSATION_ID).isEmpty());
   }
 
   @Test
