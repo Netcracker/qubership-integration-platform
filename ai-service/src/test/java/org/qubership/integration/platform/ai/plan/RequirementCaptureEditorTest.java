@@ -143,6 +143,31 @@ class RequirementCaptureEditorTest {
             && "/draft/facts/2/text".equals(issue.path())));
   }
 
+  @Test
+  void fieldMappingRequiresExactEndpointsAndSurvivesFocusedUpdate() {
+    DraftInput accepted = initial();
+    FactInput mapping = new FactInput("mapping", List.of("start", "create-task"),
+        FactKind.FIELD_MAPPING, Polarity.POSITIVE, "Copy title to Subject.",
+        new RequirementCaptureInput.FieldMappingInput(
+            "start", "title", "create-task", "Subject", null));
+
+    var updated = RequirementCaptureEditor.apply(accepted,
+        update(List.of(), List.of(mapping), List.of()));
+    assertTrue(updated.accepted(), updated.issues().toString());
+    assertEquals(mapping, updated.draft().facts().get(1));
+    assertTrue(RequirementCaptureProjection.render(updated.draft(), List.of())
+        .contains("Entry 1.title -> Call 1.Subject"));
+
+    FactInput unanchored = new FactInput("mapping", List.of("create-task"),
+        FactKind.FIELD_MAPPING, Polarity.POSITIVE, mapping.text(), mapping.fieldMapping());
+    var rejected = RequirementCaptureEditor.apply(updated.draft(),
+        update(List.of(), List.of(unanchored), List.of()));
+    assertFalse(rejected.accepted());
+    assertEquals(updated.draft(), rejected.draft());
+    assertTrue(rejected.issues().stream().anyMatch(issue ->
+        "MAPPING_TARGETS_REQUIRED".equals(issue.code())));
+  }
+
   private static DraftInput initial() {
     return new DraftInput(
         new FlowInput(List.of(

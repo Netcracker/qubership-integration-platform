@@ -39,11 +39,28 @@ public final class RequirementCaptureInput {
       List<String> interactionIds,
       FactKind kind,
       Polarity polarity,
-      String text) {}
+      String text,
+      @NullableCaptureValue(description = "Required for FIELD_MAPPING; exact approved source and target fields.")
+          FieldMappingInput fieldMapping) {
+
+    public FactInput(
+        String sourceFactId, List<String> interactionIds, FactKind kind, Polarity polarity,
+        String text) {
+      this(sourceFactId, interactionIds, kind, polarity, text, null);
+    }
+  }
+
+  public record FieldMappingInput(
+      String sourceInteractionId,
+      @NullableCaptureValue String sourcePath,
+      String targetInteractionId,
+      String targetPath,
+      @NullableCaptureValue String expression) {}
 
   public enum FactKind {
     GOAL,
     PARAMETER,
+    FIELD_MAPPING,
     BEHAVIOR,
     CONSTRAINT,
     VISIBILITY,

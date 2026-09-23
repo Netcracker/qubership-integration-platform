@@ -32,6 +32,14 @@ catalog resolution, and defaults.
 - Use the `capabilities` list for native triggers, direct senders, file transfer, chain calls,
   and MCP triggers. Do not create `CAPABILITY`, `ENDPOINT`, or `SERVICE_CALL` authored facts.
   Use facts for goals, parameters, behavior, constraints, visibility, and routing intent.
+- Record each requested field adaptation as a `FIELD_MAPPING` fact. Set `fieldMapping` with the
+  approved source and target interaction IDs, exact source and target field paths, and an
+  expression only for computed or constant values. Keep the readable request in `text`.
+  A named top-level field is its own path: "incoming title" means `sourcePath=title`, and
+  "Subject field" means `targetPath=Subject`. Ask only when the field name or required nesting
+  is genuinely unspecified. Do not substitute a different field name.
+- For a custom HTTP endpoint with no named calling system, use `Caller` as the inbound
+  participant. Do not block the draft to ask for a label that the author can revise later.
 - Treat a result with `accepted=false` as a rejected edit. Read its issues, correct the input
   once when possible, and never tell the user that a rejected change was saved. A valid partial
   draft needs ordinary clarification or lookup, not a repair loop.

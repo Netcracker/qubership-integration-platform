@@ -8,6 +8,7 @@ public enum RequirementFactKind {
   GOAL,
   ENDPOINT,
   PARAMETER,
+  FIELD_MAPPING,
   BEHAVIOR,
   CONSTRAINT,
   CAPABILITY,

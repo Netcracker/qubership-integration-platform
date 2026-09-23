@@ -1,4 +1,4 @@
-package org.qubership.integration.platform.ai.productpipeline.create.design.input;
+package org.qubership.integration.platform.ai.llm.tool;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
@@ -18,14 +18,15 @@ import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 import io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo;
 import java.io.IOException;
 import java.util.Map;
-import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool.CaptureIssue;
 
-/** Checks the design call before Quarkus maps its arguments to a Java record. */
-public final class DesignCaptureArguments {
+/** Checks a structured capture call before Quarkus maps its arguments to a Java record. */
+public final class StructuredCaptureArguments {
 
-  public record Result(ToolExecutionRequest request, CaptureIssue issue) {}
+  public record Issue(String code, String path, String message) {}
 
-  private DesignCaptureArguments() {}
+  public record Result(ToolExecutionRequest request, Issue issue) {}
+
+  private StructuredCaptureArguments() {}
 
   public static Result inspect(
       ToolExecutionRequest request, ToolMethodCreateInfo method, ObjectMapper mapper) {
@@ -45,7 +46,7 @@ public final class DesignCaptureArguments {
         capture = parse(strict, capture.textValue());
         ((com.fasterxml.jackson.databind.node.ObjectNode) input).set(parameter, capture);
       }
-      CaptureIssue issue = unknownField(
+      Issue issue = unknownField(
           input, method.toolSpecification().parameters(),
           method.toolSpecification().parameters().definitions(), "");
       if (issue != null) {
@@ -76,16 +77,16 @@ public final class DesignCaptureArguments {
     }
   }
 
-  private static CaptureIssue unknownField(
+  private static Issue unknownField(
       JsonNode value, JsonSchemaElement schema, Map<String, JsonSchemaElement> definitions,
       String path) {
     if (schema instanceof JsonReferenceSchema reference) {
       return unknownField(value, definitions.get(reference.reference()), definitions, path);
     }
     if (schema instanceof JsonAnyOfSchema anyOf) {
-      CaptureIssue matchingShapeIssue = null;
+      Issue matchingShapeIssue = null;
       for (JsonSchemaElement alternative : anyOf.anyOf()) {
-        CaptureIssue issue = unknownField(value, alternative, definitions, path);
+        Issue issue = unknownField(value, alternative, definitions, path);
         if (issue == null) {
           return null;
         }
@@ -107,9 +108,9 @@ public final class DesignCaptureArguments {
         JsonSchemaElement child = object.properties().get(field.getKey());
         String childPath = path + "/" + field.getKey();
         if (child == null) {
-          return new CaptureIssue("UNEXPECTED_FIELD", childPath, "Remove this unsupported field.");
+          return new Issue("UNEXPECTED_FIELD", childPath, "Remove this unsupported field.");
         }
-        CaptureIssue nested = unknownField(field.getValue(), child, definitions, childPath);
+        Issue nested = unknownField(field.getValue(), child, definitions, childPath);
         if (nested != null) {
           return nested;
         }
@@ -119,7 +120,7 @@ public final class DesignCaptureArguments {
         return invalidType(path);
       }
       for (int i = 0; i < value.size(); i++) {
-        CaptureIssue nested = unknownField(value.get(i), array.items(), definitions, path + "/" + i);
+        Issue nested = unknownField(value.get(i), array.items(), definitions, path + "/" + i);
         if (nested != null) {
           return nested;
         }
@@ -138,10 +139,10 @@ public final class DesignCaptureArguments {
   }
 
   private static Result invalid(String code, String path, String message) {
-    return new Result(null, new CaptureIssue(code, path, message));
+    return new Result(null, new Issue(code, path, message));
   }
 
-  private static CaptureIssue invalidType(String path) {
-    return new CaptureIssue("INVALID_TYPE", path, "Use the type declared by this field's schema.");
+  private static Issue invalidType(String path) {
+    return new Issue("INVALID_TYPE", path, "Use the type declared by this field's schema.");
   }
 }

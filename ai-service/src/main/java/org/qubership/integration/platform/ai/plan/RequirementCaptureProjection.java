@@ -275,6 +275,19 @@ public final class RequirementCaptureProjection {
     }
     for (FactInput fact : input.facts()) {
       text.append("- ").append(fact.text());
+      if (fact.kind() == RequirementCaptureInput.FactKind.FIELD_MAPPING
+          && fact.fieldMapping() != null) {
+        var mapping = fact.fieldMapping();
+        text.append(" [field mapping: ")
+            .append(labels.getOrDefault(mapping.sourceInteractionId(), mapping.sourceInteractionId()))
+            .append('.')
+            .append(blank(mapping.sourcePath()) ? "expression" : mapping.sourcePath())
+            .append(" -> ")
+            .append(labels.getOrDefault(mapping.targetInteractionId(), mapping.targetInteractionId()))
+            .append('.')
+            .append(mapping.targetPath())
+            .append(']');
+      }
       if (!fact.interactionIds().isEmpty()) {
         text.append(" (for ").append(fact.interactionIds().stream()
             .map(labels::get).reduce((left, right) -> left + ", " + right).orElse("")).append(")");
