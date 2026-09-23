@@ -17,7 +17,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
-| F11 | Smaller items, see below | minor | partial | `bcdb973dc`, `1366eaa3a` |
+| F11 | Smaller items, see below | minor | partial | `bcdb973dc`, `1366eaa3a`, `bc7b32c22` |
 | F12 | Chain version fallback answers for service exports too | major | won't fix | |
 | F13 | Active environment selection diverges from runtime-catalog | major | open | |
 | F14 | Smaller items from the second round, see below | medium | partial | `1366eaa3a` |
@@ -27,7 +27,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | Item | Status | Commit |
 | --- | --- | --- |
 | `IntegrationServiceCatalogImpl.findAllByIds` returns `null` entries for unknown ids | fixed | `bcdb973dc` |
-| `AssumeActualChainVersion` has no `@Order` | open | |
+| `AssumeActualChainVersion` has no `@Order` | fixed | `bc7b32c22` |
 | `MavenPluginYamlMapperConfiguration` relies on parameter-name bean matching | open | |
 | One bad chain aborts the whole run | open | |
 | Generated resources are not attached as build artifacts | open | |
@@ -210,6 +210,25 @@ Verified:
 - A plain string default on a `List<String>` parameter is safe. `CollectionConverter.fromConfiguration`
   in `org.eclipse.sisu.plexus` splits the value on commas through `csvToXml`, so the field gets a
   one-element list rather than a type-mismatch failure.
+
+### F11, the version fallback order, `bc7b32c22`
+
+`AssumeActualVersion` had no `@Order`, so it tied with `VersionFieldStrategy` at
+`Ordered.LOWEST_PRECEDENCE`, and the classpath scan decided which of the two ran first. Had the fallback
+won, a `fileVersion` export would have been read as current and never migrated. `AssumeActualVersion` is
+now `@Order(Ordered.LOWEST_PRECEDENCE)` and `VersionFieldStrategy` moved to
+`Ordered.LOWEST_PRECEDENCE - 1`, so the strategies run in a fixed order: `content.migrations`,
+`migrations`, `fileVersion`, then the fallback.
+
+runtime-catalog has no fallback, and its three strategies keep their relative order.
+
+Verified:
+
+- `mvn verify -pl integration-build-maven-plugin -am -Dgpg.skip=true` passes.
+- `ApplicationConfigurationTest.asksTheAssumeActualVersionFallbackAfterTheFileVersionStrategy` pins the
+  order in the real context: a `fileVersion: 2` document reports `[1, 2]`, and a document without
+  metadata reaches the fallback. Mutation-checked: moving `AssumeActualVersion` to
+  `Ordered.HIGHEST_PRECEDENCE` fails it with `expected: <[1, 2]> but was: <[100, ..., 108]>`.
 
 ## Accepted
 
