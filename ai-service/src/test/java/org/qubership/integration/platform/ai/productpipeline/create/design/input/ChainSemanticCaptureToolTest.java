@@ -8,6 +8,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,12 +31,15 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackVersion;
 
 class ChainSemanticCaptureToolTest {
+
+  private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private static final CompilerContract CONTRACT =
       new ClasspathCompilerContractRepository().require(CompilerContract.V1);
@@ -45,11 +50,15 @@ class ChainSemanticCaptureToolTest {
   }
 
   @Test
-  void captureStoresOneCandidate() {
+  void captureStoresOneCandidate() throws Exception {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
     String result = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
-    assertTrue(result.contains("captured"), result);
+    JsonNode outcome = MAPPER.readTree(result);
+    assertTrue(outcome.get("accepted").asBoolean(), result);
+    assertTrue(outcome.get("changed").asBoolean(), result);
+    assertEquals("HANDOFF", outcome.get("nextAction").asText());
+    assertTrue(outcome.get("issues").isEmpty(), result);
     ChainSemanticRevision stored =
         ProductCapabilityCaptureContext.semanticCandidate().orElseThrow();
     assertTrue(stored.revisionId().startsWith("semantic-"), stored.revisionId());
@@ -244,18 +253,22 @@ class ChainSemanticCaptureToolTest {
   }
 
   @Test
-  void captureFailsWhenPackRelativePathSetIsMissingAFile() {
+  void captureFailsWhenPackRelativePathSetIsMissingAFile() throws Exception {
     Map<String, String> files = packRelativeChecksums();
     files.remove("knowledge/ai/GENERATOR_CONTRACTS.md");
     ChainSemanticCaptureTool tool = tool(pack(completeAddons(), files));
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
     String result = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
-    assertEquals("Required knowledge fragment is missing: generator-contracts", result);
+    JsonNode outcome = MAPPER.readTree(result);
+    assertFalse(outcome.get("accepted").asBoolean(), result);
+    assertEquals("STOP", outcome.get("nextAction").asText());
+    assertEquals("RUNTIME_CONFIGURATION_ERROR", outcome.at("/issues/0/code").asText());
+    assertEquals("Required knowledge fragment is missing: generator-contracts", outcome.get("message").asText());
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
   }
 
   @Test
-  void foreignSourceFactIdIsRejected() {
+  void foreignSourceFactIdIsRejected() throws Exception {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
     ChainSemanticCapture capture = ChainSemanticCaptureFixtures.linearCapture();
@@ -274,8 +287,30 @@ class ChainSemanticCaptureToolTest {
             capture.edges(),
             capture.containment());
     String result = tool.captureChainSemanticRevision(mutated);
+    JsonNode outcome = MAPPER.readTree(result);
+    assertFalse(outcome.get("accepted").asBoolean(), result);
+    assertEquals("REPAIR_CAPTURE", outcome.get("nextAction").asText());
+    assertEquals("DESIGN_CONTRACT_VIOLATION", outcome.at("/issues/0/code").asText());
     assertTrue(result.contains("foreign-fact"), result);
+    assertFalse(ProductCapabilityCaptureContext.designBinding("conv-1")
+        .orElseThrow().captureTerminal().get());
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
+  void injectedRejectionIsLimitedToOneValidCandidate() throws Exception {
+    ChainSemanticCaptureTool tool = tool(
+        completePack(), new E2eRecoveryFaultInjector(
+            "chain-orders", "design-input=CONTRACT_SHAPE:1"));
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+
+    String first = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    assertEquals("INJECTED_DESIGN_REJECTION", MAPPER.readTree(first).at("/issues/0/code").asText());
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+
+    String second = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
+    assertTrue(MAPPER.readTree(second).get("accepted").asBoolean(), second);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isPresent());
   }
 
   @Test
@@ -290,11 +325,17 @@ class ChainSemanticCaptureToolTest {
   }
 
   @Test
-  void missingAddonFailsClosedWithoutACandidate() {
+  void missingAddonFailsClosedWithoutACandidate() throws Exception {
     ChainSemanticCaptureTool tool = tool(packMissingExecutor());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
     String result = tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture());
-    assertEquals("Required compiler addon is missing: cip-design-executor", result);
+    JsonNode outcome = MAPPER.readTree(result);
+    assertFalse(outcome.get("accepted").asBoolean(), result);
+    assertEquals("STOP", outcome.get("nextAction").asText());
+    assertEquals("RUNTIME_CONFIGURATION_ERROR", outcome.at("/issues/0/code").asText());
+    assertEquals("Required compiler addon is missing: cip-design-executor", outcome.get("message").asText());
+    assertTrue(ProductCapabilityCaptureContext.designBinding("conv-1")
+        .orElseThrow().captureTerminal().get());
     assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
   }
 
@@ -366,6 +407,11 @@ class ChainSemanticCaptureToolTest {
   }
 
   static ChainSemanticCaptureTool tool(QipKnowledgePackRepository pack) {
+    return tool(pack, new E2eRecoveryFaultInjector("", ""));
+  }
+
+  private static ChainSemanticCaptureTool tool(
+      QipKnowledgePackRepository pack, E2eRecoveryFaultInjector injector) {
     CatalogElementDescriptorLoader descriptors = mock(CatalogElementDescriptorLoader.class);
     CatalogElementDescriptorTestSupport.stubPermissive(descriptors);
     return new ChainSemanticCaptureTool(
@@ -373,7 +419,8 @@ class ChainSemanticCaptureToolTest {
         new DefaultChainSemanticRevisionValidator(),
         new ClasspathCompilerContractRepository(),
         pack,
-        descriptors);
+        descriptors,
+        injector);
   }
 
   static QipKnowledgePackRepository completePack() {

@@ -23,6 +23,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.DesignCaptureArguments;
 
 /**
  * Removes one accidental JSON-string layer from object and array tool parameters before binding.
@@ -48,6 +51,20 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
       InvocationContext invocationContext,
       BiFunction<ToolExecutionRequest, InvocationContext, ToolExecutionResult> next,
       QuarkusToolExecutor executor) {
+    ToolMethodCreateInfo method = executor.getMethodCreateInfo();
+    if (method != null && ChainSemanticCaptureTool.TOOL_NAME.equals(method.methodName())) {
+      DesignCaptureArguments.Result inspected =
+          DesignCaptureArguments.inspect(request, method, objectMapper);
+      if (inspected.issue() != null) {
+        Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
+        String conversationId = memoryId == null
+            ? ToolSession.resolveConversationId() : memoryId.toString();
+        String result = ChainSemanticCaptureTool.rejectArguments(
+            conversationId, inspected.issue());
+        return ToolExecutionResult.builder().result(result).resultText(result).build();
+      }
+      return next.apply(inspected.request(), invocationContext);
+    }
     return next.apply(normalize(request, executor.getMethodCreateInfo()), invocationContext);
   }
 

@@ -7,6 +7,10 @@ import dev.langchain4j.service.tool.ToolExecutionErrorHandler;
 import io.quarkiverse.langchain4j.DefaultToolExecutionErrorHandler;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
+import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool.CaptureIssue;
 
 /**
  * Turns a failed tool call into a tool result the model can act on. Without it a malformed call
@@ -34,6 +38,16 @@ public class ToolCallErrorHandler implements ToolExecutionErrorHandler, ToolArgu
     LOG.warnf(
         "tool call failed, answering the model: tool=%s, error=%s",
         toolName, error == null ? "(none)" : error.toString());
+    if (ChainSemanticCaptureTool.TOOL_NAME.equals(toolName)
+        && ToolArgumentsFailures.isToolArgumentsFailure(error)) {
+      Object memoryId = context.memoryId();
+      String conversationId = memoryId == null
+          ? ToolSession.resolveConversationId() : memoryId.toString();
+      return ToolErrorHandlerResult.text(ChainSemanticCaptureTool.rejectArguments(
+          conversationId,
+          new CaptureIssue("INVALID_TYPE", "/capture",
+              "Arguments do not match the design capture schema.")));
+    }
     return ToolErrorHandlerResult.text(message(toolName, error));
   }
 
