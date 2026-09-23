@@ -462,6 +462,73 @@ class ScriptBodyRepairToolTest {
   }
 
   @Test
+  void directBodyCopyProjectsApprovedScriptInsteadOfModelHeaderScript() throws Exception {
+    bindDirectMappingRepair();
+
+    assertThrows(
+        CaptureValidationException.class,
+        () ->
+            tool.repairScriptBodies(
+                new ScriptBodyRepairCapture(
+                    "direct-copy",
+                    List.of(
+                        new ScriptBodyEntry(
+                            "transform-map-init",
+                            "exchange.in.headers.put('orderId', exchange.in.body.orderId)",
+                            List.of("$.orderId"))),
+                    "Map the approved body field")));
+
+    GraphPatch patch =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    String script =
+        patch.propertyPatches().stream()
+            .filter(property -> "script".equals(property.property().key()))
+            .findFirst()
+            .orElseThrow()
+            .property()
+            .value();
+    assertTrue(script.contains("exchange.in.body = ['orderId': source['orderId']]"));
+    assertFalse(script.contains("headers"));
+  }
+
+  @Test
+  void directBodyCopyProjectsWhenHttpSchemasAreUnknown() throws Exception {
+    bindDirectMappingRepair(true);
+
+    assertThrows(
+        CaptureValidationException.class,
+        () ->
+            tool.repairScriptBodies(
+                new ScriptBodyRepairCapture(
+                    "direct-copy-unknown",
+                    List.of(
+                        new ScriptBodyEntry(
+                            "transform-map-init",
+                            "exchange.in.headers.put('orderId', exchange.in.body.orderId)",
+                            List.of("$.orderId"))),
+                    "Map the approved body field")));
+
+    GraphPatch patch =
+        captureSession
+            .get(
+                CaptureKey.capability(
+                    CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+                GraphPatch.class)
+            .orElseThrow();
+    assertTrue(
+        patch.propertyPatches().stream()
+            .anyMatch(
+                property ->
+                    "script".equals(property.property().key())
+                        && property.property().value().contains("exchange.in.body = ['orderId'")));
+  }
+
+  @Test
   void mappingRepairRejectsUnexpectedCoverageWithoutMutatingTheContract() {
     bindMappingScriptRepair();
 
@@ -655,6 +722,56 @@ class ScriptBodyRepairToolTest {
             null,
             identityMappingBrief(),
             List.of(),
+            graph,
+            GraphPatchOwnershipPolicy.denyAll(),
+            "attempt-1"));
+  }
+
+  private void bindDirectMappingRepair() throws Exception {
+    bindDirectMappingRepair(false);
+  }
+
+  private void bindDirectMappingRepair(boolean unknownSchema) throws Exception {
+    ChainPlanGraph graph = graphWithMappingScript();
+    JsonNode body =
+        unknownSchema ? null : MAPPER.readTree(
+            """
+            {"type":"object","properties":{"orderId":{"type":"string"}}}
+            """);
+    MappingEnvelope envelope =
+        new JsonSchemaMessageSchemaFactory(MAPPER)
+            .fromSides(
+                new MappingSchemaSide(
+                    "1", "trigger-http", "op", MappingPort.OUTPUT, "application/json", null,
+                    "source-hash", "test", body),
+                new MappingSchemaSide(
+                    "1", "call-1", "op", MappingPort.REQUEST, "application/json", null,
+                    "target-hash", "test", body))
+            .withMappingIntentId("map-init");
+    CompilationArtifacts.Revision revision =
+        compilationArtifacts.append(
+            new CompilationArtifacts.AppendCommand(
+                CONVERSATION_ID,
+                CompilationArtifacts.Kind.MAPPING_ENVELOPE,
+                "1",
+                "test",
+                "1",
+                envelope,
+                List.of(),
+                null));
+    planStore.put(CONVERSATION_ID, graph);
+    executionContextStore.set(
+        CONVERSATION_ID,
+        CAPABILITY_ID,
+        new GraphPatchExecutionContext(
+            "map-run",
+            CAPABILITY_ID,
+            null,
+            null,
+            null,
+            null,
+            identityMappingBrief(),
+            List.of(revision.reference()),
             graph,
             GraphPatchOwnershipPolicy.denyAll(),
             "attempt-1"));

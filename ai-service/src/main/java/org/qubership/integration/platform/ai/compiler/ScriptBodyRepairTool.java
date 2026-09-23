@@ -23,6 +23,7 @@ import org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEva
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.plan.ChainPlanStore;
+import org.qubership.integration.platform.ai.plan.mapping.DirectFieldMappingScript;
 import org.qubership.integration.platform.ai.plan.mapping.MappingCaptureValidator;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.mapping.envelope.MappingEnvelope;
@@ -155,12 +156,16 @@ public class ScriptBodyRepairTool {
     if (missingNodeIds.isEmpty()) {
       return "No script nodes need repair.";
     }
-    String validationError = validateCapture(capture, missingNodeIds);
+    Map<String, ScriptBodyEntry> byNodeId =
+        capture == null || capture.scripts() == null
+            ? new LinkedHashMap<>()
+            : scriptsByNodeId(capture.scripts());
+    projectDirectFieldMappings(conversationId, capabilityId, base, byNodeId);
+    String validationError = validateCapture(capture, byNodeId, missingNodeIds);
     if (validationError != null) {
       return recordFailure(conversationId, capabilityId, validationError);
     }
 
-    Map<String, ScriptBodyEntry> byNodeId = scriptsByNodeId(capture.scripts());
     stripHopBodyCoverage(conversationId, capabilityId, base, byNodeId);
     String mappingError = validateMappingCaptures(conversationId, capabilityId, base, byNodeId);
     if (mappingError != null) {
@@ -255,13 +260,15 @@ public class ScriptBodyRepairTool {
     return missing.stream().filter(targets::contains).toList();
   }
 
-  private static String validateCapture(ScriptBodyRepairCapture capture, List<String> missingNodeIds) {
+  private static String validateCapture(
+      ScriptBodyRepairCapture capture,
+      Map<String, ScriptBodyEntry> byNodeId,
+      List<String> missingNodeIds) {
     if (capture == null || capture.scripts() == null || capture.scripts().isEmpty()) {
       return "Script body repair failed: scripts are required for node ids "
           + String.join(", ", missingNodeIds)
           + ".";
     }
-    Map<String, ScriptBodyEntry> byNodeId = scriptsByNodeId(capture.scripts());
     if (capture.scripts().size() > byNodeId.size()) {
       LOG.debugf(
           "repairScriptBodies: ignored %d duplicate targetNodeId entries (last wins)",
@@ -292,6 +299,38 @@ public class ScriptBodyRepairTool {
       return "Script body repair failed: script body is blank for node ids " + String.join(", ", blank) + ".";
     }
     return null;
+  }
+
+  private void projectDirectFieldMappings(
+      String conversationId,
+      String capabilityId,
+      ChainPlanGraph graph,
+      Map<String, ScriptBodyEntry> byNodeId) {
+    GraphPatchExecutionContext context =
+        executionContextStore
+            .get(conversationId, capabilityId)
+            .or(executionContextStore::current)
+            .orElse(null);
+    if (context == null || context.requirementBrief() == null) {
+      return;
+    }
+    for (ScriptBodyEntry entry : List.copyOf(byNodeId.values())) {
+      ChainPlanNode node = findNode(graph, entry.targetNodeId());
+      String intentId = MappingExecutionSite.mappingIntentId(node);
+      if (intentId == null || intentId.isBlank()) {
+        continue;
+      }
+      MappingIntent intent = requireIntent(context, intentId);
+      DirectFieldMappingScript.from(intent, findEnvelope(conversationId, context, intentId))
+          .ifPresent(
+              generated ->
+                  byNodeId.put(
+                      entry.targetNodeId(),
+                      new ScriptBodyEntry(
+                          entry.targetNodeId(),
+                          generated.script(),
+                          generated.mappingCoverage())));
+    }
   }
 
   private String validateMappingCaptures(
