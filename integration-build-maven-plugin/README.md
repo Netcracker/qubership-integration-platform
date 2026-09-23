@@ -244,10 +244,6 @@ takes the first answer:
 3. `fileVersion`, the oldest format: `fileVersion: N` means migrations `1` through `N`.
 4. The plugin's `AssumeActualVersion` fallback, for a file with none of these fields.
 
-`AssumeActualVersion` has no `@Order`, so it ties with the `fileVersion` strategy, and the classpath scan
-decides which of the two Spring asks first. If the fallback wins, a `fileVersion` file is read as current
-and not migrated.
-
 The migrations the file lacks are then applied in ascending order. A file that lists a migration the
 plugin does not know was exported by a newer QIP version, and the build fails with
 `Unable to import an entity exported from a newer version`. Upgrade the plugin to read it.

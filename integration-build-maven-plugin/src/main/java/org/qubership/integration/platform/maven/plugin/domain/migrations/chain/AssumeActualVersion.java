@@ -6,12 +6,15 @@ import org.qubership.integration.platform.io.readers.migrations.chain.ChainImpor
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterStrategy;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+@Order(Ordered.LOWEST_PRECEDENCE)
 @Component
 public class AssumeActualVersion implements VersionsGetterStrategy {
     private final Collection<ChainImportFileMigration> chainMigrations;
