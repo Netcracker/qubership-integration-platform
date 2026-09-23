@@ -253,6 +253,59 @@ class DefaultChainSemanticIdsRendererTest {
     assertFalse(markdown.contains("stateDiagram"));
   }
 
+  @Test
+  void errorScopeShowsTheOutboundCallInsideTheTryPath() {
+    ChainSemanticRevision revision = new ChainSemanticRevision(
+        CONTRACT.semanticSchemaVersion(), "revision-error-path", "chain-error-path",
+        CONTRACT.contractVersion(),
+        List.of(new SemanticEntryPoint(
+            "http-in", "trigger-http", "error-scope", 0,
+            new SemanticProvenance(List.of()), null)),
+        List.of(
+            new SemanticNode.Trigger(
+                "trigger-http", "http-trigger", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "error-scope", "try-catch-finally-2", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "map-request", "script", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "send-task", "http-sender", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "catch-error", "catch-2", new SemanticProvenance(List.of())),
+            new SemanticNode.Operation(
+                "error-response", "script", new SemanticProvenance(List.of()))),
+        List.of(new SemanticRegion.ErrorScope(
+            "region-error", "error-scope", "map-request",
+            List.of(new ErrorHandler(
+                "catch-all", "java.lang.Exception", "catch-error", List.of("error-response"))),
+            null, List.of("send-task", "error-response"))),
+        List.of(
+            new SemanticExecutionEdge(
+                "edge-entry", "trigger-http", "error-scope", null,
+                new SemanticRoute.Sequence(), null),
+            new SemanticExecutionEdge(
+                "edge-try", "error-scope", "map-request", "region-error",
+                new SemanticRoute.TryPath(), null),
+            new SemanticExecutionEdge(
+                "edge-send", "map-request", "send-task", "region-error",
+                new SemanticRoute.Sequence(), null),
+            new SemanticExecutionEdge(
+                "edge-catch", "error-scope", "catch-error", "region-error",
+                new SemanticRoute.CatchPath("catch-all"), null),
+            new SemanticExecutionEdge(
+                "edge-response", "catch-error", "error-response", "region-error",
+                new SemanticRoute.Sequence(), null)),
+        List.of(), List.of(), List.of(), List.of(), List.of());
+
+    String markdown = renderer.render(revision, CONTRACT).markdown();
+
+    int wrapper = markdown.indexOf("CIP->>CIP: try-catch-finally-2");
+    int send = markdown.indexOf("CIP->>CIP: http-sender");
+    int catchPath = markdown.indexOf("opt catch java.lang.Exception");
+    assertTrue(wrapper >= 0 && send > wrapper && catchPath > send, markdown);
+    assertTrue(markdown.indexOf("CIP->>CIP: script", catchPath) > catchPath, markdown);
+  }
+
   private static int countOccurrences(String text, String token) {
     int count = 0;
     int from = 0;

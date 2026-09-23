@@ -472,6 +472,27 @@ class DesignInputCapabilityTest {
   }
 
   @Test
+  void missingRuntimeAddonStopsDesignRegeneration() {
+    Map<String, String> addons = ChainSemanticCaptureToolTest.completeAddons();
+    addons.remove("cip-design-executor");
+    ChainSemanticCaptureTool captureTool = ChainSemanticCaptureToolTest.tool(
+        ChainSemanticCaptureToolTest.pack(
+            addons, ChainSemanticCaptureToolTest.packRelativeChecksums()));
+    DesignInputCapability capability = new DesignInputCapability(
+        (conversationId, prompt) -> Multi.createFrom().item(
+            captureTool.captureChainSemanticRevision(
+                ChainSemanticCaptureFixtures.linearCapture())),
+        new DefaultChainSemanticIdsRenderer());
+
+    StageOutcome prepared = outcome(capability, context("design-input", Map.of(
+        "requirementBrief", ChainSemanticCaptureFixtures.approvedBrief())));
+
+    assertEquals(StageOutcomeClass.INTERNAL_FAILURE, prepared.outcomeClass());
+    assertTrue(prepared.message().contains("cip-design-executor"), prepared.message());
+    assertTrue(prepared.candidates().isEmpty());
+  }
+
+  @Test
   void repairTurnPromptIncludesTheCaptureRejectionAndAuthorCorrection() {
     java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
         new java.util.concurrent.atomic.AtomicReference<>();

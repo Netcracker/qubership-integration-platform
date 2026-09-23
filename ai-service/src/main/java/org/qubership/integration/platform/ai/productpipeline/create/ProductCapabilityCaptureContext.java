@@ -46,6 +46,7 @@ public final class ProductCapabilityCaptureContext {
       AtomicReference<RequirementBrief> briefCandidate,
       AtomicReference<ChainSemanticRevision> semanticCandidate,
       AtomicReference<String> captureRejection,
+      AtomicReference<Boolean> captureTerminal,
       Consumer<Object> onCandidate) {}
 
   public static Context bindDiscovery(
@@ -61,6 +62,7 @@ public final class ProductCapabilityCaptureContext {
             new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
+            new AtomicReference<>(false),
             onCandidate);
     Context context = Context.of(CONTEXT_KEY, binding);
     install(binding, context);
@@ -83,6 +85,7 @@ public final class ProductCapabilityCaptureContext {
             new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
+            new AtomicReference<>(false),
             onCandidate);
     Context context = Context.of(CONTEXT_KEY, binding);
     install(binding, context);
@@ -105,6 +108,7 @@ public final class ProductCapabilityCaptureContext {
             new AtomicReference<>(),
             new AtomicReference<>(),
             new AtomicReference<>(),
+            new AtomicReference<>(false),
             onCandidate);
     Context context = Context.of(CONTEXT_KEY, binding);
     install(binding, context);
@@ -252,6 +256,7 @@ public final class ProductCapabilityCaptureContext {
       return;
     }
     binding.captureRejection().set(null);
+    binding.captureTerminal().set(false);
     binding.semanticCandidate().set(revision);
     if (binding.onCandidate() != null) {
       binding.onCandidate().accept(revision);
@@ -259,6 +264,11 @@ public final class ProductCapabilityCaptureContext {
   }
 
   public static void offerSemanticRejection(Binding binding, String message) {
+    offerSemanticRejection(binding, message, false);
+  }
+
+  public static void offerSemanticRejection(
+      Binding binding, String message, boolean terminal) {
     if (binding == null || binding.mode() != Mode.DESIGN) {
       return;
     }
@@ -269,6 +279,7 @@ public final class ProductCapabilityCaptureContext {
       return;
     }
     binding.captureRejection().set(message);
+    binding.captureTerminal().set(terminal);
   }
 
   public static Context attachedContext() {

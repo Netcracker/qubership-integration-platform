@@ -58,14 +58,15 @@ class ChainSemanticMappingPlacementInvestigationTest {
   }
 
   @Test
-  @DisplayName("BM-003: only the approved assignment passes all mapping-id combinations")
-  void onlyApprovedMappingAssignmentIsAccepted() {
+  @DisplayName("BM-003: missing ids are inferred, but wrong assignments are rejected")
+  void missingMappingIdsAreInferredOnlyAtApprovedTargets() {
     List<String> choices = Arrays.asList(null, START_MAP, RESULT_MAP, "unknown-map");
 
     for (String first : choices) {
       for (String second : choices) {
         String scenario = "first=" + first + ", second=" + second;
-        if (START_MAP.equals(first) && RESULT_MAP.equals(second)) {
+        if ((first == null || START_MAP.equals(first))
+            && (second == null || RESULT_MAP.equals(second))) {
           assertDoesNotThrow(
               () -> adapter.adapt(capture(first, second), "run-" + scenario, brief(), CONTRACT),
               scenario);

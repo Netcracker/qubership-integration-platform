@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -39,6 +40,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegion;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRegionKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticRouteKind;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
@@ -80,6 +82,29 @@ class ChainSemanticCaptureAdapterTest {
       assertEquals(SemanticRouteKind.SEQUENCE, edge.route().kind());
     }
     new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+  }
+
+  @Test
+  void treatsBlankOptionalFinallyEntryAsAbsent() {
+    ChainSemanticCapture linear = ChainSemanticCaptureFixtures.linearCapture();
+    ChainSemanticCapture capture = new ChainSemanticCapture(
+        linear.chainIdentity(),
+        linear.operations(),
+        linear.sequenceRegions(),
+        linear.conditionRegions(),
+        linear.splitRegions(),
+        linear.loopRegions(),
+        linear.retryRegions(),
+        List.of(new ChainSemanticCapture.CapturedErrorScopeRegion(
+            "error-1", ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
+            ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, List.of(), "  ", List.of())),
+        linear.edges(),
+        linear.containment());
+
+    SemanticRegion.ErrorScope region = (SemanticRegion.ErrorScope) adapt(capture).regions().stream()
+        .filter(SemanticRegion.ErrorScope.class::isInstance)
+        .findFirst().orElseThrow();
+    assertNull(region.finallyEntryNodeId());
   }
 
   @Test
@@ -1034,10 +1059,56 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void placesApprovedMappingOnTheUniqueTransformEdgeEnteringItsTarget() {
+    ChainSemanticCapture capture = ChainSemanticCaptureFixtures.mappedCapture();
+    List<CapturedEdge> withoutMappingId = capture.edges().stream()
+        .map(edge -> new CapturedEdge(
+            edge.sourceNodeId(), edge.targetNodeId(), edge.regionId(), edge.routeKind(),
+            edge.branchId(), edge.branchIds(), edge.handlerId(), null))
+        .toList();
+
+    ChainSemanticRevision revision = adapt(
+        withEdges(capture, withoutMappingId), ChainSemanticCaptureFixtures.briefWithMapping());
+
+    assertEquals(ChainSemanticCaptureFixtures.MAPPING_INTENT_ID,
+        revision.executionEdges().stream()
+            .filter(edge -> ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID.equals(
+                edge.targetNodeId()))
+            .findFirst().orElseThrow().mappingId());
+  }
+
+  @Test
+  void doesNotGuessBetweenTwoTransformEdgesEnteringOneTarget() {
+    ChainSemanticCapture capture = ChainSemanticCaptureFixtures.mappedCapture();
+    ChainSemanticCapture ambiguous = new ChainSemanticCapture(
+        capture.chainIdentity(),
+        List.of(
+            new CapturedOperation("op-left", "script", List.of("fact-script")),
+            new CapturedOperation("op-right", "script", List.of("fact-script"))),
+        capture.sequenceRegions(), capture.conditionRegions(), capture.splitRegions(),
+        capture.loopRegions(), capture.retryRegions(), capture.errorScopeRegions(),
+        List.of(
+            new CapturedEdge("http-in", "op-left", null, null, null, null, null, null),
+            new CapturedEdge("op-left", "op-right", null, null, null, null, null, null),
+            new CapturedEdge("op-left", ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
+                null, null, null, null, null, null),
+            new CapturedEdge("op-right", ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
+                null, null, null, null, null, null)),
+        capture.containment());
+
+    String message = failure(ambiguous, ChainSemanticCaptureFixtures.briefWithMapping());
+    assertTrue(message.contains("None of the captured edges listed that id"), message);
+  }
+
+  @Test
   void rejectsAnApprovedMappingThatNoEdgeCarries() {
     String message =
         failure(
-            ChainSemanticCaptureFixtures.linearCapture(),
+            withEdges(
+                withOperations(ChainSemanticCaptureFixtures.linearCapture(), List.of()),
+                List.of(new CapturedEdge(
+                    "http-in", ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
+                    null, null, null, null, null, null))),
             ChainSemanticCaptureFixtures.briefWithMapping());
     assertEquals(
         "The approved brief already has mappingIntentId='"

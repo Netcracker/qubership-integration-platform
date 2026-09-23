@@ -125,7 +125,10 @@ public class ChainSemanticCaptureAdapter {
     List<SemanticEntryPoint> entryPoints =
         entryPoints(triggerBindings, capture, nodeIds, factIds);
     List<SemanticExecutionEdge> edges =
-        canonicalizeMappingIntentIds(edges(capture, nodeIds, regionIds), authoritative);
+        resolveMappingIntentIds(
+            canonicalizeMappingIntentIds(edges(capture, nodeIds, regionIds), authoritative),
+            authoritative,
+            nodes);
     requireApprovedAnchorGraph(authoritative, triggerBindings, briefServiceCalls, edges);
     List<MappingIntent> mappingIntents = mappingIntents(authoritative, edges, nodes);
     List<SemanticContainment> containment = containment(capture, nodeIds);
@@ -529,7 +532,7 @@ public class ChainSemanticCaptureAdapter {
               requireText(region.ownerNodeId(), "ownerNodeId"),
               requireText(region.tryEntryNodeId(), "tryEntryNodeId"),
               handlers,
-              region.finallyEntryNodeId(),
+              blankToNull(region.finallyEntryNodeId()),
               region.exitNodeIds()));
     }
     return List.copyOf(regions);
@@ -665,6 +668,68 @@ public class ChainSemanticCaptureAdapter {
       }
     }
     return approved;
+  }
+
+  private static List<SemanticExecutionEdge> resolveMappingIntentIds(
+      List<SemanticExecutionEdge> edges, RequirementBrief brief, List<SemanticNode> nodes) {
+    Map<String, MappingIntent> approved = approvedMappingIntents(brief);
+    if (approved.isEmpty()) {
+      return edges;
+    }
+    Set<String> placed = new LinkedHashSet<>();
+    for (SemanticExecutionEdge edge : edges) {
+      if (edge.mappingId() != null) {
+        placed.add(edge.mappingId());
+      }
+    }
+    Map<String, SemanticNode> nodesById = new LinkedHashMap<>();
+    for (SemanticNode node : nodes) {
+      nodesById.put(node.nodeId(), node);
+    }
+    List<SemanticExecutionEdge> resolved = new ArrayList<>(edges);
+    for (MappingIntent intent : approved.values()) {
+      if (placed.contains(intent.mappingIntentId())) {
+        continue;
+      }
+      String targetNodeId = mappingTargetNodeId(intent, brief);
+      List<Integer> sites = new ArrayList<>();
+      for (int index = 0; index < resolved.size(); index++) {
+        SemanticExecutionEdge edge = resolved.get(index);
+        if (edge.mappingId() != null
+            || !targetNodeId.equals(edge.targetNodeId())
+            || !isTransform(nodesById.get(edge.sourceNodeId()))) {
+          continue;
+        }
+        try {
+          requireApprovedMappingTransition(intent, edge, brief.flow(), resolved);
+          sites.add(index);
+        } catch (IllegalArgumentException ignored) {
+          // An edge on a different approved transition cannot carry this mapping.
+        }
+      }
+      if (sites.size() == 1) {
+        int index = sites.getFirst();
+        SemanticExecutionEdge edge = resolved.get(index);
+        resolved.set(index, new SemanticExecutionEdge(
+            edge.edgeId(), edge.sourceNodeId(), edge.targetNodeId(), edge.regionId(),
+            edge.route(), intent.mappingIntentId()));
+      }
+    }
+    return List.copyOf(resolved);
+  }
+
+  private static String mappingTargetNodeId(MappingIntent intent, RequirementBrief brief) {
+    for (RequirementServiceCall call : brief.serviceCalls()) {
+      if (intent.targetRef().equals(call.sourceFactId())) {
+        return call.serviceCallId();
+      }
+    }
+    for (RequirementEntryPoint entry : brief.entryPoints()) {
+      if (intent.targetRef().equals(entry.sourceFactId())) {
+        return entry.entryPointId();
+      }
+    }
+    return intent.targetRef();
   }
 
   private static String canonicalMappingIntentId(

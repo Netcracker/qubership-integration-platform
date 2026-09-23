@@ -1,10 +1,13 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.ReturnBehavior;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import org.jboss.logging.Logger;
@@ -19,6 +22,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.ProductCapab
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackManifest;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackRepository;
@@ -33,8 +38,15 @@ import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackR
 public class ChainSemanticCaptureTool {
 
   private static final Logger LOG = Logger.getLogger(ChainSemanticCaptureTool.class);
+  private static final ObjectMapper MAPPER = new ObjectMapper();
 
-  static final String TOOL_NAME = "captureChainSemanticRevision";
+  public record CaptureIssue(String code, String path, String message) {}
+
+  public record CaptureResult(
+      boolean accepted, boolean changed, String nextAction,
+      List<CaptureIssue> issues, String message) {}
+
+  public static final String TOOL_NAME = "captureChainSemanticRevision";
 
   static final String DUPLICATE_CAPTURE_MESSAGE =
       "Chain semantic revision already captured. Do not call captureChainSemanticRevision again;"
@@ -49,6 +61,7 @@ public class ChainSemanticCaptureTool {
   private final CompilerContractRepository contractRepository;
   private final QipKnowledgePackRepository knowledgePackRepository;
   private final CatalogElementDescriptorLoader descriptorLoader;
+  private final E2eRecoveryFaultInjector recoveryFaultInjector;
 
   @Inject
   public ChainSemanticCaptureTool(
@@ -56,13 +69,25 @@ public class ChainSemanticCaptureTool {
       ChainSemanticRevisionValidator validator,
       CompilerContractRepository contractRepository,
       QipKnowledgePackRepository knowledgePackRepository,
-      CatalogElementDescriptorLoader descriptorLoader) {
+      CatalogElementDescriptorLoader descriptorLoader,
+      E2eRecoveryFaultInjector recoveryFaultInjector) {
     this.adapter = Objects.requireNonNull(adapter, "adapter");
     this.validator = Objects.requireNonNull(validator, "validator");
     this.contractRepository = Objects.requireNonNull(contractRepository, "contractRepository");
     this.knowledgePackRepository =
         Objects.requireNonNull(knowledgePackRepository, "knowledgePackRepository");
     this.descriptorLoader = Objects.requireNonNull(descriptorLoader, "descriptorLoader");
+    this.recoveryFaultInjector = Objects.requireNonNull(recoveryFaultInjector, "recoveryFaultInjector");
+  }
+
+  public ChainSemanticCaptureTool(
+      ChainSemanticCaptureAdapter adapter,
+      ChainSemanticRevisionValidator validator,
+      CompilerContractRepository contractRepository,
+      QipKnowledgePackRepository knowledgePackRepository,
+      CatalogElementDescriptorLoader descriptorLoader) {
+    this(adapter, validator, contractRepository, knowledgePackRepository, descriptorLoader,
+        new E2eRecoveryFaultInjector("", ""));
   }
 
   @Tool(value = """
@@ -86,7 +111,7 @@ public class ChainSemanticCaptureTool {
     long startMs = System.currentTimeMillis();
     String conversationId = ToolSession.resolveConversationId();
     ToolTraceLog.logToolInvoke(LOG, TOOL_NAME, conversationId, shape(capture));
-    String result = capture(capture, conversationId);
+    String result = encode(capture(capture, conversationId));
     ToolTraceLog.logToolComplete(
         LOG, TOOL_NAME, conversationId, System.currentTimeMillis() - startMs, result);
     return result;
@@ -109,23 +134,27 @@ public class ChainSemanticCaptureTool {
             capture.edges().size());
   }
 
-  private String capture(ChainSemanticCapture capture, String conversationId) {
+  private CaptureResult capture(ChainSemanticCapture capture, String conversationId) {
     if (capture == null) {
-      return "capture is required";
+      return rejected("MISSING_FIELD", "/capture", "capture is required", true);
     }
     // LangChain4j runs this tool on a pooled worker thread that never called bindDesign, and that
     // thread may still carry an earlier stage's binding, so resolve by conversation id.
     var binding = ProductCapabilityCaptureContext.designBinding(conversationId).orElse(null);
     if (binding == null) {
-      return "Design capture is not bound. Call captureChainSemanticRevision only during"
-          + " design-input.";
+      return rejected("DESIGN_SESSION_NOT_FOUND", "/capture",
+          "Design capture is not bound. Call captureChainSemanticRevision only during design-input.",
+          true);
     }
     if (binding.semanticCandidate().get() != null) {
-      return DUPLICATE_CAPTURE_MESSAGE;
+      return rejected("DUPLICATE_CAPTURE", "/capture", DUPLICATE_CAPTURE_MESSAGE, true);
     }
     RequirementBrief brief = binding.approvedBrief();
     if (brief == null) {
-      return "Approved requirement brief is required before capturing a semantic revision";
+      ProductCapabilityCaptureContext.offerSemanticRejection(binding,
+          "Approved requirement brief is required before capturing a semantic revision", true);
+      return rejected("APPROVED_BRIEF_REQUIRED", "/capture",
+          "Approved requirement brief is required before capturing a semantic revision", true);
     }
     CompilerContract contract = contractRepository.require(CompilerContract.V1);
     ChainSemanticRevision revision;
@@ -134,15 +163,47 @@ public class ChainSemanticCaptureTool {
       validator.validate(revision, contract, brief);
     } catch (IllegalArgumentException ex) {
       ProductCapabilityCaptureContext.offerSemanticRejection(binding, ex.getMessage());
-      return ex.getMessage();
+      return rejected("DESIGN_CONTRACT_VIOLATION", "/capture", ex.getMessage(), false);
+    }
+    if (recoveryFaultInjector.next(binding.runId(), capture.chainIdentity(), "design-input")
+        .filter(code -> code == RecoveryCauseCode.CONTRACT_SHAPE).isPresent()) {
+      String injected = "Injected E2E design capture rejection.";
+      ProductCapabilityCaptureContext.offerSemanticRejection(binding, injected);
+      return rejected("INJECTED_DESIGN_REJECTION", "/capture", injected, false);
     }
     String preflightError = preflight(revision, contract);
     if (preflightError != null) {
-      ProductCapabilityCaptureContext.offerSemanticRejection(binding, preflightError);
-      return preflightError;
+      ProductCapabilityCaptureContext.offerSemanticRejection(binding, preflightError, true);
+      return rejected("RUNTIME_CONFIGURATION_ERROR", "/capture", preflightError, true);
     }
     ProductCapabilityCaptureContext.offerSemantic(binding, revision);
-    return CAPTURED_MESSAGE;
+    return new CaptureResult(true, true, "HANDOFF", List.of(), CAPTURED_MESSAGE);
+  }
+
+  private static CaptureResult rejected(
+      String code, String path, String message, boolean terminal) {
+    return new CaptureResult(false, false, terminal ? "STOP" : "REPAIR_CAPTURE",
+        List.of(new CaptureIssue(code, path, message)), message);
+  }
+
+  /** Returns the same outcome shape when arguments fail before the tool method can run. */
+  public static String rejectArguments(String conversationId, CaptureIssue issue) {
+    var binding = ProductCapabilityCaptureContext.designBinding(conversationId).orElse(null);
+    if (binding == null) {
+      return encode(rejected("DESIGN_SESSION_NOT_FOUND", "/capture",
+          "Design capture is not bound.", true));
+    }
+    ProductCapabilityCaptureContext.offerSemanticRejection(
+        binding, issue.code() + " at " + issue.path() + ": " + issue.message());
+    return encode(new CaptureResult(false, false, "REPAIR_CAPTURE", List.of(issue), issue.message()));
+  }
+
+  private static String encode(CaptureResult result) {
+    try {
+      return MAPPER.writeValueAsString(result);
+    } catch (JsonProcessingException error) {
+      throw new IllegalStateException("Cannot serialize design capture result", error);
+    }
   }
 
   private String preflight(ChainSemanticRevision revision, CompilerContract contract) {
