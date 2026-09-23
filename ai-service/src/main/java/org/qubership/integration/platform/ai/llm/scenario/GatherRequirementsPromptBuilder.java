@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
@@ -27,6 +28,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 public class GatherRequirementsPromptBuilder {
 
   private static final Logger LOG = Logger.getLogger(GatherRequirementsPromptBuilder.class);
+  private static final ObjectMapper DRAFT_MAPPER = new ObjectMapper();
 
   private final CompilerSkillDocumentService skillDocumentService;
   private final CompilerSkillAddonRepository addonRepository;
@@ -74,8 +76,8 @@ public class GatherRequirementsPromptBuilder {
 
           <service-runtime-envelope>
           Follow the compiler process skill and the brainstorming addon below for requirement
-          discovery behavior (catalog/API Hub, capture decisions, facts, platform defaults,
-          consultation, and clarifying-question overrides). Do not write files, commit changes,
+          discovery behavior (catalog/API Hub, accepted edits, platform defaults, consultation,
+          and clarifying questions). The tool schema defines the exact input form. Do not write files, commit changes,
           invoke implementation skills, or run the compiler spine. Answer the user's current
           question before asking for more requirements. Capture accepted requirement changes only;
           do not capture explanations, recommendations, or unselected alternatives.
@@ -89,8 +91,20 @@ public class GatherRequirementsPromptBuilder {
           user-visible prose. After that tool returns, write exactly one final answer; do not repeat
           or revise it. Use STAY for questions, advice, comparisons, or continued discussion. Use
           CONTINUE only when the user asked to proceed with design or chain creation.
-          Capture RequirementFlow before catalog lookup. That first capture may use
-          NEEDS_INPUT with empty openQuestions. searchCatalogSystems does not bind an
+          A request to prepare a design for approval is a request to proceed: use CONTINUE
+          after saving the known requirements. The later approval gate still applies.
+          Capture known requirements before catalog lookup or a clarifying question. When a
+          business choice is unresolved, save the known interactions and facts as a partial
+          draft with an open question. Do not end a create or design request without saving
+          its known requirements. Named entry requests and following calls belong in the flow
+          as separate interactions. If the capture result reports missing information already
+          present in the user's request, correct the accepted draft before asking the user.
+          For a prohibition, use NEGATIVE polarity and write the text as a prohibition, for example
+          "Do not log the input body." Do not write an affirmative command with NEGATIVE polarity.
+          In each capability record, set fields that do not belong to its capabilityKey to JSON
+          null. An http-sender uses httpMethod and path for its direct URI; httpMode and
+          targetReference stay null. A direct HTTP URI is not a catalog call.
+          Read the accepted view after lookups. searchCatalogSystems does not bind an
           interaction.%s Reply in the
           pinned response locale %s. This
           locale is authoritative; do not infer another language from conversation history or
@@ -133,15 +147,15 @@ public class GatherRequirementsPromptBuilder {
     if (!uploaded.isBlank()) {
       return uploaded;
     }
-    return " after the flow is stored, call resolveApiOperation only for catalog-backed"
+    return " After the draft is stored, call resolveApiOperation only for catalog-backed"
         + " interactions (implemented-service HTTP triggers, async-api-trigger, and outbound"
-        + " calls with no sender CAPABILITY). Native triggers"
+        + " calls with no native capability). Native triggers"
         + " and direct elements (for example sftp-trigger-2, sftp-upload, mail-sender,"
-        + " kafka-sender-2, and jms-sender) skip the catalog; capture their CAPABILITY fact with"
+        + " kafka-sender-2, and jms-sender) skip the catalog; capture their capability entry with"
         + " method, path, topic,"
-        + " or URI when applicable. Custom HTTP uses CAPABILITY http-trigger with a path; no"
-        + " catalog. Implemented service HTTP uses CAPABILITY http-trigger with participant set"
-        + " and a blank path, then resolveApiOperation. Catalog outbound calls do not invent a"
+        + " or URI when applicable. Custom HTTP uses httpMode=CUSTOM with a path; no"
+        + " catalog. Implemented service HTTP uses httpMode=CATALOG with participant set"
+        + " and a null path, then resolveApiOperation. Catalog outbound calls do not invent a"
         + " sender key; resolveApiOperation is that classification. Ambiguous HTTP or outbound"
         + " needs one question; do not search. mcp-trigger skips catalog lookup; capture"
         + " participant and optional operation, and do not call resolveApiOperation for it."
@@ -164,7 +178,7 @@ public class GatherRequirementsPromptBuilder {
         + " catalog import after discovery. Do not search API Hub for operations from those specs,"
         + " and do not ask the reader to import or bind them. Capture the business flow from the"
         + " attached document, including participants and operations, without ENDPOINT or"
-        + " SERVICE_CALL facts. Set READY_FOR_PLAN when the flow and constraints are complete."
+        + " SERVICE_CALL facts. Let the server decide readiness when the requirements are complete."
         + " Catalog lookup may miss until import runs.";
   }
 
@@ -199,7 +213,7 @@ public class GatherRequirementsPromptBuilder {
 
   private String lastCaptureRejectionBlock(
       String conversationId, Optional<RequirementDraft> draft) {
-    if (draft.isPresent() || draftStore == null || conversationId == null) {
+    if (draftStore == null || conversationId == null) {
       return "";
     }
     return draftStore
@@ -220,6 +234,12 @@ public class GatherRequirementsPromptBuilder {
       return "";
     }
     RequirementDraft current = draft.get();
+    if (current.authoredDraft() != null) {
+      return "\n<current-requirement-draft>\n"
+          + "Accepted authored content (use readRequirementDraft for fresh resolutions):\n"
+          + DRAFT_MAPPER.valueToTree(current.authoredDraft())
+          + "\n</current-requirement-draft>\n";
+    }
     String openQuestions =
         current.openQuestions().isEmpty()
             ? ""

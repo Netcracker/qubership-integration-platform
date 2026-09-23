@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.compiler.capture.policy;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.ArrayList;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureFieldHint;
@@ -21,6 +22,69 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
  */
 @ApplicationScoped
 public class CaptureToolOutcomeGateway {
+
+  public record TypedIssue(String code, String path) {}
+
+  /** Applies the shared soft-credit policy to each structured requirement issue. */
+  public boolean repeatedRequirementIssue(
+      String conversationId, String mutationScope, List<TypedIssue> issues) {
+    boolean repeated = false;
+    List<String> fingerprints = new ArrayList<>();
+    List<String> identities = new ArrayList<>();
+    for (TypedIssue issue : issues) {
+      String identity = issue.code() + ":" + logicalRequirementPath(issue.path());
+      identities.add(identity);
+      String fingerprint = fingerprintStore.failureFingerprint(
+          "requirement-capture", mutationScope, identity);
+      CaptureFailureDecision decision = policy.decide(
+          CaptureFailureClass.CORRECTABLE,
+          CaptureAttemptState.forFingerprint(
+              fingerprintStore.softCreditUsed(conversationId, fingerprint)), identity);
+      repeated |= decision.failureClass() == CaptureFailureClass.IDENTICAL_SPAM;
+      fingerprints.add(fingerprint);
+    }
+    if (!repeated) {
+      fingerprints.forEach(fingerprint ->
+          fingerprintStore.consumeSoftCredit(conversationId, fingerprint));
+    }
+    boolean argumentError = issues.stream().anyMatch(issue ->
+        List.of("INVALID_JSON", "DUPLICATE_JSON_KEY", "MISSING_FIELD",
+            "UNEXPECTED_FIELD", "INVALID_TYPE", "INVALID_ENUM")
+            .contains(issue.code()));
+    feedbackStore.recordClassifiedRequirementFailure(
+        conversationId,
+        argumentError ? CaptureFailureKind.TOOL_ARGUMENTS : CaptureFailureKind.VALIDATION,
+        repeated ? CaptureFailureClass.IDENTICAL_SPAM : CaptureFailureClass.CORRECTABLE,
+        !repeated && !argumentError,
+        String.join(", ", identities));
+    return repeated;
+  }
+
+  static String logicalRequirementPath(String path) {
+    if (path == null || path.isBlank() || "/".equals(path)) {
+      return "";
+    }
+    String[] parts = path.split("/");
+    StringBuilder logical = new StringBuilder();
+    for (String part : parts) {
+      if (part.isEmpty() || "draft".equals(part) || "changes".equals(part)
+          || "flow".equals(part)
+          || part.chars().allMatch(Character::isDigit)) {
+        continue;
+      }
+      String normalized = switch (part) {
+        case "addInteractions", "updateInteractions", "removeInteractionIds", "interactions" -> "interactions[]";
+        case "addFacts", "updateFacts", "removeFactIds", "facts" -> "facts[]";
+        case "setCapabilities", "removeCapabilityInteractionIds", "capabilities" -> "capabilities[]";
+        case "addQuestions", "updateQuestions", "removeQuestionIds", "openQuestions" -> "questions[]";
+        case "addTransitions", "removeTransitions", "transitions" -> "transitions[]";
+        case "interactionIds" -> "interactionIds[]";
+        default -> part;
+      };
+      logical.append('/').append(normalized);
+    }
+    return logical.toString();
+  }
 
   private final CaptureFailurePolicy policy;
   private final ToolCallFingerprintStore fingerprintStore;
