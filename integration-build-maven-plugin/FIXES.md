@@ -17,7 +17,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
-| F11 | Smaller items, see below | minor | partial | `bcdb973dc`, `1366eaa3a`, `bc7b32c22` |
+| F11 | Smaller items, see below | minor | partial | `bcdb973dc`, `1366eaa3a`, `bc7b32c22`, `8858d3aad` |
 | F12 | Chain version fallback answers for service exports too | major | won't fix | |
 | F13 | Active environment selection diverges from runtime-catalog | major | open | |
 | F14 | Smaller items from the second round, see below | medium | partial | `1366eaa3a` |
@@ -31,7 +31,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | `MavenPluginYamlMapperConfiguration` relies on parameter-name bean matching | open | |
 | One bad chain aborts the whole run | open | |
 | Generated resources are not attached as build artifacts | open | |
-| `BuildCRsMojo` lacks `property =`, `skip`, and `threadSafe = true` | open | |
+| `BuildCRsMojo` lacks `property =`, `skip`, and `threadSafe = true` | partial | `8858d3aad` |
 | Chains are read from `${project.compileSourceRoots}` | fixed | `1366eaa3a` |
 | `ChainReader.getChainYamlFile` silently drops a second chain YAML | open | |
 
