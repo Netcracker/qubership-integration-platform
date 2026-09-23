@@ -89,9 +89,16 @@ public class ExecutorHarnessService {
       CompilerRunPin semanticPin =
           pinResolver.resolve(baseManifest.runId(), request.semanticRevision(), contract);
       RunManifest manifest = withPin(baseManifest, baseManifest.compilerRunPin().withSemanticSubject(semanticPin));
-      DesignPlanReport report = new DesignPlanReport("1", request.plannerResponse());
-      DesignExecutionPlan plan =
-          projector.project(report, request.semanticRevision(), manifest.compilerRunPin(), request.requirementBrief());
+      DesignExecutionPlan plan;
+      if (request.designPlanContract() != null && request.designPlanReport() != null) {
+        plan = projector.project(
+            request.designPlanContract(), request.designPlanReport(), request.semanticRevision(),
+            manifest.compilerRunPin(), request.requirementBrief());
+      } else {
+        DesignPlanReport report = new DesignPlanReport("1", request.plannerResponse());
+        plan = projector.project(
+            report, request.semanticRevision(), manifest.compilerRunPin(), request.requirementBrief());
+      }
       plannedSkillIds = DefaultApprovedCompilerExecutionRunner.orderedOwningSkillIds(plan);
       Reference briefRef = appendBrief(manifest, request.requirementBrief());
 

@@ -9,6 +9,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.compiler.HttpTriggerCaptureTool;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool.CaptureIssue;
@@ -34,6 +35,7 @@ public class ToolCallErrorHandler implements ToolExecutionErrorHandler, ToolArgu
 
   @Inject ProductRequirementBriefTool productBriefTool;
   @Inject DesignPlanCaptureTool designPlanTool;
+  @Inject HttpTriggerCaptureTool httpTriggerTool;
 
   /** Longest upstream message copied into the answer; beyond this the tail is dropped. */
   static final int MAX_REASON_CHARS = 500;
@@ -82,6 +84,16 @@ public class ToolCallErrorHandler implements ToolExecutionErrorHandler, ToolArgu
             conversationId, new StructuredCaptureArguments.Issue(
                 "INVALID_TYPE", "/capture", "Arguments do not match the plan capture schema.")));
       }
+    }
+    if ("captureHttpTriggers".equals(toolName)
+        && ToolArgumentsFailures.isToolArgumentsFailure(error)
+        && httpTriggerTool != null) {
+      Object memoryId = context == null ? null : context.memoryId();
+      String conversationId = memoryId == null
+          ? ToolSession.resolveConversationId() : memoryId.toString();
+      return ToolErrorHandlerResult.text(httpTriggerTool.rejectArguments(
+          conversationId, new StructuredCaptureArguments.Issue(
+              "INVALID_TYPE", "/capture", "Arguments do not match the HTTP trigger schema.")));
     }
     return ToolErrorHandlerResult.text(message(toolName, error));
   }
