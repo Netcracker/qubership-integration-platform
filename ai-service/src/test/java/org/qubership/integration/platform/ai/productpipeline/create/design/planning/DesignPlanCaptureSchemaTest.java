@@ -5,11 +5,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonEnumSchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonSchemaElement;
 import io.quarkiverse.langchain4j.runtime.ToolsRecorder;
+import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor;
+import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutorFactory;
 import io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -18,33 +21,32 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 
 @QuarkusTest
 class DesignPlanCaptureSchemaTest {
 
   private static final String METHOD = "captureDesignPlan";
+  private static final String CONVERSATION = "plan-schema-boundary";
 
   @Inject DesignPlanCaptureTool bean;
+  @Inject QuarkusToolExecutorFactory executorFactory;
+
+  @AfterEach
+  void cleanup() {
+    DesignPlanCaptureSession.unbind(CONVERSATION);
+    ToolSession.clear();
+  }
 
   @Test
   void generatedSchemaExposesOnlyModelOwnedTypedFields() {
     assertNotNull(bean);
     Map<String, JsonSchemaElement> fields = fields(parameters());
 
-    for (String required :
-        List.of(
-            "steps",
-            "stepId",
-            "summary",
-            "owner",
-            "kind",
-            "id",
-            "claims",
-            "targetKind",
-            "targetId",
-            "role",
-            "dependsOnStepIds")) {
+    for (String required : List.of("notes", "targetKind", "targetId", "summary")) {
       assertTrue(fields.containsKey(required), required + " is missing from the tool schema");
     }
     for (String serverOwned :
@@ -53,11 +55,14 @@ class DesignPlanCaptureSchemaTest {
             "schemaVersion",
             "contractId",
             "semanticRevisionId",
-            "semanticRevisionHash")) {
+            "semanticRevisionHash",
+            "steps",
+            "stepId",
+            "owner",
+            "claims",
+            "dependsOnStepIds")) {
       assertFalse(fields.containsKey(serverOwned), serverOwned + " leaked into the tool schema");
     }
-    assertEquals(List.of("SKILL", "APIHUB_TOOL"), enumValues(fields.get("kind")));
-    assertEquals(List.of("PRODUCER", "REFERENCE"), enumValues(fields.get("role")));
     assertEquals(
         Set.of(
             "ENTRY_POINT",
@@ -68,6 +73,53 @@ class DesignPlanCaptureSchemaTest {
             "ELEMENT_NODE",
             "CATALOG_BINDING"),
         new LinkedHashSet<>(enumValues(fields.get("targetKind"))));
+  }
+
+  @Test
+  void generatedBoundaryAcceptsSmallCaptureAndRejectsServerOwnedFields() {
+    bind();
+    assertTrue(execute("""
+        {"capture":{"steps":[]}}
+        """).contains("UNEXPECTED_FIELD"));
+    assertTrue(DesignPlanCaptureSession.binding(CONVERSATION)
+        .orElseThrow().candidate().get() == null);
+
+    String accepted = execute("""
+        {"capture":{"notes":[]}}
+        """);
+    assertTrue(accepted.contains("HANDOFF"), accepted);
+    assertNotNull(DesignPlanCaptureSession.binding(CONVERSATION)
+        .orElseThrow().candidate().get());
+  }
+
+  @Test
+  void generatedBoundaryRejectsDuplicateKeysAndWrongTypes() {
+    bind();
+    assertTrue(execute("""
+        {"capture":{"notes":[],"notes":[]}}
+        """).contains("DUPLICATE_JSON_KEY"));
+    assertTrue(execute("""
+        {"capture":{"notes":"text"}}
+        """).contains("INVALID_TYPE"));
+    assertTrue(DesignPlanCaptureSession.binding(CONVERSATION)
+        .orElseThrow().candidate().get() == null);
+  }
+
+  private void bind() {
+    ChainSemanticRevision revision = DesignPlanTestFixtures.revision();
+    DesignPlanCaptureSession.bind(CONVERSATION, revision, "revision-hash", "2026.1",
+        DesignPlanTestFixtures.brief(), DesignPlanTestFixtures.planningPin(revision));
+    ToolSession.bind(CONVERSATION);
+  }
+
+  private String execute(String arguments) {
+    ToolMethodCreateInfo method = info();
+    QuarkusToolExecutor executor = executorFactory.create(new QuarkusToolExecutor.Context(
+        bean, method.invokerClassName(), method.methodName(),
+        method.argumentMapperClassName(), method.executionModel(), method.returnBehavior(),
+        false, method));
+    return executor.execute(ToolExecutionRequest.builder().id("call-1")
+        .name(method.toolSpecification().name()).arguments(arguments).build(), CONVERSATION);
   }
 
   private static List<String> enumValues(JsonSchemaElement element) {
@@ -96,6 +148,10 @@ class DesignPlanCaptureSchemaTest {
   }
 
   private static JsonObjectSchema parameters() {
+    return info().toolSpecification().parameters();
+  }
+
+  private static ToolMethodCreateInfo info() {
     List<ToolMethodCreateInfo> methods =
         ToolsRecorder.getMetadata().get(DesignPlanCaptureTool.class.getName());
     if (methods == null) {
@@ -105,8 +161,6 @@ class DesignPlanCaptureSchemaTest {
     return methods.stream()
         .filter(method -> METHOD.equals(method.methodName()))
         .findFirst()
-        .orElseThrow(() -> new IllegalStateException("No generated tool metadata for " + METHOD))
-        .toolSpecification()
-        .parameters();
+        .orElseThrow(() -> new IllegalStateException("No generated tool metadata for " + METHOD));
   }
 }

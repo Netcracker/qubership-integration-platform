@@ -27,6 +27,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
 import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool;
+import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanCaptureTool;
 
 /**
  * Removes one accidental JSON-string layer from object and array tool parameters before binding.
@@ -41,16 +42,19 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
 
   private final ObjectMapper objectMapper;
   private final ProductRequirementBriefTool productBriefTool;
+  private final DesignPlanCaptureTool designPlanTool;
 
   @Inject
   public StringifiedToolArgumentsNormalizer(
-      ObjectMapper objectMapper, ProductRequirementBriefTool productBriefTool) {
+      ObjectMapper objectMapper, ProductRequirementBriefTool productBriefTool,
+      DesignPlanCaptureTool designPlanTool) {
     this.objectMapper = objectMapper;
     this.productBriefTool = productBriefTool;
+    this.designPlanTool = designPlanTool;
   }
 
   StringifiedToolArgumentsNormalizer(ObjectMapper objectMapper) {
-    this(objectMapper, null);
+    this(objectMapper, null, null);
   }
 
   @Override
@@ -86,6 +90,18 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
       }
       return next.apply(inspected.request(), invocationContext);
     }
+    if (isDesignPlanCapture(method)) {
+      StructuredCaptureArguments.Result inspected =
+          StructuredCaptureArguments.inspect(request, method, objectMapper);
+      if (inspected.issue() != null) {
+        Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
+        String conversationId = memoryId == null
+            ? ToolSession.resolveConversationId() : memoryId.toString();
+        String result = designPlanTool.rejectArguments(conversationId, inspected.issue());
+        return ToolExecutionResult.builder().result(result).resultText(result).build();
+      }
+      return next.apply(inspected.request(), invocationContext);
+    }
     return next.apply(normalize(request, executor.getMethodCreateInfo()), invocationContext);
   }
 
@@ -97,6 +113,16 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
         ToolsRecorder.getMetadata().get(ProductRequirementBriefTool.class.getName());
     return productMethods != null && productMethods.stream()
         .anyMatch(product -> product.invokerClassName().equals(method.invokerClassName()));
+  }
+
+  private static boolean isDesignPlanCapture(ToolMethodCreateInfo method) {
+    if (method == null || !"captureDesignPlan".equals(method.methodName())) {
+      return false;
+    }
+    List<ToolMethodCreateInfo> methods =
+        ToolsRecorder.getMetadata().get(DesignPlanCaptureTool.class.getName());
+    return methods != null && methods.stream()
+        .anyMatch(plan -> plan.invokerClassName().equals(method.invokerClassName()));
   }
 
   ToolExecutionRequest normalize(ToolExecutionRequest request, ToolMethodCreateInfo method) {

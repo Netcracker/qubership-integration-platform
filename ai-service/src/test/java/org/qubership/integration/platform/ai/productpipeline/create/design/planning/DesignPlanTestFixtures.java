@@ -7,8 +7,6 @@ import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecu
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.ClaimRole;
-import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.OwnerKind;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
 import org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
@@ -104,23 +102,13 @@ final class DesignPlanTestFixtures {
   static DesignPlanCapture validCapture(String triggerSummary, String callSummary) {
     return new DesignPlanCapture(
         List.of(
-            new DesignPlanCapture.Step(
-                "trigger",
-                triggerSummary,
-                new DesignPlanCapture.Owner(
-                    OwnerKind.SKILL, "cip-http-trigger-endpoint-generator"),
-                List.of(
-                    new DesignPlanCapture.Claim(
-                        TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),
-                List.of()),
-            new DesignPlanCapture.Step(
-                "call",
-                callSummary,
-                new DesignPlanCapture.Owner(OwnerKind.SKILL, "cip-service-call-generator"),
-                List.of(
-                    new DesignPlanCapture.Claim(
-                        TargetKind.SERVICE_CALL, "call-1", ClaimRole.PRODUCER)),
-                List.of("trigger"))));
+            new DesignPlanCapture.Note(TargetKind.ENTRY_POINT, "entry-1", triggerSummary),
+            new DesignPlanCapture.Note(TargetKind.SERVICE_CALL, "call-1", callSummary)));
+  }
+
+  static CompilerRunPin planningPin(ChainSemanticRevision revision) {
+    return pinWithSkills(revision, "cip-http-trigger-endpoint-generator",
+        "cip-service-call-generator", "cip-structure-generator", "cip-chain-assembler");
   }
 
   private static ResolvedCompilerNode node(
