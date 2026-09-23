@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.Owner;
@@ -90,6 +91,40 @@ class TypedCipDesignPlannerAdapterTest {
     assertEquals(
         "UNKNOWN_TARGET:SERVICE_CALL:ghost:step",
         failure.recoveryCause().findings().getFirst().message());
+  }
+
+  @Test
+  void stopsWithoutCorrectionWhenPlanningInputsAreUnresolved() {
+    AtomicInteger calls = new AtomicInteger();
+    DesignPlanSkillRunner runner =
+        (conversationId,
+            input,
+            formatFailure,
+            repairEvidence,
+            pinnedSkillHash,
+            apiRelease,
+            revision,
+            brief,
+            pin) -> {
+          calls.incrementAndGet();
+          return new DesignPlanSkillRunner.Result(
+              null, "rejected", "Catalog binding is unresolved", List.of(), true);
+        };
+
+    PlannerContractException failure =
+        assertThrows(
+            PlannerContractException.class,
+            () ->
+                new TypedCipDesignPlannerAdapter(runner)
+                    .plan(
+                        new PlannerRequest("conversation", "input", "hash", ""),
+                        "2024.4",
+                        null,
+                        null,
+                        null));
+
+    assertEquals(1, calls.get());
+    assertTrue(failure.getMessage().contains("Catalog binding is unresolved"));
   }
 
   private static DesignPlanContract contract() {

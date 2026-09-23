@@ -213,13 +213,12 @@ class DesignPlanContractValidatorTest {
                 List.of(
                     new RequirementServiceCall(
                         "call-1", "fact-call", "Orders", "createOrder")));
-    DesignPlanContract base =
-        new DesignPlanCaptureAdapter()
-            .adapt(
-                DesignPlanTestFixtures.validCapture("Trigger", "Call"),
-                revision.revisionId(),
-                "revision-hash",
-                "2026.1");
+    DesignPlanContract base = contract(revision, List.of(
+        step("trigger", "cip-http-trigger-endpoint-generator", TargetKind.ENTRY_POINT, "entry-1"),
+        new Step("call", "Produce call-1", new Owner(OwnerKind.SKILL,
+            "cip-service-call-generator"),
+            List.of(new Claim(TargetKind.SERVICE_CALL, "call-1", ClaimRole.PRODUCER)),
+            List.of("trigger"))));
 
     assertTrue(
         validator
@@ -401,13 +400,9 @@ class DesignPlanContractValidatorTest {
             "cip-service-call-generator",
             "cip-structure-generator",
             "cip-chain-assembler");
-    DesignPlanContract targetOnly =
-        new DesignPlanCaptureAdapter()
-            .adapt(
-                DesignPlanTestFixtures.validCapture("Trigger", "Call"),
-                revision.revisionId(),
-                "revision-hash",
-                "2026.1");
+    DesignPlanContract targetOnly = contract(revision, List.of(
+        step("trigger", "cip-http-trigger-endpoint-generator", TargetKind.ENTRY_POINT, "entry-1"),
+        step("call", "cip-service-call-generator", TargetKind.SERVICE_CALL, "call-1")));
 
     long missingOwners =
         validator

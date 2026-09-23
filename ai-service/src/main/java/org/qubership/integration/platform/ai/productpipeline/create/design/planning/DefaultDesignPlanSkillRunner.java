@@ -77,7 +77,8 @@ public class DefaultDesignPlanSkillRunner implements DesignPlanSkillRunner {
           binding.candidate().get(),
           raw,
           binding.rejection().get(),
-          binding.rejectionFindings().get());
+          binding.rejectionFindings().get(),
+          binding.terminal().get());
     } finally {
       DesignPlanCaptureSession.unbind(conversationId);
       ToolSession.clear();
@@ -99,12 +100,10 @@ public class DefaultDesignPlanSkillRunner implements DesignPlanSkillRunner {
       }
     }
     body.append("\n\n## Typed planning contract\n\n");
-    body.append(
-        "Call captureDesignPlan with the complete plan. The tool contract overrides any Markdown ");
-    body.append(
-        "output instructions above. Use exact owners, target ids, PRODUCER or REFERENCE claims, ");
-    body.append("and dependsOnStepIds. Include the pinned structure, assembler, and validation ");
-    body.append("support steps. Prose has no machine semantics.\n\n## Design input\n\n");
+    body.append("Call captureDesignPlan with notes for exact approved targets, or notes=[] if ");
+    body.append("none need a custom description. The tool contract overrides Markdown output ");
+    body.append("instructions above. The server derives owners, target claims, dependencies, ");
+    body.append("structure, assembly, and validation steps.\n\n## Design input\n\n");
     body.append(input.trim());
     repairEvidence.filter(value -> !value.isBlank())
         .ifPresent(value -> body.append("\n\n## Repair evidence\n\n").append(value.trim()));
