@@ -12,24 +12,50 @@ import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTask
 
 import java.util.List;
 
+import static org.qubership.integration.platform.maven.plugin.mojos.MojoConstants.PARAMETER_PROPERTY_PREFIX;
+
 @Mojo(name = "build-crs", defaultPhase = LifecyclePhase.COMPILE)
 public class BuildCRsMojo extends AbstractMojo {
-    @Parameter(name = "sourceRoots", defaultValue = "${project.basedir}/src/main/integration")
+    @Parameter(
+        name = "sourceRoots",
+        property = PARAMETER_PROPERTY_PREFIX + "sourceRoots",
+        defaultValue = "${project.basedir}/src/main/integration"
+    )
     private List<String> sourceRoots;
 
-    @Parameter(name = "outputDirectory", defaultValue = "${project.build.directory}")
+    @Parameter(
+        name = "outputDirectory",
+        property = PARAMETER_PROPERTY_PREFIX + "outputDirectory",
+        defaultValue = "${project.build.directory}"
+    )
     private String outputDirectory;
 
-    @Parameter(name = "defaultDomain", defaultValue = "me-domain")
+    @Parameter(
+        name = "defaultDomain",
+        property = PARAMETER_PROPERTY_PREFIX + "defaultDomain",
+        defaultValue = "me-domain"
+    )
     private String defaultDomain;
 
-    @Parameter(name = "deployAll", defaultValue = "false")
+    @Parameter(
+        name = "deployAll",
+        property = PARAMETER_PROPERTY_PREFIX + "deployAll",
+        defaultValue = "false"
+    )
     private boolean deployAll;
 
-    @Parameter(name = "controlPlaneType", defaultValue = "ISTIO")
+    @Parameter(
+        name = "controlPlaneType",
+        property = PARAMETER_PROPERTY_PREFIX + "controlPlaneType",
+        defaultValue = "ISTIO"
+    )
     private ControlPlaneType controlPlaneType;
 
-    @Parameter(name = "defaultSecretEnabled", defaultValue = "false")
+    @Parameter(
+        name = "defaultSecretEnabled",
+        property = PARAMETER_PROPERTY_PREFIX + "defaultSecretEnabled",
+        defaultValue = "false"
+    )
     private boolean defaultSecretEnabled;
 
     @Parameter(name = "options")

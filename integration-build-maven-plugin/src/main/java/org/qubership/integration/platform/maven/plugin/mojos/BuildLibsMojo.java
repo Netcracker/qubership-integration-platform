@@ -12,12 +12,22 @@ import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildLibsTas
 
 import java.util.List;
 
+import static org.qubership.integration.platform.maven.plugin.mojos.MojoConstants.PARAMETER_PROPERTY_PREFIX;
+
 @Mojo(name = "build-libs", defaultPhase = LifecyclePhase.COMPILE)
 public class BuildLibsMojo extends AbstractMojo {
-    @Parameter(name = "sourceRoots", defaultValue = "${project.basedir}/src/main/integration")
+    @Parameter(
+        name = "sourceRoots",
+        property = PARAMETER_PROPERTY_PREFIX + "sourceRoots",
+        defaultValue = "${project.basedir}/src/main/integration"
+    )
     private List<String> sourceRoots;
 
-    @Parameter(name = "outputDirectory", defaultValue = "${project.build.directory}")
+    @Parameter(
+        name = "outputDirectory",
+        property = PARAMETER_PROPERTY_PREFIX + "outputDirectory",
+        defaultValue = "${project.build.directory}"
+    )
     private String outputDirectory;
 
     @Override

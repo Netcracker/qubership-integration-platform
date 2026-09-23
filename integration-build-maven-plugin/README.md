@@ -83,17 +83,25 @@ continues. With no chains found, `build-crs` writes nothing.
 
 ### Parameters
 
-| Parameter | Type | Default | Description |
-| --- | --- | --- | --- |
-| `sourceRoots` | `List<String>` | `${project.basedir}/src/main/integration` | Directories to read chains and services from. |
-| `outputDirectory` | `String` | `${project.build.directory}` | Directory the resource files are written to. |
-| `deployAll` | `boolean` | `false` | Builds every chain found, whatever its deployment settings. |
-| `defaultDomain` | `String` | `me-domain` | Domain for a chain with no micro-domain deployment, reached only with `deployAll`. |
-| `controlPlaneType` | `ISTIO` or `CORE` | `ISTIO` | `ISTIO` generates the route resources; `CORE` skips them. |
-| `defaultSecretEnabled` | `boolean` | `false` | Sets `DEFAULT_SECRET_ENABLED` in the engine container's environment. |
-| `options` | object | see [Resource options](#resource-options) | Shapes the generated deployment. |
+| Parameter | Type | User property | Default | Description |
+| --- | --- | --- | --- | --- |
+| `sourceRoots` | `List<String>` | `cip.sourceRoots` | `${project.basedir}/src/main/integration` | Directories to read chains and services from. |
+| `outputDirectory` | `String` | `cip.outputDirectory` | `${project.build.directory}` | Directory the resource files are written to. |
+| `deployAll` | `boolean` | `cip.deployAll` | `false` | Builds every chain found, whatever its deployment settings. |
+| `defaultDomain` | `String` | `cip.defaultDomain` | `me-domain` | Domain for a chain with no micro-domain deployment, reached only with `deployAll`. |
+| `controlPlaneType` | `ISTIO` or `CORE` | `cip.controlPlaneType` | `ISTIO` | `ISTIO` generates the route resources; `CORE` skips them. |
+| `defaultSecretEnabled` | `boolean` | `cip.defaultSecretEnabled` | `false` | Sets `DEFAULT_SECRET_ENABLED` in the engine container's environment. |
+| `options` | object | none | see [Resource options](#resource-options) | Shapes the generated deployment. |
 
-None of the parameters has a user property, so set them in the plugin's `<configuration>`, not with `-D`.
+Set a parameter in the plugin's `<configuration>`, or on the command line through its user property:
+
+```bash
+mvn compile -Dcip.deployAll=true -Dcip.controlPlaneType=CORE
+```
+
+`options` has no user property, because Maven cannot build a nested object from a single string. Set it
+in `<configuration>`. `sourceRoots` takes a comma-separated list on the command line. A value set in
+`<configuration>` wins over the user property, so `-D` only changes parameters the POM leaves unset.
 
 ### Which chains are built
 
@@ -213,10 +221,10 @@ Placeholder resolution is strict. A property the plugin needs and does not defin
 
 ## The `build-libs` goal
 
-| Parameter | Type | Default | Description |
-| --- | --- | --- | --- |
-| `sourceRoots` | `List<String>` | `${project.basedir}/src/main/integration` | Directories to read services from. |
-| `outputDirectory` | `String` | `${project.build.directory}` | Directory the JAR files are written to. |
+| Parameter | Type | User property | Default | Description |
+| --- | --- | --- | --- | --- |
+| `sourceRoots` | `List<String>` | `cip.sourceRoots` | `${project.basedir}/src/main/integration` | Directories to read services from. |
+| `outputDirectory` | `String` | `cip.outputDirectory` | `${project.build.directory}` | Directory the JAR files are written to. |
 
 For every specification of every integration service, the goal generates DTO classes with the code
 generator for the service's protocol, compiles them, and writes `<outputDirectory>/<specificationId>.jar`
@@ -300,7 +308,7 @@ in a GitOps diff. A design for reproducible output is in
 
 - One invalid chain fails the whole build; there is no per-chain skip.
 - Generated files are not attached to the project as build artifacts.
-- No `skip` parameter and no user properties; the goals are not marked thread-safe.
+- No `skip` parameter, and the goals are not marked thread-safe.
 - Output is not reproducible, see [Snapshots](#snapshots).
 
 [`FIXES.md`](FIXES.md) tracks the status of each review finding, and [`REVIEW.md`](REVIEW.md) has the
