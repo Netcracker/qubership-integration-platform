@@ -20,6 +20,7 @@ public class CaptureAttemptFeedbackStore {
   private static final Duration DEFAULT_CACHE_IDLE_TIMEOUT = Duration.ofHours(1);
 
   private final ConcurrentMap<String, CaptureAttemptFeedback> planFailures;
+  private final ConcurrentMap<String, CaptureAttemptFeedback> requirementFailures;
   private final ConcurrentMap<String, String> planFailureFingerprints;
   private final ConcurrentMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>> patchFailures;
   private final ConcurrentMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>> validationFailures;
@@ -37,6 +38,7 @@ public class CaptureAttemptFeedbackStore {
   CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore, Duration cacheIdleTimeout) {
     this.fingerprintStore = fingerprintStore;
     this.planFailures = idleCache(cacheIdleTimeout);
+    this.requirementFailures = idleCache(cacheIdleTimeout);
     this.planFailureFingerprints = idleCache(cacheIdleTimeout);
     this.patchFailures = idleCache(cacheIdleTimeout);
     this.validationFailures = idleCache(cacheIdleTimeout);
@@ -106,6 +108,29 @@ public class CaptureAttemptFeedbackStore {
       String summary) {
     recordClassifiedPlanFailure(
         conversationId, kind, failureClass, outerAllowed, summary, List.of());
+  }
+
+  public void recordClassifiedRequirementFailure(
+      String conversationId,
+      CaptureFailureKind kind,
+      CaptureFailureClass failureClass,
+      boolean outerAllowed,
+      String summary) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return;
+    }
+    requirementFailures.put(conversationId,
+        new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed));
+  }
+
+  public Optional<CaptureAttemptFeedback> lastRequirementFailure(String conversationId) {
+    return Optional.ofNullable(requirementFailures.get(conversationId));
+  }
+
+  public void clearRequirement(String conversationId) {
+    if (conversationId != null) {
+      requirementFailures.remove(conversationId);
+    }
   }
 
   public void recordClassifiedPlanFailure(
@@ -312,6 +337,7 @@ public class CaptureAttemptFeedbackStore {
       return;
     }
     planFailures.remove(conversationId);
+    requirementFailures.remove(conversationId);
     planFailureFingerprints.remove(conversationId);
     patchFailures.remove(conversationId);
     validationFailures.remove(conversationId);

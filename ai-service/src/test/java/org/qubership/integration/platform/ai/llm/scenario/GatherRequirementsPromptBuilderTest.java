@@ -59,11 +59,11 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("pinned response locale en"));
     assertTrue(input.contains("Create chain named Greetings via script"));
     assertTrue(input.contains("resolveApiOperation"));
-    assertTrue(input.contains("Capture RequirementFlow before catalog lookup"), input);
+    assertTrue(input.contains("Capture known requirements before catalog lookup"), input);
     assertTrue(input.contains("searchCatalogSystems does not bind"));
-    assertTrue(input.contains("after the flow is stored"), input);
+    assertTrue(input.contains("After the draft is stored"), input);
     assertTrue(input.contains("only for catalog-backed interactions"), input);
-    assertTrue(input.contains("no sender CAPABILITY"), input);
+    assertTrue(input.contains("do not invent a sender key"), input);
     assertTrue(input.contains("sftp-trigger-2"), input);
     assertTrue(input.contains("sftp-upload"), input);
     assertTrue(input.contains("mail-sender"), input);
@@ -73,7 +73,7 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("Custom HTTP"), input);
     assertTrue(input.contains("Implemented service HTTP"), input);
     assertTrue(input.contains("Native triggers and direct elements"), input);
-    assertTrue(input.contains("empty openQuestions"), input);
+    assertTrue(input.contains("save the known interactions and facts as a partial"), input);
     assertFalse(input.contains("after you pick a catalog operation"), input);
     assertFalse(input.contains("with serviceCallId"), input);
     assertFalse(input.contains("searchCatalogSystems, getApiSpecifications, and listCatalogOperations"));

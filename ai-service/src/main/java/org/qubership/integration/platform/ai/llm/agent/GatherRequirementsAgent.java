@@ -7,7 +7,8 @@ import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools;
 import org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool;
-import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureTools;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureToolProvider;
 import org.qubership.integration.platform.ai.plan.SelectApiHubCandidateTool;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool;
 
@@ -16,8 +17,8 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Requireme
  * memory from {@code application.properties}, same as {@link DiscoveryAgent}.
  */
 @RegisterAiService(
+    toolProviderSupplier = RequirementCaptureToolProvider.ProviderSupplier.class,
     tools = {
-      RequirementDraftTool.class,
       SelectApiHubCandidateTool.class,
       CatalogSystemTools.class,
       CatalogFirstApiHubDiscoveryTool.class,
