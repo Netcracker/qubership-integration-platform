@@ -7,10 +7,10 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import java.util.function.BiConsumer;
 
 public class TaskRunner {
-    public <T> void execute(BiConsumer<ApplicationContext, T> task, T parameters) {
+    public <T> void execute(BiConsumer<ApplicationContext, TaskContext<T>> task, TaskContext<T> taskContext) {
         try (AnnotationConfigApplicationContext context =
                  new AnnotationConfigApplicationContext(ApplicationConfiguration.class)) {
-            task.accept(context, parameters);
+            task.accept(context, taskContext);
         }
     }
 }

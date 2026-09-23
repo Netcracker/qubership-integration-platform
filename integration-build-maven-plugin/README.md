@@ -126,6 +126,21 @@ Each resource is written to `<outputDirectory>/<Kind>-<name>.yaml`, UTF-8 encode
 the same directory, and the domain prefix in resource names keeps the files apart. Two resources of one
 kind with one name fail the build with `Duplicate resource '...'`.
 
+Each file is also attached to the project as an artifact of type `yaml`, classified by its file name
+without the extension. `mvn install` and `mvn deploy` publish it next to the project's own artifact, for
+example `my-app-1.0-Service-qip-engine-orders-domain-v1.yaml`. To depend on one resource, name its
+classifier:
+
+```xml
+<dependency>
+  <groupId>com.example</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0</version>
+  <type>yaml</type>
+  <classifier>Service-qip-engine-orders-domain-v1</classifier>
+</dependency>
+```
+
 Depending on the chains and options, a domain yields:
 
 - a Camel K `Integration` running the micro-engine image;
@@ -231,6 +246,9 @@ generator for the service's protocol, compiles them, and writes `<outputDirector
 with the generator's manifest. A service whose protocol has no generator is skipped. A specification with
 no DTO classes still gets a JAR, holding only the manifest.
 
+Each JAR is attached to the project as an artifact of type `jar`, classified by its specification id, so
+`mvn install` publishes it as `<artifactId>-<version>-<specificationId>.jar`.
+
 The integrations configuration from `build-crs` points the engine at
 `http://qip-runtime-catalog-v1:8080/v1/models/<specificationId>/dto/jar`, not at these files. Nothing in
 the plugin publishes the JARs there, so a deployment that uses them has to serve them at that URL or
@@ -307,7 +325,6 @@ in a GitOps diff. A design for reproducible output is in
 ## Limitations
 
 - One invalid chain fails the whole build; there is no per-chain skip.
-- Generated files are not attached to the project as build artifacts.
 - No `skip` parameter, and the goals are not marked thread-safe.
 - Output is not reproducible, see [Snapshots](#snapshots).
 

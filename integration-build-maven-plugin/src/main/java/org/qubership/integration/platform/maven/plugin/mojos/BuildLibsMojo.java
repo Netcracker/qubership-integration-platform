@@ -6,11 +6,15 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.MavenProjectHelper;
+import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.TaskRunner;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildLibsTask;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildLibsTaskParameters;
 
 import java.util.List;
+import javax.inject.Inject;
 
 import static org.qubership.integration.platform.maven.plugin.mojos.MojoConstants.PARAMETER_PROPERTY_PREFIX;
 
@@ -30,15 +34,29 @@ public class BuildLibsMojo extends AbstractMojo {
     )
     private String outputDirectory;
 
+    @Parameter(defaultValue = "${project}", readonly = true, required = true)
+    private MavenProject project;
+
+    @Inject
+    private MavenProjectHelper projectHelper;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
             TaskRunner taskRunner = new TaskRunner();
             BuildLibsTask task = new BuildLibsTask();
-            taskRunner.execute(task, getTaskParameters());
+            taskRunner.execute(task, buildTaskContext());
         } catch (Exception exception) {
             throw new MojoExecutionException("Failed to build DTO libraries", exception);
         }
+    }
+
+    private TaskContext<BuildLibsTaskParameters> buildTaskContext() {
+        return TaskContext.<BuildLibsTaskParameters>builder()
+            .project(project)
+            .projectHelper(projectHelper)
+            .taskParameters(getTaskParameters())
+            .build();
     }
 
     private BuildLibsTaskParameters getTaskParameters() {

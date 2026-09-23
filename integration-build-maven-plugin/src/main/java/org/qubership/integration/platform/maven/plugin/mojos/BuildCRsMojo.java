@@ -6,11 +6,15 @@ import org.apache.maven.plugin.MojoFailureException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
 import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.MavenProjectHelper;
+import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.TaskRunner;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTask;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 
 import java.util.List;
+import javax.inject.Inject;
 
 import static org.qubership.integration.platform.maven.plugin.mojos.MojoConstants.PARAMETER_PROPERTY_PREFIX;
 
@@ -61,15 +65,29 @@ public class BuildCRsMojo extends AbstractMojo {
     @Parameter(name = "options")
     private BuildCRsOptions options = new BuildCRsOptions();
 
+    @Parameter(defaultValue = "${project}", readonly = true, required = true)
+    private MavenProject project;
+
+    @Inject
+    private MavenProjectHelper projectHelper;
+
     @Override
     public void execute() throws MojoExecutionException, MojoFailureException {
         try {
             TaskRunner taskRunner = new TaskRunner();
             BuildCRsTask task = new BuildCRsTask();
-            taskRunner.execute(task, getTaskParameters());
+            taskRunner.execute(task, buildTaskContext());
         } catch (Exception exception) {
             throw new MojoExecutionException("Failed to build K8s resources", exception);
         }
+    }
+
+    private TaskContext<BuildCRsTaskParameters> buildTaskContext() {
+        return TaskContext.<BuildCRsTaskParameters>builder()
+            .project(project)
+            .projectHelper(projectHelper)
+            .taskParameters(getTaskParameters())
+            .build();
     }
 
     private BuildCRsTaskParameters getTaskParameters() {

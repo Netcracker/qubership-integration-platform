@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.maven.plugin.domain.services;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.function.Failable;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
@@ -10,6 +11,7 @@ import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 import org.qubership.integration.platform.io.readers.chain.ChainFileUtil;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
+import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ import static org.qubership.integration.platform.maven.plugin.domain.util.FileUt
 @Service
 public class MicroDomainResourcesBuildService {
     private static final String CLASSIC_DOMAIN_NAME = "default";
+    private static final String YAML_ARTIFACT_TYPE = "yaml";
     public static final String BUILD_CRS_TASK_PARAMETERS = "build-crs-task-parameters";
 
     private final ChainReader chainReader;
@@ -60,16 +63,18 @@ public class MicroDomainResourcesBuildService {
         this.resourceBuildOptionsFactory = resourceBuildOptionsFactory;
     }
 
-    public void buildResources(BuildCRsTaskParameters parameters) throws IOException {
-        processServices(parameters);
-        buildChainResources(parameters);
+    public void buildResources(TaskContext<BuildCRsTaskParameters> taskContext) throws IOException {
+        processServices(taskContext);
+        buildChainResources(taskContext);
     }
 
-    private void processServices(BuildCRsTaskParameters parameters) throws IOException {
+    private void processServices(TaskContext<BuildCRsTaskParameters> taskContext) throws IOException {
+        BuildCRsTaskParameters parameters = taskContext.getTaskParameters();
         integrationServiceLoadService.loadServices(parameters.getSourceRoots(), parameters.getOutputDirectory());
     }
 
-    private void buildChainResources(BuildCRsTaskParameters parameters) throws IOException {
+    private void buildChainResources(TaskContext<BuildCRsTaskParameters> taskContext) throws IOException {
+        BuildCRsTaskParameters parameters = taskContext.getTaskParameters();
         Path outputDirectory = Path.of(parameters.getOutputDirectory());
         Predicate<ImportChain> isDeployAllowed = getChainFilter(parameters);
         Collection<ImportChain> chains = readChains(parameters.getSourceRoots(), outputDirectory)
@@ -80,15 +85,16 @@ public class MicroDomainResourcesBuildService {
         Failable.stream(chainsByDomain.entrySet()).forEach(entry -> {
             String domain = entry.getKey();
             Collection<ImportChain> chainsForDomain = entry.getValue();
-            buildChainResourcesForDomain(domain, chainsForDomain, parameters);
+            buildChainResourcesForDomain(domain, chainsForDomain, taskContext);
         });
     }
 
     public void buildChainResourcesForDomain(
         String domain,
         Collection<ImportChain> chains,
-        BuildCRsTaskParameters parameters
+        TaskContext<BuildCRsTaskParameters> taskContext
     ) throws IOException {
+        BuildCRsTaskParameters parameters = taskContext.getTaskParameters();
         List<Snapshot> snapshots = Failable.stream(chains)
             .map(snapshotBuildService::build)
             .collect(Collectors.toList());
@@ -98,7 +104,11 @@ public class MicroDomainResourcesBuildService {
             resourceBuildContextFactory.createResourceBuildContext(snapshots, resourceBuildOptions);
         buildContext.getBuildCache().put(BUILD_CRS_TASK_PARAMETERS, parameters);
         String resourceText = resourceBuildService.buildResources(buildContext);
-        resourceWriteService.writeResources(parameters.getOutputDirectory(), resourceText);
+        resourceWriteService.writeResources(parameters.getOutputDirectory(), resourceText, file ->
+            taskContext.getProjectHelper()
+                .attachArtifact(taskContext.getProject(), YAML_ARTIFACT_TYPE,
+                    StringUtils.removeEnd(file.getName(), ".yaml"), file)
+        );
     }
 
     private Collection<ImportChain> readChains(Collection<String> sourceRoots, Path outputDirectory) throws IOException {

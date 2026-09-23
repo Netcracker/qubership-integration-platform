@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.maven.plugin.domain.services;
 
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.MavenProjectHelper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -14,10 +16,12 @@ import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
 import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
+import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.adapters.SnapshotImpl;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 import org.qubership.integration.platform.maven.plugin.mojos.BuildCRsOptions;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,12 +29,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -51,6 +57,8 @@ class MicroDomainResourcesBuildServiceTest {
     private final ResourceWriteService resourceWriteService = mock(ResourceWriteService.class);
     private final MicroDomainResourceBuildContextFactory buildContextFactory =
         mock(MicroDomainResourceBuildContextFactory.class);
+    private final MavenProject project = mock(MavenProject.class);
+    private final MavenProjectHelper projectHelper = mock(MavenProjectHelper.class);
 
     // Real, not a mock: these tests assert on the services the load leaves in the catalog.
     private final IntegrationServiceLoadService integrationServiceLoadService =
@@ -88,19 +96,34 @@ class MicroDomainResourcesBuildServiceTest {
         chainDirectory("billing", "billing.chain.yml", "orders-domain");
         chainDirectory("payments", "chain-payments.yaml", "payments-domain");
 
-        buildService.buildResources(parameters());
+        buildService.buildResources(taskContext());
 
         assertEquals(
             Map.of("orders-domain", Set.of("orders", "billing"), "payments-domain", Set.of("payments")),
             capturedChainIdsByDomain());
-        verify(resourceWriteService, times(2)).writeResources(outputDirectory().toString(), RESOURCE_TEXT);
+        verify(resourceWriteService, times(2))
+            .writeResources(eq(outputDirectory().toString()), eq(RESOURCE_TEXT), any());
+    }
+
+    @Test
+    void attachesEachWrittenResourceClassifiedByItsFileName() throws IOException {
+        chainDirectory("orders", "chain-orders.yaml", "orders-domain");
+
+        buildService.buildResources(taskContext());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Consumer<File>> onWrite = ArgumentCaptor.forClass(Consumer.class);
+        verify(resourceWriteService).writeResources(any(), any(), onWrite.capture());
+        File written = outputDirectory().resolve("Service-qip-engine-orders-domain.yaml").toFile();
+        onWrite.getValue().accept(written);
+        verify(projectHelper).attachArtifact(project, "yaml", "Service-qip-engine-orders-domain", written);
     }
 
     @Test
     void buildsResourcesPerDomainForAChainDeployedToSeveralDomains() throws IOException {
         chainDirectory("orders", "chain-orders.yaml", "orders-domain", "backup-domain");
 
-        buildService.buildResources(parameters());
+        buildService.buildResources(taskContext());
 
         assertEquals(
             Map.of("orders-domain", Set.of("orders"), "backup-domain", Set.of("orders")),
@@ -113,7 +136,7 @@ class MicroDomainResourcesBuildServiceTest {
         chainDirectory("billing", "billing.chain.yml", ChainCommitRequestAction.SNAPSHOT, "orders-domain");
         chainDirectory("payments", "chain-payments.yaml", (ChainCommitRequestAction) null, "payments-domain");
 
-        buildService.buildResources(parameters());
+        buildService.buildResources(taskContext());
 
         verifyNoInteractions(buildContextFactory, resourceWriteService);
     }
@@ -122,7 +145,7 @@ class MicroDomainResourcesBuildServiceTest {
     void skipsAChainThatNamesNoDeploymentDomain() throws IOException {
         chainDirectory("legacy", "chain-legacy.yaml");
 
-        buildService.buildResources(parameters());
+        buildService.buildResources(taskContext());
 
         verifyNoInteractions(buildContextFactory, resourceWriteService);
     }
@@ -131,7 +154,7 @@ class MicroDomainResourcesBuildServiceTest {
     void skipsAChainDeployedToTheClassicDomainAlone() throws IOException {
         chainDirectory("legacy", "chain-legacy.yaml", "default");
 
-        buildService.buildResources(parameters());
+        buildService.buildResources(taskContext());
 
         verifyNoInteractions(buildContextFactory, resourceWriteService);
     }
@@ -140,7 +163,7 @@ class MicroDomainResourcesBuildServiceTest {
     void buildsAChainDeployedToTheClassicDomainAlongsideAnotherDomain() throws IOException {
         chainDirectory("orders", "chain-orders.yaml", "default", "orders-domain");
 
-        buildService.buildResources(parameters());
+        buildService.buildResources(taskContext());
 
         assertEquals(
             Map.of("orders-domain", Set.of("orders")),
@@ -153,7 +176,7 @@ class MicroDomainResourcesBuildServiceTest {
         chainDirectory("billing", "billing.chain.yml", "default");
         chainDirectory("legacy", "chain-legacy.yaml");
 
-        buildService.buildResources(parameters(true));
+        buildService.buildResources(taskContext(true));
 
         assertEquals(
             Map.of(
@@ -170,7 +193,7 @@ class MicroDomainResourcesBuildServiceTest {
         Files.writeString(generated.resolve("service-generated.yaml"), "");
         chainDirectory("orders", "chain-orders.yaml", "orders-domain");
 
-        buildService.buildResources(parameters());
+        buildService.buildResources(taskContext());
 
         assertEquals(Map.of("orders-domain", Set.of("orders")), capturedChainIdsByDomain());
         verifyNoInteractions(integrationSystemReader);
@@ -184,7 +207,7 @@ class MicroDomainResourcesBuildServiceTest {
         system.setId("system-1");
         when(integrationSystemReader.read(serviceFile.toFile())).thenReturn(system);
 
-        buildService.buildResources(parameters());
+        buildService.buildResources(taskContext());
 
         assertEquals("system-1", catalog.findById("system-1").orElseThrow().getId());
     }
@@ -194,7 +217,7 @@ class MicroDomainResourcesBuildServiceTest {
         Path chainDirectory = chainDirectory("orders", "chain-orders.yaml", "orders-domain");
         when(chainReader.read(chainDirectory.toFile())).thenThrow(new IllegalStateException("broken chain"));
 
-        Exception exception = assertThrows(Exception.class, () -> buildService.buildResources(parameters()));
+        Exception exception = assertThrows(Exception.class, () -> buildService.buildResources(taskContext()));
 
         Throwable cause = exception.getCause();
         assertTrue(cause.getMessage().contains(chainDirectory.toFile().getAbsolutePath()));
@@ -241,17 +264,22 @@ class MicroDomainResourcesBuildServiceTest {
         return sourceRoot.resolve("target");
     }
 
-    private BuildCRsTaskParameters parameters() {
-        return parameters(false);
+    private TaskContext<BuildCRsTaskParameters> taskContext() {
+        return taskContext(false);
     }
 
-    private BuildCRsTaskParameters parameters(boolean deployAll) {
-        return BuildCRsTaskParameters.builder()
+    private TaskContext<BuildCRsTaskParameters> taskContext(boolean deployAll) {
+        BuildCRsTaskParameters parameters = BuildCRsTaskParameters.builder()
             .sourceRoots(List.of(sourceRoot.toString()))
             .outputDirectory(outputDirectory().toString())
             .defaultDomain("fallback-domain")
             .deployAll(deployAll)
             .options(new BuildCRsOptions())
+            .build();
+        return TaskContext.<BuildCRsTaskParameters>builder()
+            .project(project)
+            .projectHelper(projectHelper)
+            .taskParameters(parameters)
             .build();
     }
 }

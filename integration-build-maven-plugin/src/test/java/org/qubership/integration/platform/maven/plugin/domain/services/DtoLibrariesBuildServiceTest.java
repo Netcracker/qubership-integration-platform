@@ -1,10 +1,13 @@
 package org.qubership.integration.platform.maven.plugin.domain.services;
 
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.MavenProjectHelper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.chain.model.IntegrationService;
 import org.qubership.integration.platform.chain.model.ServiceSpecification;
 import org.qubership.integration.platform.chain.model.SpecificationGroup;
+import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildLibsTaskParameters;
 
 import java.nio.file.Files;
@@ -19,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class DtoLibrariesBuildServiceTest {
@@ -29,6 +33,9 @@ class DtoLibrariesBuildServiceTest {
         mock(IntegrationServiceLoadService.class);
     private final DtoLibraryCompilationService dtoLibraryCompilationService =
         mock(DtoLibraryCompilationService.class);
+
+    private final MavenProject project = mock(MavenProject.class);
+    private final MavenProjectHelper projectHelper = mock(MavenProjectHelper.class);
 
     // Real, not a mock: these tests build on the services the load leaves in the catalog.
     private final IntegrationServiceCatalogImpl catalog = new IntegrationServiceCatalogImpl();
@@ -44,10 +51,23 @@ class DtoLibrariesBuildServiceTest {
         registerService("payments", specification("orders"), specification("invoices"));
         when(dtoLibraryCompilationService.generateJar(any(), any(), any())).thenReturn(JAR_DATA);
 
-        buildService.buildLibraries(parameters());
+        buildService.buildLibraries(taskContext());
 
         assertArrayEquals(JAR_DATA, Files.readAllBytes(outputDirectory().resolve("orders.jar")));
         assertArrayEquals(JAR_DATA, Files.readAllBytes(outputDirectory().resolve("invoices.jar")));
+    }
+
+    @Test
+    void attachesEachJarClassifiedBySpecificationId() throws Exception {
+        registerService("payments", specification("orders"), specification("invoices"));
+        when(dtoLibraryCompilationService.generateJar(any(), any(), any())).thenReturn(JAR_DATA);
+
+        buildService.buildLibraries(taskContext());
+
+        verify(projectHelper).attachArtifact(
+            project, "jar", "orders", outputDirectory().resolve("orders.jar").toAbsolutePath().toFile());
+        verify(projectHelper).attachArtifact(
+            project, "jar", "invoices", outputDirectory().resolve("invoices.jar").toAbsolutePath().toFile());
     }
 
     @Test
@@ -55,7 +75,7 @@ class DtoLibrariesBuildServiceTest {
         registerService("payments", specification("orders"));
         when(dtoLibraryCompilationService.generateJar(any(), any(), any())).thenReturn(JAR_DATA);
 
-        buildService.buildLibraries(parameters());
+        buildService.buildLibraries(taskContext());
 
         var order = inOrder(integrationServiceLoadService, dtoLibraryCompilationService);
         order.verify(integrationServiceLoadService)
@@ -68,9 +88,10 @@ class DtoLibrariesBuildServiceTest {
         registerService("payments", specification("orders"));
         when(dtoLibraryCompilationService.generateJar(any(), any(), any())).thenReturn(null);
 
-        buildService.buildLibraries(parameters());
+        buildService.buildLibraries(taskContext());
 
         assertFalse(Files.exists(outputDirectory().resolve("orders.jar")));
+        verifyNoInteractions(projectHelper);
     }
 
     @Test
@@ -79,7 +100,7 @@ class DtoLibrariesBuildServiceTest {
         when(dtoLibraryCompilationService.generateJar(any(), any(), any()))
             .thenThrow(new IllegalStateException("broken specification"));
 
-        Exception exception = assertThrows(IllegalStateException.class, () -> buildService.buildLibraries(parameters()));
+        Exception exception = assertThrows(IllegalStateException.class, () -> buildService.buildLibraries(taskContext()));
 
         assertEquals("broken specification", exception.getMessage());
     }
@@ -89,7 +110,7 @@ class DtoLibrariesBuildServiceTest {
         IntegrationService service = registerService("payments", specification("orders"));
         when(dtoLibraryCompilationService.generateJar(any(), any(), any())).thenReturn(JAR_DATA);
 
-        buildService.buildLibraries(parameters());
+        buildService.buildLibraries(taskContext());
 
         SpecificationGroup group = service.getSpecificationGroups().iterator().next();
         verify(dtoLibraryCompilationService)
@@ -118,10 +139,15 @@ class DtoLibrariesBuildServiceTest {
         return sourceRoot.resolve("target");
     }
 
-    private BuildLibsTaskParameters parameters() {
-        return BuildLibsTaskParameters.builder()
+    private TaskContext<BuildLibsTaskParameters> taskContext() {
+        BuildLibsTaskParameters parameters = BuildLibsTaskParameters.builder()
             .sourceRoots(List.of(sourceRoot.toString()))
             .outputDirectory(outputDirectory().toString())
+            .build();
+        return TaskContext.<BuildLibsTaskParameters>builder()
+            .project(project)
+            .projectHelper(projectHelper)
+            .taskParameters(parameters)
             .build();
     }
 }

@@ -17,6 +17,7 @@ import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -38,7 +39,7 @@ public class ResourceWriteService {
         this.yamlMapper = yamlMapper;
     }
 
-    public void writeResources(String outputDirectory, String resourcesText) throws IOException {
+    public void writeResources(String outputDirectory, String resourcesText, Consumer<File> onWrite) throws IOException {
         Files.createDirectories(Paths.get(outputDirectory));
         Failable.stream(groupByNameAndKind(splitResources(resourcesText)).entrySet()).forEach(entry -> {
             if (entry.getValue().size() > 1) {
@@ -47,20 +48,22 @@ public class ResourceWriteService {
             }
             ResourceNameAndKind resourceNameAndKind = entry.getKey();
             String content = entry.getValue().getFirst();
-            writeResource(outputDirectory, resourceNameAndKind, content);
+            writeResource(outputDirectory, resourceNameAndKind, content, onWrite);
         });
     }
 
     private void writeResource(
         String outputDirectory,
         ResourceNameAndKind resourceNameAndKind,
-        String content
+        String content,
+        Consumer<File> onWrite
     ) throws IOException {
         String name = getResourceFileName(resourceNameAndKind);
         File file = new File(outputDirectory, name);
         log.info("Writing resource '{}' of kind '{}' to file '{}'",
             resourceNameAndKind.name, resourceNameAndKind.kind, file.getAbsolutePath());
         Files.writeString(file.toPath(), content, StandardCharsets.UTF_8);
+        onWrite.accept(file);
     }
 
     private static String getResourceFileName(ResourceNameAndKind resourceNameAndKind) {

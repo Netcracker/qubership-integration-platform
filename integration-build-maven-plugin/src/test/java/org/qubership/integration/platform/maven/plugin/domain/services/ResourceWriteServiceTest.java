@@ -4,10 +4,13 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.UndeclaredThrowableException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -28,6 +31,7 @@ class ResourceWriteServiceTest {
         """;
 
     private final ResourceWriteService resourceWriteService = new ResourceWriteService(new YAMLMapper());
+    private final List<File> writtenFiles = new ArrayList<>();
 
     /**
      * A Helm expression in a value position starts a YAML flow mapping, so the document only parses once
@@ -46,7 +50,7 @@ class ResourceWriteServiceTest {
                 - {{ .Release.Namespace }}
             """;
 
-        resourceWriteService.writeResources(directory.toString(), templated);
+        resourceWriteService.writeResources(directory.toString(), templated, writtenFiles::add);
 
         Path written = directory.resolve("ServiceMonitor-qip-engine-default.yaml");
         assertTrue(Files.exists(written));
@@ -69,7 +73,7 @@ class ResourceWriteServiceTest {
               content: "{{ %s"
             """.formatted("x".repeat(4000));
 
-        resourceWriteService.writeResources(directory.toString(), unterminated);
+        resourceWriteService.writeResources(directory.toString(), unterminated, writtenFiles::add);
 
         assertTrue(Files.exists(directory.resolve("ConfigMap-qip-engine-default.yaml")));
     }
@@ -78,7 +82,7 @@ class ResourceWriteServiceTest {
     void writesOneFilePerResourceNamedAfterKindAndName(@TempDir Path directory) throws IOException {
         Path outputDirectory = directory.resolve("crs");
 
-        resourceWriteService.writeResources(outputDirectory.toString(), DEPLOYMENT_AND_SERVICE);
+        resourceWriteService.writeResources(outputDirectory.toString(), DEPLOYMENT_AND_SERVICE, writtenFiles::add);
 
         Path deployment = outputDirectory.resolve("Deployment-qip-engine-default.yaml");
         Path service = outputDirectory.resolve("Service-qip-engine-default.yaml");
@@ -90,8 +94,18 @@ class ResourceWriteServiceTest {
     }
 
     @Test
+    void reportsEveryWrittenFile(@TempDir Path directory) throws IOException {
+        resourceWriteService.writeResources(directory.toString(), DEPLOYMENT_AND_SERVICE, writtenFiles::add);
+
+        assertEquals(
+            List.of("Deployment-qip-engine-default.yaml", "Service-qip-engine-default.yaml"),
+            writtenFiles.stream().map(File::getName).sorted().toList());
+        writtenFiles.forEach(file -> assertTrue(file.exists()));
+    }
+
+    @Test
     void keepsTheDocumentSeparatorInEachFile(@TempDir Path directory) throws IOException {
-        resourceWriteService.writeResources(directory.toString(), DEPLOYMENT_AND_SERVICE);
+        resourceWriteService.writeResources(directory.toString(), DEPLOYMENT_AND_SERVICE, writtenFiles::add);
 
         String content = Files.readString(directory.resolve("Deployment-qip-engine-default.yaml"));
         assertTrue(content.startsWith("---"));
@@ -102,7 +116,7 @@ class ResourceWriteServiceTest {
         String resources = DEPLOYMENT_AND_SERVICE.replace("kind: Service", "kind: Deployment");
 
         UndeclaredThrowableException exception = assertThrows(UndeclaredThrowableException.class,
-            () -> resourceWriteService.writeResources(directory.toString(), resources));
+            () -> resourceWriteService.writeResources(directory.toString(), resources, writtenFiles::add));
 
         assertEquals(ResourceWriteService.ResourceWriteException.class, exception.getCause().getClass());
         assertTrue(exception.getCause().getMessage().contains("Duplicate resource"));
@@ -117,7 +131,7 @@ class ResourceWriteServiceTest {
             """;
 
         RuntimeException exception = assertThrows(RuntimeException.class,
-            () -> resourceWriteService.writeResources(directory.toString(), resources));
+            () -> resourceWriteService.writeResources(directory.toString(), resources, writtenFiles::add));
 
         assertTrue(exception.getMessage().contains("Failed to get resource kind"));
     }
@@ -133,7 +147,7 @@ class ResourceWriteServiceTest {
             """;
 
         RuntimeException exception = assertThrows(RuntimeException.class,
-            () -> resourceWriteService.writeResources(directory.toString(), resources));
+            () -> resourceWriteService.writeResources(directory.toString(), resources, writtenFiles::add));
 
         assertTrue(exception.getMessage().contains("Failed to get resource name"));
     }

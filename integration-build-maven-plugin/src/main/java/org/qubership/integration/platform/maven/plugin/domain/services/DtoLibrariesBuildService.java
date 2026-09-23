@@ -6,6 +6,7 @@ import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatal
 import org.qubership.integration.platform.chain.model.IntegrationService;
 import org.qubership.integration.platform.chain.model.ServiceSpecification;
 import org.qubership.integration.platform.chain.model.SpecificationGroup;
+import org.qubership.integration.platform.maven.plugin.domain.TaskContext;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildLibsTaskParameters;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -35,20 +36,22 @@ public class DtoLibrariesBuildService {
         this.dtoLibraryCompilationService = dtoLibraryCompilationService;
     }
 
-    public void buildLibraries(BuildLibsTaskParameters parameters) throws IOException {
+    public void buildLibraries(TaskContext<BuildLibsTaskParameters> taskContext) throws IOException {
+        BuildLibsTaskParameters parameters = taskContext.getTaskParameters();
         integrationServiceLoadService.loadServices(parameters.getSourceRoots(), parameters.getOutputDirectory());
         Failable.stream(integrationServiceCatalog.findAll()).forEach(integrationService ->
             Failable.stream(integrationService.getSpecificationGroups()).forEach(specificationGroup ->
                 Failable.stream(specificationGroup.getSpecifications()).forEach(specification ->
-                    buildJar(integrationService, specificationGroup, specification, parameters))));
+                    buildJar(integrationService, specificationGroup, specification, taskContext))));
     }
 
     private void buildJar(
         IntegrationService integrationService,
         SpecificationGroup specificationGroup,
         ServiceSpecification serviceSpecification,
-        BuildLibsTaskParameters parameters
+        TaskContext<BuildLibsTaskParameters> taskContext
     ) throws Exception {
+        BuildLibsTaskParameters parameters = taskContext.getTaskParameters();
         byte[] data = dtoLibraryCompilationService.generateJar(integrationService, specificationGroup, serviceSpecification);
         if (isNull(data)) {
             return;
@@ -59,6 +62,7 @@ public class DtoLibrariesBuildService {
         }
         Path filePath = outputDirectory.resolve(buildJarFileName(serviceSpecification));
         Files.write(filePath, data);
+        taskContext.getProjectHelper().attachArtifact(taskContext.getProject(), "jar", serviceSpecification.getId(), filePath.toFile());
         log.info("Built DTO library for service '{}' ({}) specification '{}' ({}): {}",
             integrationService.getName(), integrationService.getId(),
             serviceSpecification.getName(), serviceSpecification.getId(), filePath);
