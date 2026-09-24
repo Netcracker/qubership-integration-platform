@@ -1,23 +1,23 @@
 lockfile_version: '1'
-generated_at: '2026-09-08T12:13:39.678280+00:00'
+generated_at: '2026-09-24T17:25:04.272237+00:00'
 apm_version: 0.28.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
   materialization_repo_url: Netcracker/qubership-ai-agent-telemetry
   name: ai-agent-telemetry
   host: github.com
-  resolved_commit: 7d82ecce6ce34d5abb2ab000e51302e7d82fb4e9
+  resolved_commit: bfda5c597b32a5eff2ba8639e5ee46c213bc823c
   version: 1.1.0
   virtual_path: agent-packages/ai-agent-telemetry
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:e40337f8e5ede88e72fc1e6673b358d9d278c8d4f0e748c644d3600f014cf626
+  content_hash: sha256:bd3a176f3c46d9c320879b3eb5742afb553842ad97c15002609255607fdfb89b
 - repo_url: netcracker/qubership-ai-packages
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: apm-authoring
   host: github.com
-  resolved_commit: ebbc567f900e00ea4ec6260536bb75c0d46ddd73
-  version: 1.0.0
+  resolved_commit: 43ea92b972804eb9c16871d68d29cccbf9865225
+  version: 1.1.0
   virtual_path: agent-packages/apm-authoring
   is_virtual: true
   package_type: apm_package
@@ -29,17 +29,17 @@ dependencies:
   - .claude/skills/apm-authoring/SKILL.md
   - .cursor/rules/apm-authoring.mdc
   deployed_file_hashes:
-    .agents/skills/apm-authoring/SKILL.md: sha256:1832abc93a14884504dc87d97cc0c2825c7e7b4a6786f2daccf1d6ef172bc907
+    .agents/skills/apm-authoring/SKILL.md: sha256:b4dd9fa65061fcda3bef603ca980c28b0469db41627a3164395d23240b950380
     .claude/rules/apm-authoring.md: sha256:5c4185d3d69333a810c01f5e26a8ea46b033e7082a21f1551433d6c97d8a24a2
-    .claude/skills/apm-authoring/SKILL.md: sha256:1832abc93a14884504dc87d97cc0c2825c7e7b4a6786f2daccf1d6ef172bc907
+    .claude/skills/apm-authoring/SKILL.md: sha256:b4dd9fa65061fcda3bef603ca980c28b0469db41627a3164395d23240b950380
     .cursor/rules/apm-authoring.mdc: sha256:fbc8f94d4f0b94c04a0ed042ee06f1f48244fdac316f0ce15e2d38b0affbb9aa
-  content_hash: sha256:1d731d0a26376eda0b82629e6e1cff1b41dfeae13fe8d7e5debb24a1699ea4a8
+  content_hash: sha256:c4931d5235c1b2632d537cf9b0f843ee3fb9dc7d84d8de113160b72ffbce4ed8
   is_dev: true
 - repo_url: netcracker/qubership-ai-packages
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: codex-review
   host: github.com
-  resolved_commit: ebbc567f900e00ea4ec6260536bb75c0d46ddd73
+  resolved_commit: 43ea92b972804eb9c16871d68d29cccbf9865225
   version: 1.0.0
   virtual_path: agent-packages/codex-review
   is_virtual: true
@@ -57,12 +57,12 @@ dependencies:
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-developer-style
   host: github.com
-  resolved_commit: ebbc567f900e00ea4ec6260536bb75c0d46ddd73
-  version: 2.0.1
+  resolved_commit: 43ea92b972804eb9c16871d68d29cccbf9865225
+  version: 2.1.0
   virtual_path: agent-packages/english-developer-style
   is_virtual: true
   package_type: apm_package
-  content_hash: sha256:76349301bd35d442b1d38b476846bcaa6d76a8ae83ab593d5fff19bf7d4c6372
+  content_hash: sha256:2fe3574b0d6804c3b67c926c1b88783d2192966981f6b15c23b38331f51ab028
 - repo_url: netcracker/qubership-ai-packages
   materialization_repo_url: Netcracker/qubership-ai-packages
   name: english-us-developer-style
@@ -565,7 +565,7 @@ deployments:
   owners:
   - netcracker/qubership-ai-packages/agent-packages/apm-authoring
   active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
-  content_hash: sha256:1832abc93a14884504dc87d97cc0c2825c7e7b4a6786f2daccf1d6ef172bc907
+  content_hash: sha256:b4dd9fa65061fcda3bef603ca980c28b0469db41627a3164395d23240b950380
 - kind: project-relative
   target: claude
   value: .claude/skills/ci-fix
@@ -844,7 +844,7 @@ deployments:
   owners:
   - netcracker/qubership-ai-packages/agent-packages/apm-authoring
   active_owner: netcracker/qubership-ai-packages/agent-packages/apm-authoring
-  content_hash: sha256:1832abc93a14884504dc87d97cc0c2825c7e7b4a6786f2daccf1d6ef172bc907
+  content_hash: sha256:b4dd9fa65061fcda3bef603ca980c28b0469db41627a3164395d23240b950380
 - kind: project-relative
   target: codex
   value: .agents/skills/codex-review
