@@ -19,7 +19,6 @@ package org.qubership.integration.platform.engine.camel.components.servlet;
 import org.apache.camel.http.common.HttpConsumer;
 import org.apache.camel.support.RestConsumerContextPathMatcher;
 import org.apache.camel.support.RestConsumerContextPathMatcher.ConsumerPath;
-import org.apache.commons.lang3.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -67,12 +66,12 @@ public class RestConsumerContextPathCustomMatcher {
         boolean noWildcards = candidates.stream().allMatch(p -> countWildcards(p.getConsumerPath()) == 0);
         if (noWildcards) {
             // grab first which is the longest that matched the request path
-            answer = matchNewerConsumer(preferSameCase(requestPath, candidates.stream()
+            answer = matchNewerConsumer(candidates.stream()
                     .filter(c -> RestConsumerContextPathMatcher.matchPath(requestPath, c.getConsumerPath(),
                             c.isMatchOnUriPrefix()))
                     // TODO not working with (isMatchOnUriPrefix == true)
                     //.sorted(Comparator.comparingInt(o -> -1 * o.getConsumerPath().length()))
-                    .toList()));
+                    .toList());
         }
 
         // then match by wildcard path
@@ -109,7 +108,7 @@ public class RestConsumerContextPathCustomMatcher {
 
                 if (wildcardCandidates != null) {
                     // pick the best among the wildcards
-                    answer = matchNewerConsumer(preferSameCase(requestPath, wildcardCandidates));
+                    answer = matchNewerConsumer(wildcardCandidates);
                 }
             }
 
@@ -125,29 +124,7 @@ public class RestConsumerContextPathCustomMatcher {
     private static ConsumerPath<HttpConsumer> matchRestPathAndTime(String requestPath, @Nonnull List<ConsumerPath<HttpConsumer>> candidates) {
         List<ConsumerPath<HttpConsumer>> sameCandidates = candidates.stream()
                 .filter(path -> matchRestPath(requestPath, path.getConsumerPath(), false)).toList();
-        return matchNewerConsumer(preferSameCase(requestPath, sameCandidates));
-    }
-
-    // Camel compares paths case-insensitively, so a request for /orders also matches a consumer at /Orders.
-    // Keep only the consumers spelled like the request, if there are any.
-    private static List<ConsumerPath<HttpConsumer>> preferSameCase(String requestPath, List<ConsumerPath<HttpConsumer>> consumers) {
-        List<ConsumerPath<HttpConsumer>> sameCase = consumers.stream()
-                .filter(consumer -> spelledLike(requestPath, consumer.getConsumerPath()))
-                .toList();
-        return sameCase.isEmpty() ? consumers : sameCase;
-    }
-
-    private static boolean spelledLike(String requestPath, String consumerPath) {
-        String[] requestSegments = StringUtils.strip(requestPath, "/").split("/");
-        String[] consumerSegments = StringUtils.strip(consumerPath, "/").split("/");
-        for (int i = 0; i < consumerSegments.length; i++) {
-            String segment = consumerSegments[i];
-            boolean parameter = segment.startsWith("{") && segment.endsWith("}");
-            if (!parameter && !segment.equals(requestSegments[i])) {
-                return false;
-            }
-        }
-        return true;
+        return matchNewerConsumer(sameCandidates);
     }
 
     private static ConsumerPath<HttpConsumer> matchNewerConsumer(List<ConsumerPath<HttpConsumer>> consumers) {
