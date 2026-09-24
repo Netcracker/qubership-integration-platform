@@ -13,9 +13,32 @@ public record StageAttempt(
     Instant startedAt,
     Instant finishedAt,
     List<CompilationArtifacts.Reference> outputs,
-    String failureEvidence) {
+    String failureEvidence,
+    String commandReceipt) {
 
   public StageAttempt {
     outputs = outputs == null ? List.of() : List.copyOf(outputs);
+  }
+
+  /** Compatibility constructor for attempts that do not record a command receipt. */
+  public StageAttempt(
+      String attemptId,
+      String stageId,
+      long runRevision,
+      StageStatus outcome,
+      Instant startedAt,
+      Instant finishedAt,
+      List<CompilationArtifacts.Reference> outputs,
+      String failureEvidence) {
+    this(
+        attemptId,
+        stageId,
+        runRevision,
+        outcome,
+        startedAt,
+        finishedAt,
+        outputs,
+        failureEvidence,
+        null);
   }
 }
