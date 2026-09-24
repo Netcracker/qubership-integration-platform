@@ -50,9 +50,9 @@ public class CorrelationIdPropagationProcessor implements Processor {
             String correlationIdPosition = exchange.getProperty(CORRELATION_ID_POSITION, String.class);
             String correlationIdName = exchange.getProperty(CORRELATION_ID_NAME, String.class);
 
-            if (HEADER.equals(correlationIdPosition)) {
+            if (HEADER.equalsIgnoreCase(correlationIdPosition)) {
                 exchange.getMessage().setHeader(correlationIdName, correlationId);
-            } else if (BODY.equals(correlationIdPosition)) {
+            } else if (BODY.equalsIgnoreCase(correlationIdPosition)) {
                 try {
                     Map<String, Object> body = objectMapper.readValue(exchange.getMessage().getBody(String.class), HashMap.class);
                     body.put(correlationIdName, correlationId);

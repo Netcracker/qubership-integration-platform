@@ -15,7 +15,7 @@
         <process ref="chainExceptionResponseHandlerProcessor"/>
     </onCompletion>
     <setProperty name="correlationIdPosition">
-        <constant>Header</constant>
+        <constant>header</constant>
     </setProperty>
     <setProperty name="correlationIdName">
         <constant>test_correlation_id</constant>

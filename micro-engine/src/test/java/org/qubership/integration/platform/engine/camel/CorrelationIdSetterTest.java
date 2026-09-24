@@ -6,6 +6,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -46,9 +48,11 @@ class CorrelationIdSetterTest {
         }
     }
 
-    @Test
-    void shouldSetCorrelationIdFromHeaderAndPutItToMdc() {
-        exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_POSITION, CorrelationIdSetter.HEADER);
+    // The schema spells the positions in lowercase; chains from older exports store them capitalized.
+    @ParameterizedTest
+    @ValueSource(strings = {"Header", "header"})
+    void shouldSetCorrelationIdFromHeaderAndPutItToMdc(String position) {
+        exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_POSITION, position);
         exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_NAME, "X-Correlation-Id");
         exchange.getMessage().setHeader("X-Correlation-Id", "corr-123");
 
@@ -87,9 +91,10 @@ class CorrelationIdSetterTest {
         }
     }
 
-    @Test
-    void shouldSetCorrelationIdFromBodyAndPutItToMdc() {
-        exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_POSITION, CorrelationIdSetter.BODY);
+    @ParameterizedTest
+    @ValueSource(strings = {"Body", "body"})
+    void shouldSetCorrelationIdFromBodyAndPutItToMdc(String position) {
+        exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_POSITION, position);
         exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_NAME, "correlationId");
 
         try (

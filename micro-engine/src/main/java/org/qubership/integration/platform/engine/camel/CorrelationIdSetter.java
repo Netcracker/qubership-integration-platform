@@ -51,7 +51,7 @@ public class CorrelationIdSetter {
         if (exchange.getProperty(CORRELATION_ID_POSITION) != null && exchange.getProperty(CORRELATION_ID_NAME) != null) {
             String correlationIdPosition = String.valueOf(exchange.getProperty(CORRELATION_ID_POSITION));
             String correlationIdName = String.valueOf(exchange.getProperty(CORRELATION_ID_NAME));
-            if (HEADER.equals(correlationIdPosition)) {
+            if (HEADER.equalsIgnoreCase(correlationIdPosition)) {
                 if (exchange.getMessage().getHeader(correlationIdName) != null) {
                     String correlationId = String.valueOf(exchange.getMessage().getHeader(correlationIdName));
                     exchange.setProperty(CORRELATION_ID, correlationId);
@@ -61,7 +61,7 @@ public class CorrelationIdSetter {
                 } else {
                     exchange.setProperty(CORRELATION_ID, null);
                 }
-            } else if (BODY.equals(correlationIdPosition)) {
+            } else if (BODY.equalsIgnoreCase(correlationIdPosition)) {
                 try {
                     Map<String, Object> body = objectMapper.readValue(MessageHelper.extractBody(exchange), HashMap.class);
                     if (body.containsKey(correlationIdName)) {

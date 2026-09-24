@@ -7,6 +7,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
@@ -44,10 +46,12 @@ class CorrelationIdPropagationProcessorTest {
         processor = new CorrelationIdPropagationProcessor(objectMapper);
     }
 
-    @Test
-    void shouldSetHeaderWhenCorrelationIdPresentAndPositionHeader() {
+    // The schema spells the positions in lowercase; chains from older exports store them capitalized.
+    @ParameterizedTest
+    @ValueSource(strings = {"Header", "header"})
+    void shouldSetHeaderWhenCorrelationIdPresentAndPositionHeader(String position) {
         exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
-        exchange.setProperty(CORRELATION_ID_POSITION, HEADER);
+        exchange.setProperty(CORRELATION_ID_POSITION, position);
         exchange.setProperty(CORRELATION_ID_NAME, CORRELATION_ID_NAME_VALUE);
 
         processor.process(exchange);
@@ -58,10 +62,11 @@ class CorrelationIdPropagationProcessorTest {
         );
     }
 
-    @Test
-    void shouldAddCorrelationIdToBodyWhenCorrelationIdPresentAndPositionBody() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"Body", "body"})
+    void shouldAddCorrelationIdToBodyWhenCorrelationIdPresentAndPositionBody(String position) throws Exception {
         exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
-        exchange.setProperty(CORRELATION_ID_POSITION, BODY);
+        exchange.setProperty(CORRELATION_ID_POSITION, position);
         exchange.setProperty(CORRELATION_ID_NAME, CORRELATION_ID_NAME_VALUE);
         exchange.getMessage().setBody("{\"name\":\"Alex\",\"role\":\"developer\"}");
 
