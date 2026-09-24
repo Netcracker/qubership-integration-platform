@@ -82,16 +82,64 @@ class WorkTaskExecutorTest {
   }
 
   @Test
+  void incompletePreparedCaptureDoesNotPublish() {
+    Reference before = runs.load(RUN_ID).orElseThrow().run().workDocumentRef();
+
+    assertThrows(
+        WorkDocumentRejectedException.class,
+        () -> executor.execute(RUN_ID, scope(), materials(), prompt -> "{\"outcome\":\"PREPARED\"}"));
+
+    assertEquals(before, runs.load(RUN_ID).orElseThrow().run().workDocumentRef());
+    assertTrue(questions(documents.read(RUN_ID)).isEmpty());
+  }
+
+  @Test
+  void replayReturnsTheAttemptDocumentAfterALaterCommand() {
+    WorkTaskScope original = scope();
+    WorkCommit first =
+        executor.execute(
+            RUN_ID,
+            original,
+            materials(),
+            prompt -> completeClarification());
+    WorkDocumentState laterBase = documents.read(RUN_ID);
+    documents.apply(
+        RUN_ID,
+        new WorkTaskScope(
+            "later-task",
+            laterBase.revision(),
+            WorkStage.DATA_BEHAVIOR,
+            "mapping",
+            List.of(),
+            false,
+            false,
+            false,
+            List.of(),
+            List.of()),
+        org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema.parse(
+            """
+            {"outcome":"NEEDS_CLARIFICATION","question":"A later question?","unresolvedChoice":"later choice","clarificationEvidenceIds":["source-gov"]}
+            """),
+        "cmd-later");
+
+    WorkCommit replay = executor.execute(RUN_ID, original, materials(), prompt -> {
+      throw new AssertionError("published command must not call the model");
+    });
+
+    assertEquals(first.documentRevision(), replay.documentRevision());
+    assertEquals(first.state().revision(), replay.state().revision());
+    assertEquals("Which failure port?", questions(replay.state()).get(0).path("question").asText());
+    assertEquals("A later question?", questions(documents.read(RUN_ID)).get(1).path("question").asText());
+  }
+
+  @Test
   void clarificationKeepsAcceptedWorkAndOneQuestion() {
     WorkCommit commit =
         executor.execute(
             RUN_ID,
             scope(),
             materials(),
-            prompt ->
-                """
-                {"outcome":"NEEDS_CLARIFICATION","question":"Which failure port?","unresolvedChoice":"success or failure port","clarificationEvidenceIds":["source-gov"]}
-                """);
+            prompt -> completeClarification());
 
     JsonNode questions = questions(commit.state());
     assertEquals(1, questions.size());
@@ -123,10 +171,7 @@ class WorkTaskExecutorTest {
             RUN_ID,
             scope,
             materials(),
-            prompt ->
-                """
-                {"outcome":"INPUT_DEFECT","defectRecordRef":"trigger","contradiction":"The trigger contradicts the source.","defectEvidenceIds":["source-gov"],"issueCategory":"CONTRADICTION"}
-                """);
+            prompt -> completeDefect());
 
     JsonNode finding = findings(commit.state()).get(0);
     assertEquals("trigger", finding.path("recordRef").asText());
@@ -143,9 +188,7 @@ class WorkTaskExecutorTest {
           if (calls.incrementAndGet() == 1) {
             throw new IllegalStateException("provider dropped");
           }
-          return """
-              {"outcome":"NEEDS_CLARIFICATION","question":"Which failure port?","unresolvedChoice":"success or failure port","clarificationEvidenceIds":["source-gov"]}
-              """;
+          return completeClarification();
         };
     WorkTaskScope scope = scope();
     assertThrows(
@@ -182,6 +225,39 @@ class WorkTaskExecutorTest {
         false,
         List.of(),
         List.of());
+  }
+
+  private static final String CAPTURE_LISTS =
+      """
+      "requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"transfers":[],"rules":[],"retainedValues":[],"deletes":[]
+      """;
+
+  private static String completeClarification() {
+    return "{"
+        + "\"outcome\":\"NEEDS_CLARIFICATION\","
+        + CAPTURE_LISTS
+        + ",\"question\":\"Which failure port?\","
+        + "\"unresolvedChoice\":\"success or failure port\","
+        + "\"clarificationEvidenceIds\":[\"source-gov\"],"
+        + "\"defectRecordRef\":\"\","
+        + "\"contradiction\":\"\","
+        + "\"defectEvidenceIds\":[],"
+        + "\"issueCategory\":\"\""
+        + "}";
+  }
+
+  private static String completeDefect() {
+    return "{"
+        + "\"outcome\":\"INPUT_DEFECT\","
+        + CAPTURE_LISTS
+        + ",\"question\":\"\","
+        + "\"unresolvedChoice\":\"\","
+        + "\"clarificationEvidenceIds\":[],"
+        + "\"defectRecordRef\":\"trigger\","
+        + "\"contradiction\":\"The trigger contradicts the source.\","
+        + "\"defectEvidenceIds\":[\"source-gov\"],"
+        + "\"issueCategory\":\"CONTRADICTION\""
+        + "}";
   }
 
   private static WorkTaskMaterials materials() {
