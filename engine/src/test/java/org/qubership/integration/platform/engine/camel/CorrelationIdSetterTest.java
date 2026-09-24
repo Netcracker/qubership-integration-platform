@@ -5,10 +5,12 @@ import org.apache.camel.Exchange;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.support.DefaultExchange;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID;
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID_NAME;
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID_POSITION;
@@ -46,5 +48,25 @@ class CorrelationIdSetterTest {
         setter.setCorrelationId(exchange);
 
         assertEquals("abc", exchange.getProperty(CORRELATION_ID));
+    }
+
+    @Test
+    void clearsTheCorrelationIdWhenTheNamedHeaderIsAbsent() {
+        exchange.setProperty(CORRELATION_ID_POSITION, "header");
+        exchange.setProperty(CORRELATION_ID, "stale");
+
+        setter.setCorrelationId(exchange);
+
+        assertNull(exchange.getProperty(CORRELATION_ID));
+    }
+
+    @Test
+    void leavesTheCorrelationIdUnsetWhenTheBodyIsNotJson() {
+        exchange.setProperty(CORRELATION_ID_POSITION, "body");
+        exchange.getMessage().setBody("not-a-json");
+
+        setter.setCorrelationId(exchange);
+
+        assertNull(exchange.getProperty(CORRELATION_ID));
     }
 }
