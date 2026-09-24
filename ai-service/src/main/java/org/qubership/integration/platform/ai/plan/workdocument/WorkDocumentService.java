@@ -2,9 +2,11 @@ package org.qubership.integration.platform.ai.plan.workdocument;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -151,7 +153,7 @@ public final class WorkDocumentService {
             expected,
             runStatus,
             stageId,
-            List.of(new StageSnapshot(stageId, stageStatus, List.of(reference), null)),
+            stagesWithPublication(current, stageId, stageStatus, reference),
             new StageAttempt(
                 "work-" + commandId,
                 stageId,
@@ -210,12 +212,41 @@ public final class WorkDocumentService {
         transition.toRevision());
   }
 
+  private static List<StageSnapshot> stagesWithPublication(
+      ProductPipelineRunDocument current,
+      String stageId,
+      StageStatus stageStatus,
+      Reference reference) {
+    List<StageSnapshot> nextStages = new ArrayList<>();
+    boolean published = false;
+    for (StageSnapshot snapshot : current.run().stages()) {
+      if (snapshot.stageId().equals(stageId)) {
+        nextStages.add(
+            new StageSnapshot(
+                snapshot.stageId(),
+                stageStatus,
+                List.of(reference),
+                snapshot.approvedArtifactId(),
+                snapshot.candidateReferences(),
+                snapshot.approvableReference(),
+                snapshot.candidateRevision()));
+        published = true;
+      } else {
+        nextStages.add(snapshot);
+      }
+    }
+    if (!published) {
+      nextStages.add(new StageSnapshot(stageId, stageStatus, List.of(reference), null));
+    }
+    return nextStages;
+  }
+
   private String receipt(WorkCommit edited) {
     return new String(
         write(
             new CommandReceipt(
                 edited.acceptedRecordIds(), edited.aliasToId(), edited.outcome())),
-        java.nio.charset.StandardCharsets.UTF_8);
+        StandardCharsets.UTF_8);
   }
 
   private CommandReceipt readReceipt(String commandReceipt) {

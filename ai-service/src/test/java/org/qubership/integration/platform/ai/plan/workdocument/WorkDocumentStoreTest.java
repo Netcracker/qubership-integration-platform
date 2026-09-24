@@ -55,6 +55,31 @@ class WorkDocumentStoreTest {
   }
 
   @Test
+  void publicationKeepsUntouchedStages() {
+    Reference kept = new Reference(Kind.USER_INPUT, "kept-output", "kept-hash");
+    String runId = "run-two-stages";
+    runStore.create(
+        new RunSnapshot(
+            runId,
+            "conversation-two-stages",
+            1L,
+            RunStatus.RUNNING,
+            "LOGICAL_FLOW",
+            List.of(
+                new StageSnapshot("LOGICAL_FLOW", StageStatus.RUNNING, List.of(), null),
+                new StageSnapshot("SERVICES", StageStatus.PENDING, List.of(kept), null)),
+            null));
+
+    documents.intake(runId, flowDocument(), "cmd-intake", new WorkRepairBudget(3));
+
+    List<StageSnapshot> stages = runStore.load(runId).orElseThrow().run().stages();
+    StageSnapshot services =
+        stages.stream().filter(stage -> "SERVICES".equals(stage.stageId())).findFirst().orElseThrow();
+    assertEquals(StageStatus.PENDING, services.status());
+    assertEquals(List.of(kept), services.outputRefs());
+  }
+
+  @Test
   void crashAfterPrepareDoesNotPublishTheArtifact() {
     WorkDocumentState initial = flowDocument();
     documents.intake(RUN_ID, initial, "cmd-intake", new WorkRepairBudget(3));
