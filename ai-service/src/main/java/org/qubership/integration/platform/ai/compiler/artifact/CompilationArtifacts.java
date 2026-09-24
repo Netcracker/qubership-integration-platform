@@ -409,7 +409,8 @@ public class CompilationArtifacts {
     DESIGN_EXECUTION_CHECKPOINT,
     DESIGN_EXECUTION_RESULT,
     MAPPING_SCHEMA_SIDE,
-    MAPPING_ENVELOPE
+    MAPPING_ENVELOPE,
+    CHAIN_WORK_DOCUMENT
   }
 
   public enum Decision {

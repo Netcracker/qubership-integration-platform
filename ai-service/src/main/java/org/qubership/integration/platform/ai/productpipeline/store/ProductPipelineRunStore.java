@@ -191,6 +191,15 @@ public final class ProductPipelineRunStore {
               + " but document has "
               + current.run().runRevision());
     }
+    if (mutation.workDocumentRef() != null
+        && mutation.attempt().outputs().stream().noneMatch(mutation.workDocumentRef()::equals)) {
+      throw new IllegalArgumentException(
+          "Document reference must be published on the same attempt as the transition.");
+    }
+    if (mutation.workRepairBudget() != null && mutation.workDocumentRef() == null) {
+      throw new IllegalArgumentException(
+          "Repair budget cannot advance without the document reference.");
+    }
 
     RunSnapshot nextSnapshot =
         new RunSnapshot(
@@ -201,7 +210,13 @@ public final class ProductPipelineRunStore {
             mutation.currentStageId(),
             mutation.stages(),
             current.run().runManifestRef(),
-            current.run().flowInstanceId());
+            current.run().flowInstanceId(),
+            mutation.workDocumentRef() != null
+                ? mutation.workDocumentRef()
+                : current.run().workDocumentRef(),
+            mutation.workRepairBudget() != null
+                ? mutation.workRepairBudget()
+                : current.run().workRepairBudget());
     List<StageAttempt> attempts = new ArrayList<>(current.attempts());
     attempts.add(mutation.attempt());
     List<RunTransition> transitions = new ArrayList<>(current.transitions());
