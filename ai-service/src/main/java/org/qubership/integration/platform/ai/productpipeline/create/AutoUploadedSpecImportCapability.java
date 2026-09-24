@@ -22,6 +22,7 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogM
 import org.qubership.integration.platform.ai.integration.catalog.materialize.UploadedSpecImportOutcome;
 import org.qubership.integration.platform.ai.integration.catalog.pipeline.CatalogMutationGateway;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.workdocument.source.AttachmentRoles;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
@@ -154,6 +155,12 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       if (!SAFE_S3_KEY.matcher(key).matches()) {
         LOG.warnf(
             "Skipping uploaded-spec key with unsafe characters conversationId=%s key=%s",
+            conversationId, key);
+        continue;
+      }
+      if (!AttachmentRoles.importsAsSpecification(key)) {
+        LOG.infof(
+            "Skipping attachment that is not an API specification conversationId=%s key=%s",
             conversationId, key);
         continue;
       }

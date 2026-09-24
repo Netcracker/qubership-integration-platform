@@ -98,6 +98,49 @@ class AutoUploadedSpecImportCapabilityTest {
   }
 
   @Test
+  void mappingAttachmentIsNotImportedAsSpecification() {
+    CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
+    ConversationService conversationService = mock(ConversationService.class);
+    ProductPipelineArtifactStore artifactStore = mock(ProductPipelineArtifactStore.class);
+    UploadedSpecsApprovalHandler handler =
+        new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
+    AutoUploadedSpecImportCapability capability =
+        new AutoUploadedSpecImportCapability(
+            gateway,
+            conversationService,
+            artifactStore,
+            handler,
+            mock(CatalogBindingMatcher.class),
+            mock(RequirementDraftStore.class));
+    when(conversationService.getAllowedAttachmentKeys("conv-1"))
+        .thenReturn(List.of("uploads/orders.md", "uploads/orders-api.yaml", "uploads/rules.pdf"));
+    when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
+        .thenReturn(
+            Uni.createFrom()
+                .item(new UploadedSpecImportOutcome("key", "sys", "group", "spec", false)));
+    CompilationArtifacts.Reference approvalRef = approvalRef();
+    stubApprovedRecord(artifactStore, approvalRef, handler.attachmentHash("conv-1"));
+
+    run(capability, draft(), List.of(approvalRef));
+
+    verify(gateway)
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders-api.yaml", "orders-api.yaml")),
+            eq("INTERNAL"));
+    verify(gateway, never())
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/orders.md", "orders.md")),
+            any());
+    verify(gateway, never())
+        .importUploadedSpec(
+            eq("conv-1"),
+            eq(new UploadedSpecAttachment("uploads/rules.pdf", "rules.pdf")),
+            any());
+  }
+
+  @Test
   void importsAllAttachmentsAfterApproval() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
     ConversationService conversationService = mock(ConversationService.class);
