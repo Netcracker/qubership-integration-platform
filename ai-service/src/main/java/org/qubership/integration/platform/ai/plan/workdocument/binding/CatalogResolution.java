@@ -28,6 +28,9 @@ sealed interface CatalogLookup {
   record Ambiguous(List<String> candidateIds) implements CatalogLookup {}
 
   record PinnedUnavailable(String version) implements CatalogLookup {}
+
+  /** An exact catalog operation had no version to store. */
+  record VersionAbsent() implements CatalogLookup {}
 }
 
 record CatalogHit(

@@ -35,13 +35,14 @@ public final class ResolveApiOperationSeam implements CatalogResolution {
         catalog.resolve(
             new CatalogQuery("", "", "", "", "", operationHint, release, List.of()));
     if (result instanceof CatalogLookupResult.Exact exact) {
-      return new CatalogLookup.Hit(hit(exact.match(), operationHint, catalogVersion(exact.match(), release)));
+      String version = release.isBlank() ? "" : release;
+      if (version.isBlank()) {
+        return new CatalogLookup.VersionAbsent();
+      }
+      return new CatalogLookup.Hit(hit(exact.match(), operationHint, version));
     }
     if (result instanceof CatalogLookupResult.Ambiguous ambiguous) {
       return new CatalogLookup.Ambiguous(ambiguous.candidateIds());
-    }
-    if (!release.isBlank()) {
-      return new CatalogLookup.Miss();
     }
     return new CatalogLookup.Miss();
   }
@@ -76,19 +77,8 @@ public final class ResolveApiOperationSeam implements CatalogResolution {
       }
       JsonNode binding = tree.get("catalogBinding");
       if (binding != null && binding.isObject()) {
-        String version = firstNonBlank(text(binding, "version"), text(tree, "version"));
-        if (version.isBlank() || (!pinnedVersion.isBlank() && !pinnedVersion.equals(version))) {
-          return null;
-        }
-        return new ApiHubHit(
-            hint,
-            text(binding, "systemId"),
-            version,
-            text(binding, "integrationOperationId"),
-            text(binding, "protocol"),
-            text(binding, "method"),
-            text(binding, "path"),
-            List.of("request", "success", "failure"));
+        // CATALOG_BOUND carries evidenceRef, not a version. Do not invent one.
+        return null;
       }
       ApiHubRequirementRefs refs =
           ApiHubSearchHitParser.parseSingleClearHit(response, "rest", null);
@@ -131,25 +121,6 @@ public final class ResolveApiOperationSeam implements CatalogResolution {
         List.of("request", "success", "failure"));
   }
 
-  /**
-   * An exact catalog hit keeps its own version. A blank pin is not stored in its place.
-   * The catalog match has no release field; the evidence reference may carry {@code version:}.
-   */
-  private static String catalogVersion(CatalogMatch match, String release) {
-    if (release != null && !release.isBlank()) {
-      return release;
-    }
-    String evidence = match.evidenceRef() == null ? "" : match.evidenceRef();
-    int marker = evidence.indexOf("version:");
-    if (marker >= 0) {
-      String version = evidence.substring(marker + "version:".length()).trim();
-      if (!version.isBlank()) {
-        return version;
-      }
-    }
-    return "catalog";
-  }
-
   private static JsonNode findOperation(JsonNode tree, String operationId) {
     for (String field : List.of("operations", "items")) {
       JsonNode list = tree.get(field);
@@ -166,13 +137,6 @@ public final class ResolveApiOperationSeam implements CatalogResolution {
       }
     }
     return tree;
-  }
-
-  private static String firstNonBlank(String left, String right) {
-    if (left != null && !left.isBlank()) {
-      return left;
-    }
-    return right == null ? "" : right;
   }
 
   private static String text(JsonNode tree, String field) {
