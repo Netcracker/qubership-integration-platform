@@ -29,8 +29,10 @@ public class CompositeTriggerBeansBuilder implements ElementBeansBuilder {
 
     @Override
     public boolean applicableTo(Element element) {
-        ElementDescriptor descriptor = libraryService.getElementDescriptor(element.getType());
-        return ElementType.COMPOSITE_TRIGGER.equals(descriptor.getType());
+        return libraryService.lookupElementDescriptor(element.getType())
+                .map(ElementDescriptor::getType)
+                .map(ElementType.COMPOSITE_TRIGGER::equals)
+                .orElse(false);
     }
 
     @Override
