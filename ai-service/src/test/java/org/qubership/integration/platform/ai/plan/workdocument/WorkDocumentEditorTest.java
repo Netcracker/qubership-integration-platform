@@ -276,6 +276,204 @@ class WorkDocumentEditorTest {
   }
 
   @Test
+  void omittedGroupChildrenStayUntilDeleted() {
+    WorkDocumentState created = service.read(WorkDocumentState.create("doc-groups"));
+    WorkCommit saved =
+        service.apply(
+            created,
+            scope(created, List.of(), true, false, false),
+            regions(),
+            "cmd-groups");
+    String cond = saved.aliasToId().get("cond");
+    String when = saved.aliasToId().get("when");
+    String elseId = saved.aliasToId().get("else");
+    String gate = saved.aliasToId().get("gate");
+    String body = saved.aliasToId().get("body");
+    WorkCommit replaced =
+        service.apply(
+            saved.state(),
+            scope(saved.state(), List.of(cond, when), false, true, false),
+            WorkTaskCapture.prepared(
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(
+                    new CapturedConditionGroup(
+                        cond,
+                        "",
+                        gate,
+                        List.of(
+                            new CapturedConditionBranch(
+                                when, "", ConditionBranchRole.IF, "$.amount > 1", 1, body, List.of(body))),
+                        "")),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()),
+            "cmd-omit-branch");
+    List<String> branchIds =
+        replaced.state().document().flow().conditionGroups().get(0).branches().stream()
+            .map(ConditionBranch::id)
+            .toList();
+    assertEquals(List.of(when, elseId), branchIds);
+  }
+
+  @Test
+  void retargetKeepsASinglePermanentId() {
+    WorkDocumentState created = service.read(WorkDocumentState.create("doc-move"));
+    WorkCommit saved =
+        service.apply(
+            created,
+            scope(created, List.of(), true, false, false),
+            WorkTaskCapture.prepared(
+                List.of(),
+                List.of(
+                    new CapturedStep("", "left", StepKind.LOCAL, "Left", "Hold the transfer", List.of(), List.of()),
+                    new CapturedStep("", "right", StepKind.LOCAL, "Right", "Receive the transfer", List.of(), List.of())),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(
+                    new CapturedTransfer(
+                        "",
+                        "move",
+                        "left",
+                        List.of(new PortRef("left", "payload")),
+                        new PortRef("left", "request"),
+                        List.of(),
+                        "")),
+                List.of(
+                    new CapturedRule(
+                        "",
+                        "rule",
+                        "move",
+                        List.of(FieldReference.payload("left", PortRole.INBOUND_PAYLOAD, "$.name")),
+                        FieldReference.payload("left", PortRole.OUTBOUND_REQUEST, "$.Name"),
+                        List.of(),
+                        "Copy the name.",
+                        List.of())),
+                List.of()),
+            "cmd-place");
+    String left = saved.aliasToId().get("left");
+    String right = saved.aliasToId().get("right");
+    String transferId = saved.aliasToId().get("move");
+    String ruleId = saved.aliasToId().get("rule");
+    WorkCommit moved =
+        service.apply(
+            saved.state(),
+            scope(saved.state(), List.of(transferId, ruleId), false, true, false),
+            WorkTaskCapture.prepared(
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(
+                    new CapturedTransfer(
+                        transferId,
+                        "",
+                        right,
+                        List.of(new PortRef(left, "payload")),
+                        new PortRef(right, "request"),
+                        List.of(),
+                        "")),
+                List.of(
+                    new CapturedRule(
+                        ruleId,
+                        "",
+                        transferId,
+                        List.of(FieldReference.payload(left, PortRole.INBOUND_PAYLOAD, "$.name")),
+                        FieldReference.payload(right, PortRole.OUTBOUND_REQUEST, "$.Name"),
+                        List.of(),
+                        "Copy the name.",
+                        List.of())),
+                List.of()),
+            "cmd-retarget");
+    assertEquals(1, countTransfers(moved.state(), transferId));
+    assertEquals(1, countRules(moved.state(), ruleId));
+    assertEquals(right, stepHoldingTransfer(moved.state(), transferId));
+  }
+
+  @Test
+  void authorizedDeleteRemovesNestedBranchAndRejectsDanglingStep() {
+    WorkDocumentState created =
+        service.read(
+            WorkDocumentState.create(
+                "doc-delete",
+                List.of(
+                    new WorkSource(
+                        WorkDocumentFixture.SOURCE_ID,
+                        "request",
+                        "artifact://request",
+                        "hash-request",
+                        "request.md",
+                        "REQ-1",
+                        List.of()))));
+    WorkCommit saved = service.apply(created, scope(created, List.of(), true, false, false), regions(), "cmd-groups");
+    String elseId = saved.aliasToId().get("else");
+    String when = saved.aliasToId().get("when");
+    String body = saved.aliasToId().get("body");
+    WorkCommit deleted =
+        service.apply(
+            saved.state(),
+            scope(saved.state(), List.of(elseId), false, false, true),
+            WorkTaskCapture.prepared(
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(new CapturedDelete(elseId, List.of(WorkDocumentFixture.SOURCE_ID)))),
+            "cmd-delete-branch");
+    List<String> branchIds =
+        deleted.state().document().flow().conditionGroups().get(0).branches().stream()
+            .map(ConditionBranch::id)
+            .toList();
+    assertEquals(List.of(when), branchIds);
+    assertNotEquals(saved.state().revision(), deleted.state().revision());
+    WorkDocumentRejectedException dangling =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                service.apply(
+                    deleted.state(),
+                    scope(deleted.state(), List.of(body), false, false, true),
+                    WorkTaskCapture.prepared(
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(),
+                        List.of(new CapturedDelete(body, List.of(WorkDocumentFixture.SOURCE_ID)))),
+                    "cmd-dangling"));
+    assertEquals("MALFORMED_REFERENCE", dangling.code());
+  }
+
+  @Test
   void writeOutsideScopeIsRejected() {
     GrownDocument grown = WorkDocumentFixture.grow(service);
     WorkDocumentRejectedException rejected =
@@ -440,6 +638,71 @@ class WorkDocumentEditorTest {
         contradiction,
         defectEvidence,
         issueCategory);
+  }
+
+  private static WorkTaskCapture regions() {
+    return WorkTaskCapture.prepared(
+        List.of(),
+        List.of(
+            new CapturedStep("", "gate", StepKind.LOCAL, "Gate", "Branch on amount", List.of(), List.of()),
+            new CapturedStep("", "body", StepKind.LOCAL, "Body", "Local work", List.of(), List.of())),
+        List.of(),
+        List.of(new CapturedSequenceGroup("", "seq", List.of("body"))),
+        List.of(
+            new CapturedConditionGroup(
+                "",
+                "cond",
+                "gate",
+                List.of(
+                    new CapturedConditionBranch(
+                        "", "when", ConditionBranchRole.IF, "$.amount > 0", 1, "body", List.of("body")),
+                    new CapturedConditionBranch(
+                        "", "else", ConditionBranchRole.ELSE, "", 2, "body", List.of("body"))),
+                "")),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
+  }
+
+  private static int countTransfers(WorkDocumentState state, String id) {
+    int count = 0;
+    for (LogicalStep step : state.document().flow().steps()) {
+      for (DataTransfer transfer : step.data().transfers()) {
+        if (transfer.id().equals(id)) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  private static int countRules(WorkDocumentState state, String id) {
+    int count = 0;
+    for (LogicalStep step : state.document().flow().steps()) {
+      for (DataTransfer transfer : step.data().transfers()) {
+        for (MappingRule rule : transfer.rules()) {
+          if (rule.id().equals(id)) {
+            count++;
+          }
+        }
+      }
+    }
+    return count;
+  }
+
+  private static String stepHoldingTransfer(WorkDocumentState state, String id) {
+    for (LogicalStep step : state.document().flow().steps()) {
+      for (DataTransfer transfer : step.data().transfers()) {
+        if (transfer.id().equals(id)) {
+          return step.id();
+        }
+      }
+    }
+    throw new AssertionError(id);
   }
 
   private static WorkTaskScope scope(
