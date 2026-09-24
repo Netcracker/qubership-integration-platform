@@ -109,8 +109,24 @@ public final class WorkBinding {
               + ".",
           "catalog-candidate");
     }
+    if (lookup instanceof CatalogLookup.VersionAbsent) {
+      return ask(
+          runId,
+          state,
+          stepId,
+          "Catalog operation for step " + stepId + " has no version. The binding is unresolved.",
+          "catalog-version");
+    }
     if (lookup instanceof CatalogLookup.Hit hit) {
-      return publish(runId, state, stepId, fromCatalog(stepId, hit.hit(), pinned));
+      if (hit.hit().version() == null || hit.hit().version().isBlank()) {
+        return ask(
+            runId,
+            state,
+            stepId,
+            "Catalog operation for step " + stepId + " has no version. The binding is unresolved.",
+            "catalog-version");
+      }
+      return publish(runId, state, stepId, fromCatalog(stepId, hit.hit()));
     }
     if (!apiHubAllowed) {
       String question =
@@ -130,13 +146,10 @@ public final class WorkBinding {
     return publish(runId, state, stepId, fromApiHub(stepId, hub));
   }
 
-  private ResolvedWorkBinding fromCatalog(String stepId, CatalogHit hit, String pinned) {
+  private ResolvedWorkBinding fromCatalog(String stepId, CatalogHit hit) {
     ResolvedServiceCallBinding projected = project(stepId, hit);
     projectOntoGraph(stepId, projected);
     String version = hit.version() == null ? "" : hit.version();
-    if (version.isBlank()) {
-      version = pinned == null || pinned.isBlank() ? "catalog" : pinned;
-    }
     return new ResolvedWorkBinding(
         projected.systemId(),
         version,
@@ -161,6 +174,17 @@ public final class WorkBinding {
             hit.method(),
             hit.path(),
             hit.exposedPorts());
+    if (hit.method() == null || hit.method().isBlank()) {
+      return new ResolvedWorkBinding(
+          hit.packageId(),
+          hit.version(),
+          hit.operationId(),
+          hit.protocol() == null ? "" : hit.protocol(),
+          "",
+          hit.path() == null ? "" : hit.path(),
+          List.of("apihub:" + hit.packageId() + "@" + hit.version()),
+          hit.exposedPorts());
+    }
     ResolvedServiceCallBinding projected =
         project(stepId, asCatalog, ResolvedServiceCallBinding.Source.APIHUB_IMPORT);
     projectOntoGraph(stepId, projected);
