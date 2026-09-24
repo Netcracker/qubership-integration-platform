@@ -1,0 +1,173 @@
+---
+$id: http://qubership.org/schemas/product/qip/api-operation.schema.yaml
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: API Operation
+metaInfo:
+  application: Qubership Integration Platform
+  labels:
+    - QIP
+properties:
+  id:
+    type: string
+    title: ID
+    description: API Operation Unique identifier
+  name:
+    type: string
+    title: Name
+    description: API Operation Name
+  description:
+    type: string
+    title: Description
+    description: API Operation Detailed Description
+discriminator:
+  propertyName: type
+oneOf:
+  - $ref: "#/definitions/openapiOperation"
+  - $ref: "#/definitions/asyncapiOperation"
+  - $ref: "#/definitions/wsdlOperation"
+  - $ref: "#/definitions/graphqlOperation"
+  - $ref: "#/definitions/protobufOperation"
+required:
+  - id
+definitions:
+  openapiOperation:
+    type: object
+    title: OpenAPI Operation
+    description: Defines an operation in the context of OpenAPI
+    properties:
+      type:
+        const: openapi
+        title: Type
+        description: Specifies that this operation is an OpenAPI Operation
+      summary:
+        type: string
+        title: Summary
+        description: OpenAPI Operation Short Summary
+      path:
+        type: string
+        title: Path
+        description: OpenAPI Operation Endpoint Path
+      method:
+        type: string
+        title: Method
+        description: HTTP method used for the OpenAPI Operation
+        enum:
+          - get
+          - put
+          - post
+          - delete
+          - options
+          - head
+          - patch
+          - trace
+          - query
+      isDeprecated:
+        type: boolean
+        title: Is Deprecated
+        description: Indicates whether the OpenAPI Operation is deprecated
+        default: false
+    required:
+      - type
+      - path
+      - method
+  asyncapiOperation:
+    type: object
+    title: AsyncAPI Operation
+    description: Defines an operation in the context of AsyncAPI
+    properties:
+      type:
+        const: asyncapi
+        title: Type
+        description: Specifies that this operation is an AsyncAPI Operation
+      summary:
+        type: string
+        title: Summary
+        description: AsyncAPI Operation Short Summary
+      channel:
+        type: string
+        title: Channel
+        description: AsyncAPI Operation Channel
+      method:
+        type: string
+        title: Method
+        description: AsyncAPI Operation method of interaction, either subscribing to or publishing messages
+        enum:
+          - subscribe
+          - publish
+          - send
+          - receive
+    required:
+      - type
+      - channel
+      - method
+  wsdlOperation:
+    type: object
+    title: WSDL Operation
+    description: Defines an operation in the context of WSDL
+    properties:
+      type:
+        const: wsdl
+        title: Type
+        description: Specifies that this operation is an WSDL Operation
+      protocol:
+        type: string
+        title: Protocol
+        description: Binding protocol determined by binding extension
+        enum:
+          - SOAP
+          - HTTP
+      binding:
+        type: string
+        title: Binding
+        description: Binding component name that defines protocol and message format
+    required:
+      - type
+      - protocol
+      - binding
+  graphqlOperation:
+    type: object
+    title: GraphQL Operation
+    description: Defines an operation in the context of GraphQL
+    properties:
+      type:
+        const: graphql
+        title: Type
+        description: Specifies that this operation is an GraphQL Operation
+      operationType:
+        type: string
+        title: Operation type
+        description: Root operation type
+        enum:
+          - query
+          - mutation
+          - subscription
+    required:
+      - type
+      - operationType
+  protobufOperation:
+    type: object
+    title: Protobuf Operation
+    description: Defines an operation in the context of Protobuf
+    properties:
+      type:
+        const: protobuf
+        title: Type
+        description: Specifies that this operation is an Protobuf Operation
+      package:
+        type: string
+        title: Package
+        description: Package name
+      service:
+        type: string
+        title: Service
+        description: Service name that groups RPC methods
+      rpcMethod:
+        type: string
+        title: RPC Method Name
+        description: Method name
+    required:
+      - type
+      - rpcMethod
+      - package
+      - service
