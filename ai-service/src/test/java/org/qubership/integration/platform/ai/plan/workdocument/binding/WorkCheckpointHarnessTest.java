@@ -1,0 +1,313 @@
+package org.qubership.integration.platform.ai.plan.workdocument.binding;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.qubership.integration.platform.ai.plan.workdocument.checkpoint.CheckpointRequest;
+import org.qubership.integration.platform.ai.plan.workdocument.checkpoint.CheckpointSession;
+import org.qubership.integration.platform.ai.plan.workdocument.checkpoint.WorkCheckpointHarness;
+
+class WorkCheckpointHarnessTest {
+
+  private static final ObjectMapper JSON = new ObjectMapper();
+  private static final String SECRET = "sk-live-secret-value";
+
+  @TempDir Path temp;
+
+  @Test
+  void logicalCheckpointCallsDesignAndRecordsTheConfiguredModel() throws Exception {
+    List<String> prompts = new ArrayList<>();
+    AtomicInteger catalogCalls = new AtomicInteger();
+    Path report = temp.resolve("sync-result.json");
+
+    int exit =
+        WorkCheckpointHarness.run(
+            request("logical", "sync-result", report),
+            session(prompts, catalogCalls, capture("sync-result")));
+
+    JsonNode body = JSON.readTree(report.toFile());
+    assertEquals(0, exit, Files.readString(report));
+    assertEquals("logical", body.path("checkpoint").asText());
+    assertEquals("sync-result", body.path("caseId").asText());
+    assertEquals("G1", body.path("gate").asText());
+    assertEquals("configured-provider", body.path("effectiveProvider").asText());
+    assertEquals("configured-model", body.path("effectiveModel").asText());
+    assertEquals("gpt-6-luna", body.path("gateModel").asText());
+    assertFalse(body.path("providerSwitched").asBoolean());
+    assertFalse(body.path("materialized").asBoolean());
+    assertEquals(0, catalogCalls.get());
+    assertTrue(prompts.get(0).contains("sync-result"));
+    assertEquals("logical-design", body.path("taskScope").path("skillId").asText());
+    assertFalse(body.path("documentRevision").asText().isBlank());
+    assertTrue(body.path("attempts").asInt() >= 1);
+    assertEquals("PREPARED", body.path("outcome").asText());
+    assertFalse(body.path("sanitizedResponse").asText().contains(SECRET));
+    assertFalse(Files.readString(report).contains(SECRET));
+    assertTrue(body.path("requiredObservation").asText().toLowerCase().contains("result"));
+  }
+
+  @Test
+  void g1LogicalCasesStayDistinct() throws Exception {
+    List<String> observations = new ArrayList<>();
+    for (String caseId : List.of("sync-result", "async-callback", "repeat-call")) {
+      Path report = temp.resolve(caseId + ".json");
+      WorkCheckpointHarness.run(
+          request("logical", caseId, report),
+          session(new ArrayList<>(), new AtomicInteger(), capture(caseId)));
+      JsonNode body = JSON.readTree(report.toFile());
+      assertEquals(caseId, body.path("caseId").asText());
+      assertEquals("PREPARED", body.path("outcome").asText());
+      assertEquals("logical", body.path("checkpoint").asText());
+      assertEquals("gpt-6-luna", body.path("gateModel").asText());
+      observations.add(body.path("requiredObservation").asText());
+    }
+    assertEquals(3, observations.stream().distinct().count());
+    JsonNode cases = JSON.readTree(fixture("g1-cases.json").toFile());
+    List<String> ids = new ArrayList<>();
+    cases.path("cases").forEach(item -> ids.add(item.path("id").asText()));
+    assertEquals(List.of("sync-result", "async-callback", "repeat-call", "om-bindings"), ids);
+  }
+
+  @Test
+  void bindingCheckpointCallsSelectAndDoesNotMaterialize() throws Exception {
+    AtomicInteger catalogCalls = new AtomicInteger();
+    Path report = temp.resolve("om-bindings.json");
+
+    int exit =
+        WorkCheckpointHarness.run(
+            request("binding", "om-bindings", report),
+            session(new ArrayList<>(), catalogCalls, selection()));
+
+    JsonNode body = JSON.readTree(report.toFile());
+    assertEquals(0, exit);
+    assertEquals("binding", body.path("checkpoint").asText());
+    assertEquals("om-bindings", body.path("caseId").asText());
+    assertEquals(1, catalogCalls.get());
+    assertFalse(body.path("materialized").asBoolean());
+    assertFalse(body.path("providerSwitched").asBoolean());
+    assertEquals("configured-model", body.path("effectiveModel").asText());
+    assertTrue(body.path("attempts").asInt() >= 1);
+    assertEquals("POST", body.path("resolvedMethod").asText());
+    assertEquals("/wfm/v1/tasks", body.path("resolvedPath").asText());
+    assertFalse(Files.readString(report).contains(SECRET));
+  }
+
+  @Test
+  void missingCapabilitiesFailWithoutCallingTheModel() throws Exception {
+    for (String checkpoint : List.of("mapping", "recovery")) {
+      List<String> prompts = new ArrayList<>();
+      AtomicInteger catalogCalls = new AtomicInteger();
+      Path report = temp.resolve(checkpoint + ".json");
+      int exit =
+          WorkCheckpointHarness.run(
+              request(checkpoint, "om-mapping", report),
+              session(prompts, catalogCalls, capture("unused")));
+      JsonNode body = JSON.readTree(report.toFile());
+      assertEquals(1, exit);
+      assertEquals("FAILED", body.path("outcome").asText());
+      assertEquals("MISSING_CAPABILITY", body.path("failureCode").asText());
+      assertEquals(checkpoint, body.path("checkpoint").asText());
+      assertTrue(prompts.isEmpty());
+      assertEquals(0, catalogCalls.get());
+      assertFalse(body.path("materialized").asBoolean());
+    }
+  }
+
+  @Test
+  void scriptRefusesAProviderCallUntilLiveIsExplicit() throws Exception {
+    Path report = temp.resolve("refused.json");
+    Path bin = temp.resolve("bin");
+    Files.createDirectories(bin);
+    Path touched = temp.resolve("network-tool-ran");
+    Files.writeString(bin.resolve("curl"), "#!/bin/sh\ntouch '" + touched + "'\nexit 0\n");
+    Files.writeString(bin.resolve("mvn"), "#!/bin/sh\ntouch '" + touched + "'\nexit 0\n");
+    Files.writeString(bin.resolve("mvnw"), "#!/bin/sh\ntouch '" + touched + "'\nexit 0\n");
+    bin.resolve("curl").toFile().setExecutable(true);
+    bin.resolve("mvn").toFile().setExecutable(true);
+    bin.resolve("mvnw").toFile().setExecutable(true);
+
+    ProcessBuilder builder =
+        new ProcessBuilder(
+            "bash",
+            script().toString(),
+            "--checkpoint",
+            "logical",
+            "--case",
+            "sync-result",
+            "--report",
+            report.toString());
+    builder.environment().put("PATH", bin + ":" + System.getenv("PATH"));
+    builder.environment().remove("WORK_CHECKPOINT_LIVE");
+    builder.redirectErrorStream(true);
+    Process process = builder.start();
+    String output = new String(process.getInputStream().readAllBytes());
+    int exit = process.waitFor();
+
+    assertEquals(2, exit, output);
+    assertFalse(Files.exists(touched), output);
+    JsonNode body = JSON.readTree(report.toFile());
+    assertEquals("REFUSED", body.path("outcome").asText());
+    assertEquals("LIVE_NOT_ENABLED", body.path("failureCode").asText());
+    assertEquals("logical", body.path("checkpoint").asText());
+    assertEquals("sync-result", body.path("caseId").asText());
+    assertFalse(Files.readString(report).contains(SECRET));
+    String script = Files.readString(script());
+    assertFalse(script.contains("LLM_CHAT_MODEL="));
+    assertFalse(script.contains("--stop-after"));
+    assertFalse(script.contains("CHAIN_MATERIALIZED"));
+  }
+
+  @Test
+  void scriptFailsMappingBeforeAnyTool() throws Exception {
+    Path report = temp.resolve("mapping.json");
+    ProcessBuilder builder =
+        new ProcessBuilder(
+            "bash",
+            script().toString(),
+            "--checkpoint",
+            "mapping",
+            "--case",
+            "om-mapping",
+            "--report",
+            report.toString());
+    builder.environment().put("WORK_CHECKPOINT_LIVE", "1");
+    builder.redirectErrorStream(true);
+    Process process = builder.start();
+    String output = new String(process.getInputStream().readAllBytes());
+    int exit = process.waitFor();
+    assertEquals(1, exit, output);
+    JsonNode body = JSON.readTree(report.toFile());
+    assertEquals("MISSING_CAPABILITY", body.path("failureCode").asText());
+    assertEquals("mapping", body.path("checkpoint").asText());
+  }
+
+  private static CheckpointRequest request(String checkpoint, String caseId, Path report) {
+    return new CheckpointRequest(checkpoint, caseId, report, fixtureRoot(), true);
+  }
+
+  private static CheckpointSession session(
+      List<String> prompts, AtomicInteger catalogCalls, String modelOutput) {
+    CatalogResolution catalog =
+        new CatalogResolution() {
+          @Override
+          public CatalogLookup lookup(String operationHint, String pinnedVersion) {
+            catalogCalls.incrementAndGet();
+            return new CatalogLookup.Hit(
+                new CatalogHit(
+                    operationHint,
+                    "sys-wfm",
+                    "group-create",
+                    "spec-create",
+                    "2024.4",
+                    "op-create",
+                    "http",
+                    "POST",
+                    "/wfm/v1/tasks",
+                    List.of("request", "success", "failure")));
+          }
+
+          @Override
+          public ApiHubHit searchApiHub(String interactionId, String operationHint, String pinnedVersion) {
+            catalogCalls.incrementAndGet();
+            return null;
+          }
+
+          @Override
+          public void importContract(ApiHubHit hit) {
+            catalogCalls.incrementAndGet();
+          }
+        };
+    return new CheckpointSession(
+        "configured-provider",
+        "configured-model",
+        false,
+        prompt -> {
+          prompts.add(prompt);
+          return modelOutput.replace("SECRET_SLOT", SECRET);
+        },
+        catalog);
+  }
+
+  private static String capture(String caseId) {
+    String steps =
+        switch (caseId) {
+          case "async-callback" ->
+              """
+              "steps":[
+                {"existingId":"","alias":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive SECRET_SLOT","sourceRefs":["src-om"],"requirementRefs":[]},
+                {"existingId":"","alias":"create","kind":"SERVICE_CALL","label":"createTask","intent":"Create","sourceRefs":["src-om"],"requirementRefs":[]},
+                {"existingId":"","alias":"callback","kind":"TRIGGER","label":"callback","intent":"Independent callback","sourceRefs":["src-om"],"requirementRefs":[]}
+              ],
+              "connections":[
+                {"existingId":"","alias":"go","sourceStepRef":"start","outcome":"success","targetStepRef":"create","routingIntent":"Call","evidenceRefs":["src-om"]},
+                {"existingId":"","alias":"back","sourceStepRef":"callback","outcome":"correlation","targetStepRef":"create","routingIntent":"Correlate","evidenceRefs":["src-om"]}
+              ]
+              """;
+          case "repeat-call" ->
+              """
+              "steps":[
+                {"existingId":"","alias":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive SECRET_SLOT","sourceRefs":["src-om"],"requirementRefs":[]},
+                {"existingId":"","alias":"first","kind":"SERVICE_CALL","label":"createTask","intent":"First call","sourceRefs":["src-om"],"requirementRefs":[]},
+                {"existingId":"","alias":"second","kind":"SERVICE_CALL","label":"createTask","intent":"Second call","sourceRefs":["src-om"],"requirementRefs":[]}
+              ],
+              "connections":[
+                {"existingId":"","alias":"go","sourceStepRef":"start","outcome":"success","targetStepRef":"first","routingIntent":"First","evidenceRefs":["src-om"]},
+                {"existingId":"","alias":"again","sourceStepRef":"first","outcome":"success","targetStepRef":"second","routingIntent":"Second","evidenceRefs":["src-om"]}
+              ]
+              """;
+          default ->
+              """
+              "steps":[
+                {"existingId":"","alias":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive SECRET_SLOT","sourceRefs":["src-om"],"requirementRefs":[]},
+                {"existingId":"","alias":"create","kind":"SERVICE_CALL","label":"createTask","intent":"Create","sourceRefs":["src-om"],"requirementRefs":[]},
+                {"existingId":"","alias":"result","kind":"REPLY","label":"onTaskResult","intent":"Return","sourceRefs":["src-om"],"requirementRefs":[]}
+              ],
+              "connections":[
+                {"existingId":"","alias":"go","sourceStepRef":"start","outcome":"success","targetStepRef":"create","routingIntent":"Call","evidenceRefs":["src-om"]},
+                {"existingId":"","alias":"ok","sourceStepRef":"create","outcome":"success","targetStepRef":"result","routingIntent":"Success","evidenceRefs":["src-om"]},
+                {"existingId":"","alias":"bad","sourceStepRef":"create","outcome":"failure","targetStepRef":"result","routingIntent":"Failure","evidenceRefs":["src-om"]}
+              ]
+              """;
+        };
+    return "{\"outcome\":\"PREPARED\","
+        + steps
+        + ",\"requirements\":[],\"sequenceGroups\":[],\"conditionGroups\":[],\"splitGroups\":[],\"loopGroups\":[],\"retryGroups\":[],\"errorScopeGroups\":[],\"transfers\":[],\"rules\":[],\"retainedValues\":[],\"deletes\":[],"
+        + "\"question\":\"\",\"unresolvedChoice\":\"\",\"clarificationEvidenceIds\":[],\"defectRecordRef\":\"\",\"contradiction\":\"\",\"defectEvidenceIds\":[],\"issueCategory\":\"\"}";
+  }
+
+  private static String selection() {
+    return """
+        {"outcome":"PREPARED","candidateId":"createTask","stepId":"create","catalogId":"model-catalog","method":"DELETE","path":"/model/path","protocol":"grpc","apiKey":"SECRET_SLOT"}
+        """;
+  }
+
+  private static Path fixture(String name) {
+    return fixtureRoot().resolve(name);
+  }
+
+  private static Path fixtureRoot() {
+    return repoRoot().resolve("ai-service/e2e/product-pipeline/fixtures/work-checkpoints");
+  }
+
+  private static Path script() {
+    return repoRoot().resolve("ai-service/e2e/product-pipeline/run-work-document-checkpoint.sh");
+  }
+
+  private static Path repoRoot() {
+    Path cursor = Path.of("").toAbsolutePath();
+    if (cursor.getFileName().toString().equals("ai-service")) {
+      return cursor.getParent();
+    }
+    return cursor;
+  }
+}
