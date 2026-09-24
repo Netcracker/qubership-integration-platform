@@ -115,4 +115,15 @@ class CorrelationIdPropagationProcessorTest {
 
         assertEquals("not-a-json", exchange.getMessage().getBody(String.class));
     }
+
+    @Test
+    void shouldKeepBodyNullWhenBodyIsNull() {
+        exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
+        exchange.setProperty(CORRELATION_ID_POSITION, BODY);
+        exchange.setProperty(CORRELATION_ID_NAME, CORRELATION_ID_NAME_VALUE);
+
+        processor.process(exchange);
+
+        assertNull(exchange.getMessage().getBody());
+    }
 }

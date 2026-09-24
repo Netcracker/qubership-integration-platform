@@ -7,6 +7,7 @@ import org.apache.camel.support.DefaultExchange;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -68,5 +69,17 @@ class CorrelationIdSetterTest {
         setter.setCorrelationId(exchange);
 
         assertNull(exchange.getProperty(CORRELATION_ID));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    void leavesTheCorrelationIdAsIsWhenTheBodyIsEmpty(String payload) {
+        exchange.setProperty(CORRELATION_ID_POSITION, "body");
+        exchange.setProperty(CORRELATION_ID, "abc");
+        exchange.getMessage().setBody(payload);
+
+        setter.setCorrelationId(exchange);
+
+        assertEquals("abc", exchange.getProperty(CORRELATION_ID));
     }
 }

@@ -167,4 +167,19 @@ class CorrelationIdSetterTest {
             mdcUtilMock.verifyNoInteractions();
         }
     }
+
+    @Test
+    void shouldKeepCorrelationIdWhenBodyIsNull() {
+        exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_POSITION, CorrelationIdSetter.BODY);
+        exchange.setProperty(CorrelationIdSetter.CORRELATION_ID_NAME, "correlationId");
+        exchange.setProperty(CorrelationIdSetter.CORRELATION_ID, "corr-123");
+
+        try (MockedStatic<MessageHelper> messageHelperMock = mockStatic(MessageHelper.class)) {
+            messageHelperMock.when(() -> MessageHelper.extractBody(exchange)).thenReturn(null);
+
+            setter.setCorrelationId(exchange);
+
+            assertEquals("corr-123", exchange.getProperty(CorrelationIdSetter.CORRELATION_ID));
+        }
+    }
 }

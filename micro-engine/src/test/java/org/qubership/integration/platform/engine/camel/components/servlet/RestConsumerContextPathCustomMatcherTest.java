@@ -124,6 +124,38 @@ class RestConsumerContextPathCustomMatcherTest {
         assertNull(result);
     }
 
+    @Test
+    void shouldPreferConsumerSpelledLikeRequestWhenPathsDifferOnlyInCase() {
+        ServletCustomConsumer olderConsumer = mock(ServletCustomConsumer.class);
+        when(olderConsumer.getCreationTime()).thenReturn(100L);
+        ServletCustomConsumer newerConsumer = mock(ServletCustomConsumer.class);
+        when(newerConsumer.getCreationTime()).thenReturn(200L);
+
+        ConsumerPath<HttpConsumer> olderPath = consumerPath("/orders", "GET", false, olderConsumer);
+        ConsumerPath<HttpConsumer> newerPath = consumerPath("/Orders", "GET", false, newerConsumer);
+
+        assertSame(olderPath, RestConsumerContextPathCustomMatcher.matchBestPath("GET", "/orders", List.of(olderPath, newerPath)));
+        assertSame(newerPath, RestConsumerContextPathCustomMatcher.matchBestPath("GET", "/ORDERS", List.of(olderPath, newerPath)));
+    }
+
+    @Test
+    void shouldPreferConsumerSpelledLikeRequestWhenParameterizedPathsDifferOnlyInCase() {
+        ServletCustomConsumer olderConsumer = mock(ServletCustomConsumer.class);
+        lenient().when(olderConsumer.getCreationTime()).thenReturn(100L);
+        ServletCustomConsumer newerConsumer = mock(ServletCustomConsumer.class);
+        lenient().when(newerConsumer.getCreationTime()).thenReturn(200L);
+        ServletCustomConsumer byIdConsumer = mock(ServletCustomConsumer.class);
+
+        ConsumerPath<HttpConsumer> olderPath = consumerPath("/customer/{id}", "GET", false, olderConsumer);
+        ConsumerPath<HttpConsumer> newerPath = consumerPath("/Customer/{id}", "GET", false, newerConsumer);
+        ConsumerPath<HttpConsumer> exactOlder = consumerPath("/customer", "GET", false, olderConsumer);
+        ConsumerPath<HttpConsumer> exactNewer = consumerPath("/Customer", "GET", false, newerConsumer);
+
+        assertSame(olderPath, RestConsumerContextPathCustomMatcher.matchBestPath("GET", "/customer/1", List.of(olderPath, newerPath)));
+        assertSame(exactOlder, RestConsumerContextPathCustomMatcher.matchBestPath("GET", "/customer",
+                List.of(exactOlder, exactNewer, consumerPath("/customer/{id}", "GET", false, byIdConsumer))));
+    }
+
     private static ConsumerPath<HttpConsumer> consumerPath(
             String consumerPath,
             String restrictMethod,

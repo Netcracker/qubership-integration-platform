@@ -72,8 +72,12 @@ public class CorrelationIdSetter {
     }
 
     private void setCorrelationIdFromBody(Exchange exchange, String correlationIdName) {
+        String payload = MessageHelper.extractBody(exchange);
+        if (StringUtils.isBlank(payload)) {
+            return;
+        }
         try {
-            Map<String, Object> body = objectMapper.readValue(MessageHelper.extractBody(exchange), HashMap.class);
+            Map<String, Object> body = objectMapper.readValue(payload, HashMap.class);
             if (body.containsKey(correlationIdName)) {
                 String correlationId = String.valueOf(body.get(correlationIdName));
                 exchange.setProperty(CORRELATION_ID, correlationId);
