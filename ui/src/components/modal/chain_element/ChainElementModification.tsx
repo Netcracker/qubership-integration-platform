@@ -47,6 +47,8 @@ import {
   desiredTabOrder,
   getTabForPath,
   getStaleProtocolProperties,
+  turnOnCorrelationIdSwitchWhenSet,
+  clearCorrelationIdWhenSwitchedOff,
 } from "./ChainElementModificationConstants.ts";
 import { ChainGraphNode } from "../../graph/nodes/ChainGraphNodeTypes.ts";
 import { ChainContext } from "../../../pages/ChainPage.tsx";
@@ -365,6 +367,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
       const initialFormData = {
         ...node.data,
+        properties: turnOnCorrelationIdSwitchWhenSet(node.data.properties),
         type: node.data.elementType,
         name: node.data.label,
         id: node.id,
@@ -506,7 +509,14 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     (e: { formData?: Record<string, unknown> }) => {
       const nextFormData = e.formData;
       if (!nextFormData) return;
-      setFormData(nextFormData);
+      const properties = clearCorrelationIdWhenSwitchedOff(
+        nextFormData.properties as Record<string, unknown> | undefined,
+      );
+      setFormData(
+        properties === nextFormData.properties
+          ? nextFormData
+          : { ...nextFormData, properties },
+      );
       if (
         !isInitializingRef.current &&
         (hasUserEditedFormRef.current || hasUserInteractedRef.current)
