@@ -2,18 +2,15 @@ package org.qubership.integration.platform.ai.plan.workdocument.task;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
-import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
-import org.qubership.integration.platform.ai.plan.workdocument.WorkOutcome;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskCapture;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
 import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
@@ -45,7 +42,13 @@ public final class WorkTaskExecutor {
     String invocationId = scope.taskId() + ":" + scope.baseRevision();
     ProductPipelineRunDocument current = load(runId);
     if (published(current, invocationId)) {
-      return committed(current, invocationId);
+      RunTransition transition =
+          current.transitions().stream()
+              .filter(candidate -> invocationId.equals(candidate.commandId()))
+              .findFirst()
+              .orElseThrow(
+                  () -> new IllegalStateException("Published invocation has no matching transition."));
+      return documents.committedResult(current, transition);
     }
     WorkDocumentState state = documents.read(runId);
     if (!scope.baseRevision().equals(state.revision())) {
@@ -97,38 +100,6 @@ public final class WorkTaskExecutor {
                 "started")));
   }
 
-  private WorkCommit committed(ProductPipelineRunDocument current, String invocationId) {
-    StageAttempt attempt =
-        current.attempts().stream()
-            .filter(candidate -> ("work-" + invocationId).equals(candidate.attemptId()))
-            .findFirst()
-            .orElseThrow(
-                () -> new IllegalStateException("Published invocation has no matching attempt."));
-    RunTransition transition =
-        current.transitions().stream()
-            .filter(candidate -> invocationId.equals(candidate.commandId()))
-            .findFirst()
-            .orElseThrow(
-                () -> new IllegalStateException("Published invocation has no matching transition."));
-    WorkDocumentState state = documents.read(current.run().runId());
-    attempt
-        .outputs()
-        .stream()
-        .filter(output -> output.kind() == Kind.CHAIN_WORK_DOCUMENT)
-        .findFirst()
-        .orElseThrow(
-            () -> new IllegalStateException("Published invocation has no work document."));
-    JsonNode receipt = readReceipt(attempt.commandReceipt());
-    return new WorkCommit(
-        state.revision(),
-        textList(receipt.path("acceptedRecordIds")),
-        WorkOutcome.valueOf(receipt.path("outcome").asText()),
-        invocationId,
-        state,
-        textMap(receipt.path("aliasToId")),
-        transition.toRevision());
-  }
-
   private static boolean published(ProductPipelineRunDocument current, String invocationId) {
     return current.transitions().stream()
         .anyMatch(transition -> invocationId.equals(transition.commandId()));
@@ -158,31 +129,15 @@ public final class WorkTaskExecutor {
           "SERVER_OWNED_FIELD",
           "Capture property stage is server-owned. Name the record and the evidence, and remove the stage.");
     }
+    JsonObjectSchema schema = WorkDocumentCaptureSchema.captureSchema();
+    for (String name : schema.required()) {
+      if (!tree.has(name)) {
+        throw new WorkDocumentRejectedException(
+            "MALFORMED_CAPTURE",
+            "Capture is missing " + name + ". Send every field this task schema requires.");
+      }
+    }
     return WorkDocumentCaptureSchema.parse(output);
-  }
-
-  private JsonNode readReceipt(String commandReceipt) {
-    try {
-      return json.readTree(commandReceipt);
-    } catch (Exception failure) {
-      throw new IllegalStateException("Cannot read the committed command receipt.", failure);
-    }
-  }
-
-  private static List<String> textList(JsonNode node) {
-    if (!node.isArray()) {
-      return List.of();
-    }
-    return node.valueStream().map(JsonNode::asText).toList();
-  }
-
-  private static Map<String, String> textMap(JsonNode node) {
-    if (!node.isObject()) {
-      return Map.of();
-    }
-    LinkedHashMap<String, String> values = new LinkedHashMap<>();
-    node.fields().forEachRemaining(field -> values.put(field.getKey(), field.getValue().asText()));
-    return Map.copyOf(values);
   }
 
   private ProductPipelineRunDocument load(String runId) {

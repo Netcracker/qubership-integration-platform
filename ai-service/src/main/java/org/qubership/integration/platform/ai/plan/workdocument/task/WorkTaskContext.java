@@ -2,7 +2,11 @@ package org.qubership.integration.platform.ai.plan.workdocument.task;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
@@ -19,6 +23,7 @@ public final class WorkTaskContext {
     JsonNode document = JSON.valueToTree(state.document());
     Set<String> owned = Set.copyOf(scope.ownedRecordIds());
     JsonNode transfers = ownedTransfers(document, owned);
+    Set<String> ownedSteps = ownedSteps(document, transfers);
     Set<String> ports = ports(transfers);
     Set<String> sources = governingSources(document, transfers);
 
@@ -47,6 +52,21 @@ public final class WorkTaskContext {
           .append(' ')
           .append(connection.path("targetStepId").asText())
           .append('\n');
+    }
+    JsonNode flow = document.path("flow");
+    for (String groupName :
+        List.of(
+            "sequenceGroups",
+            "conditionGroups",
+            "splitGroups",
+            "loopGroups",
+            "retryGroups",
+            "errorScopeGroups")) {
+      for (JsonNode group : flow.path(groupName)) {
+        if (encloses(group, ownedSteps)) {
+          prompt.append("group ").append(group.path("id").asText()).append('\n');
+        }
+      }
     }
     for (JsonNode source : document.path("sources")) {
       if (!sources.contains(source.path("id").asText())) {
@@ -149,6 +169,69 @@ public final class WorkTaskContext {
         sources.add(sourceId.asText());
       }
     }
+    Map<String, JsonNode> byId = new LinkedHashMap<>();
+    for (JsonNode source : document.path("sources")) {
+      byId.put(source.path("id").asText(), source);
+    }
+    boolean grew = true;
+    while (grew) {
+      grew = false;
+      for (String id : List.copyOf(sources)) {
+        JsonNode source = byId.get(id);
+        if (source == null) {
+          continue;
+        }
+        for (JsonNode corrected : source.path("correctionOf")) {
+          if (sources.add(corrected.asText())) {
+            grew = true;
+          }
+        }
+      }
+    }
     return sources;
+  }
+
+  private static Set<String> ownedSteps(JsonNode document, JsonNode transfers) {
+    Set<String> transferIds = new LinkedHashSet<>();
+    for (JsonNode transfer : transfers) {
+      transferIds.add(transfer.path("id").asText());
+    }
+    Set<String> steps = new LinkedHashSet<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        if (transferIds.contains(transfer.path("id").asText())) {
+          steps.add(step.path("id").asText());
+        }
+      }
+    }
+    return steps;
+  }
+
+  private static boolean encloses(JsonNode group, Set<String> ownedSteps) {
+    Iterator<Map.Entry<String, JsonNode>> fields = group.fields();
+    while (fields.hasNext()) {
+      Map.Entry<String, JsonNode> field = fields.next();
+      if ("id".equals(field.getKey())) {
+        continue;
+      }
+      if (mentions(field.getValue(), ownedSteps)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean mentions(JsonNode node, Set<String> ownedSteps) {
+    if (node.isTextual()) {
+      return ownedSteps.contains(node.asText());
+    }
+    if (node.isArray() || node.isObject()) {
+      for (JsonNode child : node) {
+        if (mentions(child, ownedSteps)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 }
