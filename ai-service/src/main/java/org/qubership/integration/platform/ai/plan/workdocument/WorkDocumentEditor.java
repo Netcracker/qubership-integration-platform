@@ -290,6 +290,7 @@ final class WorkDocumentEditor {
       if (previous != null) {
         branches.addAll(previous.branches());
       }
+      List<String> placed = new ArrayList<>();
       for (CapturedConditionBranch branch : captured.branches()) {
         String branchId = permit(scope, branch.existingId(), branch.alias(), aliases);
         upsert(
@@ -303,8 +304,12 @@ final class WorkDocumentEditor {
                 resolve(branch.entryStepRef(), aliases, steps, true),
                 resolveAll(branch.exitStepRefs(), aliases, steps)),
             ConditionBranch::id);
+        placed.add(branchId);
         known.add(branchId);
         accepted.add(branchId);
+      }
+      for (String branchId : placed) {
+        stripNested(draft.conditionGroups, branchId);
       }
       upsert(
           draft.conditionGroups,
@@ -325,6 +330,7 @@ final class WorkDocumentEditor {
       if (previous != null) {
         branches.addAll(previous.branches());
       }
+      List<String> placed = new ArrayList<>();
       for (CapturedSplitBranch branch : captured.branches()) {
         String branchId = permit(scope, branch.existingId(), branch.alias(), aliases);
         upsert(
@@ -336,8 +342,12 @@ final class WorkDocumentEditor {
                 resolve(branch.entryStepRef(), aliases, steps, true),
                 resolveAll(branch.exitStepRefs(), aliases, steps)),
             SplitBranch::id);
+        placed.add(branchId);
         known.add(branchId);
         accepted.add(branchId);
+      }
+      for (String branchId : placed) {
+        stripNestedSplits(draft.splitGroups, branchId);
       }
       upsert(
           draft.splitGroups,
@@ -394,6 +404,7 @@ final class WorkDocumentEditor {
       if (previous != null) {
         handlers.addAll(previous.handlers());
       }
+      List<String> placed = new ArrayList<>();
       for (CapturedErrorHandler handler : captured.handlers()) {
         String handlerId = permit(scope, handler.existingId(), handler.alias(), aliases);
         upsert(
@@ -405,8 +416,12 @@ final class WorkDocumentEditor {
                 resolve(handler.entryStepRef(), aliases, steps, true),
                 resolveAll(handler.exitStepRefs(), aliases, steps)),
             ErrorHandler::id);
+        placed.add(handlerId);
         known.add(handlerId);
         accepted.add(handlerId);
+      }
+      for (String handlerId : placed) {
+        stripNestedHandlers(draft.errorScopeGroups, handlerId);
       }
       upsert(
           draft.errorScopeGroups,
