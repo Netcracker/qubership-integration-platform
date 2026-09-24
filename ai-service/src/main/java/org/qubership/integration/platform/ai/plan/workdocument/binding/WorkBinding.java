@@ -61,6 +61,10 @@ public final class WorkBinding {
   public WorkCommit select(
       String runId, String stepId, WorkTaskMaterials materials, WorkTaskModel model) {
     WorkDocumentState state = documents.read(runId);
+    if ("LOCAL".equals(stepKind(state, stepId))) {
+      return new WorkCommit(
+          state.revision(), List.of(stepId), WorkOutcome.PREPARED, "local-" + stepId, state, java.util.Map.of());
+    }
     String output = model.complete(prompt(state, stepId, materials));
     JsonNode selection = readSelection(output);
     String outcome = selection.path("outcome").asText();
@@ -76,60 +80,66 @@ public final class WorkBinding {
       return defect(runId, state, stepId, selection);
     }
     String candidateId = selection.path("candidateId").asText();
+    String requiredOperation = requiredOperation(state, stepId);
+    if (!requiredOperation.isBlank() && !requiredOperation.equals(candidateId)) {
+      return defect(
+          runId,
+          state,
+          stepId,
+          selection,
+          "WRONG_OPERATION",
+          "Selected operation "
+              + candidateId
+              + " does not match the step requirement "
+              + requiredOperation
+              + ".");
+    }
     String pinned = pinnedVersion(materials);
     boolean apiHubAllowed = apiHubAllowed(materials);
     CatalogLookup lookup = resolution.lookup(candidateId, pinned);
-    if (lookup instanceof CatalogLookup.PinnedUnavailable unavailable) {
+    if (lookup instanceof CatalogLookup.Ambiguous ambiguous) {
       return ask(
           runId,
           state,
           stepId,
-          "Pinned version "
-              + unavailable.version()
-              + " is unavailable for step "
+          "Catalog matches more than one operation for step "
               + stepId
-              + ". Choose another version before binding.",
-          "pinned-version");
+              + ". Choose one of "
+              + String.join(", ", ambiguous.candidateIds())
+              + ".",
+          "catalog-candidate");
     }
     if (lookup instanceof CatalogLookup.Hit hit) {
-      return publish(runId, state, stepId, fromCatalog(stepId, hit.hit()));
+      return publish(runId, state, stepId, fromCatalog(stepId, hit.hit(), pinned));
     }
     if (!apiHubAllowed) {
-      return ask(
-          runId,
-          state,
-          stepId,
-          "No runtime catalog operation for step "
-              + stepId
-              + ". APIHub is not used for this request.",
-          "catalog-operation");
+      String question =
+          pinned.isBlank()
+              ? "No runtime catalog operation for step " + stepId + ". APIHub is not used for this request."
+              : "Pinned version " + pinned + " is unavailable for step " + stepId + ". APIHub is not used for this request.";
+      return ask(runId, state, stepId, question, pinned.isBlank() ? "catalog-operation" : "pinned-version");
     }
-    if (!pinned.isBlank()) {
-      return ask(
-          runId,
-          state,
-          stepId,
-          "Pinned version " + pinned + " is unavailable for step " + stepId + ".",
-          "pinned-version");
-    }
-    ApiHubHit hub = resolution.searchApiHub(candidateId, pinned);
-    if (hub == null) {
-      return ask(
-          runId,
-          state,
-          stepId,
-          "No operation matches step " + stepId + ".",
-          "catalog-operation");
+    ApiHubHit hub = resolution.searchApiHub(stepId, candidateId, pinned);
+    if (hub == null || (!pinned.isBlank() && !pinned.equals(hub.version())) || hub.version().isBlank()) {
+      String question =
+          pinned.isBlank()
+              ? "No operation matches step " + stepId + "."
+              : "Pinned version " + pinned + " is unavailable for step " + stepId + ".";
+      return ask(runId, state, stepId, question, pinned.isBlank() ? "catalog-operation" : "pinned-version");
     }
     return publish(runId, state, stepId, fromApiHub(stepId, hub));
   }
 
-  private ResolvedWorkBinding fromCatalog(String stepId, CatalogHit hit) {
+  private ResolvedWorkBinding fromCatalog(String stepId, CatalogHit hit, String pinned) {
     ResolvedServiceCallBinding projected = project(stepId, hit);
     projectOntoGraph(stepId, projected);
+    String version = hit.version() == null ? "" : hit.version();
+    if (version.isBlank()) {
+      version = pinned == null || pinned.isBlank() ? "catalog" : pinned;
+    }
     return new ResolvedWorkBinding(
         projected.systemId(),
-        hit.version(),
+        version,
         projected.operationId(),
         projected.protocolType(),
         projected.method(),
@@ -204,25 +214,97 @@ public final class WorkBinding {
       String runId, WorkDocumentState state, String stepId, String question, String choice) {
     String capture =
         """
-        {"outcome":"NEEDS_CLARIFICATION",%s,"question":%s,"unresolvedChoice":%s,"clarificationEvidenceIds":["src-om"],"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
+        {"outcome":"NEEDS_CLARIFICATION",%s,"question":%s,"unresolvedChoice":%s,"clarificationEvidenceIds":%s,"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
         """
-            .formatted(LISTS, jsonText(question), jsonText(choice));
+            .formatted(LISTS, jsonText(question), jsonText(choice), evidenceJson(state, stepId));
     return documents.apply(runId, scope(state, stepId), WorkDocumentCaptureSchema.parse(capture), command(state, stepId, "ask"));
   }
 
   private WorkCommit defect(String runId, WorkDocumentState state, String stepId, JsonNode selection) {
+    return defect(
+        runId,
+        state,
+        stepId,
+        selection,
+        selection.path("issueCategory").asText("WRONG_OPERATION"),
+        selection.path("contradiction").asText("Selected operation does not match the step."));
+  }
+
+  private WorkCommit defect(
+      String runId,
+      WorkDocumentState state,
+      String stepId,
+      JsonNode selection,
+      String category,
+      String contradiction) {
     String record = selection.path("stepId").asText(stepId);
+    if (record.isBlank()) {
+      record = stepId;
+    }
     String capture =
         """
-        {"outcome":"INPUT_DEFECT",%s,"question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":%s,"contradiction":%s,"defectEvidenceIds":["src-om"],"issueCategory":%s}
+        {"outcome":"INPUT_DEFECT",%s,"question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":%s,"contradiction":%s,"defectEvidenceIds":%s,"issueCategory":%s}
         """
             .formatted(
                 LISTS,
                 jsonText(record),
-                jsonText(selection.path("contradiction").asText("Selected operation does not match the step.")),
-                jsonText(selection.path("issueCategory").asText("WRONG_OPERATION")));
+                jsonText(contradiction),
+                evidenceJson(state, stepId),
+                jsonText(category));
     return documents.apply(
         runId, scope(state, stepId), WorkDocumentCaptureSchema.parse(capture), command(state, stepId, "defect"));
+  }
+
+  private String evidenceJson(WorkDocumentState state, String stepId) {
+    return json.valueToTree(sourceIds(state, stepId)).toString();
+  }
+
+  private static List<String> sourceIds(WorkDocumentState state, String stepId) {
+    JsonNode step = stepNode(state, stepId);
+    List<String> sources = new java.util.ArrayList<>();
+    for (JsonNode source : step.path("sourceIds")) {
+      if (!source.asText().isBlank()) {
+        sources.add(source.asText());
+      }
+    }
+    return List.copyOf(sources);
+  }
+
+  private static String stepKind(WorkDocumentState state, String stepId) {
+    return stepNode(state, stepId).path("kind").asText();
+  }
+
+  private static String requiredOperation(WorkDocumentState state, String stepId) {
+    JsonNode step = stepNode(state, stepId);
+    String label = step.path("label").asText();
+    if (label.isBlank()) {
+      return "";
+    }
+    JsonNode requirements = jsonTree(state).path("requirements");
+    for (JsonNode requirementId : step.path("requirementIds")) {
+      for (JsonNode requirement : requirements) {
+        if (!requirementId.asText().equals(requirement.path("id").asText())) {
+          continue;
+        }
+        if (requirement.path("text").asText().contains(label)) {
+          return label;
+        }
+      }
+    }
+    return "";
+  }
+
+  private static JsonNode stepNode(WorkDocumentState state, String stepId) {
+    for (JsonNode step : jsonTree(state).path("flow").path("steps")) {
+      if (stepId.equals(step.path("id").asText())) {
+        return step;
+      }
+    }
+    return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+  }
+
+  private static JsonNode jsonTree(WorkDocumentState state) {
+    return new ObjectMapper().valueToTree(state.document());
   }
 
   private static WorkTaskScope scope(WorkDocumentState state, String stepId) {
