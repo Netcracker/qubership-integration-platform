@@ -113,11 +113,38 @@ final class WorkDocumentEditor {
           "CONTRADICTORY_OUTCOME",
           "Outcome " + capture.outcome() + " cannot include design records. Send the question or the defect alone.");
     }
-    WorkTaskState taskState =
-        capture.outcome() == WorkOutcome.NEEDS_CLARIFICATION
-            ? WorkTaskState.NEEDS_INPUT
-            : WorkTaskState.NEEDS_RECHECK;
-    WorkProgress progress = withTask(state.document().progress(), scope, taskState);
+    WorkProgress prior = state.document().progress();
+    List<WorkQuestion> questions = Lists.mutable(prior.questions());
+    List<WorkFinding> findings = Lists.mutable(prior.findings());
+    WorkTaskState taskState;
+    if (capture.outcome() == WorkOutcome.NEEDS_CLARIFICATION) {
+      taskState = WorkTaskState.NEEDS_INPUT;
+      questions.add(
+          new WorkQuestion(
+              newId(),
+              capture.unresolvedChoice(),
+              capture.question(),
+              resolveAll(capture.clarificationEvidenceIds(), Map.of(), sourceIds(state.document()))));
+    } else {
+      taskState = WorkTaskState.NEEDS_RECHECK;
+      findings.add(
+          new WorkFinding(
+              newId(),
+              resolve(capture.defectRecordRef(), Map.of(), knownIds(state.document()), true),
+              capture.issueCategory(),
+              capture.contradiction(),
+              resolveAll(capture.defectEvidenceIds(), Map.of(), sourceIds(state.document()))));
+    }
+    List<WorkTaskRecord> tasks = Lists.mutable(prior.tasks());
+    tasks.add(new WorkTaskRecord(scope.taskId(), taskState, scope.stage(), scope.skillId()));
+    WorkProgress progress =
+        new WorkProgress(
+            tasks,
+            findings,
+            questions,
+            prior.approvalReference(),
+            prior.derivedResultReferences(),
+            prior.recheckStages());
     ChainWorkDocument next =
         new ChainWorkDocument(
             state.document().schemaVersion(),
@@ -684,6 +711,14 @@ final class WorkDocumentEditor {
 
   private static Set<String> sourceIds(Draft draft) {
     return ids(draft.sources, WorkSource::id);
+  }
+
+  private static Set<String> sourceIds(ChainWorkDocument document) {
+    return ids(document.sources(), WorkSource::id);
+  }
+
+  private static String newId() {
+    return "wd-" + UUID.randomUUID();
   }
 
   private static WorkProgress withTask(WorkProgress progress, WorkTaskScope scope, WorkTaskState state) {

@@ -312,10 +312,134 @@ class WorkDocumentEditorTest {
   }
 
   @Test
+  void clarificationAndDefectPersistOnProgress() {
+    GrownDocument grown = WorkDocumentFixture.grow(service);
+    WorkDocumentState current = grown.afterMappings();
+    int steps = current.document().flow().steps().size();
+
+    WorkCommit clarified =
+        service.apply(
+            current,
+            scope(current, List.of(), false, false, false),
+            outcome(
+                WorkOutcome.NEEDS_CLARIFICATION,
+                "Which failure port should the reply use?",
+                "success or failure port",
+                List.of(WorkDocumentFixture.SOURCE_ID),
+                "",
+                "",
+                List.of(),
+                ""),
+            "cmd-clarify");
+
+    WorkQuestion question = clarified.state().document().progress().questions().get(0);
+    assertEquals("Which failure port should the reply use?", question.question());
+    assertEquals("success or failure port", question.choice());
+    assertEquals(List.of(WorkDocumentFixture.SOURCE_ID), question.evidenceIds());
+    assertEquals(steps, clarified.state().document().flow().steps().size());
+
+    WorkCommit defect =
+        service.apply(
+            clarified.state(),
+            scope(clarified.state(), List.of(grown.triggerId()), false, false, false),
+            outcome(
+                WorkOutcome.INPUT_DEFECT,
+                "",
+                "",
+                List.of(),
+                grown.triggerId(),
+                "The trigger outcome contradicts the source.",
+                List.of(WorkDocumentFixture.SOURCE_ID),
+                "CONTRADICTION"),
+            "cmd-defect");
+
+    WorkFinding finding = defect.state().document().progress().findings().get(0);
+    assertEquals(grown.triggerId(), finding.recordRef());
+    assertEquals("CONTRADICTION", finding.issueCategory());
+    assertEquals(List.of(WorkDocumentFixture.SOURCE_ID), finding.evidenceIds());
+    assertEquals(1, defect.state().document().progress().questions().size());
+
+    WorkDocumentRejectedException mixed =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                service.apply(
+                    defect.state(),
+                    scope(defect.state(), List.of(), false, false, false),
+                    outcome(
+                        WorkOutcome.NEEDS_CLARIFICATION,
+                        "Another question?",
+                        "a choice",
+                        List.of(WorkDocumentFixture.SOURCE_ID),
+                        "",
+                        "",
+                        List.of(),
+                        "",
+                        List.of(new CapturedStep("", "extra", StepKind.LOCAL, "Extra", "No", List.of(), List.of()))),
+                    "cmd-mixed"));
+    assertEquals("CONTRADICTORY_OUTCOME", mixed.code());
+  }
+
+  @Test
   void creationAliasResolvesAndReplacementPreservesId() {
     GrownDocument grown = WorkDocumentFixture.grow(service);
     assertNotEquals("trigger", grown.triggerId());
     assertEquals(grown.triggerId(), step(grown.afterMappings(), grown.triggerId()).id());
+  }
+
+  private static WorkTaskCapture outcome(
+      WorkOutcome outcome,
+      String question,
+      String choice,
+      List<String> clarificationEvidence,
+      String defectRecordRef,
+      String contradiction,
+      List<String> defectEvidence,
+      String issueCategory) {
+    return outcome(
+        outcome,
+        question,
+        choice,
+        clarificationEvidence,
+        defectRecordRef,
+        contradiction,
+        defectEvidence,
+        issueCategory,
+        List.of());
+  }
+
+  private static WorkTaskCapture outcome(
+      WorkOutcome outcome,
+      String question,
+      String choice,
+      List<String> clarificationEvidence,
+      String defectRecordRef,
+      String contradiction,
+      List<String> defectEvidence,
+      String issueCategory,
+      List<CapturedStep> steps) {
+    return new WorkTaskCapture(
+        outcome,
+        List.of(),
+        steps,
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        question,
+        choice,
+        clarificationEvidence,
+        defectRecordRef,
+        contradiction,
+        defectEvidence,
+        issueCategory);
   }
 
   private static WorkTaskScope scope(
