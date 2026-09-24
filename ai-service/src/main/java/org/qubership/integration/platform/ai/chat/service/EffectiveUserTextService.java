@@ -6,6 +6,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.attachment.AttachmentKeys;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
+import org.qubership.integration.platform.ai.plan.workdocument.source.AttachmentRoles;
 import org.qubership.integration.platform.ai.storage.S3Service;
 
 import java.net.URLDecoder;
@@ -97,6 +98,11 @@ public class EffectiveUserTextService {
       if (!AttachmentKeys.isSafe(key)) {
         continue;
       }
+      if (AttachmentRoles.isUnsupportedName(key)) {
+        sb.append(unsupportedBlock(labelOf(key)));
+        actuallyLoaded.add(key);
+        continue;
+      }
       String content = fetchUtf8OrPlaceholder(key);
       String label = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
       sb.append("- `").append(label).append("` (inlined)\n\n");
@@ -133,6 +139,10 @@ public class EffectiveUserTextService {
           String encodedKey = keyMatcher.group(1);
           String key = urlDecode(encodedKey);
           if (AttachmentKeys.isSafe(key)) {
+            if (AttachmentRoles.isUnsupportedName(key)) {
+              result.append(unsupportedBlock(labelOf(key)));
+              continue;
+            }
             String content = cache.computeIfAbsent(key, this::fetchUtf8OrPlaceholder);
             String label = key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
             result.append("- `").append(label).append("` (inlined)\n\n");
@@ -157,6 +167,18 @@ public class EffectiveUserTextService {
       LOG.warnf(e, "Bad URL-encoded key parameter: %s", encodedKey);
       return encodedKey;
     }
+  }
+
+  private static String labelOf(String key) {
+    return key.contains("/") ? key.substring(key.lastIndexOf('/') + 1) : key;
+  }
+
+  private static String unsupportedBlock(String label) {
+    return "- `"
+        + label
+        + "`\n\n[Unsupported attachment reader: "
+        + label
+        + ". UTF-8 .md and .txt mapping files can be read.]\n\n";
   }
 
   private String fetchUtf8OrPlaceholder(String key) {

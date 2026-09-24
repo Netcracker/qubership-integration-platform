@@ -1,8 +1,11 @@
 package org.qubership.integration.platform.ai.chat.service;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -51,5 +54,20 @@ class EffectiveUserTextServiceTest {
 
     assertTrue(text.contains("Current Chain"));
     assertTrue(conversations.getAllowedAttachmentKeys("conv-1").isEmpty());
+  }
+
+  @Test
+  void unsupportedAttachmentDoesNotBecomeEmptyMappingText() {
+    when(s3Service.readObjectUtf8("uploads/orders.md")).thenReturn("Map status to Not Started");
+    ChatRequest request = new ChatRequest();
+    request.setMessage("create a chain");
+    request.setAttachmentObjectKeys(List.of("uploads/orders.md", "uploads/rules.pdf"));
+
+    String text = service.resolve(request, "conv-1");
+
+    assertTrue(text.contains("Map status to Not Started"));
+    assertTrue(text.contains("rules.pdf"));
+    assertFalse(text.contains("rules.pdf` (inlined)\n\n\n"));
+    verify(s3Service, never()).readObjectUtf8("uploads/rules.pdf");
   }
 }
