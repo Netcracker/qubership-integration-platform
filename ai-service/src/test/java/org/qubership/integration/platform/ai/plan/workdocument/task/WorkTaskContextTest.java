@@ -36,6 +36,42 @@ class WorkTaskContextTest {
     assertFalse(prompt.contains("UNRELATED_SOURCE_EVIDENCE"));
   }
 
+  @Test
+  void promptKeepsEnclosingGroupAndOmitsUnrelatedGroup() throws Exception {
+    String prompt = prompt();
+
+    assertTrue(prompt.contains("retry-enclosing"));
+    assertFalse(prompt.contains("seq-unrelated"));
+  }
+
+  @Test
+  void promptKeepsSourceCorrectedByIncludedEvidence() throws Exception {
+    String prompt =
+        WorkTaskContext.prompt(
+            document(),
+            new WorkTaskScope(
+                "map-transfer-a",
+                document().revision(),
+                WorkStage.DATA_BEHAVIOR,
+                "mapping",
+                List.of("transfer-a"),
+                false,
+                true,
+                false,
+                List.of(),
+                List.of()),
+            new WorkTaskMaterials(
+                List.of(),
+                List.of(),
+                Map.of(
+                    "source-gov", "GOVERNING_SOURCE_EVIDENCE",
+                    "source-prior", "PRIOR_SOURCE_EVIDENCE",
+                    "source-other", "UNRELATED_SOURCE_EVIDENCE")));
+
+    assertTrue(prompt.contains("PRIOR_SOURCE_EVIDENCE"));
+    assertFalse(prompt.contains("UNRELATED_SOURCE_EVIDENCE"));
+  }
+
   private static String prompt() throws Exception {
     WorkDocumentState state = document();
     return WorkTaskContext.prompt(
@@ -96,6 +132,15 @@ class WorkTaskContextTest {
             "contentHash": "hash-gov",
             "originalName": "governing.md",
             "suppliedIdentifier": "GOV-1",
+            "correctionOf": ["source-prior"]
+          },
+          {
+            "id": "source-prior",
+            "role": "request",
+            "contentReference": "artifact://prior",
+            "contentHash": "hash-prior",
+            "originalName": "prior.md",
+            "suppliedIdentifier": "PRIOR",
             "correctionOf": []
           },
           {
@@ -199,11 +244,23 @@ class WorkTaskContextTest {
               "evidenceIds": ["source-gov"]
             }
           ],
-          "sequenceGroups": [],
+          "sequenceGroups": [
+            {"id": "seq-unrelated", "memberStepIds": ["other-step"]}
+          ],
           "conditionGroups": [],
           "splitGroups": [],
           "loopGroups": [],
-          "retryGroups": [],
+          "retryGroups": [
+            {
+              "id": "retry-enclosing",
+              "ownerStepId": "trigger",
+              "bodyEntryStepId": "call",
+              "bodyExitStepIds": ["call"],
+              "exhaustedStepId": "trigger",
+              "retryCount": 2,
+              "retryDelayMillis": 0
+            }
+          ],
           "errorScopeGroups": []
         },
         "progress": {

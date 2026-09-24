@@ -187,7 +187,7 @@ public final class WorkDocumentService {
         committed.run().runRevision());
   }
 
-  private WorkCommit committedResult(ProductPipelineRunDocument document, RunTransition transition) {
+  public WorkCommit committedResult(ProductPipelineRunDocument document, RunTransition transition) {
     StageAttempt attempt =
         document.attempts().stream()
             .filter(candidate -> candidate.runRevision() == transition.toRevision())
