@@ -1,8 +1,6 @@
 import {
-  clearCorrelationIdWhenSwitchedOff,
   getStaleProtocolProperties,
   getTabForPath,
-  turnOnCorrelationIdSwitchWhenSet,
 } from "../../../../src/components/modal/chain_element/ChainElementModificationConstants";
 
 describe("getTabForPath", () => {
@@ -123,58 +121,5 @@ describe("getStaleProtocolProperties", () => {
     const stale = getStaleProtocolProperties("http", {});
     const seen = new Set(stale);
     expect(stale.length).toBe(seen.size);
-  });
-});
-
-describe("turnOnCorrelationIdSwitchWhenSet", () => {
-  it("should turn the switch on when a position and a name are set", () => {
-    for (const receiveCorrelationId of [undefined, null, false]) {
-      expect(
-        turnOnCorrelationIdSwitchWhenSet({
-          receiveCorrelationId,
-          correlationIdPosition: "header",
-          correlationIdName: "zz-corr",
-        }),
-      ).toEqual({
-        receiveCorrelationId: true,
-        correlationIdPosition: "header",
-        correlationIdName: "zz-corr",
-      });
-    }
-  });
-
-  it("should keep the properties when the position or the name is missing", () => {
-    const positionOnly = { correlationIdPosition: "header" };
-    const nameOnly = { correlationIdName: "zz-corr" };
-    expect(turnOnCorrelationIdSwitchWhenSet(positionOnly)).toBe(positionOnly);
-    expect(turnOnCorrelationIdSwitchWhenSet(nameOnly)).toBe(nameOnly);
-    expect(turnOnCorrelationIdSwitchWhenSet(undefined)).toBeUndefined();
-  });
-});
-
-describe("clearCorrelationIdWhenSwitchedOff", () => {
-  it("should clear the position and the name when the switch is off", () => {
-    expect(
-      clearCorrelationIdWhenSwitchedOff({
-        receiveCorrelationId: false,
-        correlationIdPosition: "header",
-        correlationIdName: "zz-corr",
-      }),
-    ).toEqual({
-      receiveCorrelationId: false,
-      correlationIdPosition: undefined,
-      correlationIdName: undefined,
-    });
-  });
-
-  it("should keep the properties when the switch is on or already cleared", () => {
-    const on = {
-      receiveCorrelationId: true,
-      correlationIdPosition: "header",
-      correlationIdName: "zz-corr",
-    };
-    const cleared = { receiveCorrelationId: false };
-    expect(clearCorrelationIdWhenSwitchedOff(on)).toBe(on);
-    expect(clearCorrelationIdWhenSwitchedOff(cleared)).toBe(cleared);
   });
 });

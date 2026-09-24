@@ -90,6 +90,9 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     externalRoute: {
       "ui:widget": "hidden",
     },
+    receiveCorrelationId: {
+      "ui:field": "correlationIdSwitchField",
+    },
     checkpointElementId: {
       "ui:widget": "hidden",
     },
@@ -744,33 +747,4 @@ export function getStaleProtocolProperties(
     }
   }
   return [...new Set(stale)];
-}
-
-// The engine reads the correlation ID whenever a position and a name are set,
-// so turn the switch on to match.
-export function turnOnCorrelationIdSwitchWhenSet(
-  properties: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
-  if (properties?.correlationIdPosition && properties.correlationIdName) {
-    return { ...properties, receiveCorrelationId: true };
-  }
-  return properties;
-}
-
-// Turning the switch off removes the position and the name, which are what the engine reads.
-export function clearCorrelationIdWhenSwitchedOff(
-  properties: Record<string, unknown> | undefined,
-): Record<string, unknown> | undefined {
-  if (
-    properties?.receiveCorrelationId === false &&
-    (properties.correlationIdPosition !== undefined ||
-      properties.correlationIdName !== undefined)
-  ) {
-    return {
-      ...properties,
-      correlationIdPosition: undefined,
-      correlationIdName: undefined,
-    };
-  }
-  return properties;
 }

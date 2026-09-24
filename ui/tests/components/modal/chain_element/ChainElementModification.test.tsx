@@ -269,22 +269,6 @@ jest.mock("@rjsf/antd", () => {
         >
           <button
             type="button"
-            data-testid="rjsf-correlation-id-off"
-            onClick={() => {
-              const data = formData as { properties?: object };
-              onChange?.({
-                formData: {
-                  ...data,
-                  properties: {
-                    ...data.properties,
-                    receiveCorrelationId: false,
-                  },
-                },
-              });
-            }}
-          />
-          <button
-            type="button"
             data-testid="rjsf-user-change"
             onClick={() =>
               onChange?.({
@@ -647,64 +631,6 @@ describe("ChainElementModification", () => {
 
     expect(defaultProps.onClose).not.toHaveBeenCalled();
     expect(mockUpdateElement).not.toHaveBeenCalled();
-  });
-
-  describe("correlation ID switch", () => {
-    const correlationNode: ChainGraphNode = {
-      ...mockNode,
-      data: {
-        ...mockNode.data,
-        properties: {
-          correlationIdPosition: "header",
-          correlationIdName: "zz-corr",
-        } as unknown as typeof mockNode.data.properties,
-      },
-    };
-
-    async function save() {
-      fireEvent.click(screen.getByRole("button", { name: /save/i }));
-      await waitFor(() => expect(mockUpdateElement).toHaveBeenCalled());
-      return (
-        mockUpdateElement.mock.calls[0][2] as {
-          properties: Record<string, unknown>;
-        }
-      ).properties;
-    }
-
-    it("should save the switch as on when the element has a position and a name", async () => {
-      renderWithPermissions(
-        { chain: ["update"] },
-        { ...defaultProps, node: correlationNode },
-      );
-      await waitFor(() =>
-        expect(screen.getByRole("dialog")).toBeInTheDocument(),
-      );
-
-      expect(await save()).toEqual(
-        expect.objectContaining({
-          receiveCorrelationId: true,
-          correlationIdPosition: "header",
-          correlationIdName: "zz-corr",
-        }),
-      );
-    });
-
-    it("should drop the position and the name when the switch is turned off", async () => {
-      renderWithPermissions(
-        { chain: ["update"] },
-        { ...defaultProps, node: correlationNode },
-      );
-      await waitFor(() =>
-        expect(screen.getByRole("dialog")).toBeInTheDocument(),
-      );
-
-      fireEvent.click(screen.getByTestId("rjsf-correlation-id-off"));
-      const properties = await save();
-
-      expect(properties.receiveCorrelationId).toBe(false);
-      expect(properties.correlationIdPosition).toBeUndefined();
-      expect(properties.correlationIdName).toBeUndefined();
-    });
   });
 
   it("Save button calls updateElement and onSubmit on success", async () => {

@@ -47,8 +47,6 @@ import {
   desiredTabOrder,
   getTabForPath,
   getStaleProtocolProperties,
-  turnOnCorrelationIdSwitchWhenSet,
-  clearCorrelationIdWhenSwitchedOff,
 } from "./ChainElementModificationConstants.ts";
 import { ChainGraphNode } from "../../graph/nodes/ChainGraphNodeTypes.ts";
 import { ChainContext } from "../../../pages/ChainPage.tsx";
@@ -81,6 +79,7 @@ import {
 } from "./formValidationHelpers.ts";
 import BasePathField from "./field/BasePathField.tsx";
 import ExternalRouteCheckbox from "./field/ExternalRouteCheckbox.tsx";
+import CorrelationIdSwitchField from "./field/CorrelationIdSwitchField.tsx";
 import ContextPathWithPrefixField from "./field/ContextPathWithPrefixField.tsx";
 import CopyableTextWidget from "./widget/CopyableTextWidget.tsx";
 import DescriptionTooltipFieldTemplate from "./DescriptionTooltipFieldTemplate.tsx";
@@ -242,6 +241,7 @@ const FIELDS = {
   chainTriggerElementIdField: ChainTriggerElementIdField,
   basePathField: BasePathField,
   externalRouteCheckbox: ExternalRouteCheckbox,
+  correlationIdSwitchField: CorrelationIdSwitchField,
   contextPathWithPrefixField: ContextPathWithPrefixField,
 };
 
@@ -367,7 +367,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
 
       const initialFormData = {
         ...node.data,
-        properties: turnOnCorrelationIdSwitchWhenSet(node.data.properties),
         type: node.data.elementType,
         name: node.data.label,
         id: node.id,
@@ -509,14 +508,7 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
     (e: { formData?: Record<string, unknown> }) => {
       const nextFormData = e.formData;
       if (!nextFormData) return;
-      const properties = clearCorrelationIdWhenSwitchedOff(
-        nextFormData.properties as Record<string, unknown> | undefined,
-      );
-      setFormData(
-        properties === nextFormData.properties
-          ? nextFormData
-          : { ...nextFormData, properties },
-      );
+      setFormData(nextFormData);
       if (
         !isInitializingRef.current &&
         (hasUserEditedFormRef.current || hasUserInteractedRef.current)
