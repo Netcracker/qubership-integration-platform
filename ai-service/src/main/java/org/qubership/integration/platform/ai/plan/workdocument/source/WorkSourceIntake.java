@@ -11,8 +11,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
@@ -59,11 +62,20 @@ public final class WorkSourceIntake {
   }
 
   public SourceInventory accept(String runId, String documentId, SourceBatch batch, String commandId) {
+    String payloadHash = payloadHash(batch);
+    ProductPipelineRunDocument current = runs.load(runId).orElseThrow();
+    Optional<RunTransition> replay = current.appliedCommand(commandId, payloadHash);
+    if (replay.isPresent()) {
+      return read(runId);
+    }
     ObjectNode document = loadOrCreate(runId, documentId);
     Map<String, SourceEvidence> evidence = evidenceBySource(runId);
     ArrayNode sources = array(document, "sources");
     ArrayNode requirements = array(document, "requirements");
     ArrayNode questions = array(document, "questions");
+    Set<String> existingIds = new LinkedHashSet<>();
+    existingIds.addAll(ids(sources));
+    existingIds.addAll(ids(requirements));
     List<PendingSource> added = new ArrayList<>();
     for (SourceNote note : batch.notes()) {
       added.add(addNote(runId, sources, note, evidence));
@@ -83,7 +95,18 @@ public final class WorkSourceIntake {
         }
       }
     }
-    publish(runId, document, commandId);
+    List<String> accepted = new ArrayList<>();
+    for (String id : ids(sources)) {
+      if (!existingIds.contains(id)) {
+        accepted.add(id);
+      }
+    }
+    for (String id : ids(requirements)) {
+      if (!existingIds.contains(id)) {
+        accepted.add(id);
+      }
+    }
+    publish(runId, document, commandId, accepted, payloadHash);
     return inventory(document, evidence);
   }
 
@@ -332,7 +355,12 @@ public final class WorkSourceIntake {
     return (ArrayNode) document.get(name);
   }
 
-  private void publish(String runId, ObjectNode document, String commandId) {
+  private void publish(
+      String runId,
+      ObjectNode document,
+      String commandId,
+      List<String> acceptedRecordIds,
+      String payloadHash) {
     ensureUnsupportedQuestions(document);
     ChainWorkDocument payload = json.convertValue(document, ChainWorkDocument.class);
     ProductPipelineRunDocument current = runs.load(runId).orElseThrow();
@@ -375,7 +403,7 @@ public final class WorkSourceIntake {
                 at,
                 List.of(reference),
                 null,
-                ""),
+                receipt(acceptedRecordIds)),
             new RunTransition(
                 expected,
                 next,
@@ -385,7 +413,7 @@ public final class WorkSourceIntake {
                 at,
                 PRODUCER_ID,
                 commandId,
-                sha256(commandId + document.toString())),
+                payloadHash),
             reference,
             null));
   }
@@ -544,6 +572,37 @@ public final class WorkSourceIntake {
     return "No reader is available for "
         + originalName
         + ". UTF-8 .md and .txt mapping files can be read. This file was not imported as an API specification.";
+  }
+
+  private String payloadHash(SourceBatch batch) {
+    try {
+      return sha256(json.writeValueAsString(batch));
+    } catch (Exception failure) {
+      throw new IllegalStateException("Cannot hash the source command.", failure);
+    }
+  }
+
+  private String receipt(List<String> acceptedRecordIds) {
+    try {
+      return json.writeValueAsString(
+          Map.of(
+              "acceptedRecordIds",
+              acceptedRecordIds,
+              "aliasToId",
+              Map.of(),
+              "outcome",
+              "PREPARED"));
+    } catch (Exception failure) {
+      throw new IllegalStateException("Cannot write the command receipt.", failure);
+    }
+  }
+
+  private static List<String> ids(ArrayNode items) {
+    List<String> ids = new ArrayList<>();
+    for (JsonNode item : items) {
+      ids.add(item.path("id").asText());
+    }
+    return ids;
   }
 
   private static String sha256(String content) {
