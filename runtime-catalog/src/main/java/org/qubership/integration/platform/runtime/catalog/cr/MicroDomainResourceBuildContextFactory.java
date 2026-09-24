@@ -11,6 +11,7 @@ import org.qubership.integration.platform.camelk.model.options.ResourceBuildOpti
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.strategies.BuildNamingContext;
 import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.ResourceKey;
@@ -48,6 +49,7 @@ public class MicroDomainResourceBuildContextFactory {
     private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
     private final MicroDomainService microDomainService;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
+    private final IntegrationServiceCatalog integrationServiceCatalog;
     private final SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
@@ -61,6 +63,7 @@ public class MicroDomainResourceBuildContextFactory {
             NamingStrategy<BuildNamingContext> buildNamingStrategy,
             MicroDomainService microDomainService,
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
+            IntegrationServiceCatalog integrationServiceCatalog,
 
             @Qualifier("sourceDslConfigMapNamingStrategy")
             SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy,
@@ -85,6 +88,7 @@ public class MicroDomainResourceBuildContextFactory {
         this.buildNamingStrategy = buildNamingStrategy;
         this.microDomainService = microDomainService;
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
+        this.integrationServiceCatalog = integrationServiceCatalog;
         this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
         this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
         this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
@@ -115,7 +119,7 @@ public class MicroDomainResourceBuildContextFactory {
 
         ResourceBuildOptions options = copyOptions(request.getOptions());
         BuildInfo buildInfo = createBuildInfo(options);
-        ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo)
+        ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo, integrationServiceCatalog)
                 .updateTo(snapshots);
 
         Map<ResourceKey, Optional<V1ObjectMeta>> observations = new LinkedHashMap<>();

@@ -7,12 +7,14 @@ import org.qubership.integration.platform.camelk.model.options.ResourceBuildOpti
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameVerifier;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 
 import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
 
 class HttpRoutePrivateNamingStrategyTest {
 
@@ -27,7 +29,8 @@ class HttpRoutePrivateNamingStrategyTest {
                 "-chain-private-routes");
 
         ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(
-                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build()
+                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build(),
+                mock(IntegrationServiceCatalog.class)
         ).updateTo(Collections.emptyList());
 
         assertEquals("my-domain-v1-chain-private-routes", strategy.getName(context));
@@ -44,7 +47,8 @@ class HttpRoutePrivateNamingStrategyTest {
                 "-private");
 
         ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(
-                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build()
+                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build(),
+                mock(IntegrationServiceCatalog.class)
         ).updateTo(Collections.emptyList());
 
         assertEquals("my-domain-v1-private", strategy.getName(context));

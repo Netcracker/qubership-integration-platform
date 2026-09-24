@@ -522,7 +522,8 @@ class MicroDomainServiceHttpRouteTest {
                 new K8sNameVerifier(), new K8sNameValidator(), longBaseNamingStrategy, "-chain-private-routes");
 
         ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(
-                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-long-domain").build()).build()
+                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-long-domain").build()).build(),
+                mock(IntegrationServiceCatalog.class)
         ).updateTo(Collections.emptyList());
 
         String publicName = publicStrategy.getName(context);
