@@ -142,7 +142,7 @@ class WorkBindingTest {
             materials(List.of("pinned-version:2024.1")),
             prompt -> selection("createTask"));
 
-    assertEquals(0, resolution.apiHubCalls);
+    assertEquals(1, resolution.apiHubCalls);
     assertEquals(0, resolution.catalogWrites);
     assertTrue(step(commit.state(), "create").path("binding").isNull());
     String questions = questions(commit.state()).toString();
@@ -169,6 +169,183 @@ class WorkBindingTest {
 
     assertEquals("NEEDS_CLARIFICATION", ask.outcome().name());
     assertTrue(questions(ask.state()).toString().contains("Subject"));
+  }
+
+  @Test
+  void questionUsesTheStepSourceWhenDocumentHasNoSrcOm() throws Exception {
+    String runId = "run-bind-source";
+    runs.create(
+        new RunSnapshot(
+            runId,
+            "conversation-bind-source",
+            1L,
+            RunStatus.RUNNING,
+            "SERVICES",
+            List.of(new StageSnapshot("SERVICES", StageStatus.RUNNING, List.of(), null)),
+            null));
+    documents.intake(
+        runId,
+        new WorkDocumentState("pending", JSON.readValue(sourcedDocument("src-brief"), ChainWorkDocument.class)),
+        "cmd-source",
+        new WorkRepairBudget(3));
+    resolution.miss("createTask");
+
+    WorkCommit commit =
+        binding.select(
+            runId,
+            "create",
+            materials(List.of("runtime-catalog-only")),
+            prompt -> selection("createTask"));
+
+    assertEquals("NEEDS_CLARIFICATION", commit.outcome().name());
+    assertTrue(questions(commit.state()).toString().contains("src-brief"));
+    assertFalse(questions(commit.state()).toString().contains("src-om"));
+  }
+
+  @Test
+  void localStepIsNotLookedUp() throws Exception {
+    String runId = "run-bind-local";
+    runs.create(
+        new RunSnapshot(
+            runId,
+            "conversation-bind-local",
+            1L,
+            RunStatus.RUNNING,
+            "SERVICES",
+            List.of(new StageSnapshot("SERVICES", StageStatus.RUNNING, List.of(), null)),
+            null));
+    String body = sourcedDocument("src-om").replace("\"kind\":\"SERVICE_CALL\"", "\"kind\":\"LOCAL\"");
+    documents.intake(
+        runId,
+        new WorkDocumentState("pending", JSON.readValue(body, ChainWorkDocument.class)),
+        "cmd-local",
+        new WorkRepairBudget(3));
+
+    WorkCommit commit = binding.select(runId, "create", materials(List.of()), prompt -> selection("createTask"));
+
+    assertEquals(0, resolution.lookupCalls);
+    assertEquals(0, resolution.apiHubCalls);
+    assertTrue(step(commit.state(), "create").path("binding").isNull());
+  }
+
+  @Test
+  void exactCatalogHitWithoutPinKeepsCatalogVersion() {
+    resolution.catalogHit("createTask", "sys-wfm", "2024.4", "op-create", "http", "POST", "/wfm/v1/tasks");
+
+    WorkCommit commit =
+        binding.select(RUN_ID, "create", materials(List.of("pinned-version:")), prompt -> selection("createTask"));
+
+    assertEquals("2024.4", step(commit.state(), "create").path("binding").path("version").asText());
+  }
+
+  @Test
+  void ambiguousCatalogResultNamesCandidates() {
+    resolution.ambiguous("createTask", List.of("op-a", "op-b"));
+
+    WorkCommit commit = binding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+
+    String questions = questions(commit.state()).toString();
+    assertEquals("NEEDS_CLARIFICATION", commit.outcome().name());
+    assertTrue(questions.contains("op-a"));
+    assertTrue(questions.contains("op-b"));
+    assertFalse(questions.contains("unavailable"));
+    assertEquals(0, resolution.apiHubCalls);
+  }
+
+  @Test
+  void selectedOperationThatMissesTheRequirementIsABindingDefect() throws Exception {
+    String runId = "run-bind-wrong";
+    runs.create(
+        new RunSnapshot(
+            runId,
+            "conversation-bind-wrong",
+            1L,
+            RunStatus.RUNNING,
+            "SERVICES",
+            List.of(new StageSnapshot("SERVICES", StageStatus.RUNNING, List.of(), null)),
+            null));
+    documents.intake(
+        runId,
+        new WorkDocumentState("pending", JSON.readValue(requirementDocument(), ChainWorkDocument.class)),
+        "cmd-wrong",
+        new WorkRepairBudget(3));
+
+    WorkCommit commit =
+        binding.select(runId, "create", materials(List.of()), prompt -> selection("deleteTask"));
+
+    assertEquals("INPUT_DEFECT", commit.outcome().name());
+    assertTrue(findings(commit.state()).toString().contains("WRONG_OPERATION"));
+    assertEquals(0, resolution.lookupCalls);
+    assertTrue(findings(commit.state()).toString().contains("src-brief"));
+  }
+
+  @Test
+  void pinnedVersionIsLookedUpInApiHubWhenAllowed() {
+    resolution.miss("createTask");
+    resolution.apiHubHit("createTask", "pkg.wfm", "2024.1", "op-pin", "http", "POST", "/wfm/v1/tasks");
+
+    WorkCommit commit =
+        binding.select(
+            RUN_ID,
+            "create",
+            materials(List.of("pinned-version:2024.1", "ids-only")),
+            prompt -> selection("createTask"));
+
+    assertEquals(1, resolution.apiHubCalls);
+    assertEquals("2024.1", step(commit.state(), "create").path("binding").path("version").asText());
+    assertEquals(0, resolution.catalogWrites);
+  }
+
+  @Test
+  void resolveApiOperationPayloadSuppliesTheApiHubVersion() {
+    org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup lookup =
+        org.mockito.Mockito.mock(
+            org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup.class);
+    org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool discovery =
+        org.mockito.Mockito.mock(
+            org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool.class);
+    org.mockito.Mockito.when(lookup.resolve(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult.None());
+    org.mockito.Mockito.when(
+            discovery.resolveApiOperation(
+                org.mockito.ArgumentMatchers.eq("create"),
+                org.mockito.ArgumentMatchers.eq(""),
+                org.mockito.ArgumentMatchers.eq(""),
+                org.mockito.ArgumentMatchers.eq("createTask"),
+                org.mockito.ArgumentMatchers.eq(""),
+                org.mockito.ArgumentMatchers.eq("")))
+        .thenReturn(
+            """
+            {"operations":[{"operationId":"op-hub","packageId":"pkg.wfm","version":"2024.4","documentId":"api","method":"POST","path":"/wfm/v1/tasks","protocol":"http","title":"createTask"}]}
+            """);
+    WorkBinding seamBinding =
+        new WorkBinding(
+            documents,
+            runs,
+            Clock.fixed(FIXED, ZoneOffset.UTC),
+            new ResolveApiOperationSeam(lookup, discovery));
+
+    WorkCommit commit =
+        seamBinding.select(RUN_ID, "create", materials(List.of("ids-only")), prompt -> selection("createTask"));
+
+    JsonNode stored = step(commit.state(), "create").path("binding");
+    assertEquals("2024.4", stored.path("version").asText());
+    assertEquals("op-hub", stored.path("operationId").asText());
+    assertEquals("POST", stored.path("method").asText());
+    assertTrue(stored.path("contractReferences").toString().contains("apihub:pkg.wfm@2024.4"));
+    org.mockito.Mockito.verify(discovery)
+        .resolveApiOperation("create", "", "", "createTask", "", "");
+    ApiHubHit bound =
+        new ResolveApiOperationSeam(lookup, discovery)
+            .parse(
+                """
+                {"status":"CATALOG_BOUND","catalogBinding":{"systemId":"sys-wfm","specificationId":"spec-create","specificationGroupId":"group-create","integrationOperationId":"op-create","protocol":"http","method":"POST","path":"/wfm/v1/tasks","version":"2024.4"}}
+                """,
+                "createTask",
+                "");
+    assertEquals("2024.4", bound.version());
+    assertEquals("op-create", bound.operationId());
+    assertEquals("sys-wfm", bound.packageId());
   }
 
   private static WorkTaskMaterials materials(List<String> constraints) {
@@ -273,14 +450,30 @@ class WorkBindingTest {
         """;
   }
 
+  private static String sourcedDocument(String sourceId) {
+    return seededDocument().replace("src-om", sourceId);
+  }
+
+  private static String requirementDocument() {
+    return sourcedDocument("src-brief")
+        .replace(
+            "\"requirements\": []",
+            """
+            "requirements": [{"id":"req-1","text":"Use createTask for the Salesforce task","sourceIds":["src-brief"],"supersededRequirementId":""}]""")
+        .replace("\"requirementIds\":[]", "\"requirementIds\":[\"req-1\"]");
+  }
+
   /** In-memory catalog and APIHub. Counts searches and imports. */
   static final class FakeResolution implements CatalogResolution {
     int apiHubCalls;
+    int lookupCalls;
     int catalogWrites;
     private final List<CatalogHit> catalog = new ArrayList<>();
     private final List<ApiHubHit> hub = new ArrayList<>();
     private String unavailableVersion = "";
     private String unavailableHint = "";
+    private String ambiguousHint = "";
+    private List<String> ambiguousIds = List.of();
 
     void catalogHit(
         String hint, String catalogId, String version, String operationId, String protocol, String method, String path) {
@@ -300,8 +493,17 @@ class WorkBindingTest {
       unavailableVersion = version;
     }
 
+    void ambiguous(String hint, List<String> ids) {
+      ambiguousHint = hint;
+      ambiguousIds = ids;
+    }
+
     @Override
     public CatalogLookup lookup(String operationHint, String pinnedVersion) {
+      lookupCalls++;
+      if (operationHint.equals(ambiguousHint) && !ambiguousIds.isEmpty()) {
+        return new CatalogLookup.Ambiguous(ambiguousIds);
+      }
       if (pinnedVersion != null
           && !pinnedVersion.isBlank()
           && pinnedVersion.equals(unavailableVersion)
@@ -317,11 +519,10 @@ class WorkBindingTest {
     }
 
     @Override
-    public ApiHubHit searchApiHub(String operationHint, String pinnedVersion) {
+    public ApiHubHit searchApiHub(String interactionId, String operationHint, String pinnedVersion) {
       apiHubCalls++;
       for (ApiHubHit hit : hub) {
-        if (hit.hint().equals(operationHint)
-            && (pinnedVersion == null || pinnedVersion.isBlank() || pinnedVersion.equals(hit.version()))) {
+        if (hit.hint().equals(operationHint)) {
           return hit;
         }
       }

@@ -10,7 +10,10 @@ public interface CatalogResolution {
 
   CatalogLookup lookup(String operationHint, String pinnedVersion);
 
-  ApiHubHit searchApiHub(String operationHint, String pinnedVersion);
+  /**
+   * {@code interactionId} is the logical step id. The operation hint is not an interaction id.
+   */
+  ApiHubHit searchApiHub(String interactionId, String operationHint, String pinnedVersion);
 
   void importContract(ApiHubHit hit);
 }
@@ -21,6 +24,8 @@ sealed interface CatalogLookup {
   record Hit(CatalogHit hit) implements CatalogLookup {}
 
   record Miss() implements CatalogLookup {}
+
+  record Ambiguous(List<String> candidateIds) implements CatalogLookup {}
 
   record PinnedUnavailable(String version) implements CatalogLookup {}
 }
