@@ -285,17 +285,24 @@ final class WorkDocumentEditor {
     }
     for (CapturedConditionGroup captured : capture.conditionGroups()) {
       String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      ConditionGroup previous = find(draft.conditionGroups, id, ConditionGroup::id);
       List<ConditionBranch> branches = new ArrayList<>();
+      if (previous != null) {
+        branches.addAll(previous.branches());
+      }
       for (CapturedConditionBranch branch : captured.branches()) {
         String branchId = permit(scope, branch.existingId(), branch.alias(), aliases);
-        branches.add(
+        upsert(
+            branches,
+            branchId,
             new ConditionBranch(
                 branchId,
                 branch.role(),
                 branch.predicate(),
                 branch.priority(),
                 resolve(branch.entryStepRef(), aliases, steps, true),
-                resolveAll(branch.exitStepRefs(), aliases, steps)));
+                resolveAll(branch.exitStepRefs(), aliases, steps)),
+            ConditionBranch::id);
         known.add(branchId);
         accepted.add(branchId);
       }
@@ -313,15 +320,22 @@ final class WorkDocumentEditor {
     }
     for (CapturedSplitGroup captured : capture.splitGroups()) {
       String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      SplitGroup previous = find(draft.splitGroups, id, SplitGroup::id);
       List<SplitBranch> branches = new ArrayList<>();
+      if (previous != null) {
+        branches.addAll(previous.branches());
+      }
       for (CapturedSplitBranch branch : captured.branches()) {
         String branchId = permit(scope, branch.existingId(), branch.alias(), aliases);
-        branches.add(
+        upsert(
+            branches,
+            branchId,
             new SplitBranch(
                 branchId,
                 branch.order(),
                 resolve(branch.entryStepRef(), aliases, steps, true),
-                resolveAll(branch.exitStepRefs(), aliases, steps)));
+                resolveAll(branch.exitStepRefs(), aliases, steps)),
+            SplitBranch::id);
         known.add(branchId);
         accepted.add(branchId);
       }
@@ -375,15 +389,22 @@ final class WorkDocumentEditor {
     }
     for (CapturedErrorScopeGroup captured : capture.errorScopeGroups()) {
       String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      ErrorScopeGroup previous = find(draft.errorScopeGroups, id, ErrorScopeGroup::id);
       List<ErrorHandler> handlers = new ArrayList<>();
+      if (previous != null) {
+        handlers.addAll(previous.handlers());
+      }
       for (CapturedErrorHandler handler : captured.handlers()) {
         String handlerId = permit(scope, handler.existingId(), handler.alias(), aliases);
-        handlers.add(
+        upsert(
+            handlers,
+            handlerId,
             new ErrorHandler(
                 handlerId,
                 handler.exceptionClass(),
                 resolve(handler.entryStepRef(), aliases, steps, true),
-                resolveAll(handler.exitStepRefs(), aliases, steps)));
+                resolveAll(handler.exitStepRefs(), aliases, steps)),
+            ErrorHandler::id);
         known.add(handlerId);
         accepted.add(handlerId);
       }
@@ -750,9 +771,11 @@ final class WorkDocumentEditor {
       List<DataTransfer> transfers = new ArrayList<>();
       boolean onStep = step.id().equals(targetStepId);
       boolean replaced = false;
+      boolean removed = false;
       for (DataTransfer transfer : step.data().transfers()) {
         if (transfer.id().equals(stored.id())) {
           if (!onStep) {
+            removed = true;
             continue;
           }
           transfers.add(stored);
@@ -764,7 +787,7 @@ final class WorkDocumentEditor {
       if (onStep && !replaced) {
         transfers.add(stored);
       }
-      if (onStep || replaced) {
+      if (onStep || replaced || removed) {
         draft.steps.set(
             i,
             new LogicalStep(
@@ -788,7 +811,28 @@ final class WorkDocumentEditor {
       boolean stepChanged = false;
       for (DataTransfer transfer : step.data().transfers()) {
         if (!transfer.id().equals(transferId)) {
-          transfers.add(transfer);
+          List<MappingRule> rules = new ArrayList<>();
+          boolean cleared = false;
+          for (MappingRule rule : transfer.rules()) {
+            if (rule.id().equals(stored.id())) {
+              cleared = true;
+            } else {
+              rules.add(rule);
+            }
+          }
+          if (cleared) {
+            stepChanged = true;
+            transfers.add(
+                new DataTransfer(
+                    transfer.id(),
+                    transfer.sourcePorts(),
+                    transfer.targetPort(),
+                    transfer.requirementIds(),
+                    rules,
+                    transfer.decision()));
+          } else {
+            transfers.add(transfer);
+          }
           continue;
         }
         found = true;
@@ -839,34 +883,38 @@ final class WorkDocumentEditor {
   private static void replaceRetained(Draft draft, String stepId, RetainedValue stored) {
     for (int i = 0; i < draft.steps.size(); i++) {
       LogicalStep step = draft.steps.get(i);
-      if (!step.id().equals(stepId)) {
-        continue;
-      }
+      boolean onStep = step.id().equals(stepId);
       List<RetainedValue> values = new ArrayList<>();
       boolean replaced = false;
+      boolean removed = false;
       for (RetainedValue value : step.data().retainedValues()) {
         if (value.id().equals(stored.id())) {
+          if (!onStep) {
+            removed = true;
+            continue;
+          }
           values.add(stored);
           replaced = true;
         } else {
           values.add(value);
         }
       }
-      if (!replaced) {
+      if (onStep && !replaced) {
         values.add(stored);
       }
-      draft.steps.set(
-          i,
-          new LogicalStep(
-              step.id(),
-              step.kind(),
-              step.label(),
-              step.intent(),
-              step.sourceIds(),
-              step.requirementIds(),
-              step.binding(),
-              new StepData(step.data().transfers(), values)));
-      return;
+      if (onStep || replaced || removed) {
+        draft.steps.set(
+            i,
+            new LogicalStep(
+                step.id(),
+                step.kind(),
+                step.label(),
+                step.intent(),
+                step.sourceIds(),
+                step.requirementIds(),
+                step.binding(),
+                new StepData(step.data().transfers(), values)));
+      }
     }
   }
 
@@ -880,6 +928,9 @@ final class WorkDocumentEditor {
     draft.loopGroups.removeIf(record -> record.id().equals(id));
     draft.retryGroups.removeIf(record -> record.id().equals(id));
     draft.errorScopeGroups.removeIf(record -> record.id().equals(id));
+    stripNested(draft.conditionGroups, id);
+    stripNestedSplits(draft.splitGroups, id);
+    stripNestedHandlers(draft.errorScopeGroups, id);
     for (int i = 0; i < draft.steps.size(); i++) {
       LogicalStep step = draft.steps.get(i);
       List<DataTransfer> transfers = new ArrayList<>();
@@ -958,9 +1009,153 @@ final class WorkDocumentEditor {
         if (transfer.targetPort() != null && id.equals(transfer.targetPort().stepId())) {
           return true;
         }
+        for (MappingRule rule : transfer.rules()) {
+          if (fieldReferences(rule, id)) {
+            return true;
+          }
+        }
+      }
+      for (RetainedValue value : step.data().retainedValues()) {
+        if (value.source() != null && fieldPointsAt(value.source(), id)) {
+          return true;
+        }
+      }
+    }
+    for (SequenceGroup group : draft.sequenceGroups) {
+      if (group.memberStepIds().contains(id)) {
+        return true;
+      }
+    }
+    for (ConditionGroup group : draft.conditionGroups) {
+      if (id.equals(group.ownerStepId()) || id.equals(group.reconvergenceStepId())) {
+        return true;
+      }
+      for (ConditionBranch branch : group.branches()) {
+        if (id.equals(branch.entryStepId()) || branch.exitStepIds().contains(id)) {
+          return true;
+        }
+      }
+    }
+    for (SplitGroup group : draft.splitGroups) {
+      if (id.equals(group.ownerStepId()) || id.equals(group.reconvergenceStepId())) {
+        return true;
+      }
+      for (SplitBranch branch : group.branches()) {
+        if (id.equals(branch.entryStepId()) || branch.exitStepIds().contains(id)) {
+          return true;
+        }
+      }
+    }
+    for (LoopGroup group : draft.loopGroups) {
+      if (id.equals(group.ownerStepId())
+          || id.equals(group.bodyEntryStepId())
+          || id.equals(group.exitStepId())
+          || group.bodyExitStepIds().contains(id)) {
+        return true;
+      }
+    }
+    for (RetryGroup group : draft.retryGroups) {
+      if (id.equals(group.ownerStepId())
+          || id.equals(group.bodyEntryStepId())
+          || id.equals(group.exhaustedStepId())
+          || group.bodyExitStepIds().contains(id)) {
+        return true;
+      }
+    }
+    for (ErrorScopeGroup group : draft.errorScopeGroups) {
+      if (id.equals(group.ownerStepId())
+          || id.equals(group.tryEntryStepId())
+          || id.equals(group.finallyEntryStepId())
+          || group.exitStepIds().contains(id)) {
+        return true;
+      }
+      for (ErrorHandler handler : group.handlers()) {
+        if (id.equals(handler.entryStepId()) || handler.exitStepIds().contains(id)) {
+          return true;
+        }
       }
     }
     return false;
+  }
+
+  private static void stripNested(List<ConditionGroup> groups, String id) {
+    for (int i = 0; i < groups.size(); i++) {
+      ConditionGroup group = groups.get(i);
+      List<ConditionBranch> branches = new ArrayList<>();
+      boolean removed = false;
+      for (ConditionBranch branch : group.branches()) {
+        if (branch.id().equals(id)) {
+          removed = true;
+        } else {
+          branches.add(branch);
+        }
+      }
+      if (removed) {
+        groups.set(i, new ConditionGroup(group.id(), group.ownerStepId(), branches, group.reconvergenceStepId()));
+      }
+    }
+  }
+
+  private static void stripNestedSplits(List<SplitGroup> groups, String id) {
+    for (int i = 0; i < groups.size(); i++) {
+      SplitGroup group = groups.get(i);
+      List<SplitBranch> branches = new ArrayList<>();
+      boolean removed = false;
+      for (SplitBranch branch : group.branches()) {
+        if (branch.id().equals(id)) {
+          removed = true;
+        } else {
+          branches.add(branch);
+        }
+      }
+      if (removed) {
+        groups.set(
+            i,
+            new SplitGroup(group.id(), group.ownerStepId(), group.mode(), branches, group.reconvergenceStepId()));
+      }
+    }
+  }
+
+  private static void stripNestedHandlers(List<ErrorScopeGroup> groups, String id) {
+    for (int i = 0; i < groups.size(); i++) {
+      ErrorScopeGroup group = groups.get(i);
+      List<ErrorHandler> handlers = new ArrayList<>();
+      boolean removed = false;
+      for (ErrorHandler handler : group.handlers()) {
+        if (handler.id().equals(id)) {
+          removed = true;
+        } else {
+          handlers.add(handler);
+        }
+      }
+      if (removed) {
+        groups.set(
+            i,
+            new ErrorScopeGroup(
+                group.id(),
+                group.ownerStepId(),
+                group.tryEntryStepId(),
+                handlers,
+                group.finallyEntryStepId(),
+                group.exitStepIds()));
+      }
+    }
+  }
+
+  private static boolean fieldReferences(MappingRule rule, String id) {
+    if (rule.target() != null && fieldPointsAt(rule.target(), id)) {
+      return true;
+    }
+    for (FieldReference source : rule.sources()) {
+      if (fieldPointsAt(source, id)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean fieldPointsAt(FieldReference reference, String id) {
+    return id.equals(reference.stepId()) || id.equals(reference.retainedValueId());
   }
 
   private static <T> void upsert(List<T> records, String id, T stored, java.util.function.Function<T, String> idOf) {
