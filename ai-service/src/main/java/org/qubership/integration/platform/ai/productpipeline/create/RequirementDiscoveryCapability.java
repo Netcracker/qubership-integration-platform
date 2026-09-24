@@ -22,6 +22,9 @@ import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
+import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
 import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.IdsBypass;
@@ -187,6 +190,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
   @Override
   public String capabilityId() {
     return CAPABILITY_ID;
+  }
+
+  /** Opens a logical repair for a contradiction found during discovery. Profile wiring is later. */
+  public static WorkTaskScope logicalRepairScope(WorkDocumentState state, String defectRecordId) {
+    return WorkLogicalFlow.repairScope(state, defectRecordId);
   }
 
   @Override
