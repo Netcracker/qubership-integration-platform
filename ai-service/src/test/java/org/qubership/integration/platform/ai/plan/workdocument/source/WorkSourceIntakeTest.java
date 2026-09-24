@@ -129,6 +129,71 @@ class WorkSourceIntakeTest {
   }
 
   @Test
+  void firstAcceptReplayReturnsTheCommittedReceipt() {
+    storage.put("uploads/orders.md", "Map status to Not Started");
+    SourceBatch batch =
+        new SourceBatch(
+            List.of(),
+            List.of(new SourceFile("uploads/orders.md", "orders.md", "MAP-1", SourceRole.MAPPING)),
+            List.of());
+    intake.accept(RUN_ID, "doc-sources", batch, "cmd-first");
+    StoredSource mapping = source(intake.read(RUN_ID), "MAP-1");
+    ProductPipelineRunDocument committed = runStore.load(RUN_ID).orElseThrow();
+    RunTransition transition =
+        committed.transitions().stream()
+            .filter(candidate -> "cmd-first".equals(candidate.commandId()))
+            .findFirst()
+            .orElseThrow();
+    WorkCommit first = documents.committedResult(committed, transition);
+    int attempts = committed.attempts().size();
+    long runRevision = committed.run().runRevision();
+
+    intake.accept(RUN_ID, "doc-sources", batch, "cmd-first");
+
+    ProductPipelineRunDocument replayed = runStore.load(RUN_ID).orElseThrow();
+    WorkCommit second = documents.committedResult(replayed, transition);
+    assertEquals(first, second);
+    assertEquals(WorkOutcome.PREPARED, second.outcome());
+    assertTrue(second.acceptedRecordIds().contains(mapping.id()));
+    assertEquals(attempts, replayed.attempts().size());
+    assertEquals(runRevision, replayed.run().runRevision());
+  }
+
+  @Test
+  void laterMappingConflictDoesNotKeepTheEarlierRequirement() {
+    storage.put("uploads/first.md", "Retry twice");
+    intake.accept(
+        RUN_ID,
+        "doc-sources",
+        new SourceBatch(
+            List.of(),
+            List.of(new SourceFile("uploads/first.md", "first.md", "MAP-A", null)),
+            List.of()),
+        "cmd-first");
+    assertTrue(
+        intake.read(RUN_ID).requirements().stream()
+            .anyMatch(requirement -> "Retry twice".equals(requirement.text())));
+
+    storage.put("uploads/second.txt", "Do not retry");
+    SourceInventory conflict =
+        intake.accept(
+            RUN_ID,
+            "doc-sources",
+            new SourceBatch(
+                List.of(),
+                List.of(new SourceFile("uploads/second.txt", "second.txt", "MAP-B", null)),
+                List.of()),
+            "cmd-second");
+
+    assertTrue(conflict.requirements().isEmpty());
+    assertEquals(1, conflict.questions().size());
+    assertTrue(conflict.questions().getFirst().question().contains("MAP-A"));
+    assertTrue(conflict.questions().getFirst().question().contains("MAP-B"));
+    assertEquals("Retry twice", source(conflict, "MAP-A").originalText());
+    assertEquals("Do not retry", source(conflict, "MAP-B").originalText());
+  }
+
+  @Test
   void correctionReplayReturnsTheCommittedReceiptAndRejectsADifferentPayload() {
     storage.put("uploads/orders.md", "Status is Open");
     intake.accept(

@@ -116,6 +116,32 @@ public final class WorkDocumentService {
     return publish(current, state, edited, commandId, payloadHash, repairBudget);
   }
 
+  public WorkCommit intake(
+      String runId,
+      WorkDocumentState state,
+      String commandId,
+      WorkRepairBudget repairBudget,
+      String payloadHash,
+      List<String> acceptedRecordIds) {
+    requireStore();
+    Objects.requireNonNull(state, "state");
+    Objects.requireNonNull(payloadHash, "payloadHash");
+    ProductPipelineRunDocument current = load(runId);
+    Optional<RunTransition> replay = current.appliedCommand(commandId, payloadHash);
+    if (replay.isPresent()) {
+      return committedResult(current, replay.get());
+    }
+    WorkCommit edited =
+        new WorkCommit(
+            state.revision(),
+            acceptedRecordIds == null ? List.of() : List.copyOf(acceptedRecordIds),
+            WorkOutcome.PREPARED,
+            commandId,
+            state,
+            Map.of());
+    return publish(current, state, edited, commandId, payloadHash, repairBudget);
+  }
+
   public WorkDocumentState attachResolvedBinding(
       WorkDocumentState state, String stepId, ResolvedWorkBinding binding) {
     return editor.attachResolvedBinding(state, stepId, binding);

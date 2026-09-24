@@ -6,8 +6,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.Clock;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
@@ -20,20 +18,14 @@ import java.util.function.Function;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
-import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkRepairBudget;
-import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
-import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
-import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
-import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
-import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
 /**
  * Records original source evidence and a separate interpretation. Attachment role is chosen
@@ -48,7 +40,6 @@ public final class WorkSourceIntake {
   private final CompilationArtifacts artifacts;
   private final Function<String, String> reader;
   private final ObjectMapper json = new ObjectMapper();
-  private final Clock clock = Clock.systemUTC();
 
   public WorkSourceIntake(
       WorkDocumentService documents,
@@ -87,6 +78,7 @@ public final class WorkSourceIntake {
       added.add(addCorrection(runId, sources, requirements, correction, evidence));
     }
     if (conflictingMappings(sources, evidence)) {
+      dropConflictingInterpretations(requirements, sources);
       addConflictQuestion(sources, questions, evidence);
     } else {
       for (PendingSource pending : added) {
@@ -204,6 +196,27 @@ public final class WorkSourceIntake {
       texts.add(body == null ? "" : body.originalText());
     }
     return texts.stream().distinct().count() > 1;
+  }
+
+  private static void dropConflictingInterpretations(ArrayNode requirements, ArrayNode sources) {
+    Set<String> conflicting = new LinkedHashSet<>();
+    for (JsonNode source : sources) {
+      if (SourceRole.MAPPING.name().equals(source.path("role").asText())
+          && !corrected(sources, source.path("id").asText())) {
+        conflicting.add(source.path("id").asText());
+      }
+    }
+    for (int index = requirements.size() - 1; index >= 0; index--) {
+      boolean citesConflict = false;
+      for (JsonNode sourceId : requirements.get(index).path("sourceIds")) {
+        if (conflicting.contains(sourceId.asText())) {
+          citesConflict = true;
+        }
+      }
+      if (citesConflict) {
+        requirements.remove(index);
+      }
+    }
   }
 
   private static boolean corrected(ArrayNode sources, String sourceId) {
@@ -364,58 +377,14 @@ public final class WorkSourceIntake {
     ensureUnsupportedQuestions(document);
     ChainWorkDocument payload = json.convertValue(document, ChainWorkDocument.class);
     ProductPipelineRunDocument current = runs.load(runId).orElseThrow();
-    if (current.run().workDocumentRef() == null) {
-      documents.intake(
-          runId, new WorkDocumentState(commandId, payload), commandId, new WorkRepairBudget(3));
-      return;
-    }
-    Reference previous = current.run().workDocumentRef();
-    Revision stored =
-        artifacts.append(
-            new AppendCommand(
-                runId,
-                Kind.CHAIN_WORK_DOCUMENT,
-                "1",
-                PRODUCER_ID,
-                "1",
-                payload,
-                List.of(),
-                previous.artifactId()));
-    long expected = current.run().runRevision();
-    long next = expected + 1L;
-    String stageId = current.run().currentStageId();
-    Instant at = clock.instant();
-    Reference reference = stored.reference();
-    runs.commit(
-        expected,
-        new LogicalCommit(
-            runId,
-            expected,
-            RunStatus.RUNNING,
-            stageId,
-            stagesWith(current, stageId, reference),
-            new StageAttempt(
-                "source-" + commandId,
-                stageId,
-                next,
-                StageStatus.SUCCEEDED,
-                at,
-                at,
-                List.of(reference),
-                null,
-                receipt(acceptedRecordIds)),
-            new RunTransition(
-                expected,
-                next,
-                current.run().status(),
-                RunStatus.RUNNING,
-                stageId,
-                at,
-                PRODUCER_ID,
-                commandId,
-                payloadHash),
-            reference,
-            null));
+    WorkRepairBudget budget = current.run().workDocumentRef() == null ? new WorkRepairBudget(3) : null;
+    documents.intake(
+        runId,
+        new WorkDocumentState(commandId, payload),
+        commandId,
+        budget,
+        payloadHash,
+        acceptedRecordIds);
   }
 
   private void ensureUnsupportedQuestions(ObjectNode document) {
@@ -433,32 +402,6 @@ public final class WorkSourceIntake {
               sourceId,
               new SourceEvidence(sourceId, "", readerLimitation(source.path("originalName").asText()))));
     }
-  }
-
-  private static List<StageSnapshot> stagesWith(
-      ProductPipelineRunDocument current, String stageId, Reference reference) {
-    List<StageSnapshot> nextStages = new ArrayList<>();
-    boolean published = false;
-    for (StageSnapshot snapshot : current.run().stages()) {
-      if (snapshot.stageId().equals(stageId)) {
-        nextStages.add(
-            new StageSnapshot(
-                snapshot.stageId(),
-                StageStatus.SUCCEEDED,
-                List.of(reference),
-                snapshot.approvedArtifactId(),
-                snapshot.candidateReferences(),
-                snapshot.approvableReference(),
-                snapshot.candidateRevision()));
-        published = true;
-      } else {
-        nextStages.add(snapshot);
-      }
-    }
-    if (!published) {
-      nextStages.add(new StageSnapshot(stageId, StageStatus.SUCCEEDED, List.of(reference), null));
-    }
-    return nextStages;
   }
 
   private SourceInventory inventory(ObjectNode document, Map<String, SourceEvidence> evidence) {
@@ -579,21 +522,6 @@ public final class WorkSourceIntake {
       return sha256(json.writeValueAsString(batch));
     } catch (Exception failure) {
       throw new IllegalStateException("Cannot hash the source command.", failure);
-    }
-  }
-
-  private String receipt(List<String> acceptedRecordIds) {
-    try {
-      return json.writeValueAsString(
-          Map.of(
-              "acceptedRecordIds",
-              acceptedRecordIds,
-              "aliasToId",
-              Map.of(),
-              "outcome",
-              "PREPARED"));
-    } catch (Exception failure) {
-      throw new IllegalStateException("Cannot write the command receipt.", failure);
     }
   }
 
