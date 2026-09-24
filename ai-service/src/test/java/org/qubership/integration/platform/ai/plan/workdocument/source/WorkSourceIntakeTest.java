@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan.workdocument.source;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,8 +17,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkOutcome;
+import org.qubership.integration.platform.ai.productpipeline.store.CommandPayloadConflictException;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
@@ -120,6 +126,59 @@ class WorkSourceIntakeTest {
         corrected.sources().stream()
             .filter(source -> source.role() == SourceRole.CORRECTION)
             .anyMatch(source -> source.correctionOf().contains(original.id())));
+  }
+
+  @Test
+  void correctionReplayReturnsTheCommittedReceiptAndRejectsADifferentPayload() {
+    storage.put("uploads/orders.md", "Status is Open");
+    intake.accept(
+        RUN_ID,
+        "doc-sources",
+        new SourceBatch(
+            List.of(),
+            List.of(new SourceFile("uploads/orders.md", "orders.md", "MAP-1", SourceRole.MAPPING)),
+            List.of()),
+        "cmd-original");
+    SourceBatch correction =
+        new SourceBatch(
+            List.of(), List.of(), List.of(new SourceCorrection("Status is Closed", "MAP-1")));
+    intake.accept(RUN_ID, "doc-sources", correction, "cmd-correction");
+    ProductPipelineRunDocument committed = runStore.load(RUN_ID).orElseThrow();
+    RunTransition transition =
+        committed.transitions().stream()
+            .filter(candidate -> "cmd-correction".equals(candidate.commandId()))
+            .findFirst()
+            .orElseThrow();
+    WorkCommit first = documents.committedResult(committed, transition);
+    StoredSource correctionSource =
+        intake.read(RUN_ID).sources().stream()
+            .filter(source -> source.role() == SourceRole.CORRECTION)
+            .findFirst()
+            .orElseThrow();
+    int attempts = committed.attempts().size();
+    long runRevision = committed.run().runRevision();
+
+    intake.accept(RUN_ID, "doc-sources", correction, "cmd-correction");
+
+    ProductPipelineRunDocument replayed = runStore.load(RUN_ID).orElseThrow();
+    WorkCommit second = documents.committedResult(replayed, transition);
+    assertEquals(first, second);
+    assertEquals(WorkOutcome.PREPARED, second.outcome());
+    assertEquals(Map.of(), second.aliasToId());
+    assertTrue(second.acceptedRecordIds().contains(correctionSource.id()));
+    assertEquals(attempts, replayed.attempts().size());
+    assertEquals(runRevision, replayed.run().runRevision());
+    assertThrows(
+        CommandPayloadConflictException.class,
+        () ->
+            intake.accept(
+                RUN_ID,
+                "doc-sources",
+                new SourceBatch(
+                    List.of(),
+                    List.of(),
+                    List.of(new SourceCorrection("Status is Pending", "MAP-1"))),
+                "cmd-correction"));
   }
 
   @Test
