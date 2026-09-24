@@ -316,7 +316,7 @@ class WorkBindingTest {
                 org.mockito.ArgumentMatchers.eq("")))
         .thenReturn(
             """
-            {"operations":[{"operationId":"op-hub","packageId":"pkg.wfm","version":"2024.4","documentId":"api","method":"POST","path":"/wfm/v1/tasks","protocol":"http","title":"createTask"}]}
+            {"operations":[{"operationId":"geographicSiteManagement-v4-geographicSite-_id_-get","packageId":"S.CustParty.Care.GeoSite","packageName":"Geographic Site","version":"2026.2@1","documentId":"api","title":"Retrieve geographicSite by ID"}]}
             """);
     WorkBinding seamBinding =
         new WorkBinding(
@@ -329,23 +329,54 @@ class WorkBindingTest {
         seamBinding.select(RUN_ID, "create", materials(List.of("ids-only")), prompt -> selection("createTask"));
 
     JsonNode stored = step(commit.state(), "create").path("binding");
-    assertEquals("2024.4", stored.path("version").asText());
-    assertEquals("op-hub", stored.path("operationId").asText());
-    assertEquals("POST", stored.path("method").asText());
-    assertTrue(stored.path("contractReferences").toString().contains("apihub:pkg.wfm@2024.4"));
+    assertEquals("2026.2@1", stored.path("version").asText());
+    assertEquals("geographicSiteManagement-v4-geographicSite-_id_-get", stored.path("operationId").asText());
+    assertTrue(stored.path("contractReferences").toString().contains("apihub:S.CustParty.Care.GeoSite@2026.2@1"));
     org.mockito.Mockito.verify(discovery)
         .resolveApiOperation("create", "", "", "createTask", "", "");
-    ApiHubHit bound =
+    assertEquals(
+        null,
         new ResolveApiOperationSeam(lookup, discovery)
             .parse(
                 """
-                {"status":"CATALOG_BOUND","catalogBinding":{"systemId":"sys-wfm","specificationId":"spec-create","specificationGroupId":"group-create","integrationOperationId":"op-create","protocol":"http","method":"POST","path":"/wfm/v1/tasks","version":"2024.4"}}
+                {"interactionId":"create","status":"CATALOG_BOUND","catalogBinding":{"systemId":"sys-wfm","specificationId":"spec-create","specificationGroupId":"group-create","integrationOperationId":"op-create","systemName":"WFM","protocol":"http","method":"POST","path":"/wfm/v1/tasks","evidenceRef":"catalog-read:sys-wfm/spec-create/op-create"}}
                 """,
                 "createTask",
-                "");
-    assertEquals("2024.4", bound.version());
-    assertEquals("op-create", bound.operationId());
-    assertEquals("sys-wfm", bound.packageId());
+                ""));
+  }
+
+  @Test
+  void seamLeavesAnUnpinnedExactHitUnresolvedWhenTheCatalogMatchHasNoVersion() {
+    org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup lookup =
+        org.mockito.Mockito.mock(
+            org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup.class);
+    org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool discovery =
+        org.mockito.Mockito.mock(
+            org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool.class);
+    org.mockito.Mockito.when(lookup.resolve(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult.Exact(
+                new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch(
+                    "sys-wfm",
+                    "group-create",
+                    "spec-create",
+                    "op-create",
+                    "WFM",
+                    "http",
+                    "POST",
+                    "/wfm/v1/tasks",
+                    "createTask",
+                    "catalog-read:sys-wfm/spec-create/op-create")));
+    ResolveApiOperationSeam seam = new ResolveApiOperationSeam(lookup, discovery);
+
+    CatalogLookup result = seam.lookup("createTask", "");
+
+    assertTrue(result instanceof CatalogLookup.VersionAbsent);
+    WorkBinding seamBinding =
+        new WorkBinding(documents, runs, Clock.fixed(FIXED, ZoneOffset.UTC), seam);
+    WorkCommit commit = seamBinding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+    assertTrue(step(commit.state(), "create").path("binding").isNull());
+    assertTrue(questions(commit.state()).toString().contains("unresolved"));
   }
 
   private static WorkTaskMaterials materials(List<String> constraints) {
