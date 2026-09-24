@@ -407,6 +407,81 @@ class WorkDocumentEditorTest {
   }
 
   @Test
+  void retargetedConditionBranchStaysInOneGroup() {
+    WorkDocumentState created = service.read(WorkDocumentState.create("doc-move-branch"));
+    WorkCommit saved =
+        service.apply(
+            created,
+            scope(created, List.of(), true, false, false),
+            WorkTaskCapture.prepared(
+                List.of(),
+                List.of(
+                    new CapturedStep("", "gate", StepKind.LOCAL, "Gate", "Branch", List.of(), List.of()),
+                    new CapturedStep("", "body", StepKind.LOCAL, "Body", "Work", List.of(), List.of())),
+                List.of(),
+                List.of(),
+                List.of(
+                    new CapturedConditionGroup(
+                        "",
+                        "from",
+                        "gate",
+                        List.of(
+                            new CapturedConditionBranch(
+                                "", "when", ConditionBranchRole.IF, "$.amount > 0", 1, "body", List.of("body"))),
+                        ""),
+                    new CapturedConditionGroup(
+                        "",
+                        "to",
+                        "gate",
+                        List.of(
+                            new CapturedConditionBranch(
+                                "", "other", ConditionBranchRole.ELSE, "", 2, "body", List.of("body"))),
+                        "")),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()),
+            "cmd-two-groups");
+    String from = saved.aliasToId().get("from");
+    String to = saved.aliasToId().get("to");
+    String when = saved.aliasToId().get("when");
+    String gate = saved.aliasToId().get("gate");
+    String body = saved.aliasToId().get("body");
+    WorkCommit moved =
+        service.apply(
+            saved.state(),
+            scope(saved.state(), List.of(to, when), false, true, false),
+            WorkTaskCapture.prepared(
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(
+                    new CapturedConditionGroup(
+                        to,
+                        "",
+                        gate,
+                        List.of(
+                            new CapturedConditionBranch(
+                                when, "", ConditionBranchRole.IF, "$.amount > 1", 1, body, List.of(body))),
+                        "")),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of(),
+                List.of()),
+            "cmd-move-branch");
+    assertEquals(1, countBranches(moved.state(), when));
+    assertEquals(0, branchesIn(moved.state(), from, when));
+    assertEquals(1, branchesIn(moved.state(), to, when));
+  }
+
+  @Test
   void authorizedDeleteRemovesNestedBranchAndRejectsDanglingStep() {
     WorkDocumentState created =
         service.read(
@@ -692,6 +767,34 @@ class WorkDocumentEditorTest {
       }
     }
     return count;
+  }
+
+  private static int countBranches(WorkDocumentState state, String branchId) {
+    int count = 0;
+    for (ConditionGroup group : state.document().flow().conditionGroups()) {
+      for (ConditionBranch branch : group.branches()) {
+        if (branch.id().equals(branchId)) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+
+  private static int branchesIn(WorkDocumentState state, String groupId, String branchId) {
+    for (ConditionGroup group : state.document().flow().conditionGroups()) {
+      if (!group.id().equals(groupId)) {
+        continue;
+      }
+      int count = 0;
+      for (ConditionBranch branch : group.branches()) {
+        if (branch.id().equals(branchId)) {
+          count++;
+        }
+      }
+      return count;
+    }
+    return 0;
   }
 
   private static String stepHoldingTransfer(WorkDocumentState state, String id) {
