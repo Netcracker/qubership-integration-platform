@@ -2,20 +2,29 @@ package org.qubership.integration.platform.ai.plan.workdocument.binding;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.checkpoint.CheckpointRequest;
 import org.qubership.integration.platform.ai.plan.workdocument.checkpoint.CheckpointSession;
 import org.qubership.integration.platform.ai.plan.workdocument.checkpoint.WorkCheckpointHarness;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 
 class WorkCheckpointHarnessTest {
 
@@ -191,12 +200,73 @@ class WorkCheckpointHarnessTest {
     assertEquals("mapping", body.path("checkpoint").asText());
   }
 
+  @Test
+  void livePublicationReloadsFromTheRunStoreAndOfflineDoesNotOpenAProvider() throws Exception {
+    Path directory = temp.resolve("blobs");
+    ArtifactBlobStore store = WorkCheckpointHarness.openDurableStore(directory);
+    Path report = temp.resolve("durable.json");
+    AtomicInteger providerCalls = new AtomicInteger();
+
+    int exit =
+        WorkCheckpointHarness.run(
+            new CheckpointRequest("logical", "sync-result", report, fixtureRoot(), true, store),
+            session(new ArrayList<>(), new AtomicInteger(), capture("sync-result"), providerCalls));
+
+    JsonNode body = JSON.readTree(report.toFile());
+    assertEquals(0, exit, Files.readString(report));
+    assertTrue(body.path("durable").asBoolean());
+    ObjectMapper json = new ObjectMapper().registerModule(new JavaTimeModule());
+    Clock clock = Clock.systemUTC();
+    ArtifactBlobStore reopened = WorkCheckpointHarness.openDurableStore(directory);
+    ProductPipelineRunStore runs = new ProductPipelineRunStore(reopened, json, clock);
+    WorkDocumentService documents =
+        new WorkDocumentService(runs, new CompilationArtifacts(reopened, json, clock), json);
+    WorkDocumentState reloaded = documents.read("checkpoint-sync-result");
+    assertEquals(body.path("documentRevision").asText(), reloaded.revision());
+
+    Path offline = temp.resolve("offline.json");
+    AtomicInteger offlineCalls = new AtomicInteger();
+    int refused =
+        WorkCheckpointHarness.run(
+            new CheckpointRequest("logical", "sync-result", offline, fixtureRoot(), false, null),
+            session(new ArrayList<>(), new AtomicInteger(), capture("sync-result"), offlineCalls));
+    assertEquals(2, refused);
+    assertEquals(0, offlineCalls.get());
+    assertFalse(JSON.readTree(offline.toFile()).path("durable").asBoolean());
+
+    Path blocked = temp.resolve("not-a-directory");
+    Files.writeString(blocked, "x");
+    IllegalStateException unavailable =
+        assertThrows(IllegalStateException.class, () -> WorkCheckpointHarness.openDurableStore(blocked));
+    assertTrue(unavailable.getMessage().startsWith("STORE_UNAVAILABLE"));
+    AtomicInteger memoryCalls = new AtomicInteger();
+    Path memoryReport = temp.resolve("memory.json");
+    int memory =
+        WorkCheckpointHarness.run(
+            new CheckpointRequest(
+                "logical",
+                "sync-result",
+                memoryReport,
+                fixtureRoot(),
+                true,
+                new InMemoryArtifactBlobStore()),
+            session(new ArrayList<>(), new AtomicInteger(), capture("sync-result"), memoryCalls));
+    assertEquals(1, memory);
+    assertEquals("STORE_UNAVAILABLE", JSON.readTree(memoryReport.toFile()).path("failureCode").asText());
+    assertEquals(0, memoryCalls.get());
+  }
+
   private static CheckpointRequest request(String checkpoint, String caseId, Path report) {
-    return new CheckpointRequest(checkpoint, caseId, report, fixtureRoot(), true);
+    return new CheckpointRequest(checkpoint, caseId, report, fixtureRoot(), true, null);
   }
 
   private static CheckpointSession session(
       List<String> prompts, AtomicInteger catalogCalls, String modelOutput) {
+    return session(prompts, catalogCalls, modelOutput, new AtomicInteger());
+  }
+
+  private static CheckpointSession session(
+      List<String> prompts, AtomicInteger catalogCalls, String modelOutput, AtomicInteger providerCalls) {
     CatalogResolution catalog =
         new CatalogResolution() {
           @Override
@@ -232,6 +302,7 @@ class WorkCheckpointHarnessTest {
         "configured-model",
         false,
         prompt -> {
+          providerCalls.incrementAndGet();
           prompts.add(prompt);
           return modelOutput.replace("SECRET_SLOT", SECRET);
         },

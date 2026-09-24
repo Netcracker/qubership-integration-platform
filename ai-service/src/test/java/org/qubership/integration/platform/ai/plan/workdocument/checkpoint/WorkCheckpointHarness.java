@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument;
@@ -58,6 +59,16 @@ public final class WorkCheckpointHarness {
           refused(checkpoint, caseId, "LIVE_NOT_ENABLED", "Set WORK_CHECKPOINT_LIVE=1 to call the configured provider."));
       System.exit(2);
     }
+    ArtifactBlobStore publicationStore;
+    try {
+      publicationStore = openDurableStore(System.getenv("WORK_CHECKPOINT_STORE"));
+    } catch (RuntimeException failure) {
+      write(
+          report,
+          failed(checkpoint, caseId, "STORE_UNAVAILABLE", failure.getMessage()));
+      System.exit(1);
+      return;
+    }
     String model = System.getenv("LLM_CHAT_MODEL");
     if (model == null || model.isBlank()) {
       write(
@@ -92,7 +103,7 @@ public final class WorkCheckpointHarness {
                 .chat(prompt);
     int exit =
         run(
-            new CheckpointRequest(checkpoint, caseId, report, fixtures, true),
+            new CheckpointRequest(checkpoint, caseId, report, fixtures, true, publicationStore),
             new CheckpointSession(provider, model, false, client, new UnavailableCatalog()));
     System.exit(exit);
   }
@@ -153,6 +164,7 @@ public final class WorkCheckpointHarness {
       report.put("resolvedMethod", published.resolvedMethod());
       report.put("resolvedPath", published.resolvedPath());
       report.put("failureCode", "");
+      report.put("durable", request.publicationStore() != null);
       write(request.report(), report);
       return "PREPARED".equals(published.outcome()) ? 0 : 1;
     } catch (WorkDocumentRejectedException rejected) {
@@ -161,9 +173,7 @@ public final class WorkCheckpointHarness {
           failureReport(checkpoint, request.caseId(), spec, session, rejected.code(), rejected.getMessage(), prompt.get(), response.get()));
       return 1;
     } catch (RuntimeException failure) {
-      String code = failure.getMessage() != null && failure.getMessage().startsWith("CATALOG_CLIENT_UNAVAILABLE")
-          ? "CATALOG_CLIENT_UNAVAILABLE"
-          : "CHECKPOINT_FAILED";
+      String code = failureCode(failure);
       write(
           request.report(),
           failureReport(checkpoint, request.caseId(), spec, session, code, String.valueOf(failure.getMessage()), prompt.get(), response.get()));
@@ -174,8 +184,13 @@ public final class WorkCheckpointHarness {
   private static Published invoke(
       CheckpointRequest request, JsonNode spec, CheckpointSession session, WorkTaskModel model)
       throws Exception {
-    InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
-    Clock clock = Clock.fixed(FIXED, ZoneOffset.UTC);
+    boolean durable = request.publicationStore() != null;
+    if (durable && request.publicationStore() instanceof InMemoryArtifactBlobStore) {
+      throw new IllegalStateException(
+          "STORE_UNAVAILABLE: an in-memory map is not a durable document store.");
+    }
+    ArtifactBlobStore blobs = durable ? request.publicationStore() : new InMemoryArtifactBlobStore();
+    Clock clock = durable ? Clock.systemUTC() : Clock.fixed(FIXED, ZoneOffset.UTC);
     CompilationArtifacts artifacts = new CompilationArtifacts(blobs, JSON, clock);
     ProductPipelineRunStore runs = new ProductPipelineRunStore(blobs, JSON, clock);
     WorkDocumentService documents = new WorkDocumentService(runs, artifacts, JSON);
@@ -270,6 +285,7 @@ public final class WorkCheckpointHarness {
     report.put("gateModel", GATE_MODEL);
     report.put("providerSwitched", session.providerSwitched());
     report.put("materialized", false);
+    report.put("durable", false);
     report.put("requiredObservation", spec == null ? "" : spec.path("observation").asText());
     return report;
   }
@@ -311,6 +327,29 @@ public final class WorkCheckpointHarness {
     report.put("sanitizedResponse", sanitize(response));
     report.put("materialized", false);
     return report;
+  }
+
+  public static ArtifactBlobStore openDurableStore(String directory) {
+    if (directory == null || directory.isBlank()) {
+      throw new IllegalStateException(
+          "STORE_UNAVAILABLE: WORK_CHECKPOINT_STORE is not set. Refusing an in-memory document store.");
+    }
+    return openDurableStore(Path.of(directory));
+  }
+
+  public static ArtifactBlobStore openDurableStore(Path directory) {
+    return FileCheckpointBlobStore.open(directory);
+  }
+
+  private static String failureCode(RuntimeException failure) {
+    String message = failure.getMessage() == null ? "" : failure.getMessage();
+    if (message.startsWith("CATALOG_CLIENT_UNAVAILABLE")) {
+      return "CATALOG_CLIENT_UNAVAILABLE";
+    }
+    if (message.startsWith("STORE_UNAVAILABLE")) {
+      return "STORE_UNAVAILABLE";
+    }
+    return "CHECKPOINT_FAILED";
   }
 
   static String sanitize(String value) {
