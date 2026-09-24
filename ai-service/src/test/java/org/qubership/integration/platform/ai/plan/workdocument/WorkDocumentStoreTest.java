@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan.workdocument;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -115,6 +116,34 @@ class WorkDocumentStoreTest {
                 clarification("A different question?"),
                 "cmd-question",
                 new WorkRepairBudget(2)));
+  }
+
+  @Test
+  void preparedCommandReplayReturnsTheSameAliasMapAndAcceptedIds() {
+    documents.intake(RUN_ID, flowDocument(), "cmd-intake", new WorkRepairBudget(3));
+    WorkDocumentState current = documents.read(RUN_ID);
+    WorkTaskScope create = createScope(current);
+    WorkTaskCapture capture = createdStep("extra", "Local step");
+    WorkCommit first =
+        documents.apply(RUN_ID, create, capture, "cmd-create", new WorkRepairBudget(3));
+    assertFalse(first.aliasToId().isEmpty());
+    assertFalse(first.acceptedRecordIds().isEmpty());
+
+    WorkCommit replay =
+        documents.apply(RUN_ID, create, capture, "cmd-create", new WorkRepairBudget(3));
+
+    assertEquals(first.aliasToId(), replay.aliasToId());
+    assertEquals(first.acceptedRecordIds(), replay.acceptedRecordIds());
+    assertEquals(first, replay);
+    assertThrows(
+        CommandPayloadConflictException.class,
+        () ->
+            documents.apply(
+                RUN_ID,
+                create,
+                createdStep("extra", "A different step"),
+                "cmd-create",
+                new WorkRepairBudget(3)));
   }
 
   @Test
@@ -329,6 +358,44 @@ class WorkDocumentStoreTest {
 
   private static WorkDocumentState flowDocument() {
     return WorkDocumentFixture.grow(new WorkDocumentService()).afterFlow();
+  }
+
+  private static WorkTaskScope createScope(WorkDocumentState state) {
+    return new WorkTaskScope(
+        "create-task",
+        state.revision(),
+        WorkStage.LOGICAL_FLOW,
+        "flow",
+        List.of(),
+        true,
+        false,
+        false,
+        List.of(),
+        List.of());
+  }
+
+  private static WorkTaskCapture createdStep(String alias, String intent) {
+    return WorkTaskCapture.prepared(
+        List.of(),
+        List.of(
+            new CapturedStep(
+                "",
+                alias,
+                StepKind.LOCAL,
+                "Extra",
+                intent,
+                List.of(WorkDocumentFixture.SOURCE_ID),
+                List.of())),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
   }
 
   private static WorkTaskScope scope(WorkDocumentState state) {

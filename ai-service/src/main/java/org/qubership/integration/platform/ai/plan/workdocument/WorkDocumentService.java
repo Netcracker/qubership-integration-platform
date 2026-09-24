@@ -153,7 +153,15 @@ public final class WorkDocumentService {
             stageId,
             List.of(new StageSnapshot(stageId, stageStatus, List.of(reference), null)),
             new StageAttempt(
-                "work-" + commandId, stageId, next, stageStatus, at, at, List.of(reference), null),
+                "work-" + commandId,
+                stageId,
+                next,
+                stageStatus,
+                at,
+                at,
+                List.of(reference),
+                null,
+                receipt(edited)),
             new RunTransition(
                 expected,
                 next,
@@ -191,15 +199,38 @@ public final class WorkDocumentService {
             .orElseThrow(
                 () -> new IllegalStateException("Committed command has no work document."));
     WorkDocumentState state = stateOf(document.run().runId(), reference);
+    CommandReceipt receipt = readReceipt(attempt.commandReceipt());
     return new WorkCommit(
         state.revision(),
-        List.of(),
-        outcomeOf(state),
+        receipt.acceptedRecordIds(),
+        receipt.outcome(),
         transition.commandId(),
         state,
-        Map.of(),
+        receipt.aliasToId(),
         transition.toRevision());
   }
+
+  private String receipt(WorkCommit edited) {
+    return new String(
+        write(
+            new CommandReceipt(
+                edited.acceptedRecordIds(), edited.aliasToId(), edited.outcome())),
+        java.nio.charset.StandardCharsets.UTF_8);
+  }
+
+  private CommandReceipt readReceipt(String commandReceipt) {
+    if (commandReceipt == null || commandReceipt.isBlank()) {
+      throw new IllegalStateException("Committed command has no receipt.");
+    }
+    try {
+      return json.readValue(commandReceipt, CommandReceipt.class);
+    } catch (Exception failure) {
+      throw new IllegalStateException("Cannot read the committed command receipt.", failure);
+    }
+  }
+
+  private record CommandReceipt(
+      List<String> acceptedRecordIds, Map<String, String> aliasToId, WorkOutcome outcome) {}
 
   private WorkDocumentState stateOf(String runId, Reference reference) {
     Revision revision =
@@ -207,19 +238,6 @@ public final class WorkDocumentService {
             .get(runId, reference)
             .orElseThrow(() -> new IllegalArgumentException("Work document artifact was not found."));
     return WorkDocumentState.of(artifacts.payload(revision, ChainWorkDocument.class));
-  }
-
-  private static WorkOutcome outcomeOf(WorkDocumentState state) {
-    List<WorkTaskRecord> tasks = state.document().progress().tasks();
-    if (tasks.isEmpty()) {
-      return WorkOutcome.PREPARED;
-    }
-    return switch (tasks.get(tasks.size() - 1).state()) {
-      case ACCEPTED -> WorkOutcome.PREPARED;
-      case NEEDS_INPUT -> WorkOutcome.NEEDS_CLARIFICATION;
-      case NEEDS_RECHECK, HALTED -> WorkOutcome.INPUT_DEFECT;
-      case PENDING, RUNNING -> WorkOutcome.PREPARED;
-    };
   }
 
   private static StageStatus stageStatus(WorkOutcome outcome) {
