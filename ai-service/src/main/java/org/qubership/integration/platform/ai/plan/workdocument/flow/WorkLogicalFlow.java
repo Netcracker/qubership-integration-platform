@@ -6,7 +6,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
@@ -105,7 +109,7 @@ public final class WorkLogicalFlow {
       return;
     }
     for (JsonNode step : tree.path("steps")) {
-      if (!receivesSynchronousResult(step, tree.path("connections"))) {
+      if (!receivesSynchronousResult(step, tree.path("steps"), tree.path("connections"))) {
         continue;
       }
       throw new WorkDocumentRejectedException(
@@ -114,29 +118,38 @@ public final class WorkLogicalFlow {
     }
   }
 
-  private static boolean receivesSynchronousResult(JsonNode step, JsonNode connections) {
-    String kind = step.path("kind").asText();
-    if (!"LOCAL".equals(kind) && !"TRIGGER".equals(kind)) {
-      return false;
-    }
-    if (step.path("sourceRefs").size() > 0) {
+  private static boolean receivesSynchronousResult(JsonNode step, JsonNode steps, JsonNode connections) {
+    if (!"TRIGGER".equals(step.path("kind").asText()) || step.path("sourceRefs").size() > 0) {
       return false;
     }
     String ref = ref(step);
-    boolean targeted = false;
+    Set<String> calls = new LinkedHashSet<>();
+    for (JsonNode candidate : steps) {
+      if ("SERVICE_CALL".equals(candidate.path("kind").asText())) {
+        calls.add(ref(candidate));
+      }
+    }
+    Map<String, Set<String>> outcomes = new LinkedHashMap<>();
     for (JsonNode connection : connections) {
       boolean touches = ref.equals(connection.path("sourceStepRef").asText())
           || ref.equals(connection.path("targetStepRef").asText());
       if (touches && "correlation".equals(connection.path("outcome").asText())) {
         return false;
       }
+      String source = connection.path("sourceStepRef").asText();
+      String outcome = connection.path("outcome").asText();
       if (ref.equals(connection.path("targetStepRef").asText())
-          && ("success".equals(connection.path("outcome").asText())
-              || "failure".equals(connection.path("outcome").asText()))) {
-        targeted = true;
+          && calls.contains(source)
+          && ("success".equals(outcome) || "failure".equals(outcome))) {
+        outcomes.computeIfAbsent(source, key -> new LinkedHashSet<>()).add(outcome);
       }
     }
-    return targeted;
+    for (Set<String> fromOneCall : outcomes.values()) {
+      if (fromOneCall.contains("success") && fromOneCall.contains("failure")) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static String ref(JsonNode step) {

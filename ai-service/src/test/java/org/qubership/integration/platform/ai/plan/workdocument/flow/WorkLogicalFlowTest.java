@@ -109,6 +109,25 @@ class WorkLogicalFlowTest {
   }
 
   @Test
+  void localProcessingOnSuccessStaysAndReceiveResultIsRejected() {
+    WorkCommit kept = flow.design(RUN_ID, materials(), prompt -> localProcessingCapture());
+
+    JsonNode steps = steps(kept.state());
+    assertEquals("LOCAL", stepById(steps, stepId(steps, "Normalize")).path("kind").asText());
+    assertEquals(List.of("success", "failure"), outcomesFrom(kept.state(), stepId(steps, "createTask")));
+    Reference afterLocal = runs.load(RUN_ID).orElseThrow().run().workDocumentRef();
+
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () -> flow.design(RUN_ID, materials(), prompt -> synchronousResultCapture()));
+
+    assertEquals("SYNCHRONOUS_RESULT", rejected.code());
+    assertEquals(afterLocal, runs.load(RUN_ID).orElseThrow().run().workDocumentRef());
+    assertEquals("Normalize", stepById(steps(documents.read(RUN_ID)), stepId(steps, "Normalize")).path("label").asText());
+  }
+
+  @Test
   void callbackAndRepeatedCallsStayDistinct() {
     WorkCommit commit = flow.design(RUN_ID, materials(), prompt -> callbackAndRepeatCapture());
 
@@ -236,13 +255,31 @@ class WorkLogicalFlowTest {
         """);
   }
 
+  private static String localProcessingCapture() {
+    return prepared(
+        """
+        "steps":[
+          {"existingId":"","alias":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the task start","sourceRefs":["src-om"],"requirementRefs":[]},
+          {"existingId":"","alias":"create","kind":"SERVICE_CALL","label":"createTask","intent":"Create the Salesforce task","sourceRefs":["src-om"],"requirementRefs":[]},
+          {"existingId":"","alias":"normalize","kind":"LOCAL","label":"Normalize","intent":"Normalize the successful payload","sourceRefs":[],"requirementRefs":[]},
+          {"existingId":"","alias":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the task result","sourceRefs":["src-om"],"requirementRefs":[]}
+        ],
+        "connections":[
+          {"existingId":"","alias":"go","sourceStepRef":"start","outcome":"success","targetStepRef":"create","routingIntent":"Then create the task","evidenceRefs":["src-om"]},
+          {"existingId":"","alias":"ok","sourceStepRef":"create","outcome":"success","targetStepRef":"normalize","routingIntent":"Then normalize","evidenceRefs":["src-om"]},
+          {"existingId":"","alias":"onward","sourceStepRef":"normalize","outcome":"success","targetStepRef":"result","routingIntent":"Then reply","evidenceRefs":["src-om"]},
+          {"existingId":"","alias":"bad","sourceStepRef":"create","outcome":"failure","targetStepRef":"result","routingIntent":"Return the synchronous failure","evidenceRefs":["src-om"]}
+        ]
+        """);
+  }
+
   private static String synchronousResultCapture() {
     return prepared(
         """
         "steps":[
           {"existingId":"","alias":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the task start","sourceRefs":["src-om"],"requirementRefs":[]},
           {"existingId":"","alias":"create","kind":"SERVICE_CALL","label":"createTask","intent":"Create the Salesforce task","sourceRefs":["src-om"],"requirementRefs":[]},
-          {"existingId":"","alias":"received","kind":"LOCAL","label":"Salesforce result","intent":"Receive the synchronous result","sourceRefs":[],"requirementRefs":[]},
+          {"existingId":"","alias":"received","kind":"TRIGGER","label":"Salesforce result","intent":"Receive the synchronous result","sourceRefs":[],"requirementRefs":[]},
           {"existingId":"","alias":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the task result","sourceRefs":["src-om"],"requirementRefs":[]}
         ],
         "connections":[
