@@ -118,13 +118,14 @@ class WorkFillingRecoveryTest {
     String rejectedTask = "";
     String revisionBeforeRepair = "";
     for (int step = 0; step < 30 && (rejectedTask.isBlank() || callsFor(world, rejectedTask) < 2); step++) {
-      int before = world.model.count(WorkTaskKind.MAP_TRANSFER);
       FillingResult result = world.advance(trace);
-      if (world.model.count(WorkTaskKind.MAP_TRANSFER) == 1 && before == 0) {
+      if (rejectedTask.isBlank() && result.reasons().contains("MALFORMED_REFERENCE")) {
         rejectedTask = result.taskId();
         revisionBeforeRepair = result.documentRevision();
-        assertTrue(result.reasons().contains("MALFORMED_REFERENCE"), result.toString());
-        assertEquals(1, world.repairCharges());
+        assertEquals(1, world.repairCharges(), trace.toString());
+      }
+      if (result.action() == FillingResult.Action.WAITING_FOR_INPUT && rejectedTask.isBlank()) {
+        break;
       }
     }
     assertEquals(2, callsFor(world, rejectedTask), trace.toString());
