@@ -187,7 +187,24 @@ record CapturedTransfer(
     List<PortRef> sourcePorts,
     PortRef targetPort,
     List<String> requirementRefs,
-    String decision) {}
+    String decision,
+    List<String> evidenceRefs) {
+
+  public CapturedTransfer {
+    evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);
+  }
+
+  public CapturedTransfer(
+      String existingId,
+      String alias,
+      String targetStepRef,
+      List<PortRef> sourcePorts,
+      PortRef targetPort,
+      List<String> requirementRefs,
+      String decision) {
+    this(existingId, alias, targetStepRef, sourcePorts, targetPort, requirementRefs, decision, List.of());
+  }
+}
 
 record CapturedRule(
     String existingId,

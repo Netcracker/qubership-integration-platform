@@ -204,6 +204,28 @@ class WorkLogicalFlowTest {
   }
 
   @Test
+  void clarificationRecordsTheDocumentAndTheFlowPointer() {
+    WorkCommit asked =
+        flow.design(
+            RUN_ID,
+            materials(),
+            request ->
+                outcome(
+                    "NEEDS_CLARIFICATION",
+                    "Which trigger starts this flow?",
+                    "UNSPECIFIED",
+                    "",
+                    "",
+                    ""));
+
+    JsonNode question =
+        JSON.valueToTree(asked.state().document()).path("progress").path("questions").get(0);
+    assertEquals("UNSPECIFIED", question.path("choice").asText());
+    assertEquals("doc-flow", question.path("subject").path("source").path("stepId").asText());
+    assertEquals("/flow", question.path("subject").path("source").path("fieldPath").asText());
+  }
+
+  @Test
   void contradictionOpensLogicalRepair() {
     WorkCommit designed = flow.design(RUN_ID, materials(), request -> omCapture());
     String callId = stepId(steps(designed.state()), "createTask");

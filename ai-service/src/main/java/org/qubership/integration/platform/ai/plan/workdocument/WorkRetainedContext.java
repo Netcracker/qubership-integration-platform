@@ -22,7 +22,7 @@ import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskRequ
 
 /**
  * Resolves unresolved retained placeholders for one producer. The model names a field path. Java
- * writes the producer and the payload port.
+ * writes the producer and the port already stored on the placeholder.
  */
 public final class WorkRetainedContext {
 
@@ -90,7 +90,7 @@ public final class WorkRetainedContext {
     JsonNode tree = WorkDocumentCaptureSchema.readObject(output, schema);
     String outcome = tree.path("outcome").asText();
     if ("NEEDS_CLARIFICATION".equals(outcome)) {
-      return ask(runId, state, scope, tree, evidenceRefs);
+      return ask(runId, state, scope, tree, evidenceRefs, document, choices);
     }
     if ("INPUT_DEFECT".equals(outcome)) {
       return defect(runId, state, scope, tree, evidenceRefs);
@@ -118,7 +118,13 @@ public final class WorkRetainedContext {
   }
 
   private WorkCommit ask(
-      String runId, WorkDocumentState state, WorkTaskScope scope, JsonNode tree, List<String> evidenceRefs) {
+      String runId,
+      WorkDocumentState state,
+      WorkTaskScope scope,
+      JsonNode tree,
+      List<String> evidenceRefs,
+      JsonNode document,
+      CaptureChoices choices) {
     if (!tree.path("values").isEmpty()) {
       throw new WorkDocumentRejectedException(
           "CONTRADICTORY_OUTCOME",
@@ -131,7 +137,7 @@ public final class WorkRetainedContext {
           "MALFORMED_CAPTURE", "A clarification needs question text. Name the unresolved choice.");
     }
     requireMembers(texts(question.path("evidenceRefs")), evidenceRefs);
-    QuestionSubject subject = subject(question);
+    QuestionSubject subject = subject(question, document, choices);
     return documents.recordQuestion(
         runId,
         scope,
@@ -182,11 +188,15 @@ public final class WorkRetainedContext {
       }
       JsonNode existing = findRetained(document, id);
       String path = value.path("fieldPath").asText();
-      SchemaFragment schema = schema(materials, producerStepId, "payload");
+      String port = schemaPort(existing == null ? "" : existing.path("source").path("port").asText());
+      if (port.isBlank()) {
+        port = defaultPort(document, materials, producerStepId, path);
+      }
+      SchemaFragment schema = schema(materials, producerStepId, port);
       if (schema == null) {
         throw new WorkDocumentRejectedException(
             "MISSING_SCHEMA",
-            "Producer " + producerStepId + " has no payload schema. Load that schema before naming a field.");
+            "Producer " + producerStepId + " has no " + port + " schema. Load that schema before naming a field.");
       }
       if (path == null || path.isBlank() || "$".equals(path) || !schema.containsPath(path.startsWith("$.") ? path : "$." + path)) {
         throw new WorkDocumentRejectedException(
@@ -201,7 +211,7 @@ public final class WorkRetainedContext {
       ObjectNode source = stored.putObject("source");
       source.put("kind", "STEP_PORT");
       source.put("stepId", producerStepId);
-      source.put("port", "payload");
+      source.put("port", port);
       source.put("fieldPath", path.startsWith("$.") ? path : "$." + path);
       source.put("retainedValueId", "");
       stored.put("intendedUse", existing == null ? "" : existing.path("intendedUse").asText());
@@ -210,7 +220,33 @@ public final class WorkRetainedContext {
     return WorkDocumentCaptureSchema.parse(WorkDocumentCaptureSchema.withUniversalLists(body));
   }
 
-  private static QuestionSubject subject(JsonNode question) {
+  private static String defaultPort(
+      JsonNode document, WorkTaskMaterials materials, String producerStepId, String path) {
+    String kind = step(document, producerStepId) == null ? "" : step(document, producerStepId).path("kind").asText();
+    if (!"SERVICE_CALL".equals(kind)) {
+      return "payload";
+    }
+    String canonical = path != null && path.startsWith("$.") ? path : "$." + path;
+    SchemaFragment success = schema(materials, producerStepId, "success");
+    if (success != null && success.containsPath(canonical)) {
+      return "success";
+    }
+    return "failure";
+  }
+
+  private static String schemaPort(String port) {
+    return switch (port) {
+      case "INBOUND_PAYLOAD" -> "payload";
+      case "OUTBOUND_REQUEST" -> "request";
+      case "SUCCESS_RESPONSE" -> "success";
+      case "FAILURE_OUTCOME" -> "failure";
+      case "RETAINED_CONTEXT" -> "context";
+      case null -> "";
+      default -> port;
+    };
+  }
+
+  private static QuestionSubject subject(JsonNode question, JsonNode document, CaptureChoices choices) {
     QuestionFieldRef source =
         new QuestionFieldRef(
             question.path("sourceStepId").asText(),
@@ -225,10 +261,18 @@ public final class WorkRetainedContext {
             question.path("targetRetainedId").asText());
     String kind = question.path("choiceKind").asText();
     try {
-      if ("FIELD_RELATIONSHIP".equals(kind)) {
-        return QuestionSubject.fieldRelationship(source, target);
+      QuestionSubject subject =
+          "FIELD_RELATIONSHIP".equals(kind)
+              ? QuestionSubject.fieldRelationship(source, target)
+              : new QuestionSubject(QuestionChoiceKind.UNSPECIFIED, source, target);
+      java.util.LinkedHashSet<String> steps = new java.util.LinkedHashSet<>();
+      for (JsonNode step : document.path("flow").path("steps")) {
+        steps.add(step.path("id").asText());
       }
-      return new QuestionSubject(QuestionChoiceKind.UNSPECIFIED, source, target);
+      java.util.Set<String> ports = java.util.Set.of("payload", "request", "success", "failure");
+      subject.source().requireKnown(steps, ports, choices.retainedIds());
+      subject.target().requireKnown(steps, ports, choices.retainedIds());
+      return subject;
     } catch (IllegalArgumentException failure) {
       throw new WorkDocumentRejectedException("MALFORMED_REFERENCE", failure.getMessage());
     }

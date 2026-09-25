@@ -26,6 +26,11 @@ import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejec
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkRepairBudget;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
@@ -85,6 +90,111 @@ class WorkBindingTest {
     JsonNode hash = step(commit.state(), "create").path("binding").path("portContentHashes").get(0);
     assertEquals("request", hash.path("port").asText());
     assertEquals("hash-hub-a", hash.path("contentHash").asText());
+  }
+
+  @Test
+  void nonPreparedOutcomeDoesNotAskOrPublish() {
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () -> binding.select(RUN_ID, "create", materials(List.of()), request -> "{\"outcome\":\"DONE\"}"));
+
+    assertEquals("MALFORMED_REFERENCE", rejected.code());
+    assertEquals(0, resolution.apiHubCalls);
+    assertTrue(questions(documents.read(RUN_ID)).isEmpty());
+    assertTrue(step(documents.read(RUN_ID), "create").path("binding").isNull());
+  }
+
+  @Test
+  void preparedQuestionOrBlankCandidateNeverReachesTheCatalog() {
+    resolution.catalogHit("createTask", "sys-wfm", "2024.4", "op-create", "http", "POST", "/wfm/v1/tasks");
+
+    WorkDocumentRejectedException mixed =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                binding.select(
+                    RUN_ID,
+                    "create",
+                    materials(List.of()),
+                    request ->
+                        "{\"outcome\":\"PREPARED\",\"candidateId\":\"createTask\",\"question\":\"Which operation?\"}"));
+    assertEquals("CONTRADICTORY_OUTCOME", mixed.code());
+
+    WorkDocumentRejectedException blank =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                binding.select(
+                    RUN_ID,
+                    "create",
+                    materials(List.of()),
+                    request -> "{\"outcome\":\"PREPARED\",\"candidateId\":\"\"}"));
+    assertEquals("MALFORMED_CAPTURE", blank.code());
+    assertEquals(0, resolution.apiHubCalls);
+    assertTrue(questions(documents.read(RUN_ID)).isEmpty());
+    assertTrue(step(documents.read(RUN_ID), "create").path("binding").isNull());
+  }
+
+  @Test
+  void clarificationRecordsTheAssignedStepAndReplaysThatRevision() {
+    WorkDocumentState before = documents.read(RUN_ID);
+    int[] calls = {0};
+    WorkCommit asked =
+        binding.select(
+            RUN_ID,
+            "create",
+            materials(List.of()),
+            request -> {
+              calls[0]++;
+              return clarification("Which operation applies to this step?");
+            });
+
+    assertEquals(1, calls[0]);
+    assertEquals(
+        WorkTaskPlanner.taskId(WorkTaskKind.SELECT_OPERATION, "create") + ":" + before.revision(),
+        asked.commandId());
+    JsonNode question = questions(asked.state()).get(0);
+    assertEquals("UNSPECIFIED", question.path("choice").asText());
+    assertEquals("create", question.path("subject").path("source").path("stepId").asText());
+    assertFalse(question.path("choice").asText().equals("contract"));
+
+    WorkTaskExecutor executor =
+        new WorkTaskExecutor(documents, runs, Clock.fixed(FIXED, ZoneOffset.UTC));
+    assertTrue(
+        executor
+            .publishedResult(
+                RUN_ID,
+                new WorkTaskScope(
+                    WorkTaskPlanner.taskId(WorkTaskKind.SELECT_OPERATION, "create"),
+                    before.revision(),
+                    WorkStage.SERVICES,
+                    WorkBinding.SKILL_ID,
+                    List.of("create"),
+                    false,
+                    false,
+                    false,
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    List.of(),
+                    WorkTaskPlanner.taskKey(WorkTaskKind.SELECT_OPERATION, "create"),
+                    WorkTaskKind.SELECT_OPERATION,
+                    "",
+                    null))
+            .isPresent());
+
+    WorkDocumentState later = documents.read(RUN_ID);
+    binding.select(
+        RUN_ID,
+        "create",
+        materials(List.of()),
+        request -> {
+          calls[0]++;
+          return clarification("Ask again on the new revision");
+        });
+    assertEquals(2, calls[0]);
+    assertFalse(later.revision().equals(before.revision()));
   }
 
   @Test

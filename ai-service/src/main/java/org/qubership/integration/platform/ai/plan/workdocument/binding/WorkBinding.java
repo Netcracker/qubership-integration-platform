@@ -9,6 +9,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 import org.qubership.integration.platform.ai.catalog.binding.CatalogOperationProjector;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.catalog.binding.ServiceCallCatalogIdentity;
@@ -21,6 +22,9 @@ import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBindi
 import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding.PortContentHash;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.service.output.OutputParsingException;
+import org.qubership.integration.platform.ai.plan.workdocument.QuestionChoiceKind;
+import org.qubership.integration.platform.ai.plan.workdocument.QuestionFieldRef;
+import org.qubership.integration.platform.ai.plan.workdocument.QuestionSubject;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
@@ -78,6 +82,10 @@ public final class WorkBinding {
           state.revision(), List.of(stepId), WorkOutcome.PREPARED, "local-" + stepId, state, java.util.Map.of());
     }
     WorkTaskScope task = scope(state, stepId);
+    Optional<WorkCommit> prior = executor.publishedResult(runId, task);
+    if (prior.isPresent()) {
+      return prior.get();
+    }
     executor.reserve(runId, task);
     JsonObjectSchema schema =
         WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.SELECT_OPERATION, null);
@@ -99,17 +107,44 @@ public final class WorkBinding {
     JsonNode selection = readSelection(output, schema);
     String outcome = selection.path("outcome").asText();
     if ("NEEDS_CLARIFICATION".equals(outcome)) {
-      return ask(
-          runId,
-          state,
-          stepId,
-          selection.path("question").asText(),
-          selection.path("choiceKind").asText("contract"));
+      if (!selection.path("candidateId").asText("").isBlank()
+          || !selection.path("defectRecordRef").asText("").isBlank()) {
+        throw rejected(
+            "CONTRADICTORY_OUTCOME",
+            "A clarification needs one question and no candidate. Send one outcome.");
+      }
+      String question = selection.path("question").asText("");
+      if (question.isBlank()) {
+        throw rejected(
+            "MALFORMED_CAPTURE", "A clarification needs question text. Name the unresolved choice.");
+      }
+      return ask(runId, state, stepId, question, texts(selection.path("evidenceRefs")));
     }
     if ("INPUT_DEFECT".equals(outcome)) {
+      if (!selection.path("question").asText("").isBlank() || !selection.path("candidateId").asText("").isBlank()) {
+        throw rejected(
+            "CONTRADICTORY_OUTCOME",
+            "A defect capture cannot include a question or a candidate. Send the defect alone.");
+      }
       return defect(runId, state, stepId, selection);
     }
-    String candidateId = selection.path("candidateId").asText();
+    if (!"PREPARED".equals(outcome)) {
+      throw rejected(
+          "MALFORMED_CAPTURE",
+          "Outcome " + outcome + " is unknown. Use PREPARED, NEEDS_CLARIFICATION, or INPUT_DEFECT.");
+    }
+    if (!selection.path("question").asText("").isBlank()
+        || !selection.path("defectRecordRef").asText("").isBlank()) {
+      throw rejected(
+          "CONTRADICTORY_OUTCOME",
+          "A prepared selection cannot also ask a question or report a defect. Send one outcome.");
+    }
+    String candidateId = selection.path("candidateId").asText("");
+    if (candidateId.isBlank()) {
+      throw rejected(
+          "MALFORMED_CAPTURE",
+          "A prepared selection needs a candidate id. Name the operation before lookup.");
+    }
     String requiredOperation = requiredOperation(state, stepId);
     if (!requiredOperation.isBlank() && !requiredOperation.equals(candidateId)) {
       return defect(
@@ -137,7 +172,7 @@ public final class WorkBinding {
               + ". Choose one of "
               + String.join(", ", ambiguous.candidateIds())
               + ".",
-          "catalog-candidate");
+          List.of());
     }
     if (lookup instanceof CatalogLookup.VersionAbsent) {
       return ask(
@@ -145,7 +180,7 @@ public final class WorkBinding {
           state,
           stepId,
           "Catalog operation for step " + stepId + " has no version. The binding is unresolved.",
-          "catalog-version");
+          List.of());
     }
     if (lookup instanceof CatalogLookup.Hit hit) {
       if (hit.hit().version() == null || hit.hit().version().isBlank()) {
@@ -154,7 +189,7 @@ public final class WorkBinding {
             state,
             stepId,
             "Catalog operation for step " + stepId + " has no version. The binding is unresolved.",
-            "catalog-version");
+            List.of());
       }
       return publish(runId, state, stepId, fromCatalog(stepId, hit.hit()));
     }
@@ -163,7 +198,7 @@ public final class WorkBinding {
           pinned.isBlank()
               ? "No runtime catalog operation for step " + stepId + ". APIHub is not used for this request."
               : "Pinned version " + pinned + " is unavailable for step " + stepId + ". APIHub is not used for this request.";
-      return ask(runId, state, stepId, question, pinned.isBlank() ? "catalog-operation" : "pinned-version");
+      return ask(runId, state, stepId, question, List.of());
     }
     ApiHubHit hub = resolution.searchApiHub(stepId, candidateId, pinned);
     if (hub == null || (!pinned.isBlank() && !pinned.equals(hub.version())) || hub.version().isBlank()) {
@@ -171,7 +206,7 @@ public final class WorkBinding {
           pinned.isBlank()
               ? "No operation matches step " + stepId + "."
               : "Pinned version " + pinned + " is unavailable for step " + stepId + ".";
-      return ask(runId, state, stepId, question, pinned.isBlank() ? "catalog-operation" : "pinned-version");
+      return ask(runId, state, stepId, question, List.of());
     }
     return publish(runId, state, stepId, fromApiHub(stepId, hub));
   }
@@ -277,19 +312,26 @@ public final class WorkBinding {
   private WorkCommit publish(
       String runId, WorkDocumentState state, String stepId, ResolvedWorkBinding binding) {
     WorkDocumentState bound = documents.attachResolvedBinding(state, stepId, binding);
-    String commandId = "bind-" + stepId + "-" + state.revision();
     return documents.intake(
-        runId, bound, commandId, null, hash(binding), List.of(stepId));
+        runId, bound, invocation(state, stepId), null, hash(binding), List.of(stepId));
   }
 
   private WorkCommit ask(
-      String runId, WorkDocumentState state, String stepId, String question, String choice) {
-    String capture =
-        """
-        {"outcome":"NEEDS_CLARIFICATION",%s,"question":%s,"unresolvedChoice":%s,"clarificationEvidenceIds":%s,"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
-        """
-            .formatted(LISTS, jsonText(question), jsonText(choice), evidenceJson(state, stepId));
-    return documents.apply(runId, scope(state, stepId), WorkDocumentCaptureSchema.parse(capture), command(state, stepId, "ask"));
+      String runId, WorkDocumentState state, String stepId, String question, List<String> evidenceRefs) {
+    List<String> evidence = evidenceRefs == null || evidenceRefs.isEmpty() ? sourceIds(state, stepId) : evidenceRefs;
+    QuestionSubject subject =
+        new QuestionSubject(
+            QuestionChoiceKind.UNSPECIFIED,
+            new QuestionFieldRef(stepId, "", "", ""),
+            QuestionFieldRef.empty());
+    return documents.recordQuestion(
+        runId,
+        scope(state, stepId),
+        question,
+        subject,
+        List.of(),
+        evidence,
+        invocation(state, stepId));
   }
 
   private WorkCommit defect(String runId, WorkDocumentState state, String stepId, JsonNode selection) {
@@ -324,7 +366,7 @@ public final class WorkBinding {
                 evidenceJson(state, stepId),
                 jsonText(category));
     return documents.apply(
-        runId, scope(state, stepId), WorkDocumentCaptureSchema.parse(capture), command(state, stepId, "defect"));
+        runId, scope(state, stepId), WorkDocumentCaptureSchema.parse(capture), invocation(state, stepId));
   }
 
   private String evidenceJson(WorkDocumentState state, String stepId) {
@@ -404,8 +446,24 @@ public final class WorkBinding {
         null);
   }
 
-  private static String command(WorkDocumentState state, String stepId, String kind) {
-    return kind + "-" + stepId + "-" + state.revision();
+  private static String invocation(WorkDocumentState state, String stepId) {
+    return WorkTaskPlanner.taskId(WorkTaskKind.SELECT_OPERATION, stepId) + ":" + state.revision();
+  }
+
+  private static List<String> texts(JsonNode node) {
+    List<String> values = new ArrayList<>();
+    if (node != null && node.isArray()) {
+      for (JsonNode child : node) {
+        if (!child.asText().isBlank()) {
+          values.add(child.asText());
+        }
+      }
+    }
+    return values;
+  }
+
+  private static WorkDocumentRejectedException rejected(String code, String message) {
+    return new WorkDocumentRejectedException(code, message);
   }
 
   private String prompt(WorkDocumentState state, String stepId, WorkTaskMaterials materials) {

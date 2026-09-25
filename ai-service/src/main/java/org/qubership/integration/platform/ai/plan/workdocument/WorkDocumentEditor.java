@@ -1023,6 +1023,10 @@ final class WorkDocumentEditor {
       }
       PortRef target = checkedPort(draft, aliases, captured.targetPort());
       DataTransfer previous = findTransfer(draft, id);
+      List<String> evidence =
+          captured.evidenceRefs() == null || captured.evidenceRefs().isEmpty()
+              ? (previous == null ? List.of() : previous.evidenceIds())
+              : resolveAll(captured.evidenceRefs(), aliases, evidenceIds(draft));
       DataTransfer stored =
           new DataTransfer(
               id,
@@ -1032,7 +1036,8 @@ final class WorkDocumentEditor {
               previous == null ? List.of() : previous.rules(),
               decision(captured.decision()),
               previous == null ? TransferOutcome.UNSPECIFIED : previous.outcome(),
-              previous == null ? List.of() : previous.requiredRetainedIds());
+              previous == null ? List.of() : previous.requiredRetainedIds(),
+              evidence);
       replaceTransfer(draft, targetStep, stored);
       known.add(id);
       accepted.add(id);

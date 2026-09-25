@@ -89,7 +89,8 @@ public final class WorkDataOutline {
 
   /**
    * One outline call for an assigned target. Java injects the target step and then runs
-   * {@link #define}. A clarification does not publish transfers.
+   * {@link #define}. A clarification does not publish transfers. Publication uses
+   * {@code taskId:revision}.
    */
   public WorkCommit propose(
       String runId,
@@ -102,14 +103,27 @@ public final class WorkDataOutline {
     step(state, targetStepId);
     String taskId = WorkTaskPlanner.taskId(WorkTaskKind.DEFINE_TRANSFERS, targetStepId);
     String taskKey = WorkTaskPlanner.taskKey(WorkTaskKind.DEFINE_TRANSFERS, targetStepId);
-    JsonObjectSchema schema = WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.DEFINE_TRANSFERS, null);
+    Set<String> predecessors = producers(state, targetStepId);
+    List<String> owned = new ArrayList<>();
+    owned.add(targetStepId);
+    owned.addAll(predecessors);
+    CaptureChoices choices =
+        new CaptureChoices(
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            List.copyOf(predecessors),
+            exposedPorts(state, predecessors),
+            exposedPorts(state, Set.of(targetStepId)));
+    JsonObjectSchema schema = WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.DEFINE_TRANSFERS, choices);
     WorkTaskScope promptScope =
         new WorkTaskScope(
             taskId,
             state.revision(),
             WorkStage.DATA_BEHAVIOR,
             SKILL_ID,
-            List.of(targetStepId),
+            owned,
             false,
             false,
             false,
@@ -130,7 +144,12 @@ public final class WorkDataOutline {
       throw new IllegalStateException(
           "An outline model call requires a task executor. Construct WorkDataOutline with one.");
     }
+    java.util.Optional<WorkCommit> prior = executor.publishedResult(runId, promptScope);
+    if (prior.isPresent()) {
+      return prior.get();
+    }
     executor.reserve(runId, promptScope);
+    String invocation = taskId + ":" + state.revision();
     WorkTaskMaterials instructed =
         new WorkTaskMaterials(
             materials == null ? List.of() : materials.schemas(),
@@ -153,35 +172,98 @@ public final class WorkDataOutline {
     JsonNode tree = WorkDocumentCaptureSchema.readObject(output, schema);
     String outcome = tree.path("outcome").asText();
     if ("NEEDS_CLARIFICATION".equals(outcome)) {
-      if (!tree.path("transfers").isEmpty() || !tree.path("retainedPlaceholders").isEmpty()) {
+      if (occupied(tree.path("transfers"))
+          || occupied(tree.path("retainedPlaceholders"))
+          || occupied(tree.path("coverage"))
+          || !tree.path("defect").path("recordRef").asText().isBlank()) {
         throw reject(
             "CONTRADICTORY_OUTCOME",
-            "A clarification needs one question and no transfers. Remove the design records.");
+            "A clarification needs one question and no design records. Remove the other branches.");
       }
       JsonNode question = tree.path("question");
+      QuestionSubject subject = questionSubject(question);
+      requireOutlineRefs(state, targetStepId, predecessors, subject);
       return documents.recordQuestion(
           runId,
           promptScope,
           question.path("text").asText(),
-          questionSubject(question),
+          subject,
           List.of(),
           texts(question.path("evidenceRefs")),
-          commandId);
+          invocation);
     }
     if ("INPUT_DEFECT".equals(outcome)) {
-      return documents.apply(runId, promptScope, defectCapture(tree), commandId);
+      if (occupied(tree.path("transfers"))
+          || occupied(tree.path("retainedPlaceholders"))
+          || occupied(tree.path("coverage"))
+          || !tree.path("question").path("text").asText().isBlank()) {
+        throw reject(
+            "CONTRADICTORY_OUTCOME",
+            "A defect capture cannot include transfers, coverage, or a question. Send the defect alone.");
+      }
+      return documents.apply(runId, promptScope, defectCapture(tree), invocation);
     }
     if (!"PREPARED".equals(outcome)) {
       throw reject(
           "MALFORMED_CAPTURE",
           "Outcome " + outcome + " is unknown. Use PREPARED, NEEDS_CLARIFICATION, or INPUT_DEFECT.");
     }
-    if (!tree.path("question").path("text").asText().isBlank()) {
+    if (!tree.path("question").path("text").asText().isBlank()
+        || !tree.path("defect").path("recordRef").asText().isBlank()) {
       throw reject(
           "CONTRADICTORY_OUTCOME",
-          "A prepared outline cannot also ask a question. Send one outcome.");
+          "A prepared outline cannot also ask a question or report a defect. Send one outcome.");
     }
-    return define(runId, targetStepId, proposal(targetStepId, tree), contracts, commandId);
+    for (JsonNode entry : tree.path("coverage")) {
+      if ("QUESTION".equals(entry.path("disposition").asText())) {
+        throw reject(
+            "CONTRADICTORY_OUTCOME",
+            "A prepared outline cannot leave coverage as a question. Record the question or choose another disposition.");
+      }
+    }
+    return define(runId, targetStepId, proposal(targetStepId, tree), contracts, invocation);
+  }
+
+  private static boolean occupied(JsonNode node) {
+    return node != null && node.isArray() && !node.isEmpty();
+  }
+
+  private static List<String> exposedPorts(WorkDocumentState state, Set<String> stepIds) {
+    java.util.LinkedHashSet<String> ports = new java.util.LinkedHashSet<>();
+    for (LogicalStep step : state.document().flow().steps()) {
+      if (!stepIds.contains(step.id()) || step.binding() == null) {
+        continue;
+      }
+      for (String port : step.binding().exposedPorts()) {
+        if (port != null && !port.isBlank()) {
+          ports.add(schemaPort(port));
+        }
+      }
+    }
+    return List.copyOf(ports);
+  }
+
+  private static void requireOutlineRefs(
+      WorkDocumentState state, String targetStepId, Set<String> predecessors, QuestionSubject subject) {
+    Set<String> steps = new java.util.LinkedHashSet<>();
+    steps.add(targetStepId);
+    steps.addAll(predecessors);
+    Set<String> ports = new java.util.LinkedHashSet<>(exposedPorts(state, steps));
+    Set<String> retained = new java.util.LinkedHashSet<>();
+    for (LogicalStep step : state.document().flow().steps()) {
+      if (!steps.contains(step.id())) {
+        continue;
+      }
+      for (RetainedValue value : step.data().retainedValues()) {
+        retained.add(value.id());
+      }
+    }
+    try {
+      subject.source().requireKnown(steps, ports, retained);
+      subject.target().requireKnown(steps, ports, retained);
+    } catch (IllegalArgumentException failure) {
+      throw reject("MALFORMED_REFERENCE", failure.getMessage());
+    }
   }
 
   private static WorkDocumentState withPortHashes(WorkDocumentState state, List<ContractMaterial> contracts) {

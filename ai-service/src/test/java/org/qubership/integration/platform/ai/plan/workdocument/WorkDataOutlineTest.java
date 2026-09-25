@@ -16,8 +16,12 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.workdocument.task.SchemaFragment;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.workdocument.binding.ContractMaterial;
@@ -526,6 +530,130 @@ class WorkDataOutlineTest {
   }
 
   @Test
+  void proposeReservesTheAssignedStepsAndLeavesAnUnrelatedSchemaOut() {
+    seed(callDocument());
+    WorkDocumentState before = documents.read(RUN_ID);
+    Clock clock = Clock.fixed(FIXED, ZoneOffset.UTC);
+    WorkDataOutline proposing =
+        new WorkDataOutline(documents, new WorkTaskExecutor(documents, runs, clock));
+    String[] prompt = {""};
+    String[] schema = {""};
+    int[] calls = {0};
+    WorkCommit commit =
+        proposing.propose(
+            RUN_ID,
+            "call",
+            outlineMaterials(),
+            contracts(),
+            request -> {
+              calls[0]++;
+              prompt[0] = request.prompt();
+              schema[0] = request.responseSchema().toString();
+              return preparedOutline();
+            },
+            "caller-command");
+
+    assertEquals(1, calls[0]);
+    assertTrue(prompt[0].contains("TRIGGER_SCHEMA_BODY"));
+    assertTrue(prompt[0].contains("CALL_SCHEMA_BODY"));
+    assertTrue(prompt[0].contains("passage-source-1-1"));
+    assertTrue(prompt[0].contains(sha256(REQUEST_TEXT)));
+    assertTrue(prompt[0].contains(REQUEST_TEXT));
+    assertFalse(prompt[0].contains("UNRELATED_REPLY_SCHEMA"));
+    assertTrue(schema[0].contains("trigger"));
+    assertTrue(schema[0].contains("payload"));
+    assertFalse(schema[0].contains("reply"));
+    assertEquals(
+        WorkTaskPlanner.taskId(WorkTaskKind.DEFINE_TRANSFERS, "call") + ":" + before.revision(),
+        commit.commandId());
+    assertEquals(1, step(commit.state().document(), "call").data().transfers().size());
+    assertTrue(
+        new WorkTaskExecutor(documents, runs, clock)
+            .publishedResult(
+                RUN_ID,
+                new WorkTaskScope(
+                    WorkTaskPlanner.taskId(WorkTaskKind.DEFINE_TRANSFERS, "call"),
+                    before.revision(),
+                    WorkStage.DATA_BEHAVIOR,
+                    WorkDataOutline.SKILL_ID,
+                    List.of("call", "trigger"),
+                    false,
+                    false,
+                    false,
+                    List.of(),
+                    List.of()))
+            .isPresent());
+
+    proposing.propose(
+        RUN_ID,
+        "call",
+        outlineMaterials(),
+        contracts(),
+        request -> {
+          calls[0]++;
+          return openQuestion();
+        },
+        "caller-command");
+    assertEquals(2, calls[0]);
+  }
+
+  @Test
+  void outlineClarificationRejectsCoverageAndAStepOutsideThePredecessors() {
+    seed(callDocument());
+    WorkDataOutline proposing = proposing();
+
+    assertEquals(
+        "CONTRADICTORY_OUTCOME",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    proposing.propose(
+                        RUN_ID, "call", outlineMaterials(), contracts(), request -> coveredQuestion(), "cmd"))
+            .code());
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    proposing.propose(
+                        RUN_ID, "call", outlineMaterials(), contracts(), request -> replyQuestion(), "cmd"))
+            .code());
+    assertTrue(documents.read(RUN_ID).document().progress().questions().isEmpty());
+  }
+
+  @Test
+  void outlineDefectAndPreparedRejectTheOtherBranches() {
+    seed(callDocument());
+    WorkDataOutline proposing = proposing();
+
+    assertEquals(
+        "CONTRADICTORY_OUTCOME",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    proposing.propose(
+                        RUN_ID, "call", outlineMaterials(), contracts(), request -> defectWithTransfer(), "cmd"))
+            .code());
+    assertEquals(
+        "CONTRADICTORY_OUTCOME",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    proposing.propose(
+                        RUN_ID, "call", outlineMaterials(), contracts(), request -> preparedWithDefect(), "cmd"))
+            .code());
+    assertEquals(
+        "CONTRADICTORY_OUTCOME",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    proposing.propose(
+                        RUN_ID, "call", outlineMaterials(), contracts(), request -> questionDisposition(), "cmd"))
+            .code());
+    assertTrue(step(documents.read(RUN_ID).document(), "call").data().transfers().isEmpty());
+  }
+
+  @Test
   void instructionsForbidTaskKeysOrderingHandlersAndFieldRules() {
     String prompt = WorkDataOutline.instructions();
     assertTrue(prompt.contains("task key"));
@@ -533,6 +661,71 @@ class WorkDataOutlineTest {
     assertTrue(prompt.contains("handler"));
     assertTrue(prompt.contains("field rule"));
     assertFalse(prompt.contains("completeTask"));
+  }
+
+  private WorkDataOutline proposing() {
+    return new WorkDataOutline(
+        documents, new WorkTaskExecutor(documents, runs, Clock.fixed(FIXED, ZoneOffset.UTC)));
+  }
+
+  private static WorkTaskMaterials outlineMaterials() {
+    return new WorkTaskMaterials(
+        List.of(
+            new SchemaFragment(
+                "schema-trigger",
+                "trigger",
+                "payload",
+                "hash-trigger",
+                "ref-trigger",
+                "TRIGGER_SCHEMA_BODY"),
+            new SchemaFragment(
+                "schema-call", "call", "request", "hash-call", "ref-call", "CALL_SCHEMA_BODY"),
+            new SchemaFragment(
+                "schema-reply", "reply", "request", "hash-reply", "ref-reply", "UNRELATED_REPLY_SCHEMA")),
+        List.of(),
+        Map.of("source-1", "parent source text"));
+  }
+
+  private static String preparedOutline() {
+    return """
+        {"outcome":"PREPARED","transfers":[{"alias":"to-request","sourceStepId":"trigger","sourcePort":"payload","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["req-request"],"requiredRetainedIds":[],"decision":""}],"retainedPlaceholders":[],"coverage":[{"requirementId":"req-request","passageId":"passage-source-1-1","disposition":"ASSIGNED"},{"requirementId":"req-common","passageId":"passage-source-1-2","disposition":"NO_MAPPING"}]}
+        """;
+  }
+
+  private static String openQuestion() {
+    return """
+        {"outcome":"NEEDS_CLARIFICATION","transfers":[],"retainedPlaceholders":[],"coverage":[],"question":{"text":"Which port receives the body?","choiceKind":"UNSPECIFIED","sourceStepId":"trigger","sourcePort":"payload","sourceField":"","sourceRetainedId":"","targetStepId":"call","targetPort":"request","targetField":"","targetRetainedId":"","evidenceRefs":[]}}
+        """;
+  }
+
+  private static String coveredQuestion() {
+    return """
+        {"outcome":"NEEDS_CLARIFICATION","transfers":[],"retainedPlaceholders":[],"coverage":[{"requirementId":"req-request","passageId":"passage-source-1-1","disposition":"ASSIGNED"}],"question":{"text":"Which port?","choiceKind":"UNSPECIFIED","sourceStepId":"trigger","sourcePort":"payload","sourceField":"","sourceRetainedId":"","targetStepId":"call","targetPort":"request","targetField":"","targetRetainedId":"","evidenceRefs":[]}}
+        """;
+  }
+
+  private static String replyQuestion() {
+    return """
+        {"outcome":"NEEDS_CLARIFICATION","transfers":[],"retainedPlaceholders":[],"coverage":[],"question":{"text":"Use the reply?","choiceKind":"UNSPECIFIED","sourceStepId":"reply","sourcePort":"request","sourceField":"","sourceRetainedId":"","targetStepId":"call","targetPort":"request","targetField":"","targetRetainedId":"","evidenceRefs":[]}}
+        """;
+  }
+
+  private static String defectWithTransfer() {
+    return """
+        {"outcome":"INPUT_DEFECT","transfers":[{"alias":"to-request","sourceStepId":"trigger","sourcePort":"payload","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":[],"requiredRetainedIds":[],"decision":""}],"retainedPlaceholders":[],"coverage":[],"defect":{"recordRef":"call","category":"OUTLINE","contradiction":"The target has no accepted contract.","evidenceRefs":["source-1"]}}
+        """;
+  }
+
+  private static String preparedWithDefect() {
+    return """
+        {"outcome":"PREPARED","transfers":[],"retainedPlaceholders":[],"coverage":[],"question":{"text":"","choiceKind":"UNSPECIFIED","sourceStepId":"","sourcePort":"","sourceField":"","sourceRetainedId":"","targetStepId":"","targetPort":"","targetField":"","targetRetainedId":"","evidenceRefs":[]},"defect":{"recordRef":"call","category":"OUTLINE","contradiction":"The target has no accepted contract.","evidenceRefs":[]}}
+        """;
+  }
+
+  private static String questionDisposition() {
+    return """
+        {"outcome":"PREPARED","transfers":[{"alias":"to-request","sourceStepId":"trigger","sourcePort":"payload","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["req-request"],"requiredRetainedIds":[],"decision":""}],"retainedPlaceholders":[],"coverage":[{"requirementId":"req-request","passageId":"passage-source-1-1","disposition":"ASSIGNED"},{"requirementId":"req-common","passageId":"passage-source-1-2","disposition":"QUESTION"}]}
+        """;
   }
 
   private void seed(ChainWorkDocument document) {

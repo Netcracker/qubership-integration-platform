@@ -124,7 +124,7 @@ public final class WorkMapping {
     JsonNode tree = WorkDocumentCaptureSchema.readObject(output, schema);
     String outcome = tree.path("outcome").asText();
     if ("NEEDS_CLARIFICATION".equals(outcome)) {
-      return ask(runId, state, scope, tree, evidenceRefs);
+      return ask(runId, state, scope, tree, evidenceRefs, document, transfer);
     }
     if ("INPUT_DEFECT".equals(outcome)) {
       return defect(runId, state, scope, tree, evidenceRefs);
@@ -146,7 +146,7 @@ public final class WorkMapping {
         return documents.apply(
             runId,
             noMappingScope(state, transfer, taskId, taskKey),
-            noMappingCapture(transfer),
+            noMappingCapture(transfer, texts(tree.path("evidenceRefs"))),
             command(taskId, state));
       }
       throw new WorkDocumentRejectedException(
@@ -177,7 +177,9 @@ public final class WorkMapping {
       WorkDocumentState state,
       WorkTaskScope scope,
       JsonNode tree,
-      List<String> evidenceRefs) {
+      List<String> evidenceRefs,
+      JsonNode document,
+      JsonNode transfer) {
     if (!tree.path("rules").isEmpty() || !tree.path("decision").asText().isBlank()) {
       throw new WorkDocumentRejectedException(
           "CONTRADICTORY_OUTCOME",
@@ -198,6 +200,11 @@ public final class WorkMapping {
           choice == QuestionChoiceKind.FIELD_RELATIONSHIP
               ? QuestionSubject.fieldRelationship(source, target)
               : new QuestionSubject(choice, source, target);
+    } catch (IllegalArgumentException failure) {
+      throw new WorkDocumentRejectedException("MALFORMED_REFERENCE", failure.getMessage());
+    }
+    try {
+      requireQuestionMembership(document, transfer, source, target);
     } catch (IllegalArgumentException failure) {
       throw new WorkDocumentRejectedException("MALFORMED_REFERENCE", failure.getMessage());
     }
@@ -439,7 +446,34 @@ public final class WorkMapping {
     return WorkDocumentCaptureSchema.parse(WorkDocumentCaptureSchema.withUniversalLists(body));
   }
 
-  private static WorkTaskCapture noMappingCapture(JsonNode transfer) {
+  private static void requireQuestionMembership(
+      JsonNode document, JsonNode transfer, QuestionFieldRef source, QuestionFieldRef target) {
+    LinkedHashSet<String> steps = new LinkedHashSet<>();
+    LinkedHashSet<String> ports = new LinkedHashSet<>();
+    LinkedHashSet<String> retained = new LinkedHashSet<>();
+    for (JsonNode port : transfer.path("sourcePorts")) {
+      steps.add(port.path("stepId").asText());
+      ports.add(schemaPort(port.path("portName").asText()));
+    }
+    steps.add(transfer.path("targetPort").path("stepId").asText());
+    ports.add(schemaPort(transfer.path("targetPort").path("portName").asText()));
+    for (JsonNode retainedId : transfer.path("requiredRetainedIds")) {
+      retained.add(retainedId.asText());
+      JsonNode value = findRetained(document, retainedId.asText());
+      if (value == null) {
+        continue;
+      }
+      steps.add(value.path("producerStepId").asText());
+      String port = schemaPort(value.path("source").path("port").asText());
+      if (!port.isBlank()) {
+        ports.add(port);
+      }
+    }
+    source.requireKnown(steps, ports, retained);
+    target.requireKnown(steps, ports, retained);
+  }
+
+  private static WorkTaskCapture noMappingCapture(JsonNode transfer, List<String> evidenceRefs) {
     ObjectNode body = JSON.createObjectNode();
     body.put("outcome", "PREPARED");
     ObjectNode stored = body.putArray("transfers").addObject();
@@ -461,6 +495,10 @@ public final class WorkMapping {
             ? transfer.path("requirementIds").deepCopy()
             : JSON.createArrayNode());
     stored.put("decision", "NO_MAPPING");
+    ArrayNode cited = stored.putArray("evidenceRefs");
+    for (String id : evidenceRefs) {
+      cited.add(id);
+    }
     return WorkDocumentCaptureSchema.parse(WorkDocumentCaptureSchema.withUniversalLists(body));
   }
 
