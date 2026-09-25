@@ -403,7 +403,7 @@ What building a snapshot does:
 - **Verifies element properties first.** Every verification error is logged with its chain, element, and
   type, and the build fails with the first one: `Failed to build snapshot for chain '<name>' (<id>): ...`.
 - **Gives each element a new random id**, keeping the export id as the original id. Connections and
-  swimlane references are rewired to the new ids.
+  swimlane references are rewired to the new IDs.
 - **Builds each element once.** The chain's element list is flat, containers and their children side by
   side. The snapshot is built from the root elements down and then flattened, and a repeated id fails the
   build.
@@ -417,7 +417,7 @@ not activated. runtime-catalog decides per service type and does not always fall
 environment, so an `EXTERNAL` service without an active environment can resolve differently here.
 
 The snapshot name is the time the snapshot was built, read from the clock rather than from
-`outputTimestamp`. Together with the random ids, this makes two builds of the same sources differ in the
+`outputTimestamp`. Together with the random IDs, this makes two builds of the same sources differ in the
 source and integrations configuration ConfigMaps, even with `outputTimestamp` set, and every rebuild reads
 as a change in a GitOps diff. A design for reproducible output is in
 [`docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md`](../docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md).
