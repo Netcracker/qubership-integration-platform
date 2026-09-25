@@ -13,7 +13,7 @@ Store the author's supplied mapping on the existing steps. Repair only the assig
 - Echo a retained value onto the same field name. Do not copy processInstanceId onto processId unless the source names both.
 - Empty rules do not show that mapping is unnecessary. Record NO_MAPPING only with evidence.
 - The steps array stays empty. The listed steps already exist.
-  Refer to steps by id (start, create, result), not by label.
+  refer to a step by that id. The label and the contract name are not a step id and not a JSON path segment. `completeTask` is the `commandType` constant, not a step and not a service call.
 - Do not add another service call.
 - PREPARED stores the rules, retained values, and transfers you can take from the supplied source.
   Put the author's fallback, failure, and formatting text in behavior.

@@ -114,10 +114,13 @@ class WorkCheckpointHarnessTest {
   @Test
   void mappingCheckpointRunsSuppliedMappingAndPriorityRepair() throws Exception {
     Path supplied = temp.resolve("om-mapping.json");
+    List<String> prompts = new ArrayList<>();
     int suppliedExit =
         WorkCheckpointHarness.run(
             request("mapping", "om-mapping", supplied),
-            session(new ArrayList<>(), new AtomicInteger(), omMappingCapture()));
+            session(prompts, new AtomicInteger(), omMappingCapture()));
+    assertTrue(prompts.getFirst().contains("id create kind SERVICE_CALL label Task"));
+    assertFalse(prompts.getFirst().contains("step create SERVICE_CALL Task"));
     JsonNode suppliedBody = JSON.readTree(supplied.toFile());
     assertEquals(0, suppliedExit, Files.readString(supplied));
     assertEquals("PREPARED", suppliedBody.path("outcome").asText(), Files.readString(supplied));

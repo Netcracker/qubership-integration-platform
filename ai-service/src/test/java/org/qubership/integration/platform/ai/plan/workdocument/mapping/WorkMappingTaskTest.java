@@ -210,8 +210,12 @@ class WorkMappingTaskTest {
     assertEquals("create", target.path("stepId").asText());
     assertEquals("request", target.path("port").asText());
     assertTrue(prompts.getFirst().contains("The steps array stays empty."));
+    assertTrue(prompts.getFirst().contains("refer to a step by that id"));
     assertTrue(
-        prompts.getFirst().contains("Refer to steps by id (start, create, result), not by label."));
+        prompts
+            .getFirst()
+            .contains(
+                "The label and the contract name are not a step id and not a JSON path segment."));
 
     WorkDocumentRejectedException rejected =
         assertThrows(
@@ -219,6 +223,89 @@ class WorkMappingTaskTest {
             () -> mapping.interpret(RUN_ID, materials(false), prompt -> extraServiceCallCapture()));
     assertEquals("DUPLICATE_SERVICE_CALL", rejected.code());
     assertEquals(1, serviceCalls(JSON.valueToTree(documents.read(RUN_ID).document())));
+  }
+
+  @Test
+  void promptNamesEachStepById() {
+    List<String> prompts = new ArrayList<>();
+    mapping.interpret(
+        RUN_ID,
+        materials(false),
+        prompt -> {
+          prompts.add(prompt);
+          return suppliedCapture(false);
+        });
+
+    String prompt = prompts.getFirst();
+    assertTrue(prompt.contains("id start kind TRIGGER label onTaskStart"));
+    assertTrue(prompt.contains("id create kind SERVICE_CALL label Task"));
+    assertTrue(prompt.contains("id result kind REPLY label onTaskResult"));
+    assertFalse(prompt.contains("step create SERVICE_CALL Task"));
+    assertTrue(prompt.contains("refer to a step by that id"));
+    assertTrue(
+        prompt.contains(
+            "The label and the contract name are not a step id and not a JSON path segment."));
+    assertTrue(
+        prompt.contains(
+            "`completeTask` is the `commandType` constant, not a step and not a service call."));
+  }
+
+  @Test
+  void completeTaskServiceCallIsRejected() {
+    WorkDocumentRejectedException byLabel =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                mapping.interpret(
+                    RUN_ID, materials(false), prompt -> completeTaskCallCapture("completeTask", "extra")));
+    assertEquals("PAYLOAD_CONSTANT", byLabel.code());
+    assertEquals(1, serviceCalls(JSON.valueToTree(documents.read(RUN_ID).document())));
+
+    WorkDocumentRejectedException byAlias =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                mapping.interpret(
+                    RUN_ID, materials(false), prompt -> completeTaskCallCapture("Finish", "completeTask")));
+    assertEquals("PAYLOAD_CONSTANT", byAlias.code());
+    assertFalse(labels(JSON.valueToTree(documents.read(RUN_ID).document())).contains("completeTask"));
+    assertFalse(labels(JSON.valueToTree(documents.read(RUN_ID).document())).contains("Finish"));
+  }
+
+  @Test
+  void taskPrefixStaysAQuestionWhileDescriptionStays() {
+    WorkCommit commit =
+        mapping.interpret(RUN_ID, materials(false), prompt -> descriptionAndTaskPrefixCapture());
+
+    assertEquals("PREPARED", commit.outcome().name());
+    JsonNode document = JSON.valueToTree(commit.state().document());
+    assertTrue(targets(document).contains("$.Description"));
+    assertFalse(targets(document).contains("$.Task.Description"));
+    String questions = document.path("progress").path("questions").toString();
+    assertTrue(questions.contains("Task"));
+    assertTrue(questions.contains("$.Task.Description") || questions.contains("not a JSON prefix"));
+  }
+
+  @Test
+  void processInstanceIdAloneDoesNotAuthorizeProcessId() {
+    WorkTaskMaterials sourceNamesOnlyTheLongerField =
+        new WorkTaskMaterials(
+            materials(false).schemas(),
+            List.of(),
+            Map.of("src-map", "Keep processInstanceId for the response."));
+
+    WorkCommit commit =
+        mapping.interpret(
+            RUN_ID, sourceNamesOnlyTheLongerField, prompt -> subjectAndProcessRenameCapture());
+
+    assertEquals("PREPARED", commit.outcome().name());
+    JsonNode document = JSON.valueToTree(commit.state().document());
+    assertTrue(targets(document).contains("$.Subject"));
+    assertFalse(targets(document).contains("$.processId"));
+    String questions = document.path("progress").path("questions").toString();
+    assertTrue(questions.contains("processId"));
+    assertTrue(questions.contains("processInstanceId"));
+    assertFalse(questions.contains("processId is processInstanceId"));
   }
 
   @Test
@@ -613,6 +700,31 @@ class WorkMappingTaskTest {
         """;
   }
 
+  private static String completeTaskCallCapture(String label, String alias) {
+    return """
+        {"outcome":"PREPARED","requirements":[],"steps":[
+          {"existingId":"","alias":"%s","kind":"SERVICE_CALL","label":"%s","intent":"Finish the task","sourceRefs":["src-map"],"requirementRefs":[]}
+        ],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[
+          {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[],"decision":""}
+        ],"rules":[
+          {"existingId":"","alias":"rule-subject","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"Subject","retainedValueId":""},"constants":[],"behavior":"written field","evidenceRefs":["src-map"]}
+        ],"retainedValues":[]}
+        """
+        .formatted(alias, label);
+  }
+
+  private static String descriptionAndTaskPrefixCapture() {
+    return """
+        {"outcome":"PREPARED",%s,"transfers":[
+          {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[],"decision":""}
+        ],"rules":[
+          {"existingId":"","alias":"rule-prefix","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Task.Description","retainedValueId":""},"constants":[],"behavior":"prefixed","evidenceRefs":["src-map"]},
+          {"existingId":"","alias":"rule-description","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Description","retainedValueId":""},"constants":[],"behavior":"schema field","evidenceRefs":["src-map"]}
+        ],"retainedValues":[]}
+        """
+        .formatted(LISTS);
+  }
+
   private static String extraServiceCallCapture() {
     return """
         {"outcome":"PREPARED","requirements":[],"steps":[
@@ -676,6 +788,14 @@ class WorkMappingTaskTest {
       }
     }
     throw new AssertionError("Missing step " + id);
+  }
+
+  private static List<String> labels(JsonNode document) {
+    List<String> labels = new ArrayList<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      labels.add(step.path("label").asText());
+    }
+    return labels;
   }
 
   private static int serviceCalls(JsonNode document) {

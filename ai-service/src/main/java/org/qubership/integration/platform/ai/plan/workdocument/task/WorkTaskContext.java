@@ -35,11 +35,11 @@ public final class WorkTaskContext {
     }
     for (JsonNode step : document.path("flow").path("steps")) {
       prompt
-          .append("step ")
+          .append("id ")
           .append(step.path("id").asText())
-          .append(' ')
+          .append(" kind ")
           .append(step.path("kind").asText())
-          .append(' ')
+          .append(" label ")
           .append(step.path("label").asText())
           .append('\n');
     }
