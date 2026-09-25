@@ -11,7 +11,8 @@ public sealed interface ContractMaterial
         ContractMaterial.MissingSchema,
         ContractMaterial.Unavailable,
         ContractMaterial.ReadFailed,
-        ContractMaterial.Incompatible {
+        ContractMaterial.Incompatible,
+        ContractMaterial.Gap {
 
   String contractReference();
 
@@ -47,4 +48,22 @@ public sealed interface ContractMaterial
   record Incompatible(
       String contractReference, String operationId, String version, String reason)
       implements ContractMaterial {}
+
+  /**
+   * More than one published body applies to this port. {@code codes} names every candidate.
+   * None of them is chosen.
+   */
+  record Gap(
+      String contractReference,
+      String operationId,
+      String version,
+      String port,
+      List<String> codes,
+      String reason)
+      implements ContractMaterial {
+
+    public Gap {
+      codes = List.copyOf(codes == null ? List.of() : codes);
+    }
+  }
 }
