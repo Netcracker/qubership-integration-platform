@@ -12,7 +12,8 @@ Store the author's supplied mapping on the existing steps. Repair only the assig
 - When the source describes serialization, fallback, or failure text and names no source field, store that sentence as behavior and leave sources empty. Description is the target field.
 - Echo a retained value onto the same field name. Do not copy processInstanceId onto processId unless the source names both.
 - Empty rules do not show that mapping is unnecessary. Record NO_MAPPING only with evidence.
-- The steps array stays empty. The listed steps already exist. Refer to them by id in transfers and rules.
+- The steps array stays empty. The listed steps already exist.
+  Refer to steps by id (start, create, result), not by label.
 - Do not add another service call.
 - PREPARED stores the rules, retained values, and transfers you can take from the supplied source.
   Put the author's fallback, failure, and formatting text in behavior.
