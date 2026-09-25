@@ -369,7 +369,23 @@ class WorkDocumentEditorTest {
     WorkCommit moved =
         service.apply(
             saved.state(),
-            scope(saved.state(), List.of(transferId, ruleId), false, true, false),
+            new WorkTaskScope(
+                "task-1",
+                saved.state().revision(),
+                WorkStage.LOGICAL_FLOW,
+                "skill",
+                List.of(transferId, ruleId),
+                false,
+                true,
+                false,
+                List.of(),
+                List.of(),
+                List.of(new CreationAllowance(WorkRecordKind.TRANSFER, right)),
+                List.of(transferId, ruleId),
+                "task-1",
+                WorkTaskKind.UNSPECIFIED,
+                "",
+                null),
             WorkTaskCapture.prepared(
                 List.of(),
                 List.of(),

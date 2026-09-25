@@ -862,6 +862,117 @@ class WorkFillingStateTest {
   }
 
   @Test
+  void replaceOnlyScopeCannotMoveAnOwnedTransferOntoAnotherStep() {
+    WorkDocumentState state = mappingDocument();
+    WorkTaskScope scope = replaceOnlyScope(state, "transfer-a");
+
+    assertEquals(
+        "OUTSIDE_SCOPE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.apply(
+                        state,
+                        scope,
+                        WorkTaskCapture.prepared(
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(
+                                new CapturedTransfer(
+                                    "transfer-a",
+                                    "",
+                                    "call-b",
+                                    List.of(new PortRef("trigger", "payload")),
+                                    new PortRef("call-b", "request"),
+                                    List.of("req-1"),
+                                    "")),
+                            List.of(),
+                            List.of()),
+                        "cmd-move-transfer"))
+            .code());
+    assertEquals(List.of("transfer-a"), transferIds(state, "call-a"));
+    assertEquals(List.of("transfer-b"), transferIds(state, "call-b"));
+  }
+
+  @Test
+  void replaceOnlyScopeCannotMoveAnOwnedRetainedValueOntoAnotherProducer() {
+    WorkDocumentState state = mappingDocument();
+    WorkTaskScope scope = replaceOnlyScope(state, "kept-context");
+
+    assertEquals(
+        "OUTSIDE_SCOPE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.apply(
+                        state,
+                        scope,
+                        new WorkTaskCapture(
+                            WorkOutcome.PREPARED,
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(),
+                            List.of(
+                                new CapturedRetainedValue(
+                                    "kept-context",
+                                    "",
+                                    "trigger",
+                                    FieldReference.payload("trigger", PortRole.INBOUND_PAYLOAD, "$.orderId"),
+                                    "Order id",
+                                    List.of("source-1"))),
+                            List.of(),
+                            "",
+                            "",
+                            List.of(),
+                            "",
+                            "",
+                            List.of(),
+                            ""),
+                        "cmd-move-retained"))
+            .code());
+    assertEquals("call-b", stepHolding(state, "kept-context"));
+  }
+
+  @Test
+  void ownedNonRuleIdCannotBeWrittenAsARule() {
+    WorkDocumentState state = mappingDocument();
+    WorkTaskScope scope = replaceOnlyScope(state, "transfer-a");
+
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.apply(
+                        state,
+                        scope,
+                        ruleWithTarget(
+                            "transfer-a",
+                            "",
+                            "transfer-b",
+                            FieldReference.payload("call-b", PortRole.OUTBOUND_REQUEST, "$.Priority")),
+                        "cmd-transfer-as-rule"))
+            .code());
+    assertEquals("transfer-a", transferOfRule(state, "kept-rule"));
+    assertEquals(1, step(state, "call-a").data().transfers().get(0).rules().size());
+  }
+
+  @Test
   void acceptInputDoesNotAliasAnExistingSourceId() {
     documents.intake(RUN_ID, sourceIdDocument("src-om"), "cmd-intake", new WorkRepairBudget(3));
     WorkDocumentState current = documents.read(RUN_ID);
@@ -1011,6 +1122,36 @@ class WorkFillingStateTest {
         kind,
         fingerprint,
         new FixedTransferEndpoint("transfer-a", new PortRef("call-a", "request"), TransferOutcome.SUCCESS));
+  }
+
+  private static WorkTaskScope replaceOnlyScope(WorkDocumentState state, String recordId) {
+    return new WorkTaskScope(
+        "replace-" + recordId,
+        state.revision(),
+        WorkStage.DATA_BEHAVIOR,
+        "data-mapping",
+        List.of(recordId),
+        false,
+        true,
+        false,
+        List.of(),
+        List.of());
+  }
+
+  private static String stepHolding(WorkDocumentState state, String recordId) {
+    for (LogicalStep candidate : state.document().flow().steps()) {
+      for (DataTransfer transfer : candidate.data().transfers()) {
+        if (transfer.id().equals(recordId)) {
+          return candidate.id();
+        }
+      }
+      for (RetainedValue value : candidate.data().retainedValues()) {
+        if (value.id().equals(recordId)) {
+          return candidate.id();
+        }
+      }
+    }
+    throw new AssertionError(recordId);
   }
 
   private static WorkTaskScope replaceStepScope(WorkDocumentState state, String stepId) {
