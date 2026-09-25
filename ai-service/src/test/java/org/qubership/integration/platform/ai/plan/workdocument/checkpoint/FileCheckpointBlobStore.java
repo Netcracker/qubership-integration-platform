@@ -26,6 +26,11 @@ public final class FileCheckpointBlobStore implements ArtifactBlobStore {
     this.root = root;
   }
 
+  /** Directory a later process reopens to read blobs written here. */
+  Path root() {
+    return root;
+  }
+
   public static FileCheckpointBlobStore open(Path root) {
     if (root == null) {
       throw new IllegalStateException("STORE_UNAVAILABLE: durable artifact directory is missing.");
