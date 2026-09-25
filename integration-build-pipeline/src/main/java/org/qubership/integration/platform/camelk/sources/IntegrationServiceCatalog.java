@@ -3,7 +3,7 @@ package org.qubership.integration.platform.camelk.sources;
 import org.qubership.integration.platform.chain.model.IntegrationService;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 public interface IntegrationServiceCatalog {
@@ -26,7 +26,12 @@ public interface IntegrationServiceCatalog {
 
         @Override
         public Collection<IntegrationService> findAllByIds(Collection<String> ids) {
-            return Collections.emptyList();
+            return List.of();
+        }
+
+        @Override
+        public Collection<IntegrationService> findAll() {
+            return List.of();
         }
     };
 }
