@@ -78,7 +78,8 @@ public final class WorkContractMaterial {
                 + ". Keep the selected operation.");
       }
       SpecificationDto model = catalog.getModel(operation.modelId());
-      if (!version.equals(model.version() == null ? "" : model.version())) {
+      if (model == null || !version.equals(model.version() == null ? "" : model.version())) {
+        String catalogVersion = model == null || model.version() == null ? "" : model.version();
         return new ContractMaterial.Incompatible(
             reference,
             operationId,
@@ -88,13 +89,45 @@ public final class WorkContractMaterial {
                 + " is pinned to version "
                 + version
                 + ", but the catalog specification is "
-                + model.version()
+                + catalogVersion
                 + ". Keep the pinned operation and version.");
+      }
+      String modelId = model.id() == null ? "" : model.id();
+      if (!reference.equals(modelId)) {
+        return new ContractMaterial.Incompatible(
+            reference,
+            operationId,
+            version,
+            "Operation "
+                + operationId
+                + " is pinned to specification "
+                + reference
+                + ", but the catalog specification is "
+                + modelId
+                + ". Keep the pinned specification.");
       }
       OperationSchemaMapsDto maps = catalog.getOperationSchemas(operationId, "full");
       List<PortSchemaMaterial> ports = new ArrayList<>();
       for (String port : binding.exposedPorts()) {
-        JsonNode schema = readPort(operationId, port, maps);
+        PortLoad loadedPort = readPort(operationId, port, maps);
+        if (loadedPort instanceof PortLoad.Several several) {
+          return new ContractMaterial.Gap(
+              reference,
+              operationId,
+              version,
+              port,
+              several.codes(),
+              "Operation "
+                  + operationId
+                  + " version "
+                  + version
+                  + " has several "
+                  + port
+                  + " schemas ("
+                  + String.join(", ", several.codes())
+                  + "). Select one response code for that port.");
+        }
+        JsonNode schema = loadedPort instanceof PortLoad.Body body ? body.schema() : null;
         if (!usable(schema)) {
           return new ContractMaterial.MissingSchema(
               reference,
@@ -127,34 +160,124 @@ public final class WorkContractMaterial {
     }
   }
 
-  private JsonNode readPort(String operationId, String port, OperationSchemaMapsDto maps) {
+  private PortLoad readPort(String operationId, String port, OperationSchemaMapsDto maps) {
     if ("request".equals(port) || "payload".equals(port)) {
-      JsonNode read = catalog.getOperationRequestSchema(operationId, JSON_TYPE);
-      JsonNode listed = maps.requestSchema() == null ? null : maps.requestSchema().get(JSON_TYPE);
-      return confirmed(read, listed);
+      return readBody(operationId, maps);
     }
     if ("success".equals(port)) {
-      return response(operationId, maps, "200", "201", "2XX");
+      return readOutcome(operationId, maps, true);
     }
     if ("failure".equals(port)) {
-      return response(operationId, maps, "400", "4XX", "500", "5XX", "default");
+      return readOutcome(operationId, maps, false);
     }
-    return null;
+    return new PortLoad.Absent();
   }
 
-  private JsonNode response(String operationId, OperationSchemaMapsDto maps, String... codes) {
+  private PortLoad readBody(String operationId, OperationSchemaMapsDto maps) {
+    JsonNode listed = maps.requestSchema() == null ? null : maps.requestSchema().get(JSON_TYPE);
+    if (usable(listed)) {
+      return confirmedBody(catalog.getOperationRequestSchema(operationId, JSON_TYPE), listed);
+    }
+    return asyncMessage(operationId, maps);
+  }
+
+  /**
+   * Catalog AsyncAPI stores the channel message under response schemas and leaves the request map
+   * empty. HTTP status keys stay response codes, so a GET does not gain a request from its reply.
+   */
+  private PortLoad asyncMessage(String operationId, OperationSchemaMapsDto maps) {
+    Map<String, JsonNode> responses = maps.responseSchemas();
+    if (responses == null || responses.isEmpty()) {
+      return new PortLoad.Absent();
+    }
+    List<String> names = new ArrayList<>();
+    for (String key : responses.keySet()) {
+      if (httpStatus(key)) {
+        return new PortLoad.Absent();
+      }
+      names.add(key);
+    }
+    if (names.size() != 1) {
+      return new PortLoad.Several(names);
+    }
+    String name = names.get(0);
+    return confirmedBody(
+        catalog.getOperationResponseSchema(operationId, JSON_TYPE, name), unwrap(responses.get(name)));
+  }
+
+  private PortLoad readOutcome(String operationId, OperationSchemaMapsDto maps, boolean success) {
     Map<String, JsonNode> responses = maps.responseSchemas();
     if (responses == null) {
-      return null;
+      return new PortLoad.Absent();
     }
-    for (String code : codes) {
-      if (!responses.containsKey(code)) {
-        continue;
+    List<String> explicitSuccess = codes(responses, true);
+    List<String> chosen;
+    if (success) {
+      chosen =
+          explicitSuccess.isEmpty() && responses.containsKey("default")
+              ? List.of("default")
+              : explicitSuccess;
+    } else {
+      List<String> failures = codes(responses, false);
+      if (!explicitSuccess.isEmpty() && responses.containsKey("default")) {
+        failures.add("default");
       }
-      JsonNode read = catalog.getOperationResponseSchema(operationId, JSON_TYPE, code);
-      return confirmed(read, unwrap(responses.get(code)));
+      chosen = failures;
     }
-    return null;
+    if (chosen.isEmpty()) {
+      return new PortLoad.Absent();
+    }
+    if (chosen.size() > 1) {
+      return new PortLoad.Several(chosen);
+    }
+    String code = chosen.get(0);
+    return confirmedBody(
+        catalog.getOperationResponseSchema(operationId, JSON_TYPE, code), unwrap(responses.get(code)));
+  }
+
+  private static List<String> codes(Map<String, JsonNode> responses, boolean success) {
+    List<String> codes = new ArrayList<>();
+    for (String code : responses.keySet()) {
+      if (success ? successCode(code) : failureCode(code)) {
+        codes.add(code);
+      }
+    }
+    return codes;
+  }
+
+  private static PortLoad confirmedBody(JsonNode read, JsonNode listed) {
+    JsonNode schema = confirmed(read, listed);
+    return schema == null ? new PortLoad.Absent() : new PortLoad.Body(schema);
+  }
+
+  private static boolean successCode(String code) {
+    return "2XX".equals(code) || statusFamily(code, '2');
+  }
+
+  private static boolean failureCode(String code) {
+    return "4XX".equals(code) || "5XX".equals(code) || statusFamily(code, '4') || statusFamily(code, '5');
+  }
+
+  private static boolean httpStatus(String code) {
+    return "default".equals(code)
+        || "1XX".equals(code)
+        || "3XX".equals(code)
+        || successCode(code)
+        || failureCode(code)
+        || statusFamily(code, '1')
+        || statusFamily(code, '3');
+  }
+
+  private static boolean statusFamily(String code, char family) {
+    return code != null
+        && code.length() == 3
+        && code.charAt(0) == family
+        && digit(code.charAt(1))
+        && digit(code.charAt(2));
+  }
+
+  private static boolean digit(char value) {
+    return value >= '0' && value <= '9';
   }
 
   private static JsonNode confirmed(JsonNode read, JsonNode listed) {
@@ -179,7 +302,22 @@ public final class WorkContractMaterial {
     return schema != null
         && !schema.isNull()
         && !schema.isMissingNode()
-        && (schema.has("type") || schema.has("$ref") || schema.has("properties") || schema.has("items"));
+        && (schema.has("type")
+            || schema.has("$ref")
+            || schema.has("properties")
+            || schema.has("items")
+            || schema.has("allOf")
+            || schema.has("oneOf")
+            || schema.has("anyOf")
+            || schema.has("enum"));
+  }
+
+  private sealed interface PortLoad {
+    record Body(JsonNode schema) implements PortLoad {}
+
+    record Absent() implements PortLoad {}
+
+    record Several(List<String> codes) implements PortLoad {}
   }
 
   private static String reference(ResolvedWorkBinding binding) {
