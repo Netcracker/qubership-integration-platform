@@ -59,21 +59,58 @@ public final class WorkCheckpointHarness {
 
   static final String GATE_MODEL = "gpt-6-luna";
 
+  /** One filling invocation stops at this age and leaves the store resumable. */
+  public static final Duration INVOCATION_DEADLINE = Duration.ofMinutes(30);
+
   private static final ObjectMapper JSON = new ObjectMapper().registerModule(new JavaTimeModule());
   private static final Instant FIXED = Instant.parse("2026-09-24T12:00:00Z");
 
   private WorkCheckpointHarness() {}
 
   public static void main(String[] args) throws Exception {
-    String checkpoint = arg(args, "--checkpoint");
-    String caseId = arg(args, "--case");
-    Path report = Path.of(arg(args, "--report"));
-    Path fixtures = Path.of(arg(args, "--fixtures"));
+    System.exit(execute(args));
+  }
+
+  /** CLI entry without {@code System.exit}, so tests can check help and invalid arguments. */
+  public static int execute(String[] args) throws Exception {
+    if (wantsHelp(args)) {
+      System.out.println(usageText());
+      return 0;
+    }
+    CliArgs parsed;
+    try {
+      parsed = CliArgs.parse(args);
+    } catch (IllegalArgumentException failure) {
+      System.err.println(failure.getMessage());
+      return 2;
+    }
+    if ("filling".equals(parsed.checkpoint)) {
+      return FillingCheckpoint.execute(parsed);
+    }
+    return executeLegacy(parsed);
+  }
+
+  public static String usageText() {
+    return """
+        Usage: bash ai-service/e2e/product-pipeline/run-work-document-checkpoint.sh \\
+          --checkpoint <logical|binding|mapping|recovery|filling> --case <case-id> --report <report-path>
+        Filling also accepts --run-id <id>, --resume, --input-file <absolute-json>, and --max-model-calls <n>.
+        --help prints this usage and does not call a provider or a catalog.
+        Set WORK_CHECKPOINT_LIVE=1 to call the configured provider. The filling checkpoint uses the
+        replayable fake model when that variable is unset. This process does not change the model.
+        """;
+  }
+
+  private static int executeLegacy(CliArgs parsed) throws Exception {
+    String checkpoint = parsed.checkpoint;
+    String caseId = parsed.caseId;
+    Path report = parsed.report;
+    Path fixtures = parsed.fixtures;
     if (!"1".equals(System.getenv("WORK_CHECKPOINT_LIVE"))) {
       write(
           report,
           refused(checkpoint, caseId, "LIVE_NOT_ENABLED", "Set WORK_CHECKPOINT_LIVE=1 to call the configured provider."));
-      System.exit(2);
+      return 2;
     }
     ArtifactBlobStore publicationStore;
     try {
@@ -82,8 +119,7 @@ public final class WorkCheckpointHarness {
       write(
           report,
           failed(checkpoint, caseId, "STORE_UNAVAILABLE", failure.getMessage()));
-      System.exit(1);
-      return;
+      return 1;
     }
     String model = System.getenv("LLM_CHAT_MODEL");
     if (model == null || model.isBlank()) {
@@ -94,7 +130,7 @@ public final class WorkCheckpointHarness {
               caseId,
               "MISSING_MODEL",
               "LLM_CHAT_MODEL is empty. The harness does not substitute gpt-6-luna."));
-      System.exit(1);
+      return 1;
     }
     String provider = System.getenv().getOrDefault("LLM_PROVIDER", "auto");
     String apiKey = System.getenv("LLM_API_KEY");
@@ -107,7 +143,7 @@ public final class WorkCheckpointHarness {
               caseId,
               "MISSING_PROVIDER",
               "LLM_API_KEY and LLM_BASE_URL must already be set. The harness does not change them."));
-      System.exit(1);
+      return 1;
     }
     boolean binding = "binding".equals(checkpoint);
     WorkTaskModel client =
@@ -124,8 +160,7 @@ public final class WorkCheckpointHarness {
       catalog = binding ? HostCatalog.open(System.getenv("CATALOG_URL")) : new UnavailableCatalog();
     } catch (RuntimeException failure) {
       write(report, failed(checkpoint, caseId, "CATALOG_CLIENT_UNAVAILABLE", failure.getMessage()));
-      System.exit(1);
-      return;
+      return 1;
     }
     if (binding) {
       HostCatalog.bindConversation("checkpoint-" + caseId);
@@ -141,10 +176,13 @@ public final class WorkCheckpointHarness {
         HostCatalog.clearConversation();
       }
     }
-    System.exit(exit);
+    return exit;
   }
 
   public static int run(CheckpointRequest request, CheckpointSession session) throws Exception {
+    if ("filling".equals(request.checkpoint())) {
+      return FillingCheckpoint.run(request, session);
+    }
     String checkpoint = request.checkpoint();
     if (!List.of("logical", "binding", "mapping", "recovery").contains(checkpoint)) {
       write(
@@ -483,6 +521,16 @@ public final class WorkCheckpointHarness {
   }
 
   static String completeChat(String baseUrl, String apiKey, String model, String prompt, ObjectNode responseSchema) {
+    return completeChat(baseUrl, apiKey, model, prompt, responseSchema, null);
+  }
+
+  static String completeChat(
+      String baseUrl,
+      String apiKey,
+      String model,
+      String prompt,
+      ObjectNode responseSchema,
+      AtomicReference<String> responseModel) {
     String root = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
     ObjectNode body = JSON.createObjectNode();
     body.put("model", model);
@@ -523,6 +571,10 @@ public final class WorkCheckpointHarness {
     String content = tree.path("choices").path(0).path("message").path("content").asText("");
     if (content.isBlank()) {
       throw new IllegalStateException("Model response has no message content.");
+    }
+    if (responseModel != null) {
+      String observed = tree.path("model").asText("");
+      responseModel.set(observed.isBlank() ? null : observed);
     }
     return content;
   }
@@ -578,6 +630,100 @@ public final class WorkCheckpointHarness {
       Files.createDirectories(report.getParent());
     }
     JSON.writerWithDefaultPrettyPrinter().writeValue(report.toFile(), body);
+  }
+
+  private static boolean wantsHelp(String[] args) {
+    if (args == null) {
+      return false;
+    }
+    for (String arg : args) {
+      if ("--help".equals(arg)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static final class CliArgs {
+    final String checkpoint;
+    final String caseId;
+    final Path report;
+    final Path fixtures;
+    final String runId;
+    final boolean resume;
+    final Path inputFile;
+    final String maxModelCalls;
+
+    private CliArgs(
+        String checkpoint,
+        String caseId,
+        Path report,
+        Path fixtures,
+        String runId,
+        boolean resume,
+        Path inputFile,
+        String maxModelCalls) {
+      this.checkpoint = checkpoint;
+      this.caseId = caseId;
+      this.report = report;
+      this.fixtures = fixtures;
+      this.runId = runId == null ? "" : runId;
+      this.resume = resume;
+      this.inputFile = inputFile;
+      this.maxModelCalls = maxModelCalls;
+    }
+
+    static CliArgs parse(String[] args) {
+      String checkpoint = "";
+      String caseId = "";
+      Path report = null;
+      Path fixtures = null;
+      String runId = "";
+      boolean resume = false;
+      Path inputFile = null;
+      String maxModelCalls = null;
+      for (int i = 0; i < args.length; i++) {
+        String token = args[i];
+        switch (token) {
+          case "--resume" -> resume = true;
+          case "--checkpoint",
+              "--case",
+              "--report",
+              "--fixtures",
+              "--run-id",
+              "--input-file",
+              "--max-model-calls" -> {
+            if (i + 1 >= args.length) {
+              throw new IllegalArgumentException("Missing value for " + token);
+            }
+            String value = args[++i];
+            switch (token) {
+              case "--checkpoint" -> checkpoint = value;
+              case "--case" -> caseId = value;
+              case "--report" -> report = Path.of(value);
+              case "--fixtures" -> fixtures = Path.of(value);
+              case "--run-id" -> runId = value;
+              case "--input-file" -> inputFile = Path.of(value);
+              default -> maxModelCalls = value;
+            }
+          }
+          default -> throw new IllegalArgumentException("Unknown argument " + token);
+        }
+      }
+      if (checkpoint.isBlank()) {
+        throw new IllegalArgumentException("Missing --checkpoint");
+      }
+      if (caseId.isBlank()) {
+        throw new IllegalArgumentException("Missing --case");
+      }
+      if (report == null) {
+        throw new IllegalArgumentException("Missing --report");
+      }
+      if (fixtures == null) {
+        throw new IllegalArgumentException("Missing --fixtures");
+      }
+      return new CliArgs(checkpoint, caseId, report, fixtures, runId, resume, inputFile, maxModelCalls);
+    }
   }
 
   private static String arg(String[] args, String name) {
