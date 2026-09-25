@@ -61,6 +61,26 @@ public record ResolvedWorkBinding(
   }
 
   /**
+   * Returns a binding that stores the schema hashes. An empty list is not a schema hash, so it
+   * leaves the current hashes in place.
+   */
+  public ResolvedWorkBinding withPortContentHashes(List<PortContentHash> hashes) {
+    if (hashes == null || hashes.isEmpty()) {
+      return this;
+    }
+    return new ResolvedWorkBinding(
+        catalogId,
+        version,
+        operationId,
+        protocol,
+        method,
+        path,
+        contractReferences,
+        exposedPorts,
+        hashes);
+  }
+
+  /**
    * Older documents omit port content hashes. A missing property stays an empty list so schema
    * version 2 still loads.
    */

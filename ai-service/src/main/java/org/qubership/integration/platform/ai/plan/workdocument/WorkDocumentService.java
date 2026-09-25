@@ -215,16 +215,25 @@ public final class WorkDocumentService {
    */
   public WorkCommit applyOutline(
       String runId, WorkTaskScope scope, OutlineProposal proposal, String commandId) {
+    return applyOutline(runId, read(runId), scope, proposal, commandId);
+  }
+
+  WorkCommit applyOutline(
+      String runId,
+      WorkDocumentState state,
+      WorkTaskScope scope,
+      OutlineProposal proposal,
+      String commandId) {
     requireStore();
     Objects.requireNonNull(scope, "scope");
     Objects.requireNonNull(proposal, "proposal");
+    Objects.requireNonNull(state, "state");
     ProductPipelineRunDocument current = load(runId);
     String payloadHash = sha256(write(Map.of("outline", proposal, "task", scope.taskKey())));
     Optional<RunTransition> replay = current.appliedCommand(commandId, payloadHash);
     if (replay.isPresent()) {
       return committedResult(current, replay.get());
     }
-    WorkDocumentState state = read(runId);
     WorkCommit edited;
     try {
       edited = editor.applyOutline(state, scope, proposal, commandId);

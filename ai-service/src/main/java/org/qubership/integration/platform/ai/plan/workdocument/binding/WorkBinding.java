@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import org.qubership.integration.platform.ai.catalog.binding.CatalogOperationProjector;
@@ -17,6 +18,7 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument;
 import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding;
+import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding.PortContentHash;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
@@ -150,15 +152,16 @@ public final class WorkBinding {
     ResolvedServiceCallBinding projected = project(stepId, hit);
     projectOntoGraph(stepId, projected);
     String version = hit.version() == null ? "" : hit.version();
-    return new ResolvedWorkBinding(
-        projected.systemId(),
-        version,
-        projected.operationId(),
-        projected.protocolType(),
-        projected.method(),
-        projected.path(),
-        List.of(hit.specificationId()),
-        hit.exposedPorts());
+    return withSchemaHashes(
+        new ResolvedWorkBinding(
+            projected.systemId(),
+            version,
+            projected.operationId(),
+            projected.protocolType(),
+            projected.method(),
+            projected.path(),
+            List.of(hit.specificationId()),
+            hit.exposedPorts()));
   }
 
   private ResolvedWorkBinding fromApiHub(String stepId, ApiHubHit hit) {
@@ -175,28 +178,45 @@ public final class WorkBinding {
             hit.path(),
             hit.exposedPorts());
     if (hit.method() == null || hit.method().isBlank()) {
-      return new ResolvedWorkBinding(
-          hit.packageId(),
-          hit.version(),
-          hit.operationId(),
-          hit.protocol() == null ? "" : hit.protocol(),
-          "",
-          hit.path() == null ? "" : hit.path(),
-          List.of("apihub:" + hit.packageId() + "@" + hit.version()),
-          hit.exposedPorts());
+      return withSchemaHashes(
+          new ResolvedWorkBinding(
+              hit.packageId(),
+              hit.version(),
+              hit.operationId(),
+              hit.protocol() == null ? "" : hit.protocol(),
+              "",
+              hit.path() == null ? "" : hit.path(),
+              List.of("apihub:" + hit.packageId() + "@" + hit.version()),
+              hit.exposedPorts()));
     }
     ResolvedServiceCallBinding projected =
         project(stepId, asCatalog, ResolvedServiceCallBinding.Source.APIHUB_IMPORT);
     projectOntoGraph(stepId, projected);
-    return new ResolvedWorkBinding(
-        projected.systemId(),
-        hit.version(),
-        projected.operationId(),
-        projected.protocolType(),
-        projected.method(),
-        projected.path(),
-        List.of("apihub:" + hit.packageId() + "@" + hit.version()),
-        hit.exposedPorts());
+    return withSchemaHashes(
+        new ResolvedWorkBinding(
+            projected.systemId(),
+            hit.version(),
+            projected.operationId(),
+            projected.protocolType(),
+            projected.method(),
+            projected.path(),
+            List.of("apihub:" + hit.packageId() + "@" + hit.version()),
+            hit.exposedPorts()));
+  }
+
+  private ResolvedWorkBinding withSchemaHashes(ResolvedWorkBinding binding) {
+    ContractMaterial material = resolution.loadContract(binding);
+    if (!(material instanceof ContractMaterial.Ready ready)) {
+      return binding;
+    }
+    List<PortContentHash> hashes = new ArrayList<>();
+    for (PortSchemaMaterial port : ready.ports()) {
+      if (port.contentHash() == null || port.contentHash().isBlank()) {
+        continue;
+      }
+      hashes.add(new PortContentHash(port.port(), port.contentHash()));
+    }
+    return binding.withPortContentHashes(hashes);
   }
 
   private static ResolvedServiceCallBinding project(String stepId, CatalogHit hit) {
