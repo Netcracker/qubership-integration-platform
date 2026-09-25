@@ -152,6 +152,24 @@ class WorkMappingTaskTest {
   }
 
   @Test
+  void dollarSourcePathAsksAndDoesNotStoreTheRule() {
+    WorkCommit asked =
+        mapping.interpret(
+            RUN_ID, materials(false), prompt -> sourceCapture("$", "INBOUND_PAYLOAD", "start", "$.name"));
+
+    assertEquals("NEEDS_CLARIFICATION", asked.outcome().name());
+    JsonNode document = JSON.valueToTree(asked.state().document());
+    assertFalse(sourcePaths(document).contains("$"));
+    assertEquals(0, rules(document).size());
+    assertTrue(
+        document
+            .path("progress")
+            .path("questions")
+            .toString()
+            .contains("Field path $ is not in the selected contract"));
+  }
+
+  @Test
   void initialPromptContainsTheSuppliedSource() {
     List<String> prompts = new ArrayList<>();
     mapping.interpret(
@@ -206,6 +224,23 @@ class WorkMappingTaskTest {
     assertTrue(prompt.contains("Every record list is empty."));
     assertTrue(prompt.contains("Do not ask for a format the source already describes."));
     assertTrue(prompt.contains("A schema label is not an evidence id."));
+  }
+
+  @Test
+  void promptForbidsDollarPathsAndSameFieldEcho() {
+    List<String> prompts = new ArrayList<>();
+    mapping.interpret(
+        RUN_ID,
+        materials(false),
+        prompt -> {
+          prompts.add(prompt);
+          return suppliedCapture(false);
+        });
+
+    assertFalse(prompts.isEmpty());
+    String prompt = prompts.getFirst();
+    assertTrue(prompt.contains("Do not use $, an empty path, or a path you invented."));
+    assertTrue(prompt.contains("Echo a retained value onto the same field name."));
   }
 
   @Test
