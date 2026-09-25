@@ -3,6 +3,7 @@ package org.qubership.integration.platform.maven.plugin.domain.builders.chain;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 import org.qubership.integration.platform.maven.plugin.mojos.ControlPlaneType;
 
@@ -31,7 +32,8 @@ class ControlPlaneUtilTest {
      */
     @Test
     void failsWhenTheBuildNeverRecordedItsParameters() {
-        ResourceBuildContext<Void> context = ResourceBuildContext.create(BuildInfo.builder().build());
+        ResourceBuildContext<Void> context =
+            ResourceBuildContext.create(BuildInfo.builder().build(), IntegrationServiceCatalog.EMPTY);
 
         RuntimeException exception = assertThrows(RuntimeException.class,
             () -> ControlPlaneUtil.enabled(context, ControlPlaneType.ISTIO));
@@ -50,7 +52,8 @@ class ControlPlaneUtilTest {
     }
 
     private static ResourceBuildContext<Void> contextFor(ControlPlaneType controlPlaneType) {
-        ResourceBuildContext<Void> context = ResourceBuildContext.create(BuildInfo.builder().build());
+        ResourceBuildContext<Void> context =
+            ResourceBuildContext.create(BuildInfo.builder().build(), IntegrationServiceCatalog.EMPTY);
         context.getBuildCache().put(BUILD_CRS_TASK_PARAMETERS,
             BuildCRsTaskParameters.builder().controlPlaneType(controlPlaneType).build());
         return context;

@@ -9,6 +9,7 @@ import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.camelk.services.ResourceBuildService;
 import org.qubership.integration.platform.chain.impl.ChainImpl;
 import org.qubership.integration.platform.chain.impl.ImportSystemImpl;
@@ -87,7 +88,7 @@ class MicroDomainResourcesBuildServiceTest {
         when(resourceBuildService.buildResources(any())).thenReturn(RESOURCE_TEXT);
         when(buildContextFactory.createResourceBuildContext(any(), any(), any())).thenAnswer(invocation -> {
             BuildInfo buildInfo = BuildInfo.builder().options(invocation.getArgument(1)).build();
-            return ResourceBuildContext.create(buildInfo, null).updateTo(invocation.getArgument(0));
+            return ResourceBuildContext.create(buildInfo, IntegrationServiceCatalog.EMPTY).updateTo(invocation.getArgument(0));
         });
     }
 

@@ -3,6 +3,7 @@ package org.qubership.integration.platform.maven.plugin.domain.services;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -41,7 +42,9 @@ class TemplateBasedLibraryLocationGetterTest {
 
     @Test
     void failsWhenTheBuildParametersAreMissing() {
-        ResourceBuildContext<String> context = ResourceBuildContext.create(BuildInfo.builder().build()).updateTo("spec-1");
+        ResourceBuildContext<String> context = ResourceBuildContext
+            .create(BuildInfo.builder().build(), IntegrationServiceCatalog.EMPTY)
+            .updateTo("spec-1");
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> getter.apply(context));
 
@@ -49,7 +52,8 @@ class TemplateBasedLibraryLocationGetterTest {
     }
 
     private static ResourceBuildContext<String> context(String template, String specificationId) {
-        ResourceBuildContext<String> context = ResourceBuildContext.create(BuildInfo.builder().build())
+        ResourceBuildContext<String> context = ResourceBuildContext
+            .create(BuildInfo.builder().build(), IntegrationServiceCatalog.EMPTY)
             .updateTo(specificationId);
         context.getBuildCache().put(
             BUILD_CRS_TASK_PARAMETERS,

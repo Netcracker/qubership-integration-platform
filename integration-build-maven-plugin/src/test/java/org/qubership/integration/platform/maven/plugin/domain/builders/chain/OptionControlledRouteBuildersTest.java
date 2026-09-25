@@ -6,6 +6,7 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.routes.Route;
 import org.qubership.integration.platform.camelk.model.routes.RouteType;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 import org.qubership.integration.platform.maven.plugin.mojos.ControlPlaneType;
@@ -84,7 +85,8 @@ class OptionControlledRouteBuildersTest {
     }
 
     private static ResourceBuildContext<List<Snapshot>> contextFor(ControlPlaneType controlPlaneType) {
-        ResourceBuildContext<Void> context = ResourceBuildContext.create(BuildInfo.builder().build());
+        ResourceBuildContext<Void> context =
+            ResourceBuildContext.create(BuildInfo.builder().build(), IntegrationServiceCatalog.EMPTY);
         context.getBuildCache().put(BUILD_CRS_TASK_PARAMETERS,
             BuildCRsTaskParameters.builder().controlPlaneType(controlPlaneType).build());
         return context.updateTo(List.of(mock(Snapshot.class)));
