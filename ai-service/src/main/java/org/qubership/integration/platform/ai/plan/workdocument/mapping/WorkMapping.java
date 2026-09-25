@@ -120,6 +120,7 @@ public final class WorkMapping {
             "Mapping capture could not be parsed. The task was not completed.");
       }
       JsonNode tree = read(output);
+      rejectCompleteTask(tree);
       dropRestatedSteps(document, tree);
       rewriteStepLabels(document, tree);
       if (tree.has("steps")) {
@@ -142,6 +143,20 @@ public final class WorkMapping {
       }
       return complete(tree);
     };
+  }
+
+  private static void rejectCompleteTask(JsonNode tree) {
+    for (JsonNode step : tree.path("steps")) {
+      if (!"SERVICE_CALL".equals(step.path("kind").asText())) {
+        continue;
+      }
+      if ("completeTask".equals(step.path("label").asText())
+          || "completeTask".equals(step.path("alias").asText())) {
+        throw new WorkDocumentRejectedException(
+            "PAYLOAD_CONSTANT",
+            "completeTask is the commandType constant, not a step and not a service call.");
+      }
+    }
   }
 
   private static void dropRestatedSteps(JsonNode document, JsonNode tree) {
@@ -285,11 +300,26 @@ public final class WorkMapping {
       }
       retained.add(leaf(source.path("fieldPath").asText()));
     }
-    String renameQuestion = null;
+    String heldQuestion = null;
     if (tree.get("rules") instanceof ArrayNode rules) {
       List<Integer> dropped = new ArrayList<>();
       for (int index = 0; index < rules.size(); index++) {
         JsonNode rule = rules.get(index);
+        JsonNode target = rule.path("target");
+        String prefix =
+            inventedPrefix(
+                document,
+                materials,
+                target.path("stepId").asText(),
+                portName(target.path("port").asText()),
+                target.path("fieldPath").asText());
+        if (prefix != null) {
+          dropped.add(index);
+          if (heldQuestion == null) {
+            heldQuestion = prefix;
+          }
+          continue;
+        }
         String blocking = blockingRuleProblem(document, materials, rule, retained);
         if (blocking != null) {
           return blocking;
@@ -297,8 +327,8 @@ public final class WorkMapping {
         String rename = unnamedRename(materials, tree, rule);
         if (rename != null) {
           dropped.add(index);
-          if (renameQuestion == null) {
-            renameQuestion = rename;
+          if (heldQuestion == null) {
+            heldQuestion = rename;
           }
         }
       }
@@ -306,11 +336,11 @@ public final class WorkMapping {
         rules.remove(dropped.get(index).intValue());
       }
     }
-    if (renameQuestion != null && tree.path("rules").isEmpty()) {
-      return renameQuestion;
+    if (heldQuestion != null && tree.path("rules").isEmpty()) {
+      return heldQuestion;
     }
-    if (renameQuestion != null) {
-      keptRenames.add(renameQuestion);
+    if (heldQuestion != null) {
+      keptRenames.add(heldQuestion);
     }
     return null;
   }
@@ -328,12 +358,6 @@ public final class WorkMapping {
           "Retained field "
               + targetLeaf
               + " stays in context. Do not add it to the service request.");
-    }
-    String prefixed =
-        inventedPrefix(
-            document, materials, target.path("stepId").asText(), portName(target.path("port").asText()), path);
-    if (prefixed != null) {
-      return prefixed;
     }
     String missing =
         unknownPath(
