@@ -668,6 +668,309 @@ class WorkFillingStateTest {
             .code());
   }
 
+  @Test
+  void outlineTransferOnAnotherStepIsRejected() {
+    WorkDocumentState state = targetDocument();
+    WorkTaskScope scope = outlineScope(state);
+
+    assertEquals(
+        "OUTSIDE_SCOPE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.applyOutline(
+                        state,
+                        scope,
+                        outlineProposal(
+                            "call-a",
+                            new OutlineTransfer(
+                                "to-other",
+                                "",
+                                List.of(new PortRef("trigger", "payload")),
+                                new PortRef("call-b", "request"),
+                                TransferOutcome.SUCCESS,
+                                List.of("req-1"),
+                                List.of(),
+                                "")),
+                        "cmd-other-step"))
+            .code());
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.applyOutline(
+                        state,
+                        scope,
+                        outlineProposal(
+                            "call-a",
+                            new OutlineTransfer(
+                                "missing-port",
+                                "",
+                                List.of(new PortRef("trigger", "payload")),
+                                null,
+                                TransferOutcome.SUCCESS,
+                                List.of("req-1"),
+                                List.of(),
+                                "")),
+                        "cmd-null-port"))
+            .code());
+    assertTrue(step(state, "call-a").data().transfers().isEmpty());
+    assertTrue(step(state, "call-b").data().transfers().isEmpty());
+  }
+
+  @Test
+  void outlineCannotReuseAStepOrRuleId() {
+    WorkDocumentState state = mappingDocument();
+    WorkTaskScope scope = outlineScope(state);
+
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.applyOutline(
+                        state,
+                        scope,
+                        outlineProposal(
+                            "call-a",
+                            new OutlineTransfer(
+                                "",
+                                "call-a",
+                                List.of(new PortRef("trigger", "payload")),
+                                new PortRef("call-a", "request"),
+                                TransferOutcome.SUCCESS,
+                                List.of("req-1"),
+                                List.of(),
+                                "")),
+                        "cmd-step-id"))
+            .code());
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.applyOutline(
+                        state,
+                        scope,
+                        outlineProposal(
+                            "call-a",
+                            new OutlineTransfer(
+                                "",
+                                "kept-rule",
+                                List.of(new PortRef("trigger", "payload")),
+                                new PortRef("call-a", "request"),
+                                TransferOutcome.SUCCESS,
+                                List.of("req-1"),
+                                List.of(),
+                                "")),
+                        "cmd-rule-id"))
+            .code());
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.applyOutline(
+                        state,
+                        scope,
+                        new OutlineProposal(
+                            "call-a",
+                            List.of(),
+                            List.of(
+                                new OutlineRetained(
+                                    "", "kept-rule", "trigger", "Reused rule id", List.of("source-1"))),
+                            List.of()),
+                        "cmd-retained-id"))
+            .code());
+    assertEquals(List.of("transfer-a"), transferIds(state, "call-a"));
+    assertTrue(retained(state, "kept-rule").isEmpty());
+  }
+
+  @Test
+  void fixedEndpointRejectsAPortlessOrRetainedTarget() {
+    WorkDocumentState state = mappingDocument();
+    WorkTaskScope scope = mappingScope(state, "transfer-a");
+
+    assertEquals(
+        "OUTSIDE_SCOPE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.apply(
+                        state,
+                        scope,
+                        ruleWithTarget(
+                            "",
+                            "portless",
+                            "transfer-a",
+                            new FieldReference(
+                                FieldReferenceKind.STEP_PORT, "call-a", null, "$.Priority", "")),
+                        "cmd-portless"))
+            .code());
+    assertEquals(
+        "OUTSIDE_SCOPE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.apply(
+                        state,
+                        scope,
+                        ruleWithTarget(
+                            "",
+                            "retained-target",
+                            "transfer-a",
+                            new FieldReference(
+                                FieldReferenceKind.RETAINED, "", null, "", "kept-context")),
+                        "cmd-retained-target"))
+            .code());
+    assertEquals(1, step(state, "call-a").data().transfers().get(0).rules().size());
+  }
+
+  @Test
+  void replaceOnlyScopeCannotMoveARuleOntoASiblingTransfer() {
+    WorkDocumentState state = mappingDocument();
+    WorkTaskScope scope =
+        new WorkTaskScope(
+            "map-repair-kept-rule",
+            state.revision(),
+            WorkStage.DATA_BEHAVIOR,
+            "data-mapping",
+            List.of("kept-rule"),
+            false,
+            true,
+            false,
+            List.of(),
+            List.of());
+
+    assertEquals(
+        "OUTSIDE_SCOPE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    documents.apply(
+                        state,
+                        scope,
+                        ruleWithTarget(
+                            "kept-rule",
+                            "",
+                            "transfer-b",
+                            FieldReference.payload("call-b", PortRole.OUTBOUND_REQUEST, "$.Priority")),
+                        "cmd-move"))
+            .code());
+    assertEquals("transfer-a", transferOfRule(state, "kept-rule"));
+  }
+
+  @Test
+  void acceptInputDoesNotAliasAnExistingSourceId() {
+    documents.intake(RUN_ID, sourceIdDocument("src-om"), "cmd-intake", new WorkRepairBudget(3));
+    WorkDocumentState current = documents.read(RUN_ID);
+    documents.recordQuestion(
+        RUN_ID,
+        mappingScope(current, "transfer-a"),
+        "Which field supplies priority?",
+        QuestionSubject.unspecified(),
+        List.of(),
+        List.of("src-om"),
+        "cmd-question");
+    String questionId = documents.read(RUN_ID).document().progress().questions().get(0).id();
+    String answer = "Priority comes from the trigger.";
+
+    documents.acceptInput(RUN_ID, questionId, "om", answer);
+
+    WorkDocumentState stored = documents.read(RUN_ID);
+    assertEquals(1, sourcesNamed(stored, "src-om").size());
+    assertEquals(SOURCE_TEXT, sourcesNamed(stored, "src-om").get(0).content());
+    assertEquals("src-om", sourcesNamed(stored, "src-om").get(0).suppliedIdentifier());
+    String answerId = question(stored, questionId).answerSourceIds().get(0);
+    assertNotEquals("src-om", answerId);
+    assertEquals(answer, source(stored, answerId).content());
+  }
+
+  @Test
+  void secondAcceptKeepsEarlierProducedIds() {
+    WorkDocumentState state = mappingDocument();
+    WorkCommit first =
+        documents.apply(
+            state, mappingScope(state, "transfer-a"), ruleCapture("first", "transfer-a", "call-a"), "cmd-first");
+    String firstId = first.aliasToId().get("first");
+    WorkCommit second =
+        documents.apply(
+            first.state(),
+            mappingScope(first.state(), "transfer-a"),
+            ruleCapture("second", "transfer-a", "call-a"),
+            "cmd-second");
+    String secondId = second.aliasToId().get("second");
+
+    List<String> produced = task(second.state(), "map-transfer:transfer-a").producedRecordIds();
+    assertTrue(produced.contains(firstId));
+    assertTrue(produced.contains(secondId));
+  }
+
+  private static WorkTaskScope outlineScope(WorkDocumentState state) {
+    return new WorkTaskScope(
+        "outline-call-a",
+        state.revision(),
+        WorkStage.DATA_BEHAVIOR,
+        "data-mapping",
+        List.of("call-a"),
+        true,
+        false,
+        false,
+        List.of(),
+        List.of(),
+        List.of(
+            new CreationAllowance(WorkRecordKind.OUTLINE, "call-a"),
+            new CreationAllowance(WorkRecordKind.TRANSFER, "call-a"),
+            new CreationAllowance(WorkRecordKind.RETAINED_VALUE, "trigger")),
+        List.of(),
+        "define-transfers:call-a",
+        WorkTaskKind.DEFINE_TRANSFERS,
+        "fingerprint-outline",
+        null);
+  }
+
+  private static OutlineProposal outlineProposal(String targetStepId, OutlineTransfer transfer) {
+    return new OutlineProposal(targetStepId, List.of(transfer), List.of(), List.of());
+  }
+
+  private static WorkTaskCapture ruleWithTarget(
+      String existingId, String alias, String transferId, FieldReference target) {
+    return WorkTaskCapture.prepared(
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(
+            new CapturedRule(
+                existingId,
+                alias,
+                transferId,
+                List.of(FieldReference.payload("trigger", PortRole.INBOUND_PAYLOAD, "$.priority")),
+                target,
+                List.of(),
+                "Map priority.",
+                List.of("source-1"))),
+        List.of());
+  }
+
+  private static WorkDocumentState sourceIdDocument(String sourceId) {
+    return WorkDocumentState.of(
+        new ChainWorkDocument(
+            ChainWorkDocument.SCHEMA_VERSION,
+            "doc-source",
+            List.of(source(sourceId, SOURCE_TEXT, List.of())),
+            List.of(),
+            LogicalFlow.empty(),
+            WorkProgress.empty()));
+  }
+
   private static WorkTaskScope mappingScope(WorkDocumentState state, String transferId) {
     String callId = "transfer-a".equals(transferId) ? "call-a" : "call-b";
     return new WorkTaskScope(
@@ -1088,6 +1391,14 @@ class WorkFillingStateTest {
       }
     }
     throw new AssertionError(id);
+  }
+
+  private static List<String> transferIds(WorkDocumentState state, String stepId) {
+    return step(state, stepId).data().transfers().stream().map(DataTransfer::id).toList();
+  }
+
+  private static List<WorkSource> sourcesNamed(WorkDocumentState state, String id) {
+    return state.document().sources().stream().filter(candidate -> candidate.id().equals(id)).toList();
   }
 
   private static List<String> stepsNamed(WorkDocumentState state, String label) {
