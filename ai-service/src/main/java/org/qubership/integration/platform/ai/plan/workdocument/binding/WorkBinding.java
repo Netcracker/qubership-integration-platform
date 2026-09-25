@@ -96,7 +96,7 @@ public final class WorkBinding {
     }
     String pinned = pinnedVersion(materials);
     boolean apiHubAllowed = apiHubAllowed(materials);
-    CatalogLookup lookup = resolution.lookup(candidateId, pinned);
+    CatalogLookup lookup = resolution.lookup(candidateId, pinned, systemHint(state, stepId));
     if (lookup instanceof CatalogLookup.Ambiguous ambiguous) {
       return ask(
           runId,
@@ -298,6 +298,11 @@ public final class WorkBinding {
     return stepNode(state, stepId).path("kind").asText();
   }
 
+  private static String systemHint(WorkDocumentState state, String stepId) {
+    JsonNode step = stepNode(state, stepId);
+    return step.path("intent").asText("") + " " + step.path("label").asText("");
+  }
+
   private static String requiredOperation(WorkDocumentState state, String stepId) {
     JsonNode step = stepNode(state, stepId);
     String label = step.path("label").asText();
@@ -353,7 +358,7 @@ public final class WorkBinding {
     JsonNode flow = WorkLogicalFlow.planningTopology(state);
     return "Select one real operation for step "
         + stepId
-        + ". Return candidateId. Do not send catalogId, protocol, method, or path. Constraints: "
+        + ". Set outcome to PREPARED and candidateId to that step's label. Java reads the catalog. Do not ask for a catalog listing. Do not send catalogId, protocol, method, or path. Constraints: "
         + materials.globalConstraints()
         + ". Flow: "
         + flow;
