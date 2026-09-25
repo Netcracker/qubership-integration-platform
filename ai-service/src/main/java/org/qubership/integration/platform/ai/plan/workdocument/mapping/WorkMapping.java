@@ -31,6 +31,7 @@ public final class WorkMapping {
 
   private static final ObjectMapper JSON = new ObjectMapper();
   private static final String INSTRUCTIONS = loadInstructions();
+  private static final String SCHEMA_CONSTRAINT = "schema ";
 
   private final WorkDocumentService documents;
   private final WorkTaskExecutor executor;
@@ -92,7 +93,12 @@ public final class WorkMapping {
         .forEach(
             schema ->
                 constraints.add(
-                    "schema " + schema.stepId() + " " + schema.portName() + " " + schema.body()));
+                    SCHEMA_CONSTRAINT
+                        + schema.stepId()
+                        + " "
+                        + schema.portName()
+                        + " "
+                        + schema.body()));
     return new WorkTaskMaterials(materials.schemas(), constraints, materials.sourceEvidence());
   }
 
@@ -334,6 +340,9 @@ public final class WorkMapping {
 
   private static boolean renameEvidence(WorkTaskMaterials materials, String sourceLeaf, String targetLeaf) {
     for (String constraint : materials.globalConstraints()) {
+      if (constraint.startsWith(SCHEMA_CONSTRAINT)) {
+        continue;
+      }
       if (containsToken(constraint, sourceLeaf) && containsToken(constraint, targetLeaf)) {
         return true;
       }
