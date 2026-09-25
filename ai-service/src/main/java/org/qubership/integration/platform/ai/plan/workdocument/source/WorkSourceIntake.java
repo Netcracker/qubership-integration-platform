@@ -342,7 +342,7 @@ public final class WorkSourceIntake {
       return (ObjectNode) tree;
     } catch (IllegalArgumentException missing) {
       ObjectNode document = json.createObjectNode();
-      document.put("schemaVersion", 1);
+      document.put("schemaVersion", ChainWorkDocument.SCHEMA_VERSION);
       document.put("documentId", documentId);
       document.putArray("sources");
       document.putArray("requirements");

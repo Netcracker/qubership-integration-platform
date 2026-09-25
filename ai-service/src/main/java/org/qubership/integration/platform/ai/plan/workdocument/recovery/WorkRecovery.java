@@ -17,6 +17,7 @@ import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkRepairBudget;
+import org.qubership.integration.platform.ai.plan.workdocument.ServerOwnedSubjects;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAction;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
@@ -487,6 +488,17 @@ public final class WorkRecovery {
   }
 
   private static WorkStage ownerOf(JsonNode document, String recordId, String fieldPointer) {
+    if (ServerOwnedSubjects.FLOW_POINTER.equals(fieldPointer)
+        && recordId.equals(document.path("documentId").asText())) {
+      return WorkStage.LOGICAL_FLOW;
+    }
+    if (ServerOwnedSubjects.OUTLINE_POINTER.equals(fieldPointer)) {
+      for (JsonNode step : document.path("flow").path("steps")) {
+        if (recordId.equals(step.path("id").asText())) {
+          return WorkStage.DATA_BEHAVIOR;
+        }
+      }
+    }
     if (hasId(document.path("requirements"), recordId)
         || hasId(document.path("flow").path("connections"), recordId)
         || isGroup(document, recordId)) {
@@ -543,6 +555,15 @@ public final class WorkRecovery {
       for (JsonNode sourceNode : document.path("sources")) {
         if (evidenceId.equals(sourceNode.path("id").asText())) {
           source = true;
+          break;
+        }
+        for (JsonNode passage : sourceNode.path("passages")) {
+          if (evidenceId.equals(passage.path("id").asText())) {
+            source = true;
+            break;
+          }
+        }
+        if (source) {
           break;
         }
       }

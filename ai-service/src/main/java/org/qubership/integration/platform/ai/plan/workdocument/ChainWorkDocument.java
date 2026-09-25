@@ -13,11 +13,24 @@ public record ChainWorkDocument(
     LogicalFlow flow,
     WorkProgress progress) {
 
+  public static final int SCHEMA_VERSION = 2;
+
   public ChainWorkDocument {
     sources = Lists.copy(sources);
     requirements = Lists.copy(requirements);
     flow = flow == null ? LogicalFlow.empty() : flow;
     progress = progress == null ? WorkProgress.empty() : progress;
+  }
+
+  public boolean retainedDependencySatisfied(String retainedValueId) {
+    for (LogicalStep step : flow.steps()) {
+      for (RetainedValue value : step.data().retainedValues()) {
+        if (retainedValueId.equals(value.id())) {
+          return value.satisfiesConsumer();
+        }
+      }
+    }
+    return false;
   }
 }
 
@@ -28,10 +41,25 @@ record WorkSource(
     String contentHash,
     String originalName,
     String suppliedIdentifier,
-    List<String> correctionOf) {
+    List<String> correctionOf,
+    String content,
+    List<SourcePassage> passages) {
 
   public WorkSource {
     correctionOf = Lists.copy(correctionOf);
+    passages = Lists.copy(passages);
+    content = content == null ? "" : content;
+  }
+
+  public WorkSource(
+      String id,
+      String role,
+      String contentReference,
+      String contentHash,
+      String originalName,
+      String suppliedIdentifier,
+      List<String> correctionOf) {
+    this(id, role, contentReference, contentHash, originalName, suppliedIdentifier, correctionOf, "", List.of());
   }
 }
 
@@ -88,14 +116,31 @@ record LogicalStep(
   }
 }
 
-record StepData(List<DataTransfer> transfers, List<RetainedValue> retainedValues) {
+record StepData(List<DataTransfer> transfers, List<RetainedValue> retainedValues, DataOutline outline) {
   public StepData {
     transfers = Lists.copy(transfers);
     retainedValues = Lists.copy(retainedValues);
+    outline = outline == null ? DataOutline.empty() : outline;
+  }
+
+  public StepData(List<DataTransfer> transfers, List<RetainedValue> retainedValues) {
+    this(transfers, retainedValues, DataOutline.empty());
   }
 
   static StepData empty() {
     return new StepData(List.of(), List.of());
+  }
+
+  StepData withTransfers(List<DataTransfer> nextTransfers) {
+    return new StepData(nextTransfers, retainedValues, outline);
+  }
+
+  StepData withRetained(List<RetainedValue> nextRetained) {
+    return new StepData(transfers, nextRetained, outline);
+  }
+
+  StepData withOutline(DataOutline nextOutline) {
+    return new StepData(transfers, retainedValues, nextOutline);
   }
 }
 
@@ -105,13 +150,41 @@ record DataTransfer(
     PortRef targetPort,
     List<String> requirementIds,
     List<MappingRule> rules,
-    MappingDecision decision) {
+    MappingDecision decision,
+    TransferOutcome outcome,
+    List<String> requiredRetainedIds) {
 
   public DataTransfer {
     sourcePorts = Lists.copy(sourcePorts);
     requirementIds = Lists.copy(requirementIds);
     rules = Lists.copy(rules);
     decision = decision == null ? MappingDecision.UNSPECIFIED : decision;
+    outcome = outcome == null ? TransferOutcome.UNSPECIFIED : outcome;
+    requiredRetainedIds = Lists.copy(requiredRetainedIds);
+  }
+
+  public DataTransfer(
+      String id,
+      List<PortRef> sourcePorts,
+      PortRef targetPort,
+      List<String> requirementIds,
+      List<MappingRule> rules,
+      MappingDecision decision) {
+    this(id, sourcePorts, targetPort, requirementIds, rules, decision, TransferOutcome.UNSPECIFIED, List.of());
+  }
+
+  public boolean requiredRetainedSatisfied(ChainWorkDocument document) {
+    for (String retainedId : requiredRetainedIds) {
+      if (!document.retainedDependencySatisfied(retainedId)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  DataTransfer withRules(List<MappingRule> nextRules) {
+    return new DataTransfer(
+        id, sourcePorts, targetPort, requirementIds, nextRules, decision, outcome, requiredRetainedIds);
   }
 }
 
@@ -132,11 +205,43 @@ record MappingRule(
 }
 
 record RetainedValue(
-    String id, FieldReference source, String intendedUse, List<String> evidenceIds) {
+    String id,
+    FieldReference source,
+    String intendedUse,
+    List<String> evidenceIds,
+    String producerStepId,
+    RetainedResolution resolution) {
 
   public RetainedValue {
     evidenceIds = Lists.copy(evidenceIds);
     intendedUse = intendedUse == null ? "" : intendedUse;
+    producerStepId = producerStepId == null ? "" : producerStepId;
+    if (resolution == null) {
+      resolution = sourceFieldResolved(source) ? RetainedResolution.RESOLVED : RetainedResolution.UNRESOLVED;
+    }
+    if (resolution == RetainedResolution.RESOLVED && !sourceFieldResolved(source)) {
+      throw new IllegalArgumentException(
+          "A resolved retained value needs a source field path. Leave the source empty until the field is known.");
+    }
+    if (resolution == RetainedResolution.UNRESOLVED && sourceFieldResolved(source)) {
+      throw new IllegalArgumentException(
+          "An unresolved retained value cannot carry a source field path. Clear the path or mark the value resolved.");
+    }
+  }
+
+  public RetainedValue(String id, FieldReference source, String intendedUse, List<String> evidenceIds) {
+    this(id, source, intendedUse, evidenceIds, "", null);
+  }
+
+  public boolean satisfiesConsumer() {
+    return resolution == RetainedResolution.RESOLVED;
+  }
+
+  private static boolean sourceFieldResolved(FieldReference source) {
+    return source != null
+        && source.kind() == FieldReferenceKind.STEP_PORT
+        && source.fieldPath() != null
+        && !source.fieldPath().isBlank();
   }
 }
 
@@ -300,7 +405,27 @@ record WorkProgress(
   }
 }
 
-record WorkTaskRecord(String taskId, WorkTaskState state, WorkStage stage, String skillId) {}
+record WorkTaskRecord(
+    String taskKey,
+    WorkTaskKind kind,
+    String taskId,
+    WorkTaskState state,
+    WorkStage stage,
+    String skillId,
+    String acceptedInputFingerprint,
+    List<String> producedRecordIds) {
+
+  public WorkTaskRecord {
+    kind = kind == null ? WorkTaskKind.UNSPECIFIED : kind;
+    taskKey = taskKey == null || taskKey.isBlank() ? taskId : taskKey;
+    acceptedInputFingerprint = acceptedInputFingerprint == null ? "" : acceptedInputFingerprint;
+    producedRecordIds = Lists.copy(producedRecordIds);
+  }
+
+  public WorkTaskRecord(String taskId, WorkTaskState state, WorkStage stage, String skillId) {
+    this(taskId, WorkTaskKind.UNSPECIFIED, taskId, state, stage, skillId, "", List.of());
+  }
+}
 
 record WorkFinding(
     String id,
@@ -325,9 +450,30 @@ record WorkFinding(
   }
 }
 
-record WorkQuestion(String id, String choice, String question, List<String> evidenceIds) {
+record WorkQuestion(
+    String id,
+    String choice,
+    String question,
+    List<String> evidenceIds,
+    String ownerTaskKey,
+    QuestionSubject subject,
+    List<String> blockedRecordIds,
+    List<String> answerSourceIds,
+    QuestionResolution resolution) {
+
   public WorkQuestion {
     evidenceIds = Lists.copy(evidenceIds);
+    choice = choice == null ? "" : choice;
+    question = question == null ? "" : question;
+    ownerTaskKey = ownerTaskKey == null ? "" : ownerTaskKey;
+    subject = subject == null ? QuestionSubject.unspecified() : subject;
+    blockedRecordIds = Lists.copy(blockedRecordIds);
+    answerSourceIds = Lists.copy(answerSourceIds);
+    resolution = resolution == null ? QuestionResolution.OPEN : resolution;
+  }
+
+  public WorkQuestion(String id, String choice, String question, List<String> evidenceIds) {
+    this(id, choice, question, evidenceIds, "", null, List.of(), List.of(), QuestionResolution.OPEN);
   }
 }
 

@@ -591,7 +591,7 @@ class WorkRecoverySequenceTest {
   private static final String DOCUMENT =
       """
       {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "documentId": "doc-recovery",
         "sources": [{
           "id": "src-om",

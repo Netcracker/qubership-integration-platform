@@ -1,6 +1,9 @@
 package org.qubership.integration.platform.ai.plan.workdocument;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -14,8 +17,10 @@ final class WorkDocumentEditor {
 
   WorkCommit apply(
       WorkDocumentState state, WorkTaskScope scope, WorkTaskCapture capture, String commandId) {
-    if (state.document().schemaVersion() != 1) {
-      throw reject("MALFORMED_REFERENCE", "Document schema version must be 1.");
+    if (state.document().schemaVersion() != ChainWorkDocument.SCHEMA_VERSION) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Document schema version must be " + ChainWorkDocument.SCHEMA_VERSION + ".");
     }
     if (!scope.baseRevision().equals(state.revision())) {
       throw reject(
@@ -39,15 +44,11 @@ final class WorkDocumentEditor {
     applyRules(draft, scope, capture, aliases, known, accepted);
     applyRetained(draft, scope, capture, aliases, known, accepted);
     applyDeletes(draft, scope, capture, known, accepted);
-    WorkProgress progress = withTask(draft.progress, scope, WorkTaskState.ACCEPTED);
+    WorkProgress progress = withTask(draft.progress, scope, WorkTaskState.ACCEPTED, accepted);
     if (!capture.question().isBlank()) {
       List<WorkQuestion> questions = new ArrayList<>(progress.questions());
-      questions.add(
-          new WorkQuestion(
-              newId(),
-              capture.unresolvedChoice(),
-              capture.question(),
-              resolveAll(capture.clarificationEvidenceIds(), aliases, sourceIds(draft))));
+      questions.add(question(scope, capture.unresolvedChoice(), capture.question(),
+          resolveAll(capture.clarificationEvidenceIds(), aliases, evidenceIds(draft)), List.of()));
       progress =
           new WorkProgress(
               progress.tasks(),
@@ -119,6 +120,446 @@ final class WorkDocumentEditor {
     return WorkDocumentState.of(next);
   }
 
+  WorkDocumentState addPassages(WorkDocumentState state, String sourceId, List<SourcePassage> passages) {
+    requireCurrentSchema(state);
+    List<WorkSource> sources = new ArrayList<>();
+    boolean found = false;
+    for (WorkSource source : state.document().sources()) {
+      if (!source.id().equals(sourceId)) {
+        sources.add(source);
+        continue;
+      }
+      found = true;
+      List<SourcePassage> next = new ArrayList<>(source.passages());
+      for (SourcePassage passage : passages) {
+        validatePassage(source, passage, next);
+        next.add(passage);
+      }
+      sources.add(
+          new WorkSource(
+              source.id(),
+              source.role(),
+              source.contentReference(),
+              source.contentHash(),
+              source.originalName(),
+              source.suppliedIdentifier(),
+              source.correctionOf(),
+              source.content(),
+              next));
+    }
+    if (!found) {
+      throw reject("MALFORMED_REFERENCE", "Source " + sourceId + " does not exist. Index passages on a stored source.");
+    }
+    return replaceSources(state, sources);
+  }
+
+  WorkSource passageSource(WorkDocumentState state, String passageId) {
+    for (WorkSource source : state.document().sources()) {
+      for (SourcePassage passage : source.passages()) {
+        if (passage.id().equals(passageId)) {
+          return source;
+        }
+      }
+    }
+    throw reject(
+        "MALFORMED_REFERENCE",
+        "Passage " + passageId + " does not exist. Cite a passage indexed on a stored source.");
+  }
+
+  WorkDocumentState appendSource(WorkDocumentState state, WorkSource source) {
+    requireCurrentSchema(state);
+    if (source.id() == null || source.id().isBlank()) {
+      throw reject("MALFORMED_REFERENCE", "A source needs an id. Assign one before appending it.");
+    }
+    for (WorkSource existing : state.document().sources()) {
+      if (existing.id().equals(source.id())) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Source " + source.id() + " already exists. Append a correction instead of replacing it.");
+      }
+    }
+    Set<String> known = sourceIds(state.document());
+    for (String corrected : source.correctionOf()) {
+      if (!known.contains(corrected)) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Correction target " + corrected + " does not exist. Name a stored source.");
+      }
+    }
+    List<WorkSource> sources = new ArrayList<>(state.document().sources());
+    sources.add(source);
+    return replaceSources(state, sources);
+  }
+
+  WorkCommit applyOutline(
+      WorkDocumentState state, WorkTaskScope scope, OutlineProposal proposal, String commandId) {
+    requireScope(state, scope);
+    if (!scope.allowsCreation(WorkRecordKind.OUTLINE, proposal.targetStepId())
+        && !scope.allowsCreation(WorkRecordKind.TRANSFER, proposal.targetStepId())) {
+      throw reject(
+          "OUTSIDE_SCOPE",
+          "Outline target "
+              + proposal.targetStepId()
+              + " is outside this scope. Write the outline only for the assigned step.");
+    }
+    Draft draft = Draft.from(state.document());
+    if (find(draft.steps, proposal.targetStepId(), LogicalStep::id) == null) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Step " + proposal.targetStepId() + " does not exist. Outline an existing target step.");
+    }
+    Map<String, String> aliases = new LinkedHashMap<>();
+    Set<String> known = knownIds(state.document());
+    List<String> accepted = new ArrayList<>();
+    List<String> transferIds = new ArrayList<>();
+    List<String> requirementIds = new ArrayList<>();
+    for (OutlineRetained retained : proposal.retainedPlaceholders()) {
+      if (!scope.allowsCreation(WorkRecordKind.RETAINED_VALUE, retained.producerStepId())) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "Retained placeholder under "
+                + retained.producerStepId()
+                + " is outside this scope. Create placeholders only for an assigned producer.");
+      }
+      if (find(draft.steps, retained.producerStepId(), LogicalStep::id) == null) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Producer " + retained.producerStepId() + " does not exist. Name an existing step.");
+      }
+      resolveAll(retained.evidenceIds(), aliases, evidenceIds(draft));
+      String id = allocate(aliases, known, retained.existingId(), retained.alias());
+      RetainedValue stored =
+          new RetainedValue(
+              id,
+              null,
+              retained.intendedUse(),
+              retained.evidenceIds(),
+              retained.producerStepId(),
+              RetainedResolution.UNRESOLVED);
+      replaceRetained(draft, retained.producerStepId(), stored);
+      known.add(id);
+      accepted.add(id);
+    }
+    for (OutlineTransfer captured : proposal.transfers()) {
+      if (!proposal.targetStepId().equals(captured.targetPort() == null ? "" : captured.targetPort().stepId())
+          && !scope.allowsCreation(WorkRecordKind.TRANSFER, proposal.targetStepId())) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "Transfer target is outside step " + proposal.targetStepId() + ". Keep the assigned target.");
+      }
+      if (!scope.allowsCreation(WorkRecordKind.TRANSFER, proposal.targetStepId())) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "Transfer creation under "
+                + proposal.targetStepId()
+                + " is outside this scope. Assign that parent before creating a transfer.");
+      }
+      String id = allocate(aliases, known, captured.existingId(), captured.alias());
+      List<String> retainedIds = new ArrayList<>();
+      for (String retainedRef : captured.requiredRetainedIds()) {
+        retainedIds.add(resolve(retainedRef, aliases, known, true));
+      }
+      DataTransfer stored =
+          new DataTransfer(
+              id,
+              captured.sourcePorts(),
+              captured.targetPort(),
+              captured.requirementIds(),
+              List.of(),
+              decision(captured.decision()),
+              captured.outcome(),
+              retainedIds);
+      replaceTransfer(draft, proposal.targetStepId(), stored);
+      transferIds.add(id);
+      known.add(id);
+      accepted.add(id);
+      for (String requirementId : captured.requirementIds()) {
+        if (!requirementIds.contains(requirementId)) {
+          requirementIds.add(requirementId);
+        }
+      }
+    }
+    List<CoverageEntry> coverage = new ArrayList<>();
+    for (OutlineCoverage entry : proposal.coverage()) {
+      if (!entry.passageId().isBlank()) {
+        passageSource(WorkDocumentState.of(documentFrom(draft, state.document().progress())), entry.passageId());
+      }
+      if (!entry.requirementId().isBlank() && !requirementIds.contains(entry.requirementId())) {
+        requirementIds.add(entry.requirementId());
+      }
+      coverage.add(new CoverageEntry(entry.requirementId(), entry.passageId(), entry.disposition()));
+    }
+    DataOutline outline = new DataOutline(requirementIds, transferIds, coverage);
+    for (int i = 0; i < draft.steps.size(); i++) {
+      LogicalStep step = draft.steps.get(i);
+      if (step.id().equals(proposal.targetStepId())) {
+        draft.steps.set(
+            i,
+            new LogicalStep(
+                step.id(),
+                step.kind(),
+                step.label(),
+                step.intent(),
+                step.sourceIds(),
+                step.requirementIds(),
+                step.binding(),
+                step.data().withOutline(outline)));
+      }
+    }
+    WorkProgress progress = withTask(draft.progress, scope, WorkTaskState.ACCEPTED, accepted);
+    WorkDocumentState committed = WorkDocumentState.of(documentFrom(draft, progress));
+    return new WorkCommit(
+        committed.revision(), List.copyOf(accepted), WorkOutcome.PREPARED, commandId, committed, Map.copyOf(aliases));
+  }
+
+  WorkCommit recordQuestion(
+      WorkDocumentState state,
+      WorkTaskScope scope,
+      String questionText,
+      QuestionSubject subject,
+      List<String> blockedRecordIds,
+      List<String> evidenceIds,
+      String commandId) {
+    requireScope(state, scope);
+    resolveAll(evidenceIds, Map.of(), evidenceIds(state.document()));
+    resolveAll(blockedRecordIds, Map.of(), knownIds(state.document()));
+    WorkProgress prior = state.document().progress();
+    List<WorkQuestion> questions = Lists.mutable(prior.questions());
+    questions.add(
+        new WorkQuestion(
+            newId(),
+            subject.choiceKind().name(),
+            questionText,
+            evidenceIds,
+            scope.taskKey(),
+            subject,
+            blockedRecordIds,
+            List.of(),
+            QuestionResolution.OPEN));
+    WorkProgress progress =
+        withTask(
+            new WorkProgress(
+                prior.tasks(),
+                prior.findings(),
+                questions,
+                prior.approvalReference(),
+                prior.derivedResultReferences(),
+                prior.recheckStages()),
+            scope,
+            WorkTaskState.NEEDS_INPUT,
+            List.of());
+    ChainWorkDocument next = documentFrom(Draft.from(state.document()), progress);
+    WorkDocumentState committed = WorkDocumentState.of(next);
+    return new WorkCommit(
+        committed.revision(), List.of(), WorkOutcome.NEEDS_CLARIFICATION, commandId, committed, Map.of());
+  }
+
+  WorkCommit linkInput(
+      WorkDocumentState state,
+      String questionId,
+      String inputId,
+      String text,
+      String contentHash,
+      String contentReference,
+      String commandId) {
+    requireCurrentSchema(state);
+    WorkQuestion question = null;
+    for (WorkQuestion candidate : state.document().progress().questions()) {
+      if (candidate.id().equals(questionId)) {
+        question = candidate;
+      }
+    }
+    if (question == null) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Question " + questionId + " does not exist. Answer a question the document already stores.");
+    }
+    if (question.ownerTaskKey().isBlank()) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Question " + questionId + " has no owner. Record the question against a task before answering it.");
+    }
+    String sourceId = "src-" + inputId;
+    List<WorkSource> sources = new ArrayList<>();
+    boolean linked = false;
+    for (WorkSource existing : state.document().sources()) {
+      if (inputId.equals(existing.suppliedIdentifier())) {
+        if (!contentHash.equals(existing.contentHash())) {
+          throw reject(
+              "CONFLICTING_INPUT",
+              "Input " + inputId + " is already stored with different text. Reuse the original text.");
+        }
+        sourceId = existing.id();
+        linked = true;
+      }
+      sources.add(existing);
+    }
+    if (!linked) {
+      sources.add(
+          new WorkSource(
+              sourceId,
+              "answer",
+              contentReference,
+              contentHash,
+              "answer.txt",
+              inputId,
+              List.of(),
+              text,
+              List.of()));
+    }
+    List<String> answers = new ArrayList<>(question.answerSourceIds());
+    if (!answers.contains(sourceId)) {
+      answers.add(sourceId);
+    }
+    WorkQuestion updated =
+        new WorkQuestion(
+            question.id(),
+            question.choice(),
+            question.question(),
+            question.evidenceIds(),
+            question.ownerTaskKey(),
+            question.subject(),
+            question.blockedRecordIds(),
+            answers,
+            QuestionResolution.ANSWERED);
+    List<WorkQuestion> questions = new ArrayList<>();
+    for (WorkQuestion candidate : state.document().progress().questions()) {
+      questions.add(candidate.id().equals(questionId) ? updated : candidate);
+    }
+    WorkProgress prior = state.document().progress();
+    List<WorkTaskRecord> tasks = new ArrayList<>();
+    boolean ownerFound = false;
+    for (WorkTaskRecord task : prior.tasks()) {
+      if (task.taskKey().equals(question.ownerTaskKey())) {
+        ownerFound = true;
+        tasks.add(
+            new WorkTaskRecord(
+                task.taskKey(),
+                task.kind(),
+                task.taskId(),
+                WorkTaskState.NEEDS_RECHECK,
+                task.stage(),
+                task.skillId(),
+                task.acceptedInputFingerprint(),
+                task.producedRecordIds()));
+      } else {
+        tasks.add(task);
+      }
+    }
+    if (!ownerFound) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Owner " + question.ownerTaskKey() + " does not exist. Reopen a task the document already stores.");
+    }
+    WorkProgress progress =
+        new WorkProgress(
+            tasks,
+            prior.findings(),
+            questions,
+            prior.approvalReference(),
+            prior.derivedResultReferences(),
+            prior.recheckStages());
+    ChainWorkDocument next =
+        new ChainWorkDocument(
+            state.document().schemaVersion(),
+            state.document().documentId(),
+            sources,
+            state.document().requirements(),
+            state.document().flow(),
+            progress);
+    WorkDocumentState committed = WorkDocumentState.of(next);
+    return new WorkCommit(
+        committed.revision(), List.of(sourceId), WorkOutcome.PREPARED, commandId, committed, Map.of());
+  }
+
+  private static void validatePassage(WorkSource source, SourcePassage passage, List<SourcePassage> existing) {
+    if (passage.id().isBlank() || !source.id().equals(passage.sourceId())) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Passage " + passage.id() + " does not belong to source " + source.id() + ". Keep the server-assigned source.");
+    }
+    if (!sha256(passage.text()).equals(passage.contentHash())) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Passage " + passage.id() + " hash does not match its text. Reindex the passage from the stored source.");
+    }
+    if (!source.content().contains(passage.text())) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Passage " + passage.id() + " is not in source " + source.id() + ". Index text that the source already stores.");
+    }
+    for (SourcePassage prior : existing) {
+      if (prior.id().equals(passage.id())) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Passage " + passage.id() + " already exists. Append a new passage instead of replacing it.");
+      }
+    }
+  }
+
+  private static String allocate(Map<String, String> aliases, Set<String> known, String existingId, String alias) {
+    boolean hasExisting = existingId != null && !existingId.isBlank();
+    boolean hasAlias = alias != null && !alias.isBlank();
+    if (hasExisting == hasAlias) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Provide an alias for a new record or an existing id for a replacement, not both.");
+    }
+    if (hasExisting) {
+      if (!known.contains(existingId)) {
+        throw reject(
+            "MALFORMED_REFERENCE",
+            "Record " + existingId + " does not exist. Use an alias for a new record.");
+      }
+      return existingId;
+    }
+    assignOne(aliases, known, "", alias);
+    return aliases.get(alias);
+  }
+
+  private static void requireScope(WorkDocumentState state, WorkTaskScope scope) {
+    requireCurrentSchema(state);
+    if (!scope.baseRevision().equals(state.revision())) {
+      throw reject(
+          "STALE_SCOPE",
+          "Scope revision does not match the current document. Read the document and submit the capture again.");
+    }
+  }
+
+  private static void requireCurrentSchema(WorkDocumentState state) {
+    if (state.document().schemaVersion() != ChainWorkDocument.SCHEMA_VERSION) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Document schema version must be " + ChainWorkDocument.SCHEMA_VERSION + ".");
+    }
+  }
+
+  private static WorkDocumentState replaceSources(WorkDocumentState state, List<WorkSource> sources) {
+    ChainWorkDocument document = state.document();
+    return WorkDocumentState.of(
+        new ChainWorkDocument(
+            document.schemaVersion(),
+            document.documentId(),
+            sources,
+            document.requirements(),
+            document.flow(),
+            document.progress()));
+  }
+
+  private static ChainWorkDocument documentFrom(Draft draft, WorkProgress progress) {
+    return new ChainWorkDocument(
+        draft.schemaVersion, draft.documentId, draft.sources, draft.requirements, draft.flow(), progress);
+  }
+
+  private static String sha256(String content) {
+    try {
+      return HexFormat.of()
+          .formatHex(MessageDigest.getInstance("SHA-256").digest(content.getBytes(StandardCharsets.UTF_8)));
+    } catch (Exception failure) {
+      throw new IllegalStateException("SHA-256 is unavailable.", failure);
+    }
+  }
+
   private static WorkCommit acceptWithoutRecords(
       WorkDocumentState state, WorkTaskScope scope, WorkTaskCapture capture, String commandId) {
     if (!capture.requirements().isEmpty()
@@ -137,11 +578,12 @@ final class WorkDocumentEditor {
     if (capture.outcome() == WorkOutcome.NEEDS_CLARIFICATION) {
       taskState = WorkTaskState.NEEDS_INPUT;
       questions.add(
-          new WorkQuestion(
-              newId(),
+          question(
+              scope,
               capture.unresolvedChoice(),
               capture.question(),
-              resolveAll(capture.clarificationEvidenceIds(), Map.of(), sourceIds(state.document()))));
+              resolveAll(capture.clarificationEvidenceIds(), Map.of(), evidenceIds(state.document())),
+              List.of()));
     } else {
       taskState = WorkTaskState.NEEDS_RECHECK;
       findings.add(
@@ -150,18 +592,20 @@ final class WorkDocumentEditor {
               resolve(capture.defectRecordRef(), Map.of(), knownIds(state.document()), true),
               capture.issueCategory(),
               capture.contradiction(),
-              resolveAll(capture.defectEvidenceIds(), Map.of(), sourceIds(state.document()))));
+              resolveAll(capture.defectEvidenceIds(), Map.of(), evidenceIds(state.document()))));
     }
-    List<WorkTaskRecord> tasks = Lists.mutable(prior.tasks());
-    tasks.add(new WorkTaskRecord(scope.taskId(), taskState, scope.stage(), scope.skillId()));
     WorkProgress progress =
-        new WorkProgress(
-            tasks,
-            findings,
-            questions,
-            prior.approvalReference(),
-            prior.derivedResultReferences(),
-            prior.recheckStages());
+        withTask(
+            new WorkProgress(
+                prior.tasks(),
+                findings,
+                questions,
+                prior.approvalReference(),
+                prior.derivedResultReferences(),
+                prior.recheckStages()),
+            scope,
+            taskState,
+            List.of());
     ChainWorkDocument next =
         new ChainWorkDocument(
             state.document().schemaVersion(),
@@ -217,7 +661,7 @@ final class WorkDocumentEditor {
       Set<String> known,
       List<String> accepted) {
     for (CapturedRequirement requirement : capture.requirements()) {
-      String id = permit(scope, requirement.existingId(), requirement.alias(), aliases);
+      String id = permit(scope, requirement.existingId(), requirement.alias(), aliases, WorkRecordKind.REQUIREMENT, "");
       for (String source : requirement.sourceRefs()) {
         resolve(source, aliases, sourceIds(draft), true);
       }
@@ -238,7 +682,7 @@ final class WorkDocumentEditor {
       Set<String> known,
       List<String> accepted) {
     for (CapturedStep captured : capture.steps()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      String id = permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.STEP, "");
       List<String> sources = resolveAll(captured.sourceRefs(), aliases, sourceIds(draft));
       List<String> requirements = resolveAll(captured.requirementRefs(), aliases, known);
       LogicalStep previous = find(draft.steps, id, LogicalStep::id);
@@ -267,7 +711,7 @@ final class WorkDocumentEditor {
       List<String> accepted) {
     Set<String> steps = ids(draft.steps, LogicalStep::id);
     for (CapturedConnection captured : capture.connections()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      String id = permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.CONNECTION, "");
       LogicalConnection stored =
           new LogicalConnection(
               id,
@@ -275,7 +719,7 @@ final class WorkDocumentEditor {
               captured.outcome(),
               resolve(captured.targetStepRef(), aliases, steps, true),
               captured.routingIntent(),
-              resolveAll(captured.evidenceRefs(), aliases, sourceIds(draft)));
+              resolveAll(captured.evidenceRefs(), aliases, evidenceIds(draft)));
       upsert(draft.connections, id, stored, LogicalConnection::id);
       known.add(id);
       accepted.add(id);
@@ -291,7 +735,8 @@ final class WorkDocumentEditor {
       List<String> accepted) {
     Set<String> steps = ids(draft.steps, LogicalStep::id);
     for (CapturedSequenceGroup captured : capture.sequenceGroups()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      String id =
+          permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.SEQUENCE_GROUP, "");
       upsert(
           draft.sequenceGroups,
           id,
@@ -301,7 +746,8 @@ final class WorkDocumentEditor {
       accepted.add(id);
     }
     for (CapturedConditionGroup captured : capture.conditionGroups()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      String id =
+          permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.CONDITION_GROUP, "");
       ConditionGroup previous = find(draft.conditionGroups, id, ConditionGroup::id);
       List<ConditionBranch> branches = new ArrayList<>();
       if (previous != null) {
@@ -309,7 +755,8 @@ final class WorkDocumentEditor {
       }
       List<String> placed = new ArrayList<>();
       for (CapturedConditionBranch branch : captured.branches()) {
-        String branchId = permit(scope, branch.existingId(), branch.alias(), aliases);
+        String branchId =
+            permit(scope, branch.existingId(), branch.alias(), aliases, WorkRecordKind.CONDITION_GROUP, id);
         upsert(
             branches,
             branchId,
@@ -341,7 +788,7 @@ final class WorkDocumentEditor {
       accepted.add(id);
     }
     for (CapturedSplitGroup captured : capture.splitGroups()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      String id = permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.SPLIT_GROUP, "");
       SplitGroup previous = find(draft.splitGroups, id, SplitGroup::id);
       List<SplitBranch> branches = new ArrayList<>();
       if (previous != null) {
@@ -349,7 +796,8 @@ final class WorkDocumentEditor {
       }
       List<String> placed = new ArrayList<>();
       for (CapturedSplitBranch branch : captured.branches()) {
-        String branchId = permit(scope, branch.existingId(), branch.alias(), aliases);
+        String branchId =
+            permit(scope, branch.existingId(), branch.alias(), aliases, WorkRecordKind.SPLIT_GROUP, id);
         upsert(
             branches,
             branchId,
@@ -380,7 +828,7 @@ final class WorkDocumentEditor {
       accepted.add(id);
     }
     for (CapturedLoopGroup captured : capture.loopGroups()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      String id = permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.LOOP_GROUP, "");
       upsert(
           draft.loopGroups,
           id,
@@ -398,7 +846,7 @@ final class WorkDocumentEditor {
       accepted.add(id);
     }
     for (CapturedRetryGroup captured : capture.retryGroups()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      String id = permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.RETRY_GROUP, "");
       upsert(
           draft.retryGroups,
           id,
@@ -415,7 +863,7 @@ final class WorkDocumentEditor {
       accepted.add(id);
     }
     for (CapturedErrorScopeGroup captured : capture.errorScopeGroups()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      String id = permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.ERROR_SCOPE, "");
       ErrorScopeGroup previous = find(draft.errorScopeGroups, id, ErrorScopeGroup::id);
       List<ErrorHandler> handlers = new ArrayList<>();
       if (previous != null) {
@@ -423,7 +871,8 @@ final class WorkDocumentEditor {
       }
       List<String> placed = new ArrayList<>();
       for (CapturedErrorHandler handler : captured.handlers()) {
-        String handlerId = permit(scope, handler.existingId(), handler.alias(), aliases);
+        String handlerId =
+            permit(scope, handler.existingId(), handler.alias(), aliases, WorkRecordKind.ERROR_SCOPE, id);
         upsert(
             handlers,
             handlerId,
@@ -464,8 +913,14 @@ final class WorkDocumentEditor {
       Set<String> known,
       List<String> accepted) {
     for (CapturedTransfer captured : capture.transfers()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      if (scope.fixedEndpoint() != null) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "This mapping scope cannot create or replace a transfer. The endpoint and outcome stay fixed.");
+      }
       String targetStep = resolve(captured.targetStepRef(), aliases, ids(draft.steps, LogicalStep::id), true);
+      String id =
+          permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.TRANSFER, targetStep);
       List<PortRef> sources = new ArrayList<>();
       for (PortRef port : captured.sourcePorts()) {
         sources.add(checkedPort(draft, aliases, port));
@@ -479,7 +934,9 @@ final class WorkDocumentEditor {
               target,
               resolveAll(captured.requirementRefs(), aliases, known),
               previous == null ? List.of() : previous.rules(),
-              decision(captured.decision()));
+              decision(captured.decision()),
+              previous == null ? TransferOutcome.UNSPECIFIED : previous.outcome(),
+              previous == null ? List.of() : previous.requiredRetainedIds());
       replaceTransfer(draft, targetStep, stored);
       known.add(id);
       accepted.add(id);
@@ -494,20 +951,23 @@ final class WorkDocumentEditor {
       Set<String> known,
       List<String> accepted) {
     for (CapturedRule captured : capture.rules()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
       String transferId = resolve(captured.transferRef(), aliases, known, true);
+      requireFixedTransfer(scope, transferId);
+      String id = permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.RULE, transferId);
       List<FieldReference> sources = new ArrayList<>();
       for (FieldReference source : captured.sources()) {
         sources.add(checkedField(draft, aliases, known, source));
       }
+      FieldReference target = checkedField(draft, aliases, known, captured.target());
+      requireFixedPort(scope, target);
       MappingRule stored =
           new MappingRule(
               id,
               sources,
-              checkedField(draft, aliases, known, captured.target()),
+              target,
               captured.constants(),
               captured.behavior(),
-              resolveAll(captured.evidenceRefs(), aliases, sourceIds(draft)));
+              resolveAll(captured.evidenceRefs(), aliases, evidenceIds(draft)));
       replaceRule(draft, transferId, stored);
       known.add(id);
       accepted.add(id);
@@ -522,14 +982,23 @@ final class WorkDocumentEditor {
       Set<String> known,
       List<String> accepted) {
     for (CapturedRetainedValue captured : capture.retainedValues()) {
-      String id = permit(scope, captured.existingId(), captured.alias(), aliases);
+      if (scope.fixedEndpoint() != null) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "This mapping scope cannot create or replace a retained value. Update only the assigned transfer rules.");
+      }
       String stepId = resolve(captured.stepRef(), aliases, ids(draft.steps, LogicalStep::id), true);
+      String id =
+          permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.RETAINED_VALUE, stepId);
+      FieldReference source = checkedField(draft, aliases, known, captured.source());
       RetainedValue stored =
           new RetainedValue(
               id,
-              checkedField(draft, aliases, known, captured.source()),
+              source,
               captured.intendedUse(),
-              resolveAll(captured.evidenceRefs(), aliases, sourceIds(draft)));
+              resolveAll(captured.evidenceRefs(), aliases, evidenceIds(draft)),
+              stepId,
+              RetainedResolution.RESOLVED);
       replaceRetained(draft, stepId, stored);
       known.add(id);
       accepted.add(id);
@@ -562,7 +1031,7 @@ final class WorkDocumentEditor {
             "UNAUTHORIZED_DELETE",
             "Delete requires source evidence. Name the source that authorizes the deletion.");
       }
-      resolveAll(delete.evidenceRefs(), Map.of(), sourceIds(draft));
+      resolveAll(delete.evidenceRefs(), Map.of(), evidenceIds(draft));
       remove(draft, delete.existingId());
       if (stillReferenced(draft, delete.existingId())) {
         throw reject(
@@ -575,7 +1044,12 @@ final class WorkDocumentEditor {
   }
 
   private static String permit(
-      WorkTaskScope scope, String existingId, String alias, Map<String, String> aliases) {
+      WorkTaskScope scope,
+      String existingId,
+      String alias,
+      Map<String, String> aliases,
+      WorkRecordKind kind,
+      String parentId) {
     boolean hasExisting = existingId != null && !existingId.isBlank();
     boolean hasAlias = alias != null && !alias.isBlank();
     if (hasExisting == hasAlias) {
@@ -584,19 +1058,60 @@ final class WorkDocumentEditor {
           "Provide an alias for a new record or an existing id for a replacement, not both.");
     }
     if (hasAlias) {
-      if (!scope.createPermitted()) {
+      if (!scope.createPermitted() || !scope.allowsCreation(kind, parentId)) {
         throw reject(
             "OUTSIDE_SCOPE",
-            "Creation is not permitted in this scope. Replace an owned record or request create permission.");
+            "Creation of "
+                + kind
+                + " is outside this scope. Assign that record kind and parent before creating it.");
       }
       return aliases.get(alias);
     }
-    if (!scope.replacePermitted() || !scope.ownedRecordIds().contains(existingId)) {
+    if (!scope.allowsReplacement(existingId)) {
       throw reject(
           "OUTSIDE_SCOPE",
           "Record " + existingId + " is outside the assigned scope. Submit only records this task owns.");
     }
+    boolean kindLimited =
+        scope.creationAllowances().stream().anyMatch(allowance -> allowance.kind() == kind);
+    if (kindLimited && !scope.allowsCreation(kind, parentId)) {
+      throw reject(
+          "OUTSIDE_SCOPE",
+          "Record "
+              + existingId
+              + " is outside the assigned parent. Update only records under the assigned parent.");
+    }
     return existingId;
+  }
+
+  private static void requireFixedTransfer(WorkTaskScope scope, String transferId) {
+    FixedTransferEndpoint fixed = scope.fixedEndpoint();
+    if (fixed != null && !fixed.transferId().equals(transferId)) {
+      throw reject(
+          "OUTSIDE_SCOPE",
+          "Transfer "
+              + transferId
+              + " is outside this mapping scope. Write rules only for "
+              + fixed.transferId()
+              + ".");
+    }
+  }
+
+  private static void requireFixedPort(WorkTaskScope scope, FieldReference target) {
+    FixedTransferEndpoint fixed = scope.fixedEndpoint();
+    if (fixed == null || target == null || target.port() == null) {
+      return;
+    }
+    if (!fixed.targetPort().stepId().equals(target.stepId())
+        || !fixed.targetPort().portName().equals(target.port().schemaName())) {
+      throw reject(
+          "OUTSIDE_SCOPE",
+          "Rule target "
+              + target.stepId()
+              + " "
+              + target.port().schemaName()
+              + " does not match the fixed endpoint. Keep the assigned port.");
+    }
   }
 
   private static void assign(Map<String, String> aliases, Set<String> known, WorkTaskCapture capture) {
@@ -770,13 +1285,48 @@ final class WorkDocumentEditor {
     return ids(document.sources(), WorkSource::id);
   }
 
+  private static Set<String> evidenceIds(Draft draft) {
+    Set<String> evidence = new LinkedHashSet<>(sourceIds(draft));
+    for (WorkSource source : draft.sources) {
+      for (SourcePassage passage : source.passages()) {
+        evidence.add(passage.id());
+      }
+    }
+    return evidence;
+  }
+
+  private static Set<String> evidenceIds(ChainWorkDocument document) {
+    Set<String> evidence = new LinkedHashSet<>(sourceIds(document));
+    for (WorkSource source : document.sources()) {
+      for (SourcePassage passage : source.passages()) {
+        evidence.add(passage.id());
+      }
+    }
+    return evidence;
+  }
+
   private static String newId() {
     return "wd-" + UUID.randomUUID();
   }
 
-  private static WorkProgress withTask(WorkProgress progress, WorkTaskScope scope, WorkTaskState state) {
-    List<WorkTaskRecord> tasks = Lists.mutable(progress.tasks());
-    tasks.add(new WorkTaskRecord(scope.taskId(), state, scope.stage(), scope.skillId()));
+  private static WorkProgress withTask(
+      WorkProgress progress, WorkTaskScope scope, WorkTaskState state, List<String> producedRecordIds) {
+    List<WorkTaskRecord> tasks = new ArrayList<>();
+    WorkTaskRecord previous = null;
+    boolean replaced = false;
+    WorkTaskRecord next = taskRow(scope, state, producedRecordIds, null);
+    for (WorkTaskRecord existing : progress.tasks()) {
+      if (existing.taskKey().equals(scope.taskKey())) {
+        previous = existing;
+        tasks.add(taskRow(scope, state, producedRecordIds, existing));
+        replaced = true;
+      } else {
+        tasks.add(existing);
+      }
+    }
+    if (!replaced) {
+      tasks.add(previous == null ? next : taskRow(scope, state, producedRecordIds, previous));
+    }
     return new WorkProgress(
         tasks,
         progress.findings(),
@@ -784,6 +1334,45 @@ final class WorkDocumentEditor {
         progress.approvalReference(),
         progress.derivedResultReferences(),
         progress.recheckStages());
+  }
+
+  private static WorkTaskRecord taskRow(
+      WorkTaskScope scope, WorkTaskState state, List<String> producedRecordIds, WorkTaskRecord previous) {
+    String fingerprint = previous == null ? "" : previous.acceptedInputFingerprint();
+    if (state == WorkTaskState.ACCEPTED && !scope.inputFingerprint().isBlank()) {
+      fingerprint = scope.inputFingerprint();
+    }
+    List<String> produced =
+        state == WorkTaskState.ACCEPTED
+            ? producedRecordIds
+            : previous == null ? List.of() : previous.producedRecordIds();
+    return new WorkTaskRecord(
+        scope.taskKey(),
+        scope.taskKind(),
+        scope.taskId(),
+        state,
+        scope.stage(),
+        scope.skillId(),
+        fingerprint,
+        produced);
+  }
+
+  private static WorkQuestion question(
+      WorkTaskScope scope,
+      String choice,
+      String text,
+      List<String> evidenceIds,
+      List<String> blockedRecordIds) {
+    return new WorkQuestion(
+        newId(),
+        choice,
+        text,
+        evidenceIds,
+        scope.taskKey(),
+        QuestionSubject.unspecified(),
+        blockedRecordIds,
+        List.of(),
+        QuestionResolution.OPEN);
   }
 
   private static DataTransfer findTransfer(Draft draft, String id) {
@@ -830,7 +1419,7 @@ final class WorkDocumentEditor {
                 step.sourceIds(),
                 step.requirementIds(),
                 step.binding(),
-                new StepData(transfers, step.data().retainedValues())));
+                step.data().withTransfers(transfers)));
       }
     }
   }
@@ -854,14 +1443,7 @@ final class WorkDocumentEditor {
           }
           if (cleared) {
             stepChanged = true;
-            transfers.add(
-                new DataTransfer(
-                    transfer.id(),
-                    transfer.sourcePorts(),
-                    transfer.targetPort(),
-                    transfer.requirementIds(),
-                    rules,
-                    transfer.decision()));
+            transfers.add(transfer.withRules(rules));
           } else {
             transfers.add(transfer);
           }
@@ -882,14 +1464,7 @@ final class WorkDocumentEditor {
         if (!replaced) {
           rules.add(stored);
         }
-        transfers.add(
-            new DataTransfer(
-                transfer.id(),
-                transfer.sourcePorts(),
-                transfer.targetPort(),
-                transfer.requirementIds(),
-                rules,
-                transfer.decision()));
+        transfers.add(transfer.withRules(rules));
       }
       if (stepChanged) {
         draft.steps.set(
@@ -902,7 +1477,7 @@ final class WorkDocumentEditor {
                 step.sourceIds(),
                 step.requirementIds(),
                 step.binding(),
-                new StepData(transfers, step.data().retainedValues())));
+                step.data().withTransfers(transfers)));
       }
     }
     if (!found) {
@@ -945,7 +1520,7 @@ final class WorkDocumentEditor {
                 step.sourceIds(),
                 step.requirementIds(),
                 step.binding(),
-                new StepData(step.data().transfers(), values)));
+                step.data().withRetained(values)));
       }
     }
   }
@@ -983,14 +1558,7 @@ final class WorkDocumentEditor {
         }
         if (ruleRemoved) {
           changed = true;
-          transfers.add(
-              new DataTransfer(
-                  transfer.id(),
-                  transfer.sourcePorts(),
-                  transfer.targetPort(),
-                  transfer.requirementIds(),
-                  rules,
-                  transfer.decision()));
+          transfers.add(transfer.withRules(rules));
         } else {
           transfers.add(transfer);
         }
@@ -1014,7 +1582,7 @@ final class WorkDocumentEditor {
                 step.sourceIds(),
                 step.requirementIds(),
                 step.binding(),
-                new StepData(transfers, retained)));
+                step.data().withTransfers(transfers).withRetained(retained)));
       }
     }
   }

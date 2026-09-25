@@ -122,7 +122,7 @@ class WorkTaskContextTest {
   private static final String DOCUMENT_JSON =
       """
       {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "documentId": "doc-map",
         "sources": [
           {
