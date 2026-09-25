@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan.workdocument;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
@@ -46,6 +47,74 @@ class WorkDocumentFillingTest {
   }
 
   @Test
+  void answeredSourceCallsTheLogicalHandler() throws Exception {
+    FillingWorld world = FillingWorld.start("run-logical-recheck");
+    List<String> trace = new ArrayList<>();
+    FillingResult waiting = world.drive(trace, 40);
+    assertEquals(FillingResult.Action.WAITING_FOR_INPUT, waiting.action(), trace.toString());
+    int logical = world.model.count(WorkTaskKind.LOGICAL_DESIGN);
+    world.filling.acceptInput(
+        world.runId, waiting.questionIds().get(0), "process-id", FillingWorld.answerText());
+    FillingResult next = world.advance(trace);
+    assertEquals(logical + 1, world.model.count(WorkTaskKind.LOGICAL_DESIGN), next.toString());
+    assertFalse(next.reasons().contains("revalidated"), next.toString());
+  }
+
+  @Test
+  void outlineRecheckRunsWhenContractHashesNoLongerMatch() throws Exception {
+    FillingWorld world = FillingWorld.start("run-outline-hash");
+    List<String> trace = new ArrayList<>();
+    while (world.model.count(WorkTaskKind.DEFINE_TRANSFERS) < 3) {
+      FillingResult result = world.advance(trace);
+      assertEquals(FillingResult.Action.ADVANCED, result.action(), trace.toString());
+    }
+    String taskKey = "";
+    for (LogicalStep step : world.document().flow().steps()) {
+      if (!step.data().transfers().isEmpty()) {
+        taskKey = "define-transfers:" + step.id();
+      }
+    }
+    assertFalse(taskKey.isBlank(), trace.toString());
+    world.catalog.contentGeneration(2);
+    reopen(world, taskKey);
+    int outlines = world.model.count(WorkTaskKind.DEFINE_TRANSFERS);
+    FillingResult next = world.advance(trace);
+    assertEquals(outlines + 1, world.model.count(WorkTaskKind.DEFINE_TRANSFERS), next.toString());
+    assertFalse(next.reasons().contains("revalidated"), next.toString());
+  }
+
+  @Test
+  void reopenedMappingWithTheSameFingerprintIsNotAcceptedBeforeItsHandler() throws Exception {
+    FillingWorld world = FillingWorld.start("run-fingerprint-reopen");
+    List<String> trace = new ArrayList<>();
+    while (acceptedMapping(world.document()) == null) {
+      FillingResult result = world.advance(trace);
+      assertEquals(FillingResult.Action.ADVANCED, result.action(), trace.toString());
+    }
+    WorkTaskRecord acceptedMapping = acceptedMapping(world.document());
+    String taskKey = acceptedMapping.taskKey();
+    assertFalse(acceptedMapping.acceptedInputFingerprint().isBlank(), trace.toString());
+    assertFalse(taskKey.isBlank(), trace.toString());
+    String taskId = "map-transfer-" + taskKey.substring("map-transfer:".length());
+    int calls = callsFor(world, taskId);
+    reopen(world, taskKey);
+    FillingResult next = world.advance(trace);
+    WorkTaskState state = null;
+    for (WorkTaskRecord task : world.document().progress().tasks()) {
+      if (taskKey.equals(task.taskKey())) {
+        state = task.state();
+      }
+    }
+    if (state == WorkTaskState.ACCEPTED) {
+      boolean handlerRan = calls != callsFor(world, taskId);
+      boolean checked = next.reasons().contains("revalidated");
+      assertTrue(handlerRan || checked, trace.toString());
+    } else {
+      assertEquals(WorkTaskState.NEEDS_RECHECK, state, trace.toString());
+    }
+  }
+
+  @Test
   void repeatedAdvanceReturnsTheSameResult() throws Exception {
     FillingWorld world = FillingWorld.start("run-replay");
     FillingResult first = world.filling.advance(world.runId, "advance-1");
@@ -55,6 +124,50 @@ class WorkDocumentFillingTest {
     assertEquals(calls, world.model.calls().size());
     assertEquals(FillingResult.Action.ADVANCED, first.action());
     assertTrue(first.taskId().startsWith("logical-design-"));
+  }
+
+  private static WorkTaskRecord acceptedMapping(ChainWorkDocument document) {
+    WorkTaskRecord found = null;
+    for (WorkTaskRecord task : document.progress().tasks()) {
+      if (task.kind() == WorkTaskKind.MAP_TRANSFER
+          && task.state() == WorkTaskState.ACCEPTED
+          && !task.acceptedInputFingerprint().isBlank()) {
+        found = task;
+      }
+    }
+    return found;
+  }
+
+  private static void reopen(FillingWorld world, String taskKey) {
+    ChainWorkDocument current = world.document();
+    List<WorkTaskRecord> tasks = new ArrayList<>();
+    for (WorkTaskRecord task : current.progress().tasks()) {
+      if (task.taskKey().equals(taskKey)) {
+        tasks.add(
+            new WorkTaskRecord(
+                task.taskKey(),
+                task.kind(),
+                task.taskId(),
+                WorkTaskState.NEEDS_RECHECK,
+                task.stage(),
+                task.skillId(),
+                task.acceptedInputFingerprint(),
+                task.producedRecordIds()));
+      } else {
+        tasks.add(task);
+      }
+    }
+    world.replaceProgress(tasks, current.progress().findings(), "reopen-" + taskKey);
+  }
+
+  private static int callsFor(FillingWorld world, String taskId) {
+    int count = 0;
+    for (String call : world.model.calls()) {
+      if (call.endsWith(" " + taskId)) {
+        count++;
+      }
+    }
+    return count;
   }
 
   private static FillingResult drive(FillingWorld world, List<String> trace, int from) {
