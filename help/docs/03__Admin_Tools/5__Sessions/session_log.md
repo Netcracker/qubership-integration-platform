@@ -5,7 +5,13 @@
 ## Description
 
 ---
-In order to have a full picture of processed sessions, the Qubership Integration Platform provides a specialized window **"Sessions"**. By operating with the window, user or admin are able to view every logged session and search for the specific one.
+In order to have a full picture of processed sessions, the Cloud Integration Platform provides a specialized window **"Sessions"**. By operating with the window, user or admin are able to view every logged session and search for the specific one.
+
+## Process Initialization
+
+---
+
+Functionality is available by navigating to **Admin Tools → Sessions** window. Only logged session are going to be available for user. Please ensure that all [logging configuration steps](../../01__Chains/5__Logging/logging.md) are done, if it is expected to use this window.
 
 ## User Interface
 
@@ -82,3 +88,16 @@ To import session(s), please click ![Upload|20](img/cloud-upload.svg). Imported 
 
 ### Delete Session(s)
 To delete session(s), please, mark all required sessions from the table and click ![Delete|20](img/delete.svg).
+
+## Data Storage
+
+---
+
+Please refer to [logging page] for more details regarding data storage.
+
+## Configuration
+
+---
+
+Session logs are being captured as per [logging settings](../../01__Chains/5__Logging/logging.md).
+

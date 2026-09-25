@@ -16,6 +16,7 @@
 
 package org.qubership.integration.platform.runtime.catalog.service;
 
+import jakarta.persistence.EntityExistsException;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +26,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
+import org.qubership.integration.platform.library.constants.CamelNames;
+import org.qubership.integration.platform.runtime.catalog.configuration.aspect.DeploymentModificationAspectConfiguration;
+import org.qubership.integration.platform.runtime.catalog.consul.ConsulService;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.engine.EngineDeploymentsDTO;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentUpdate;
 import org.qubership.integration.platform.runtime.catalog.model.deployment.update.DeploymentsUpdate;
@@ -32,12 +36,17 @@ import org.qubership.integration.platform.runtime.catalog.persistence.Transactio
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.DeploymentRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentRequest;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentSnapshotAction;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.service.deployment.DeploymentBuilderService;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -48,6 +57,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -55,8 +66,7 @@ import static org.mockito.Mockito.when;
 /**
  * Covers the finders, the delegating snapshot and bulk-deploy helpers, and the single-domain deploy
  * path of {@link DeploymentService}, plus its static full-deployments cache. Trigger checking is off
- * (the {@code @Value} flag defaults to {@code false}), so these tests stay on the persistence and
- * assembly branches rather than the trigger-collision machinery.
+ * (the {@code @Value} flag defaults to {@code false}) except in the tests that turn it on.
  */
 @ExtendWith(MockitoExtension.class)
 class DeploymentServiceTest {
@@ -200,6 +210,36 @@ class DeploymentServiceTest {
     }
 
     @Test
+    void bulkCreateNotifiesTheEnginesOnce() {
+        Snapshot snapshot = snapshotWithChain();
+        when(chainFinderService.findAllById(List.of("chain-1"))).thenReturn(List.of(snapshot.getChain()));
+        when(snapshotService.buildAll(any(), any())).thenReturn(Map.of("chain-1", snapshot));
+        when(chainFinderService.findById("chain-1")).thenReturn(snapshot.getChain());
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of());
+        when(deploymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        runTransactionsImmediately();
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return null;
+        }).when(transactionHandler).runInTransaction(any());
+
+        ConsulService consulService = mock(ConsulService.class);
+        AspectJProxyFactory proxyFactory = new AspectJProxyFactory(service);
+        proxyFactory.addAspect(new DeploymentModificationAspectConfiguration(consulService));
+        DeploymentService proxy = proxyFactory.getProxy();
+
+        var result = proxy.bulkCreate(BulkDeploymentRequest.builder()
+                .chainIds(List.of("chain-1"))
+                .domains(List.of("domainA"))
+                .build());
+
+        assertThat(result.getRight())
+                .extracting(BulkDeploymentResponse::getStatus)
+                .containsExactly(BulkDeploymentStatus.CREATED);
+        verify(consulService, times(1)).updateDeploymentsTimestamp();
+    }
+
+    @Test
     void deleteByIdThrowsWhenTheDeploymentIsMissing() {
         runTransactionsImmediately();
         when(deploymentRepository.findById("dep-x")).thenReturn(Optional.empty());
@@ -252,6 +292,73 @@ class DeploymentServiceTest {
         service.getDeploymentsForDomain("domainA", fullRequest);
 
         verify(deploymentBuilderService, times(2)).buildDeploymentsUpdate(deployments);
+    }
+
+    @Test
+    void createRefusesAnHttpTriggerPathFoundByTheDomainCheck() {
+        Deployment deployment = deploymentWithTriggerCheck();
+        stubTriggers(CamelNames.HTTP_TRIGGER_COMPONENT, httpTrigger("POST"), httpTrigger("POST"));
+
+        assertThatThrownBy(() -> service.create(deployment, chain(), snapshotWithChain(), null))
+                .isInstanceOf(EntityExistsException.class)
+                .hasMessage("Found similar triggers paths registered on other domains or by other chains on this domain: [shared]");
+        verify(deploymentRepository, never()).save(any());
+    }
+
+    @Test
+    void createAllowsAnHttpTriggerPathFoundByTheDomainCheckWithOtherMethods() {
+        Deployment deployment = deploymentWithTriggerCheck();
+        stubTriggers(CamelNames.HTTP_TRIGGER_COMPONENT, httpTrigger("POST"), httpTrigger("GET"));
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of());
+        when(deploymentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThat(service.create(deployment, chain(), snapshotWithChain(), null)).isSameAs(deployment);
+    }
+
+    @Test
+    void createRefusesAnSdsJobIdFoundByTheDomainCheck() {
+        Deployment deployment = deploymentWithTriggerCheck();
+        when(elementRepository.findAllBySnapshotIdAndTypeIn("snap-1", List.of(CamelNames.HTTP_TRIGGER_COMPONENT)))
+                .thenReturn(List.of());
+        stubTriggers(CamelNames.SDS_TRIGGER_COMPONENT, sdsTrigger(), sdsTrigger());
+
+        assertThatThrownBy(() -> service.create(deployment, chain(), snapshotWithChain(), null))
+                .isInstanceOf(EntityExistsException.class)
+                .hasMessage("Found similar Job Ids registered on scheduling-service (SDS) on other domains or by other chains on this domain: [job-1]");
+        verify(deploymentRepository, never()).save(any());
+    }
+
+    private Deployment deploymentWithTriggerCheck() {
+        ReflectionTestUtils.setField(service, "triggersCheckEnabled", true);
+        runTransactionsImmediately();
+        Deployment deployment = new Deployment();
+        deployment.setDomain("domainA");
+        return deployment;
+    }
+
+    private void stubTriggers(String type, ChainElement pending, ChainElement foundByDomainCheck) {
+        List<String> types = List.of(type);
+        when(elementRepository.findAllBySnapshotIdAndTypeIn("snap-1", types)).thenReturn(List.of(pending));
+        when(elementRepository.findElementsForDomainTriggerCheck(types, "domainA", "chain-1", null))
+                .thenReturn(List.of(foundByDomainCheck));
+    }
+
+    private static ChainElement httpTrigger(String methods) {
+        return ChainElement.builder()
+                .type(CamelNames.HTTP_TRIGGER_COMPONENT)
+                .properties(Map.of(
+                        "contextPath", "shared",
+                        "httpMethodRestrict", methods,
+                        "externalRoute", false,
+                        "privateRoute", false))
+                .build();
+    }
+
+    private static ChainElement sdsTrigger() {
+        return ChainElement.builder()
+                .type(CamelNames.SDS_TRIGGER_COMPONENT)
+                .properties(Map.of("jobId", "job-1"))
+                .build();
     }
 
     private static Snapshot snapshotWithChain() {

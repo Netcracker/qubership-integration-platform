@@ -1,8 +1,8 @@
 # qubership-integration-help
 
-This repository stores helper documents for the [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) (QIP).
+This repository stores helper documents for the [Cloud Integration Platform](https://github.com/Netcracker/qubership-integration-platform) (CIP).
 
-QIP is an open-source integration solution built on [Apache Camel](https://camel.apache.org/index.html). It enables integration between diverse systems while handling data transformation, process orchestration and mapping between different system formats.
+CIP is an open-source integration solution built on [Apache Camel](https://camel.apache.org/index.html). It enables integration between diverse systems while handling data transformation, process orchestration and mapping between different system formats.
 
 The documents from this repository are consumed by:
 
@@ -13,13 +13,13 @@ The documents from this repository are consumed by:
 
 All documentation is located in the [`docs/`](docs/) directory and organized into the following sections:
 
-| Section | Description |
-|---------|-------------|
-| [Overview](docs/00__Overview/) | Platform concepts: token processing, Apache Camel context, chain configuration, general functions, access control |
-| [Chains](docs/01__Chains/) | Chain graph editor, QIP elements library (routing, files, triggers, services, transformation, senders), triggers, properties, testing |
-| [Services](docs/02__Services/) | External and inner cloud services, implemented services, context configuration |
-| [Admin Tools](docs/03__Admin_Tools/) | Domains, variables, audit, sessions, live exchanges, testing |
-| [Dev Tools](docs/04__Dev_Tools/) | MaaS integration, diagnostic tools |
+| Section                              | Description                                                                                                                           |
+|--------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| [Overview](docs/00__Overview/)       | Platform concepts: token processing, Apache Camel context, chain configuration, general functions, access control                     |
+| [Chains](docs/01__Chains/)           | Chain graph editor, QIP elements library (routing, files, triggers, services, transformation, senders), triggers, properties, testing |
+| [Services](docs/02__Services/)       | External and inner cloud services, implemented services, context configuration                                                        |
+| [Admin Tools](docs/03__Admin_Tools/) | Domains, variables, audit, sessions, live exchanges, testing                                                                          |
+| [Dev Tools](docs/04__Dev_Tools/)     | MaaS integration, diagnostic tools                                                                                                    |
 
 ## Contribution
 

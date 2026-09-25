@@ -6,6 +6,11 @@
 
 ---
 Snapshot represents a chain state in the particular moment. In a nutshell, snapshot is a chain XML representation which could be a basis for chain deployment (chain cannot be deployed in intermediate state). Chain could be reverted to any existing snapshot if required.
+## Process Initialization
+
+---
+Snapshot shall be created manually via CIP UI (navigate to "**Snapshots**" tab, available for each chain).
+
 ## User Interface
 
 ---
@@ -13,7 +18,7 @@ Snapshot represents a chain state in the particular moment. In a nutshell, snaps
 There is a **"Snapshots"** tab, available for each particular chain. By navigating to this tab user will be presented with a table, that contains next info and control elements:
 - **Name** - snapshot's name. First snapshot is automatically named "**V1**". Every subsequent snapshot will be named with incremented number (**V2**, **V3**, etc).
     > ℹ️ **Note**: To **change** snapshot's **current version name**, hover the mouse on the version name of suitable snapshot, click on it, type new version name and click **`Enter`**.
-- **Labels** - list of colored snapshot labels, unique within particular snapshot. It might contain **custom** labels, entered on the snapshot by user via Qubership Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Custom** labels can be added or removed clicking on the row respectively. **Technical** labels cannot be updated manually.
+- **Labels** - list of colored snapshot labels, unique within particular snapshot. It might contain **custom** labels, entered on the snapshot by user via Cloud Integration Platform UI or **technical** labels, populated as part of the deployment via Samples Repository. **Custom** labels can be added or removed clicking on the row respectively. **Technical** labels cannot be updated manually.
 - **Created By** - username of snapshot creation.
 - **Created At** - the datetime of snapshot creation.
 - **Modified By** - username of snapshot modification.
@@ -33,7 +38,6 @@ Placed on the top of the table. Provides next capabilities:
   - ![diff](img/diff.svg) - compares selected snapshots.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows adjusting visibility and order of the columns.
 
-
 ### Create Snapshot
 To create snapshot, click button ![plus](img/plus.svg). If chain graph is valid, snapshot will be created.
 
@@ -42,12 +46,10 @@ To delete snapshot(s), mark all suitable rows with ticks in the snapshot table v
 
 > ℹ️ **Note**: Besides the UI option for manual deletion, a scheduled task automatically deletes snapshots older than the configured interval *(default is set to 14 days)*. Once deleted, these snapshots cannot be restored.
 
-
 ### Revert Chain to the Particular Snapshot
 To revert chain to the particular version, select **"Revert to"** option in actions menu. After this a popup with the confirmation will be opened. Then the graph will be shown with all the information and the elements that were saved in the chosen snapshot.
 
 > ℹ️ **Note**: In case there are unsaved changes in the chain and revert has been requested - the snapshot with all unsaved changes will be automatically created (saved) before reverting to the previous version.
-
 
 ### Open Snapshot Sequence Diagram
 To build the sequence diagram by particular snapshot data, select "**Show Diagram**" option in actions menu. This will open new pop-up window with sequence diagram.
@@ -58,3 +60,14 @@ Sequence diagram could be exported via button **"Export"** with 3 output formats
 Select exactly two snapshots using the checkboxes and click ![diff](img/diff.svg) to open the **Chain compare** dialog.
 
 > ℹ️ **Note**: The dialog reuses the same comparison feature described in the **Compare Chains** section of [Chains](../chains.md) — the **Graph**, **Table**, and **Text** views, the color-coded element states, the **Previous change**/**Next change** navigation, and the fullscreen toggle — applied to the two selected snapshots instead of two chains.
+
+## Data Storage
+
+---
+No specific storage logic available.
+
+## Configuration
+
+---
+No specific configuration available.
+

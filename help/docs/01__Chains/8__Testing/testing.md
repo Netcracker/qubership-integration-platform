@@ -13,7 +13,8 @@ The **Testing** tab collects everything needed to exercise a single chain withou
 
 Test cases and endpoint mocks are handled by a separate testing service, which reads the chain configuration from the runtime catalog and calls the deployed chain through the engine. The chain therefore has to be [deployed](../3__Deployments/deployments.md) before a test case can run, and the trigger a test case points at has to be an **HTTP Trigger** with a configured context path - no other trigger type can be activated.
 
-> ℹ️ **Note:** The **Testing** tab appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the tab hidden until an operator switches the mode. On a production installation the tab is hidden, the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) is hidden with it, and a direct link to a testing address lands on the "not found" page.
+> ℹ️ **Note:** The **Testing** tab appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the tab hidden until an operator switches the mode, as described under [Testing Service Mode](#testing-service-mode).
+> On a production installation the tab is hidden, the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) is hidden with it, and a direct link to a testing address lands on the "not found" page.
 
 ## User Interface
 
@@ -242,13 +243,13 @@ Failures outside the rules are recorded here as well - a test case with no trigg
 ---
 Everything on the **Testing** tab is gated by the rights of the chain it belongs to. The same screens under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) ask for the matching **Admin Tools** rights instead:
 
-| Action | Right on the chain tab | Right under Admin Tools |
-|---|---|---|
-| Open a list, a details panel or an editor, and **Refresh** | `read` | `read` |
-| **Create**, **Delete**, and saving an editor | `update` | `update` |
-| **Run**, **Restart**, **Cancel** | `execute` | `execute` |
-| **Import** | `import` | `import` |
-| **Export** | `export` | `export` |
+| Action                                                     | Right on the chain tab | Right under Admin Tools |
+|------------------------------------------------------------|------------------------|-------------------------|
+| Open a list, a details panel or an editor, and **Refresh** | `read`                 | `read`                  |
+| **Create**, **Delete**, and saving an editor               | `update`               | `update`                |
+| **Run**, **Restart**, **Cancel**                           | `execute`              | `execute`               |
+| **Import**                                                 | `import`               | `import`                |
+| **Export**                                                 | `export`               | `export`                |
 
 The two sets are independent: holding one grants nothing under the other. Full rights on a chain leave the cross-chain lists closed, and the **Test Run** reference in the **Test Case Runs** table above leads to a page that only **Admin Tools** `read` opens.
 
@@ -276,16 +277,51 @@ A Service Call over Kafka, AMQP or gRPC is never intercepted, and neither is an 
 
 > ℹ️ **Note:** A **GraphQL Sender**, and a **Service Call** over GraphQL, are not intercepted either: a mock cannot be bound to them in the first place, and the engine cannot tell which run a GraphQL call belongs to, because the Camel producer behind those elements builds its own client call and passes no exchange. They reach their real endpoint during a test case run, so a test that exercises a chain with a GraphQL element calls the live system.
 
-The two settings live on the engine:
+The switch and the testing service address are engine settings, described under [Engine Settings](#engine-settings).
 
-| Setting | Environment variable | Default | Description |
-|---|---|---|---|
-| `qip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false` | switches endpoint mocking on for the engine |
+> ℹ️ **Note:** Whatever the element sends, the testing service receives - authorization headers, API keys, cookies and secrets in the query string included. Enable mocking only where the testing service is trusted with that traffic.
+
+## Configuration
+
+---
+Testing depends on two services. The testing service reports whether the installation is a production one, and the UI decides from that answer whether to show testing at all. The engine decides whether the outbound calls of a test case run go to endpoint mocks. Each service reads its settings when it starts, so a change takes effect after a restart of that service.
+
+### Testing Service Mode
+
+The UI shows the **Testing** tab and the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) only when the testing service runs in non-production mode.
+
+| Environment variable | Default | Description |
+|---|---|---|
+| `PRODUCTION_MODE` | `true` | set to `false` on the testing service to show testing in the UI; with `true`, or with the variable not set, testing is hidden |
+
+`PRODUCTION_MODE` is the flag every service of the platform reads. The testing service does not read its mode from Consul.
+
+### Engine Settings
+
+| Setting               | Environment variable      | Default                       | Description                                          |
+|-----------------------|---------------------------|-------------------------------|------------------------------------------------------|
+| `qip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false`                       | switches endpoint mocking on for the engine          |
 | `qip.testing.address` | `TESTING_SERVICE_ADDRESS` | `http://testing-service:8080` | address of the testing service the calls are sent to |
 
 A change takes effect when the engine restarts. No chain has to be redeployed.
 
-> ℹ️ **Note:** Whatever the element sends, the testing service receives - authorization headers, API keys, cookies and secrets in the query string included. Enable mocking only where the testing service is trusted with that traffic.
+#### Setting the Engine From Consul
+
+At startup the engine also loads settings from Consul KV. A key under one of the paths below sets the property named by the rest of the key, with every `/` read as `.`:
+
+- `config/<NAMESPACE>/<MICROSERVICE_NAME>/` - settings of this engine only. `MICROSERVICE_NAME` defaults to `qip-engine`.
+- `config/<NAMESPACE>/application/` - settings shared by every service of the namespace that loads its configuration from Consul.
+
+For example, these keys switch mocking off and point the engine at another testing service address:
+
+```text
+config/<NAMESPACE>/qip-engine/qip/testing/enabled = false
+config/<NAMESPACE>/qip-engine/qip/testing/address = http://<TESTING_SERVICE_HOST>:8080
+```
+
+A Consul key takes precedence over `TESTING_SERVICE_ENABLED` and `TESTING_SERVICE_ADDRESS`. A key under the engine path takes precedence over the same key under `application`.
+
+> ℹ️ **Note:** The engine reads a changed key while it runs, but endpoint mocking is switched on or off only when the engine starts. Restart the engine after changing `qip/testing/enabled` or `qip/testing/address` in Consul.
 
 ## Constraints
 

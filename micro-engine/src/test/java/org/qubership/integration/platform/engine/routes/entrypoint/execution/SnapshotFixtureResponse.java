@@ -10,6 +10,7 @@ import static org.qubership.integration.platform.engine.routes.support.SnapshotC
 public class SnapshotFixtureResponse {
     private final int status;
     private final boolean statusDefined;
+    private final Integer delayMillis;
     private final Object body;
     private final Map<String, Object> headers;
     private final Map<String, Object> properties;
@@ -17,12 +18,14 @@ public class SnapshotFixtureResponse {
     @JsonCreator
     public SnapshotFixtureResponse(
             @JsonProperty("status") Integer status,
+            @JsonProperty("delayMillis") Integer delayMillis,
             @JsonProperty("body") Object body,
             @JsonProperty("headers") Map<String, Object> headers,
             @JsonProperty("properties") Map<String, Object> properties
     ) {
         this.statusDefined = status != null;
         this.status = status == null ? 200 : requireHttpStatus(status);
+        this.delayMillis = delayMillis == null ? null : requireNonNegativeDelay(delayMillis);
         this.body = body;
         this.headers = immutableMapOrEmpty(headers);
         this.properties = immutableMapOrEmpty(properties);
@@ -34,6 +37,10 @@ public class SnapshotFixtureResponse {
 
     public boolean hasExplicitStatus() {
         return statusDefined;
+    }
+
+    public Integer getDelayMillis() {
+        return delayMillis;
     }
 
     public Object getBody() {
@@ -51,6 +58,13 @@ public class SnapshotFixtureResponse {
     private static int requireHttpStatus(int value) {
         if (value < 100 || value > 599) {
             throw new IllegalArgumentException("Snapshot fixture response status must be between 100 and 599.");
+        }
+        return value;
+    }
+
+    private static int requireNonNegativeDelay(int value) {
+        if (value < 0) {
+            throw new IllegalArgumentException("Snapshot fixture response delayMillis cannot be negative.");
         }
         return value;
     }

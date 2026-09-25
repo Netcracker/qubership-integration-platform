@@ -1,5 +1,6 @@
+import { Table } from "antd";
 import React, { useCallback, useEffect, useState } from "react";
-import { Button, Table } from "antd";
+import { Button } from "antd";
 import { message } from "../../../misc/antd-app.ts";
 import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { useNavigate } from "react-router-dom";
@@ -28,7 +29,7 @@ import {
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
 import { ChainColumn } from "../ui/ChainColumn.tsx";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { nameLinkStyle } from "../../table/nameLinkStyle.ts";
 
 const SELECTION_COLUMN_WIDTH = 48;
@@ -195,20 +196,25 @@ export const ContextServiceList: React.FC = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType("contextSystemTable", columns);
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        name: 200,
-        labels: 200,
-        usedBy: 120,
-        createdBy: 120,
-        createdWhen: 168,
-        modifiedBy: 120,
-        modifiedWhen: 168,
-      },
-      { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      name: 200,
+      labels: 200,
+      usedBy: 120,
+      createdBy: 120,
+      createdWhen: 168,
+      modifiedBy: 120,
+      modifiedWhen: 168,
+    },
+    { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
+    "contextSystemTable",
+  );
 
   useEffect(() => {
     void loadServices();
@@ -274,6 +280,7 @@ export const ContextServiceList: React.FC = () => {
 
   return (
     <GenericServiceListPage
+      refresh={{ onRefresh: loadServices, loading }}
       title={`Context Services`}
       icon={<OverridableIcon name={"database"} />}
       extraActions={[filterButton, columnSettingsButton]}
@@ -309,6 +316,7 @@ export const ContextServiceList: React.FC = () => {
           onChange: (keys) => setSelectedRowKeys(keys),
         }}
         components={components}
+        onChange={handleConfiguredTableChange}
       />
     </GenericServiceListPage>
   );

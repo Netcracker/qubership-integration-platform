@@ -290,8 +290,14 @@ public class DeploymentService {
         }
     }
 
-    @Transactional
+    @DeploymentModification
     public Pair<Boolean, List<BulkDeploymentResponse>> bulkCreate(BulkDeploymentRequest request) {
+        AtomicReference<Pair<Boolean, List<BulkDeploymentResponse>>> result = new AtomicReference<>();
+        transactionHandler.runInTransaction(() -> result.set(bulkCreateInTransaction(request)));
+        return result.get();
+    }
+
+    private Pair<Boolean, List<BulkDeploymentResponse>> bulkCreateInTransaction(BulkDeploymentRequest request) {
         final AtomicReference<Boolean> failed = new AtomicReference<>(false);
         List<BulkDeploymentResponse> statuses = new ArrayList<>();
 
@@ -410,7 +416,7 @@ public class DeploymentService {
 
         Set<String> domainEqualJobIds = findSameSdsTriggerJobIds(pendingJobIds, domainJobIds);
         if (!domainEqualJobIds.isEmpty()) {
-            throw new EntityExistsException("Found similar Job Ids registered on scheduling-service (SDS) on the same domain: "
+            throw new EntityExistsException("Found similar Job Ids registered on scheduling-service (SDS) on other domains or by other chains on this domain: "
                     + domainEqualJobIds);
         }
     }
@@ -447,7 +453,8 @@ public class DeploymentService {
                     + gatewayEqualPaths);
         }
         if (!otherDomainsEqualPaths.isEmpty()) {
-            throw new EntityExistsException("Found similar triggers path registered on other domains: " + otherDomainsEqualPaths);
+            throw new EntityExistsException("Found similar triggers paths registered on other domains or by other chains on this domain: "
+                    + otherDomainsEqualPaths);
         }
     }
 

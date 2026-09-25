@@ -335,25 +335,9 @@ public class DiagnosticService {
         }
     }
 
-    // TODO rewrite with db locks
     private boolean validationUpdateTryLock() {
-        ConfigParameter lock = configParameterService.findByName(DIAGNOSTIC_NAMESPACE, DIAGNOSTIC_VALIDATION_STATE_UPDATE_LOCK_NAME);
-        if (lock == null) {
-            lock = new ConfigParameter(DIAGNOSTIC_NAMESPACE, DIAGNOSTIC_VALIDATION_STATE_UPDATE_LOCK_NAME);
-            lock.setBoolean(true);
-            configParameterService.update(lock);
-            configParameterService.flush();
-            return true;
-        } else {
-            if (!lock.getBoolean() || lock.getModifiedWhen().before(
-                    Timestamp.valueOf(LocalDateTime.now().minusMinutes(VALIDATION_DB_LOCK_TIMEOUT_MINUTES)))) {
-                lock.setBoolean(true);
-                configParameterService.update(lock);
-                configParameterService.flush();
-                return true;
-            }
-        }
-        return false;
+        return configParameterService.tryLock(DIAGNOSTIC_NAMESPACE, DIAGNOSTIC_VALIDATION_STATE_UPDATE_LOCK_NAME,
+                Timestamp.valueOf(LocalDateTime.now().minusMinutes(VALIDATION_DB_LOCK_TIMEOUT_MINUTES)));
     }
 
     private void validationUpdateUnlock() {

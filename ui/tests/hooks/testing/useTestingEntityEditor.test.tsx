@@ -88,6 +88,7 @@ const WidgetEditor: React.FC = () => {
       <button onClick={() => onChange({ name: `${entity.name}!` })}>
         rename
       </button>
+      <button onClick={() => onChange({ name: entity.name })}>resubmit</button>
     </div>
   );
 };
@@ -165,6 +166,16 @@ describe("useTestingEntityEditor", () => {
   it("should leave without prompting when nothing changed", async () => {
     await renderLoadedEditor();
 
+    leaveEditor();
+
+    expect(await screen.findByText("widgets list")).toBeInTheDocument();
+    expect(mockShowModal).not.toHaveBeenCalled();
+  });
+
+  it("should leave without prompting when an edit keeps the stored values", async () => {
+    await renderLoadedEditor();
+
+    fireEvent.click(screen.getByText("resubmit"));
     leaveEditor();
 
     expect(await screen.findByText("widgets list")).toBeInTheDocument();

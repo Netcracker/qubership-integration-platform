@@ -1,7 +1,17 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
+subject: "async-split"
+deployments:
+  - id: "async-split"
+    route: "async-split"
+  - id: "async-split-isolation"
+    route: "async-split error"
 fixtures:
   - id: "async-branches"
     provider: "async-flow"
+    deployment: "async-split"
+  - id: "isolated-async-branches"
+    provider: "async-flow"
+    deployment: "async-split-isolation"
 scenarios:
   - id: "returns-before-branches-and-executes-all-branches"
     endpointUri: "cip-chain:bb9d39c1-7457-4c89-9856-27aa84313212"
@@ -33,3 +43,51 @@ scenarios:
               X-Branch-Name-2: "Secondary"
             properties:
               asyncSplitRequestProperty: "async-split-request-property"
+      - fixture: "isolated-async-branches"
+        expectedExchanges: []
+
+  - id: "keeps-string-properties-independent-across-async-branches"
+    endpointUri: "cip-chain:493a2c37-61ce-4939-b2b6-cd62d33cf404"
+    body: "Original"
+    expectedBody: "Original"
+    expectedProperties:
+      test: "Before asynch split"
+    interactions:
+      - fixture: "async-branches"
+        expectedExchanges: []
+      - fixture: "isolated-async-branches"
+        expectedExchanges:
+          - count: 1
+            body: "Main branch"
+            properties:
+              test: "Main asynch branch"
+          - count: 1
+            body: "Secondary branch"
+            properties:
+              test: "Secondary asynch branch"
+
+  - id: "completes-successful-branch-when-another-async-branch-fails"
+    endpointUri: "cip-chain:493a2c37-61ce-4939-b2b6-cd62d33cf404"
+    body: "Original"
+    properties:
+      failSecondary: true
+    expectedBody: "Original"
+    expectedProperties:
+      test: "Before asynch split"
+    interactions:
+      - fixture: "async-branches"
+        expectedExchanges: []
+      - fixture: "isolated-async-branches"
+        expectedExchanges:
+          - count: 1
+            body: "Main branch"
+            properties:
+              test: "Main asynch branch"
+          - count: 1
+            body: "Secondary branch"
+            properties:
+              test: "Secondary asynch branch"
+            expectedFailure:
+              type: "java.lang.IllegalStateException"
+              message: "Secondary async branch failed"
+              cause: null

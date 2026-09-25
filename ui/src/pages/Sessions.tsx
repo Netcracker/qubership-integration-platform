@@ -1,3 +1,4 @@
+import { Table } from "antd";
 import React, {
   useCallback,
   useEffect,
@@ -5,7 +6,7 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Flex, Table } from "antd";
+import { Flex } from "antd";
 import { message } from "../misc/antd-app.ts";
 import { useNavigate, useParams } from "react-router";
 import {
@@ -40,7 +41,7 @@ import {
   useColumnSettingsBasedOnColumnsType,
 } from "../components/table/useColumnSettingsButton.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
-import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
@@ -194,9 +195,13 @@ export const Sessions: React.FC<SessionsProps> = ({
         let currentOffset = initialOffset;
         let reachedEnd = false;
         for (let i = 0; i < pagesToFetch; i++) {
-          const response = await api.getSessions(chainId, filterAndSearchRequest, {
-            offset: currentOffset,
-          });
+          const response = await api.getSessions(
+            chainId,
+            filterAndSearchRequest,
+            {
+              offset: currentOffset,
+            },
+          );
           fetched.push(...response.sessions);
           currentOffset = response.offset;
           if (response.sessions.length === 0) {
@@ -398,25 +403,30 @@ export const Sessions: React.FC<SessionsProps> = ({
       tableColumnDefinitions,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        id: 220,
-        chainName: 160,
-        executionStatus: 140,
-        started: 168,
-        finished: 168,
-        loggingLevel: 120,
-        duration: 100,
-        snapshotName: 110,
-        engineAddress: 150,
-      },
-      {
-        expandColumnWidth: SESSIONS_EXPAND_COLUMN_WIDTH,
-        selectionColumnWidth: SESSIONS_SELECTION_COLUMN_WIDTH,
-      },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      id: 220,
+      chainName: 160,
+      executionStatus: 140,
+      started: 168,
+      finished: 168,
+      loggingLevel: 120,
+      duration: 100,
+      snapshotName: 110,
+      engineAddress: 150,
+    },
+    {
+      expandColumnWidth: SESSIONS_EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: SESSIONS_SELECTION_COLUMN_WIDTH,
+    },
+    sessionsColumnSettingsKey,
+  );
 
   /* Sentinel is appended as a sibling of `<table>` inside `.ant-table-body`
    * (not inside the table) because Antd's sticky table syncs header/body
@@ -523,15 +533,6 @@ export const Sessions: React.FC<SessionsProps> = ({
     () => (
       <>
         <ProtectedButton
-          require={{ session: ["read"] }}
-          tooltipProps={{ title: "Refresh", placement: "bottom" }}
-          buttonProps={{
-            "data-testid": "sessions-refresh",
-            iconName: "refresh",
-            onClick: () => onRefreshSessions(),
-          }}
-        />
-        <ProtectedButton
           require={{ session: ["export"] }}
           tooltipProps={{ title: "Export selected sessions" }}
           buttonProps={{
@@ -559,18 +560,18 @@ export const Sessions: React.FC<SessionsProps> = ({
         />
       </>
     ),
-    [
-      chainId,
-      onRefreshSessions,
-      onDeleteBtnClick,
-      onExportBtnClick,
-      onImportBtnClick,
-    ],
+    [chainId, onDeleteBtnClick, onExportBtnClick, onImportBtnClick],
   );
 
   const sessionsToolbar = useMemo(
     () => (
       <TableToolbar
+        refresh={{
+          onRefresh: onRefreshSessions,
+          loading: isLoading,
+          require: { session: ["read"] },
+          "data-testid": "sessions-refresh",
+        }}
         variant={variant === "admin-page" ? "admin" : "chain-tab"}
         search={{
           value: searchString,
@@ -589,12 +590,21 @@ export const Sessions: React.FC<SessionsProps> = ({
       filterButton,
       columnSettingsButton,
       sessionsToolbarActions,
+      onRefreshSessions,
+      isLoading,
     ],
   );
 
   useRegisterChainHeaderActions(
     variant === "chain-tab" ? sessionsToolbar : undefined,
-    [searchString, chainId, selectedRowKeys, onRefreshSessions, variant],
+    [
+      searchString,
+      chainId,
+      selectedRowKeys,
+      onRefreshSessions,
+      variant,
+      isLoading,
+    ],
   );
 
   const sessionsTable = (
@@ -622,6 +632,7 @@ export const Sessions: React.FC<SessionsProps> = ({
           locale={{ emptyText: tableEmpty("No sessions recorded") }}
           scroll={tableScroll(scrollX, tableData.length)}
           components={components}
+          onChange={handleConfiguredTableChange}
         />
       </div>
     </TablePageLayout>

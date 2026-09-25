@@ -6,6 +6,13 @@ Context Services are being used as a temporary storage of chain contexts. Chain 
 
 > ⚠️ **Warning:** Context services **shall NOT be used** to store/manage sensitive data.
 
+## Process Initialization
+
+---
+
+- In CIP UI: to reach the External Services management window, please click "**Services**" on the top of the Cloud Integration Platform screen and then go to **"Context"** tab.
+- In CIP VSCode Extension: to create and configure a service instance, navigate to **"Services"** subsection under the **"CIP"** section.
+
 ## User Interface
 
 ---
@@ -31,6 +38,7 @@ Table with **Context** services is accessible by navigating to **Services** → 
 
 At the top of the table the following options are available:
   - **Search field** - search box, provides ability to find respective data in the table.
+  - ![refresh](img/refresh.svg) - reloads the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
   - ![cloud-download](img/cloud-download.svg) - exports the service.
@@ -39,7 +47,7 @@ At the top of the table the following options are available:
 
 <ins>VS Code Extension</ins>
 
-Any context service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+Any context service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "CIP" folder in the left bottom.
 
 ### View Parameters
 Parameters tab contains the following information:
@@ -62,8 +70,8 @@ To add new context service, click **"Create"** button marked with ![plus](img/pl
 To create any service using VS Code Extension, follow the steps outlined below:
 
 1. Open "VS Code Extension" in Visual Studio Code.
-2. In the left bottom find QIP section and expand it.
-3. Near the "Services" folder click on appearing button "QIP Create service".
+2. In the left bottom find CIP section and expand it.
+3. Near the "Services" folder click on appearing button "CIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter some description and click Enter. Next, it opens "Parameters" tab of the created service.
 
 ### Import Service(s)
@@ -96,3 +104,17 @@ When import is completed, system displays import result table with the following
 System allows exporting service. There are two possible ways to export service(s):
 - From **"Context Services"** page - mark specific services with checkboxes and click ![cloud-download](img/cloud-download.svg) (Export).
 - From exact service page - simply click ![cloud-download](img/cloud-download.svg) (Export) from the action menu ![more](img/more.svg).
+
+## Data Storage
+
+---
+
+- In CIP UI: for any Context services created, the service parameters and configuration is stored in CIP Catalog database. Please refer to [CIP Architecture](../../05__Architecture/cip_architecture.md) for common data storage overview.
+- In CIP VSCode Extension: Context services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
+
+## Configuration
+
+---
+
+Environment configuration steps are fully covered by Installation Notes.
+

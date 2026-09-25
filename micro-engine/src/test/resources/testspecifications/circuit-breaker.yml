@@ -1,11 +1,169 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
+subject: "circuit-breaker"
+deployments:
+  - id: "circuit-breaker"
+    route: "circuit-breaker"
+  - id: "circuit-breaker-timing"
+    route: "circuit-breaker alternative"
 fixtures:
   - id: "petstore"
     provider: "http-service-call"
+    deployment: "circuit-breaker"
     sourceElementId: "d05271cb-2f78-4765-9fc1-c7ab57415ce5"
   - id: "breaker"
     provider: "circuit-breaker"
+    deployment: "circuit-breaker"
+  - id: "timed-petstore"
+    provider: "http-service-call"
+    deployment: "circuit-breaker-timing"
+    sourceElementId: "7b680d03-4895-43e2-85fe-2221392a9e8c"
+  - id: "timed-breaker"
+    provider: "circuit-breaker"
+    deployment: "circuit-breaker-timing"
 scenarios:
+  - id: "waits-for-minimum-call-count"
+    endpointUri: "cip-chain:0453266a-e2e6-4722-af8b-bf563754984c"
+    invocations:
+      - id: "keeps-closed-before-hundredth-failure"
+        repeat: 99
+        body: "Original"
+        expectedBody: "On Fallback"
+        expectedProperties:
+          "CamelCircuitBreakerState": "CLOSED"
+          "CamelCircuitBreakerSuccessfulExecution": false
+          "CamelCircuitBreakerResponseFromFallback": true
+        interactions:
+          - fixture: "petstore"
+            response:
+              status: 500
+              headers:
+                "Content-Type": "application/json"
+              body: { "message": "Temporary service failure" }
+            expectedRequest:
+              count: 99
+              method: "GET"
+              path: "/pet/1"
+          - fixture: "breaker"
+            expectedState: "CLOSED"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
+      - id: "opens-on-hundredth-failure"
+        body: "Original"
+        expectedBody: "On Fallback"
+        expectedProperties:
+          "CamelCircuitBreakerState": "OPEN"
+          "CamelCircuitBreakerSuccessfulExecution": false
+          "CamelCircuitBreakerResponseFromFallback": true
+        interactions:
+          - fixture: "petstore"
+            response:
+              status: 500
+              headers:
+                "Content-Type": "application/json"
+              body: { "message": "Temporary service failure" }
+            expectedRequest:
+              count: 1
+              method: "GET"
+              path: "/pet/1"
+          - fixture: "breaker"
+            expectedState: "OPEN"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
+
+  - id: "evicts-old-successes-from-sliding-window"
+    endpointUri: "cip-chain:0453266a-e2e6-4722-af8b-bf563754984c"
+    invocations:
+      - id: "fills-window-with-successes"
+        repeat: 100
+        body: "Original"
+        expectedBody: { "id": 1, "name": "doggie", "photoUrls": [] }
+        expectedHeaders:
+          "CamelHttpResponseCode": 200
+        expectedProperties:
+          "CamelCircuitBreakerState": "CLOSED"
+          "CamelCircuitBreakerSuccessfulExecution": true
+          "CamelCircuitBreakerResponseFromFallback": false
+        interactions:
+          - fixture: "petstore"
+            response:
+              status: 200
+              headers:
+                "Content-Type": "application/json"
+              body: { "id": 1, "name": "doggie", "photoUrls": [] }
+            expectedRequest:
+              count: 100
+              method: "GET"
+              path: "/pet/1"
+          - fixture: "breaker"
+            expectedState: "CLOSED"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
+      - id: "keeps-closed-below-window-failure-threshold"
+        repeat: 49
+        body: "Original"
+        expectedBody: "On Fallback"
+        expectedProperties:
+          "CamelCircuitBreakerState": "CLOSED"
+          "CamelCircuitBreakerSuccessfulExecution": false
+          "CamelCircuitBreakerResponseFromFallback": true
+        interactions:
+          - fixture: "petstore"
+            response:
+              status: 500
+              headers:
+                "Content-Type": "application/json"
+              body: { "message": "Temporary service failure" }
+            expectedRequest:
+              count: 49
+              method: "GET"
+              path: "/pet/1"
+          - fixture: "breaker"
+            expectedState: "CLOSED"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
+      - id: "opens-when-half-of-window-has-failed"
+        body: "Original"
+        expectedBody: "On Fallback"
+        expectedProperties:
+          "CamelCircuitBreakerState": "OPEN"
+          "CamelCircuitBreakerSuccessfulExecution": false
+          "CamelCircuitBreakerResponseFromFallback": true
+        interactions:
+          - fixture: "petstore"
+            response:
+              status: 500
+              headers:
+                "Content-Type": "application/json"
+              body: { "message": "Temporary service failure" }
+            expectedRequest:
+              count: 1
+              method: "GET"
+              path: "/pet/1"
+          - fixture: "breaker"
+            expectedState: "OPEN"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
+
   - id: "opens-and-recovers"
     endpointUri: "cip-chain:0453266a-e2e6-4722-af8b-bf563754984c"
     invocations:
@@ -39,6 +197,12 @@ scenarios:
                 "X-Test-Request": "request-value"
           - fixture: "breaker"
             expectedState: "CLOSED"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
       - id: "records-failures-below-minimum-call-count"
         repeat: 49
         body: "Original"
@@ -71,6 +235,12 @@ scenarios:
                 "X-Test-Request": "request-value"
           - fixture: "breaker"
             expectedState: "CLOSED"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
       - id: "opens-at-failure-rate-threshold"
         body: "Original"
         headers:
@@ -102,6 +272,12 @@ scenarios:
                 "X-Test-Request": "request-value"
           - fixture: "breaker"
             expectedState: "OPEN"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
       - id: "short-circuits-while-open"
         body: "Original"
         headers:
@@ -131,6 +307,12 @@ scenarios:
               path: "/pet/1"
           - fixture: "breaker"
             expectedState: "OPEN"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
       - id: "records-failed-half-open-probes"
         repeat: 9
         body: "Original"
@@ -164,6 +346,12 @@ scenarios:
           - fixture: "breaker"
             transitionToState: "HALF_OPEN"
             expectedState: "HALF_OPEN"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
       - id: "reopens-after-failed-half-open-calls"
         body: "Original"
         headers:
@@ -195,6 +383,12 @@ scenarios:
                 "X-Test-Request": "request-value"
           - fixture: "breaker"
             expectedState: "OPEN"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
       - id: "short-circuits-after-failed-recovery"
         body: "Original"
         headers:
@@ -224,6 +418,12 @@ scenarios:
               path: "/pet/1"
           - fixture: "breaker"
             expectedState: "OPEN"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
       - id: "permits-half-open-probes"
         repeat: 9
         body: "Original"
@@ -255,6 +455,12 @@ scenarios:
           - fixture: "breaker"
             transitionToState: "HALF_OPEN"
             expectedState: "HALF_OPEN"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
       - id: "closes-after-permitted-half-open-calls"
         body: "Original"
         headers:
@@ -283,6 +489,12 @@ scenarios:
               headers:
                 "X-Test-Request": "request-value"
           - fixture: "breaker"
+            expectedState: "CLOSED"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
             expectedState: "CLOSED"
       - id: "serves-requests-after-recovery"
         body: "Original"
@@ -313,3 +525,312 @@ scenarios:
                 "X-Test-Request": "request-value"
           - fixture: "breaker"
             expectedState: "CLOSED"
+          - fixture: "timed-petstore"
+            response: { status: 200 }
+            expectedRequest:
+              count: 0
+          - fixture: "timed-breaker"
+            expectedState: "CLOSED"
+
+  - id: automatically-transitions-from-open-to-half-open
+    endpointUri: cip-chain:1a76f830-1b79-47d0-ac8f-3811a556572c
+    invocations:
+      - id: records-failures-before-minimum-call-count
+        repeat: 3
+        body: Original
+        expectedBody: On Fallback
+        expectedProperties:
+          CamelCircuitBreakerState: CLOSED
+          CamelCircuitBreakerSuccessfulExecution: false
+          CamelCircuitBreakerResponseFromFallback: true
+        interactions:
+          - fixture: petstore
+            response:
+              status: 200
+            expectedRequest:
+              count: 0
+          - fixture: breaker
+            expectedState: CLOSED
+          - fixture: timed-petstore
+            response:
+              status: 500
+              headers:
+                Content-Type: application/json
+              body:
+                message: Temporary service failure
+            expectedRequest:
+              count: 3
+              method: GET
+              path: /pet/1
+          - fixture: timed-breaker
+            expectedState: CLOSED
+      - id: opens-after-fourth-failure
+        body: Original
+        expectedBody: On Fallback
+        expectedProperties:
+          CamelCircuitBreakerState: OPEN
+          CamelCircuitBreakerSuccessfulExecution: false
+          CamelCircuitBreakerResponseFromFallback: true
+        interactions:
+          - fixture: petstore
+            response:
+              status: 200
+            expectedRequest:
+              count: 0
+          - fixture: breaker
+            expectedState: CLOSED
+          - fixture: timed-petstore
+            response:
+              status: 500
+              headers:
+                Content-Type: application/json
+              body:
+                message: Temporary service failure
+            expectedRequest:
+              count: 1
+              method: GET
+              path: /pet/1
+          - fixture: timed-breaker
+            expectedState: OPEN
+      - id: rejects-requests-before-recovery
+        body: Original
+        expectedBody: On Fallback
+        expectedProperties:
+          CamelCircuitBreakerState: OPEN
+          CamelCircuitBreakerSuccessfulExecution: false
+          CamelCircuitBreakerResponseFromFallback: true
+        interactions:
+          - fixture: petstore
+            response:
+              status: 200
+            expectedRequest:
+              count: 0
+          - fixture: breaker
+            expectedState: CLOSED
+          - fixture: timed-petstore
+            response:
+              status: 200
+              headers:
+                Content-Type: application/json
+              body:
+                id: 1
+                name: doggie
+                photoUrls: []
+            expectedRequest:
+              count: 0
+              method: GET
+              path: /pet/1
+          - fixture: timed-breaker
+            expectedState: OPEN
+      - id: observes-half-open-before-first-recovery-request
+        body: Original
+        expectedBody:
+          id: 1
+          name: doggie
+          photoUrls: []
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelCircuitBreakerState: HALF_OPEN
+          CamelCircuitBreakerSuccessfulExecution: true
+          CamelCircuitBreakerResponseFromFallback: false
+        interactions:
+          - fixture: petstore
+            response:
+              status: 200
+            expectedRequest:
+              count: 0
+          - fixture: breaker
+            expectedState: CLOSED
+          - fixture: timed-petstore
+            response:
+              status: 200
+              headers:
+                Content-Type: application/json
+              body:
+                id: 1
+                name: doggie
+                photoUrls: []
+            expectedRequest:
+              count: 1
+              method: GET
+              path: /pet/1
+          - fixture: timed-breaker
+            awaitState: HALF_OPEN
+            expectedState: HALF_OPEN
+      - id: closes-after-second-recovery-request
+        body: Original
+        expectedBody:
+          id: 1
+          name: doggie
+          photoUrls: []
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelCircuitBreakerState: CLOSED
+          CamelCircuitBreakerSuccessfulExecution: true
+          CamelCircuitBreakerResponseFromFallback: false
+        interactions:
+          - fixture: petstore
+            response:
+              status: 200
+            expectedRequest:
+              count: 0
+          - fixture: breaker
+            expectedState: CLOSED
+          - fixture: timed-petstore
+            response:
+              status: 200
+              headers:
+                Content-Type: application/json
+              body:
+                id: 1
+                name: doggie
+                photoUrls: []
+            expectedRequest:
+              count: 1
+              method: GET
+              path: /pet/1
+          - fixture: timed-breaker
+            expectedState: CLOSED
+  - id: opens-when-half-of-successful-calls-are-slow
+    endpointUri: cip-chain:1a76f830-1b79-47d0-ac8f-3811a556572c
+    invocations:
+      - id: records-two-fast-successful-calls
+        repeat: 2
+        body: Original
+        expectedBody:
+          id: 1
+          name: doggie
+          photoUrls: []
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelCircuitBreakerState: CLOSED
+          CamelCircuitBreakerSuccessfulExecution: true
+          CamelCircuitBreakerResponseFromFallback: false
+        interactions:
+          - fixture: petstore
+            response:
+              status: 200
+            expectedRequest:
+              count: 0
+          - fixture: breaker
+            expectedState: CLOSED
+          - fixture: timed-petstore
+            response:
+              status: 200
+              headers:
+                Content-Type: application/json
+              body:
+                id: 1
+                name: doggie
+                photoUrls: []
+            expectedRequest:
+              count: 2
+              method: GET
+              path: /pet/1
+          - fixture: timed-breaker
+            expectedState: CLOSED
+      - id: records-first-slow-successful-call
+        body: Original
+        expectedBody:
+          id: 1
+          name: doggie
+          photoUrls: []
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelCircuitBreakerState: CLOSED
+          CamelCircuitBreakerSuccessfulExecution: true
+          CamelCircuitBreakerResponseFromFallback: false
+        interactions:
+          - fixture: petstore
+            response:
+              status: 200
+            expectedRequest:
+              count: 0
+          - fixture: breaker
+            expectedState: CLOSED
+          - fixture: timed-petstore
+            response:
+              status: 200
+              headers:
+                Content-Type: application/json
+              body:
+                id: 1
+                name: doggie
+                photoUrls: []
+              delayMillis: 2000
+            expectedRequest:
+              count: 1
+              method: GET
+              path: /pet/1
+          - fixture: timed-breaker
+            expectedState: CLOSED
+      - id: opens-after-second-slow-successful-call
+        body: Original
+        expectedBody:
+          id: 1
+          name: doggie
+          photoUrls: []
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedProperties:
+          CamelCircuitBreakerState: OPEN
+          CamelCircuitBreakerSuccessfulExecution: true
+          CamelCircuitBreakerResponseFromFallback: false
+        interactions:
+          - fixture: petstore
+            response:
+              status: 200
+            expectedRequest:
+              count: 0
+          - fixture: breaker
+            expectedState: CLOSED
+          - fixture: timed-petstore
+            response:
+              status: 200
+              headers:
+                Content-Type: application/json
+              body:
+                id: 1
+                name: doggie
+                photoUrls: []
+              delayMillis: 2000
+            expectedRequest:
+              count: 1
+              method: GET
+              path: /pet/1
+          - fixture: timed-breaker
+            expectedState: OPEN
+      - id: uses-fallback-after-slow-call-threshold
+        body: Original
+        expectedBody: On Fallback
+        expectedProperties:
+          CamelCircuitBreakerState: OPEN
+          CamelCircuitBreakerSuccessfulExecution: false
+          CamelCircuitBreakerResponseFromFallback: true
+        interactions:
+          - fixture: petstore
+            response:
+              status: 200
+            expectedRequest:
+              count: 0
+          - fixture: breaker
+            expectedState: CLOSED
+          - fixture: timed-petstore
+            response:
+              status: 200
+              headers:
+                Content-Type: application/json
+              body:
+                id: 1
+                name: doggie
+                photoUrls: []
+            expectedRequest:
+              count: 0
+              method: GET
+              path: /pet/1
+          - fixture: timed-breaker
+            expectedState: OPEN

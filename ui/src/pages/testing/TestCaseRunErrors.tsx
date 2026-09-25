@@ -1,5 +1,6 @@
+import { Table } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Breadcrumb, Flex, Table, Typography } from "antd";
+import { Breadcrumb, Flex, Typography } from "antd";
 import type { TableRowSelection } from "antd/lib/table/interface";
 import { useParams } from "react-router";
 import { api } from "../../api/api.ts";
@@ -15,7 +16,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useColumnsWithResizeAndScroll } from "../../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { RunStatusTag } from "../../components/testing/TestingTags.tsx";
 import { useTestingBulkActions } from "../../hooks/testing/useTestingBulkActions.ts";
@@ -229,10 +230,19 @@ export const TestCaseRunErrors: React.FC = () => {
       columnDefinitions,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(orderedColumns, COLUMN_WIDTHS, {
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    COLUMN_WIDTHS,
+    {
       selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
-    });
+    },
+    "testCaseRunErrorsTable",
+  );
 
   const rowSelection: TableRowSelection<TestingValidationError> = {
     type: "checkbox",
@@ -260,7 +270,7 @@ export const TestCaseRunErrors: React.FC = () => {
         entityLabel="validation errors"
         permissions={permissions}
         actions={[
-          { kind: "refresh", onClick: handleRefresh },
+          { kind: "refresh", onClick: handleRefresh, loading: isLoading },
           {
             kind: "export",
             onClick: () => void handleExport(),
@@ -269,7 +279,7 @@ export const TestCaseRunErrors: React.FC = () => {
         ]}
       />
     ),
-    [permissions, handleRefresh, hasSelection, handleExport],
+    [permissions, handleRefresh, hasSelection, handleExport, isLoading],
   );
 
   const toolbar = useTestingListToolbar({
@@ -282,6 +292,7 @@ export const TestCaseRunErrors: React.FC = () => {
     actions: toolbarActions,
     registerInChainHeader: Boolean(chainId),
     registerDependencies: [
+      isLoading,
       chainId,
       searchString,
       selectedRowKeys,
@@ -343,6 +354,7 @@ export const TestCaseRunErrors: React.FC = () => {
         locale={{ emptyText: tableEmpty("No validation errors to display") }}
         scroll={tableScroll(scrollX, rows.length)}
         components={components}
+        onChange={handleConfiguredTableChange}
       />
     </TablePageLayout>
   );

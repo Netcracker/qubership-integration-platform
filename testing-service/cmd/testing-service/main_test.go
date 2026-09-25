@@ -53,7 +53,6 @@ log:
 pprof:
   enabled: true
   bind: ":7070"
-production: true
 `
 
 // editorconfig-checker-enable
@@ -87,8 +86,6 @@ func TestLoadConfigReadsEveryKeyFromTheFile(t *testing.T) {
 	assert.Equal(t, "text", cfg.Log.Format)
 	assert.True(t, cfg.Pprof.Enabled)
 	assert.Equal(t, ":7070", cfg.Pprof.Bind)
-	require.NotNil(t, cfg.Production)
-	assert.True(t, *cfg.Production)
 }
 
 func TestLoadConfigKeepsDefaultsForKeysTheFileOmits(t *testing.T) {
@@ -125,7 +122,6 @@ func TestEnvironmentOverridesTheFile(t *testing.T) {
 	t.Setenv("QIP_TESTING_EXECUTION_INTERVAL", "45s")
 	t.Setenv("QIP_TESTING_EXECUTION_WORKERS", "9")
 	t.Setenv("QIP_TESTING_PPROF_ENABLED", "false")
-	t.Setenv("QIP_TESTING_PRODUCTION", "false")
 
 	cfg, err := loadConfig(writeConfig(t, sampleConfig))
 	require.NoError(t, err)
@@ -135,8 +131,6 @@ func TestEnvironmentOverridesTheFile(t *testing.T) {
 	assert.Equal(t, 45*time.Second, cfg.Execution.Interval)
 	assert.Equal(t, 9, cfg.Execution.Workers)
 	assert.False(t, cfg.Pprof.Enabled)
-	require.NotNil(t, cfg.Production)
-	assert.False(t, *cfg.Production)
 	// Keys the environment left alone keep the value from the file.
 	assert.Equal(t, ":9090", cfg.Server.Bind)
 	assert.Equal(t, "from_file", cfg.Postgres.Schema)
@@ -187,7 +181,6 @@ func TestEnvKey(t *testing.T) {
 	assert.Equal(t, "postgres.user", envKey("QIP_TESTING_POSTGRES_USER"))
 	assert.Equal(t, "postgres.dsn", envKey("QIP_TESTING_POSTGRES_DSN"))
 	assert.Equal(t, "execution.workers", envKey("QIP_TESTING_EXECUTION_WORKERS"))
-	assert.Equal(t, "production", envKey("QIP_TESTING_PRODUCTION"))
 }
 
 // The installation-wide flag, which every service of the platform reads rather
@@ -202,28 +195,23 @@ func TestTheInstallationWideProductionModeIsRead(t *testing.T) {
 	assert.False(t, *cfg.Production)
 }
 
-// A service is moved off the installation's answer by naming its own, so the
-// prefixed variable has to win however the two disagree.
-func TestTheServiceVariableOverridesTheInstallationWideProductionMode(t *testing.T) {
-	for _, test := range []struct {
-		installation string
-		service      string
-		expected     bool
-	}{
-		{installation: "false", service: "true", expected: true},
-		{installation: "true", service: "false", expected: false},
-	} {
-		t.Run(test.installation+"/"+test.service, func(t *testing.T) {
-			t.Setenv(productionModeEnv, test.installation)
-			t.Setenv("QIP_TESTING_PRODUCTION", test.service)
+// The mode has one source. A `production` key in the file and a
+// QIP_TESTING_PRODUCTION variable both leave it unset.
+func TestOnlyTheInstallationWideFlagSetsTheMode(t *testing.T) {
+	t.Setenv("QIP_TESTING_PRODUCTION", "false")
 
-			cfg, err := loadConfig(filepath.Join(t.TempDir(), "absent.yaml"))
-			require.NoError(t, err)
+	cfg, err := loadConfig(writeConfig(t, "production: false\n"))
+	require.NoError(t, err)
 
-			require.NotNil(t, cfg.Production)
-			assert.Equal(t, test.expected, *cfg.Production)
-		})
-	}
+	assert.Nil(t, cfg.Production)
+}
+
+func TestAMalformedProductionModeIsReported(t *testing.T) {
+	t.Setenv(productionModeEnv, "no")
+
+	_, err := loadConfig(filepath.Join(t.TempDir(), "absent.yaml"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), productionModeEnv)
 }
 
 // Naming no mode at all leaves the field unset, which the library reads as
@@ -234,13 +222,6 @@ func TestNoProductionModeAnywhereLeavesTheSettingUnset(t *testing.T) {
 
 	assert.Nil(t, cfg.Production)
 	assert.True(t, *cfg.serviceSettings().WithDefaults().Production)
-}
-
-func TestProductionModeKey(t *testing.T) {
-	assert.Equal(t, "production", productionModeKey(productionModeEnv))
-	// The provider selects by prefix, so a longer name reaches the mapper and
-	// must be dropped rather than folded onto the same setting.
-	assert.Empty(t, productionModeKey(productionModeEnv+"_EXTRA"))
 }
 
 func TestServiceSettingsCarryTheFileOverAndDefaultTheRest(t *testing.T) {
@@ -294,7 +275,7 @@ func TestTheShippedConfigurationIsUsable(t *testing.T) {
 // the false it sets has to survive all the way into the settings the library
 // reads.
 func TestTheEnvironmentTurnsProductionModeOff(t *testing.T) {
-	t.Setenv("QIP_TESTING_PRODUCTION", "false")
+	t.Setenv(productionModeEnv, "false")
 
 	cfg, err := loadConfig(filepath.Join("..", "..", "application.yaml"))
 	require.NoError(t, err)

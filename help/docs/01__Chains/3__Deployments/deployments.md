@@ -7,6 +7,12 @@
 
 To make a chain available for usage, its snapshot shall be deployed on the specific Engine via "**Deployments**" tab. For the chain only one deployment instance is applicable, but chain can be deployed on different engine domains.
 
+## Process Initialization
+
+---
+
+Mentioned functionality is available on "**Deployments**" tab, that could be found under each particular Chain within CIP UI.
+
 ## User Interface
 
 ---
@@ -25,7 +31,6 @@ Under the chain it is possible to navigate on "**Deployments**" tab. The followi
 - **Created By**: The user who initiated the deployment.
 - **Created At**: The exact date and time of deployment.
 
-
 ### Create Deployment
 Click **"Create deployment"** button marked with ![plus](img/plus.svg). The window for setting deployment parameters will appear. Fill in the following deployment parameters and click **"Deploy"**:
 - **Domains** - choose one or more engine domains to deploy the snapshot on. Select from the list of existing domains, or type a name that does not exist yet to deploy on a new **Micro** domain (tagged with **`micro`**). Availability of each domain type depends on configuration — see [Domains](../../03__Admin_Tools/1__Domains/domains.md). Selecting several domains at once creates a separate deployment entry for each one.
@@ -38,5 +43,18 @@ If you want to **delete deployment**, click ![delete](img/delete.svg) on the rig
 
 > ℹ️ **Notes:**
 >
-> - QIP user can do chain **redeploy** - specific maintenance operation for Production usage in high load Chains, that gracefully stop chain, process all sessions from queue, change required chain settings and start it again.
+> - CIP user can do chain **redeploy** - specific maintenance operation for Production usage in high load Chains, that gracefully stop chain, process all sessions from queue, change required chain settings and start it again.
 > - User will be notified if deployment removal fails due to inability to delete MaaS entities. Problematic MaaS entity will be also mentioned in notification.
+
+## Data Storage
+
+---
+
+As the result of the deployment, deployment data is going to be stored in CIP in a way of cards (records) under the respective UI tabs. If any specific logging level is specified, then CIP will produce the session logs to the Open Search (please refer to the general logging page for more details [Logging].
+
+## Configuration
+
+---
+
+In general, all configurations are being done via UI. For detailed information about logging configuration, please refer to the [Logging] article. Global configuration aspects and guides for Cloud Integration Platform are available in Installation Notes articles.
+

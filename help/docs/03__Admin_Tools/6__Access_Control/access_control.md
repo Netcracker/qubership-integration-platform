@@ -12,6 +12,11 @@ Without opening each separate chain, user could use single **"Access Control"** 
 change access control type (NONE <-> RBAC), change list of roles,
 and apply changes via redeploying the chains, reusing previous deployment settings (logging, engines, etc.)
 
+## Process Initialization
+
+---
+User is able to access "**Access Control**" tab, that is available under "**Admin Tools**" section. There, user is able to manually update required access control configuration for chains, that contain HTTP Trigger element and apply changes via re-deploying the chain from the same window.
+
 ## User Interface
 
 ---
@@ -68,6 +73,16 @@ and related to **Deployed** chains are available for redeployment (in other case
 To quickly select all colored rows, simply click colored **"Select Unsaved Chains"**
 marked with icon ![carry-out](img/carry-out.svg) on top of the table.
 
-
 ### Refresh
 To update actual list of all endpoints and related data, use ![redo](img/redo.svg) button.
+
+## Data Storage
+
+---
+No specific data additionally stored.
+
+## Configuration
+
+---
+Initially, all endpoints, mentioned in this section are built by fetching the data from all existing chains. All additional configurations (e.g. updating roles) is done via UI elements available on "**Access Control**" tab under "**Admin** **Tools**" section.
+

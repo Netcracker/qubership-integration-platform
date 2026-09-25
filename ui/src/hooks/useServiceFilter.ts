@@ -52,5 +52,5 @@ export const useServiceFilters = (): {
     [],
   );
 
-  return useFilter(filterColumns);
+  return useFilter(filterColumns, "servicesListTable");
 };

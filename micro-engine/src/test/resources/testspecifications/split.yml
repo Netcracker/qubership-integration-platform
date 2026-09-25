@@ -1,11 +1,29 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
+subject: "split"
+deployments:
+  - id: "split"
+    route: "split"
+  - id: "split-stop-on-exception"
+    route: "split stop on execution true"
+  - id: "split-continue-on-exception"
+    route: "split stop on execution false"
+  - id: "split-propagation"
+    route: "split (1)"
+  - id: "split-timeout"
+    route: "split timeout"
 fixtures:
   - id: "main-branch-barrier"
     provider: "parallel-barrier"
+    deployment: "split"
     sourceElementId: "269d4de8-29a6-412d-9dbf-a451f765bbe1"
   - id: "secondary-branch-barrier"
     provider: "parallel-barrier"
+    deployment: "split"
     sourceElementId: "a80b36b2-df11-4f7c-a946-542061ed8de0"
+  - id: "timeout-secondary-gate"
+    provider: "split-timeout"
+    deployment: "split-timeout"
+    sourceElementId: "1b04978c-98dc-4fc9-89ed-0a4d58bd416e"
 scenarios:
   - id: "executes-branches-in-parallel-and-aggregates-results"
     endpointUri: "cip-chain:1a029906-e0f8-457f-9a2e-d805e0f933e6"
@@ -43,3 +61,110 @@ scenarios:
             X-Request-Id: "split-request-id"
           properties:
             splitRequestProperty: "split-request-property"
+      - fixture: "timeout-secondary-gate"
+        expectedRequest:
+          count: 0
+        expectedExchanges: []
+
+  - id: "stops-after-secondary-branch-failure-when-stop-on-exception-is-enabled"
+    endpointUri: "cip-chain:94985917-7854-4148-bb30-9a6245a76c94"
+    invocations:
+      - id: "fails-without-continuing-after-split"
+        body: "Original"
+        expectedFailure:
+          type: "org.apache.camel.CamelExchangeException"
+          message: "Multicast processing failed for number 1. Exchange[<exchange-id>]. Caused by: [java.lang.Exception - Exception]"
+          cause:
+            type: "java.lang.Exception"
+            message: "Exception"
+            cause: null
+        expectedProperties:
+          afterSplitReached: null
+        interactions:
+          - fixture: "main-branch-barrier"
+            expectedRequest:
+              count: 0
+          - fixture: "secondary-branch-barrier"
+            expectedRequest:
+              count: 0
+          - fixture: "timeout-secondary-gate"
+            expectedRequest:
+              count: 0
+            expectedExchanges: []
+
+  - id: "continues-after-secondary-branch-failure-when-stop-on-exception-is-disabled"
+    endpointUri: "cip-chain:2c566a19-fc4c-4efe-b8fe-b04aa1c214e7"
+    body: "Original"
+    expectedBody:
+      main: "Main branch"
+    expectedHeaders:
+      CamelHttpResponseCode: "200"
+      X-Branch-Name-1: "Main"
+    expectedProperties:
+      afterSplitReached: true
+    interactions:
+      - fixture: "main-branch-barrier"
+        expectedRequest:
+          count: 0
+      - fixture: "secondary-branch-barrier"
+        expectedRequest:
+          count: 0
+      - fixture: "timeout-secondary-gate"
+        expectedRequest:
+          count: 0
+        expectedExchanges: []
+
+  - id: "propagates-secondary-headers-and-properties-only-when-enabled"
+    endpointUri: "cip-chain:9a569606-e358-409f-ae18-cdd32ed3858e"
+    body: "Original"
+    expectedBody:
+      main: "Main branch"
+      noPropagation: "Original"
+      headersOnly: "Original"
+      propertiesOnly: "Original"
+    expectedHeaders:
+      CamelHttpResponseCode: "200"
+      X-Branch-Name: "Main"
+      headersOnly.X-Branch-Name: "headersOnly"
+    expectedAbsentHeaders:
+      - "noPropagation.X-Branch-Name"
+      - "propertiesOnly.X-Branch-Name"
+    expectedProperties:
+      branchValue: "Main"
+      propertiesOnly.branchValue: "propertiesOnly"
+      headersOnly.branchValue: null
+      noPropagation.branchValue: null
+    interactions:
+      - fixture: "main-branch-barrier"
+        expectedRequest:
+          count: 0
+      - fixture: "secondary-branch-barrier"
+        expectedRequest:
+          count: 0
+      - fixture: "timeout-secondary-gate"
+        expectedRequest:
+          count: 0
+        expectedExchanges: []
+
+  - id: "continues-after-timeout-before-secondary-branch-completes"
+    endpointUri: "cip-chain:4382af5b-9143-4139-9a77-8b3546a96e08"
+    body: "Original"
+    expectedBody:
+      main: "Main branch"
+    expectedHeaders:
+      CamelHttpResponseCode: "200"
+    expectedProperties:
+      afterSplitReached: true
+    interactions:
+      - fixture: "main-branch-barrier"
+        expectedRequest:
+          count: 0
+      - fixture: "secondary-branch-barrier"
+        expectedRequest:
+          count: 0
+      - fixture: "timeout-secondary-gate"
+        expectedRequest:
+          count: 1
+          body: "Original"
+        expectedExchanges:
+          - body: "Secondary branch"
