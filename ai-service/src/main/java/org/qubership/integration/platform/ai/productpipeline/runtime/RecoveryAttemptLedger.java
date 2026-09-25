@@ -37,6 +37,14 @@ public final class RecoveryAttemptLedger {
    */
   public static final int DEFAULT_PER_RUN_CEILING = 12;
 
+  /** Corrective task invocations allowed after the original failure of one document cause. */
+  public static final int DOCUMENT_CORRECTIVE_LIMIT = 3;
+
+  /** Owner slot for a document cause. The current stage is not part of the identity. */
+  public static final String DOCUMENT_CAUSE_OWNER = "work-document-cause";
+
+  public static final String TECHNICAL_RETRY_REASON_PREFIX = "recovery-technical-retry:";
+
   /** Who sent the reopen command. The automatic budget counts only {@link #AUTOMATIC}. */
   public enum ReopenInitiator {
     AUTHOR,
@@ -77,6 +85,44 @@ public final class RecoveryAttemptLedger {
 
   public Limits limits() {
     return limits;
+  }
+
+  /**
+   * One budget slot for a work-document cause. {@code causeIdentity} is
+   * {@code (runId, originRecordId, issueCategory, canonicalFieldPointer)}. The slot stores a hash
+   * of that tuple so a field separator inside the tuple cannot split the journal record. Stage,
+   * revision, and wording are not part of it.
+   */
+  public RecoveryAttemptKey documentCauseKey(String causeIdentity) {
+    if (causeIdentity == null || causeIdentity.isBlank()) {
+      throw new IllegalArgumentException("Cause identity is required.");
+    }
+    return new RecoveryAttemptKey(
+        DOCUMENT_CAUSE_OWNER, RecoveryCauseCode.VALIDATION_BLOCKER, sha256Hex(causeIdentity), 0);
+  }
+
+  /** Run-level slot for transport retries. It does not spend a document cause's corrective budget. */
+  public RecoveryAttemptKey technicalKey(String runId) {
+    return new RecoveryAttemptKey(
+        DOCUMENT_CAUSE_OWNER,
+        RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED,
+        runId == null ? "" : runId,
+        0);
+  }
+
+  public boolean mayTechnicalRetry(
+      List<RunTransition> transitions, RecoveryAttemptKey key, int executorLimit) {
+    if (key == null || executorLimit <= 0 || ceilingReached(transitions)) {
+      return false;
+    }
+    return technicalRetriesUsed(transitions, key) < executorLimit;
+  }
+
+  public String recordTechnicalRetry(RecoveryAttemptKey key) {
+    if (key == null) {
+      return TECHNICAL_RETRY_REASON_PREFIX;
+    }
+    return TECHNICAL_RETRY_REASON_PREFIX + payload(key, "");
   }
 
   /**
@@ -408,6 +454,7 @@ public final class RecoveryAttemptLedger {
       }
       if (reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)
           || reason.startsWith(CLEAN_REBUILD_REASON_PREFIX)
+          || reason.startsWith(TECHNICAL_RETRY_REASON_PREFIX)
           || isReopenReason(reason)) {
         spent++;
       }
@@ -431,6 +478,24 @@ public final class RecoveryAttemptLedger {
     }
     int index = current.isEmpty() ? seen.size() - 1 : seen.indexOf(current);
     return Math.max(0, index);
+  }
+
+  private int technicalRetriesUsed(List<RunTransition> transitions, RecoveryAttemptKey key) {
+    if (transitions == null || key == null) {
+      return 0;
+    }
+    int used = 0;
+    for (RunTransition transition : transitions) {
+      String reason = transition == null ? null : transition.reason();
+      if (reason == null || !reason.startsWith(TECHNICAL_RETRY_REASON_PREFIX)) {
+        continue;
+      }
+      Parsed parsed = parse(reason);
+      if (parsed != null && matchesDefect(parsed, key)) {
+        used++;
+      }
+    }
+    return used;
   }
 
   private int cleanRebuildsUsed(
@@ -519,6 +584,8 @@ public final class RecoveryAttemptLedger {
       rest = reason.substring(CLEAN_REBUILD_REASON_PREFIX.length());
     } else if (reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)) {
       rest = reason.substring(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX.length());
+    } else if (reason.startsWith(TECHNICAL_RETRY_REASON_PREFIX)) {
+      rest = reason.substring(TECHNICAL_RETRY_REASON_PREFIX.length());
     } else {
       return null;
     }

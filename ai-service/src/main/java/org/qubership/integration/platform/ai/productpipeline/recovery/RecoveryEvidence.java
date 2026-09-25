@@ -17,7 +17,8 @@ public record RecoveryEvidence(
     List<Reference> rejectedArtifactRefs,
     List<SemanticFinding> findings,
     TechnicalFailureRecord technicalFailure,
-    List<Reference> priorAttemptRefs) {
+    List<Reference> priorAttemptRefs,
+    List<String> documentRecordRefs) {
 
   public RecoveryEvidence {
     if (schemaVersion != 1) {
@@ -31,6 +32,39 @@ public record RecoveryEvidence(
         rejectedArtifactRefs == null ? List.of() : List.copyOf(rejectedArtifactRefs);
     findings = findings == null ? List.of() : List.copyOf(findings);
     priorAttemptRefs = priorAttemptRefs == null ? List.of() : List.copyOf(priorAttemptRefs);
+    documentRecordRefs =
+        documentRecordRefs == null ? List.of() : List.copyOf(documentRecordRefs);
+  }
+
+  /**
+   * Evidence that names pipeline artifacts and no work-document record. Older callers keep this
+   * shape.
+   */
+  public RecoveryEvidence(
+      int schemaVersion,
+      String failureId,
+      String observedCauseCode,
+      String observingStageId,
+      String producerStageId,
+      Reference approvedBriefRef,
+      Reference approvedSemanticRef,
+      List<Reference> rejectedArtifactRefs,
+      List<SemanticFinding> findings,
+      TechnicalFailureRecord technicalFailure,
+      List<Reference> priorAttemptRefs) {
+    this(
+        schemaVersion,
+        failureId,
+        observedCauseCode,
+        observingStageId,
+        producerStageId,
+        approvedBriefRef,
+        approvedSemanticRef,
+        rejectedArtifactRefs,
+        findings,
+        technicalFailure,
+        priorAttemptRefs,
+        List.of());
   }
 
   /**

@@ -303,10 +303,25 @@ record WorkProgress(
 record WorkTaskRecord(String taskId, WorkTaskState state, WorkStage stage, String skillId) {}
 
 record WorkFinding(
-    String id, String recordRef, String issueCategory, String contradiction, List<String> evidenceIds) {
+    String id,
+    String recordRef,
+    String issueCategory,
+    String contradiction,
+    List<String> evidenceIds,
+    String canonicalFieldPointer) {
+
+  public WorkFinding(
+      String id,
+      String recordRef,
+      String issueCategory,
+      String contradiction,
+      List<String> evidenceIds) {
+    this(id, recordRef, issueCategory, contradiction, evidenceIds, "");
+  }
 
   public WorkFinding {
     evidenceIds = Lists.copy(evidenceIds);
+    canonicalFieldPointer = canonicalFieldPointer == null ? "" : canonicalFieldPointer;
   }
 }
 
