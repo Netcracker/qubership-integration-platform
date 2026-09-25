@@ -18,8 +18,9 @@ function sortLogsByActionTime(logs: ActionLog[]): ActionLog[] {
 
 export const useActionLog = (
   filters: EntityFilterModel[],
+  searchString: string,
 ): {
-  fetchNextPage: () => Promise<void>;
+  fetchNextPage: () => void;
   logsData: ActionLog[];
   hasNextPage: boolean;
   isFetching: boolean;
@@ -34,7 +35,7 @@ export const useActionLog = (
   }, []);
 
   const actionLogsQuery = useInfiniteQuery({
-    queryKey: ["actionLogs", filters],
+    queryKey: ["actionLogs", filters, searchString],
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<ActionLogPage> => {
       try {
@@ -42,6 +43,7 @@ export const useActionLog = (
           offset: pageParam,
           limit: PAGE_SIZE,
           filters,
+          ...(searchString ? { searchString } : {}),
         });
         return {
           logs: response.actionLogs,
@@ -67,15 +69,20 @@ export const useActionLog = (
     [actionLogsQuery.data],
   );
 
+  const { fetchNextPage } = actionLogsQuery;
+  const fetchNext = useCallback(() => {
+    void fetchNextPage();
+  }, [fetchNextPage]);
+
   const refresh = useCallback(async () => {
-    await queryClient.resetQueries({ queryKey: ["actionLogs", filters] });
-  }, [queryClient, filters]);
+    await queryClient.resetQueries({
+      queryKey: ["actionLogs", filters, searchString],
+    });
+  }, [queryClient, filters, searchString]);
 
   return {
     logsData,
-    fetchNextPage: async () => {
-      await actionLogsQuery.fetchNextPage();
-    },
+    fetchNextPage: fetchNext,
     hasNextPage: actionLogsQuery.hasNextPage,
     isFetching: actionLogsQuery.isFetching,
     isLoading: actionLogsQuery.isLoading,

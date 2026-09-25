@@ -55,7 +55,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("1", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -75,7 +75,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("older", 100), makeLog("newer", 200)],
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -93,7 +93,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("only-one", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -111,7 +111,7 @@ describe("useActionLog", () => {
       actionLogs: fullPage,
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -120,7 +120,7 @@ describe("useActionLog", () => {
     expect(result.current.hasNextPage).toBe(true);
   });
 
-  it("fetches the next page with the same filters", async () => {
+  it("fetches the next page with the same filters and search string", async () => {
     const filters = [
       { column: "INITIATOR", condition: "CONTAINS", value: "alice" },
     ];
@@ -137,14 +137,14 @@ describe("useActionLog", () => {
         actionLogs: [makeLog("log-20", 100)],
       });
 
-    const { result } = renderHook(() => useActionLog(filters), {
+    const { result } = renderHook(() => useActionLog(filters, "alice"), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await act(async () => {
-      await result.current.fetchNextPage();
+    act(() => {
+      result.current.fetchNextPage();
     });
 
     await waitFor(() => expect(result.current.logsData).toHaveLength(21));
@@ -153,11 +153,13 @@ describe("useActionLog", () => {
       offset: 0,
       limit: 20,
       filters,
+      searchString: "alice",
     });
     expect(mockLoadCatalogActionsLogV2).toHaveBeenNthCalledWith(2, {
       offset: 20,
       limit: 20,
       filters,
+      searchString: "alice",
     });
   });
 
@@ -165,7 +167,7 @@ describe("useActionLog", () => {
     const error = new Error("catalog unavailable");
     mockLoadCatalogActionsLogV2.mockRejectedValue(error);
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -185,7 +187,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("1", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
