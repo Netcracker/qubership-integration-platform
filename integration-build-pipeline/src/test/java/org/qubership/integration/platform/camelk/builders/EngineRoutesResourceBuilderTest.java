@@ -12,6 +12,7 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -21,6 +22,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
 
 class EngineRoutesResourceBuilderTest {
 
@@ -53,7 +55,8 @@ class EngineRoutesResourceBuilderTest {
 
     private ResourceBuildContext<List<Snapshot>> contextFor(String domainName) {
         return ResourceBuildContext.create(
-                BuildInfo.builder().options(ResourceBuildOptions.builder().name(domainName).build()).build()
+                BuildInfo.builder().options(ResourceBuildOptions.builder().name(domainName).build()).build(),
+                mock(IntegrationServiceCatalog.class)
         ).updateTo(Collections.<Snapshot>emptyList());
     }
 

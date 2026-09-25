@@ -13,6 +13,7 @@ import org.qubership.integration.platform.camelk.model.routes.RouteType;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -61,7 +62,8 @@ class HttpRouteResourceBuilderTest {
 
     private ResourceBuildContext<List<Snapshot>> contextFor(List<Snapshot> snapshots) {
         return ResourceBuildContext.create(
-                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build()
+                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build(),
+                mock(IntegrationServiceCatalog.class)
         ).updateTo(snapshots);
     }
 
