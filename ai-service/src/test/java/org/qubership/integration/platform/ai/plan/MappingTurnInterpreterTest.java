@@ -2,7 +2,11 @@ package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import dev.langchain4j.service.output.OutputParsingException;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -26,6 +30,22 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 
 class MappingTurnInterpreterTest {
+
+  @Test
+  void documentInterpretationSurfacesAParsingFailure() {
+    MappingTurnInterpreter interpreter =
+        interpreter(
+            (flow, intents, message) -> {
+              throw new OutputParsingException("Mapping capture could not be parsed.", null);
+            });
+
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () -> interpreter.interpretForWorkDocument(rockyBrief(), "Map Subject from name."));
+
+    assertEquals("MALFORMED_CAPTURE", rejected.code());
+  }
 
   @Test
   void noneAndBlankMessagesDoNotCreateChanges() {
@@ -379,7 +399,10 @@ class MappingTurnInterpreterTest {
   }
 
   private static MappingTurnInterpreter interpreter(MappingTurnCapture capture) {
-    MappingTurnAgent agent = (flow, intents, message) -> capture;
+    return interpreter((flow, intents, message) -> capture);
+  }
+
+  private static MappingTurnInterpreter interpreter(MappingTurnAgent agent) {
     return new MappingTurnInterpreter(agent);
   }
 

@@ -34,6 +34,7 @@ import org.qubership.integration.platform.ai.plan.workdocument.binding.CatalogRe
 import org.qubership.integration.platform.ai.plan.workdocument.binding.UnavailableCatalog;
 import org.qubership.integration.platform.ai.plan.workdocument.binding.WorkBinding;
 import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
+import org.qubership.integration.platform.ai.plan.workdocument.mapping.WorkMapping;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskModel;
@@ -44,8 +45,8 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
 /**
- * Opt-in checkpoint runner. It calls {@link WorkLogicalFlow} or {@link WorkBinding} and records the
- * model the caller configured. Mapping and recovery are not implemented and fail closed.
+ * Opt-in checkpoint runner. It calls logical design, operation selection, or supplied mapping and
+ * records the model the caller configured. Recovery is not implemented and fails closed.
  */
 public final class WorkCheckpointHarness {
 
@@ -137,7 +138,7 @@ public final class WorkCheckpointHarness {
           failed(checkpoint, request.caseId(), "UNKNOWN_CHECKPOINT", "Checkpoint is not logical, binding, mapping, or recovery."));
       return 2;
     }
-    if ("mapping".equals(checkpoint) || "recovery".equals(checkpoint)) {
+    if ("recovery".equals(checkpoint)) {
       write(
           request.report(),
           failed(
@@ -216,7 +217,12 @@ public final class WorkCheckpointHarness {
     ProductPipelineRunStore runs = new ProductPipelineRunStore(blobs, JSON, clock);
     WorkDocumentService documents = new WorkDocumentService(runs, artifacts, JSON);
     String runId = "checkpoint-" + request.caseId();
-    String stage = "logical".equals(request.checkpoint()) ? "LOGICAL_FLOW" : "SERVICES";
+    String stage =
+        switch (request.checkpoint()) {
+          case "logical" -> "LOGICAL_FLOW";
+          case "mapping" -> "DATA_BEHAVIOR";
+          default -> "SERVICES";
+        };
     runs.create(
         new RunSnapshot(
             runId,
@@ -233,7 +239,26 @@ public final class WorkCheckpointHarness {
             Map.of("src-om", spec.path("source").asText()));
     WorkCommit commit;
     ObjectNode scope = JSON.createObjectNode();
-    if ("logical".equals(request.checkpoint())) {
+    if ("mapping".equals(request.checkpoint())) {
+      boolean repair = "priority-repair".equals(request.caseId());
+      documents.intake(
+          runId,
+          new WorkDocumentState(
+              "pending",
+              JSON.readValue(repair ? priorityDocument() : mappingDocument(), ChainWorkDocument.class)),
+          "cmd-seed",
+          new WorkRepairBudget(3));
+      WorkMapping mapping = new WorkMapping(documents, new WorkTaskExecutor(documents, runs, clock));
+      if (repair) {
+        commit = mapping.repair(runId, "rule-priority", materials, model);
+        scope.put("taskId", "mapping-repair-rule-priority");
+      } else {
+        commit = mapping.interpret(runId, materials, model);
+        scope.put("taskId", "mapping-initial");
+      }
+      scope.put("skillId", WorkMapping.SKILL_ID);
+      scope.put("stage", "DATA_BEHAVIOR");
+    } else if ("logical".equals(request.checkpoint())) {
       documents.intake(
           runId,
           new WorkDocumentState("pending", JSON.readValue(emptyDocument(), ChainWorkDocument.class)),
@@ -286,7 +311,8 @@ public final class WorkCheckpointHarness {
   }
 
   private static JsonNode caseSpec(CheckpointRequest request) throws Exception {
-    JsonNode root = JSON.readTree(request.fixtureRoot().resolve("g1-cases.json").toFile());
+    String file = "mapping".equals(request.checkpoint()) ? "g2-cases.json" : "g1-cases.json";
+    JsonNode root = JSON.readTree(request.fixtureRoot().resolve(file).toFile());
     for (JsonNode item : root.path("cases")) {
       if (request.caseId().equals(item.path("id").asText())
           && request.checkpoint().equals(item.path("checkpoint").asText())) {
@@ -510,6 +536,84 @@ public final class WorkCheckpointHarness {
           "requirements": [],
           "flow": {
             "steps": [],
+            "connections": [],
+            "sequenceGroups": [],
+            "conditionGroups": [],
+            "splitGroups": [],
+            "loopGroups": [],
+            "retryGroups": [],
+            "errorScopeGroups": []
+          },
+          "progress": {"tasks":[],"findings":[],"questions":[],"approvalReference":"","derivedResultReferences":[],"recheckStages":[]}
+        }
+        """;
+  }
+
+  private static String mappingDocument() {
+    return """
+        {
+          "schemaVersion": 1,
+          "documentId": "doc-checkpoint-map",
+          "sources": [{
+            "id": "src-om",
+            "role": "MAPPING",
+            "contentReference": "artifact://mapping",
+            "contentHash": "hash-map",
+            "originalName": "mapping.txt",
+            "suppliedIdentifier": "MAP-1",
+            "correctionOf": []
+          }],
+          "requirements": [],
+          "flow": {
+            "steps": [
+              {"id":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the order event","sourceIds":["src-om"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[]}},
+              {"id":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceIds":["src-om"],"requirementIds":[],"binding":{"catalogId":"sys-wfm","version":"2024.4","operationId":"createTask","protocol":"http","method":"POST","path":"/wfm/v1/tasks","contractReferences":["spec-create"],"exposedPorts":["payload","request","success","failure"]},"data":{"transfers":[],"retainedValues":[]}},
+              {"id":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the outcome","sourceIds":["src-om"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[]}}
+            ],
+            "connections": [],
+            "sequenceGroups": [],
+            "conditionGroups": [],
+            "splitGroups": [],
+            "loopGroups": [],
+            "retryGroups": [],
+            "errorScopeGroups": []
+          },
+          "progress": {"tasks":[],"findings":[],"questions":[],"approvalReference":"","derivedResultReferences":[],"recheckStages":[]}
+        }
+        """;
+  }
+
+  private static String priorityDocument() {
+    return """
+        {
+          "schemaVersion": 1,
+          "documentId": "doc-checkpoint-repair",
+          "sources": [{
+            "id": "src-om",
+            "role": "MAPPING",
+            "contentReference": "artifact://mapping",
+            "contentHash": "hash-map",
+            "originalName": "mapping.txt",
+            "suppliedIdentifier": "MAP-1",
+            "correctionOf": []
+          }],
+          "requirements": [],
+          "flow": {
+            "steps": [
+              {"id":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the order event","sourceIds":["src-om"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[]}},
+              {"id":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceIds":["src-om"],"requirementIds":[],"binding":{"catalogId":"sys-wfm","version":"2024.4","operationId":"createTask","protocol":"http","method":"POST","path":"/wfm/v1/tasks","contractReferences":["spec-create"],"exposedPorts":["payload","request","success","failure"]},"data":{"transfers":[{
+                "id":"xfer-request",
+                "sourcePorts":[{"stepId":"start","portName":"payload"}],
+                "targetPort":{"stepId":"create","portName":"request"},
+                "requirementIds":[],
+                "rules":[
+                  {"id":"rule-subject","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.name","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Subject","retainedValueId":""},"constants":[],"behavior":"name or fallback","evidenceIds":["src-om"]},
+                  {"id":"rule-priority","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.priority","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Priority","retainedValueId":""},"constants":[],"behavior":"high to High","evidenceIds":["src-om"]}
+                ],
+                "decision":"UNSPECIFIED"
+              }],"retainedValues":[]}},
+              {"id":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the outcome","sourceIds":["src-om"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[]}}
+            ],
             "connections": [],
             "sequenceGroups": [],
             "conditionGroups": [],
