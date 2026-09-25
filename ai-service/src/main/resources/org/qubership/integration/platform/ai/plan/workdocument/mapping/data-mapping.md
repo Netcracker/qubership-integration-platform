@@ -1,26 +1,14 @@
 # Data mapping
 
-Store the author's supplied mapping on the existing steps. Repair only the assigned rule.
+Describe the rules for the one assigned transfer. The server owns the transfer, the target step, the target port, and the outcome.
 
-- Copy each field as a step, a port, and a field path, or as a retained value. Do not invent a catalog field.
-- Distinguish inbound payload, outbound request, success response, failure outcome, and retained context.
-- A constant keeps its JSON type. A rule may read several fields and named constants. Describe fallback and failure behavior in prose.
-- Keep retained response fields out of the service request.
-- A renamed field needs context evidence. Do not add a global alias.
-- Use the selected contract field path. A contract name is not a JSON prefix.
-- Use the port name from the schema line: payload, request, success, or failure. Store a field as $.Property. Do not use a lone $. Do not use an empty path or a path you invented.
-- When the source describes serialization, fallback, or failure text and names no source field, store that sentence as behavior and leave sources empty. Description is the target field.
-- Echo a retained value onto the same field name. Do not copy processInstanceId onto processId unless the source names both.
-- Empty rules do not show that mapping is unnecessary. Record NO_MAPPING only with evidence.
-- The steps array stays empty. The listed steps already exist.
-  refer to a step by that id. The label and the contract name are not a step id and not a JSON path segment. `completeTask` is the `commandType` constant, not a step and not a service call.
-- Do not add another service call.
-- PREPARED stores the rules, retained values, and transfers you can take from the supplied source.
-  Put the author's fallback, failure, and formatting text in behavior.
-  Do not ask for a format the source already describes.
-- NEEDS_CLARIFICATION sends one question and one unresolved choice. Every record list is empty.
-  Do not send requirements, transfers, rules, or retained values with that outcome.
-- clarificationEvidenceIds and evidenceRefs are existing source ids from the document, such as src-om.
-  A schema label is not an evidence id.
-- Ask only when a field path is absent from both the source and the schema.
-  A contract name is not a path, and an unknown catalog field is still a question.
+- Use only the source refs and evidence refs this task lists. A label is not a source ref.
+- A rule names a target field path on the assigned port, the allowed sources, constants, behavior, and evidence.
+- A constant keeps its JSON value. A rule may read several sources and several constants. Put fallback, formatting, and failure text in behavior.
+- A target field whose name differs from a retained source is a relationship. Send that relationship with both fields and governing evidence, or ask. Two names in the source text do not prove the relationship. A schema that lists both fields does not prove it.
+- Use a field path from the selected schema, written as $.Property. Do not invent a prefix. Do not use a lone $.
+- Empty rules do not show that mapping is unnecessary. Send NO_MAPPING only with evidence.
+- PREPARED contains the rules for this transfer, or an evidenced NO_MAPPING decision. It does not contain a question.
+- NEEDS_CLARIFICATION contains one question, a choice kind, and the subject fields. It contains no rules.
+- INPUT_DEFECT names the existing record and the evidence. It contains no rules and no question.
+- Do not send a step, a transfer, a group, or a retained value. This task cannot create them.

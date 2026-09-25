@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan.workdocument.binding;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -21,6 +22,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactB
 import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument;
 import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkRepairBudget;
@@ -65,7 +67,7 @@ class WorkBindingTest {
     resolution.catalogHit("createTask", "sys-wfm", "2024.4", "op-create", "http", "POST", "/wfm/v1/tasks");
 
     WorkCommit commit =
-        binding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+        binding.select(RUN_ID, "create", materials(List.of()), request -> selection("createTask"));
 
     JsonNode hash = step(commit.state(), "create").path("binding").path("portContentHashes").get(0);
     assertEquals("request", hash.path("port").asText());
@@ -78,7 +80,7 @@ class WorkBindingTest {
     resolution.apiHubHit("createTask", "pkg.wfm", "2024.4", "op-hub", "http", "POST", "/wfm/v1/tasks");
 
     WorkCommit commit =
-        binding.select(RUN_ID, "create", materials(List.of("ids-only")), prompt -> selection("createTask"));
+        binding.select(RUN_ID, "create", materials(List.of("ids-only")), request -> selection("createTask"));
 
     JsonNode hash = step(commit.state(), "create").path("binding").path("portContentHashes").get(0);
     assertEquals("request", hash.path("port").asText());
@@ -89,31 +91,29 @@ class WorkBindingTest {
   void modelPathMethodAndCatalogIdCannotOverrideResolvedMetadata() {
     resolution.catalogHit("createTask", "sys-wfm", "2024.4", "op-create", "http", "POST", "/wfm/v1/tasks");
 
-    WorkCommit commit =
-        binding.select(RUN_ID, "create", materials(List.of()), prompt -> authoredOverride("createTask"));
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                binding.select(
+                    RUN_ID, "create", materials(List.of()), request -> authoredOverride("createTask")));
 
-    JsonNode step = step(commit.state(), "create");
-    JsonNode stored = step.path("binding");
-    assertEquals("sys-wfm", stored.path("catalogId").asText());
-    assertEquals("2024.4", stored.path("version").asText());
-    assertEquals("op-create", stored.path("operationId").asText());
-    assertEquals("http", stored.path("protocol").asText());
-    assertEquals("POST", stored.path("method").asText());
-    assertEquals("/wfm/v1/tasks", stored.path("path").asText());
-    assertFalse(stored.toString().contains("model-catalog"));
-    assertFalse(stored.toString().contains("DELETE"));
-    assertFalse(stored.toString().contains("/model/path"));
-    assertTrue(stored.path("contractReferences").toString().contains("spec-create"));
+    assertEquals("EXTRA_PROPERTY", rejected.code());
+    String stored = JSON.valueToTree(documents.read(RUN_ID).document()).toString();
+    assertFalse(stored.contains("model-catalog"));
+    assertFalse(stored.contains("DELETE"));
+    assertFalse(stored.contains("/model/path"));
+    assertFalse(stored.contains("grpc"));
   }
 
   @Test
   void sameStepIdSurvivesBindingAndRebinding() {
     resolution.catalogHit("createTask", "sys-wfm", "2024.4", "op-create", "http", "POST", "/wfm/v1/tasks");
-    WorkCommit first = binding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+    WorkCommit first = binding.select(RUN_ID, "create", materials(List.of()), request -> selection("createTask"));
     assertEquals("create", step(first.state(), "create").path("id").asText());
 
     resolution.catalogHit("createTask", "sys-wfm", "2024.4", "op-create-v2", "http", "POST", "/wfm/v2/tasks");
-    WorkCommit second = binding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+    WorkCommit second = binding.select(RUN_ID, "create", materials(List.of()), request -> selection("createTask"));
 
     JsonNode step = step(second.state(), "create");
     assertEquals("create", step.path("id").asText());
@@ -131,7 +131,7 @@ class WorkBindingTest {
             RUN_ID,
             "create",
             materials(List.of("runtime-catalog-only")),
-            prompt -> selection("createTask"));
+            request -> selection("createTask"));
 
     assertEquals(0, resolution.apiHubCalls);
     assertEquals(0, resolution.catalogWrites);
@@ -146,7 +146,7 @@ class WorkBindingTest {
 
     WorkCommit commit =
         binding.select(
-            RUN_ID, "create", materials(List.of("ids-only")), prompt -> selection("createTask"));
+            RUN_ID, "create", materials(List.of("ids-only")), request -> selection("createTask"));
 
     JsonNode stored = step(commit.state(), "create").path("binding");
     assertEquals("2024.4", stored.path("version").asText());
@@ -168,7 +168,7 @@ class WorkBindingTest {
             RUN_ID,
             "create",
             materials(List.of("pinned-version:2024.1")),
-            prompt -> selection("createTask"));
+            request -> selection("createTask"));
 
     assertEquals(1, resolution.apiHubCalls);
     assertEquals(0, resolution.catalogWrites);
@@ -182,7 +182,7 @@ class WorkBindingTest {
   @Test
   void wrongOperationIsABindingDefectAndUnsatisfiedContractAsks() {
     WorkCommit defect =
-        binding.select(RUN_ID, "create", materials(List.of()), prompt -> defect("create", "WRONG_OPERATION"));
+        binding.select(RUN_ID, "create", materials(List.of()), request -> defect("create", "WRONG_OPERATION"));
 
     assertEquals("INPUT_DEFECT", defect.outcome().name());
     assertTrue(findings(defect.state()).toString().contains("WRONG_OPERATION"));
@@ -193,7 +193,7 @@ class WorkBindingTest {
             RUN_ID,
             "create",
             materials(List.of()),
-            prompt -> clarification("The createTask contract has no Subject field."));
+            request -> clarification("The createTask contract has no Subject field."));
 
     assertEquals("NEEDS_CLARIFICATION", ask.outcome().name());
     assertTrue(questions(ask.state()).toString().contains("Subject"));
@@ -223,7 +223,7 @@ class WorkBindingTest {
             runId,
             "create",
             materials(List.of("runtime-catalog-only")),
-            prompt -> selection("createTask"));
+            request -> selection("createTask"));
 
     assertEquals("NEEDS_CLARIFICATION", commit.outcome().name());
     assertTrue(questions(commit.state()).toString().contains("src-brief"));
@@ -249,7 +249,7 @@ class WorkBindingTest {
         "cmd-local",
         new WorkRepairBudget(3));
 
-    WorkCommit commit = binding.select(runId, "create", materials(List.of()), prompt -> selection("createTask"));
+    WorkCommit commit = binding.select(runId, "create", materials(List.of()), request -> selection("createTask"));
 
     assertEquals(0, resolution.lookupCalls);
     assertEquals(0, resolution.apiHubCalls);
@@ -261,7 +261,7 @@ class WorkBindingTest {
     resolution.catalogHit("createTask", "sys-wfm", "2024.4", "op-create", "http", "POST", "/wfm/v1/tasks");
 
     WorkCommit commit =
-        binding.select(RUN_ID, "create", materials(List.of("pinned-version:")), prompt -> selection("createTask"));
+        binding.select(RUN_ID, "create", materials(List.of("pinned-version:")), request -> selection("createTask"));
 
     assertEquals("2024.4", step(commit.state(), "create").path("binding").path("version").asText());
   }
@@ -270,7 +270,7 @@ class WorkBindingTest {
   void ambiguousCatalogResultNamesCandidates() {
     resolution.ambiguous("createTask", List.of("op-a", "op-b"));
 
-    WorkCommit commit = binding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+    WorkCommit commit = binding.select(RUN_ID, "create", materials(List.of()), request -> selection("createTask"));
 
     String questions = questions(commit.state()).toString();
     assertEquals("NEEDS_CLARIFICATION", commit.outcome().name());
@@ -299,7 +299,7 @@ class WorkBindingTest {
         new WorkRepairBudget(3));
 
     WorkCommit commit =
-        binding.select(runId, "create", materials(List.of()), prompt -> selection("deleteTask"));
+        binding.select(runId, "create", materials(List.of()), request -> selection("deleteTask"));
 
     assertEquals("INPUT_DEFECT", commit.outcome().name());
     assertTrue(findings(commit.state()).toString().contains("WRONG_OPERATION"));
@@ -317,7 +317,7 @@ class WorkBindingTest {
             RUN_ID,
             "create",
             materials(List.of("pinned-version:2024.1", "ids-only")),
-            prompt -> selection("createTask"));
+            request -> selection("createTask"));
 
     assertEquals(1, resolution.apiHubCalls);
     assertEquals("2024.1", step(commit.state(), "create").path("binding").path("version").asText());
@@ -354,7 +354,7 @@ class WorkBindingTest {
             new ResolveApiOperationSeam(lookup, discovery));
 
     WorkCommit commit =
-        seamBinding.select(RUN_ID, "create", materials(List.of("ids-only")), prompt -> selection("createTask"));
+        seamBinding.select(RUN_ID, "create", materials(List.of("ids-only")), request -> selection("createTask"));
 
     JsonNode stored = step(commit.state(), "create").path("binding");
     assertEquals("2026.2@1", stored.path("version").asText());
@@ -402,7 +402,7 @@ class WorkBindingTest {
     assertTrue(result instanceof CatalogLookup.VersionAbsent);
     WorkBinding seamBinding =
         new WorkBinding(documents, runs, Clock.fixed(FIXED, ZoneOffset.UTC), seam);
-    WorkCommit commit = seamBinding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+    WorkCommit commit = seamBinding.select(RUN_ID, "create", materials(List.of()), request -> selection("createTask"));
     assertTrue(step(commit.state(), "create").path("binding").isNull());
     assertTrue(questions(commit.state()).toString().contains("unresolved"));
   }
@@ -438,7 +438,7 @@ class WorkBindingTest {
     assertEquals("1.0.0", ((CatalogLookup.Hit) result).hit().version());
     WorkBinding seamBinding =
         new WorkBinding(documents, runs, Clock.fixed(FIXED, ZoneOffset.UTC), seam);
-    WorkCommit commit = seamBinding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+    WorkCommit commit = seamBinding.select(RUN_ID, "create", materials(List.of()), request -> selection("createTask"));
     assertEquals("1.0.0", step(commit.state(), "create").path("binding").path("version").asText());
   }
 
@@ -448,25 +448,25 @@ class WorkBindingTest {
 
   private static String selection(String candidateId) {
     return """
-        {"outcome":"PREPARED","candidateId":"%s","stepId":"create"}
+        {"outcome":"PREPARED","candidateId":"%s"}
         """.formatted(candidateId);
   }
 
   private static String authoredOverride(String candidateId) {
     return """
-        {"outcome":"PREPARED","candidateId":"%s","stepId":"create","catalogId":"model-catalog","method":"DELETE","path":"/model/path","protocol":"grpc"}
+        {"outcome":"PREPARED","candidateId":"%s","catalogId":"model-catalog","method":"DELETE","path":"/model/path","protocol":"grpc"}
         """.formatted(candidateId);
   }
 
   private static String defect(String stepId, String category) {
     return """
-        {"outcome":"INPUT_DEFECT","stepId":"%s","issueCategory":"%s","contradiction":"Selected operation does not match the step.","evidenceIds":["src-om"]}
+        {"outcome":"INPUT_DEFECT","candidateId":"","defectRecordRef":"%s","issueCategory":"%s","contradiction":"Selected operation does not match the step.","evidenceRefs":["src-om"]}
         """.formatted(stepId, category);
   }
 
   private static String clarification(String question) {
     return """
-        {"outcome":"NEEDS_CLARIFICATION","stepId":"create","question":"%s","unresolvedChoice":"contract","evidenceIds":["src-om"]}
+        {"outcome":"NEEDS_CLARIFICATION","candidateId":"","question":"%s","choiceKind":"UNSPECIFIED","evidenceRefs":["src-om"]}
         """.formatted(question);
   }
 

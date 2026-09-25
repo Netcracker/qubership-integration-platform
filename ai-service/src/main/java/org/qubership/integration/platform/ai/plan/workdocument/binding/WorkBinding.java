@@ -19,13 +19,21 @@ import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument;
 import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding;
 import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding.PortContentHash;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.service.output.OutputParsingException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkOutcome;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskContext;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskRequest;
 import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskModel;
@@ -45,6 +53,7 @@ public final class WorkBinding {
       """;
 
   private final WorkDocumentService documents;
+  private final WorkTaskExecutor executor;
   private final CatalogResolution resolution;
   private final ObjectMapper json = new ObjectMapper();
 
@@ -58,6 +67,7 @@ public final class WorkBinding {
     if (runs == null || clock == null) {
       throw new IllegalArgumentException("Run store and clock are required.");
     }
+    this.executor = new WorkTaskExecutor(documents, runs, clock);
   }
 
   public WorkCommit select(
@@ -67,8 +77,26 @@ public final class WorkBinding {
       return new WorkCommit(
           state.revision(), List.of(stepId), WorkOutcome.PREPARED, "local-" + stepId, state, java.util.Map.of());
     }
-    String output = model.complete(prompt(state, stepId, materials));
-    JsonNode selection = readSelection(output);
+    WorkTaskScope task = scope(state, stepId);
+    executor.reserve(runId, task);
+    JsonObjectSchema schema =
+        WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.SELECT_OPERATION, null);
+    String output;
+    try {
+      output =
+          model.complete(
+              new WorkTaskRequest(
+                  task.taskId(),
+                  task.taskKey(),
+                  WorkTaskKind.SELECT_OPERATION,
+                  WorkTaskContext.prompt(state, task, materials) + "\n" + prompt(state, stepId, materials),
+                  schema));
+    } catch (OutputParsingException failure) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_CAPTURE",
+          "Operation selection could not be parsed. The task was not completed.");
+    }
+    JsonNode selection = readSelection(output, schema);
     String outcome = selection.path("outcome").asText();
     if ("NEEDS_CLARIFICATION".equals(outcome)) {
       return ask(
@@ -76,7 +104,7 @@ public final class WorkBinding {
           state,
           stepId,
           selection.path("question").asText(),
-          selection.path("unresolvedChoice").asText("contract"));
+          selection.path("choiceKind").asText("contract"));
     }
     if ("INPUT_DEFECT".equals(outcome)) {
       return defect(runId, state, stepId, selection);
@@ -281,7 +309,7 @@ public final class WorkBinding {
       JsonNode selection,
       String category,
       String contradiction) {
-    String record = selection.path("stepId").asText(stepId);
+    String record = selection.path("defectRecordRef").asText(stepId);
     if (record.isBlank()) {
       record = stepId;
     }
@@ -358,7 +386,7 @@ public final class WorkBinding {
 
   private static WorkTaskScope scope(WorkDocumentState state, String stepId) {
     return new WorkTaskScope(
-        "operation-selection-" + stepId,
+        WorkTaskPlanner.taskId(WorkTaskKind.SELECT_OPERATION, stepId),
         state.revision(),
         WorkStage.SERVICES,
         SKILL_ID,
@@ -367,7 +395,13 @@ public final class WorkBinding {
         false,
         false,
         List.of(),
-        List.of());
+        List.of(),
+        List.of(),
+        List.of(),
+        WorkTaskPlanner.taskKey(WorkTaskKind.SELECT_OPERATION, stepId),
+        WorkTaskKind.SELECT_OPERATION,
+        "",
+        null);
   }
 
   private static String command(WorkDocumentState state, String stepId, String kind) {
@@ -378,21 +412,14 @@ public final class WorkBinding {
     JsonNode flow = WorkLogicalFlow.planningTopology(state);
     return "Select one real operation for step "
         + stepId
-        + ". Set outcome to PREPARED and candidateId to that step's label. Java reads the catalog. Do not ask for a catalog listing. Do not send catalogId, protocol, method, or path. Constraints: "
+        + ". Set outcome to PREPARED and candidateId to the operation. Java reads the catalog. Do not ask for a catalog listing. Do not send catalogId, protocol, method, or path. Constraints: "
         + materials.globalConstraints()
         + ". Flow: "
         + flow;
   }
 
-  private JsonNode readSelection(String output) {
-    try {
-      return json.readTree(output);
-    } catch (Exception failure) {
-      ObjectNode rejected = json.createObjectNode();
-      rejected.put("outcome", WorkOutcome.NEEDS_CLARIFICATION.name());
-      rejected.put("question", "Operation selection was not a JSON object.");
-      return rejected;
-    }
+  private static JsonNode readSelection(String output, JsonObjectSchema schema) {
+    return WorkDocumentCaptureSchema.readObject(output, schema);
   }
 
   private static boolean apiHubAllowed(WorkTaskMaterials materials) {

@@ -24,7 +24,7 @@ public final class WorkTaskContext {
     Set<String> owned = Set.copyOf(scope.ownedRecordIds());
     JsonNode transfers = ownedTransfers(document, owned);
     Set<String> ownedSteps = ownedSteps(document, transfers);
-    Set<String> ports = ports(transfers);
+    Set<String> ports = ports(document, transfers);
     Set<String> sources = governingSources(document, transfers);
 
     StringBuilder prompt = new StringBuilder();
@@ -136,21 +136,60 @@ public final class WorkTaskContext {
     return false;
   }
 
-  private static Set<String> ports(JsonNode transfers) {
+  private static Set<String> ports(JsonNode document, JsonNode transfers) {
     Set<String> ports = new LinkedHashSet<>();
     for (JsonNode transfer : transfers) {
       for (JsonNode source : transfer.path("sourcePorts")) {
-        ports.add(source.path("stepId").asText() + "\n" + source.path("portName").asText());
+        ports.add(portKey(source.path("stepId").asText(), source.path("portName").asText()));
       }
       JsonNode target = transfer.path("targetPort");
-      ports.add(target.path("stepId").asText() + "\n" + target.path("portName").asText());
+      ports.add(portKey(target.path("stepId").asText(), target.path("portName").asText()));
+      for (JsonNode retainedId : transfer.path("requiredRetainedIds")) {
+        JsonNode retained = findRetained(document, retainedId.asText());
+        if (retained == null) {
+          continue;
+        }
+        String producer = retained.path("producerStepId").asText();
+        String port = retained.path("source").path("port").asText();
+        if (port.isBlank()) {
+          port = "payload";
+        }
+        ports.add(portKey(producer, port));
+      }
     }
     return ports;
+  }
+
+  private static String portKey(String stepId, String port) {
+    return stepId + "\n" + schemaPort(port);
+  }
+
+  private static String schemaPort(String port) {
+    return switch (port) {
+      case "INBOUND_PAYLOAD" -> "payload";
+      case "OUTBOUND_REQUEST" -> "request";
+      case "SUCCESS_RESPONSE" -> "success";
+      case "FAILURE_OUTCOME" -> "failure";
+      case "RETAINED_CONTEXT" -> "context";
+      default -> port;
+    };
+  }
+
+  private static JsonNode findRetained(JsonNode document, String id) {
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode retained : step.path("data").path("retainedValues")) {
+        if (id.equals(retained.path("id").asText())) {
+          return retained;
+        }
+      }
+    }
+    return null;
   }
 
   private static Set<String> governingSources(JsonNode document, JsonNode transfers) {
     Set<String> requirementIds = new LinkedHashSet<>();
     Set<String> sources = new LinkedHashSet<>();
+    Set<String> portSteps = new LinkedHashSet<>();
     for (JsonNode transfer : transfers) {
       for (JsonNode requirementId : transfer.path("requirementIds")) {
         requirementIds.add(requirementId.asText());
@@ -159,6 +198,28 @@ public final class WorkTaskContext {
         for (JsonNode evidence : rule.path("evidenceIds")) {
           sources.add(evidence.asText());
         }
+      }
+      for (JsonNode sourcePort : transfer.path("sourcePorts")) {
+        portSteps.add(sourcePort.path("stepId").asText());
+      }
+      portSteps.add(transfer.path("targetPort").path("stepId").asText());
+      for (JsonNode retainedId : transfer.path("requiredRetainedIds")) {
+        JsonNode retained = findRetained(document, retainedId.asText());
+        if (retained == null) {
+          continue;
+        }
+        portSteps.add(retained.path("producerStepId").asText());
+        for (JsonNode evidence : retained.path("evidenceIds")) {
+          sources.add(evidence.asText());
+        }
+      }
+    }
+    for (JsonNode step : document.path("flow").path("steps")) {
+      if (!portSteps.contains(step.path("id").asText())) {
+        continue;
+      }
+      for (JsonNode sourceId : step.path("sourceIds")) {
+        sources.add(sourceId.asText());
       }
     }
     for (JsonNode requirement : document.path("requirements")) {

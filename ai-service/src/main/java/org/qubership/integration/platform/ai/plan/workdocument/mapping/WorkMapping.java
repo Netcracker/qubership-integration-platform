@@ -4,35 +4,44 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.service.output.OutputParsingException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.workdocument.CaptureChoices;
 import org.qubership.integration.platform.ai.plan.workdocument.CreationAllowance;
+import org.qubership.integration.platform.ai.plan.workdocument.FixedTransferEndpoint;
+import org.qubership.integration.platform.ai.plan.workdocument.QuestionChoiceKind;
+import org.qubership.integration.platform.ai.plan.workdocument.QuestionFieldRef;
+import org.qubership.integration.platform.ai.plan.workdocument.QuestionSubject;
+import org.qubership.integration.platform.ai.plan.workdocument.TransferOutcome;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
-import org.qubership.integration.platform.ai.plan.workdocument.WorkRecordKind;
-import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkRecordKind;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskCapture;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
 import org.qubership.integration.platform.ai.plan.workdocument.task.SchemaFragment;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskContext;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskModel;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskRequest;
 
 /**
- * Initial mapping and a named-rule repair against the work document. The model proposes structured
- * references and behavior text. Java checks paths, renames, and retained fields, then rewrites
- * step labels to existing ids, and rewrites role ports and bare schema properties into contract
- * form before publication.
+ * One persisted transfer, or one named rule. The model returns rules for that assignment. Java
+ * checks the source refs, paths, and constants, then publishes canonical field references.
  */
 public final class WorkMapping {
 
@@ -40,571 +49,746 @@ public final class WorkMapping {
 
   private static final ObjectMapper JSON = new ObjectMapper();
   private static final String INSTRUCTIONS = loadInstructions();
-  private static final String SCHEMA_CONSTRAINT = "schema ";
 
   private final WorkDocumentService documents;
   private final WorkTaskExecutor executor;
 
   public WorkMapping(WorkDocumentService documents, WorkTaskExecutor executor) {
     this.documents = documents;
+    if (executor == null) {
+      throw new IllegalArgumentException("A task executor is required.");
+    }
     this.executor = executor;
   }
 
-  public WorkCommit interpret(String runId, WorkTaskMaterials materials, WorkTaskModel model) {
-    return run(runId, null, materials, model);
+  public WorkCommit interpret(
+      String runId, String transferId, WorkTaskMaterials materials, WorkTaskModel model) {
+    if (transferId == null || transferId.isBlank()) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_REFERENCE",
+          "Initial mapping requires a persisted transfer id. Create the transfer before mapping it.");
+    }
+    return decide(runId, transferId, null, materials, model);
   }
 
   public WorkCommit repair(
       String runId, String ruleId, WorkTaskMaterials materials, WorkTaskModel model) {
-    return run(runId, ruleId, materials, model);
-  }
-
-  private WorkCommit run(
-      String runId, String repairRuleId, WorkTaskMaterials materials, WorkTaskModel model) {
+    if (ruleId == null || ruleId.isBlank()) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_REFERENCE", "Rule repair requires the rule id. Name the assigned rule.");
+    }
     WorkDocumentState state = documents.read(runId);
-    WorkTaskScope scope =
-        repairRuleId == null
-            ? new WorkTaskScope(
-                "mapping-initial",
-                state.revision(),
-                WorkStage.DATA_BEHAVIOR,
-                SKILL_ID,
-                List.of(),
-                true,
-                false,
-                false,
-                List.of(),
-                List.of(),
-                CreationAllowance.anyParent(
-                    WorkRecordKind.TRANSFER, WorkRecordKind.RULE, WorkRecordKind.RETAINED_VALUE),
-                List.of(),
-                "mapping-initial",
-                WorkTaskKind.MAP_TRANSFER,
-                "",
-                null)
-            : new WorkTaskScope(
-                "mapping-repair-" + repairRuleId,
-                state.revision(),
-                WorkStage.DATA_BEHAVIOR,
-                SKILL_ID,
-                List.of(repairRuleId),
-                false,
-                true,
-                false,
-                List.of(),
-                List.of());
-    JsonNode document = JSON.valueToTree(state.document());
-    WorkTaskMaterials instructed = withInstructions(materials);
-    return executor.execute(
-        runId, scope, instructed, checked(document, instructed, repairRuleId, model));
+    JsonNode transfer = transferOfRule(JSON.valueToTree(state.document()), ruleId);
+    if (transfer == null) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_REFERENCE",
+          "Rule " + ruleId + " is not on a transfer. Repair a rule that already exists.");
+    }
+    return decide(runId, transfer.path("id").asText(), ruleId, materials, model);
   }
 
-  private static WorkTaskMaterials withInstructions(WorkTaskMaterials materials) {
+  private WorkCommit decide(
+      String runId,
+      String transferId,
+      String repairRuleId,
+      WorkTaskMaterials materials,
+      WorkTaskModel model) {
+    WorkDocumentState state = documents.read(runId);
+    JsonNode document = JSON.valueToTree(state.document());
+    JsonNode transfer = findTransfer(document, transferId);
+    if (transfer == null) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_REFERENCE",
+          "Transfer " + transferId + " does not exist. Map a persisted transfer.");
+    }
+    boolean repair = repairRuleId != null;
+    WorkTaskKind kind = repair ? WorkTaskKind.REPAIR_RULE : WorkTaskKind.MAP_TRANSFER;
+    String recordId = repair ? repairRuleId : transferId;
+    String taskId = WorkTaskPlanner.taskId(kind, recordId);
+    String taskKey = WorkTaskPlanner.taskKey(kind, recordId);
+    List<String> sourceRefs = sourceRefs(document, transfer);
+    List<String> evidenceRefs = evidenceRefs(document, transfer);
+    List<String> ruleIds = repair ? List.of(repairRuleId) : List.of();
+    CaptureChoices choices = new CaptureChoices(sourceRefs, evidenceRefs, ruleIds, List.of());
+    JsonObjectSchema schema = WorkDocumentCaptureSchema.responseSchema(kind, choices);
+    WorkTaskScope scope = ruleScope(state, transfer, taskId, taskKey, kind, repair, repairRuleId);
+    Optional<WorkCommit> prior = executor.publishedResult(runId, scope);
+    if (prior.isPresent()) {
+      return prior.get();
+    }
+    executor.reserve(runId, scope);
+    WorkTaskMaterials instructed =
+        instructed(materials, transfer, sourceRefs, evidenceRefs, repairRuleId);
+    String output = complete(model, new WorkTaskRequest(
+        taskId, taskKey, kind, WorkTaskContext.prompt(state, scope, instructed), schema));
+    JsonNode tree = WorkDocumentCaptureSchema.readObject(output, schema);
+    String outcome = tree.path("outcome").asText();
+    if ("NEEDS_CLARIFICATION".equals(outcome)) {
+      return ask(runId, state, scope, tree, evidenceRefs);
+    }
+    if ("INPUT_DEFECT".equals(outcome)) {
+      return defect(runId, state, scope, tree, evidenceRefs);
+    }
+    if (!"PREPARED".equals(outcome)) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_CAPTURE",
+          "Outcome " + outcome + " is unknown. Use PREPARED, NEEDS_CLARIFICATION, or INPUT_DEFECT.");
+    }
+    rejectMixed(tree);
+    if (repair && "NO_MAPPING".equals(tree.path("decision").asText())) {
+      throw new WorkDocumentRejectedException(
+          "OUTSIDE_SCOPE",
+          "A rule repair cannot replace the transfer. Change only rule " + repairRuleId + ".");
+    }
+    if (tree.path("rules").isEmpty()) {
+      if ("NO_MAPPING".equals(tree.path("decision").asText())) {
+        requireEvidence(tree.path("evidenceRefs"), evidenceRefs);
+        return documents.apply(
+            runId,
+            noMappingScope(state, transfer, taskId, taskKey),
+            noMappingCapture(transfer),
+            command(taskId, state));
+      }
+      throw new WorkDocumentRejectedException(
+          "UNEVIDENCED_MAPPING",
+          "Empty rules do not show that mapping is unnecessary. Supply the rules or send NO_MAPPING with evidence.");
+    }
+    if (!tree.path("decision").asText().isBlank()) {
+      throw new WorkDocumentRejectedException(
+          "CONTRADICTORY_OUTCOME",
+          "A prepared rule list cannot also set a mapping decision. Send the rules or NO_MAPPING.");
+    }
+    ArrayNode rules = rules(document, materials, transfer, tree.path("rules"), choices, repairRuleId);
+    return documents.apply(
+        runId, scope, prepared(rules), command(taskId, state));
+  }
+
+  private static String complete(WorkTaskModel model, WorkTaskRequest request) {
+    try {
+      return model.complete(request);
+    } catch (OutputParsingException failure) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_CAPTURE", "Mapping capture could not be parsed. The task was not completed.");
+    }
+  }
+
+  private WorkCommit ask(
+      String runId,
+      WorkDocumentState state,
+      WorkTaskScope scope,
+      JsonNode tree,
+      List<String> evidenceRefs) {
+    if (!tree.path("rules").isEmpty() || !tree.path("decision").asText().isBlank()) {
+      throw new WorkDocumentRejectedException(
+          "CONTRADICTORY_OUTCOME",
+          "A clarification needs one question and no rules. Remove the rules.");
+    }
+    JsonNode question = object(tree, "question");
+    String text = question.path("text").asText();
+    if (text.isBlank()) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_CAPTURE", "A clarification needs question text. Name the unresolved choice.");
+    }
+    QuestionChoiceKind choice = choice(question.path("choiceKind").asText());
+    QuestionFieldRef source = field(question, "source");
+    QuestionFieldRef target = field(question, "target");
+    QuestionSubject subject;
+    try {
+      subject =
+          choice == QuestionChoiceKind.FIELD_RELATIONSHIP
+              ? QuestionSubject.fieldRelationship(source, target)
+              : new QuestionSubject(choice, source, target);
+    } catch (IllegalArgumentException failure) {
+      throw new WorkDocumentRejectedException("MALFORMED_REFERENCE", failure.getMessage());
+    }
+    List<String> evidence = texts(question.path("evidenceRefs"));
+    requireEvidence(question.path("evidenceRefs"), evidenceRefs);
+    List<String> blocked =
+        scope.fixedEndpoint() == null ? List.of() : List.of(scope.fixedEndpoint().transferId());
+    return documents.recordQuestion(
+        runId, scope, text, subject, blocked, evidence, command(scope.taskId(), state) + ":question");
+  }
+
+  private WorkCommit defect(
+      String runId,
+      WorkDocumentState state,
+      WorkTaskScope scope,
+      JsonNode tree,
+      List<String> evidenceRefs) {
+    if (!tree.path("rules").isEmpty() || !question(tree).path("text").asText().isBlank()) {
+      throw new WorkDocumentRejectedException(
+          "CONTRADICTORY_OUTCOME",
+          "A defect capture cannot include rules or a question. Send the defect alone.");
+    }
+    JsonNode defect = object(tree, "defect");
+    String record = defect.path("recordRef").asText();
+    if (record.isBlank()) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_CAPTURE", "A defect needs the existing record. Name that record.");
+    }
+    requireEvidence(defect.path("evidenceRefs"), evidenceRefs);
+    ObjectNode body = JSON.createObjectNode();
+    body.put("outcome", "INPUT_DEFECT");
+    body.put("defectRecordRef", record);
+    body.put("contradiction", defect.path("contradiction").asText());
+    body.put("issueCategory", defect.path("category").asText());
+    body.set("defectEvidenceIds", textsNode(defect.path("evidenceRefs")));
+    return documents.apply(
+        runId,
+        scope,
+        WorkDocumentCaptureSchema.parse(WorkDocumentCaptureSchema.withUniversalLists(body)),
+        command(scope.taskId(), state) + ":defect");
+  }
+
+  private static void rejectMixed(JsonNode tree) {
+    if (!question(tree).path("text").asText().isBlank() || !object(tree, "defect").path("recordRef").asText().isBlank()) {
+      throw new WorkDocumentRejectedException(
+          "CONTRADICTORY_OUTCOME",
+          "A prepared capture cannot also report a question or a defect. Send one outcome.");
+    }
+  }
+
+  private static ArrayNode rules(
+      JsonNode document,
+      WorkTaskMaterials materials,
+      JsonNode transfer,
+      JsonNode proposed,
+      CaptureChoices choices,
+      String repairRuleId) {
+    ArrayNode rules = JSON.createArrayNode();
+    String targetStep = transfer.path("targetPort").path("stepId").asText();
+    String targetPort = schemaPort(transfer.path("targetPort").path("portName").asText());
+    for (JsonNode rule : proposed) {
+      String alias = rule.path("alias").asText();
+      String existingId = rule.path("existingId").asText();
+      if (repairRuleId == null) {
+        if (alias.isBlank()) {
+          throw new WorkDocumentRejectedException(
+              "MALFORMED_REFERENCE", "A new rule needs an alias. Name the rule for this transfer.");
+        }
+      } else if (!repairRuleId.equals(existingId)) {
+        throw new WorkDocumentRejectedException(
+            "OUTSIDE_SCOPE",
+            "This repair can change only rule " + repairRuleId + ". Remove the other rules.");
+      }
+      String targetPath = canonical(document, materials, targetStep, targetPort, rule.path("targetPath").asText());
+      ArrayNode sources = JSON.createArrayNode();
+      for (JsonNode source : rule.path("sources")) {
+        sources.add(source(document, materials, transfer, choices, source, targetPath, rule.path("relationship")));
+      }
+      checkConstants(materials, targetStep, targetPort, targetPath, rule.path("constants"));
+      List<String> evidence = texts(rule.path("evidenceRefs"));
+      if (evidence.isEmpty()) {
+        throw new WorkDocumentRejectedException(
+            "UNEVIDENCED_MAPPING",
+            "Rule " + (alias.isBlank() ? existingId : alias) + " needs evidence. Cite a listed evidence ref.");
+      }
+      requireMembers(evidence, choices.evidenceRefs(), "Evidence ref ");
+      ObjectNode stored = rules.addObject();
+      stored.put("existingId", repairRuleId == null ? "" : existingId);
+      stored.put("alias", repairRuleId == null ? alias : "");
+      stored.put("transferRef", transfer.path("id").asText());
+      stored.set("sources", sources);
+      ObjectNode target = stored.putObject("target");
+      target.put("kind", "STEP_PORT");
+      target.put("stepId", targetStep);
+      target.put("port", targetPort);
+      target.put("fieldPath", targetPath);
+      target.put("retainedValueId", "");
+      stored.set(
+          "constants",
+          rule.path("constants").isArray() ? rule.path("constants").deepCopy() : JSON.createArrayNode());
+      stored.put("behavior", rule.path("behavior").asText());
+      stored.set("evidenceRefs", textsNode(rule.path("evidenceRefs")));
+    }
+    return rules;
+  }
+
+  private static ObjectNode source(
+      JsonNode document,
+      WorkTaskMaterials materials,
+      JsonNode transfer,
+      CaptureChoices choices,
+      JsonNode source,
+      String targetPath,
+      JsonNode relationship) {
+    String ref = source.path("sourceRef").asText();
+    if (!choices.sourceRefs().contains(ref)) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_REFERENCE",
+          "Source ref " + ref + " is not an allowed source. Use a listed source ref.");
+    }
+    ObjectNode stored = JSON.createObjectNode();
+    if (ref.startsWith("retained/")) {
+      String retainedId = ref.substring("retained/".length());
+      JsonNode retained = findRetained(document, retainedId);
+      String sourcePath = source.path("fieldPath").asText();
+      if (retained == null || !samePath(retained.path("source").path("fieldPath").asText(), sourcePath)) {
+        throw new WorkDocumentRejectedException(
+            "MALFORMED_REFERENCE",
+            "Retained source " + retainedId + " does not have field " + sourcePath + ". Use the stored field path.");
+      }
+      requireRelationship(relationship, choices, leaf(sourcePath), leaf(targetPath));
+      stored.put("kind", "RETAINED");
+      stored.put("stepId", "");
+      stored.putNull("port");
+      stored.put("fieldPath", "");
+      stored.put("retainedValueId", retainedId);
+      return stored;
+    }
+    int slash = ref.indexOf('/');
+    String stepId = ref.substring(0, slash);
+    String port = ref.substring(slash + 1);
+    if (!ownsPort(transfer, stepId, port) && !retainedProducerPort(document, transfer, stepId, port)) {
+      throw new WorkDocumentRejectedException(
+          "OUTSIDE_SCOPE",
+          "Source " + ref + " is outside this transfer. Use an assigned source port.");
+    }
+    String path = canonical(document, materials, stepId, port, source.path("fieldPath").asText());
+    stored.put("kind", "STEP_PORT");
+    stored.put("stepId", stepId);
+    stored.put("port", port);
+    stored.put("fieldPath", path);
+    stored.put("retainedValueId", "");
+    return stored;
+  }
+
+  private static void requireRelationship(
+      JsonNode relationship, CaptureChoices choices, String sourceLeaf, String targetLeaf) {
+    if (sourceLeaf.equals(targetLeaf)) {
+      return;
+    }
+    String sourceField = relationship.path("sourceField").asText();
+    String targetField = relationship.path("targetField").asText();
+    if (!leaf(sourceField).equals(sourceLeaf) || !leaf(targetField).equals(targetLeaf)) {
+      throw new WorkDocumentRejectedException(
+          "UNEVIDENCED_MAPPING",
+          "Field "
+              + targetLeaf
+              + " does not match retained field "
+              + sourceLeaf
+              + ". Record the relationship with both fields and evidence, or ask.");
+    }
+    if (texts(relationship.path("evidenceRefs")).isEmpty()) {
+      throw new WorkDocumentRejectedException(
+          "UNEVIDENCED_MAPPING",
+          "The relationship between "
+              + sourceLeaf
+              + " and "
+              + targetLeaf
+              + " needs evidence. Cite a listed evidence ref, or ask.");
+    }
+    requireMembers(texts(relationship.path("evidenceRefs")), choices.evidenceRefs(), "Evidence ref ");
+  }
+
+  private static String canonical(
+      JsonNode document, WorkTaskMaterials materials, String stepId, String port, String path) {
+    if (path == null || path.isBlank() || "$".equals(path)) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_REFERENCE",
+          "Field path " + path + " is not a field. Use a $.Property path from the selected schema.");
+    }
+    String first = firstSegment(path);
+    SchemaFragment schema = schema(materials, stepId, port);
+    if (schema == null) {
+      throw new WorkDocumentRejectedException(
+          "MISSING_SCHEMA",
+          "Step " + stepId + " port " + port + " has no schema. Load that schema before mapping the field.");
+    }
+    if (!schema.containsPath(first) && (label(document, first) || operation(document, first))) {
+      throw new WorkDocumentRejectedException(
+          "FABRICATED_PREFIX",
+          "Name " + first + " is a step or operation, not a JSON prefix. Use a field path from the selected schema.");
+    }
+    String canonical = path.startsWith("$.") ? path : "$." + path;
+    if (!schema.containsPath(canonical)) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_REFERENCE",
+          "Field path " + path + " is not in the selected contract. Name a contract field.");
+    }
+    return canonical;
+  }
+
+  private static void checkConstants(
+      WorkTaskMaterials materials, String stepId, String port, String path, JsonNode constants) {
+    SchemaFragment schema = schema(materials, stepId, port);
+    JsonNode property = schema == null ? null : schema.property(path);
+    if (property == null || !property.path("enum").isArray()) {
+      return;
+    }
+    for (JsonNode constant : constants) {
+      JsonNode value = constant.path("value");
+      boolean allowed = false;
+      for (JsonNode choice : property.path("enum")) {
+        if (choice.equals(value)) {
+          allowed = true;
+        }
+      }
+      if (!allowed) {
+        throw new WorkDocumentRejectedException(
+            "INVALID_CONSTANT",
+            "Constant " + value + " is outside the target enum. Use a listed value.");
+      }
+    }
+  }
+
+  private static WorkTaskCapture prepared(ArrayNode rules) {
+    ObjectNode body = JSON.createObjectNode();
+    body.put("outcome", "PREPARED");
+    body.set("rules", rules);
+    return WorkDocumentCaptureSchema.parse(WorkDocumentCaptureSchema.withUniversalLists(body));
+  }
+
+  private static WorkTaskCapture noMappingCapture(JsonNode transfer) {
+    ObjectNode body = JSON.createObjectNode();
+    body.put("outcome", "PREPARED");
+    ObjectNode stored = body.putArray("transfers").addObject();
+    stored.put("existingId", transfer.path("id").asText());
+    stored.put("alias", "");
+    stored.put("targetStepRef", transfer.path("targetPort").path("stepId").asText());
+    ArrayNode sources = stored.putArray("sourcePorts");
+    for (JsonNode source : transfer.path("sourcePorts")) {
+      ObjectNode port = sources.addObject();
+      port.put("stepId", source.path("stepId").asText());
+      port.put("portName", schemaPort(source.path("portName").asText()));
+    }
+    ObjectNode target = stored.putObject("targetPort");
+    target.put("stepId", transfer.path("targetPort").path("stepId").asText());
+    target.put("portName", schemaPort(transfer.path("targetPort").path("portName").asText()));
+    stored.set(
+        "requirementRefs",
+        transfer.path("requirementIds").isArray()
+            ? transfer.path("requirementIds").deepCopy()
+            : JSON.createArrayNode());
+    stored.put("decision", "NO_MAPPING");
+    return WorkDocumentCaptureSchema.parse(WorkDocumentCaptureSchema.withUniversalLists(body));
+  }
+
+  private static WorkTaskScope ruleScope(
+      WorkDocumentState state,
+      JsonNode transfer,
+      String taskId,
+      String taskKey,
+      WorkTaskKind kind,
+      boolean repair,
+      String repairRuleId) {
+    String transferId = transfer.path("id").asText();
+    return new WorkTaskScope(
+        taskId,
+        state.revision(),
+        WorkStage.DATA_BEHAVIOR,
+        SKILL_ID,
+        repair ? List.of(repairRuleId) : List.of(transferId),
+        !repair,
+        repair,
+        false,
+        List.of(),
+        List.of(),
+        List.of(new CreationAllowance(WorkRecordKind.RULE, transferId)),
+        repair ? List.of(repairRuleId) : List.of(),
+        taskKey,
+        kind,
+        "",
+        FixedTransferEndpoint.of(
+            transferId,
+            transfer.path("targetPort").path("stepId").asText(),
+            schemaPort(transfer.path("targetPort").path("portName").asText()),
+            outcome(transfer.path("outcome").asText())));
+  }
+
+  private static WorkTaskScope noMappingScope(
+      WorkDocumentState state, JsonNode transfer, String taskId, String taskKey) {
+    String transferId = transfer.path("id").asText();
+    return new WorkTaskScope(
+        taskId,
+        state.revision(),
+        WorkStage.DATA_BEHAVIOR,
+        SKILL_ID,
+        List.of(transferId),
+        false,
+        true,
+        false,
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(transferId),
+        taskKey,
+        WorkTaskKind.MAP_TRANSFER,
+        "",
+        null);
+  }
+
+  private static WorkTaskMaterials instructed(
+      WorkTaskMaterials materials,
+      JsonNode transfer,
+      List<String> sourceRefs,
+      List<String> evidenceRefs,
+      String repairRuleId) {
     List<String> constraints = new ArrayList<>();
     constraints.add(INSTRUCTIONS);
+    constraints.add("transfer " + transfer.path("id").asText());
+    constraints.add(
+        "target "
+            + transfer.path("targetPort").path("stepId").asText()
+            + " "
+            + schemaPort(transfer.path("targetPort").path("portName").asText())
+            + " "
+            + transfer.path("outcome").asText("UNSPECIFIED"));
+    if (repairRuleId != null) {
+      constraints.add("rule " + repairRuleId);
+    }
+    for (String ref : sourceRefs) {
+      constraints.add("source " + ref);
+    }
+    for (String evidence : evidenceRefs) {
+      constraints.add("evidence " + evidence);
+    }
     constraints.addAll(materials.globalConstraints());
-    materials.sourceEvidence().forEach((id, text) -> constraints.add("source " + id + " " + text));
-    materials
-        .schemas()
-        .forEach(
-            schema ->
-                constraints.add(
-                    SCHEMA_CONSTRAINT
-                        + schema.stepId()
-                        + " "
-                        + schema.portName()
-                        + " "
-                        + schema.body()));
     return new WorkTaskMaterials(materials.schemas(), constraints, materials.sourceEvidence());
   }
 
-  private static WorkTaskModel checked(
-      JsonNode document, WorkTaskMaterials materials, String repairRuleId, WorkTaskModel model) {
-    return prompt -> {
-      String output;
-      try {
-        output = model.complete(prompt);
-      } catch (OutputParsingException failure) {
-        throw new WorkDocumentRejectedException(
-            "MALFORMED_CAPTURE",
-            "Mapping capture could not be parsed. The task was not completed.");
+  private static List<String> sourceRefs(JsonNode document, JsonNode transfer) {
+    LinkedHashSet<String> refs = new LinkedHashSet<>();
+    for (JsonNode source : transfer.path("sourcePorts")) {
+      refs.add(source.path("stepId").asText() + "/" + schemaPort(source.path("portName").asText()));
+    }
+    for (JsonNode retainedId : transfer.path("requiredRetainedIds")) {
+      JsonNode retained = findRetained(document, retainedId.asText());
+      if (retained != null) {
+        refs.add("retained/" + retainedId.asText());
       }
-      JsonNode tree = read(output);
-      rejectCompleteTask(tree);
-      dropRestatedSteps(document, tree);
-      rewriteStepLabels(document, tree);
-      if (tree.has("steps")) {
-        for (JsonNode step : tree.path("steps")) {
-          if ("SERVICE_CALL".equals(step.path("kind").asText())) {
-            throw new WorkDocumentRejectedException(
-                "DUPLICATE_SERVICE_CALL",
-                "Mapping stays on the existing call. Remove the extra service call.");
-          }
-        }
-      }
-      List<String> keptRenames = new ArrayList<>();
-      String question = problem(document, materials, repairRuleId, tree, keptRenames);
-      if (question != null) {
-        return clarification(question, sourceId(document));
-      }
-      rewriteContractForm(tree, materials);
-      if (!keptRenames.isEmpty()) {
-        return preparedWithQuestion(tree, keptRenames.getFirst(), sourceId(document));
-      }
-      return complete(tree);
-    };
+    }
+    return List.copyOf(refs);
   }
 
-  private static void rejectCompleteTask(JsonNode tree) {
-    for (JsonNode step : tree.path("steps")) {
-      if (!"SERVICE_CALL".equals(step.path("kind").asText())) {
+  private static List<String> evidenceRefs(JsonNode document, JsonNode transfer) {
+    LinkedHashSet<String> ids = new LinkedHashSet<>();
+    LinkedHashSet<String> steps = new LinkedHashSet<>();
+    for (JsonNode source : transfer.path("sourcePorts")) {
+      steps.add(source.path("stepId").asText());
+    }
+    steps.add(transfer.path("targetPort").path("stepId").asText());
+    for (JsonNode retainedId : transfer.path("requiredRetainedIds")) {
+      JsonNode retained = findRetained(document, retainedId.asText());
+      if (retained == null) {
         continue;
       }
-      if ("completeTask".equals(step.path("label").asText())
-          || "completeTask".equals(step.path("alias").asText())) {
-        throw new WorkDocumentRejectedException(
-            "PAYLOAD_CONSTANT",
-            "completeTask is the commandType constant, not a step and not a service call.");
-      }
+      steps.add(retained.path("producerStepId").asText());
+      addTexts(ids, retained.path("evidenceIds"));
     }
-  }
-
-  private static void dropRestatedSteps(JsonNode document, JsonNode tree) {
-    if (!(tree.get("steps") instanceof ArrayNode steps)) {
-      return;
+    for (JsonNode rule : transfer.path("rules")) {
+      addTexts(ids, rule.path("evidenceIds"));
     }
-    for (int index = steps.size() - 1; index >= 0; index--) {
-      if (restatesExistingStep(document, steps.get(index))) {
-        steps.remove(index);
-      }
-    }
-  }
-
-  private static boolean restatesExistingStep(JsonNode document, JsonNode proposed) {
-    String id = proposed.path("existingId").asText();
-    if (id.isBlank()) {
-      id = proposed.path("id").asText();
-    }
-    String alias = proposed.path("alias").asText();
-    String label = proposed.path("label").asText();
-    for (JsonNode existing : document.path("flow").path("steps")) {
-      String existingId = existing.path("id").asText();
-      String existingLabel = existing.path("label").asText();
-      if (sameStepName(id, existingId)
-          || sameStepName(alias, existingId)
-          || sameStepName(label, existingLabel)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean sameStepName(String proposed, String existing) {
-    return !proposed.isBlank() && proposed.equals(existing);
-  }
-
-  private static void rewriteStepLabels(JsonNode document, JsonNode tree) {
-    Set<String> ids = new LinkedHashSet<>();
-    Map<String, String> labelToId = new LinkedHashMap<>();
     for (JsonNode step : document.path("flow").path("steps")) {
-      String id = step.path("id").asText();
-      if (id.isBlank()) {
-        continue;
-      }
-      ids.add(id);
-      String label = step.path("label").asText();
-      if (!label.isBlank() && !labelToId.containsKey(label)) {
-        labelToId.put(label, id);
+      if (steps.contains(step.path("id").asText())) {
+        addTexts(ids, step.path("sourceIds"));
       }
     }
-    for (JsonNode transfer : tree.path("transfers")) {
-      rewriteStepRef(transfer, "targetStepRef", ids, labelToId);
-      rewriteStepRef(transfer.path("targetPort"), "stepId", ids, labelToId);
-      for (JsonNode source : transfer.path("sourcePorts")) {
-        rewriteStepRef(source, "stepId", ids, labelToId);
-      }
-    }
-    for (JsonNode rule : tree.path("rules")) {
-      rewriteStepRef(rule.path("target"), "stepId", ids, labelToId);
-      for (JsonNode source : rule.path("sources")) {
-        rewriteStepRef(source, "stepId", ids, labelToId);
-      }
-    }
-    for (JsonNode retained : tree.path("retainedValues")) {
-      rewriteStepRef(retained, "stepRef", ids, labelToId);
-      rewriteStepRef(retained.path("source"), "stepId", ids, labelToId);
-    }
-  }
-
-  private static void rewriteStepRef(
-      JsonNode node, String field, Set<String> ids, Map<String, String> labelToId) {
-    if (!(node instanceof ObjectNode object)) {
-      return;
-    }
-    JsonNode value = object.get(field);
-    if (value == null || !value.isTextual()) {
-      return;
-    }
-    String ref = value.asText();
-    if (ref.isBlank() || ids.contains(ref)) {
-      return;
-    }
-    String id = labelToId.get(ref);
-    if (id != null) {
-      object.put(field, id);
-    }
-  }
-
-  private static JsonNode read(String output) {
-    if (output == null || output.isBlank()) {
-      throw new WorkDocumentRejectedException(
-          "MALFORMED_CAPTURE", "Model output is empty. Send one capture object for this task.");
-    }
-    try {
-      return JSON.readTree(output);
-    } catch (Exception failure) {
-      throw new WorkDocumentRejectedException(
-          "MALFORMED_CAPTURE", "Model output is not a capture object. The task was not completed.");
-    }
-  }
-
-  private static String problem(
-      JsonNode document,
-      WorkTaskMaterials materials,
-      String repairRuleId,
-      JsonNode tree,
-      List<String> keptRenames) {
-    if (!"PREPARED".equals(tree.path("outcome").asText())) {
-      return null;
-    }
-    if (repairRuleId != null) {
-      for (JsonNode rule : tree.path("rules")) {
-        if (!repairRuleId.equals(rule.path("existingId").asText())) {
-          return "Repair may replace only rule " + repairRuleId + ".";
-        }
-      }
-    }
-    if (tree.path("rules").isEmpty() && tree.path("retainedValues").isEmpty()) {
-      boolean explicit = false;
-      for (JsonNode transfer : tree.path("transfers")) {
-        String decision = transfer.path("decision").asText();
-        if ("NO_MAPPING".equals(decision)) {
-          if (!transfer.path("requirementRefs").isArray() || transfer.path("requirementRefs").isEmpty()) {
-            return "An explicit no-mapping decision needs evidence. Name the record that supports it.";
-          }
-          explicit = true;
-        } else if (!decision.isBlank()) {
-          return "Mapping decision " + decision + " is unknown. Use an empty decision or NO_MAPPING.";
-        }
-      }
-      if (!explicit) {
-        return "Empty rules do not show that mapping is unnecessary. Supply the rules or record an explicit no-mapping decision with evidence.";
-      }
-    }
-    List<String> retained = new ArrayList<>();
-    for (JsonNode value : tree.path("retainedValues")) {
-      JsonNode source = value.path("source");
-      String missingSource = unknownStepPort(materials, source);
-      if (missingSource != null) {
-        return missingSource;
-      }
-      retained.add(leaf(source.path("fieldPath").asText()));
-    }
-    String heldQuestion = null;
-    if (tree.get("rules") instanceof ArrayNode rules) {
-      List<Integer> dropped = new ArrayList<>();
-      for (int index = 0; index < rules.size(); index++) {
-        JsonNode rule = rules.get(index);
-        JsonNode target = rule.path("target");
-        String prefix =
-            inventedPrefix(
-                document,
-                materials,
-                target.path("stepId").asText(),
-                portName(target.path("port").asText()),
-                target.path("fieldPath").asText());
-        if (prefix != null) {
-          dropped.add(index);
-          if (heldQuestion == null) {
-            heldQuestion = prefix;
-          }
+    LinkedHashSet<String> withCorrections = new LinkedHashSet<>(ids);
+    boolean grew = true;
+    while (grew) {
+      grew = false;
+      for (String id : List.copyOf(withCorrections)) {
+        JsonNode source = findSource(document, id);
+        if (source == null) {
           continue;
         }
-        String blocking = blockingRuleProblem(document, materials, rule, retained);
-        if (blocking != null) {
-          return blocking;
+        for (JsonNode corrected : source.path("correctionOf")) {
+          if (withCorrections.add(corrected.asText())) {
+            grew = true;
+          }
         }
-        String rename = unnamedRename(materials, tree, rule);
-        if (rename != null) {
-          dropped.add(index);
-          if (heldQuestion == null) {
-            heldQuestion = rename;
+        for (JsonNode passage : source.path("passages")) {
+          withCorrections.add(passage.path("id").asText());
+        }
+      }
+    }
+    withCorrections.remove("");
+    return List.copyOf(withCorrections);
+  }
+
+  private static boolean ownsPort(JsonNode transfer, String stepId, String port) {
+    for (JsonNode source : transfer.path("sourcePorts")) {
+      if (stepId.equals(source.path("stepId").asText())
+          && port.equals(schemaPort(source.path("portName").asText()))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean retainedProducerPort(
+      JsonNode document, JsonNode transfer, String stepId, String port) {
+    for (JsonNode retainedId : transfer.path("requiredRetainedIds")) {
+      JsonNode retained = findRetained(document, retainedId.asText());
+      if (retained != null && stepId.equals(retained.path("producerStepId").asText())) {
+        String retainedPort = schemaPort(retained.path("source").path("port").asText());
+        if (retainedPort.isBlank()) {
+          retainedPort = "payload";
+        }
+        if (port.equals(retainedPort)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private static JsonNode findTransfer(JsonNode document, String transferId) {
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        if (transferId.equals(transfer.path("id").asText())) {
+          return transfer;
+        }
+      }
+    }
+    return null;
+  }
+
+  private static JsonNode transferOfRule(JsonNode document, String ruleId) {
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        for (JsonNode rule : transfer.path("rules")) {
+          if (ruleId.equals(rule.path("id").asText())) {
+            return transfer;
           }
         }
       }
-      for (int index = dropped.size() - 1; index >= 0; index--) {
-        rules.remove(dropped.get(index).intValue());
-      }
-    }
-    if (heldQuestion != null && tree.path("rules").isEmpty()) {
-      return heldQuestion;
-    }
-    if (heldQuestion != null) {
-      keptRenames.add(heldQuestion);
     }
     return null;
   }
 
-  private static String blockingRuleProblem(
-      JsonNode document, WorkTaskMaterials materials, JsonNode rule, List<String> retained) {
-    JsonNode target = rule.path("target");
-    String path = target.path("fieldPath").asText();
-    String targetLeaf = leaf(path);
-    if ("request".equals(portName(target.path("port").asText()))
-        && serviceCall(document, target.path("stepId").asText())
-        && retained.contains(targetLeaf)) {
-      throw new WorkDocumentRejectedException(
-          "RETAINED_ON_REQUEST",
-          "Retained field "
-              + targetLeaf
-              + " stays in context. Do not add it to the service request.");
-    }
-    String missing =
-        unknownPath(
-            materials, target.path("stepId").asText(), portName(target.path("port").asText()), path);
-    if (missing != null) {
-      return missing;
-    }
-    for (JsonNode source : rule.path("sources")) {
-      String missingSource = unknownStepPort(materials, source);
-      if (missingSource != null) {
-        return missingSource;
-      }
-    }
-    return null;
-  }
-
-  private static String unnamedRename(WorkTaskMaterials materials, JsonNode tree, JsonNode rule) {
-    String targetLeaf = leaf(rule.path("target").path("fieldPath").asText());
-    for (JsonNode source : rule.path("sources")) {
-      if (!"RETAINED".equals(source.path("kind").asText())) {
-        continue;
-      }
-      String sourceLeaf = sourceLeaf(tree, source);
-      if (sourceLeaf.isBlank() || sourceLeaf.equalsIgnoreCase(targetLeaf)) {
-        continue;
-      }
-      if (!renameEvidence(materials, sourceLeaf, targetLeaf)) {
-        return "Field "
-            + targetLeaf
-            + " does not match source "
-            + sourceLeaf
-            + ". Provide context evidence for that relationship.";
-      }
-    }
-    return null;
-  }
-
-  private static boolean serviceCall(JsonNode document, String stepId) {
+  private static JsonNode findRetained(JsonNode document, String id) {
     for (JsonNode step : document.path("flow").path("steps")) {
-      if (stepId.equals(step.path("id").asText())) {
-        return "SERVICE_CALL".equals(step.path("kind").asText());
-      }
-    }
-    return false;
-  }
-
-  private static String inventedPrefix(
-      JsonNode document, WorkTaskMaterials materials, String stepId, String port, String path) {
-    String first = firstSegment(path);
-    if (first.isBlank() || schemaHas(materials, stepId, port, first)) {
-      return null;
-    }
-    for (JsonNode step : document.path("flow").path("steps")) {
-      if (!stepId.equals(step.path("id").asText()) && !first.equals(step.path("label").asText())) {
-        continue;
-      }
-      if (first.equals(step.path("label").asText())
-          || first.equals(step.path("binding").path("operationId").asText())) {
-        return "Name "
-            + first
-            + " is the contract, not a JSON prefix. Use the field path from the selected schema.";
-      }
-    }
-    return null;
-  }
-
-  private static String unknownStepPort(WorkTaskMaterials materials, JsonNode source) {
-    if (!"STEP_PORT".equals(source.path("kind").asText())) {
-      return null;
-    }
-    return unknownPath(
-        materials,
-        source.path("stepId").asText(),
-        portName(source.path("port").asText()),
-        source.path("fieldPath").asText());
-  }
-
-  private static String unknownPath(WorkTaskMaterials materials, String stepId, String port, String path) {
-    if (path.isBlank() || schemaHasPath(materials, stepId, port, path)) {
-      return null;
-    }
-    boolean covered = false;
-    for (SchemaFragment schema : materials.schemas()) {
-      if (stepId.equals(schema.stepId()) && port.equals(schema.portName())) {
-        covered = true;
-      }
-    }
-    if (!covered) {
-      return null;
-    }
-    return "Field path " + path + " is not in the selected contract. Name a contract field or ask.";
-  }
-
-  private static boolean schemaHas(WorkTaskMaterials materials, String stepId, String port, String name) {
-    JsonNode properties = properties(materials, stepId, port);
-    return properties != null && properties.has(name);
-  }
-
-  private static boolean schemaHasPath(WorkTaskMaterials materials, String stepId, String port, String path) {
-    JsonNode properties = properties(materials, stepId, port);
-    if (properties == null) {
-      return false;
-    }
-    String rest = path.startsWith("$.") ? path.substring(2) : path;
-    JsonNode current = properties;
-    int start = 0;
-    while (start <= rest.length()) {
-      int dot = rest.indexOf('.', start);
-      String name = dot < 0 ? rest.substring(start) : rest.substring(start, dot);
-      if (name.isBlank() || !current.has(name)) {
-        return false;
-      }
-      if (dot < 0) {
-        return true;
-      }
-      current = current.path(name).path("properties");
-      start = dot + 1;
-    }
-    return false;
-  }
-
-  private static JsonNode properties(WorkTaskMaterials materials, String stepId, String port) {
-    for (SchemaFragment schema : materials.schemas()) {
-      if (!stepId.equals(schema.stepId()) || !port.equals(schema.portName())) {
-        continue;
-      }
-      try {
-        return JSON.readTree(schema.body()).path("properties");
-      } catch (Exception failure) {
-        return null;
-      }
-    }
-    return null;
-  }
-
-  private static String sourceLeaf(JsonNode tree, JsonNode source) {
-    if ("RETAINED".equals(source.path("kind").asText())) {
-      String id = source.path("retainedValueId").asText();
-      for (JsonNode value : tree.path("retainedValues")) {
-        if (id.equals(value.path("alias").asText()) || id.equals(value.path("existingId").asText())) {
-          return leaf(value.path("source").path("fieldPath").asText());
+      for (JsonNode retained : step.path("data").path("retainedValues")) {
+        if (id.equals(retained.path("id").asText())) {
+          return retained;
         }
       }
-      return "";
     }
-    return leaf(source.path("fieldPath").asText());
+    return null;
   }
 
-  private static boolean renameEvidence(WorkTaskMaterials materials, String sourceLeaf, String targetLeaf) {
-    for (String constraint : materials.globalConstraints()) {
-      if (constraint.startsWith(SCHEMA_CONSTRAINT) || constraint.equals(INSTRUCTIONS)) {
-        continue;
+  private static JsonNode findSource(JsonNode document, String id) {
+    for (JsonNode source : document.path("sources")) {
+      if (id.equals(source.path("id").asText())) {
+        return source;
       }
-      if (containsToken(constraint, sourceLeaf) && containsToken(constraint, targetLeaf)) {
+    }
+    return null;
+  }
+
+  private static SchemaFragment schema(WorkTaskMaterials materials, String stepId, String port) {
+    for (SchemaFragment candidate : materials.schemas()) {
+      if (stepId.equals(candidate.stepId()) && port.equals(candidate.portName())) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  private static boolean label(JsonNode document, String name) {
+    for (JsonNode step : document.path("flow").path("steps")) {
+      if (name.equals(step.path("label").asText())) {
         return true;
       }
     }
     return false;
   }
 
-  private static boolean containsToken(String text, String token) {
-    if (text == null || token == null || token.isEmpty()) {
+  private static boolean operation(JsonNode document, String name) {
+    for (JsonNode step : document.path("flow").path("steps")) {
+      if (name.equals(step.path("binding").path("operationId").asText())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean samePath(String stored, String proposed) {
+    if (stored == null || proposed == null || stored.isBlank() || proposed.isBlank()) {
       return false;
     }
-    int from = 0;
-    while (from <= text.length() - token.length()) {
-      int at = text.indexOf(token, from);
-      if (at < 0) {
-        return false;
-      }
-      int end = at + token.length();
-      boolean left = at == 0 || !Character.isLetterOrDigit(text.charAt(at - 1));
-      boolean right = end == text.length() || !Character.isLetterOrDigit(text.charAt(end));
-      if (left && right) {
-        return true;
-      }
-      from = at + 1;
-    }
-    return false;
+    String left = stored.startsWith("$.") ? stored : "$." + stored;
+    String right = proposed.startsWith("$.") ? proposed : "$." + proposed;
+    return left.equals(right);
   }
 
-  private static void rewriteContractForm(JsonNode tree, WorkTaskMaterials materials) {
-    for (JsonNode transfer : tree.path("transfers")) {
-      rewritePort(transfer.path("targetPort"), "portName");
-      for (JsonNode source : transfer.path("sourcePorts")) {
-        rewritePort(source, "portName");
-      }
+  private static void requireEvidence(JsonNode node, List<String> allowed) {
+    List<String> evidence = texts(node);
+    if (evidence.isEmpty()) {
+      throw new WorkDocumentRejectedException(
+          "UNEVIDENCED_MAPPING", "This outcome needs evidence. Cite a listed evidence ref.");
     }
-    for (JsonNode rule : tree.path("rules")) {
-      rewriteField(materials, rule.path("target"));
-      for (JsonNode source : rule.path("sources")) {
-        rewriteField(materials, source);
+    requireMembers(evidence, allowed, "Evidence ref ");
+  }
+
+  private static void requireMembers(List<String> values, List<String> allowed, String label) {
+    for (String value : values) {
+      if (!allowed.contains(value)) {
+        throw new WorkDocumentRejectedException(
+            "MALFORMED_REFERENCE", label + value + " is not allowed. Use a listed value.");
       }
-    }
-    for (JsonNode retained : tree.path("retainedValues")) {
-      rewriteField(materials, retained.path("source"));
     }
   }
 
-  private static void rewritePort(JsonNode node, String field) {
-    if (!(node instanceof ObjectNode object)) {
-      return;
-    }
-    JsonNode value = object.get(field);
-    if (value == null || !value.isTextual()) {
-      return;
-    }
-    object.put(field, portName(value.asText()));
+  private static JsonNode question(JsonNode tree) {
+    return object(tree, "question");
   }
 
-  private static void rewriteField(WorkTaskMaterials materials, JsonNode node) {
-    if (!(node instanceof ObjectNode object)) {
-      return;
+  private static JsonNode object(JsonNode tree, String name) {
+    JsonNode node = tree.path(name);
+    if (node.isMissingNode() || node.isNull()) {
+      return JSON.createObjectNode();
     }
-    rewritePort(object, "port");
-    JsonNode pathNode = object.get("fieldPath");
-    if (pathNode == null || !pathNode.isTextual()) {
-      return;
+    if (!node.isObject()) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_CAPTURE",
+          "Capture property " + name + " must be an object. Send the object this task schema defines.");
     }
-    String path = pathNode.asText();
-    if (path.isBlank() || "$".equals(path) || path.startsWith("$.")) {
-      return;
-    }
-    String stepId = object.path("stepId").asText();
-    String port = portName(object.path("port").asText());
-    if (schemaHasPath(materials, stepId, port, path)) {
-      object.put("fieldPath", "$." + path);
-    }
+    return node;
   }
 
-  private static String portName(String port) {
+  private static QuestionChoiceKind choice(String raw) {
+    if (raw == null || raw.isBlank() || "UNSPECIFIED".equals(raw)) {
+      return QuestionChoiceKind.UNSPECIFIED;
+    }
+    if ("FIELD_RELATIONSHIP".equals(raw)) {
+      return QuestionChoiceKind.FIELD_RELATIONSHIP;
+    }
+    throw new WorkDocumentRejectedException(
+        "MALFORMED_REFERENCE",
+        "Choice kind " + raw + " is unknown. Use UNSPECIFIED or FIELD_RELATIONSHIP.");
+  }
+
+  private static QuestionFieldRef field(JsonNode question, String side) {
+    return new QuestionFieldRef(
+        question.path(side + "StepId").asText(),
+        schemaPort(question.path(side + "Port").asText()),
+        question.path(side + "Field").asText(),
+        question.path(side + "RetainedId").asText());
+  }
+
+  private static TransferOutcome outcome(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return TransferOutcome.UNSPECIFIED;
+    }
+    for (TransferOutcome value : TransferOutcome.values()) {
+      if (value.name().equals(raw)) {
+        return value;
+      }
+    }
+    return TransferOutcome.UNSPECIFIED;
+  }
+
+  private static String schemaPort(String port) {
     return switch (port) {
       case "INBOUND_PAYLOAD" -> "payload";
       case "OUTBOUND_REQUEST" -> "request";
       case "SUCCESS_RESPONSE" -> "success";
       case "FAILURE_OUTCOME" -> "failure";
       case "RETAINED_CONTEXT" -> "context";
+      case null -> "";
       default -> port;
     };
   }
@@ -616,91 +800,39 @@ public final class WorkMapping {
   }
 
   private static String leaf(String path) {
+    if (path == null) {
+      return "";
+    }
     int dot = path.lastIndexOf('.');
     return dot < 0 ? path : path.substring(dot + 1);
   }
 
-  private static String sourceId(JsonNode document) {
-    String id = document.path("sources").path(0).path("id").asText();
-    return id.isBlank() ? "src-map" : id;
-  }
-
-  private static String preparedWithQuestion(JsonNode tree, String question, String sourceId) {
-    try {
-      ObjectNode body = (ObjectNode) JSON.readTree(complete(tree));
-      body.put("outcome", "PREPARED");
-      body.put("question", question);
-      body.put("unresolvedChoice", "mapping-field");
-      ArrayNode evidence = JSON.createArrayNode();
-      evidence.add(sourceId);
-      body.set("clarificationEvidenceIds", evidence);
-      return body.toString();
-    } catch (Exception failure) {
-      throw new IllegalStateException("Prepared mapping capture could not be written.", failure);
-    }
-  }
-
-  private static String complete(JsonNode tree) {
-    ObjectNode body = tree.deepCopy();
-    for (String name :
-        List.of(
-            "requirements",
-            "steps",
-            "connections",
-            "sequenceGroups",
-            "conditionGroups",
-            "splitGroups",
-            "loopGroups",
-            "retryGroups",
-            "errorScopeGroups",
-            "transfers",
-            "rules",
-            "retainedValues",
-            "deletes",
-            "clarificationEvidenceIds",
-            "defectEvidenceIds")) {
-      if (!body.has(name)) {
-        body.set(name, JSON.createArrayNode());
+  private static List<String> texts(JsonNode node) {
+    List<String> values = new ArrayList<>();
+    if (node != null && node.isArray()) {
+      for (JsonNode child : node) {
+        if (!child.asText().isBlank()) {
+          values.add(child.asText());
+        }
       }
     }
-    for (String name :
-        List.of("question", "unresolvedChoice", "defectRecordRef", "contradiction", "issueCategory")) {
-      if (!body.has(name)) {
-        body.put(name, "");
-      }
-    }
-    return body.toString();
+    return values;
   }
 
-  private static String clarification(String question, String sourceId) {
-    ObjectNode body = JSON.createObjectNode();
-    body.put("outcome", "NEEDS_CLARIFICATION");
-    for (String name :
-        List.of(
-            "requirements",
-            "steps",
-            "connections",
-            "sequenceGroups",
-            "conditionGroups",
-            "splitGroups",
-            "loopGroups",
-            "retryGroups",
-            "errorScopeGroups",
-            "transfers",
-            "rules",
-            "retainedValues",
-            "deletes",
-            "clarificationEvidenceIds",
-            "defectEvidenceIds")) {
-      body.set(name, JSON.createArrayNode());
+  private static ArrayNode textsNode(JsonNode node) {
+    ArrayNode array = JSON.createArrayNode();
+    for (String value : texts(node)) {
+      array.add(value);
     }
-    ((ArrayNode) body.get("clarificationEvidenceIds")).add(sourceId);
-    body.put("question", question);
-    body.put("unresolvedChoice", "mapping-field");
-    body.put("defectRecordRef", "");
-    body.put("contradiction", "");
-    body.put("issueCategory", "");
-    return body.toString();
+    return array;
+  }
+
+  private static void addTexts(Set<String> target, JsonNode node) {
+    target.addAll(texts(node));
+  }
+
+  private static String command(String taskId, WorkDocumentState state) {
+    return taskId + ":" + state.revision();
   }
 
   private static String loadInstructions() {

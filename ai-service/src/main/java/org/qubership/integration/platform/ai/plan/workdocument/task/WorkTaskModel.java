@@ -1,7 +1,7 @@
 package org.qubership.integration.platform.ai.plan.workdocument.task;
 
-/** Provider boundary for one task prompt. Tests supply a fake. */
+/** Provider boundary for one scoped task. Tests and the checkpoint adapter implement this. */
 public interface WorkTaskModel {
 
-  String complete(String prompt);
+  String complete(WorkTaskRequest request);
 }

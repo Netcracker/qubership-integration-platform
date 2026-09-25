@@ -47,7 +47,7 @@ class WorkLogicalFlowTest {
   private static final ObjectMapper JSON = new ObjectMapper().registerModule(new JavaTimeModule());
   private static final String LISTS =
       """
-      "requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"transfers":[],"rules":[],"retainedValues":[],"deletes":[]
+      "requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[]
       """;
 
   private ProductPipelineRunStore runs;
@@ -75,8 +75,8 @@ class WorkLogicalFlowTest {
         flow.design(
             RUN_ID,
             materials(),
-            prompt -> {
-              prompts.add(prompt);
+            request -> {
+              prompts.add(request.prompt());
               return omCapture();
             });
 
@@ -101,7 +101,7 @@ class WorkLogicalFlowTest {
     WorkDocumentRejectedException rejected =
         assertThrows(
             WorkDocumentRejectedException.class,
-            () -> flow.design(RUN_ID, materials(), prompt -> synchronousResultCapture()));
+            () -> flow.design(RUN_ID, materials(), request -> synchronousResultCapture()));
 
     assertEquals("SYNCHRONOUS_RESULT", rejected.code());
     assertEquals(before, runs.load(RUN_ID).orElseThrow().run().workDocumentRef());
@@ -110,7 +110,7 @@ class WorkLogicalFlowTest {
 
   @Test
   void localProcessingOnSuccessStaysAndReceiveResultIsRejected() {
-    WorkCommit kept = flow.design(RUN_ID, materials(), prompt -> localProcessingCapture());
+    WorkCommit kept = flow.design(RUN_ID, materials(), request -> localProcessingCapture());
 
     JsonNode steps = steps(kept.state());
     assertEquals("LOCAL", stepById(steps, stepId(steps, "Normalize")).path("kind").asText());
@@ -120,7 +120,7 @@ class WorkLogicalFlowTest {
     WorkDocumentRejectedException rejected =
         assertThrows(
             WorkDocumentRejectedException.class,
-            () -> flow.design(RUN_ID, materials(), prompt -> synchronousResultCapture()));
+            () -> flow.design(RUN_ID, materials(), request -> synchronousResultCapture()));
 
     assertEquals("SYNCHRONOUS_RESULT", rejected.code());
     assertEquals(afterLocal, runs.load(RUN_ID).orElseThrow().run().workDocumentRef());
@@ -129,7 +129,7 @@ class WorkLogicalFlowTest {
 
   @Test
   void callbackAndRepeatedCallsStayDistinct() {
-    WorkCommit commit = flow.design(RUN_ID, materials(), prompt -> callbackAndRepeatCapture());
+    WorkCommit commit = flow.design(RUN_ID, materials(), request -> callbackAndRepeatCapture());
 
     JsonNode steps = steps(commit.state());
     List<String> calls = new ArrayList<>();
@@ -171,7 +171,7 @@ class WorkLogicalFlowTest {
             repairRun,
             "reply",
             materials(),
-            prompt ->
+            request ->
                 prepared(
                     """
                     "steps":[{"existingId":"reply","alias":"","kind":"REPLY","label":"onTaskResult","intent":"Return the corrected result","sourceRefs":["src-om"],"requirementRefs":["req-constant"]}]
@@ -192,7 +192,7 @@ class WorkLogicalFlowTest {
 
   @Test
   void conditionAndLoopTopologyReachesPlanning() {
-    WorkCommit commit = flow.design(RUN_ID, materials(), prompt -> topologyCapture());
+    WorkCommit commit = flow.design(RUN_ID, materials(), request -> topologyCapture());
 
     JsonNode stored = steps(commit.state());
     JsonNode planning = WorkLogicalFlow.planningTopology(commit.state());
@@ -205,13 +205,13 @@ class WorkLogicalFlowTest {
 
   @Test
   void contradictionOpensLogicalRepair() {
-    WorkCommit designed = flow.design(RUN_ID, materials(), prompt -> omCapture());
+    WorkCommit designed = flow.design(RUN_ID, materials(), request -> omCapture());
     String callId = stepId(steps(designed.state()), "createTask");
     WorkCommit commit =
         flow.design(
             RUN_ID,
             materials(),
-            prompt ->
+            request ->
                 outcome(
                     "INPUT_DEFECT",
                     "",
