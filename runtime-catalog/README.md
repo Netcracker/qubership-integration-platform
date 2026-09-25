@@ -2,14 +2,14 @@
 
 Runtime Catalog Service is a part of Qubership Integration Platform.
 It provides an API to manage integration flows (so-called integration chains) snapshots and deployments.
-Service publishes information about integration chain deployments to Consul from where it is fetched by [Engine](https://github.com/Netcracker/qubership-integration-engine).  
+Service publishes information about integration chain deployments to Consul from where it is fetched by [Engine](../engine).  
 All operations on integration chains are being logged, and an API is provided to get the action journal.
 
 ## Installation
 
 Runtime Catalog Service is a Spring Boot Application and requires Java 21 and Maven to build.
 [Dockerfile](Dockerfile) is provided to build a containerized application.
-It can be run locally using a [Docker compose configuration](https://github.com/Netcracker/qubership-integration-platform).
+It can be run locally using a [Docker compose configuration](../infrastructure).
 
 ## Configuration
 
@@ -72,7 +72,7 @@ mvn test -Dtest=OpenApiSpecGeneratorTest
 
 For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues see [Security Reporting Process](../SECURITY.md).
 
-The library uses [Checkstyle](https://checkstyle.org/) via [Maven Checkstyle Plugin](https://maven.apache.org/plugins/maven-checkstyle-plugin/) to ensure code style consistency among Qubership Integration Platform's libraries and services. The rules are located in a separate [repository](https://github.com/Netcracker/qubership-integration-checkstyle).
+The library uses [Checkstyle](https://checkstyle.org/) via [Maven Checkstyle Plugin](https://maven.apache.org/plugins/maven-checkstyle-plugin/) to ensure code style consistency among Qubership Integration Platform's libraries and services. The rules are located in the [checkstyle](../checkstyle) module.
 
 Commits and pool requests should follow [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) strategy.
 
@@ -82,4 +82,4 @@ This software is licensed under Apache License Version 2.0. License text is loca
 
 ## Additional Resources
 
-- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment guide.
+- [Qubership Integration Platform](../README.md) — core deployment guide.
