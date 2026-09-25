@@ -68,6 +68,19 @@ class ContextStorageProcessorTest {
     }
 
     @Test
+    void setStoresUnderExplicitContextIdWhenOneIsSet() throws Exception {
+        exchange.setProperty(PREFIX + "contextId", "explicit");
+        exchange.setProperty(PREFIX + "operation", "SET");
+        exchange.setProperty(PREFIX + "key", "k");
+        exchange.setProperty(PREFIX + "value", "v");
+        exchange.setProperty(PREFIX + "ttl", "600");
+
+        processor.process(exchange);
+
+        verify(contextStorageService).storeValue("k", "v", CONTEXT_SERVICE_ID, "explicit", 600L);
+    }
+
+    @Test
     void getReadsUnderCorrelationIdWhenContextIdIsEmpty() throws Exception {
         exchange.setProperty(PREFIX + "operation", "GET");
         exchange.setProperty(PREFIX + "keys", "k");
@@ -79,6 +92,31 @@ class ContextStorageProcessorTest {
         processor.process(exchange);
 
         assertEquals(Map.of("k", "v"), exchange.getMessage().getBody());
+    }
+
+    @Test
+    void getReadsUnderExplicitContextIdWhenOneIsSet() throws Exception {
+        exchange.setProperty(PREFIX + "contextId", "explicit");
+        exchange.setProperty(PREFIX + "operation", "GET");
+        exchange.setProperty(PREFIX + "keys", "k");
+        exchange.setProperty(PREFIX + "target", "BODY");
+        exchange.setProperty(PREFIX + "unwrap", "false");
+        when(contextStorageService.getValue(CONTEXT_SERVICE_ID, "explicit", List.of("k")))
+                .thenReturn(Map.of("k", "v"));
+
+        processor.process(exchange);
+
+        assertEquals(Map.of("k", "v"), exchange.getMessage().getBody());
+    }
+
+    @Test
+    void deleteRemovesExplicitContextWhenOneIsSet() throws Exception {
+        exchange.setProperty(PREFIX + "contextId", "explicit");
+        exchange.setProperty(PREFIX + "operation", "DELETE");
+
+        processor.process(exchange);
+
+        verify(contextStorageService).deleteValue(CONTEXT_SERVICE_ID, "explicit");
     }
 
     @Test
