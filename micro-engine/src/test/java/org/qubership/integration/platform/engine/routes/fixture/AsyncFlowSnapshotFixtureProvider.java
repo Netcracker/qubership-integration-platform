@@ -25,7 +25,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -39,7 +38,6 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
     private static final String ACTIVE_THREAD_COUNTER_BEAN_NAME = "activeThreadCounterIncrementer";
     private static final String SPLIT_ASYNC_PROCESSOR_BEAN_NAME = "splitAsyncProcessor";
     private static final String CHAIN_FINISH_PROCESSOR_BEAN_NAME = "chainFinishProcessor";
-    private static final long WAIT_TIMEOUT_SECONDS = 5;
 
     @Override
     public String getId() {
@@ -140,7 +138,8 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
             try {
                 // A nested deployment can dispatch only after its parent's gate opens.
                 if (dispatchedBeforeRelease) {
-                    branchStartedBeforeRelease = await(branchStarted, "an asynchronous branch to start");
+                    await(branchStarted, "an asynchronous branch to start");
+                    branchStartedBeforeRelease = true;
                 }
                 noCompletionBeforeRelease = completedExchanges.isEmpty();
             } finally {
@@ -150,10 +149,11 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
 
         @Override
         public void awaitCompletion() {
-            allCompletionsRecorded = await(
+            await(
                     completionsRecorded,
                     expectedCompletionCount + " asynchronous branch completions"
             );
+            allCompletionsRecorded = true;
         }
 
         @Override
@@ -255,12 +255,7 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
             splitAsyncDelegate.process(exchange);
             branchStarted.countDown();
             try {
-                if (!releaseBranches.await(WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-                    throw new IllegalStateException(
-                            "Async flow fixture '" + fixtureId
-                                    + "' timed out waiting for the asynchronous branch gate to open."
-                    );
-                }
+                releaseBranches.await();
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 throw exception;
@@ -367,9 +362,10 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
             return false;
         }
 
-        private boolean await(CountDownLatch latch, String eventDescription) {
+        private void await(CountDownLatch latch, String eventDescription) {
             try {
-                return latch.await(WAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                // The invocation runner owns the deadline and interrupts fixture waits on cancellation.
+                latch.await();
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
                 throw new AssertionError(

@@ -1,0 +1,958 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+fixtures:
+  - id: pubsub-publisher
+    provider: pubsub-grpc
+    sourceElementId: f4644776-fa54-4910-9795-30854b0f2b73
+scenarios:
+  - id: publishes-distinct-messages-with-ordering-and-context
+    scope: Short
+    endpointUri: cip-chain:408ab0fe-3146-477d-9cdf-35c49486cec2
+    invocations:
+      - id: first-message
+        body: Order received
+        headers:
+          Authorization: Bearer first-snapshot-token
+          X-Request-Id: incoming-first
+          X-Snapshot-Header: first-value
+          CamelGooglePubsubOrderingKey: ignored-header-key
+          CamelGooglePubsubAttributes:
+            source: snapshot
+            attempt: '1'
+        properties:
+          outboundRequestId: outgoing-first
+          orderingKey: order-101
+        expectedBody: Order received
+        expectedHeaders:
+          Authorization: Bearer first-snapshot-token
+          X-Snapshot-Header: first-value
+          CamelGooglePubsubOrderingKey: order-101
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-101
+              body: Order received
+              headers:
+                X-Request-Id: outgoing-first
+                CamelGooglePubsubOrderingKey: null
+                Authorization: null
+                X-Snapshot-Header: first-value
+                CamelGooglePubsubAttributes: null
+                source: snapshot
+                attempt: '1'
+            response:
+              properties:
+                expectedTokenRequests: 1
+      - id: second-message-with-utf8
+        body: "Order received \u2014 caf\u00e9 \u2615"
+        headers:
+          Authorization: Bearer second-snapshot-token
+          X-Request-Id: incoming-second
+          X-Snapshot-Header: second-value
+        properties:
+          outboundRequestId: outgoing-second
+          orderingKey: order-202
+        expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+        expectedHeaders:
+          Authorization: Bearer second-snapshot-token
+          X-Snapshot-Header: second-value
+          CamelGooglePubsubOrderingKey: order-202
+        expectedAbsentHeaders:
+          - X-Request-Id
+          - CamelGooglePubsubAttributes
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-202
+              body: "Order received \u2014 caf\u00e9 \u2615"
+              headers:
+                X-Request-Id: outgoing-second
+                CamelGooglePubsubOrderingKey: null
+                Authorization: null
+                X-Snapshot-Header: second-value
+                source: null
+                attempt: null
+            response:
+              properties:
+                expectedTokenRequests: 0
+  - id: publishes-messages-and-recovers-from-service-failures
+    scope: Long
+    endpointUri: cip-chain:408ab0fe-3146-477d-9cdf-35c49486cec2
+    invocations:
+      - id: publishes-with-a-short-lived-token
+        body: Before token expiration
+        headers:
+          X-Request-Id: incoming-before-expiration
+        properties:
+          outboundRequestId: outgoing-before-expiration
+          orderingKey: token-refresh
+        expectedBody: Before token expiration
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: token-refresh
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: token-refresh
+              body: Before token expiration
+              headers:
+                X-Request-Id: outgoing-before-expiration
+                Authorization: null
+            response:
+              properties:
+                shortLivedAccessToken: true
+                expectedTokenRequests: 1
+      - id: publishes-with-a-refreshed-token
+        body: After token expiration
+        headers:
+          X-Request-Id: incoming-after-expiration
+        properties:
+          outboundRequestId: outgoing-after-expiration
+          orderingKey: token-refresh
+        expectedBody: After token expiration
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: token-refresh
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: token-refresh
+              body: After token expiration
+              headers:
+                X-Request-Id: outgoing-after-expiration
+                Authorization: null
+            response:
+              properties:
+                expireAccessToken: true
+                expectedTokenRequests: 1
+      - id: reuses-the-refreshed-token
+        body: Refreshed token remains cached
+        headers:
+          X-Request-Id: incoming-refreshed-cache
+        properties:
+          outboundRequestId: outgoing-refreshed-cache
+          orderingKey: token-refresh
+        expectedBody: Refreshed token remains cached
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: token-refresh
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: token-refresh
+              body: Refreshed token remains cached
+              headers:
+                X-Request-Id: outgoing-refreshed-cache
+                Authorization: null
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: publishes-without-an-ordering-key
+        body: Unordered message
+        headers:
+          X-Request-Id: incoming-unordered
+        properties:
+          outboundRequestId: outgoing-unordered
+        expectedBody: Unordered message
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: null
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              body: Unordered message
+              headers:
+                X-Request-Id: outgoing-unordered
+                CamelGooglePubsubOrderingKey: null
+      - id: publishes-an-empty-body-with-attributes
+        body: ''
+        headers:
+          X-Request-Id: incoming-empty
+          X-Event-Type: heartbeat
+        properties:
+          outboundRequestId: outgoing-empty
+          orderingKey: heartbeat
+        expectedBody: ''
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: heartbeat
+          X-Event-Type: heartbeat
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: heartbeat
+              body: ''
+              headers:
+                X-Request-Id: outgoing-empty
+                CamelGooglePubsubOrderingKey: null
+                X-Event-Type: heartbeat
+      - id: publishes-a-serialized-object
+        body:
+          orderId: order-303
+          quantity: 2
+          active: true
+          customer:
+            name: "Jos\u00e9"
+        headers:
+          X-Request-Id: incoming-object
+        properties:
+          outboundRequestId: outgoing-object
+          orderingKey: order-303
+        expectedBody:
+          orderId: order-303
+          quantity: 2
+          active: true
+          customer:
+            name: "Jos\u00e9"
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: order-303
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-303
+              body:
+                orderId: order-303
+                quantity: 2
+                active: true
+                customer:
+                  name: "Jos\u00e9"
+              headers:
+                X-Request-Id: outgoing-object
+                CamelGooglePubsubOrderingKey: null
+      - id: rejected-message
+        body: Rejected message
+        headers:
+          Authorization: Bearer rejected-snapshot-token
+          X-Request-Id: incoming-rejected
+          X-Snapshot-Header: rejected-value
+        properties:
+          outboundRequestId: outgoing-rejected
+          orderingKey: order-rejected
+        expectedBody: Rejected message
+        expectedHeaders:
+          Authorization: Bearer rejected-snapshot-token
+          X-Snapshot-Header: rejected-value
+          CamelGooglePubsubOrderingKey: order-rejected
+        expectedAbsentHeaders:
+          - X-Request-Id
+          - CamelGooglePubsubMessageId
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-rejected
+              body: Rejected message
+              headers:
+                X-Request-Id: outgoing-rejected
+                CamelGooglePubsubOrderingKey: null
+                Authorization: null
+                X-Snapshot-Header: rejected-value
+            response:
+              properties:
+                grpcStatus: PERMISSION_DENIED
+                grpcMessage: Snapshot publication denied
+        expectedFailure:
+          type: java.util.concurrent.ExecutionException
+          message: 'com.google.api.gax.rpc.PermissionDeniedException: io.grpc.StatusRuntimeException: PERMISSION_DENIED: Snapshot publication denied'
+          cause:
+            type: com.google.api.gax.rpc.PermissionDeniedException
+            message: 'io.grpc.StatusRuntimeException: PERMISSION_DENIED: Snapshot publication denied'
+            cause:
+              type: io.grpc.StatusRuntimeException
+              message: 'PERMISSION_DENIED: Snapshot publication denied'
+              cause: null
+      - id: accepted-message-after-rejection
+        body: Accepted message
+        headers:
+          Authorization: Bearer accepted-snapshot-token
+          X-Request-Id: incoming-accepted
+          X-Snapshot-Header: accepted-value
+        properties:
+          outboundRequestId: outgoing-accepted
+          orderingKey: order-accepted
+        expectedBody: Accepted message
+        expectedHeaders:
+          Authorization: Bearer accepted-snapshot-token
+          X-Snapshot-Header: accepted-value
+          CamelGooglePubsubOrderingKey: order-accepted
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-accepted
+              body: Accepted message
+              headers:
+                X-Request-Id: outgoing-accepted
+                CamelGooglePubsubOrderingKey: null
+                Authorization: null
+                X-Snapshot-Header: accepted-value
+      - id: order-a-1
+        body: order-a:event-1
+        headers:
+          X-Request-Id: incoming-order-a-1
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-order-a-1
+          orderingKey: order-a
+        expectedBody: order-a:event-1
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: order-a
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-a
+              body: order-a:event-1
+              headers:
+                X-Request-Id: outgoing-order-a-1
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: order-b-1
+        body: order-b:event-1
+        headers:
+          X-Request-Id: incoming-order-b-1
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-order-b-1
+          orderingKey: order-b
+        expectedBody: order-b:event-1
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: order-b
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-b
+              body: order-b:event-1
+              headers:
+                X-Request-Id: outgoing-order-b-1
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: order-a-2
+        body: order-a:event-2
+        headers:
+          X-Request-Id: incoming-order-a-2
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-order-a-2
+          orderingKey: order-a
+        expectedBody: order-a:event-2
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: order-a
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 3
+              destination: topicName
+              key: order-a
+              body: order-a:event-2
+              headers:
+                X-Request-Id: outgoing-order-a-2
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+            response:
+              properties:
+                expectedTokenRequests: 0
+                grpcStatus: UNAVAILABLE
+                grpcMessage: Publisher temporarily unavailable
+                grpcFailureCount: 2
+      - id: order-b-2
+        body: order-b:event-2
+        headers:
+          X-Request-Id: incoming-order-b-2
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-order-b-2
+          orderingKey: order-b
+        expectedBody: order-b:event-2
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: order-b
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 2
+              destination: topicName
+              key: order-b
+              body: order-b:event-2
+              headers:
+                X-Request-Id: outgoing-order-b-2
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+            response:
+              properties:
+                expectedTokenRequests: 0
+                grpcStatus: DEADLINE_EXCEEDED
+                grpcMessage: Publish deadline exceeded
+                grpcFailureCount: 1
+      - id: order-a-3
+        body: order-a:event-3
+        headers:
+          X-Request-Id: incoming-order-a-3
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-order-a-3
+          orderingKey: order-a
+        expectedBody: order-a:event-3
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: order-a
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-a
+              body: order-a:event-3
+              headers:
+                X-Request-Id: outgoing-order-a-3
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: order-b-3
+        body: order-b:event-3
+        headers:
+          X-Request-Id: incoming-order-b-3
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-order-b-3
+          orderingKey: order-b
+        expectedBody: order-b:event-3
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: order-b
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-b
+              body: order-b:event-3
+              headers:
+                X-Request-Id: outgoing-order-b-3
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: retries-an-accepted-publication
+        body: order-retry:event-1
+        headers:
+          X-Request-Id: incoming-lost-response
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-lost-response
+          orderingKey: order-retry
+        expectedBody: order-retry:event-1
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: order-retry
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 2
+              destination: topicName
+              key: order-retry
+              body: order-retry:event-1
+              headers:
+                X-Request-Id: outgoing-lost-response
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+            response:
+              properties:
+                lostPublishResponseCount: 1
+                expectedTokenRequests: 0
+      - id: preserves-key-order-after-the-duplicate
+        body: order-retry:event-2
+        headers:
+          X-Request-Id: incoming-after-lost-response
+        properties:
+          outboundRequestId: outgoing-after-lost-response
+          orderingKey: order-retry
+        expectedBody: order-retry:event-2
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: order-retry
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: order-retry
+              body: order-retry:event-2
+              headers:
+                X-Request-Id: outgoing-after-lost-response
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: before-connection-reset
+        body: connection:event-1
+        headers:
+          X-Request-Id: incoming-before-connection-reset
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-before-connection-reset
+          orderingKey: connection-recovery
+        expectedBody: connection:event-1
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: connection-recovery
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: connection-recovery
+              body: connection:event-1
+              headers:
+                X-Request-Id: outgoing-before-connection-reset
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+              properties:
+                orderingKey: connection-recovery
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: during-connection-reset
+        body: connection:event-2
+        headers:
+          X-Request-Id: incoming-during-connection-reset
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-during-connection-reset
+          orderingKey: connection-recovery
+        expectedBody: connection:event-2
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: connection-recovery
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: connection-recovery
+              body: connection:event-2
+              headers:
+                X-Request-Id: outgoing-during-connection-reset
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+              properties:
+                orderingKey: connection-recovery
+            response:
+              properties:
+                expectedTokenRequests: 0
+                disconnect: true
+      - id: after-connection-reset
+        body: connection:event-3
+        headers:
+          X-Request-Id: incoming-after-connection-reset
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-after-connection-reset
+          orderingKey: connection-recovery
+        expectedBody: connection:event-3
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: connection-recovery
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: connection-recovery
+              body: connection:event-3
+              headers:
+                X-Request-Id: outgoing-after-connection-reset
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+              properties:
+                orderingKey: connection-recovery
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: before-topic-recreation
+        body: recreation:event-1
+        headers:
+          X-Request-Id: incoming-before-topic-recreation
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-before-topic-recreation
+          orderingKey: paused-key
+        expectedBody: recreation:event-1
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: paused-key
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: paused-key
+              body: recreation:event-1
+              headers:
+                X-Request-Id: outgoing-before-topic-recreation
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+              properties:
+                orderingKey: paused-key
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: deletes-the-topic
+        body: recreation:event-2
+        headers:
+          X-Request-Id: incoming-deletes-the-topic
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-deletes-the-topic
+          orderingKey: paused-key
+        expectedBody: recreation:event-2
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: paused-key
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+          - CamelGooglePubsubMessageId
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        expectedFailure:
+          type: java.util.concurrent.ExecutionException
+          message: 'com.google.api.gax.rpc.NotFoundException: io.grpc.StatusRuntimeException: NOT_FOUND: Topic not found'
+          cause:
+            type: com.google.api.gax.rpc.NotFoundException
+            message: 'io.grpc.StatusRuntimeException: NOT_FOUND: Topic not found'
+            cause:
+              type: io.grpc.StatusRuntimeException
+              message: 'NOT_FOUND: Topic not found'
+              cause: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: paused-key
+              body: recreation:event-2
+              headers:
+                X-Request-Id: outgoing-deletes-the-topic
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+              properties:
+                orderingKey: paused-key
+            response:
+              properties:
+                expectedTokenRequests: 0
+                topicAction: delete
+      - id: recreates-the-topic-with-the-same-key
+        body: recreation:event-3
+        headers:
+          X-Request-Id: incoming-recreates-the-topic-with-the-same-key
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-recreates-the-topic-with-the-same-key
+          orderingKey: paused-key
+        expectedBody: recreation:event-3
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: paused-key
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+          - CamelGooglePubsubMessageId
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        expectedFailure:
+          type: java.util.concurrent.ExecutionException
+          message: 'java.util.concurrent.CancellationException: Execution cancelled because executing previous runnable failed.'
+          cause:
+            type: java.util.concurrent.CancellationException
+            message: Execution cancelled because executing previous runnable failed.
+            cause: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 0
+              destination: topicName
+              key: paused-key
+              body: recreation:event-3
+              headers:
+                X-Request-Id: outgoing-recreates-the-topic-with-the-same-key
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+              properties:
+                orderingKey: paused-key
+            response:
+              properties:
+                expectedTokenRequests: 0
+                topicAction: recreate
+      - id: publishes-with-another-key-after-recreation
+        body: recreation:event-4
+        headers:
+          X-Request-Id: incoming-publishes-with-another-key-after-recreation
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-publishes-with-another-key-after-recreation
+          orderingKey: healthy-key
+        expectedBody: recreation:event-4
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: healthy-key
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: healthy-key
+              body: recreation:event-4
+              headers:
+                X-Request-Id: outgoing-publishes-with-another-key-after-recreation
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+              properties:
+                orderingKey: healthy-key
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: before-topic-deletion
+        body: deletion:event-1
+        headers:
+          X-Request-Id: incoming-before-topic-deletion
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-before-topic-deletion
+          orderingKey: topic-deletion
+        expectedBody: deletion:event-1
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: topic-deletion
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: topic-deletion
+              body: deletion:event-1
+              headers:
+                X-Request-Id: outgoing-before-topic-deletion
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+              properties:
+                orderingKey: topic-deletion
+            response:
+              properties:
+                expectedTokenRequests: 0
+      - id: after-topic-deletion
+        body: deletion:event-2
+        headers:
+          X-Request-Id: incoming-after-topic-deletion
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-after-topic-deletion
+          orderingKey: topic-deletion
+        expectedBody: deletion:event-2
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: topic-deletion
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+          - CamelGooglePubsubMessageId
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        expectedFailure:
+          type: java.util.concurrent.ExecutionException
+          message: 'com.google.api.gax.rpc.NotFoundException: io.grpc.StatusRuntimeException: NOT_FOUND: Topic not found'
+          cause:
+            type: com.google.api.gax.rpc.NotFoundException
+            message: 'io.grpc.StatusRuntimeException: NOT_FOUND: Topic not found'
+            cause:
+              type: io.grpc.StatusRuntimeException
+              message: 'NOT_FOUND: Topic not found'
+              cause: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 1
+              destination: topicName
+              key: topic-deletion
+              body: deletion:event-2
+              headers:
+                X-Request-Id: outgoing-after-topic-deletion
+                Authorization: null
+                CamelGooglePubsubOrderingKey: null
+              properties:
+                orderingKey: topic-deletion
+            response:
+              properties:
+                expectedTokenRequests: 0
+                topicAction: delete
+  - id: rejects-publication-when-oauth-grant-is-denied
+    scope: Long
+    endpointUri: cip-chain:408ab0fe-3146-477d-9cdf-35c49486cec2
+    invocations:
+      - id: invalid-oauth-grant
+        body: Message with a rejected OAuth grant
+        headers:
+          X-Request-Id: incoming-oauth-denied
+          Authorization: Bearer application-token
+        properties:
+          outboundRequestId: outgoing-oauth-denied
+        expectedBody: Message with a rejected OAuth grant
+        expectedHeaders:
+          CamelGooglePubsubOrderingKey: null
+          Authorization: Bearer application-token
+        expectedAbsentHeaders:
+          - X-Request-Id
+          - CamelGooglePubsubMessageId
+        expectedProperties:
+          internalProperty_overrideContextParams: null
+        expectedFailure:
+          type: java.util.concurrent.ExecutionException
+          message: 'com.google.api.gax.rpc.UnauthenticatedException: io.grpc.StatusRuntimeException: UNAUTHENTICATED: Failed computing credential metadata'
+          cause:
+            type: com.google.api.gax.rpc.UnauthenticatedException
+            message: 'io.grpc.StatusRuntimeException: UNAUTHENTICATED: Failed computing credential metadata'
+            cause:
+              type: io.grpc.StatusRuntimeException
+              message: 'UNAUTHENTICATED: Failed computing credential metadata'
+              cause:
+                type: com.google.auth.oauth2.GoogleAuthException
+                message: |-
+                  Error getting access token for service account: 400 Bad Request
+                  POST http://127.0.0.1:<loopback-port>/token
+                  {
+                    "error" : "invalid_grant"
+                  }, iss: snapshot-publisher@example.com
+                cause:
+                  type: com.google.api.client.http.HttpResponseException
+                  message: |-
+                    400 Bad Request
+                    POST http://127.0.0.1:<loopback-port>/token
+                    {
+                      "error" : "invalid_grant"
+                    }
+                  cause: null
+        interactions:
+          - fixture: pubsub-publisher
+            expectedRequest:
+              count: 0
+              destination: topicName
+            response:
+              properties:
+                oauthError: invalid_grant
+                expectedTokenRequests: 1

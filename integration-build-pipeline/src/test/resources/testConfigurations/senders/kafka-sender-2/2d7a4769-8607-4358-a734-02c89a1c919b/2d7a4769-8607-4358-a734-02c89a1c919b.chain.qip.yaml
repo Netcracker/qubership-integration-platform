@@ -1,0 +1,33 @@
+---
+id: "2d7a4769-8607-4358-a734-02c89a1c919b"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "kafka-sender-sasl-plain"
+content:
+  labels: []
+  elements:
+  - id: "704c5d76-2978-4d1e-ba94-14851e1d220b"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "704c5d76-2978-4d1e-ba94-14851e1d220b"
+  - id: "f195306b-6a64-43ac-90a5-f76a3d4fcc8c"
+    name: "Kafka Sender"
+    type: "kafka-sender-2"
+    properties:
+      brokers: "kafka-custom"
+      connectionSourceType: "manual"
+      key: "order-id"
+      keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      propagateContext: true
+      saslJaasConfig: "org.apache.kafka.common.security.plain.PlainLoginModule required\
+        \ username=\"${exchangeProperty.kafkaUsername}\" password=\"${exchangeProperty.kafkaPassword}\";"
+      saslMechanism: "PLAIN"
+      securityProtocol: "SASL_PLAINTEXT"
+      sslProtocol: "TLS"
+      topics: "test-topic"
+      valueSerializer: "org.apache.kafka.common.serialization.StringSerializer"
+  dependencies:
+  - from: "704c5d76-2978-4d1e-ba94-14851e1d220b"
+    to: "f195306b-6a64-43ac-90a5-f76a3d4fcc8c"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

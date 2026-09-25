@@ -18,10 +18,14 @@ package org.qubership.integration.platform.io.writers.camel.xml.templates;
 
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
@@ -54,6 +58,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ContextConfiguration(
@@ -330,6 +335,88 @@ public class TemplateServiceTest {
         List<String> duplicates = findDuplicateNodeIds(route);
 
         assertTrue(duplicates.isEmpty(), "Duplicate node ids in a single route: " + duplicates);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"customer<&>1", "${exchangeProperty.orderingKey}"})
+    void shouldSetPubSubOrderingHeaderWhenOrderingKeyIsConfigured(String orderingKey) throws IOException {
+        Element element = readRootElement("/testData/input/builder/templates/pubsub_sender.yml");
+        element.getProperties().put("messageOrderingEnabled", true);
+        element.getProperties().put("orderingKey", orderingKey);
+
+        String route = wrap(templateService.applyTemplate(element));
+
+        JAXPXPathEngine xpath = new JAXPXPathEngine();
+        assertEquals(orderingKey, xpath.evaluate(
+                "/route/step/doTry/setHeader[@name='CamelGooglePubsubOrderingKey'][following-sibling::toD]/simple",
+                Input.fromString(route).build()));
+    }
+
+    @ParameterizedTest
+    @NullAndEmptySource
+    void shouldLeavePubSubOrderingHeaderUnchangedWhenOrderingKeyIsNotConfigured(String orderingKey) throws IOException {
+        Element element = readRootElement("/testData/input/builder/templates/pubsub_sender.yml");
+        element.getProperties().put("messageOrderingEnabled", true);
+        if (orderingKey != null) {
+            element.getProperties().put("orderingKey", orderingKey);
+        }
+
+        String route = wrap(templateService.applyTemplate(element));
+
+        assertEquals("0", new JAXPXPathEngine().evaluate(
+                "count(//*[@name='CamelGooglePubsubOrderingKey'])", Input.fromString(route).build()));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(booleans = false)
+    void shouldLeavePubSubOrderingHeaderUnchangedWhenOrderingIsNotEnabled(Boolean orderingEnabled) throws IOException {
+        Element element = readRootElement("/testData/input/builder/templates/pubsub_sender.yml");
+        element.getProperties().put("orderingKey", "${exchangeProperty.orderingKey}");
+        if (orderingEnabled == null) {
+            element.getProperties().remove("messageOrderingEnabled");
+        } else {
+            element.getProperties().put("messageOrderingEnabled", orderingEnabled);
+        }
+
+        String route = wrap(templateService.applyTemplate(element));
+
+        assertEquals("0", new JAXPXPathEngine().evaluate(
+                "count(//*[@name='CamelGooglePubsubOrderingKey'])", Input.fromString(route).build()));
+    }
+
+    @Test
+    void shouldRemoveRabbitMqAuthorizationWhenContextPropagationIsDisabled() throws IOException {
+        Element element = readRootElement("/testData/input/builder/templates/rabbitmq_sender_2.yml");
+        element.getProperties().put("propagateContext", false);
+
+        String route = wrap(templateService.applyTemplate(element));
+
+        JAXPXPathEngine xpath = new JAXPXPathEngine();
+        assertEquals("0", xpath.evaluate(
+                "count(//process[@ref='rabbitMqSenderProcessor' or @ref='contextPropagationProcessor'])",
+                Input.fromString(route).build()));
+        assertEquals("1", xpath.evaluate(
+                "count(/route/doTry/removeHeader[@name='Authorization'][following-sibling::toD])",
+                Input.fromString(route).build()));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(booleans = true)
+    void shouldPropagateRabbitMqContextWhenPropagationIsEnabledOrUnspecified(Boolean propagateContext) throws IOException {
+        Element element = readRootElement("/testData/input/builder/templates/rabbitmq_sender_2.yml");
+        if (propagateContext == null) {
+            element.getProperties().remove("propagateContext");
+        } else {
+            element.getProperties().put("propagateContext", propagateContext);
+        }
+
+        String route = wrap(templateService.applyTemplate(element));
+
+        assertEquals("1", new JAXPXPathEngine().evaluate(
+                "count(/route/doTry/process[@ref='rabbitMqSenderProcessor'][following-sibling::toD])",
+                Input.fromString(route).build()));
     }
 
     private Element readRootElement(String inputPath) throws IOException {

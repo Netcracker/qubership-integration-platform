@@ -1,0 +1,29 @@
+---
+id: "a46ff4f7-88dc-46a6-910f-548e1b77823b"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "rabbitmq-sender-override"
+content:
+  labels: []
+  elements:
+  - id: "585e2fbb-c303-4c2b-b588-7f7687ee7118"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      addresses: "test:12345"
+      connectionSourceType: "manual"
+      exchange: "test"
+      exchangePattern: "InOnly"
+      overrideContextParams:
+        X-Test-Param: "test-value"
+      propagateContext: true
+      vhostClassifierName: "public"
+  - id: "e33de23c-651b-4485-97a2-75f6cf796025"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "e33de23c-651b-4485-97a2-75f6cf796025"
+  dependencies:
+  - from: "e33de23c-651b-4485-97a2-75f6cf796025"
+    to: "585e2fbb-c303-4c2b-b588-7f7687ee7118"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

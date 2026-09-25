@@ -1,0 +1,28 @@
+---
+id: "7afb96af-66d1-46d6-8830-4ac8cceb887e"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "rabbitmq-sender-routingKey"
+content:
+  labels: []
+  elements:
+  - id: "88d981e3-8fc9-4122-aacf-d21738b86e69"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "88d981e3-8fc9-4122-aacf-d21738b86e69"
+  - id: "c0787d0f-b3bf-4ac3-9d6f-8498f4700c29"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      addresses: "test:12345"
+      connectionSourceType: "manual"
+      exchange: "test"
+      exchangePattern: "InOnly"
+      propagateContext: true
+      routingKey: "orderId"
+      vhostClassifierName: "public"
+  dependencies:
+  - from: "88d981e3-8fc9-4122-aacf-d21738b86e69"
+    to: "c0787d0f-b3bf-4ac3-9d6f-8498f4700c29"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -1,9 +1,9 @@
 package org.qubership.integration.platform.engine.routes.tests;
 
 import com.netcracker.cloud.bluegreen.api.service.BlueGreenStatePublisher;
-import io.quarkus.test.component.QuarkusComponentTest;
+import io.quarkus.test.component.QuarkusComponentTestExtension;
+import io.quarkus.test.component.QuarkusComponentTestExtensionBuilder;
 import io.quarkus.test.component.SkipInject;
-import io.quarkus.test.component.TestConfigProperty;
 import jakarta.inject.Inject;
 import org.apache.camel.RoutesBuilder;
 import org.apache.camel.impl.DefaultCamelContext;
@@ -11,7 +11,9 @@ import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.spi.Resource;
 import org.apache.camel.support.ResourceHelper;
 import org.junit.jupiter.api.Named;
+import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -33,6 +35,7 @@ import org.qubership.integration.platform.engine.camel.processors.HttpTriggerFin
 import org.qubership.integration.platform.engine.camel.processors.HttpTriggerProcessor;
 import org.qubership.integration.platform.engine.camel.processors.InterruptExchangeProcessor;
 import org.qubership.integration.platform.engine.camel.processors.KafkaSenderProcessor;
+import org.qubership.integration.platform.engine.camel.processors.RabbitMqSenderProcessor;
 import org.qubership.integration.platform.engine.camel.processors.context.propagation.ContextPropagationProcessor;
 import org.qubership.integration.platform.engine.camel.processors.context.propagation.ContextRestoreProcessor;
 import org.qubership.integration.platform.engine.camel.processors.context.propagation.MessagingXHeadersPropagationProcessorProxy;
@@ -42,6 +45,7 @@ import org.qubership.integration.platform.engine.camel.processors.session.ChainS
 import org.qubership.integration.platform.engine.configuration.ApplicationConfiguration;
 import org.qubership.integration.platform.engine.configuration.MapperConfiguration;
 import org.qubership.integration.platform.engine.configuration.tenant.TenantConfiguration;
+import org.qubership.integration.platform.engine.maas.MaasService;
 import org.qubership.integration.platform.engine.metadata.DeploymentInfo;
 import org.qubership.integration.platform.engine.routes.entrypoint.CatalogSnapshotExecutionEntryPoint;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotExecutionPlan;
@@ -64,57 +68,62 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 @ExtendWith(SnapshotScenarioReportExtension.class)
-@QuarkusComponentTest(
-        value = {
-                SnapshotRuntimeDependencies.class,
-                MetricTagsHelper.class,
-                MetricsStore.class,
-                ApplicationConfiguration.class,
-                MapperConfiguration.class,
-                VariablesService.class,
-                ResourceContentPreprocessingService.class,
-                VariablesInjectorPreprocessor.class,
-                RouteVariablesResolverPreprocessor.class,
-                SourceProcessingNotifier.class,
-                ErrorHandlerFactory.class,
-                ContextPropsProvider.class,
-                CamelExchangeContextPropagation.class,
-                ContextPropagationProcessor.class,
-                ContextRestoreProcessor.class,
-                HandlingHttpBinding.class,
-                ServletCustomFilterStrategy.class,
-                ChainStartProcessor.class,
-                ChainFinishProcessor.class,
-                HttpTriggerProcessor.class,
-                HttpTriggerFinishProcessor.class,
-                InterruptExchangeProcessor.class,
-                ChainExceptionResponseHandlerProcessor.class,
-                ChainExceptionResponseHandlerService.class,
-                ChainGlobalExceptionHandler.class,
-                CorrelationIdSetter.class,
-                JsonMessageValidator.class,
-                KafkaSenderProcessor.class,
-                MessagingXHeadersPropagationProcessorProxy.class,
-                MessagingXHeadersPropagationRestoreProcessorProxy.class,
-                TenantConfiguration.class
-        },
-        addNestedClassesAsComponents = false
-)
-@TestConfigProperty(key = "application.prefix", value = "qip")
-@TestConfigProperty(key = "application.name", value = "snapshot-tests")
-@TestConfigProperty(key = "application.namespace", value = "snapshot-tests")
-@TestConfigProperty(key = "application.cloud_service_name", value = "snapshot-tests")
-@TestConfigProperty(key = "qip.metrics.enabled", value = "false")
-@TestConfigProperty(key = "qip.metrics.http-payload-metrics.enabled", value = "false")
-@TestConfigProperty(key = "qip.metrics.http-payload-metrics.buckets", value = "128,1024")
-@TestConfigProperty(key = "qip.metrics.session-duration.buckets", value = "100ms,1s")
-@TestConfigProperty(key = "qip.metrics.prometheus.init.delay", value = "30")
-@TestConfigProperty(key = "qip.camel.startup.error-handling.ignore-variables-errors", value = "false")
-@TestConfigProperty(key = "qip.camel.startup.error-handling.ignore-route-loading-errors", value = "false")
-@TestConfigProperty(key = "kubernetes.variables-secret.label", value = "qip-variable-type")
-@TestConfigProperty(key = "kubernetes.variables-secret.name", value = "snapshot-test-variables")
-@TestConfigProperty(key = "tenant.default.id", value = "default-tenant")
 class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
+    @RegisterExtension
+    static final QuarkusComponentTestExtension COMPONENT_TEST = new QuarkusComponentTestExtensionBuilder()
+            .addComponentClasses(
+                    SnapshotRuntimeDependencies.class,
+                    MetricTagsHelper.class,
+                    MetricsStore.class,
+                    ApplicationConfiguration.class,
+                    MapperConfiguration.class,
+                    VariablesService.class,
+                    MaasService.class,
+                    ResourceContentPreprocessingService.class,
+                    VariablesInjectorPreprocessor.class,
+                    RouteVariablesResolverPreprocessor.class,
+                    SourceProcessingNotifier.class,
+                    ErrorHandlerFactory.class,
+                    ContextPropsProvider.class,
+                    CamelExchangeContextPropagation.class,
+                    ContextPropagationProcessor.class,
+                    ContextRestoreProcessor.class,
+                    HandlingHttpBinding.class,
+                    ServletCustomFilterStrategy.class,
+                    ChainStartProcessor.class,
+                    ChainFinishProcessor.class,
+                    HttpTriggerProcessor.class,
+                    HttpTriggerFinishProcessor.class,
+                    InterruptExchangeProcessor.class,
+                    ChainExceptionResponseHandlerProcessor.class,
+                    ChainExceptionResponseHandlerService.class,
+                    ChainGlobalExceptionHandler.class,
+                    CorrelationIdSetter.class,
+                    JsonMessageValidator.class,
+                    KafkaSenderProcessor.class,
+                    RabbitMqSenderProcessor.class,
+                    MessagingXHeadersPropagationProcessorProxy.class,
+                    MessagingXHeadersPropagationRestoreProcessorProxy.class,
+                    TenantConfiguration.class
+            )
+            .ignoreNestedClasses()
+            .configProperty("application.prefix", "qip")
+            .configProperty("application.name", "snapshot-tests")
+            .configProperty("application.namespace", "snapshot-tests")
+            .configProperty("application.cloud_service_name", "snapshot-tests")
+            .configProperty("cloud.microservice.namespace", "snapshot-tests")
+            .configProperty("qip.metrics.enabled", "false")
+            .configProperty("qip.metrics.http-payload-metrics.enabled", "false")
+            .configProperty("qip.metrics.http-payload-metrics.buckets", "128,1024")
+            .configProperty("qip.metrics.session-duration.buckets", "100ms,1s")
+            .configProperty("qip.metrics.prometheus.init.delay", "30")
+            .configProperty("qip.camel.startup.error-handling.ignore-variables-errors", "false")
+            .configProperty("qip.camel.startup.error-handling.ignore-route-loading-errors", "false")
+            .configProperty("kubernetes.variables-secret.label", "qip-variable-type")
+            .configProperty("kubernetes.variables-secret.name", "snapshot-test-variables")
+            .configProperty("tenant.default.id", "default-tenant")
+            .build();
+
     @Inject
     DefaultCamelContext camelContext;
 
@@ -125,7 +134,10 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
     @Inject
     BlueGreenStatePublisher blueGreenStatePublisher;
 
-    @ParameterizedTest(name = "{0}/{1}")
+    @Inject
+    MaasService maasService;
+
+    @ParameterizedTest(name = "{0}/{1}", allowZeroInvocations = true)
     @MethodSource("snapshotScenarios")
     void shouldExecuteMicroEngineSnapshot(
             @SkipInject SnapshotExecutionTarget target,
@@ -134,7 +146,8 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
         executeScenario(target, scenario);
     }
 
-    static Stream<Arguments> snapshotScenarios() throws IOException {
+    static Stream<Arguments> snapshotScenarios(TestInfo testInfo) throws IOException {
+        SnapshotShard shard = testInfo.getTestClass().orElseThrow().getAnnotation(SnapshotShard.class);
         SnapshotExecutionPlan plan = new CatalogSnapshotExecutionEntryPoint().buildExecutionPlan();
         assertFalse(plan.getTargets().isEmpty(), "Snapshot execution plan does not contain any targets.");
         plan.getTargets().forEach(target -> assertFalse(
@@ -144,7 +157,10 @@ class MicroEngineSnapshotRouteExecutionTest extends SnapshotRouteExecutionTest {
         return SnapshotScenarioSelector.select(
                 plan,
                 System.getProperty(SnapshotScenarioSelector.TARGET_PROPERTY),
-                System.getProperty(SnapshotScenarioSelector.SCENARIO_PROPERTY)
+                System.getProperty(SnapshotScenarioSelector.SCENARIO_PROPERTY),
+                System.getProperty(SnapshotScenarioSelector.SCOPE_PROPERTY),
+                shard == null ? System.getProperty(SnapshotScenarioSelector.SHARD_COUNT_PROPERTY) : Integer.toString(shard.count()),
+                shard == null ? System.getProperty(SnapshotScenarioSelector.SHARD_INDEX_PROPERTY) : Integer.toString(shard.index())
         ).stream().map(selection -> Arguments.of(
                 Named.of(selection.target().getId(), selection.target()),
                 Named.of(selection.scenario().getId(), selection.scenario())

@@ -16,6 +16,7 @@ fixtures:
     deployment: "parent"
 scenarios:
   - id: "returns-before-parent-and-child-branches-complete"
+    scope: Short
     endpointUri: "cip-chain:14a39104-0635-459e-9132-67267ee81748"
     body: "Original"
     headers:

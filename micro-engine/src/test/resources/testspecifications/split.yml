@@ -26,6 +26,7 @@ fixtures:
     sourceElementId: "1b04978c-98dc-4fc9-89ed-0a4d58bd416e"
 scenarios:
   - id: "executes-branches-in-parallel-and-aggregates-results"
+    scope: Short
     endpointUri: "cip-chain:1a029906-e0f8-457f-9a2e-d805e0f933e6"
     body: "Original"
     headers:
@@ -67,6 +68,7 @@ scenarios:
         expectedExchanges: []
 
   - id: "stops-after-secondary-branch-failure-when-stop-on-exception-is-enabled"
+    scope: Short
     endpointUri: "cip-chain:94985917-7854-4148-bb30-9a6245a76c94"
     invocations:
       - id: "fails-without-continuing-after-split"
@@ -93,6 +95,7 @@ scenarios:
             expectedExchanges: []
 
   - id: "continues-after-secondary-branch-failure-when-stop-on-exception-is-disabled"
+    scope: Short
     endpointUri: "cip-chain:2c566a19-fc4c-4efe-b8fe-b04aa1c214e7"
     body: "Original"
     expectedBody:
@@ -115,6 +118,7 @@ scenarios:
         expectedExchanges: []
 
   - id: "propagates-secondary-headers-and-properties-only-when-enabled"
+    scope: Short
     endpointUri: "cip-chain:9a569606-e358-409f-ae18-cdd32ed3858e"
     body: "Original"
     expectedBody:
@@ -147,6 +151,7 @@ scenarios:
         expectedExchanges: []
 
   - id: "continues-after-timeout-before-secondary-branch-completes"
+    scope: Long
     endpointUri: "cip-chain:4382af5b-9143-4139-9a77-8b3546a96e08"
     body: "Original"
     expectedBody:

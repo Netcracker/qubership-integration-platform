@@ -39,6 +39,8 @@ import org.qubership.integration.platform.engine.routes.support.SnapshotFailureA
 import org.qubership.integration.platform.engine.routes.support.SnapshotValueAssertions;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.ObjectMappers;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,6 +60,7 @@ import static org.junit.jupiter.api.parallel.ExecutionMode.SAME_THREAD;
 @Isolated
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
 abstract class SnapshotRouteExecutionTest {
+    private static final Logger LOG = LoggerFactory.getLogger(SnapshotRouteExecutionTest.class);
     private static final ObjectMapper OBJECT_MAPPER = ObjectMappers.getObjectMapper();
     private static final SnapshotFixtureRegistry FIXTURE_REGISTRY =
             SnapshotFixtureRegistry.withDefaultProviders();
@@ -84,12 +87,21 @@ abstract class SnapshotRouteExecutionTest {
             SnapshotExecutionTarget target,
             SnapshotExecutionScenario scenario
     ) throws Exception {
-        SnapshotScenarioDriver driver = DRIVER_REGISTRY.createDriver(target, scenario);
+        SnapshotExecutionTarget scenarioTarget = target.forScenario(scenario);
+        String progressName = target.getId() + "/" + scenario.getId();
+        long startedAt = System.nanoTime();
+        LOG.info("Snapshot {} [{}/{}]: preparing {} deployment(s), {} fixture(s).",
+                progressName, target.getScenarios().indexOf(scenario) + 1, target.getScenarios().size(),
+                scenarioTarget.getDeployments().size(), scenarioTarget.getFixtures().size());
+        SnapshotScenarioDriver driver = DRIVER_REGISTRY.createDriver(scenarioTarget, scenario);
         List<InvocationResult> invocationResults = new ArrayList<>();
-        try (DeploymentEnvironment environment = new DeploymentEnvironment();
+        try (DeploymentEnvironment environment = new DeploymentEnvironment(scenarioTarget);
                 SnapshotInvocationRunner invocationRunner = SnapshotInvocationRunner.fromSystemProperties()) {
-            ProducerTemplate producerTemplate = environment.deploy(target, scenario, driver);
+            ProducerTemplate producerTemplate = environment.deploy(scenarioTarget, scenario, driver);
+            int invocationIndex = 0;
             for (SnapshotScenarioInvocation invocation : scenario.getInvocations()) {
+                LOG.info("Snapshot {}: invocation {}/{} ({}).", progressName, ++invocationIndex,
+                        scenario.getInvocations().size(), invocation.getId());
                 AtomicReference<String> currentExecution = new AtomicReference<>(
                         invocationStageName(scenario, invocation, "setup")
                 );
@@ -106,6 +118,7 @@ abstract class SnapshotRouteExecutionTest {
                     return null;
                 }, environment::abort);
             }
+            LOG.info("Snapshot {}: verifying fixtures.", progressName);
             invocationRunner.execute(
                     () -> "Snapshot scenario '" + scenario.getId() + "' fixture verification",
                     () -> {
@@ -122,7 +135,14 @@ abstract class SnapshotRouteExecutionTest {
                     },
                     environment::abort
             );
+            LOG.info("Snapshot {}: closing environment.", progressName);
+        } catch (Exception | AssertionError failure) {
+            LOG.error("Snapshot {}: failed after {} ms.", progressName,
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
+            throw failure;
         }
+        LOG.info("Snapshot {}: passed in {} ms.", progressName,
+                TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt));
     }
 
     static void assertScenarioResult(
@@ -254,8 +274,8 @@ abstract class SnapshotRouteExecutionTest {
         private String subjectDeploymentId;
         private boolean beforeContextStopInvoked;
 
-        private DeploymentEnvironment() throws IOException {
-            resourceStager = new SnapshotResourceStager();
+        private DeploymentEnvironment(SnapshotExecutionTarget target) throws IOException {
+            resourceStager = new SnapshotResourceStager(target);
         }
 
         private ProducerTemplate deploy(
@@ -266,10 +286,10 @@ abstract class SnapshotRouteExecutionTest {
             this.driver = driver;
             subjectDeploymentId = target.getSubjectDeploymentId();
             resourceStager.stage(target.getResources());
-            fixtures.addAll(FIXTURE_REGISTRY.createFixtures(target, scenario));
-            for (SnapshotFixture fixture : fixtures) {
-                fixture.start();
-            }
+            SnapshotFixtureStartup startup = SnapshotFixtureStartup.fromSystemProperties();
+            List<SnapshotFixture> pendingFixtures = FIXTURE_REGISTRY.createFixtures(target, scenario);
+            startup.start(pendingFixtures, target.getId() + "/" + scenario.getId());
+            fixtures.addAll(pendingFixtures);
 
             for (SnapshotDeployment deployment : target.getDeployments()) {
                 DefaultCamelContext camelContext = createCamelContext();
