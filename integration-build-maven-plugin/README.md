@@ -149,6 +149,9 @@ The placeholders take single braces, not `${...}`, because Maven would substitut
 name before the plugin sees the template. A placeholder the plugin does not know stays in the URL
 unchanged, so a typo such as `{specId}` surfaces only when the engine fails to fetch the library.
 
+With `options.integrations.libraryDefinitionsEnabled` set to `false`, the integrations configuration lists
+no libraries, and the template is not used.
+
 ### Which chains are built
 
 Without `deployAll`, a chain is built only when both of these hold:
@@ -228,6 +231,7 @@ straight to `kubectl apply`.
 | `mount.emptyDirs`, `mount.resources` | empty | Volumes to mount. |
 | `integrations.camelKSourcesUtilized` | `false` | The engine reads chains from Camel K sources, so no integrations configuration ConfigMap is generated. |
 | `integrations.configurationLocation` | none | Location the engine loads the integrations configuration from; also suppresses the ConfigMap. |
+| `integrations.libraryDefinitionsEnabled` | `true` | Lists a DTO library per specification in the integrations configuration. With `false` none is listed, so the engine has to find the DTO classes some other way, for example in its image. |
 
 The plugin always sets two environment variables itself, and they override the same names in
 `environment`: `MONITORING_ENABLED` from `monitoring.enabled`, and `DEFAULT_SECRET_ENABLED` from
