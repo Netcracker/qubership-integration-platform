@@ -1011,6 +1011,12 @@ final class WorkDocumentEditor {
       String targetStep = resolve(captured.targetStepRef(), aliases, ids(draft.steps, LogicalStep::id), true);
       String id =
           permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.TRANSFER, targetStep);
+      requireReplacementParent(
+          scope,
+          captured.existingId(),
+          WorkRecordKind.TRANSFER,
+          targetStep,
+          parentStep(draft, captured.existingId(), WorkRecordKind.TRANSFER));
       List<PortRef> sources = new ArrayList<>();
       for (PortRef port : captured.sourcePorts()) {
         sources.add(checkedPort(draft, aliases, port));
@@ -1082,6 +1088,12 @@ final class WorkDocumentEditor {
       String stepId = resolve(captured.stepRef(), aliases, ids(draft.steps, LogicalStep::id), true);
       String id =
           permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.RETAINED_VALUE, stepId);
+      requireReplacementParent(
+          scope,
+          captured.existingId(),
+          WorkRecordKind.RETAINED_VALUE,
+          stepId,
+          parentStep(draft, captured.existingId(), WorkRecordKind.RETAINED_VALUE));
       FieldReference source = checkedField(draft, aliases, known, captured.source());
       RetainedValue stored =
           new RetainedValue(
@@ -1219,7 +1231,15 @@ final class WorkDocumentEditor {
 
   private static void requireReplacementParent(
       WorkTaskScope scope, String existingId, WorkRecordKind kind, String parentId, String currentParent) {
-    if (existingId == null || existingId.isBlank() || currentParent == null || currentParent.equals(parentId)) {
+    if (existingId == null || existingId.isBlank()) {
+      return;
+    }
+    if (currentParent == null) {
+      throw reject(
+          "MALFORMED_REFERENCE",
+          "Record " + existingId + " is not a " + kind + ". Replace only an existing " + kind + ".");
+    }
+    if (currentParent.equals(parentId)) {
       return;
     }
     if (scope.allowsCreation(kind, parentId)) {
@@ -1501,14 +1521,32 @@ final class WorkDocumentEditor {
   }
 
   private static String parentTransfer(Draft draft, String ruleId) {
-    if (ruleId == null || ruleId.isBlank()) {
+    return parentStep(draft, ruleId, WorkRecordKind.RULE);
+  }
+
+  private static String parentStep(Draft draft, String recordId, WorkRecordKind kind) {
+    if (recordId == null || recordId.isBlank()) {
       return null;
     }
     for (LogicalStep step : draft.steps) {
-      for (DataTransfer transfer : step.data().transfers()) {
-        for (MappingRule rule : transfer.rules()) {
-          if (rule.id().equals(ruleId)) {
-            return transfer.id();
+      if (kind == WorkRecordKind.TRANSFER) {
+        for (DataTransfer transfer : step.data().transfers()) {
+          if (transfer.id().equals(recordId)) {
+            return step.id();
+          }
+        }
+      } else if (kind == WorkRecordKind.RETAINED_VALUE) {
+        for (RetainedValue value : step.data().retainedValues()) {
+          if (value.id().equals(recordId)) {
+            return step.id();
+          }
+        }
+      } else if (kind == WorkRecordKind.RULE) {
+        for (DataTransfer transfer : step.data().transfers()) {
+          for (MappingRule rule : transfer.rules()) {
+            if (rule.id().equals(recordId)) {
+              return transfer.id();
+            }
           }
         }
       }
