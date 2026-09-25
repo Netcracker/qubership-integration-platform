@@ -4,8 +4,10 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useEffect } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 import { EntityFilterModel } from "../components/table/filter/filterTypes.ts";
+import { useDebouncedValue } from "./useDebouncedValue.ts";
 
 const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 300;
 
 type ActionLogPage = {
   logs: ActionLog[];
@@ -18,23 +20,34 @@ function sortLogsByActionTime(logs: ActionLog[]): ActionLog[] {
 
 export const useActionLog = (
   filters: EntityFilterModel[],
+  searchString: string,
 ): {
-  fetchNextPage: () => Promise<void>;
+  fetchNextPage: () => void;
   logsData: ActionLog[];
   hasNextPage: boolean;
   isFetching: boolean;
   isLoading: boolean;
   refresh: () => Promise<void>;
+  confirmSearch: () => void;
 } => {
   const notificationService = useNotificationService();
   const queryClient = useQueryClient();
+  // Typing is a burst, and each keystroke would otherwise be a request of its own.
+  const [debouncedSearch, confirmSearch] = useDebouncedValue(
+    searchString,
+    SEARCH_DEBOUNCE_MS,
+  );
+  const queryKey = useMemo(
+    () => ["actionLogs", filters, debouncedSearch],
+    [filters, debouncedSearch],
+  );
 
   useEffect(() => {
     void refresh();
   }, []);
 
   const actionLogsQuery = useInfiniteQuery({
-    queryKey: ["actionLogs", filters],
+    queryKey,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<ActionLogPage> => {
       try {
@@ -42,6 +55,7 @@ export const useActionLog = (
           offset: pageParam,
           limit: PAGE_SIZE,
           filters,
+          searchString: debouncedSearch || undefined,
         });
         return {
           logs: response.actionLogs,
@@ -67,18 +81,22 @@ export const useActionLog = (
     [actionLogsQuery.data],
   );
 
+  const { fetchNextPage } = actionLogsQuery;
+  const fetchNext = useCallback(() => {
+    void fetchNextPage();
+  }, [fetchNextPage]);
+
   const refresh = useCallback(async () => {
-    await queryClient.resetQueries({ queryKey: ["actionLogs", filters] });
-  }, [queryClient, filters]);
+    await queryClient.resetQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   return {
     logsData,
-    fetchNextPage: async () => {
-      await actionLogsQuery.fetchNextPage();
-    },
+    fetchNextPage: fetchNext,
     hasNextPage: actionLogsQuery.hasNextPage,
     isFetching: actionLogsQuery.isFetching,
     isLoading: actionLogsQuery.isLoading,
     refresh,
+    confirmSearch,
   };
 };

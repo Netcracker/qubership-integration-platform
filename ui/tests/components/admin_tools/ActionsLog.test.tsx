@@ -3,7 +3,13 @@
  */
 
 import "@testing-library/jest-dom";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import {
   ActionLog,
   EntityType,
@@ -12,6 +18,7 @@ import {
 import { useActionLog } from "../../../src/hooks/useActionLog.tsx";
 import { exportActionsLogAsExcel } from "../../../src/misc/log-export-utils.ts";
 import { ActionsLog } from "../../../src/components/admin_tools/ActionsLog.tsx";
+import { triggerIntersection } from "../../setup/intersection-observer.ts";
 
 // src/components/admin_tools/ActionsLog.integration.test.tsx
 // ====== MOCKS ======
@@ -31,11 +38,6 @@ jest.mock("../../../src/Modals.tsx", () => ({
     showModal: jest.fn(),
     closeModal: jest.fn(),
   }),
-}));
-
-// Mock useResizeHeight (returns [ref, height])
-jest.mock("../../../src/hooks/useResizeHeigth.tsx", () => ({
-  useResizeHeight: () => [jest.fn(), 500],
 }));
 
 jest.mock("../../../src/components/table/useColumnSettingsButton.tsx", () => {
@@ -209,6 +211,7 @@ describe("ActionsLog() ActionsLog method", () => {
         isFetching: false,
         isLoading: false,
         refresh: jest.fn(),
+        confirmSearch: jest.fn(),
       });
       mockExportActionsLogAsExcel.mockClear();
     });
@@ -227,19 +230,37 @@ describe("ActionsLog() ActionsLog method", () => {
       ).toBeInTheDocument();
     });
 
-    it("filters rows by search term across log fields", () => {
+    it("passes the search term to the audit log query", () => {
       render(<ActionsLog />);
       const search = screen.getByPlaceholderText("Search audit log...");
       fireEvent.change(search, { target: { value: "alice" } });
-      expect(screen.getByText("alice")).toBeInTheDocument();
-      expect(screen.queryByText("bob")).not.toBeInTheDocument();
-      expect(screen.queryByText("carol")).not.toBeInTheDocument();
+
+      expect(mockUseActionLog).toHaveBeenLastCalledWith(
+        expect.anything(),
+        "alice",
+      );
+      // The server filters the rows, so the table shows every row it returns.
+      expect(screen.getByText("bob")).toBeInTheDocument();
+      expect(screen.getByText("carol")).toBeInTheDocument();
+    });
+
+    it("confirms the search on Enter", () => {
+      render(<ActionsLog />);
+      const search = screen.getByPlaceholderText("Search audit log...");
+      fireEvent.change(search, { target: { value: "alice" } });
+      fireEvent.keyDown(search, { key: "Enter", code: "Enter", keyCode: 13 });
+
+      expect(
+        mockUseActionLog.mock.results.at(-1)?.value.confirmSearch,
+      ).toHaveBeenCalled();
     });
 
     it("renders the refresh and export buttons", () => {
       // Test: The refresh and export buttons are rendered
       render(<ActionsLog />);
-      expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Refresh" }),
+      ).toBeInTheDocument();
       expect(screen.getByTestId("icon-cloudDownload")).toBeInTheDocument();
     });
 
@@ -354,6 +375,39 @@ describe("ActionsLog() ActionsLog method", () => {
 
       // Should render "—" (em dash) when name is empty
       expect(screen.getByText("—")).toBeInTheDocument();
+    });
+  });
+
+  describe("Loading further pages", () => {
+    const mockLogPage = (hasNextPage: boolean) => {
+      const fetchNextPage = jest.fn();
+      mockUseActionLog.mockReturnValue({
+        logsData,
+        fetchNextPage,
+        hasNextPage,
+        isFetching: false,
+        isLoading: false,
+        refresh: jest.fn(),
+      });
+      return fetchNextPage;
+    };
+
+    it("fetches the next page when the end of the table is visible without scrolling", () => {
+      const fetchNextPage = mockLogPage(true);
+      render(<ActionsLog />);
+
+      act(() => triggerIntersection());
+
+      expect(fetchNextPage).toHaveBeenCalledTimes(1);
+    });
+
+    it("fetches nothing once the last page is loaded", () => {
+      const fetchNextPage = mockLogPage(false);
+      render(<ActionsLog />);
+
+      act(() => triggerIntersection());
+
+      expect(fetchNextPage).not.toHaveBeenCalled();
     });
   });
 

@@ -207,6 +207,11 @@ components:
           example: 0
           format: "int32"
           type: "integer"
+        searchString:
+          description: "Substring to find, ignoring case, in the initiator name or\
+            \ id, the operation, the request id, or the type, name, or id of the entity\
+            \ or its parent"
+          type: "string"
       type: "object"
     ActionLogSearchResponse:
       description: "Paged action log response"

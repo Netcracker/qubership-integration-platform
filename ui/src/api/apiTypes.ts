@@ -924,6 +924,7 @@ export type ActionLogPagedSearchRequest = {
   offset: number;
   limit: number;
   filters?: EntityFilterModel[];
+  searchString?: string;
 };
 
 export type ActionLogPagedSearchResponse = {
