@@ -16,7 +16,7 @@ elements:
       validationSchema: "{\n    \"title\": \"testObject\",\n    \"type\": \"string\",\n    \"properties\": {\n        \"testKey\": {\n            \"type\": \"string\"\n        }\n    }\n}"
       correlationIdName: "test_correlation_id"
       httpMethodRestrict: "GET"
-      correlationIdPosition: "Header"
+      correlationIdPosition: "header"
       integrationOperationId: null
       handleValidationAction: default
       rejectRequestIfNonNullBodyGetDelete: false
