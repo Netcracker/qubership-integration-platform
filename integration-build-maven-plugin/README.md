@@ -419,16 +419,12 @@ environment, so an `EXTERNAL` service without an active environment can resolve 
 The snapshot name is the time the snapshot was built, read from the clock rather than from
 `outputTimestamp`. Together with the random IDs, this makes two builds of the same sources differ in the
 source and integrations configuration ConfigMaps, even with `outputTimestamp` set, and every rebuild reads
-as a change in a GitOps diff. A design for reproducible output is in
-[`docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md`](../docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md).
+as a change in a GitOps diff.
 
 ## Limitations
 
 - No `skip` parameter, and the goals are not marked thread-safe.
 - Output is not reproducible, even with `outputTimestamp` set; see [Snapshots](#snapshots).
-
-[`FIXES.md`](FIXES.md) tracks the status of each review finding, and [`REVIEW.md`](REVIEW.md) has the
-analysis behind them.
 
 ## Building the plugin
 
