@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID;
@@ -274,6 +275,16 @@ class ContextStorageProcessorTest {
                 CONTEXT_SERVICE_ID_VALUE,
                 CORRELATION_ID_VALUE
         );
+    }
+
+    @Test
+    void shouldThrowNamingThePropertyWhenOperationIsNotSet() {
+        exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
+        exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> processor.process(exchange));
+
+        assertEquals("Context storage property " + PROPERTY_OPERATION + " is not set", e.getMessage());
     }
 
     private static String getStaticString(String fieldName) {

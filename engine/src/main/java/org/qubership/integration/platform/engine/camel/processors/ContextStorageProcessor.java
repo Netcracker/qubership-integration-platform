@@ -117,7 +117,7 @@ public class ContextStorageProcessor implements Processor {
     private <T extends Enum<T>> T readEnumValue(Exchange exchange, String propertyName, Class<T> cls) {
         return Optional.ofNullable(exchange.getProperty(propertyName, String.class))
                 .map(value -> Enum.valueOf(cls, value.toUpperCase()))
-                .orElse(null);
+                .orElseThrow(() -> new IllegalStateException("Context storage property " + propertyName + " is not set"));
     }
 
     private String getContextSessionId(Exchange exchange) {
