@@ -113,7 +113,7 @@ public final class WorkSourceIntake {
     String sourceId = nextId(sources, "src-");
     String hash = sha256(text);
     SourceRole role = note.role() == null ? SourceRole.MESSAGE : note.role();
-    sources.add(sourceNode(sourceId, role, "message:" + hash, hash, "message", "", List.of()));
+    sources.add(sourceNode(sourceId, role, "message:" + hash, hash, "message", "", List.of(), text));
     remember(runId, evidence, sourceId, text, "");
     return new PendingSource(sourceId, text, role != SourceRole.UNSUPPORTED);
   }
@@ -127,7 +127,7 @@ public final class WorkSourceIntake {
       String limitation = readerLimitation(file.originalName());
       String hash = sha256(file.storageReference() + "\n" + limitation);
       sources.add(
-          sourceNode(sourceId, role, file.storageReference(), hash, file.originalName(), supplied, List.of()));
+          sourceNode(sourceId, role, file.storageReference(), hash, file.originalName(), supplied, List.of(), ""));
       remember(runId, evidence, sourceId, "", limitation);
       return new PendingSource(sourceId, "", false);
     }
@@ -137,7 +137,7 @@ public final class WorkSourceIntake {
     }
     String hash = sha256(text);
     sources.add(
-        sourceNode(sourceId, role, file.storageReference(), hash, file.originalName(), supplied, List.of()));
+        sourceNode(sourceId, role, file.storageReference(), hash, file.originalName(), supplied, List.of(), text));
     remember(runId, evidence, sourceId, text, "");
     boolean interprets = role == SourceRole.MAPPING || role == SourceRole.MARKDOWN_IDS || role == SourceRole.MESSAGE;
     return new PendingSource(sourceId, text, interprets);
@@ -161,7 +161,8 @@ public final class WorkSourceIntake {
             hash,
             "correction",
             "",
-            List.of(originalId)));
+            List.of(originalId),
+            text));
     remember(runId, evidence, sourceId, text, "");
     String superseded = requirementIdForSource(requirements, originalId);
     if (!superseded.isBlank()) {
@@ -310,7 +311,8 @@ public final class WorkSourceIntake {
       String contentHash,
       String originalName,
       String suppliedIdentifier,
-      List<String> correctionOf) {
+      List<String> correctionOf,
+      String content) {
     ObjectNode source = json.createObjectNode();
     source.put("id", id);
     source.put("role", role.name());
@@ -319,6 +321,8 @@ public final class WorkSourceIntake {
     source.put("originalName", originalName);
     source.put("suppliedIdentifier", suppliedIdentifier);
     source.putArray("correctionOf").addAll(strings(correctionOf));
+    source.put("content", content == null ? "" : content);
+    source.putArray("passages");
     return source;
   }
 
@@ -376,15 +380,38 @@ public final class WorkSourceIntake {
       String payloadHash) {
     ensureUnsupportedQuestions(document);
     ChainWorkDocument payload = json.convertValue(document, ChainWorkDocument.class);
+    WorkDocumentState indexed = documents.indexSourcePassages(new WorkDocumentState(commandId, payload));
+    copyIndexedPassages(document, indexed);
     ProductPipelineRunDocument current = runs.load(runId).orElseThrow();
     WorkRepairBudget budget = current.run().workDocumentRef() == null ? new WorkRepairBudget(3) : null;
     documents.intake(
         runId,
-        new WorkDocumentState(commandId, payload),
+        indexed,
         commandId,
         budget,
         payloadHash,
         acceptedRecordIds);
+  }
+
+  /** Copies indexed passages onto the working tree so the returned inventory matches the commit. */
+  private void copyIndexedPassages(ObjectNode document, WorkDocumentState indexed) {
+    JsonNode indexedSources = json.valueToTree(indexed.document()).path("sources");
+    for (JsonNode source : array(document, "sources")) {
+      if (!(source instanceof ObjectNode node)) {
+        continue;
+      }
+      String sourceId = node.path("id").asText();
+      for (JsonNode indexedSource : indexedSources) {
+        if (!sourceId.equals(indexedSource.path("id").asText())) {
+          continue;
+        }
+        JsonNode passages = indexedSource.get("passages");
+        if (passages != null) {
+          node.set("passages", passages);
+        }
+        break;
+      }
+    }
   }
 
   private void ensureUnsupportedQuestions(ObjectNode document) {
@@ -416,6 +443,16 @@ public final class WorkSourceIntake {
       }
       List<String> correctionOf = new ArrayList<>();
       source.path("correctionOf").forEach(id -> correctionOf.add(id.asText()));
+      List<StoredPassage> passages = new ArrayList<>();
+      for (JsonNode passage : source.path("passages")) {
+        passages.add(
+            new StoredPassage(
+                passage.path("id").asText(),
+                passage.path("sourceId").asText(),
+                passage.path("text").asText(),
+                passage.path("parentHeading").asText(),
+                passage.path("contentHash").asText()));
+      }
       sources.add(
           new StoredSource(
               sourceId,
@@ -426,7 +463,9 @@ public final class WorkSourceIntake {
               source.path("suppliedIdentifier").asText(),
               List.copyOf(correctionOf),
               body == null ? "" : body.originalText(),
-              body == null ? "" : body.readerLimitation()));
+              body == null ? "" : body.readerLimitation(),
+              source.path("content").asText(""),
+              List.copyOf(passages)));
     }
     List<StoredRequirement> requirements = new ArrayList<>();
     for (JsonNode requirement : array(document, "requirements")) {
@@ -565,6 +604,8 @@ record SourceCorrection(String text, String correctsSuppliedIdentifier) {}
 
 record SourceBatch(List<SourceNote> notes, List<SourceFile> files, List<SourceCorrection> corrections) {}
 
+record StoredPassage(String id, String sourceId, String text, String parentHeading, String contentHash) {}
+
 record StoredSource(
     String id,
     SourceRole role,
@@ -574,7 +615,9 @@ record StoredSource(
     String suppliedIdentifier,
     List<String> correctionOf,
     String originalText,
-    String readerLimitation) {}
+    String readerLimitation,
+    String content,
+    List<StoredPassage> passages) {}
 
 record StoredRequirement(String id, String text, List<String> sourceIds, String supersededRequirementId) {}
 

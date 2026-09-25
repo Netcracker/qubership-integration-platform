@@ -18,6 +18,11 @@ public final class UnavailableCatalog implements CatalogResolution {
     throw unavailable();
   }
 
+  @Override
+  public ContractMaterial loadContract(org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding binding) {
+    throw unavailable();
+  }
+
   private static IllegalStateException unavailable() {
     return new IllegalStateException(
         "CATALOG_CLIENT_UNAVAILABLE: this process has no catalog client. The harness does not invent a binding.");

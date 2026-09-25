@@ -8,8 +8,10 @@ import org.qubership.integration.platform.ai.integration.apihub.ApiHubSearchHitP
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery;
 import org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool;
+import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding;
 
 /**
  * Runtime-catalog lookup stays on {@link CatalogOperationLookup}. APIHub search reads the JSON
@@ -20,12 +22,29 @@ public final class ResolveApiOperationSeam implements CatalogResolution {
 
   private final CatalogOperationLookup catalog;
   private final CatalogFirstApiHubDiscoveryTool discovery;
+  private final CatalogRestClient schemas;
   private final ObjectMapper json = new ObjectMapper();
 
   public ResolveApiOperationSeam(
       CatalogOperationLookup catalog, CatalogFirstApiHubDiscoveryTool discovery) {
+    this(catalog, discovery, null);
+  }
+
+  public ResolveApiOperationSeam(
+      CatalogOperationLookup catalog,
+      CatalogFirstApiHubDiscoveryTool discovery,
+      CatalogRestClient schemas) {
     this.catalog = catalog;
     this.discovery = discovery;
+    this.schemas = schemas;
+  }
+
+  @Override
+  public ContractMaterial loadContract(ResolvedWorkBinding binding) {
+    if (schemas == null) {
+      return CatalogResolution.super.loadContract(binding);
+    }
+    return new WorkContractMaterial(schemas).load(binding);
   }
 
   @Override
