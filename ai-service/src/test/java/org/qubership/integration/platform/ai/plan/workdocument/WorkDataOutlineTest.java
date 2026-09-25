@@ -342,6 +342,83 @@ class WorkDataOutlineTest {
   }
 
   @Test
+  void sharedSourceDoesNotForceAnotherStepsRequirement() {
+    String other = "Keep the trigger id.";
+    seed(
+        document(
+            REQUEST_TEXT,
+            List.of(passage("passage-source-1-1", REQUEST_TEXT, "")),
+            List.of(
+                new WorkRequirement("req-call", REQUEST_TEXT, List.of("source-1"), ""),
+                new WorkRequirement("req-other", other, List.of("source-1"), "")),
+            List.of(
+                new LogicalStep(
+                    "trigger",
+                    StepKind.TRIGGER,
+                    "Start",
+                    "Receive",
+                    List.of("source-1"),
+                    List.of("req-other"),
+                    new ResolvedWorkBinding(
+                        "sys",
+                        "2024.4",
+                        "op-trigger",
+                        "http",
+                        "POST",
+                        "/in",
+                        List.of("spec-op-trigger"),
+                        List.of("payload")),
+                    StepData.empty()),
+                serviceStep("call", "Create task", List.of("req-call"))),
+            List.of(link("c-request", "trigger", "request", "call"))));
+
+    outlines.define(
+        RUN_ID, "call", requestOutline("call", "req-call", "passage-source-1-1"), contracts(), "outline-owned");
+
+    DataOutline outline = step(documents.read(RUN_ID).document(), "call").data().outline();
+    assertEquals(List.of("req-call"), outline.coverage().stream().map(CoverageEntry::requirementId).toList());
+  }
+
+  @Test
+  void questionCoverageDoesNotPublishTheOutline() {
+    seed(callDocument());
+    String before = documents.read(RUN_ID).revision();
+
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                outlines.define(
+                    RUN_ID,
+                    "call",
+                    new OutlineProposal(
+                        "call",
+                        List.of(
+                            transfer(
+                                "to-request",
+                                "trigger",
+                                "payload",
+                                "call",
+                                "request",
+                                TransferOutcome.UNSPECIFIED,
+                                List.of("req-request"),
+                                List.of())),
+                        List.of(),
+                        List.of(
+                            new OutlineCoverage("req-request", "passage-source-1-1", CoverageDisposition.ASSIGNED),
+                            new OutlineCoverage("req-common", "passage-source-1-2", CoverageDisposition.QUESTION))),
+                    contracts(),
+                    "outline-question"));
+
+    assertEquals("OPEN_QUESTION", rejected.code());
+    ChainWorkDocument stored = documents.read(RUN_ID).document();
+    assertEquals(before, documents.read(RUN_ID).revision());
+    assertTrue(step(stored, "call").data().transfers().isEmpty());
+    assertTrue(stored.progress().tasks().isEmpty());
+    assertTrue(stored.progress().questions().isEmpty());
+  }
+
+  @Test
   void noMappingDispositionStaysVisible() {
     seed(callDocument());
     outlines.define(

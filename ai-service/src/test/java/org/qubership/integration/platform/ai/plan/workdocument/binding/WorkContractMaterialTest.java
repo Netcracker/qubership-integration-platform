@@ -141,6 +141,181 @@ class WorkContractMaterialTest {
   }
 
   @Test
+  void matchingVersionWithADifferentSpecificationIdIsIncompatible() throws Exception {
+    JsonNode request = schemaWithRef("OrderId");
+    AtomicInteger schemaReads = new AtomicInteger();
+    CatalogRestClient catalog =
+        catalog(
+            (name, args) -> {
+              if ("getOperationSchemas".equals(name) || name.startsWith("getOperationR")) {
+                schemaReads.incrementAndGet();
+              }
+              return switch (name) {
+                case "getOperation" ->
+                    new OperationDto("op-create", "createTask", "POST", "/tasks", "model-other");
+                case "getModel" ->
+                    new SpecificationDto("spec-other", "other", "group-other", "sys-wfm", "2024.4");
+                case "getOperationSchemas" -> maps(request, request, request);
+                case "getOperationRequestSchema", "getOperationResponseSchema" -> request;
+                default -> throw new UnsupportedOperationException(name);
+              };
+            });
+
+    ContractMaterial loaded = new WorkContractMaterial(catalog).load(serviceBinding("spec-create", "2024.4", "op-create"));
+
+    ContractMaterial.Incompatible incompatible = assertInstanceOf(ContractMaterial.Incompatible.class, loaded);
+    assertEquals("spec-create", incompatible.contractReference());
+    assertEquals("op-create", incompatible.operationId());
+    assertEquals("2024.4", incompatible.version());
+    assertEquals(0, schemaReads.get());
+    assertTrue(incompatible.reason().contains("spec-create"));
+    assertTrue(incompatible.reason().contains("spec-other"));
+  }
+
+  @Test
+  void twoSuccessCodesAreANamedGap() throws Exception {
+    JsonNode first = schemaWithRef("Created");
+    JsonNode second = schemaWithRef("Accepted");
+    Map<String, JsonNode> responses = new LinkedHashMap<>();
+    responses.put("200", first);
+    responses.put("201", second);
+    CatalogRestClient catalog = catalog(statusCatalog(responses));
+
+    ContractMaterial loaded =
+        new WorkContractMaterial(catalog).load(portBinding("spec-create", "op-create", "success"));
+
+    ContractMaterial.Gap gap = assertInstanceOf(ContractMaterial.Gap.class, loaded);
+    assertEquals("success", gap.port());
+    assertEquals(List.of("200", "201"), gap.codes());
+    assertTrue(gap.reason().contains("200"));
+    assertTrue(gap.reason().contains("201"));
+    assertFalse(loaded instanceof ContractMaterial.Ready);
+  }
+
+  @Test
+  void successCode204IsLoaded() throws Exception {
+    JsonNode body = schemaWithRef("NoContent");
+    CatalogRestClient catalog = catalog(statusCatalog(Map.of("204", body)));
+
+    ContractMaterial loaded =
+        new WorkContractMaterial(catalog).load(portBinding("spec-create", "op-create", "success"));
+
+    ContractMaterial.Ready ready = assertInstanceOf(ContractMaterial.Ready.class, loaded);
+    assertEquals("#/definitions/NoContent", ready.ports().get(0).schema().at("/properties/body/$ref").asText());
+    assertEquals(sha256(body), ready.ports().get(0).contentHash());
+  }
+
+  @Test
+  void defaultAloneIsTheSuccessBodyAndNotAFailureSchema() throws Exception {
+    JsonNode body = schemaWithRef("Payload");
+    CatalogRestClient catalog = catalog(statusCatalog(Map.of("default", body)));
+    WorkContractMaterial material = new WorkContractMaterial(catalog);
+
+    ContractMaterial.Ready success =
+        assertInstanceOf(
+            ContractMaterial.Ready.class, material.load(portBinding("spec-create", "op-create", "success")));
+    assertEquals("#/definitions/Payload", success.ports().get(0).schema().at("/properties/body/$ref").asText());
+
+    ContractMaterial failure = material.load(portBinding("spec-create", "op-create", "failure"));
+    ContractMaterial.MissingSchema missing = assertInstanceOf(ContractMaterial.MissingSchema.class, failure);
+    assertEquals("failure", missing.port());
+    assertFalse(failure instanceof ContractMaterial.Ready);
+  }
+
+  @Test
+  void asyncApiTriggerBodyLoadsFromResponseSchemas() throws Exception {
+    JsonNode message = schemaWithRef("ProcessEvent");
+    CatalogRestClient catalog =
+        catalog(
+            (name, args) ->
+                switch (name) {
+                  case "getOperation" ->
+                      new OperationDto("op-trigger", "onEvent", "subscribe", "process", "model-trigger");
+                  case "getModel" ->
+                      new SpecificationDto("spec-trigger", "events", "group", "sys", "2024.4");
+                  case "getOperationSchemas" ->
+                      new OperationSchemaMapsDto("op-trigger", Map.of(), Map.of("processEvent", message));
+                  case "getOperationResponseSchema" -> message;
+                  case "getOperationRequestSchema" -> JSON.createObjectNode();
+                  default -> throw new UnsupportedOperationException(name);
+                });
+
+    ContractMaterial loaded =
+        new WorkContractMaterial(catalog)
+            .load(
+                new ResolvedWorkBinding(
+                    "sys",
+                    "2024.4",
+                    "op-trigger",
+                    "async",
+                    "subscribe",
+                    "process",
+                    List.of("spec-trigger"),
+                    List.of("payload")));
+
+    ContractMaterial.Ready ready = assertInstanceOf(ContractMaterial.Ready.class, loaded);
+    assertEquals("payload", ready.ports().get(0).port());
+    assertEquals("spec-trigger", ready.contractReference());
+    assertEquals("#/definitions/ProcessEvent", ready.ports().get(0).schema().at("/properties/body/$ref").asText());
+    assertEquals(sha256(message), ready.ports().get(0).contentHash());
+  }
+
+  @Test
+  void composedSchemaIsPresentAndAnEmptyBodyIsMissing() throws Exception {
+    JsonNode composed =
+        JSON.readTree(
+            """
+            { "allOf": [ { "$ref": "#/definitions/Order" } ], "definitions": { "Order": { "type": "object" } } }
+            """);
+    CatalogRestClient composedCatalog =
+        catalog(
+            (name, args) ->
+                switch (name) {
+                  case "getOperation" ->
+                      new OperationDto("op-create", "createTask", "POST", "/tasks", "model-create");
+                  case "getModel" ->
+                      new SpecificationDto("spec-create", "create", "group-create", "sys-wfm", "2024.4");
+                  case "getOperationSchemas" -> {
+                    Map<String, JsonNode> request = new LinkedHashMap<>();
+                    request.put("application/json", composed);
+                    yield new OperationSchemaMapsDto("op-create", request, Map.of());
+                  }
+                  case "getOperationRequestSchema" -> composed;
+                  default -> throw new UnsupportedOperationException(name);
+                });
+
+    ContractMaterial.Ready ready =
+        assertInstanceOf(
+            ContractMaterial.Ready.class,
+            new WorkContractMaterial(composedCatalog).load(portBinding("spec-create", "op-create", "request")));
+    assertEquals("#/definitions/Order", ready.ports().get(0).schema().at("/allOf/0/$ref").asText());
+
+    JsonNode empty = JSON.createObjectNode();
+    CatalogRestClient emptyCatalog =
+        catalog(
+            (name, args) ->
+                switch (name) {
+                  case "getOperation" ->
+                      new OperationDto("op-create", "createTask", "POST", "/tasks", "model-create");
+                  case "getModel" ->
+                      new SpecificationDto("spec-create", "create", "group-create", "sys-wfm", "2024.4");
+                  case "getOperationSchemas" -> {
+                    Map<String, JsonNode> request = new LinkedHashMap<>();
+                    request.put("application/json", empty);
+                    yield new OperationSchemaMapsDto("op-create", request, Map.of());
+                  }
+                  case "getOperationRequestSchema" -> empty;
+                  default -> throw new UnsupportedOperationException(name);
+                });
+
+    ContractMaterial.MissingSchema missing =
+        assertInstanceOf(
+            ContractMaterial.MissingSchema.class,
+            new WorkContractMaterial(emptyCatalog).load(portBinding("spec-create", "op-create", "request")));
+    assertEquals("request", missing.port());
+  }
+
+  @Test
   void catalogOperationIdMismatchDoesNotReplaceTheSelectedOperation() throws Exception {
     JsonNode request = schemaWithRef("OrderId");
     AtomicInteger schemaReads = new AtomicInteger();
@@ -224,13 +399,16 @@ class WorkContractMaterialTest {
         catalog(
             (name, args) -> {
               String operationId = String.valueOf(args[0]);
+              if ("getModel".equals(name) && operationId.startsWith("model-")) {
+                operationId = operationId.substring("model-".length());
+              }
               JsonNode body = "op-trigger".equals(operationId) ? trigger : reply;
+              String selected = operationId;
               return switch (name) {
                 case "getOperation" ->
-                    new OperationDto(operationId, operationId, "POST", "/" + operationId, "model-" + operationId);
+                    new OperationDto(selected, selected, "POST", "/" + selected, "model-" + selected);
                 case "getModel" ->
-                    new SpecificationDto(
-                        "spec-" + operationId, operationId, "group", "sys", "2024.4");
+                    new SpecificationDto("spec-" + selected, selected, "group", "sys", "2024.4");
                 case "getOperationSchemas" -> mapsFor(operationId, body, body, body);
                 case "getOperationRequestSchema" -> body;
                 case "getOperationResponseSchema" -> body;
@@ -324,6 +502,35 @@ class WorkContractMaterialTest {
         }
         """
             .formatted(definitionName, definitionName));
+  }
+
+  private static Call statusCatalog(Map<String, JsonNode> responses) {
+    return (name, args) ->
+        switch (name) {
+          case "getOperation" ->
+              new OperationDto("op-create", "createTask", "POST", "/tasks", "model-create");
+          case "getModel" ->
+              new SpecificationDto("spec-create", "create", "group-create", "sys-wfm", "2024.4");
+          case "getOperationSchemas" -> new OperationSchemaMapsDto("op-create", Map.of(), wrapResponses(responses));
+          case "getOperationResponseSchema" -> responses.get(String.valueOf(args[2]));
+          case "getOperationRequestSchema" -> JSON.createObjectNode();
+          default -> throw new UnsupportedOperationException(name);
+        };
+  }
+
+  private static Map<String, JsonNode> wrapResponses(Map<String, JsonNode> responses) {
+    Map<String, JsonNode> wrapped = new LinkedHashMap<>();
+    for (Map.Entry<String, JsonNode> entry : responses.entrySet()) {
+      ObjectNode node = JSON.createObjectNode();
+      node.set("application/json", entry.getValue());
+      wrapped.put(entry.getKey(), node);
+    }
+    return wrapped;
+  }
+
+  private static ResolvedWorkBinding portBinding(String reference, String operationId, String port) {
+    return new ResolvedWorkBinding(
+        "sys-wfm", "2024.4", operationId, "http", "POST", "/tasks", List.of(reference), List.of(port));
   }
 
   private static ResolvedWorkBinding serviceBinding(String reference, String version, String operationId) {

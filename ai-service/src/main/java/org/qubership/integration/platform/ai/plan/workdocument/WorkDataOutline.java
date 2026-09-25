@@ -182,6 +182,13 @@ public final class WorkDataOutline {
                 + entry.disposition()
                 + " and is also listed on a transfer. Keep one disposition.");
       }
+      if (entry.disposition() == CoverageDisposition.QUESTION) {
+        throw reject(
+            "OPEN_QUESTION",
+            "Requirement "
+                + requirement.id()
+                + " is still a question. Record that question before publishing the outline.");
+      }
     }
   }
 
@@ -269,6 +276,7 @@ public final class WorkDataOutline {
       case ContractMaterial.ReadFailed failed -> throw reject("SCHEMA_READ_FAILED", failed.reason());
       case ContractMaterial.Incompatible incompatible ->
           throw reject("INCOMPATIBLE_CONTRACT", incompatible.reason());
+      case ContractMaterial.Gap gap -> throw reject("SCHEMA_GAP", gap.reason());
       case ContractMaterial.Ready ignored -> {
         // A ready load is checked against the ports the proposal uses.
       }
@@ -334,8 +342,7 @@ public final class WorkDataOutline {
       boolean replacesListed =
           !requirement.supersededRequirementId().isBlank()
               && target.requirementIds().contains(requirement.supersededRequirementId());
-      boolean sourced = requirement.sourceIds().stream().anyMatch(target.sourceIds()::contains);
-      if (listed || replacesListed || sourced) {
+      if (listed || replacesListed) {
         relevant.add(requirement);
       }
     }
@@ -434,7 +441,14 @@ public final class WorkDataOutline {
   private static boolean usable(JsonNode schema) {
     return schema != null
         && !schema.isNull()
-        && (schema.has("type") || schema.has("$ref") || schema.has("properties") || schema.has("items"));
+        && (schema.has("type")
+            || schema.has("$ref")
+            || schema.has("properties")
+            || schema.has("items")
+            || schema.has("allOf")
+            || schema.has("oneOf")
+            || schema.has("anyOf")
+            || schema.has("enum"));
   }
 
   private static String sha256(String content) {
