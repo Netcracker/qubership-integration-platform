@@ -43,8 +43,9 @@ final class WorkDocumentEditor {
     applyTransfers(draft, scope, capture, aliases, known, accepted);
     applyRules(draft, scope, capture, aliases, known, accepted);
     applyRetained(draft, scope, capture, aliases, known, accepted);
-    applyDeletes(draft, scope, capture, known, accepted);
-    WorkProgress progress = withTask(draft.progress, scope, WorkTaskState.ACCEPTED, accepted);
+    List<String> deleted = new ArrayList<>();
+    applyDeletes(draft, scope, capture, known, accepted, deleted);
+    WorkProgress progress = withTask(draft.progress, scope, WorkTaskState.ACCEPTED, accepted, deleted);
     if (!capture.question().isBlank()) {
       List<WorkQuestion> questions = new ArrayList<>(progress.questions());
       questions.add(question(scope, capture.unresolvedChoice(), capture.question(),
@@ -227,7 +228,18 @@ final class WorkDocumentEditor {
             "Producer " + retained.producerStepId() + " does not exist. Name an existing step.");
       }
       resolveAll(retained.evidenceIds(), aliases, evidenceIds(draft));
-      String id = allocate(aliases, known, retained.existingId(), retained.alias());
+      String id =
+          allocateOutlineRecord(
+              aliases,
+              known,
+              retained.existingId(),
+              retained.alias(),
+              retainedOnProducer(draft, retained.producerStepId(), retained.existingId()),
+              "Record "
+                  + retained.existingId()
+                  + " is not a retained value on "
+                  + retained.producerStepId()
+                  + ". Reuse only a retained value from that producer.");
       RetainedValue stored =
           new RetainedValue(
               id,
@@ -241,12 +253,6 @@ final class WorkDocumentEditor {
       accepted.add(id);
     }
     for (OutlineTransfer captured : proposal.transfers()) {
-      if (!proposal.targetStepId().equals(captured.targetPort() == null ? "" : captured.targetPort().stepId())
-          && !scope.allowsCreation(WorkRecordKind.TRANSFER, proposal.targetStepId())) {
-        throw reject(
-            "OUTSIDE_SCOPE",
-            "Transfer target is outside step " + proposal.targetStepId() + ". Keep the assigned target.");
-      }
       if (!scope.allowsCreation(WorkRecordKind.TRANSFER, proposal.targetStepId())) {
         throw reject(
             "OUTSIDE_SCOPE",
@@ -254,17 +260,36 @@ final class WorkDocumentEditor {
                 + proposal.targetStepId()
                 + " is outside this scope. Assign that parent before creating a transfer.");
       }
-      String id = allocate(aliases, known, captured.existingId(), captured.alias());
-      List<String> retainedIds = new ArrayList<>();
-      for (String retainedRef : captured.requiredRetainedIds()) {
-        retainedIds.add(resolve(retainedRef, aliases, known, true));
+      List<PortRef> sources = new ArrayList<>();
+      for (PortRef port : captured.sourcePorts()) {
+        sources.add(checkedPort(draft, aliases, port));
       }
+      PortRef target = checkedPort(draft, aliases, captured.targetPort());
+      if (!proposal.targetStepId().equals(target.stepId())) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "Transfer target is outside step " + proposal.targetStepId() + ". Keep the assigned target.");
+      }
+      String id =
+          allocateOutlineRecord(
+              aliases,
+              known,
+              captured.existingId(),
+              captured.alias(),
+              transferOnStep(draft, proposal.targetStepId(), captured.existingId()),
+              "Record "
+                  + captured.existingId()
+                  + " is not a transfer on "
+                  + proposal.targetStepId()
+                  + ". Reuse only a transfer that already belongs to this target.");
+      List<String> retainedIds = resolveAll(captured.requiredRetainedIds(), aliases, known);
+      List<String> resolvedRequirements = resolveAll(captured.requirementIds(), aliases, known);
       DataTransfer stored =
           new DataTransfer(
               id,
-              captured.sourcePorts(),
-              captured.targetPort(),
-              captured.requirementIds(),
+              sources,
+              target,
+              resolvedRequirements,
               List.of(),
               decision(captured.decision()),
               captured.outcome(),
@@ -273,7 +298,7 @@ final class WorkDocumentEditor {
       transferIds.add(id);
       known.add(id);
       accepted.add(id);
-      for (String requirementId : captured.requirementIds()) {
+      for (String requirementId : resolvedRequirements) {
         if (!requirementIds.contains(requirementId)) {
           requirementIds.add(requirementId);
         }
@@ -395,6 +420,9 @@ final class WorkDocumentEditor {
       sources.add(existing);
     }
     if (!linked) {
+      if (sourceIdTakenByOther(sources, sourceId, inputId)) {
+        sourceId = freshSourceId(sources);
+      }
       sources.add(
           new WorkSource(
               sourceId,
@@ -497,7 +525,13 @@ final class WorkDocumentEditor {
     }
   }
 
-  private static String allocate(Map<String, String> aliases, Set<String> known, String existingId, String alias) {
+  private static String allocateOutlineRecord(
+      Map<String, String> aliases,
+      Set<String> known,
+      String existingId,
+      String alias,
+      boolean legalExisting,
+      String illegalExistingMessage) {
     boolean hasExisting = existingId != null && !existingId.isBlank();
     boolean hasAlias = alias != null && !alias.isBlank();
     if (hasExisting == hasAlias) {
@@ -506,15 +540,71 @@ final class WorkDocumentEditor {
           "Provide an alias for a new record or an existing id for a replacement, not both.");
     }
     if (hasExisting) {
-      if (!known.contains(existingId)) {
-        throw reject(
-            "MALFORMED_REFERENCE",
-            "Record " + existingId + " does not exist. Use an alias for a new record.");
+      if (!legalExisting) {
+        throw reject("MALFORMED_REFERENCE", illegalExistingMessage);
       }
       return existingId;
     }
     assignOne(aliases, known, "", alias);
     return aliases.get(alias);
+  }
+
+  private static boolean transferOnStep(Draft draft, String stepId, String transferId) {
+    if (transferId == null || transferId.isBlank()) {
+      return false;
+    }
+    LogicalStep step = find(draft.steps, stepId, LogicalStep::id);
+    if (step == null) {
+      return false;
+    }
+    for (DataTransfer transfer : step.data().transfers()) {
+      if (transfer.id().equals(transferId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean retainedOnProducer(Draft draft, String producerStepId, String retainedId) {
+    if (retainedId == null || retainedId.isBlank()) {
+      return false;
+    }
+    LogicalStep step = find(draft.steps, producerStepId, LogicalStep::id);
+    if (step == null) {
+      return false;
+    }
+    for (RetainedValue value : step.data().retainedValues()) {
+      if (value.id().equals(retainedId)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean sourceIdTakenByOther(List<WorkSource> sources, String sourceId, String inputId) {
+    for (WorkSource source : sources) {
+      if (source.id().equals(sourceId) && !inputId.equals(source.suppliedIdentifier())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static String freshSourceId(List<WorkSource> sources) {
+    String id = newId();
+    while (containsSourceId(sources, id)) {
+      id = newId();
+    }
+    return id;
+  }
+
+  private static boolean containsSourceId(List<WorkSource> sources, String sourceId) {
+    for (WorkSource source : sources) {
+      if (source.id().equals(sourceId)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static void requireScope(WorkDocumentState state, WorkTaskScope scope) {
@@ -954,6 +1044,8 @@ final class WorkDocumentEditor {
       String transferId = resolve(captured.transferRef(), aliases, known, true);
       requireFixedTransfer(scope, transferId);
       String id = permit(scope, captured.existingId(), captured.alias(), aliases, WorkRecordKind.RULE, transferId);
+      requireReplacementParent(
+          scope, captured.existingId(), WorkRecordKind.RULE, transferId, parentTransfer(draft, captured.existingId()));
       List<FieldReference> sources = new ArrayList<>();
       for (FieldReference source : captured.sources()) {
         sources.add(checkedField(draft, aliases, known, source));
@@ -1006,7 +1098,12 @@ final class WorkDocumentEditor {
   }
 
   private static void applyDeletes(
-      Draft draft, WorkTaskScope scope, WorkTaskCapture capture, Set<String> known, List<String> accepted) {
+      Draft draft,
+      WorkTaskScope scope,
+      WorkTaskCapture capture,
+      Set<String> known,
+      List<String> accepted,
+      List<String> deleted) {
     if (capture.deletes().isEmpty()) {
       return;
     }
@@ -1039,6 +1136,7 @@ final class WorkDocumentEditor {
             "Deleting " + delete.existingId() + " leaves a dangling reference. Delete or retarget the dependent records in this capture.");
       }
       known.remove(delete.existingId());
+      deleted.add(delete.existingId());
       accepted.add(delete.existingId());
     }
   }
@@ -1099,19 +1197,43 @@ final class WorkDocumentEditor {
 
   private static void requireFixedPort(WorkTaskScope scope, FieldReference target) {
     FixedTransferEndpoint fixed = scope.fixedEndpoint();
-    if (fixed == null || target == null || target.port() == null) {
+    if (fixed == null) {
       return;
     }
-    if (!fixed.targetPort().stepId().equals(target.stepId())
-        || !fixed.targetPort().portName().equals(target.port().schemaName())) {
+    String stepId = target == null || target.stepId() == null ? "" : target.stepId();
+    String portName = target == null || target.port() == null ? "" : target.port().schemaName();
+    if (target == null
+        || target.kind() != FieldReferenceKind.STEP_PORT
+        || target.port() == null
+        || !fixed.targetPort().stepId().equals(stepId)
+        || !fixed.targetPort().portName().equals(portName)) {
       throw reject(
           "OUTSIDE_SCOPE",
           "Rule target "
-              + target.stepId()
+              + stepId
               + " "
-              + target.port().schemaName()
+              + portName
               + " does not match the fixed endpoint. Keep the assigned port.");
     }
+  }
+
+  private static void requireReplacementParent(
+      WorkTaskScope scope, String existingId, WorkRecordKind kind, String parentId, String currentParent) {
+    if (existingId == null || existingId.isBlank() || currentParent == null || currentParent.equals(parentId)) {
+      return;
+    }
+    if (scope.allowsCreation(kind, parentId)) {
+      return;
+    }
+    throw reject(
+        "OUTSIDE_SCOPE",
+        "Record "
+            + existingId
+            + " belongs to "
+            + currentParent
+            + ". Keep that parent, or use a scope that lists "
+            + parentId
+            + ".");
   }
 
   private static void assign(Map<String, String> aliases, Set<String> known, WorkTaskCapture capture) {
@@ -1311,21 +1433,30 @@ final class WorkDocumentEditor {
 
   private static WorkProgress withTask(
       WorkProgress progress, WorkTaskScope scope, WorkTaskState state, List<String> producedRecordIds) {
+    return withTask(progress, scope, state, producedRecordIds, List.of());
+  }
+
+  private static WorkProgress withTask(
+      WorkProgress progress,
+      WorkTaskScope scope,
+      WorkTaskState state,
+      List<String> producedRecordIds,
+      List<String> deletedIds) {
     List<WorkTaskRecord> tasks = new ArrayList<>();
     WorkTaskRecord previous = null;
     boolean replaced = false;
-    WorkTaskRecord next = taskRow(scope, state, producedRecordIds, null);
+    WorkTaskRecord next = taskRow(scope, state, producedRecordIds, deletedIds, null);
     for (WorkTaskRecord existing : progress.tasks()) {
       if (existing.taskKey().equals(scope.taskKey())) {
         previous = existing;
-        tasks.add(taskRow(scope, state, producedRecordIds, existing));
+        tasks.add(taskRow(scope, state, producedRecordIds, deletedIds, existing));
         replaced = true;
       } else {
         tasks.add(existing);
       }
     }
     if (!replaced) {
-      tasks.add(previous == null ? next : taskRow(scope, state, producedRecordIds, previous));
+      tasks.add(previous == null ? next : taskRow(scope, state, producedRecordIds, deletedIds, previous));
     }
     return new WorkProgress(
         tasks,
@@ -1337,15 +1468,27 @@ final class WorkDocumentEditor {
   }
 
   private static WorkTaskRecord taskRow(
-      WorkTaskScope scope, WorkTaskState state, List<String> producedRecordIds, WorkTaskRecord previous) {
+      WorkTaskScope scope,
+      WorkTaskState state,
+      List<String> producedRecordIds,
+      List<String> deletedIds,
+      WorkTaskRecord previous) {
     String fingerprint = previous == null ? "" : previous.acceptedInputFingerprint();
     if (state == WorkTaskState.ACCEPTED && !scope.inputFingerprint().isBlank()) {
       fingerprint = scope.inputFingerprint();
     }
-    List<String> produced =
-        state == WorkTaskState.ACCEPTED
-            ? producedRecordIds
-            : previous == null ? List.of() : previous.producedRecordIds();
+    List<String> produced;
+    if (state == WorkTaskState.ACCEPTED) {
+      LinkedHashSet<String> union = new LinkedHashSet<>();
+      if (previous != null) {
+        union.addAll(previous.producedRecordIds());
+      }
+      union.addAll(producedRecordIds);
+      union.removeAll(deletedIds);
+      produced = List.copyOf(union);
+    } else {
+      produced = previous == null ? List.of() : previous.producedRecordIds();
+    }
     return new WorkTaskRecord(
         scope.taskKey(),
         scope.taskKind(),
@@ -1355,6 +1498,22 @@ final class WorkDocumentEditor {
         scope.skillId(),
         fingerprint,
         produced);
+  }
+
+  private static String parentTransfer(Draft draft, String ruleId) {
+    if (ruleId == null || ruleId.isBlank()) {
+      return null;
+    }
+    for (LogicalStep step : draft.steps) {
+      for (DataTransfer transfer : step.data().transfers()) {
+        for (MappingRule rule : transfer.rules()) {
+          if (rule.id().equals(ruleId)) {
+            return transfer.id();
+          }
+        }
+      }
+    }
+    return null;
   }
 
   private static WorkQuestion question(
