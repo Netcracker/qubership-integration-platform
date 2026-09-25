@@ -111,13 +111,23 @@ components:
       - ERROR
       - INFO
       - DEBUG
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
 info:
-  description: REST API of QIP Engine Microservice
+  contact:
+    email: opensourcegroup@netcracker.com
+    name: Netcracker Opensource Group
+  description: REST API of Cloud Integration Platform MicroEngine microservice
   x-api-kind: no-bwc
-  title: QIP Engine
+  title: Cloud Integration Platform MicroEngine
   version: v1
 servers:
 - url: /
+security:
+- BearerAuth: []
 tags:
 - name: checkpoint-session-controller
   description: Checkpoint Session Controller

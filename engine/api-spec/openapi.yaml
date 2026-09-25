@@ -103,9 +103,17 @@ components:
           format: "int64"
           type: "integer"
       type: "object"
+  securitySchemes:
+    BearerAuth:
+      bearerFormat: "JWT"
+      scheme: "bearer"
+      type: "http"
 info:
-  description: "REST API of Qubership Integration Platform Engine Microservice"
-  title: "Qubership Integration Platform Engine"
+  contact:
+    email: "opensourcegroup@netcracker.com"
+    name: "Netcracker Opensource Group"
+  description: "REST API of Cloud Integration Platform Engine microservice"
+  title: "Cloud Integration Platform Engine"
   version: "v1"
   x-api-kind: "no-bwc"
 openapi: "3.1.0"
@@ -314,6 +322,8 @@ paths:
           description: "OK"
       tags:
       - "session-controller"
+security:
+- BearerAuth: []
 servers:
 - url: "/"
 tags:

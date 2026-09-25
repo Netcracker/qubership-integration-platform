@@ -17,7 +17,10 @@
 package org.qubership.integration.platform.engine.configuration;
 
 import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
@@ -26,24 +29,41 @@ import org.springframework.context.annotation.Bean;
 
 import java.util.Map;
 
-
 @Slf4j
 @AutoConfiguration
-@ConditionalOnMissingBean(name = "swaggerConfiguration")
 public class SwaggerAutoConfiguration {
 
+    private static final String O_AUTH_2_ACCESS_TOKEN = "BearerAuth";
+
     @Bean
+    @ConditionalOnMissingBean
     public OpenAPI getApi() {
         return new OpenAPI()
             .addServersItem(new Server().url("/"))
-            .info(getInfo());
+            .info(getInfo())
+            .schemaRequirement(O_AUTH_2_ACCESS_TOKEN, securityScheme())
+            .addSecurityItem(new SecurityRequirement().addList(O_AUTH_2_ACCESS_TOKEN));
     }
 
     private Info getInfo() {
         return new Info()
-            .title("Qubership Integration Platform Engine")
-            .description("REST API of Qubership Integration Platform Engine Microservice")
+            .title("Cloud Integration Platform Engine")
+            .description("REST API of Cloud Integration Platform Engine microservice")
             .extensions(Map.of("x-api-kind", "no-bwc"))
-            .version("v1");
+            .version("v1")
+            .contact(getContact());
+    }
+
+    private Contact getContact() {
+        return new Contact()
+            .name("Netcracker Opensource Group")
+            .email("opensourcegroup@netcracker.com");
+    }
+
+    private static SecurityScheme securityScheme() {
+        return new SecurityScheme()
+            .type(SecurityScheme.Type.HTTP)
+            .scheme("bearer")
+            .bearerFormat("JWT");
     }
 }
