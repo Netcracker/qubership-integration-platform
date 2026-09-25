@@ -44,15 +44,43 @@ public record MappingIntentRule(
     this(id, requirementIds, targetPath, value, condition, status, List.of(), List.of(), "");
   }
 
-  /** Java convenience for callers that already own a direct copy or custom requirement. */
+  /** Blank expression stays a direct copy. Prose is behavior plus structured field references. */
   public MappingIntentRule(String sourcePath, String targetPath, String expression,
       MappingRuleStatus status) {
-    this("", List.of(), targetPath,
-        expression != null && !expression.isBlank()
-            ? new MappingValue.Custom(expression.trim(), List.of())
-            : sourcePath == null || sourcePath.isBlank() ? null
-                : new MappingValue.Copy(new MappingSource.Message("", null, sourcePath.trim())),
-        MappingCondition.always(), status);
+    this(
+        "",
+        List.of(),
+        targetPath,
+        directCopy(sourcePath, expression),
+        MappingCondition.always(),
+        status,
+        describedFields(sourcePath, expression),
+        List.of(),
+        describedBehavior(expression));
+  }
+
+  private static MappingValue directCopy(String sourcePath, String expression) {
+    if (expression != null && !expression.isBlank()) {
+      return null;
+    }
+    if (sourcePath == null || sourcePath.isBlank()) {
+      return null;
+    }
+    return new MappingValue.Copy(new MappingSource.Message("", null, sourcePath.trim()));
+  }
+
+  private static List<MappingFieldRef> describedFields(String sourcePath, String expression) {
+    if (expression == null || expression.isBlank() || sourcePath == null || sourcePath.isBlank()) {
+      return List.of();
+    }
+    return List.of(new MappingFieldRef("", "", MappingContract.canonicalPath(sourcePath), ""));
+  }
+
+  private static String describedBehavior(String expression) {
+    if (expression == null || expression.isBlank()) {
+      return "";
+    }
+    return expression.trim();
   }
 
   public MappingIntentRule(String sourcePath, String targetPath, String expression) {

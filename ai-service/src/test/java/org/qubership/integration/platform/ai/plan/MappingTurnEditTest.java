@@ -47,6 +47,11 @@ class MappingTurnEditTest {
     MappingIntent request = intentAt(application.brief(), "task-start", "create-task");
     MappingIntent response = intentAt(application.brief(), "create-task", "task-result");
     assertEquals(2, request.rules().stream().filter(this::active).count());
+    MappingIntentRule status = ruleAt(application.brief(), "Status");
+    assertEquals(null, status.value());
+    assertEquals("Set to Not Started.", status.behavior());
+    assertTrue(status.descriptive());
+    assertTrue(status.fieldRefs().isEmpty());
     assertTrue(hasTarget(request, "Status"));
     assertEquals(responseBefore, response);
     assertTrue(hasTarget(request, "Subject"));
@@ -88,6 +93,11 @@ class MappingTurnEditTest {
                         new UpdateRule(intentId, "Summary", "title", null, "{title} task")))
             .brief();
     assertEquals("{title} task", ruleAt(afterExpression, "Summary").expression());
+    assertEquals(null, ruleAt(afterExpression, "Summary").value());
+    assertEquals("{title} task", ruleAt(afterExpression, "Summary").behavior());
+    assertEquals(
+        MappingContract.canonicalPath("title"),
+        ruleAt(afterExpression, "Summary").fieldRefs().getFirst().fieldPath());
 
     RequirementBrief afterConstant =
         process(
@@ -97,8 +107,10 @@ class MappingTurnEditTest {
                     MappingTurnResult.changes(
                         new UpdateRule(intentId, "Status", "\"Done\"", null, null)))
             .brief();
-    assertEquals("\"Done\"", ruleAt(afterConstant, "Status").sourcePath());
-    assertEquals(null, ruleAt(afterConstant, "Status").expression());
+    assertEquals(null, ruleAt(afterConstant, "Status").value());
+    assertEquals("Set to Not Started.", ruleAt(afterConstant, "Status").behavior());
+    assertTrue(ruleAt(afterConstant, "Status").descriptive());
+    assertTrue(ruleAt(afterConstant, "Status").fieldRefs().isEmpty());
 
     RequirementBrief afterFallback =
         process(
