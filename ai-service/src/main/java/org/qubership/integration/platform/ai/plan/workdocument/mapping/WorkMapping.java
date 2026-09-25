@@ -340,7 +340,7 @@ public final class WorkMapping {
 
   private static boolean renameEvidence(WorkTaskMaterials materials, String sourceLeaf, String targetLeaf) {
     for (String constraint : materials.globalConstraints()) {
-      if (constraint.startsWith(SCHEMA_CONSTRAINT)) {
+      if (constraint.startsWith(SCHEMA_CONSTRAINT) || constraint.equals(INSTRUCTIONS)) {
         continue;
       }
       if (containsToken(constraint, sourceLeaf) && containsToken(constraint, targetLeaf)) {
