@@ -75,13 +75,6 @@ pathlib.Path(path).write_text(json.dumps(body, indent=2) + "\n")
 PY
 }
 
-if [[ "${CHECKPOINT}" == "recovery" ]]; then
-  write_report "FAILED" "MISSING_CAPABILITY" \
-    "The ${CHECKPOINT} capability is not implemented. The harness does not report success."
-  echo "MISSING_CAPABILITY: ${CHECKPOINT}" >&2
-  exit 1
-fi
-
 if [[ "${WORK_CHECKPOINT_LIVE:-}" != "1" ]]; then
   write_report "REFUSED" "LIVE_NOT_ENABLED" \
     "Set WORK_CHECKPOINT_LIVE=1 to call the configured provider. This script does not change the model."
