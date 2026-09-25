@@ -404,7 +404,7 @@ class WorkLogicalFlowTest {
   private static String seededDocument() {
     return """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "documentId": "doc-repair",
           "sources": [{
             "id": "src-om",
@@ -453,7 +453,7 @@ class WorkLogicalFlowTest {
   private static String emptyDocument() {
     return """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "documentId": "doc-flow",
           "sources": [{
             "id": "src-om",

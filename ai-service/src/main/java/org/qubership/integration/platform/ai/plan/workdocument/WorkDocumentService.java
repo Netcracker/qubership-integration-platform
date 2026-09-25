@@ -17,6 +17,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.productpipeline.store.CommandPayloadConflictException;
 import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -29,8 +30,9 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 /** In-memory editor plus prepare-then-publish onto the run CAS. */
 public final class WorkDocumentService {
 
-  private static final String SCHEMA_VERSION = "1";
+  private static final String SCHEMA_VERSION = "2";
   private static final String PRODUCER_ID = "work-document";
+  private static final String INPUT_PRODUCER = "work-document-input";
 
   private final WorkDocumentEditor editor = new WorkDocumentEditor();
   private final ProductPipelineRunStore runs;
@@ -93,7 +95,13 @@ public final class WorkDocumentService {
       return committedResult(current, replay.get());
     }
     WorkDocumentState state = read(runId);
-    WorkCommit edited = editor.apply(state, taskScope, capture, commandId);
+    WorkCommit edited;
+    try {
+      edited = editor.apply(state, taskScope, capture, commandId);
+    } catch (WorkDocumentRejectedException rejected) {
+      recordRejectedAttempt(current, commandId, rejected);
+      throw rejected;
+    }
     return publish(
         current,
         edited.state(),
@@ -193,6 +201,117 @@ public final class WorkDocumentService {
             state.revision(), List.of(), WorkOutcome.PREPARED, commandId, state, Map.of());
     return publish(
         current, state, edited, commandId, payloadHash, repairBudget, transitionReason, stageId);
+  }
+
+  public WorkCommit applyOutline(
+      WorkDocumentState state, WorkTaskScope scope, OutlineProposal proposal, String commandId) {
+    return editor.applyOutline(state, scope, proposal, commandId);
+  }
+
+  public WorkCommit recordQuestion(
+      String runId,
+      WorkTaskScope scope,
+      String questionText,
+      QuestionSubject subject,
+      List<String> blockedRecordIds,
+      List<String> evidenceIds,
+      String commandId) {
+    requireStore();
+    Objects.requireNonNull(scope, "scope");
+    Objects.requireNonNull(subject, "subject");
+    ProductPipelineRunDocument current = load(runId);
+    String payloadHash =
+        sha256(
+            write(
+                Map.of(
+                    "question", questionText == null ? "" : questionText,
+                    "subject", subject,
+                    "blocked", blockedRecordIds == null ? List.of() : blockedRecordIds,
+                    "evidence", evidenceIds == null ? List.of() : evidenceIds)));
+    Optional<RunTransition> replay = current.appliedCommand(commandId, payloadHash);
+    if (replay.isPresent()) {
+      return committedResult(current, replay.get());
+    }
+    WorkDocumentState state = read(runId);
+    WorkCommit edited =
+        editor.recordQuestion(
+            state,
+            scope,
+            questionText,
+            subject,
+            blockedRecordIds == null ? List.of() : blockedRecordIds,
+            evidenceIds == null ? List.of() : evidenceIds,
+            commandId);
+    return publish(
+        current,
+        edited.state(),
+        edited,
+        commandId,
+        payloadHash,
+        null,
+        "work-document",
+        current.run().currentStageId());
+  }
+
+  public WorkCommit acceptInput(String runId, String questionId, String inputId, String text) {
+    requireStore();
+    if (inputId == null || inputId.isBlank()) {
+      throw new IllegalArgumentException("inputId is required");
+    }
+    String body = text == null ? "" : text;
+    String commandId = "input:" + runId + ":" + inputId;
+    String payloadHash = sha256(body.getBytes(StandardCharsets.UTF_8));
+    ProductPipelineRunDocument current = load(runId);
+    Optional<RunTransition> replay = current.appliedCommand(commandId, payloadHash);
+    if (replay.isPresent()) {
+      return committedResult(current, replay.get());
+    }
+    StoredInput existing = findInput(runId, inputId);
+    if (existing != null && !existing.contentHash.equals(payloadHash)) {
+      throw new CommandPayloadConflictException(commandId, existing.contentHash, payloadHash);
+    }
+    String contentReference;
+    if (existing == null) {
+      Revision stored =
+          artifacts.append(
+              new AppendCommand(
+                  runId,
+                  Kind.USER_INPUT,
+                  "1",
+                  INPUT_PRODUCER,
+                  "1",
+                  new InputReceipt(runId, inputId, payloadHash, body),
+                  List.of(),
+                  null));
+      contentReference = stored.reference().artifactId();
+    } else {
+      contentReference = existing.contentReference;
+    }
+    WorkDocumentState state = read(runId);
+    WorkCommit edited =
+        editor.linkInput(state, questionId, inputId, body, payloadHash, contentReference, commandId);
+    return publish(
+        current,
+        edited.state(),
+        edited,
+        commandId,
+        payloadHash,
+        null,
+        "work-document-input",
+        current.run().currentStageId());
+  }
+
+  public WorkDocumentState addPassages(
+      WorkDocumentState state, String sourceId, List<SourcePassage> passages) {
+    return editor.addPassages(state, sourceId, passages);
+  }
+
+  public WorkSource passageSource(WorkDocumentState state, String passageId) {
+    return editor.passageSource(state, passageId);
+  }
+
+  public WorkDocumentState appendSource(WorkDocumentState state, WorkSource source) {
+    return editor.appendSource(state, source);
   }
 
   public WorkDocumentState attachResolvedBinding(
@@ -398,6 +517,65 @@ public final class WorkDocumentService {
       throw new IllegalStateException("Cannot hash the work-document command.", failure);
     }
   }
+
+  private void recordRejectedAttempt(
+      ProductPipelineRunDocument current, String commandId, WorkDocumentRejectedException rejected) {
+    long expected = current.run().runRevision();
+    long next = expected + 1L;
+    Instant at = clock.instant();
+    String stage = current.run().currentStageId();
+    try {
+      runs.commit(
+          expected,
+          new LogicalCommit(
+              current.run().runId(),
+              expected,
+              current.run().status(),
+              stage,
+              current.run().stages(),
+              new StageAttempt(
+                  "rejected-" + commandId,
+                  stage,
+                  next,
+                  StageStatus.FAILED,
+                  at,
+                  at,
+                  List.of(),
+                  rejected.code(),
+                  null),
+              new RunTransition(
+                  expected,
+                  next,
+                  current.run().status(),
+                  current.run().status(),
+                  stage,
+                  at,
+                  "rejected-attempt:" + rejected.code() + ":" + commandId,
+                  null,
+                  null),
+              null,
+              null));
+    } catch (RuntimeException failure) {
+      rejected.addSuppressed(failure);
+    }
+  }
+
+  private StoredInput findInput(String runId, String inputId) {
+    for (Revision revision : artifacts.history(runId, Kind.USER_INPUT)) {
+      if (!INPUT_PRODUCER.equals(revision.producerId())) {
+        continue;
+      }
+      InputReceipt receipt = artifacts.payload(revision, InputReceipt.class);
+      if (receipt != null && inputId.equals(receipt.inputId())) {
+        return new StoredInput(receipt.contentHash(), revision.reference().artifactId());
+      }
+    }
+    return null;
+  }
+
+  private record StoredInput(String contentHash, String contentReference) {}
+
+  public record InputReceipt(String runId, String inputId, String contentHash, String text) {}
 
   private static String sha256(byte[] content) {
     try {

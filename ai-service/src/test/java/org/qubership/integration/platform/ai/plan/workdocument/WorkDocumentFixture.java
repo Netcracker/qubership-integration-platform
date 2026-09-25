@@ -187,7 +187,22 @@ final class WorkDocumentFixture {
   private static WorkTaskScope scope(
       WorkDocumentState state, String taskId, List<String> owned, boolean create, boolean replace, boolean delete) {
     return new WorkTaskScope(
-        taskId, state.revision(), WorkStage.LOGICAL_FLOW, "skill", owned, create, replace, delete, List.of(), List.of());
+        taskId,
+        state.revision(),
+        WorkStage.LOGICAL_FLOW,
+        "skill",
+        owned,
+        create,
+        replace,
+        delete,
+        List.of(),
+        List.of(),
+        create ? CreationAllowance.anyParent(WorkRecordKind.values()) : List.of(),
+        replace ? owned : List.of(),
+        taskId,
+        WorkTaskKind.UNSPECIFIED,
+        "",
+        null);
   }
 }
 

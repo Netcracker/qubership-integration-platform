@@ -14,7 +14,10 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.workdocument.CreationAllowance;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkRecordKind;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
@@ -71,7 +74,14 @@ public final class WorkMapping {
                 false,
                 false,
                 List.of(),
-                List.of())
+                List.of(),
+                CreationAllowance.anyParent(
+                    WorkRecordKind.TRANSFER, WorkRecordKind.RULE, WorkRecordKind.RETAINED_VALUE),
+                List.of(),
+                "mapping-initial",
+                WorkTaskKind.MAP_TRANSFER,
+                "",
+                null)
             : new WorkTaskScope(
                 "mapping-repair-" + repairRuleId,
                 state.revision(),

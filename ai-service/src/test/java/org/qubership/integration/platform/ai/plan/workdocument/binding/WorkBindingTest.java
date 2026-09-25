@@ -487,7 +487,7 @@ class WorkBindingTest {
   private static String seededDocument() {
     return """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "documentId": "doc-bind",
           "sources": [{
             "id": "src-om",

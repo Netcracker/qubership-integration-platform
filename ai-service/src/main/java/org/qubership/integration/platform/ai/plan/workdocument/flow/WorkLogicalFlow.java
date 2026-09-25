@@ -11,11 +11,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.qubership.integration.platform.ai.plan.workdocument.CreationAllowance;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkRecordKind;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
@@ -53,7 +56,22 @@ public final class WorkLogicalFlow {
             false,
             false,
             List.of(),
-            List.of());
+            List.of(),
+            CreationAllowance.anyParent(
+                WorkRecordKind.REQUIREMENT,
+                WorkRecordKind.STEP,
+                WorkRecordKind.CONNECTION,
+                WorkRecordKind.SEQUENCE_GROUP,
+                WorkRecordKind.CONDITION_GROUP,
+                WorkRecordKind.SPLIT_GROUP,
+                WorkRecordKind.LOOP_GROUP,
+                WorkRecordKind.RETRY_GROUP,
+                WorkRecordKind.ERROR_SCOPE),
+            List.of(),
+            "logical-design",
+            WorkTaskKind.LOGICAL_DESIGN,
+            "",
+            null);
     return executor.execute(runId, scope, withInstructions(materials), checked(model));
   }
 

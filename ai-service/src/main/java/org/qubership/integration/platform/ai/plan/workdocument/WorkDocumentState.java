@@ -16,7 +16,13 @@ public record WorkDocumentState(String revision, ChainWorkDocument document) {
 
   public static WorkDocumentState create(String documentId, List<WorkSource> sources) {
     ChainWorkDocument document =
-        new ChainWorkDocument(1, documentId, sources, List.of(), LogicalFlow.empty(), WorkProgress.empty());
+        new ChainWorkDocument(
+            ChainWorkDocument.SCHEMA_VERSION,
+            documentId,
+            sources,
+            List.of(),
+            LogicalFlow.empty(),
+            WorkProgress.empty());
     return new WorkDocumentState(revisionOf(document), document);
   }
 

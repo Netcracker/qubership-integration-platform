@@ -582,7 +582,7 @@ public final class WorkCheckpointHarness {
   private static String emptyDocument() {
     return """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "documentId": "doc-checkpoint",
           "sources": [{
             "id": "src-om",
@@ -638,7 +638,7 @@ public final class WorkCheckpointHarness {
   private static String mappingDocument() {
     return """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "documentId": "doc-checkpoint-map",
           "sources": [{
             "id": "src-om",
@@ -672,7 +672,7 @@ public final class WorkCheckpointHarness {
   private static String priorityDocument() {
     return """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "documentId": "doc-checkpoint-repair",
           "sources": [{
             "id": "src-om",
@@ -716,7 +716,7 @@ public final class WorkCheckpointHarness {
   private static String seededDocument() {
     return """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "documentId": "doc-checkpoint-bind",
           "sources": [{
             "id": "src-om",
@@ -1004,7 +1004,7 @@ public final class WorkCheckpointHarness {
   private static String recoveryDocument() {
     return """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "documentId": "doc-recovery",
           "sources": [{
             "id": "src-om",
