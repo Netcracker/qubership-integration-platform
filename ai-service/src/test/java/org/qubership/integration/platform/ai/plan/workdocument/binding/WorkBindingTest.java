@@ -379,6 +379,41 @@ class WorkBindingTest {
     assertTrue(questions(commit.state()).toString().contains("unresolved"));
   }
 
+  @Test
+  void seamKeepsTheSpecificationVersionWhenThePinIsEmpty() {
+    org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup lookup =
+        org.mockito.Mockito.mock(
+            org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup.class);
+    org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool discovery =
+        org.mockito.Mockito.mock(
+            org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool.class);
+    org.mockito.Mockito.when(lookup.resolve(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(
+            new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogLookupResult.Exact(
+                new org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch(
+                    "sys-wfm",
+                    "group-create",
+                    "spec-create",
+                    "op-create",
+                    "WFM",
+                    "http",
+                    "POST",
+                    "/wfm/v1/tasks",
+                    "createTask",
+                    "catalog-read:sys-wfm/spec-create/op-create",
+                    "1.0.0")));
+    ResolveApiOperationSeam seam = new ResolveApiOperationSeam(lookup, discovery);
+
+    CatalogLookup result = seam.lookup("createTask", "", "Create the Salesforce task");
+
+    assertTrue(result instanceof CatalogLookup.Hit);
+    assertEquals("1.0.0", ((CatalogLookup.Hit) result).hit().version());
+    WorkBinding seamBinding =
+        new WorkBinding(documents, runs, Clock.fixed(FIXED, ZoneOffset.UTC), seam);
+    WorkCommit commit = seamBinding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+    assertEquals("1.0.0", step(commit.state(), "create").path("binding").path("version").asText());
+  }
+
   private static WorkTaskMaterials materials(List<String> constraints) {
     return new WorkTaskMaterials(List.of(), constraints, Map.of("src-om", "Call Salesforce createTask."));
   }
