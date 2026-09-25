@@ -75,7 +75,7 @@ pathlib.Path(path).write_text(json.dumps(body, indent=2) + "\n")
 PY
 }
 
-if [[ "${CHECKPOINT}" == "mapping" || "${CHECKPOINT}" == "recovery" ]]; then
+if [[ "${CHECKPOINT}" == "recovery" ]]; then
   write_report "FAILED" "MISSING_CAPABILITY" \
     "The ${CHECKPOINT} capability is not implemented. The harness does not report success."
   echo "MISSING_CAPABILITY: ${CHECKPOINT}" >&2

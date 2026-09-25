@@ -112,8 +112,36 @@ class WorkCheckpointHarnessTest {
   }
 
   @Test
+  void mappingCheckpointRunsSuppliedMappingAndPriorityRepair() throws Exception {
+    Path supplied = temp.resolve("om-mapping.json");
+    int suppliedExit =
+        WorkCheckpointHarness.run(
+            request("mapping", "om-mapping", supplied),
+            session(new ArrayList<>(), new AtomicInteger(), omMappingCapture()));
+    JsonNode suppliedBody = JSON.readTree(supplied.toFile());
+    assertEquals(0, suppliedExit, Files.readString(supplied));
+    assertEquals("om-mapping", suppliedBody.path("caseId").asText());
+    assertEquals("G2", suppliedBody.path("gate").asText());
+    assertEquals("data-mapping", suppliedBody.path("taskScope").path("skillId").asText());
+    assertEquals("mapping-initial", suppliedBody.path("taskScope").path("taskId").asText());
+    assertTrue(suppliedBody.path("requiredObservation").asText().contains("retained-context"));
+
+    Path repair = temp.resolve("priority-repair.json");
+    int repairExit =
+        WorkCheckpointHarness.run(
+            request("mapping", "priority-repair", repair),
+            session(new ArrayList<>(), new AtomicInteger(), priorityRepairCapture()));
+    JsonNode repairBody = JSON.readTree(repair.toFile());
+    assertEquals(0, repairExit, Files.readString(repair));
+    assertEquals("priority-repair", repairBody.path("caseId").asText());
+    assertEquals("mapping-repair-rule-priority", repairBody.path("taskScope").path("taskId").asText());
+    assertTrue(repairBody.path("requiredObservation").asText().contains("Priority"));
+    assertTrue(repairBody.path("sanitizedResponse").asText().contains("urgent maps to High"));
+  }
+
+  @Test
   void missingCapabilitiesFailWithoutCallingTheModel() throws Exception {
-    for (String checkpoint : List.of("mapping", "recovery")) {
+    for (String checkpoint : List.of("recovery")) {
       List<String> prompts = new ArrayList<>();
       AtomicInteger catalogCalls = new AtomicInteger();
       Path report = temp.resolve(checkpoint + ".json");
@@ -184,9 +212,9 @@ class WorkCheckpointHarnessTest {
             "bash",
             script().toString(),
             "--checkpoint",
-            "mapping",
+            "recovery",
             "--case",
-            "om-mapping",
+            "wrong-binding-recovery",
             "--report",
             report.toString());
     builder.environment().put("WORK_CHECKPOINT_LIVE", "1");
@@ -197,7 +225,7 @@ class WorkCheckpointHarnessTest {
     assertEquals(1, exit, output);
     JsonNode body = JSON.readTree(report.toFile());
     assertEquals("MISSING_CAPABILITY", body.path("failureCode").asText());
-    assertEquals("mapping", body.path("checkpoint").asText());
+    assertEquals("recovery", body.path("checkpoint").asText());
   }
 
   @Test
@@ -354,6 +382,28 @@ class WorkCheckpointHarnessTest {
         + steps
         + ",\"requirements\":[],\"sequenceGroups\":[],\"conditionGroups\":[],\"splitGroups\":[],\"loopGroups\":[],\"retryGroups\":[],\"errorScopeGroups\":[],\"transfers\":[],\"rules\":[],\"retainedValues\":[],\"deletes\":[],"
         + "\"question\":\"\",\"unresolvedChoice\":\"\",\"clarificationEvidenceIds\":[],\"defectRecordRef\":\"\",\"contradiction\":\"\",\"defectEvidenceIds\":[],\"issueCategory\":\"\"}";
+  }
+
+  private static String omMappingCapture() {
+    return """
+        {"outcome":"PREPARED","requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[
+          {"existingId":"","alias":"xfer-request","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[],"decision":""},
+          {"existingId":"","alias":"xfer-response","targetStepRef":"result","sourcePorts":[{"stepId":"create","portName":"success"}],"targetPort":{"stepId":"result","portName":"request"},"requirementRefs":[],"decision":""}
+        ],"rules":[
+          {"existingId":"","alias":"rule-subject","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.name","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Subject","retainedValueId":""},"constants":[],"behavior":"name or fallback","evidenceRefs":["src-om"]},
+          {"existingId":"","alias":"rule-failure","transferRef":"xfer-response","sources":[],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.error.code","retainedValueId":""},"constants":[{"name":"code","value":"SALESFORCE_TASK_CREATE_ERROR"}],"behavior":"failure code","evidenceRefs":["src-om"]}
+        ],"retainedValues":[
+          {"existingId":"","alias":"keep-order","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.orderId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-om"]}
+        ],"question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
+        """;
+  }
+
+  private static String priorityRepairCapture() {
+    return """
+        {"outcome":"PREPARED","requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[],"rules":[
+          {"existingId":"rule-priority","alias":"","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.priority","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Priority","retainedValueId":""},"constants":[],"behavior":"urgent maps to High","evidenceRefs":["src-om"]}
+        ],"retainedValues":[],"question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
+        """;
   }
 
   private static String selection() {

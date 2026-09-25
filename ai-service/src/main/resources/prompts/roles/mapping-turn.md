@@ -62,12 +62,19 @@ not emit mapping changes that would create or remove a transition.
 
 Rule shapes:
 
+- Descriptive rule: structured source references, named JSON constants, and short behavior text.
+  Leave the typed `operation` empty. Do not wrap that prose in a custom value.
+- A rule is descriptive or typed, not both.
 - Field copy: `sourcePath` and `targetPath`, empty expression.
 - String template, conditional conversion, default or fallback, JSON construction: set `expression`.
 - Constant: quoted `sourcePath` or an expression such as `Set to Not Started.`
 - Fields preserved for a later response: put those rules on the transition that writes the target
   payload.
-- Success and failure outcomes: separate rules on the owning intent.
+- Success and failure outcomes: separate rules on the owning call. Do not add another service call.
+- Values kept for a later response stay retained context. Do not copy those fields onto the service request.
+- A target name that differs from its source needs context evidence. Do not invent an alias.
+- A contract or operation name is not a JSON field prefix. Use the path from the selected schema.
+- A field path missing from that schema is a clarification. Do not invent the path.
 
 Set `implementationPreference` to `SCRIPT` only when the author asked for a script. Leave it empty
 otherwise.

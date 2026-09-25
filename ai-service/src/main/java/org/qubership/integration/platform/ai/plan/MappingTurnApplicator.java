@@ -202,13 +202,23 @@ public final class MappingTurnApplicator {
       }
     }
     List<MappingIntentRule> rules = new ArrayList<>(intent.rules());
-    rules.set(
-        matches.getFirst(),
-        new MappingIntentRule(
-            update.sourcePath(),
-            newTargetPath,
-            update.expression(),
-            MappingRuleStatus.USER_DEFINED));
+    if (current.descriptive()) {
+      String behavior = update.expression() != null ? update.expression() : current.behavior();
+      rules.set(
+          matches.getFirst(),
+          current
+              .withTargetPath(newTargetPath)
+              .withBehavior(behavior)
+              .withStatus(MappingRuleStatus.USER_DEFINED));
+    } else {
+      rules.set(
+          matches.getFirst(),
+          new MappingIntentRule(
+              update.sourcePath(),
+              newTargetPath,
+              update.expression(),
+              MappingRuleStatus.USER_DEFINED));
+    }
     working.set(index, intent.withRules(rules));
   }
 
@@ -296,11 +306,7 @@ public final class MappingTurnApplicator {
         throw new IllegalArgumentException("mapping rule is missing targetPath");
       }
       userRules.add(
-          new MappingIntentRule(
-              rule.sourcePath(),
-              rule.targetPath(),
-              rule.expression(),
-              MappingRuleStatus.USER_DEFINED));
+          rule.withStatus(MappingRuleStatus.USER_DEFINED));
     }
     return List.copyOf(userRules);
   }

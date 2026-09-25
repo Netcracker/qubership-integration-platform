@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 
 /**
@@ -52,6 +53,27 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
   @Override
   public MappingTurnResult interpretGap(RequirementBrief brief, String authorMessage) {
     return interpret(brief, authorMessage, true);
+  }
+
+  /**
+   * Document mapping tasks fail the capture when the model output cannot be parsed. The edit path
+   * still treats that as no change.
+   */
+  public MappingTurnResult interpretForWorkDocument(RequirementBrief brief, String authorMessage) {
+    Objects.requireNonNull(brief, "brief");
+    if (authorMessage == null || authorMessage.isBlank()) {
+      return MappingTurnResult.changes();
+    }
+    MappingTurnCapture capture;
+    try {
+      capture =
+          agent.interpret(renderFlow(brief.flow()), renderIntents(brief), authorMessage.trim());
+    } catch (OutputParsingException e) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_CAPTURE",
+          "Mapping capture could not be parsed. The task was not completed.");
+    }
+    return fromCapture(capture, brief, authorMessage.trim(), false);
   }
 
   private MappingTurnResult interpret(
