@@ -168,6 +168,29 @@ class WorkMappingTaskTest {
   }
 
   @Test
+  void initialPromptContainsAttachedSchemaFieldAndStep() {
+    List<String> prompts = new ArrayList<>();
+    mapping.interpret(
+        RUN_ID,
+        materials(false),
+        prompt -> {
+          prompts.add(prompt);
+          return suppliedCapture(false);
+        });
+
+    assertFalse(prompts.isEmpty());
+    String prompt = prompts.getFirst();
+    int field = prompt.indexOf("orderCreationDate");
+    assertTrue(field >= 0);
+    int lineStart = prompt.lastIndexOf('\n', field);
+    int lineEnd = prompt.indexOf('\n', field);
+    String schemaLine =
+        prompt.substring(lineStart < 0 ? 0 : lineStart + 1, lineEnd < 0 ? prompt.length() : lineEnd);
+    assertTrue(schemaLine.contains("start"));
+    assertTrue(prompt.contains("supplied mapping"));
+  }
+
+  @Test
   void promptKeepsClarificationRecordsEmptyAndKeepsDescribedFormats() {
     List<String> prompts = new ArrayList<>();
     mapping.interpret(
