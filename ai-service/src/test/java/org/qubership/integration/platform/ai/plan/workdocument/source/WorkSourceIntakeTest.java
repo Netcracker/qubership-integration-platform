@@ -308,6 +308,33 @@ class WorkSourceIntakeTest {
   }
 
   @Test
+  void markdownSourceKeepsTheOriginalTextAndIndexesPassages() {
+    String text = "# Request\n\nMap the order id.\n\n# Failure\n\nReturn the error.\n";
+    storage.put("uploads/orders.md", text);
+
+    SourceInventory inventory =
+        intake.accept(
+            RUN_ID,
+            "doc-sources",
+            new SourceBatch(
+                List.of(),
+                List.of(new SourceFile("uploads/orders.md", "orders.md", "MAP-1", SourceRole.MAPPING)),
+                List.of()),
+            "cmd-passages");
+
+    StoredSource mapping = source(inventory, "MAP-1");
+    assertEquals(text, mapping.originalText());
+    assertEquals(text, mapping.content());
+    assertEquals(2, mapping.passages().size());
+    assertEquals("Map the order id.", mapping.passages().get(0).text());
+    assertEquals("Request", mapping.passages().get(0).parentHeading());
+    assertEquals(mapping.id(), mapping.passages().get(0).sourceId());
+    assertEquals("Return the error.", mapping.passages().get(1).text());
+    assertEquals("Failure", mapping.passages().get(1).parentHeading());
+    assertFalse(mapping.passages().get(0).id().equals(mapping.passages().get(1).id()));
+  }
+
+  @Test
   void unsupportedFormatStaysVisibleAndIsNotEmptyMappingInput() {
     storage.put("uploads/rules.pdf", "");
 
