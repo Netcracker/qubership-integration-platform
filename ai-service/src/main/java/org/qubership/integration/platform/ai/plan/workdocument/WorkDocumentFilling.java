@@ -274,6 +274,8 @@ public final class WorkDocumentFilling {
     }
     if (completed != null) {
       acceptCompleted(tasks, completed);
+    } else {
+      acceptStored(tasks, taskKey);
     }
     if (clearCorrective) {
       WorkTaskRecord stash = find(document.progress().tasks(), CORRECTIVE_KEY);
@@ -328,6 +330,14 @@ public final class WorkDocumentFilling {
       return new Target(stash.kind(), stash.taskId(), CORRECTIVE_KEY, false);
     }
     WorkTaskPlanner.Task selected = plan.selected();
+    if (selected == null
+        || WorkTaskPlanner.KIND_ORDER.indexOf(selected.kind())
+            > WorkTaskPlanner.KIND_ORDER.indexOf(WorkTaskKind.DESCRIBE_CONTEXT)) {
+      Target context = droppedContextRecheck(document, plan);
+      if (context != null) {
+        return context;
+      }
+    }
     if (selected == null) {
       return null;
     }
@@ -409,8 +419,58 @@ public final class WorkDocumentFilling {
     return true;
   }
 
+  private Target droppedContextRecheck(ChainWorkDocument document, WorkTaskPlanner.Plan plan) {
+    if (!logicalAccepted(document)) {
+      return null;
+    }
+    Target found = null;
+    for (WorkTaskRecord task : document.progress().tasks()) {
+      if (task.kind() != WorkTaskKind.DESCRIBE_CONTEXT) {
+        continue;
+      }
+      if (task.state() != WorkTaskState.NEEDS_RECHECK || planned(plan, task.taskKey())) {
+        continue;
+      }
+      String recordId = recordId(task);
+      if (recordId.isBlank() || !cheapContext(document, recordId)) {
+        continue;
+      }
+      if (found == null || task.taskKey().compareTo(found.taskKey()) < 0) {
+        found = new Target(WorkTaskKind.DESCRIBE_CONTEXT, recordId, task.taskKey(), true);
+      }
+    }
+    return found;
+  }
+
+  private static boolean planned(WorkTaskPlanner.Plan plan, String taskKey) {
+    for (WorkTaskPlanner.Task task : plan.tasks()) {
+      if (taskKey.equals(task.taskKey())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean logicalAccepted(ChainWorkDocument document) {
+    String key = WorkTaskPlanner.taskKey(WorkTaskKind.LOGICAL_DESIGN, document.documentId());
+    WorkTaskRecord stored = find(document.progress().tasks(), key);
+    return stored != null && stored.state() == WorkTaskState.ACCEPTED;
+  }
+
+  private static String recordId(WorkTaskRecord task) {
+    String prefix = WorkTaskPlanner.taskKey(task.kind(), "");
+    if (task.taskKey() != null && task.taskKey().startsWith(prefix)) {
+      return task.taskKey().substring(prefix.length());
+    }
+    return "";
+  }
+
   private boolean cheapContext(ChainWorkDocument document, WorkTaskPlanner.Task task) {
-    LogicalStep producer = step(document, task.recordId());
+    return cheapContext(document, task.recordId());
+  }
+
+  private boolean cheapContext(ChainWorkDocument document, String producerId) {
+    LogicalStep producer = step(document, producerId);
     if (producer == null || producer.binding() == null) {
       return false;
     }
@@ -1154,6 +1214,14 @@ public final class WorkDocumentFilling {
       }
     }
     return reason;
+  }
+
+  private static void acceptStored(List<WorkTaskRecord> tasks, String taskKey) {
+    WorkTaskRecord stored = find(tasks, taskKey);
+    if (stored == null || stored.state() == WorkTaskState.ACCEPTED) {
+      return;
+    }
+    replace(tasks, accepted(stored, stored.acceptedInputFingerprint()));
   }
 
   private static void acceptCompleted(List<WorkTaskRecord> tasks, WorkTaskPlanner.Task completed) {
