@@ -74,7 +74,11 @@ class WorkRecoverySequenceTest {
         recovery.route(
             RUN,
             WorkRecovery.Defect.of(
-                "create", "WRONG_OPERATION", "binding", "The mapped operation does not create the task."),
+                "create",
+                "WRONG_OPERATION",
+                "binding",
+                "The mapped operation does not create the task.",
+                "src-om"),
             "cmd-binding");
 
     assertEquals(WorkRecovery.causeKey(RUN, "create", "WRONG_OPERATION", "binding"), routed.causeKey());
@@ -98,7 +102,11 @@ class WorkRecoverySequenceTest {
         recovery.route(
             RUN,
             WorkRecovery.Defect.of(
-                "rule-priority", "WRONG_OPERATION", "behavior", "Priority targets the wrong operation."),
+                "rule-priority",
+                "WRONG_OPERATION",
+                "behavior",
+                "Priority targets the wrong operation.",
+                "src-om"),
             "cmd-map");
     WorkRecovery.Result binding =
         recovery.route(
@@ -190,7 +198,8 @@ class WorkRecoverySequenceTest {
   @Test
   void restartAndDuplicateDeliveryDoNotRestoreOrDoubleChargeTheAllowance() {
     WorkRecovery.Defect defect =
-        WorkRecovery.Defect.of("rule-priority", "WRONG_OPERATION", "behavior", "Priority is wrong.");
+        WorkRecovery.Defect.of(
+            "rule-priority", "WRONG_OPERATION", "behavior", "Priority is wrong.", "src-om");
     WorkRecovery.Result first = recovery.route(RUN, defect, "cmd-once");
     WorkRecovery.Result duplicate = recovery.route(RUN, defect, "cmd-once");
 
@@ -207,7 +216,7 @@ class WorkRecoverySequenceTest {
         restarted.route(
             RUN,
             WorkRecovery.Defect.of(
-                "rule-priority", "WRONG_OPERATION", "behavior", "Priority is still wrong."),
+                "rule-priority", "WRONG_OPERATION", "behavior", "Priority is still wrong.", "src-om"),
             "cmd-after-restart");
     assertEquals(first.causeKey(), afterRestart.causeKey());
     assertEquals(1, afterRestart.repairsRemaining());
@@ -219,12 +228,14 @@ class WorkRecoverySequenceTest {
     WorkRecovery.Result first =
         recovery.route(
             RUN,
-            WorkRecovery.Defect.of("req-flow", "WRONG_OPERATION", "text", "The call is wrong."),
+            WorkRecovery.Defect.of(
+                "req-flow", "WRONG_OPERATION", "text", "The call is wrong.", "src-om"),
             "cmd-first");
     WorkRecovery.Result second =
         recovery.route(
             RUN,
-            WorkRecovery.Defect.of("req-other", "MISSING_FACT", "text", "Which order id should be kept?"),
+            WorkRecovery.Defect.of(
+                "req-other", "MISSING_FACT", "text", "Which order id should be kept?", "src-om"),
             "cmd-second");
 
     assertNotEquals(first.causeKey(), second.causeKey());
@@ -292,12 +303,167 @@ class WorkRecoverySequenceTest {
     assertEquals(12, technicalCharges());
   }
 
+  @Test
+  void revealedEarlierRecordRoutesBackwardWhenAnotherTaskIsPending() throws Exception {
+    String runId = "run-earlier-owner";
+    seed(runId, withTaskState("LOGICAL_FLOW", "PENDING"));
+    WorkRecovery.Defect defect =
+        new WorkRecovery.Defect(
+            "",
+            "rule-priority",
+            "WRONG_OPERATION",
+            "behavior",
+            "Priority targets the wrong operation.",
+            List.of("src-om"),
+            "create",
+            "binding");
+
+    WorkRecovery.Result routed = recovery.route(runId, defect, "cmd-earlier");
+    WorkRecovery.Result replay = recovery.route(runId, defect, "cmd-earlier");
+
+    String cause = WorkRecovery.causeKey(runId, "rule-priority", "WRONG_OPERATION", "behavior");
+    assertEquals(cause, routed.causeKey());
+    assertEquals(cause, replay.causeKey());
+    assertEquals(WorkStage.SERVICES, routed.owner());
+    assertEquals(WorkStage.SERVICES, replay.owner());
+    assertTrue(routed.dispatched());
+    assertEquals(2, replay.repairsRemaining());
+    assertEquals("PENDING", taskState(runId, "LOGICAL_FLOW"));
+    assertEquals("PENDING", taskState(runId, "SERVICES"));
+    assertEquals("NEEDS_RECHECK", taskState(runId, "DATA_BEHAVIOR"));
+    assertEquals(1, repairCharges(runId));
+  }
+
+  @Test
+  void laterPendingTaskDoesNotMoveTheCauseForward() throws Exception {
+    String runId = "run-later-pending";
+    seed(runId, withTaskState("DATA_BEHAVIOR", "PENDING"));
+    WorkRecovery.Defect defect =
+        new WorkRecovery.Defect(
+            "",
+            "req-flow",
+            "WRONG_OPERATION",
+            "text",
+            "The call is wrong.",
+            List.of("src-om"),
+            "create",
+            "binding");
+
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class, () -> recovery.route(runId, defect, "cmd-later"));
+
+    assertEquals("NOT_EARLIER_OWNER", rejected.code());
+    assertEquals("ACCEPTED", taskState(runId, "LOGICAL_FLOW"));
+    assertEquals("ACCEPTED", taskState(runId, "SERVICES"));
+    assertEquals("PENDING", taskState(runId, "DATA_BEHAVIOR"));
+    assertEquals(0, document(runId).path("progress").path("findings").size());
+    assertEquals(0, repairCharges(runId));
+  }
+
+  @Test
+  void blockedFourthInvocationDoesNotChangeTheOwner() {
+    String findingId = "";
+    for (int attempt = 1; attempt <= 3; attempt++) {
+      WorkRecovery.Result routed =
+          recovery.route(
+              RUN,
+              new WorkRecovery.Defect(
+                  findingId,
+                  "rule-priority",
+                  "WRONG_OPERATION",
+                  "behavior",
+                  "Wording " + attempt,
+                  List.of("src-om"),
+                  "",
+                  ""),
+              "cmd-owner-" + attempt);
+      findingId = routed.findingId();
+      assertEquals(WorkStage.DATA_BEHAVIOR, routed.owner());
+    }
+
+    WorkRecovery.Result blocked =
+        recovery.route(
+            RUN,
+            new WorkRecovery.Defect(
+                findingId,
+                "rule-priority",
+                "WRONG_OPERATION",
+                "behavior",
+                "Wording 4",
+                List.of("src-om"),
+                "req-flow",
+                "text"),
+            "cmd-owner-4");
+
+    assertFalse(blocked.dispatched());
+    assertTrue(blocked.exhausted());
+    assertEquals(WorkStage.DATA_BEHAVIOR, blocked.owner());
+    assertEquals("PENDING", taskState("DATA_BEHAVIOR"));
+    assertEquals("ACCEPTED", taskState("LOGICAL_FLOW"));
+    assertEquals("ACCEPTED", taskState("SERVICES"));
+    assertEquals(3, repairCharges());
+  }
+
+  @Test
+  void suppliedEvidenceIdOpensACauseWhenTheSourceIsNotTheFixture() throws Exception {
+    String runId = "run-other-source";
+    seed(runId, DOCUMENT.replace("src-om", "src-order"));
+    WorkRecovery.Result routed =
+        recovery.route(
+            runId,
+            WorkRecovery.Defect.of(
+                "req-flow",
+                "MISSING_FACT",
+                "text",
+                "Which order id should be kept?",
+                "src-order"),
+            "cmd-source");
+
+    assertTrue(routed.dispatched());
+    assertEquals(
+        WorkRecovery.causeKey(runId, "req-flow", "MISSING_FACT", "text"), routed.causeKey());
+    assertEquals(WorkStage.LOGICAL_FLOW, routed.owner());
+    assertEquals(List.of("src-order"), findingEvidence(runId, routed.findingId()));
+  }
+
+  private void seed(String runId, String documentJson) throws Exception {
+    runs.create(
+        new RunSnapshot(
+            runId,
+            "conversation-" + runId,
+            1L,
+            RunStatus.RUNNING,
+            "DATA_BEHAVIOR",
+            List.of(new StageSnapshot("DATA_BEHAVIOR", StageStatus.RUNNING, List.of(), null)),
+            null));
+    documents.intake(
+        runId,
+        new WorkDocumentState("pending", JSON.readValue(documentJson, ChainWorkDocument.class)),
+        "cmd-seed-" + runId,
+        new WorkRepairBudget(3));
+  }
+
+  private static String withTaskState(String stage, String state) {
+    String current = "\"state\":\"ACCEPTED\",\"stage\":\"" + stage + "\"";
+    String updated = "\"state\":\"" + state + "\",\"stage\":\"" + stage + "\"";
+    return DOCUMENT.replace(current, updated);
+  }
+
   private JsonNode document() {
-    return JSON.valueToTree(documents.read(RUN).document());
+    return document(RUN);
+  }
+
+  private JsonNode document(String runId) {
+    return JSON.valueToTree(documents.read(runId).document());
   }
 
   private String taskState(String stage) {
-    for (JsonNode task : document().path("progress").path("tasks")) {
+    return taskState(RUN, stage);
+  }
+
+  private String taskState(String runId, String stage) {
+    for (JsonNode task : document(runId).path("progress").path("tasks")) {
       if (stage.equals(task.path("stage").asText())) {
         return task.path("state").asText();
       }
@@ -335,13 +501,30 @@ class WorkRecoverySequenceTest {
     return "";
   }
 
+  private List<String> findingEvidence(String runId, String findingId) {
+    List<String> evidenceIds = new ArrayList<>();
+    for (JsonNode finding : document(runId).path("progress").path("findings")) {
+      if (!findingId.equals(finding.path("id").asText())) {
+        continue;
+      }
+      for (JsonNode evidenceId : finding.path("evidenceIds")) {
+        evidenceIds.add(evidenceId.asText());
+      }
+    }
+    return evidenceIds;
+  }
+
   private String nextAction() {
     JsonNode questions = document().path("progress").path("questions");
     return questions.isEmpty() ? "" : questions.get(0).path("question").asText();
   }
 
   private long repairCharges() {
-    return runs.load(RUN).orElseThrow().transitions().stream()
+    return repairCharges(RUN);
+  }
+
+  private long repairCharges(String runId) {
+    return runs.load(runId).orElseThrow().transitions().stream()
         .filter(
             transition ->
                 transition.reason() != null

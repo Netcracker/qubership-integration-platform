@@ -69,7 +69,8 @@ public final class WorkRecovery {
 
   public Result route(String runId, Defect defect, String commandId) {
     requireCommand(commandId);
-    Defect request = defect == null ? Defect.of("", "", "", "") : defect;
+    Defect request =
+        defect == null ? new Defect("", "", "", "", "", List.of(), "", "") : defect;
     ProductPipelineRunDocument current = load(runId);
     String payloadHash = payloadHash("route", request);
     Optional<RunTransition> replay = current.appliedCommand(commandId, payloadHash);
@@ -99,8 +100,7 @@ public final class WorkRecovery {
       }
       WorkStage revealed =
           ownerOf(document, request.revealedRecordId(), request.revealedFieldPointer());
-      WorkStage currentOwner = routedOwner(document, originOwner);
-      if (revealed.ordinal() >= currentOwner.ordinal()) {
+      if (revealed.ordinal() >= originOwner.ordinal()) {
         throw rejected(
             "NOT_EARLIER_OWNER",
             "Record "
@@ -121,15 +121,16 @@ public final class WorkRecovery {
             request.contradiction(),
             request.evidenceIds(),
             allowed);
-    markTasks((ObjectNode) next.withObject("progress"), owner);
     String nextAction = "";
     String reason;
     RecoveryDecision decision;
     Reference documentRef = current.run().workDocumentRef();
     if (allowed) {
+      markTasks((ObjectNode) next.withObject("progress"), owner);
       reason = ledger.recordRepair(key, "");
       decision = businessDecision(documentRef, stored.origin(), owner, false);
     } else {
+      owner = WorkStage.valueOf(current.run().currentStageId());
       nextAction = exhaustedAction(stored.origin());
       addNextAction((ObjectNode) next.withObject("progress"), stored.origin(), nextAction);
       reason = EXHAUSTED_PREFIX + keyText;
@@ -203,7 +204,7 @@ public final class WorkRecovery {
     String category = stored == null ? request.issueCategory() : stored.category();
     String fieldPointer = stored == null ? pointer : stored.pointer();
     String keyText = causeKey(runId, origin, category, fieldPointer);
-    WorkStage owner = routedOwner(document, ownerOf(document, origin, fieldPointer));
+    WorkStage owner = WorkStage.valueOf(transition.stageId());
     boolean dispatched =
         transition.reason() != null
             && transition.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX);
@@ -497,15 +498,6 @@ public final class WorkRecovery {
         "Record " + recordId + " is not on the document. Name a record the document already stores.");
   }
 
-  private static WorkStage routedOwner(JsonNode document, WorkStage fallback) {
-    for (JsonNode task : document.path("progress").path("tasks")) {
-      if ("PENDING".equals(task.path("state").asText())) {
-        return WorkStage.valueOf(task.path("stage").asText());
-      }
-    }
-    return fallback;
-  }
-
   private static boolean knownRecord(JsonNode document, String recordId) {
     if (recordId == null || recordId.isBlank()) {
       return false;
@@ -706,9 +698,20 @@ public final class WorkRecovery {
     }
 
     public static Defect of(
-        String originRecordId, String issueCategory, String fieldPointer, String contradiction) {
+        String originRecordId,
+        String issueCategory,
+        String fieldPointer,
+        String contradiction,
+        String evidenceId) {
       return new Defect(
-          "", originRecordId, issueCategory, fieldPointer, contradiction, List.of("src-om"), "", "");
+          "",
+          originRecordId,
+          issueCategory,
+          fieldPointer,
+          contradiction,
+          List.of(evidenceId),
+          "",
+          "");
     }
   }
 

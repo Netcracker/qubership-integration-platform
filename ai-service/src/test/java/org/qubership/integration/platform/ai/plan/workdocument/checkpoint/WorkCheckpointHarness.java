@@ -790,7 +790,11 @@ public final class WorkCheckpointHarness {
         recovery.route(
             runId,
             WorkRecovery.Defect.of(
-                "create", "WRONG_OPERATION", "binding", "Mapping found the wrong operation."),
+                "create",
+                "WRONG_OPERATION",
+                "binding",
+                "Mapping found the wrong operation.",
+                "src-om"),
             "cmd-wrong-binding");
     List<String> recheck = recheckStages(documents, runId);
     boolean rules = rulesPreserved(documents, runId);
@@ -818,7 +822,11 @@ public final class WorkCheckpointHarness {
         recovery.route(
             runId,
             WorkRecovery.Defect.of(
-                "rule-priority", "WRONG_OPERATION", "behavior", "Priority targets the wrong operation."),
+                "rule-priority",
+                "WRONG_OPERATION",
+                "behavior",
+                "Priority targets the wrong operation.",
+                "src-om"),
             "cmd-map");
     WorkRecovery.Result binding =
         recovery.route(
@@ -886,7 +894,8 @@ public final class WorkCheckpointHarness {
     WorkRecovery.Result first =
         recovery.route(
             runId,
-            WorkRecovery.Defect.of("rule-priority", "WRONG_OPERATION", "behavior", "Priority is wrong."),
+            WorkRecovery.Defect.of(
+                "rule-priority", "WRONG_OPERATION", "behavior", "Priority is wrong.", "src-om"),
             "cmd-once");
     WorkRecovery restarted = WorkRecovery.create(documents, runs);
     String causeKey = restarted.causeKey(runId, first.findingId());
