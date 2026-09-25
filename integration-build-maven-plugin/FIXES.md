@@ -9,7 +9,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | --- | --- | --- | --- | --- |
 | F1 | AtlasMap custom actions unregistered, so mapper chains abort the build | blocker | fixed | `bcdb973dc` |
 | F2 | Route resources never generated; `${spring.application.cloud_service_name}` leaks into output | blocker | fixed | `5ef3c4185` |
-| F3 | DTO library location hardwired to runtime-catalog, no codegen on the plugin side | major | fixed | `8c7ace96d`, `6c0a9b0d0` |
+| F3 | DTO library location hardwired to runtime-catalog, no codegen on the plugin side | major | fixed | `8c7ace96d`, `6c0a9b0d0`, `e111ff77c` |
 | F4 | Nested elements duplicated in the snapshot element graph | major | fixed | `86b24ed33` |
 | F5 | No equivalence test against the runtime-catalog pipeline | major | out of scope | |
 | F6 | Module missing from every CI workflow and from `scripts/modules.sh` | major | fixed | `c17abe0d8` |
@@ -328,6 +328,23 @@ Verified:
   `mvn qip-integration-build:build-libs` runs it.
 - Not run end to end: no test chain uses a service with a generated library, so no integrations
   configuration carrying a library URL was built.
+
+Library definitions can also be turned off, `e111ff77c`. `IntegrationsConfigurationOptions` in
+`integration-build-pipeline` gained `libraryDefinitionsEnabled`, default `true`, and
+`IntegrationsConfigurationBuilder` lists no library when it is `false`. The plugin exposes it as
+`<options><integrations><libraryDefinitionsEnabled>`, for an engine that gets the DTO classes elsewhere.
+The default keeps today's behavior in both hosts, including where the options are created without the
+builder: the plugin's `BuildCRsOptions`, and runtime-catalog's stored options deserialized by Jackson.
+
+Verified:
+
+- `new IntegrationsConfigurationOptions()`, the builder, Jackson reading `{}`, and the default
+  `ResourceBuildOptions` all give `true`.
+- `IntegrationsConfigurationBuilderTest` checks one library per specification by default, none with the
+  option off while the chain sources are still listed, and the no-args default. The pipeline's 466 tests
+  and the plugin's 113 pass.
+- Mutation-checked: inverting the condition fails two tests, and dropping `@Builder.Default` fails the
+  default case.
 
 ## Accepted
 
