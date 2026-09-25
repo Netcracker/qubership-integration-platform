@@ -3359,6 +3359,8 @@ components:
           type: "boolean"
         configurationLocation:
           type: "string"
+        libraryDefinitionsEnabled:
+          type: "boolean"
       type: "object"
     JsonNode: {}
     JvmOptions:
