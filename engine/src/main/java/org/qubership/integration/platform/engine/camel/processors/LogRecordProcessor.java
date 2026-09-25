@@ -24,6 +24,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.qubership.integration.platform.engine.model.constants.BusinessIds;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants;
 import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
+import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
+import org.qubership.integration.platform.engine.service.debugger.CamelDebuggerPropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.logging.AbstractChainLogger;
 import org.qubership.integration.platform.engine.util.MDCUtil;
 import org.slf4j.MDC;
@@ -54,10 +56,17 @@ public class LogRecordProcessor implements Processor {
 
     private final SimpleLanguage simpleInterpreter;
 
+    private final CamelDebuggerPropertiesService propertiesService;
+
     @Autowired
-    public LogRecordProcessor(AbstractChainLogger chainLogger, SimpleLanguage simpleInterpreter) {
+    public LogRecordProcessor(
+            AbstractChainLogger chainLogger,
+            SimpleLanguage simpleInterpreter,
+            CamelDebuggerPropertiesService propertiesService
+    ) {
         this.chainLogger = chainLogger;
         this.simpleInterpreter = simpleInterpreter;
+        this.propertiesService = propertiesService;
     }
 
     @Override
@@ -87,16 +96,19 @@ public class LogRecordProcessor implements Processor {
             MDCUtil.setBusinessIds(businessIdentifiers);
         }
 
-        LogLoggingLevel globalLogLevel = LogLoggingLevel.defaultLevel();
+        CamelDebugger camelDebugger = (CamelDebugger) exchange.getContext().getDebugger();
+        LogLoggingLevel chainLogLevel = propertiesService.getProperties(exchange, camelDebugger.getDeploymentId())
+                .getRuntimeProperties(exchange)
+                .getLogLoggingLevel();
         switch (logLevel) {
             case ERROR -> chainLogger.error(logRecordMessage);
             case WARNING -> {
-                if (globalLogLevel.isWarnLevel()) {
+                if (chainLogLevel.isWarnLevel()) {
                     chainLogger.warn(logRecordMessage);
                 }
             }
             case INFO -> {
-                if (globalLogLevel.isInfoLevel()) {
+                if (chainLogLevel.isInfoLevel()) {
                     chainLogger.info(logRecordMessage);
                 }
             }
