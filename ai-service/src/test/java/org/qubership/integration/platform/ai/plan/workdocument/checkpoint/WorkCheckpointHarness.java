@@ -4,10 +4,16 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import dev.langchain4j.model.openai.OpenAiChatModel;
+import dev.langchain4j.internal.JsonSchemaElementUtils;
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -19,10 +25,12 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkRepairBudget;
+import org.qubership.integration.platform.ai.plan.workdocument.binding.CatalogResolution;
 import org.qubership.integration.platform.ai.plan.workdocument.binding.UnavailableCatalog;
 import org.qubership.integration.platform.ai.plan.workdocument.binding.WorkBinding;
 import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
@@ -93,18 +101,31 @@ public final class WorkCheckpointHarness {
               "LLM_API_KEY and LLM_BASE_URL must already be set. The harness does not change them."));
       System.exit(1);
     }
+    boolean binding = "binding".equals(checkpoint);
     WorkTaskModel client =
-        prompt ->
-            OpenAiChatModel.builder()
-                .apiKey(apiKey)
-                .baseUrl(baseUrl)
-                .modelName(model)
-                .build()
-                .chat(prompt);
-    int exit =
-        run(
-            new CheckpointRequest(checkpoint, caseId, report, fixtures, true, publicationStore),
-            new CheckpointSession(provider, model, false, client, new UnavailableCatalog()));
+        prompt -> completeChat(baseUrl, apiKey, model, prompt, binding ? selectionSchema() : captureSchema());
+    CatalogResolution catalog;
+    try {
+      catalog = binding ? HostCatalog.open(System.getenv("CATALOG_URL")) : new UnavailableCatalog();
+    } catch (RuntimeException failure) {
+      write(report, failed(checkpoint, caseId, "CATALOG_CLIENT_UNAVAILABLE", failure.getMessage()));
+      System.exit(1);
+      return;
+    }
+    if (binding) {
+      HostCatalog.bindConversation("checkpoint-" + caseId);
+    }
+    int exit;
+    try {
+      exit =
+          run(
+              new CheckpointRequest(checkpoint, caseId, report, fixtures, true, publicationStore),
+              new CheckpointSession(provider, model, false, client, catalog));
+    } finally {
+      if (binding) {
+        HostCatalog.clearConversation();
+      }
+    }
     System.exit(exit);
   }
 
@@ -329,6 +350,100 @@ public final class WorkCheckpointHarness {
     return report;
   }
 
+  /**
+   * Calls the chat API with the JDK HTTP client. The Quarkus JAX-RS client on this classpath needs
+   * CDI, and this main method does not start a container.
+   */
+  static String completeChat(String baseUrl, String apiKey, String model, String prompt) {
+    return completeChat(baseUrl, apiKey, model, prompt, captureSchema());
+  }
+
+  private static ObjectNode captureSchema() {
+    ObjectNode schema = JSON.createObjectNode();
+    schema.put("name", "work_task_capture");
+    schema.set(
+        "schema",
+        JSON.valueToTree(JsonSchemaElementUtils.toMap(WorkDocumentCaptureSchema.captureSchema(), true)));
+    return schema;
+  }
+
+  private static ObjectNode selectionSchema() {
+    ObjectNode schema = JSON.createObjectNode();
+    schema.put("name", "operation_selection");
+    ObjectNode body = JSON.createObjectNode();
+    body.put("type", "object");
+    body.put("additionalProperties", false);
+    body.putArray("required").add("outcome").add("candidateId").add("stepId").add("question").add("unresolvedChoice");
+    ObjectNode properties = body.putObject("properties");
+    ObjectNode outcome = properties.putObject("outcome");
+    outcome.put("type", "string");
+    outcome.putArray("enum").add("PREPARED").add("NEEDS_CLARIFICATION").add("INPUT_DEFECT");
+    properties.putObject("candidateId").put("type", "string");
+    properties.putObject("stepId").put("type", "string");
+    properties.putObject("question").put("type", "string");
+    properties.putObject("unresolvedChoice").put("type", "string");
+    schema.set("schema", body);
+    return schema;
+  }
+
+  static String completeChat(String baseUrl, String apiKey, String model, String prompt, ObjectNode responseSchema) {
+    String root = baseUrl.endsWith("/") ? baseUrl.substring(0, baseUrl.length() - 1) : baseUrl;
+    ObjectNode body = JSON.createObjectNode();
+    body.put("model", model);
+    body.putArray("messages").addObject().put("role", "user").put("content", prompt);
+    ObjectNode format = body.putObject("response_format");
+    format.put("type", "json_schema");
+    ObjectNode jsonSchema = format.putObject("json_schema");
+    jsonSchema.put("name", responseSchema.path("name").asText("response"));
+    jsonSchema.put("strict", true);
+    jsonSchema.set("schema", responseSchema.path("schema"));
+    HttpRequest request =
+        HttpRequest.newBuilder()
+            .uri(URI.create(root + "/chat/completions"))
+            .timeout(Duration.ofMinutes(5))
+            .header("Authorization", "Bearer " + apiKey)
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(body.toString()))
+            .build();
+    HttpResponse<String> response;
+    try {
+      response =
+          HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    } catch (InterruptedException failure) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Model request was interrupted.", failure);
+    } catch (IOException failure) {
+      throw new IllegalStateException("Model request failed.", failure);
+    }
+    if (response.statusCode() < 200 || response.statusCode() >= 300) {
+      throw new IllegalStateException(modelHttpFailure(response));
+    }
+    JsonNode tree;
+    try {
+      tree = JSON.readTree(response.body());
+    } catch (Exception failure) {
+      throw new IllegalStateException("Model response is not JSON.", failure);
+    }
+    String content = tree.path("choices").path(0).path("message").path("content").asText("");
+    if (content.isBlank()) {
+      throw new IllegalStateException("Model response has no message content.");
+    }
+    return content;
+  }
+
+  private static String modelHttpFailure(HttpResponse<String> response) {
+    String detail = "";
+    try {
+      detail = JSON.readTree(response.body()).path("error").path("message").asText("");
+    } catch (Exception ignored) {
+      detail = "";
+    }
+    if (detail.isBlank()) {
+      return "Model returned HTTP " + response.statusCode() + ".";
+    }
+    return "Model returned HTTP " + response.statusCode() + ": " + detail;
+  }
+
   public static ArtifactBlobStore openDurableStore(String directory) {
     if (directory == null || directory.isBlank()) {
       throw new IllegalStateException(
@@ -357,7 +472,7 @@ public final class WorkCheckpointHarness {
       return "";
     }
     return value
-        .replaceAll("sk-[A-Za-z0-9_\\-]+", "[redacted]")
+        .replaceAll("(?<![A-Za-z0-9])sk-[A-Za-z0-9_\\-]+", "[redacted]")
         .replaceAll("(?i)bearer\\s+[A-Za-z0-9._\\-]+", "Bearer [redacted]")
         .replaceAll("(?i)(\"apiKey\"\\s*:\\s*\")[^\"]*\"", "$1[redacted]\"");
   }

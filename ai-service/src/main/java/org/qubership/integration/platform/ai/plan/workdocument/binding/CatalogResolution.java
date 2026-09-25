@@ -11,6 +11,14 @@ public interface CatalogResolution {
   CatalogLookup lookup(String operationHint, String pinnedVersion);
 
   /**
+   * Same lookup with the step wording that names the service. Callers that only know the operation
+   * keep the two-argument method.
+   */
+  default CatalogLookup lookup(String operationHint, String pinnedVersion, String systemHint) {
+    return lookup(operationHint, pinnedVersion);
+  }
+
+  /**
    * {@code interactionId} is the logical step id. The operation hint is not an interaction id.
    */
   ApiHubHit searchApiHub(String interactionId, String operationHint, String pinnedVersion);

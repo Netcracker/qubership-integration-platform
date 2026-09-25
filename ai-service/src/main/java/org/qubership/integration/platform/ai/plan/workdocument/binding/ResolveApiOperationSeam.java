@@ -30,12 +30,18 @@ public final class ResolveApiOperationSeam implements CatalogResolution {
 
   @Override
   public CatalogLookup lookup(String operationHint, String pinnedVersion) {
+    return lookup(operationHint, pinnedVersion, "");
+  }
+
+  @Override
+  public CatalogLookup lookup(String operationHint, String pinnedVersion, String systemHint) {
     String release = pinnedVersion == null ? "" : pinnedVersion;
     CatalogLookupResult result =
         catalog.resolve(
-            new CatalogQuery("", "", "", "", "", operationHint, release, List.of()));
+            new CatalogQuery(systemHint, "", "", "", "", operationHint, release, List.of()));
     if (result instanceof CatalogLookupResult.Exact exact) {
-      String version = release.isBlank() ? "" : release;
+      String fromCatalog = exact.match().version() == null ? "" : exact.match().version();
+      String version = release.isBlank() ? fromCatalog : release;
       if (version.isBlank()) {
         return new CatalogLookup.VersionAbsent();
       }

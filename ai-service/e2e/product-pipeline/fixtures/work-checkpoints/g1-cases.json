@@ -20,7 +20,7 @@
       "checkpoint": "logical",
       "id": "repeat-call",
       "observation": "Two intentional calls have different stable IDs",
-      "source": "Case repeat-call. Triggered on onTaskStart. Call createTask twice on purpose. Keep two steps with different ids. Do not merge them."
+      "source": "Case repeat-call. Triggered on onTaskStart. Call createTask twice on purpose. Keep two steps with different ids. Do not merge them. Each call has lowercase success and failure outcomes. The first call's success targets the second call. Failure of either call, and success of the second call, target one reply step."
     },
     {
       "gate": "G1",
