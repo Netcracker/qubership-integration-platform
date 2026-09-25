@@ -9,7 +9,7 @@ elements:
     properties:
       destinationName: "test_destination_name"
       lazyStartProducer: false
-      messageOrderingEnabled: false
+      messageOrderingEnabled: true
       orderingKey: "test_ordering_key"
       projectId: "test_project_id"
       propagateContext: true
