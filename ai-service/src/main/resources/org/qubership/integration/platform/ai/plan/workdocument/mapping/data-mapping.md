@@ -15,5 +15,7 @@ Store the author's supplied mapping on the existing steps. Repair only the assig
   Do not ask for a format the source already describes.
 - NEEDS_CLARIFICATION sends one question and one unresolved choice. Every record list is empty.
   Do not send requirements, transfers, rules, or retained values with that outcome.
+- clarificationEvidenceIds and evidenceRefs are existing source ids from the document, such as src-om.
+  A schema label is not an evidence id.
 - Ask only when a field path is absent from both the source and the schema.
   A contract name is not a path, and an unknown catalog field is still a question.
