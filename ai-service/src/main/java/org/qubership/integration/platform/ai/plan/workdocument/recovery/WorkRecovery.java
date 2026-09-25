@@ -88,8 +88,10 @@ public final class WorkRecovery {
               + " is not on the document. Name a record the document already stores.");
     }
     requireEvidence(document, request.evidenceIds());
+    String keyText = causeKey(runId, stored.origin(), stored.category(), stored.pointer());
+    RecoveryAttemptKey key = ledger.documentCauseKey(keyText);
     WorkStage originOwner = ownerOf(document, stored.origin(), stored.pointer());
-    WorkStage owner = originOwner;
+    WorkStage owner = currentOwner(current, key, originOwner);
     if (!request.revealedRecordId().isBlank()) {
       if (!knownRecord(document, request.revealedRecordId())) {
         throw rejected(
@@ -100,7 +102,7 @@ public final class WorkRecovery {
       }
       WorkStage revealed =
           ownerOf(document, request.revealedRecordId(), request.revealedFieldPointer());
-      if (revealed.ordinal() >= originOwner.ordinal()) {
+      if (revealed.ordinal() >= owner.ordinal()) {
         throw rejected(
             "NOT_EARLIER_OWNER",
             "Record "
@@ -109,8 +111,6 @@ public final class WorkRecovery {
       }
       owner = revealed;
     }
-    String keyText = causeKey(runId, stored.origin(), stored.category(), stored.pointer());
-    RecoveryAttemptKey key = ledger.documentCauseKey(keyText);
     boolean allowed =
         ledger.mayRepair(current.transitions(), key, InputOrigin.TRUSTED);
     ObjectNode next = (ObjectNode) document.deepCopy();
@@ -457,6 +457,33 @@ public final class WorkRecovery {
     if (!result.accepted()) {
       throw new IllegalStateException(String.join(" ", result.findings()));
     }
+  }
+
+  /**
+   * The stage this cause is on now. The first hop uses the origin record. A later hop uses the stage
+   * stored on the last repair for the same cause key.
+   */
+  private static WorkStage currentOwner(
+      ProductPipelineRunDocument current, RecoveryAttemptKey key, WorkStage originOwner) {
+    String evidence = key.evidenceIdentity();
+    WorkStage owner = originOwner;
+    if (evidence.isBlank()) {
+      return owner;
+    }
+    for (RunTransition transition : current.transitions()) {
+      String reason = transition == null ? null : transition.reason();
+      if (reason == null
+          || !reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)
+          || !reason.contains(evidence)) {
+        continue;
+      }
+      for (WorkStage stage : WorkStage.values()) {
+        if (stage.name().equals(transition.stageId())) {
+          owner = stage;
+        }
+      }
+    }
+    return owner;
   }
 
   private static WorkStage ownerOf(JsonNode document, String recordId, String fieldPointer) {
