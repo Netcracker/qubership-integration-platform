@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.plan.workdocument;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.service.output.OutputParsingException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -12,19 +14,31 @@ import java.util.List;
 import java.util.Set;
 import org.qubership.integration.platform.ai.plan.workdocument.binding.ContractMaterial;
 import org.qubership.integration.platform.ai.plan.workdocument.binding.PortSchemaMaterial;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskContext;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskModel;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskRequest;
 
 /**
- * Server-side DEFINE_TRANSFERS check for one assigned target. The caller supplies a typed
- * proposal. This type does not call a model and does not invent transfers from operation names.
+ * DEFINE_TRANSFERS for one assigned target. {@link #define} takes a typed proposal and does not
+ * call a model. {@link #propose} asks for one outline, then calls {@link #define}. Neither invents
+ * transfers from operation names.
  */
 public final class WorkDataOutline {
 
   public static final String SKILL_ID = "define-transfers";
 
   private final WorkDocumentService documents;
+  private final WorkTaskExecutor executor;
 
   public WorkDataOutline(WorkDocumentService documents) {
+    this(documents, null);
+  }
+
+  public WorkDataOutline(WorkDocumentService documents, WorkTaskExecutor executor) {
     this.documents = documents;
+    this.executor = executor;
   }
 
   public static String instructions() {
@@ -71,6 +85,103 @@ public final class WorkDataOutline {
         scope(stamped, target, producers, proposal, loaded),
         proposal,
         commandId);
+  }
+
+  /**
+   * One outline call for an assigned target. Java injects the target step and then runs
+   * {@link #define}. A clarification does not publish transfers.
+   */
+  public WorkCommit propose(
+      String runId,
+      String targetStepId,
+      WorkTaskMaterials materials,
+      List<ContractMaterial> contracts,
+      WorkTaskModel model,
+      String commandId) {
+    WorkDocumentState state = documents.read(runId);
+    step(state, targetStepId);
+    String taskId = WorkTaskPlanner.taskId(WorkTaskKind.DEFINE_TRANSFERS, targetStepId);
+    String taskKey = WorkTaskPlanner.taskKey(WorkTaskKind.DEFINE_TRANSFERS, targetStepId);
+    JsonObjectSchema schema = WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.DEFINE_TRANSFERS, null);
+    WorkTaskScope promptScope =
+        new WorkTaskScope(
+            taskId,
+            state.revision(),
+            WorkStage.DATA_BEHAVIOR,
+            SKILL_ID,
+            List.of(targetStepId),
+            false,
+            false,
+            false,
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of(),
+            taskKey,
+            WorkTaskKind.DEFINE_TRANSFERS,
+            "",
+            null);
+    List<String> constraints = new ArrayList<>();
+    constraints.add(instructions());
+    if (materials != null) {
+      constraints.addAll(materials.globalConstraints());
+    }
+    if (executor == null) {
+      throw new IllegalStateException(
+          "An outline model call requires a task executor. Construct WorkDataOutline with one.");
+    }
+    executor.reserve(runId, promptScope);
+    WorkTaskMaterials instructed =
+        new WorkTaskMaterials(
+            materials == null ? List.of() : materials.schemas(),
+            constraints,
+            materials == null ? java.util.Map.of() : materials.sourceEvidence());
+    String output;
+    try {
+      output =
+          model.complete(
+              new WorkTaskRequest(
+                  taskId,
+                  taskKey,
+                  WorkTaskKind.DEFINE_TRANSFERS,
+                  WorkTaskContext.prompt(state, promptScope, instructed),
+                  schema));
+    } catch (OutputParsingException failure) {
+      throw reject(
+          "MALFORMED_CAPTURE", "Outline capture could not be parsed. The task was not completed.");
+    }
+    JsonNode tree = WorkDocumentCaptureSchema.readObject(output, schema);
+    String outcome = tree.path("outcome").asText();
+    if ("NEEDS_CLARIFICATION".equals(outcome)) {
+      if (!tree.path("transfers").isEmpty() || !tree.path("retainedPlaceholders").isEmpty()) {
+        throw reject(
+            "CONTRADICTORY_OUTCOME",
+            "A clarification needs one question and no transfers. Remove the design records.");
+      }
+      JsonNode question = tree.path("question");
+      return documents.recordQuestion(
+          runId,
+          promptScope,
+          question.path("text").asText(),
+          questionSubject(question),
+          List.of(),
+          texts(question.path("evidenceRefs")),
+          commandId);
+    }
+    if ("INPUT_DEFECT".equals(outcome)) {
+      return documents.apply(runId, promptScope, defectCapture(tree), commandId);
+    }
+    if (!"PREPARED".equals(outcome)) {
+      throw reject(
+          "MALFORMED_CAPTURE",
+          "Outcome " + outcome + " is unknown. Use PREPARED, NEEDS_CLARIFICATION, or INPUT_DEFECT.");
+    }
+    if (!tree.path("question").path("text").asText().isBlank()) {
+      throw reject(
+          "CONTRADICTORY_OUTCOME",
+          "A prepared outline cannot also ask a question. Send one outcome.");
+    }
+    return define(runId, targetStepId, proposal(targetStepId, tree), contracts, commandId);
   }
 
   private static WorkDocumentState withPortHashes(WorkDocumentState state, List<ContractMaterial> contracts) {
@@ -515,6 +626,119 @@ public final class WorkDataOutline {
     } catch (Exception failure) {
       throw new IllegalStateException("SHA-256 is unavailable.", failure);
     }
+  }
+
+  private static OutlineProposal proposal(String targetStepId, JsonNode tree) {
+    List<OutlineTransfer> transfers = new ArrayList<>();
+    for (JsonNode node : tree.path("transfers")) {
+      transfers.add(
+          new OutlineTransfer(
+              node.path("alias").asText(),
+              "",
+              List.of(
+                  new PortRef(
+                      node.path("sourceStepId").asText(), schemaPort(node.path("sourcePort").asText()))),
+              new PortRef(targetStepId, schemaPort(node.path("targetPort").asText())),
+              outcome(node.path("outcome").asText()),
+              texts(node.path("requirementIds")),
+              texts(node.path("requiredRetainedIds")),
+              node.path("decision").asText()));
+    }
+    List<OutlineRetained> retained = new ArrayList<>();
+    for (JsonNode node : tree.path("retainedPlaceholders")) {
+      retained.add(
+          new OutlineRetained(
+              node.path("alias").asText(),
+              "",
+              node.path("producerStepId").asText(),
+              node.path("intendedUse").asText(),
+              texts(node.path("evidenceRefs"))));
+    }
+    List<OutlineCoverage> coverage = new ArrayList<>();
+    for (JsonNode node : tree.path("coverage")) {
+      coverage.add(
+          new OutlineCoverage(
+              node.path("requirementId").asText(),
+              node.path("passageId").asText(),
+              disposition(node.path("disposition").asText())));
+    }
+    return new OutlineProposal(targetStepId, transfers, retained, coverage);
+  }
+
+  private static QuestionSubject questionSubject(JsonNode question) {
+    QuestionFieldRef source =
+        new QuestionFieldRef(
+            question.path("sourceStepId").asText(),
+            question.path("sourcePort").asText(),
+            question.path("sourceField").asText(),
+            question.path("sourceRetainedId").asText());
+    QuestionFieldRef target =
+        new QuestionFieldRef(
+            question.path("targetStepId").asText(),
+            question.path("targetPort").asText(),
+            question.path("targetField").asText(),
+            question.path("targetRetainedId").asText());
+    try {
+      if ("FIELD_RELATIONSHIP".equals(question.path("choiceKind").asText())) {
+        return QuestionSubject.fieldRelationship(source, target);
+      }
+      return new QuestionSubject(QuestionChoiceKind.UNSPECIFIED, source, target);
+    } catch (IllegalArgumentException failure) {
+      throw reject("MALFORMED_REFERENCE", failure.getMessage());
+    }
+  }
+
+  private static WorkTaskCapture defectCapture(JsonNode tree) {
+    JsonNode defect = tree.path("defect");
+    com.fasterxml.jackson.databind.node.ObjectNode body =
+        new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+    body.put("outcome", "INPUT_DEFECT");
+    body.put("defectRecordRef", defect.path("recordRef").asText());
+    body.put("contradiction", defect.path("contradiction").asText());
+    body.put("issueCategory", defect.path("category").asText());
+    com.fasterxml.jackson.databind.node.ArrayNode evidence = body.putArray("defectEvidenceIds");
+    for (String id : texts(defect.path("evidenceRefs"))) {
+      evidence.add(id);
+    }
+    return WorkDocumentCaptureSchema.parse(WorkDocumentCaptureSchema.withUniversalLists(body));
+  }
+
+  private static List<String> texts(JsonNode node) {
+    List<String> values = new ArrayList<>();
+    if (node != null && node.isArray()) {
+      for (JsonNode child : node) {
+        if (!child.asText().isBlank()) {
+          values.add(child.asText());
+        }
+      }
+    }
+    return values;
+  }
+
+  private static String schemaPort(String port) {
+    return switch (port) {
+      case "INBOUND_PAYLOAD" -> "payload";
+      case "OUTBOUND_REQUEST" -> "request";
+      case "SUCCESS_RESPONSE" -> "success";
+      case "FAILURE_OUTCOME" -> "failure";
+      case "RETAINED_CONTEXT" -> "context";
+      case null -> "";
+      default -> port;
+    };
+  }
+
+  private static TransferOutcome outcome(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return TransferOutcome.UNSPECIFIED;
+    }
+    return TransferOutcome.valueOf(raw);
+  }
+
+  private static CoverageDisposition disposition(String raw) {
+    if (raw == null || raw.isBlank()) {
+      return CoverageDisposition.ASSIGNED;
+    }
+    return CoverageDisposition.valueOf(raw);
   }
 
   private static WorkDocumentRejectedException reject(String code, String message) {
