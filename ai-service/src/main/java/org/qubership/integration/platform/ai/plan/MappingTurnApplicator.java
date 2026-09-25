@@ -203,13 +203,7 @@ public final class MappingTurnApplicator {
     }
     List<MappingIntentRule> rules = new ArrayList<>(intent.rules());
     if (current.descriptive()) {
-      String behavior = update.expression() != null ? update.expression() : current.behavior();
-      rules.set(
-          matches.getFirst(),
-          current
-              .withTargetPath(newTargetPath)
-              .withBehavior(behavior)
-              .withStatus(MappingRuleStatus.USER_DEFINED));
+      rules.set(matches.getFirst(), updatedDescriptive(current, update, newTargetPath));
     } else {
       rules.set(
           matches.getFirst(),
@@ -220,6 +214,25 @@ public final class MappingTurnApplicator {
               MappingRuleStatus.USER_DEFINED));
     }
     working.set(index, intent.withRules(rules));
+  }
+
+  private static MappingIntentRule updatedDescriptive(
+      MappingIntentRule current, UpdateRule update, String newTargetPath) {
+    if (update.expression() == null) {
+      if (update.sourcePath().isBlank()) {
+        return current.withTargetPath(newTargetPath).withStatus(MappingRuleStatus.USER_DEFINED);
+      }
+      return new MappingIntentRule(
+          update.sourcePath(), newTargetPath, null, MappingRuleStatus.USER_DEFINED);
+    }
+    if (update.sourcePath().isBlank()) {
+      return current
+          .withTargetPath(newTargetPath)
+          .withBehavior(update.expression())
+          .withStatus(MappingRuleStatus.USER_DEFINED);
+    }
+    return new MappingIntentRule(
+        update.sourcePath(), newTargetPath, update.expression(), MappingRuleStatus.USER_DEFINED);
   }
 
   private static void deleteRule(List<MappingIntent> working, DeleteRule delete) {

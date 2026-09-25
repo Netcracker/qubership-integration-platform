@@ -23,6 +23,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -143,6 +145,45 @@ class MappingTurnApplicatorTest {
     assertEquals(null, summary.value());
     assertEquals("{title} task", summary.behavior());
     assertEquals("$.title", summary.fieldRefs().getFirst().fieldPath());
+  }
+
+  @Test
+  void descriptiveUpdateAppliesSourcePath() {
+    MappingIntentRule subject =
+        new MappingIntentRule("name", "$.Subject", "name or fallback", MappingRuleStatus.USER_DEFINED);
+    RequirementBrief brief =
+        rockyBrief().withMappingIntents(List.of(new MappingIntent(
+            "map-task-start-to-create-task",
+            "task-start",
+            MappingPort.OUTPUT,
+            "create-task",
+            MappingPort.REQUEST,
+            List.of(subject))));
+    String intentId = brief.mappingIntents().getFirst().mappingIntentId();
+
+    MappingTurnApplication sourceOnly =
+        MappingTurnApplicator.apply(
+            brief,
+            MappingTurnResult.changes(new UpdateRule(intentId, "Subject", "title", null, null)));
+
+    assertTrue(sourceOnly.applied());
+    MappingIntentRule copied = sourceOnly.brief().mappingIntents().getFirst().rules().getFirst();
+    assertEquals(MappingContract.canonicalPath("title"), copied.sourcePath());
+    assertEquals(null, copied.expression());
+    MappingValue.Copy direct = assertInstanceOf(MappingValue.Copy.class, copied.value());
+    assertInstanceOf(MappingSource.Message.class, direct.source());
+
+    MappingTurnApplication prose =
+        MappingTurnApplicator.apply(
+            brief,
+            MappingTurnResult.changes(
+                new UpdateRule(intentId, "Subject", "title", null, "formatted title")));
+
+    assertTrue(prose.applied());
+    MappingIntentRule described = prose.brief().mappingIntents().getFirst().rules().getFirst();
+    assertEquals(null, described.value());
+    assertEquals("formatted title", described.behavior());
+    assertEquals(MappingContract.canonicalPath("title"), described.fieldRefs().getFirst().fieldPath());
   }
 
   @Test

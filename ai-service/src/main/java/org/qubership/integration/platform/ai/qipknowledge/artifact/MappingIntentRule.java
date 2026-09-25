@@ -66,14 +66,28 @@ public record MappingIntentRule(
     if (sourcePath == null || sourcePath.isBlank()) {
       return null;
     }
-    return new MappingValue.Copy(new MappingSource.Message("", null, sourcePath.trim()));
+    String trimmed = sourcePath.trim();
+    if (quotedConstant(trimmed)) {
+      return new MappingValue.Copy(
+          new MappingSource.Constant(
+              com.fasterxml.jackson.databind.node.TextNode.valueOf(
+                  trimmed.substring(1, trimmed.length() - 1))));
+    }
+    return new MappingValue.Copy(new MappingSource.Message("", null, trimmed));
   }
 
   private static List<MappingFieldRef> describedFields(String sourcePath, String expression) {
     if (expression == null || expression.isBlank() || sourcePath == null || sourcePath.isBlank()) {
       return List.of();
     }
+    if (quotedConstant(sourcePath.trim())) {
+      return List.of();
+    }
     return List.of(new MappingFieldRef("", "", MappingContract.canonicalPath(sourcePath), ""));
+  }
+
+  private static boolean quotedConstant(String sourcePath) {
+    return sourcePath.length() >= 2 && sourcePath.startsWith("\"") && sourcePath.endsWith("\"");
   }
 
   private static String describedBehavior(String expression) {
