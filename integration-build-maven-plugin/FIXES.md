@@ -9,7 +9,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | --- | --- | --- | --- | --- |
 | F1 | AtlasMap custom actions unregistered, so mapper chains abort the build | blocker | fixed | `bcdb973dc` |
 | F2 | Route resources never generated; `${spring.application.cloud_service_name}` leaks into output | blocker | fixed | `5ef3c4185` |
-| F3 | DTO library location hardwired to runtime-catalog, no codegen on the plugin side | major | out of scope | |
+| F3 | DTO library location hardwired to runtime-catalog, no codegen on the plugin side | major | fixed | `8c7ace96d`, `6c0a9b0d0` |
 | F4 | Nested elements duplicated in the snapshot element graph | major | fixed | `86b24ed33` |
 | F5 | No equivalence test against the runtime-catalog pipeline | major | out of scope | |
 | F6 | Module missing from every CI workflow and from `scripts/modules.sh` | major | fixed | `c17abe0d8` |
@@ -295,6 +295,40 @@ Verified:
 
 Not covered: a domain whose chains all fail is still built from an empty snapshot list.
 
+### F3, DTO libraries and their location
+
+Deferred by decision on September 18, 2026, then taken up. Both halves are now covered.
+
+- **Code generation**, `8c7ace96d`: the `build-libs` goal generates and compiles a DTO library per
+  specification. It now has no default phase, so it runs only when invoked or bound to a phase
+  explicitly.
+- **Location**, `6c0a9b0d0`: the integrations configuration took its library URLs from `LibraryLocationFromCatalogGetter`,
+  which always named runtime-catalog. `integration-build-pipeline` now injects a `LibraryLocationGetter`
+  interface through `DefaultLibraryLocationGetterProvider`, and the catalog getter implements it, so
+  runtime-catalog is unchanged. The plugin adds `TemplateBasedLibraryLocationGetter`, marked `@Primary`,
+  which fills the `libraryUrlTemplate` mojo parameter's `{specificationId}` and `{appPrefix}`. The
+  default template gives the same catalog URL as before.
+
+The placeholders started out as `${...}`, which Maven evaluates before the mojo sees them: with
+`-DspecificationId=oops` on the command line, every library pointed at `.../models/oops/dto/jar`. Single
+braces are left alone.
+
+Verified:
+
+- `TemplateBasedLibraryLocationGetterTest` pins the default URL, a custom template with a repeated
+  placeholder, an unknown placeholder left in place, and the error when the build parameters are missing.
+  `ApplicationConfigurationTest.resolvesTheLibraryLocationFromTheTemplate` checks the plugin context
+  injects the template getter.
+- `mvn clean install -pl integration-build-maven-plugin -Dgpg.skip=true` passes, 113 tests.
+  `integration-build-pipeline` passes too.
+- Mutation-checked: removing `@Primary` stops the plugin context from starting, and returning to
+  `StringSubstitutor`'s default `${` delimiters fails both substitution tests.
+- `mvn -X` in a scratch project shows the template reaching the mojo unchanged with `-DspecificationId`
+  and `-DappPrefix` set. With `build-libs` listed in an execution without a phase, `mvn compile` skips it;
+  `mvn qip-integration-build:build-libs` runs it.
+- Not run end to end: no test chain uses a service with a generated library, so no integrations
+  configuration carrying a library URL was built.
+
 ## Accepted
 
 ### F10, shared-module changes
@@ -385,8 +419,3 @@ The test would have built the same `testConfigurations` corpus through both the 
 and compared the generated Camel DSL. Nothing else compares the two implementations, so the divergences
 each remaining and future difference produces are found by reading rather than by a build: F1, F2 and F4
 were all of that kind.
-
-### F3, DTO library generation
-
-Deferred by decision, September 18, 2026. Chains whose service calls rely on a generated DTO library
-cannot be built by the plugin until this is addressed.
