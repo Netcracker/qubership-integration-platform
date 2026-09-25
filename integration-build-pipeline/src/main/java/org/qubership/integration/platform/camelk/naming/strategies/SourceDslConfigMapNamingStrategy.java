@@ -11,12 +11,12 @@ import org.springframework.stereotype.Component;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 @Component("sourceDslConfigMapNamingStrategy")
 public class SourceDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<Snapshot>> {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
-    private final Supplier<String> suffixGenerator;
+    private final Function<Long, String> suffixGenerator;
 
     @Autowired
     public SourceDslConfigMapNamingStrategy(
@@ -27,7 +27,7 @@ public class SourceDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
         @Qualifier("suffixGenerator")
-        Supplier<String> suffixGenerator
+        Function<Long, String> suffixGenerator
     ) {
         super(nameVerifier);
         this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
@@ -48,7 +48,23 @@ public class SourceDslConfigMapNamingStrategy extends K8sResourceNamingStrategy<
 
     private String createUniqueName(ResourceBuildContext<Snapshot> context) {
         String prefix = integrationResourceNamingStrategy.getName(context.updateTo(Collections.emptyList()));
-        return String.format("%s-%s", prefix, suffixGenerator.get());
+        String suffix = buildSuffix(context);
+        return String.format("%s-%s", prefix, suffix);
+    }
+
+    /**
+     * Generates resource name suffix based on chain ID and domain name.
+     * It makes the suffixes for resources in domain reproducible.
+     *
+     * @param context Resource build context
+     * @return Resource name suffix.
+     */
+    private String buildSuffix(ResourceBuildContext<Snapshot> context) {
+        Snapshot snapshot = context.getData();
+        String chainId = snapshot.getChain().getId();
+        String domainName = context.getBuildInfo().getOptions().getName();
+        long seed = String.join("/", chainId, domainName).hashCode();
+        return suffixGenerator.apply(seed);
     }
 
     public void useName(ResourceBuildContext<Snapshot> context, String name) {

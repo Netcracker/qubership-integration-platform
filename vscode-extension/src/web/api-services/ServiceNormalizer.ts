@@ -23,7 +23,6 @@ export class ServiceNormalizer {
         specification: "",
         environments: [],
         labels: [],
-        migrations: [],
       };
     } else {
       const now = Date.now();
@@ -50,9 +49,6 @@ export class ServiceNormalizer {
       }
       if (!service.content.labels) {
         service.content.labels = [];
-      }
-      if (!service.content.migrations) {
-        service.content.migrations = [];
       }
 
       // Normalize environments

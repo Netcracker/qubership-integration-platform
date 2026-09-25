@@ -26,6 +26,11 @@ import java.util.*;
 public class ResourceBuildContext<T> {
     private static final IntegrationServiceCatalog DEFAULT_SERVICE_CATALOG = new IntegrationServiceCatalog() {
         @Override
+        public Collection<IntegrationService> findAll() {
+            return List.of();
+        }
+
+        @Override
         public Optional<IntegrationService> findById(String id) {
             return Optional.empty();
         }

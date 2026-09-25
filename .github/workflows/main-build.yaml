@@ -20,6 +20,7 @@ on:
       # Built and tested by the runtime-catalog leg, which runs with -am.
       - 'integration-build-pipeline/**'
       - 'runtime-catalog/**'
+      - 'integration-build-maven-plugin/**'
       - 'sessions-management/**'
       - 'parent/**'
       - 'pom.xml'
@@ -49,6 +50,7 @@ jobs:
           - micro-engine
           - runtime-catalog
           - sessions-management
+          - integration-build-maven-plugin
     permissions:
       contents: read
       packages: read

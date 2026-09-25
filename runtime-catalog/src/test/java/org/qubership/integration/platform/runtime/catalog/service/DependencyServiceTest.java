@@ -37,7 +37,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.DependencyRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.qubership.integration.platform.runtime.catalog.testutils.TestUtils;
 import org.qubership.integration.platform.runtime.catalog.testutils.configuration.TestConfig;
 import org.qubership.integration.platform.runtime.catalog.testutils.dto.ChainImportDTO;
@@ -45,6 +44,7 @@ import org.qubership.integration.platform.runtime.catalog.testutils.mapper.Chain
 import org.qubership.integration.platform.runtime.catalog.testutils.mapper.ChainMapper;
 import org.qubership.integration.platform.runtime.catalog.util.OldContainerUtils;
 import org.qubership.integration.platform.util.ElementUtils;
+import org.qubership.integration.platform.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.test.context.ContextConfiguration;

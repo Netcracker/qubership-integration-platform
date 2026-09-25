@@ -1049,7 +1049,7 @@ components:
           $ref: "#/components/schemas/CapabilitiesOptions"
         image:
           type: "string"
-        imagePoolPolicy:
+        imagePullPolicy:
           enum:
           - "Always"
           - "Never"
@@ -3359,6 +3359,8 @@ components:
           type: "boolean"
         configurationLocation:
           type: "string"
+        libraryDefinitionsEnabled:
+          type: "boolean"
       type: "object"
     JsonNode: {}
     JvmOptions:
