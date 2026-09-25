@@ -23,7 +23,8 @@ import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMode
 
 /**
  * Initial mapping and a named-rule repair against the work document. The model proposes structured
- * references and behavior text. Java checks paths, renames, and retained fields before publication.
+ * references and behavior text. Java checks paths, renames, and retained fields, then rewrites
+ * role ports and bare schema properties into contract form before publication.
  */
 public final class WorkMapping {
 
@@ -127,6 +128,7 @@ public final class WorkMapping {
       if (question != null) {
         return clarification(question, sourceId(document));
       }
+      rewriteContractForm(tree, materials);
       return complete(tree);
     };
   }
@@ -186,7 +188,7 @@ public final class WorkMapping {
       JsonNode target = rule.path("target");
       String path = target.path("fieldPath").asText();
       String targetLeaf = leaf(path);
-      if ("OUTBOUND_REQUEST".equals(target.path("port").asText())
+      if ("request".equals(portName(target.path("port").asText()))
           && serviceCall(document, target.path("stepId").asText())
           && retained.contains(targetLeaf)) {
         throw new WorkDocumentRejectedException(
@@ -369,6 +371,55 @@ public final class WorkMapping {
       from = at + 1;
     }
     return false;
+  }
+
+  private static void rewriteContractForm(JsonNode tree, WorkTaskMaterials materials) {
+    for (JsonNode transfer : tree.path("transfers")) {
+      rewritePort(transfer.path("targetPort"), "portName");
+      for (JsonNode source : transfer.path("sourcePorts")) {
+        rewritePort(source, "portName");
+      }
+    }
+    for (JsonNode rule : tree.path("rules")) {
+      rewriteField(materials, rule.path("target"));
+      for (JsonNode source : rule.path("sources")) {
+        rewriteField(materials, source);
+      }
+    }
+    for (JsonNode retained : tree.path("retainedValues")) {
+      rewriteField(materials, retained.path("source"));
+    }
+  }
+
+  private static void rewritePort(JsonNode node, String field) {
+    if (!(node instanceof ObjectNode object)) {
+      return;
+    }
+    JsonNode value = object.get(field);
+    if (value == null || !value.isTextual()) {
+      return;
+    }
+    object.put(field, portName(value.asText()));
+  }
+
+  private static void rewriteField(WorkTaskMaterials materials, JsonNode node) {
+    if (!(node instanceof ObjectNode object)) {
+      return;
+    }
+    rewritePort(object, "port");
+    JsonNode pathNode = object.get("fieldPath");
+    if (pathNode == null || !pathNode.isTextual()) {
+      return;
+    }
+    String path = pathNode.asText();
+    if (path.isBlank() || "$".equals(path) || path.startsWith("$.")) {
+      return;
+    }
+    String stepId = object.path("stepId").asText();
+    String port = portName(object.path("port").asText());
+    if (schemaHasPath(materials, stepId, port, path)) {
+      object.put("fieldPath", "$." + path);
+    }
   }
 
   private static String portName(String port) {

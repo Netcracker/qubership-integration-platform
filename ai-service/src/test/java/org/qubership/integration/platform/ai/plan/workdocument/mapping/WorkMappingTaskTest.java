@@ -152,6 +152,30 @@ class WorkMappingTaskTest {
   }
 
   @Test
+  void outboundRequestAndSubjectPublishInContractForm() {
+    WorkCommit commit =
+        mapping.interpret(
+            RUN_ID,
+            materials(false),
+            prompt ->
+                """
+                {"outcome":"PREPARED",%s,"transfers":[
+                  {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"OUTBOUND_REQUEST"},"requirementRefs":[],"decision":""}
+                ],"rules":[
+                  {"existingId":"","alias":"rule-subject","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"Subject","retainedValueId":""},"constants":[],"behavior":"written field","evidenceRefs":["src-map"]}
+                ],"retainedValues":[]}
+                """
+                    .formatted(LISTS));
+
+    assertEquals("PREPARED", commit.outcome().name());
+    JsonNode document = JSON.valueToTree(commit.state().document());
+    JsonNode target = rules(document).getFirst().path("target");
+    assertEquals("request", target.path("port").asText());
+    assertEquals("$.Subject", target.path("fieldPath").asText());
+    assertEquals("request", transfers(document).getFirst().path("targetPort").path("portName").asText());
+  }
+
+  @Test
   void dollarSourcePathAsksAndDoesNotStoreTheRule() {
     WorkCommit asked =
         mapping.interpret(
@@ -239,7 +263,9 @@ class WorkMappingTaskTest {
 
     assertFalse(prompts.isEmpty());
     String prompt = prompts.getFirst();
-    assertTrue(prompt.contains("Do not use $, an empty path, or a path you invented."));
+    assertTrue(prompt.contains("Use the port name from the schema line: payload, request, success, or failure."));
+    assertTrue(prompt.contains("Store a field as $.Property."));
+    assertTrue(prompt.contains("Do not use a lone $."));
     assertTrue(prompt.contains("Echo a retained value onto the same field name."));
   }
 
@@ -574,7 +600,7 @@ class WorkMappingTaskTest {
         continue;
       }
       for (JsonNode rule : transfer.path("rules")) {
-        if ("OUTBOUND_REQUEST".equals(rule.path("target").path("port").asText())) {
+        if ("request".equals(rule.path("target").path("port").asText())) {
           leaves.add(leaf(rule.path("target").path("fieldPath").asText()));
         }
       }

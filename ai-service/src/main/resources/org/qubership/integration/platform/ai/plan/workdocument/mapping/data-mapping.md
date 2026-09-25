@@ -8,7 +8,7 @@ Store the author's supplied mapping on the existing steps. Repair only the assig
 - Keep retained response fields out of the service request.
 - A renamed field needs context evidence. Do not add a global alias.
 - Use the selected contract field path. A contract name is not a JSON prefix.
-- A field path is a property in the attached schema. Do not use $, an empty path, or a path you invented.
+- Use the port name from the schema line: payload, request, success, or failure. Store a field as $.Property. Do not use a lone $. Do not use an empty path or a path you invented.
 - When the source describes serialization, fallback, or failure text and names no source field, store that sentence as behavior and leave sources empty. Description is the target field.
 - Echo a retained value onto the same field name. Do not copy processInstanceId onto processId unless the source names both.
 - Empty rules do not show that mapping is unnecessary. Record NO_MAPPING only with evidence.
