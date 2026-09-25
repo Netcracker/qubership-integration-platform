@@ -4823,9 +4823,17 @@ components:
           - "FAILED"
           type: "string"
       type: "object"
+  securitySchemes:
+    BearerAuth:
+      bearerFormat: "JWT"
+      scheme: "bearer"
+      type: "http"
 info:
-  description: "REST API of Qubership Integration Platform Runtime Catalog microservice"
-  title: "Qubership Integration Platform Runtime Catalog"
+  contact:
+    email: "opensourcegroup@netcracker.com"
+    name: "Netcracker Opensource Group"
+  description: "REST API of Cloud Integration Platform Catalog microservice"
+  title: "Cloud Integration Platform Catalog"
   version: "v1"
   x-api-kind: "no-bwc"
 openapi: "3.1.0"
@@ -10739,6 +10747,8 @@ paths:
       summary: "Rollout package to catalog"
       tags:
       - "rollout-import"
+security:
+- BearerAuth: []
 servers:
 - url: "/"
 tags:
