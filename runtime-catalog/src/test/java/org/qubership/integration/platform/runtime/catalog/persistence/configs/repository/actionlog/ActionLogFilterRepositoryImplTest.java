@@ -36,6 +36,7 @@ import org.qubership.integration.platform.runtime.catalog.model.dto.actionlog.Ac
 import org.qubership.integration.platform.runtime.catalog.model.filter.ActionLogFilterColumn;
 import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCondition;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
+import org.qubership.integration.platform.runtime.catalog.service.filter.FilterConditionPredicateBuilderFactory;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collections;
@@ -80,6 +81,9 @@ class ActionLogFilterRepositoryImplTest {
     private Expression<String> columnText;
 
     @Mock
+    private Expression<String> pattern;
+
+    @Mock
     private Order order;
 
     @Mock
@@ -91,6 +95,8 @@ class ActionLogFilterRepositoryImplTest {
     void setUp() {
         repository = new ActionLogFilterRepositoryImpl();
         ReflectionTestUtils.setField(repository, "entityManager", entityManager);
+        ReflectionTestUtils.setField(repository, "filterConditionPredicateBuilderFactory",
+                new FilterConditionPredicateBuilderFactory());
     }
 
     @Test
@@ -173,7 +179,9 @@ class ActionLogFilterRepositoryImplTest {
         when(columnPath.get(anyString())).thenReturn(columnPath);
         when(columnPath.as(String.class)).thenReturn(columnText);
         when(criteriaBuilder.lower(columnText)).thenReturn(columnText);
-        when(criteriaBuilder.like(columnText, "%alice\\_1%", '\\')).thenReturn(predicate);
+        when(criteriaBuilder.literal("%ALICE\\_1%")).thenReturn(pattern);
+        when(criteriaBuilder.lower(pattern)).thenReturn(pattern);
+        when(criteriaBuilder.like(columnText, pattern, '\\')).thenReturn(predicate);
         when(criteriaBuilder.or(any(Predicate[].class))).thenReturn(predicate);
         when(criteriaBuilder.and(any(Predicate[].class))).thenReturn(predicate);
         when(criteriaQuery.where(predicate)).thenReturn(criteriaQuery);
@@ -183,7 +191,8 @@ class ActionLogFilterRepositoryImplTest {
 
         repository.findActionLogsByFilter(0, 100, Collections.emptyList(), "ALICE_1");
 
-        verify(criteriaBuilder, times(10)).like(columnText, "%alice\\_1%", '\\');
+        verify(criteriaBuilder, times(10)).like(columnText, pattern, '\\');
+        verify(criteriaBuilder, times(10)).lower(pattern);
         verify(columnPath).get("username");
         verify(columnPath).get("id");
         for (String column : List.of("operation", "requestId", "entityType", "entityName", "entityId",

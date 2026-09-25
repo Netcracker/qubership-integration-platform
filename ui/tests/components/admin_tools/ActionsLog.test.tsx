@@ -211,6 +211,7 @@ describe("ActionsLog() ActionsLog method", () => {
         isFetching: false,
         isLoading: false,
         refresh: jest.fn(),
+        confirmSearch: jest.fn(),
       });
       mockExportActionsLogAsExcel.mockClear();
     });
@@ -229,32 +230,29 @@ describe("ActionsLog() ActionsLog method", () => {
       ).toBeInTheDocument();
     });
 
-    it("sends the search term to the server once typing stops", async () => {
+    it("passes the search term to the audit log query", () => {
       render(<ActionsLog />);
       const search = screen.getByPlaceholderText("Search audit log...");
       fireEvent.change(search, { target: { value: "alice" } });
 
-      await waitFor(() =>
-        expect(mockUseActionLog).toHaveBeenLastCalledWith(
-          expect.anything(),
-          "alice",
-        ),
+      expect(mockUseActionLog).toHaveBeenLastCalledWith(
+        expect.anything(),
+        "alice",
       );
       // The server filters the rows, so the table shows every row it returns.
       expect(screen.getByText("bob")).toBeInTheDocument();
       expect(screen.getByText("carol")).toBeInTheDocument();
     });
 
-    it("sends the search term at once on Enter", () => {
+    it("confirms the search on Enter", () => {
       render(<ActionsLog />);
       const search = screen.getByPlaceholderText("Search audit log...");
       fireEvent.change(search, { target: { value: "alice" } });
       fireEvent.keyDown(search, { key: "Enter", code: "Enter", keyCode: 13 });
 
-      expect(mockUseActionLog).toHaveBeenLastCalledWith(
-        expect.anything(),
-        "alice",
-      );
+      expect(
+        mockUseActionLog.mock.results.at(-1)?.value.confirmSearch,
+      ).toHaveBeenCalled();
     });
 
     it("renders the refresh and export buttons", () => {

@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
@@ -202,28 +204,17 @@ class ActionsLogServiceTest {
         assertThat(actionsLogService.findByPagedSearchRequest(request).getActionLogs()).isEmpty();
     }
 
-    @Test
-    @DisplayName("findByPagedSearchRequest passes the search string without surrounding spaces")
-    void findByPagedSearchRequestTrimsSearchString() {
+    @ParameterizedTest(name = "\"{0}\" is passed as {1}")
+    @CsvSource({"'  alice ', alice", "'   ',"})
+    @DisplayName("findByPagedSearchRequest trims the search string and ignores a blank one")
+    void findByPagedSearchRequestTrimsSearchString(String searchString, String expected) {
         ActionLogSearchRequest request = new ActionLogSearchRequest();
         request.setLimit(50);
-        request.setSearchString("  alice ");
+        request.setSearchString(searchString);
 
         actionsLogService.findByPagedSearchRequest(request);
 
-        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList(), "alice");
-    }
-
-    @Test
-    @DisplayName("findByPagedSearchRequest ignores a blank search string")
-    void findByPagedSearchRequestIgnoresBlankSearchString() {
-        ActionLogSearchRequest request = new ActionLogSearchRequest();
-        request.setLimit(50);
-        request.setSearchString("   ");
-
-        actionsLogService.findByPagedSearchRequest(request);
-
-        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList(), null);
+        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList(), expected);
     }
 
     private ActionLogFilterRequestDTO filter(ActionLogFilterColumn column, FilterCondition condition) {

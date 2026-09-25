@@ -19,7 +19,6 @@ import DateRangePicker from "../modal/DateRangePicker.tsx";
 import { exportActionsLogAsExcel } from "../../misc/log-export-utils.ts";
 import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
 import { useTableInfiniteScroll } from "../../hooks/useTableInfiniteScroll.ts";
-import { useDebouncedValue } from "../../hooks/useDebouncedValue.ts";
 import commonStyles from "./CommonStyle.module.css";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { Require } from "../../permissions/Require.tsx";
@@ -140,15 +139,9 @@ const externalEntityType: EntityType[] = [
 
 const EXTERNAL_ENTITY_PATTERN = /^[^\\/:*?"<>|]+\.(zip|ya?ml|xml|wsdl)$/i;
 
-const SEARCH_DEBOUNCE_MS = 300;
-
 export const ActionsLog: React.FC = () => {
   const { filters, filterButton } = useActionLogFilter();
   const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm, confirmSearch] = useDebouncedValue(
-    searchTerm,
-    SEARCH_DEBOUNCE_MS,
-  );
   const {
     logsData,
     fetchNextPage,
@@ -156,7 +149,8 @@ export const ActionsLog: React.FC = () => {
     isFetching,
     isLoading,
     refresh,
-  } = useActionLog(filters, debouncedSearchTerm);
+    confirmSearch,
+  } = useActionLog(filters, searchTerm);
   const [currentActionLog, setCurrentActionLog] = useState<ActionLog | null>(
     null,
   );

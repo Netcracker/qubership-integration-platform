@@ -4,8 +4,10 @@ import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useEffect } from "react";
 import { useNotificationService } from "./useNotificationService.tsx";
 import { EntityFilterModel } from "../components/table/filter/filterTypes.ts";
+import { useDebouncedValue } from "./useDebouncedValue.ts";
 
 const PAGE_SIZE = 20;
+const SEARCH_DEBOUNCE_MS = 300;
 
 type ActionLogPage = {
   logs: ActionLog[];
@@ -26,16 +28,26 @@ export const useActionLog = (
   isFetching: boolean;
   isLoading: boolean;
   refresh: () => Promise<void>;
+  confirmSearch: () => void;
 } => {
   const notificationService = useNotificationService();
   const queryClient = useQueryClient();
+  // Typing is a burst, and each keystroke would otherwise be a request of its own.
+  const [debouncedSearch, confirmSearch] = useDebouncedValue(
+    searchString,
+    SEARCH_DEBOUNCE_MS,
+  );
+  const queryKey = useMemo(
+    () => ["actionLogs", filters, debouncedSearch],
+    [filters, debouncedSearch],
+  );
 
   useEffect(() => {
     void refresh();
   }, []);
 
   const actionLogsQuery = useInfiniteQuery({
-    queryKey: ["actionLogs", filters, searchString],
+    queryKey,
     initialPageParam: 0,
     queryFn: async ({ pageParam }): Promise<ActionLogPage> => {
       try {
@@ -43,7 +55,7 @@ export const useActionLog = (
           offset: pageParam,
           limit: PAGE_SIZE,
           filters,
-          ...(searchString ? { searchString } : {}),
+          searchString: debouncedSearch || undefined,
         });
         return {
           logs: response.actionLogs,
@@ -75,10 +87,8 @@ export const useActionLog = (
   }, [fetchNextPage]);
 
   const refresh = useCallback(async () => {
-    await queryClient.resetQueries({
-      queryKey: ["actionLogs", filters, searchString],
-    });
-  }, [queryClient, filters, searchString]);
+    await queryClient.resetQueries({ queryKey });
+  }, [queryClient, queryKey]);
 
   return {
     logsData,
@@ -87,5 +97,6 @@ export const useActionLog = (
     isFetching: actionLogsQuery.isFetching,
     isLoading: actionLogsQuery.isLoading,
     refresh,
+    confirmSearch,
   };
 };

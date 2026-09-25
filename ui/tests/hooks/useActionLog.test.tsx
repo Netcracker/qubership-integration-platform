@@ -163,6 +163,33 @@ describe("useActionLog", () => {
     });
   });
 
+  it("sends a changed search string once typing stops", async () => {
+    mockLoadCatalogActionsLogV2.mockResolvedValue({
+      offset: 0,
+      actionLogs: [],
+    });
+
+    const { result, rerender } = renderHook(
+      ({ search }: { search: string }) => useActionLog([], search),
+      { wrapper: createWrapper(), initialProps: { search: "" } },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    rerender({ search: "alice" });
+    expect(mockLoadCatalogActionsLogV2).not.toHaveBeenCalledWith(
+      expect.objectContaining({ searchString: "alice" }),
+    );
+
+    await waitFor(() =>
+      expect(mockLoadCatalogActionsLogV2).toHaveBeenLastCalledWith({
+        offset: 0,
+        limit: 20,
+        filters: [],
+        searchString: "alice",
+      }),
+    );
+  });
+
   it("reports API errors and stops pagination", async () => {
     const error = new Error("catalog unavailable");
     mockLoadCatalogActionsLogV2.mockRejectedValue(error);

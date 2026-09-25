@@ -28,10 +28,12 @@ import org.qubership.integration.platform.runtime.catalog.model.filter.FilterCon
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.ActionLog;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
-import org.springframework.data.jpa.repository.query.EscapeCharacter;
+import org.qubership.integration.platform.runtime.catalog.service.filter.FilterConditionPredicateBuilderFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 
 public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository {
@@ -67,6 +69,9 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
 
     @PersistenceContext
     private EntityManager entityManager;
+
+    @Autowired
+    private FilterConditionPredicateBuilderFactory filterConditionPredicateBuilderFactory;
 
 
     @Override
@@ -219,11 +224,10 @@ public class ActionLogFilterRepositoryImpl implements ActionLogFilterRepository 
     }
 
     private Predicate buildSearchPredicate(String searchString, CriteriaBuilder builder, Root<ActionLog> actionLog) {
-        EscapeCharacter escape = EscapeCharacter.DEFAULT;
-        String pattern = "%" + escape.escape(searchString.toLowerCase()) + "%";
+        BiFunction<Expression<Object>, Object, Predicate> contains =
+                filterConditionPredicateBuilderFactory.getPredicateBuilder(builder, FilterCondition.CONTAINS);
         return builder.or(SEARCH_COLUMNS.stream()
-                .map(column -> builder.like(
-                        builder.lower(resolvePath(actionLog, column).as(String.class)), pattern, escape.getEscapeCharacter()))
+                .map(column -> contains.apply(resolvePath(actionLog, column), searchString))
                 .toArray(Predicate[]::new));
     }
 
