@@ -25,6 +25,13 @@ class TemplateBasedLibraryLocationGetterTest {
     }
 
     @Test
+    void encodesSpecificationIdWithSpacesAndOtherReservedCharacters() {
+        assertEquals(
+            "http://qip-runtime-catalog-v1:8080/v1/models/quote-tmf-service-Quote%20Management6.2-6.2/dto/jar",
+            getter.apply(context(DEFAULT_TEMPLATE, "quote-tmf-service-Quote Management6.2-6.2")));
+    }
+
+    @Test
     void fillsEveryPlaceholderOfACustomTemplate() {
         String template = "https://repo.example.com/{appPrefix}/{specificationId}/{specificationId}.jar";
 
