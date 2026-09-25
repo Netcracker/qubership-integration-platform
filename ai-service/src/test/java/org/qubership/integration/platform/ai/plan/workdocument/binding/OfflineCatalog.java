@@ -15,8 +15,10 @@ public final class OfflineCatalog implements CatalogResolution {
 
   private final ObjectMapper json = new ObjectMapper();
   private final Set<String> missing = new LinkedHashSet<>();
+  private final Set<String> incompatible = new LinkedHashSet<>();
   private String version = "1";
   private boolean priorityEnum;
+  private int contentGeneration;
 
   public void version(String version) {
     this.version = version;
@@ -32,6 +34,20 @@ public final class OfflineCatalog implements CatalogResolution {
 
   public void priorityEnum(boolean enabled) {
     this.priorityEnum = enabled;
+  }
+
+  /** Known operation whose schema load is incompatible. Lookup still returns a hit. */
+  public void incompatible(String operationId) {
+    incompatible.add(operationId);
+  }
+
+  public void compatible(String operationId) {
+    incompatible.remove(operationId);
+  }
+
+  /** Changes schema hashes while port names stay. Zero keeps the original hash text. */
+  public void contentGeneration(int generation) {
+    this.contentGeneration = generation;
   }
 
   @Override
@@ -73,13 +89,31 @@ public final class OfflineCatalog implements CatalogResolution {
     if (binding != null && binding.contractReferences() != null && !binding.contractReferences().isEmpty()) {
       reference = binding.contractReferences().get(0);
     }
+    if (incompatible.contains(operation)) {
+      return new ContractMaterial.Incompatible(
+          reference,
+          operation,
+          pinned,
+          "Operation "
+              + operation
+              + " version "
+              + pinned
+              + " does not match the pinned contract.");
+    }
     List<PortSchemaMaterial> schemas = new ArrayList<>();
     for (String port : ports(operation)) {
       schemas.add(
           new PortSchemaMaterial(
-              reference, operation, pinned, port, "hash-" + port + "-" + pinned, schema(port)));
+              reference, operation, pinned, port, contentHash(port, pinned), schema(port)));
     }
     return new ContractMaterial.Ready(reference, operation, pinned, schemas);
+  }
+
+  private String contentHash(String port, String pinned) {
+    if (contentGeneration == 0) {
+      return "hash-" + port + "-" + pinned;
+    }
+    return "hash-" + port + "-" + pinned + "-g" + contentGeneration;
   }
 
   private List<String> ports(String operation) {

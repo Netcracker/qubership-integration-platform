@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan.workdocument;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -55,6 +56,45 @@ class WorkFillingRecoveryTest {
   }
 
   @Test
+  void correctivePublishRemovesOnlyTheResolvedFinding() throws Exception {
+    FillingWorld world = FillingWorld.start("run-finding");
+    world.model.inject(
+        WorkTaskKind.LOGICAL_DESIGN, 1, FillingWorld.ScriptedWorkModel.synchronousReceive("src-om"));
+    FillingResult detected = world.advance(null);
+    assertTrue(detected.reasons().contains("SYNCHRONOUS_RESULT"), detected.toString());
+    ChainWorkDocument current = world.document();
+    assertFalse(current.progress().findings().isEmpty(), detected.toString());
+    WorkFinding open = current.progress().findings().get(0);
+    List<WorkFinding> findings = new ArrayList<>(current.progress().findings());
+    findings.add(
+        new WorkFinding(
+            "finding-unrelated",
+            open.recordRef(),
+            "UNRELATED_GAP",
+            "A second defect remains.",
+            List.of("src-om"),
+            "other"));
+    world.replaceProgress(current.progress().tasks(), findings, "plant-finding");
+    FillingResult repaired = world.advance(null);
+    assertEquals(FillingResult.Action.HALTED, repaired.action(), repaired.toString());
+    assertTrue(repaired.reasons().contains("PREPARED"), repaired.toString());
+    assertTrue(
+        repaired.reasons().contains("A structural defect or unmet dependency remains."), repaired.toString());
+    boolean unrelated = false;
+    boolean resolvedGone = true;
+    for (WorkFinding finding : world.document().progress().findings()) {
+      if ("UNRELATED_GAP".equals(finding.issueCategory())) {
+        unrelated = true;
+      }
+      if ("SYNCHRONOUS_RESULT".equals(finding.issueCategory()) && open.recordRef().equals(finding.recordRef())) {
+        resolvedGone = false;
+      }
+    }
+    assertTrue(unrelated, world.document().progress().findings().toString());
+    assertTrue(resolvedGone, world.document().progress().findings().toString());
+  }
+
+  @Test
   void networkFailureRetriesWithTheConfiguredDelayAndNoBusinessQuestion() throws Exception {
     FillingWorld world = FillingWorld.start("run-network");
     world.model.inject(WorkTaskKind.LOGICAL_DESIGN, 1, "CONNECT");
@@ -77,7 +117,7 @@ class WorkFillingRecoveryTest {
     List<String> trace = new ArrayList<>();
     String rejectedTask = "";
     String revisionBeforeRepair = "";
-    for (int step = 0; step < 30 && world.model.count(WorkTaskKind.MAP_TRANSFER) < 2; step++) {
+    for (int step = 0; step < 30 && (rejectedTask.isBlank() || callsFor(world, rejectedTask) < 2); step++) {
       int before = world.model.count(WorkTaskKind.MAP_TRANSFER);
       FillingResult result = world.advance(trace);
       if (world.model.count(WorkTaskKind.MAP_TRANSFER) == 1 && before == 0) {
@@ -89,9 +129,7 @@ class WorkFillingRecoveryTest {
     }
     assertEquals(2, callsFor(world, rejectedTask), trace.toString());
     assertNotEquals(revisionBeforeRepair, world.documents.read(world.runId).revision());
-    assertTrue(WorkDocumentFillingTest.behaviors(world.document()).contains("formatted fallback")
-        || WorkDocumentFillingTest.behaviors(world.document()).contains("failure code")
-        || WorkDocumentFillingTest.behaviors(world.document()).contains("processInstanceId"));
+    assertTrue(acceptedBehavior(world.document()), trace.toString());
   }
 
   @Test
@@ -129,6 +167,13 @@ class WorkFillingRecoveryTest {
     }
     assertEquals(2, callsFor(world, mappingTask), trace.toString());
     assertEquals(outlines, world.model.count(WorkTaskKind.DEFINE_TRANSFERS), trace.toString());
+  }
+
+  private static boolean acceptedBehavior(ChainWorkDocument document) {
+    String rules = WorkDocumentFillingTest.behaviors(document);
+    return rules.contains("formatted fallback")
+        || rules.contains("failure code")
+        || rules.contains("processInstanceId");
   }
 
   private static int callsFor(FillingWorld world, String taskId) {

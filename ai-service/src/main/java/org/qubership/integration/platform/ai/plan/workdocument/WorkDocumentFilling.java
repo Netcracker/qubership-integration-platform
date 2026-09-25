@@ -97,7 +97,6 @@ public final class WorkDocumentFilling {
     if (exhausted(load(runId))) {
       return persist(runId, commandId, payloadHash, halted(runId, "Recovery budget is spent."));
     }
-    restoreSiblings(runId, commandId);
     ChainWorkDocument document = documents.read(runId).document();
     WorkTaskPlanner.Plan plan = planner.plan(document);
     Target target = choose(runId, document, plan);
@@ -257,34 +256,6 @@ public final class WorkDocumentFilling {
         FillingRuntimeDecision.retryDelayMs(retry));
   }
 
-  private void restoreSiblings(String runId, String commandId) {
-    ChainWorkDocument document = documents.read(runId).document();
-    String blocked = correctiveRecord(document);
-    WorkTaskPlanner.Plan plan = planner.plan(document);
-    List<WorkTaskRecord> tasks = new ArrayList<>(document.progress().tasks());
-    boolean changed = false;
-    for (WorkTaskPlanner.Task task : plan.tasks()) {
-      if (task.recordId().equals(blocked)) {
-        continue;
-      }
-      WorkTaskRecord stored = find(tasks, task.taskKey());
-      if (stored == null || stored.acceptedInputFingerprint().isBlank()) {
-        continue;
-      }
-      if (!stored.acceptedInputFingerprint().equals(task.requiredInputFingerprint())) {
-        continue;
-      }
-      if (stored.state() == WorkTaskState.ACCEPTED) {
-        continue;
-      }
-      replace(tasks, accepted(stored, task.requiredInputFingerprint()));
-      changed = true;
-    }
-    if (changed) {
-      commitProgress(runId, "restore:" + commandId, document, tasks, document.progress().findings(), sha256("restore"));
-    }
-  }
-
   private void stamp(String runId, String commandId, String taskKey, boolean clearCorrective) {
     ChainWorkDocument document = documents.read(runId).document();
     WorkTaskPlanner.Plan plan = planner.plan(document);
@@ -302,55 +273,51 @@ public final class WorkDocumentFilling {
       }
     }
     if (completed != null) {
-      WorkTaskRecord stored = find(tasks, completed.taskKey());
-      WorkTaskRecord stamped =
-          stored == null
-              ? new WorkTaskRecord(
-                  completed.taskKey(),
-                  completed.kind(),
-                  completed.taskId(),
-                  WorkTaskState.ACCEPTED,
-                  completed.stage(),
-                  completed.skillId(),
-                  completed.requiredInputFingerprint(),
-                  List.of(completed.recordId()))
-              : accepted(stored, completed.requiredInputFingerprint());
-      replace(tasks, stamped);
+      acceptCompleted(tasks, completed);
+    }
+    if (clearCorrective) {
+      WorkTaskRecord stash = find(document.progress().tasks(), CORRECTIVE_KEY);
+      if (stash != null) {
+        String realKey = WorkTaskPlanner.taskKey(stash.kind(), stash.taskId());
+        for (WorkTaskPlanner.Task task : plan.tasks()) {
+          if (realKey.equals(task.taskKey())
+              || (stash.kind() == WorkTaskKind.LOGICAL_DESIGN
+                  && task.kind() == WorkTaskKind.LOGICAL_DESIGN)) {
+            acceptCompleted(tasks, task);
+          }
+        }
+      }
     }
     for (WorkTaskPlanner.Task task : plan.tasks()) {
       WorkTaskRecord stored = find(tasks, task.taskKey());
       if (stored == null || stored.acceptedInputFingerprint().isBlank()) {
         continue;
       }
-      if (!stored.acceptedInputFingerprint().equals(task.requiredInputFingerprint())) {
-        if (stored.state() == WorkTaskState.ACCEPTED) {
-          replace(
-              tasks,
-              new WorkTaskRecord(
-                  stored.taskKey(),
-                  stored.kind(),
-                  stored.taskId(),
-                  WorkTaskState.NEEDS_RECHECK,
-                  stored.stage(),
-                  stored.skillId(),
-                  stored.acceptedInputFingerprint(),
-                  stored.producedRecordIds()));
-        }
-        continue;
-      }
-      if (stored.state() != WorkTaskState.ACCEPTED) {
-        replace(tasks, accepted(stored, task.requiredInputFingerprint()));
+      if (!stored.acceptedInputFingerprint().equals(task.requiredInputFingerprint())
+          && stored.state() == WorkTaskState.ACCEPTED) {
+        replace(
+            tasks,
+            new WorkTaskRecord(
+                stored.taskKey(),
+                stored.kind(),
+                stored.taskId(),
+                WorkTaskState.NEEDS_RECHECK,
+                stored.stage(),
+                stored.skillId(),
+                stored.acceptedInputFingerprint(),
+                stored.producedRecordIds()));
       }
     }
     List<WorkFinding> findings = new ArrayList<>(document.progress().findings());
     if (clearCorrective) {
-      String origin = originOf(document);
-      String repaired = correctiveRecord(document);
-      findings.removeIf(
-          finding ->
-              finding.recordRef().equals(origin)
-                  || finding.recordRef().equals(repaired)
-                  || finding.recordRef().equals(recordOf(taskKey)));
+      WorkTaskRecord stash = find(document.progress().tasks(), CORRECTIVE_KEY);
+      if (stash != null) {
+        String category = stash.skillId();
+        String origin = stash.producedRecordIds().isEmpty() ? "" : stash.producedRecordIds().get(0);
+        String repaired = stash.taskId();
+        String pointer = stash.acceptedInputFingerprint();
+        findings.removeIf(finding -> resolvedFinding(finding, category, origin, repaired, pointer));
+      }
     }
     commitProgress(runId, "progress:" + commandId, document, tasks, findings, sha256(taskKey));
   }
@@ -396,29 +363,45 @@ public final class WorkDocumentFilling {
   }
 
   private boolean cheap(ChainWorkDocument document, WorkTaskPlanner.Task task) {
-    if (task.kind() == WorkTaskKind.LOGICAL_DESIGN && !document.flow().steps().isEmpty()) {
-      return task.state() == WorkTaskState.NEEDS_RECHECK || task.state() == WorkTaskState.PENDING;
-    }
-    if (task.state() != WorkTaskState.NEEDS_RECHECK) {
+    if (task.kind() == WorkTaskKind.LOGICAL_DESIGN) {
       return false;
     }
-    return cheapOutline(document, task);
+    if (task.state() != WorkTaskState.NEEDS_RECHECK && task.state() != WorkTaskState.PENDING) {
+      return false;
+    }
+    WorkTaskRecord stored = find(document.progress().tasks(), task.taskKey());
+    if (stored == null || stored.acceptedInputFingerprint().isBlank()) {
+      return false;
+    }
+    if (task.kind() == WorkTaskKind.DEFINE_TRANSFERS) {
+      return cheapOutline(document, task);
+    }
+    if (task.kind() == WorkTaskKind.DESCRIBE_CONTEXT) {
+      return cheapContext(document, task);
+    }
+    if (task.kind() == WorkTaskKind.MAP_TRANSFER) {
+      return cheapMapping(document, task);
+    }
+    return false;
   }
 
   private boolean cheapOutline(ChainWorkDocument document, WorkTaskPlanner.Task task) {
-    if (task.state() != WorkTaskState.NEEDS_RECHECK) {
-      return false;
-    }
     LogicalStep step = step(document, task.recordId());
     if (step == null || (step.data().transfers().isEmpty() && step.data().outline().coverage().isEmpty())) {
       return false;
     }
+    if (!coverageApplies(document, step)) {
+      return false;
+    }
+    if (!bindingHashesMatch(step)) {
+      return false;
+    }
     for (DataTransfer transfer : step.data().transfers()) {
-      if (!portReady(document, transfer.targetPort())) {
+      if (!portHashMatches(document, transfer.targetPort())) {
         return false;
       }
       for (PortRef source : transfer.sourcePorts()) {
-        if (!portReady(document, source)) {
+        if (!portHashMatches(document, source)) {
           return false;
         }
       }
@@ -426,27 +409,194 @@ public final class WorkDocumentFilling {
     return true;
   }
 
-  private boolean portReady(ChainWorkDocument document, PortRef port) {
+  private boolean cheapContext(ChainWorkDocument document, WorkTaskPlanner.Task task) {
+    LogicalStep producer = step(document, task.recordId());
+    if (producer == null || producer.binding() == null) {
+      return false;
+    }
+    boolean sawValue = false;
+    for (LogicalStep step : document.flow().steps()) {
+      for (RetainedValue value : step.data().retainedValues()) {
+        if (!producer.id().equals(value.producerStepId())) {
+          continue;
+        }
+        sawValue = true;
+        if (value.resolution() != RetainedResolution.RESOLVED || value.source() == null) {
+          return false;
+        }
+        if (!pathInCurrentSchema(producer, value)) {
+          return false;
+        }
+      }
+    }
+    return sawValue;
+  }
+
+  private boolean cheapMapping(ChainWorkDocument document, WorkTaskPlanner.Task task) {
+    DataTransfer transfer = findTransfer(document, task.recordId());
+    if (transfer == null || transfer.rules().isEmpty()) {
+      return false;
+    }
+    if (!portHashMatches(document, transfer.targetPort())) {
+      return false;
+    }
+    for (PortRef source : transfer.sourcePorts()) {
+      if (!portHashMatches(document, source)) {
+        return false;
+      }
+    }
+    for (MappingRule rule : transfer.rules()) {
+      if (rule.target() == null || !fieldStillApplies(document, rule.target())) {
+        return false;
+      }
+      for (FieldReference source : rule.sources()) {
+        if (!fieldStillApplies(document, source)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  private boolean fieldStillApplies(ChainWorkDocument document, FieldReference field) {
+    if (field.kind() == FieldReferenceKind.RETAINED) {
+      RetainedValue value = findRetained(document, field.retainedValueId());
+      if (value == null || value.resolution() != RetainedResolution.RESOLVED || value.source() == null) {
+        return false;
+      }
+      LogicalStep producer = step(document, value.producerStepId());
+      return producer != null && pathInCurrentSchema(producer, value);
+    }
+    if (field.kind() != FieldReferenceKind.STEP_PORT || field.port() == null) {
+      return false;
+    }
+    LogicalStep owner = step(document, field.stepId());
+    return owner != null && pathInSchema(owner, field.port().schemaName(), field.fieldPath());
+  }
+
+  private boolean coverageApplies(ChainWorkDocument document, LogicalStep step) {
+    List<String> requirements = new ArrayList<>();
+    for (WorkRequirement requirement : document.requirements()) {
+      requirements.add(requirement.id());
+    }
+    List<String> passages = new ArrayList<>();
+    for (WorkSource source : document.sources()) {
+      for (SourcePassage passage : source.passages()) {
+        passages.add(passage.id());
+      }
+    }
+    for (CoverageEntry entry : step.data().outline().coverage()) {
+      if (!requirements.contains(entry.requirementId()) || !passages.contains(entry.passageId())) {
+        return false;
+      }
+    }
+    for (DataTransfer transfer : step.data().transfers()) {
+      for (String requirementId : transfer.requirementIds()) {
+        if (!requirements.contains(requirementId)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  private boolean bindingHashesMatch(LogicalStep step) {
+    if (step.binding() == null || step.kind() == StepKind.LOCAL) {
+      return true;
+    }
+    ContractMaterial material = catalog.loadContract(step.binding());
+    if (!(material instanceof ContractMaterial.Ready ready)) {
+      return false;
+    }
+    for (ResolvedWorkBinding.PortContentHash stored : step.binding().portContentHashes()) {
+      if (!hashMatches(ready, stored.port(), stored.contentHash())) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  private boolean portHashMatches(ChainWorkDocument document, PortRef port) {
     if (port == null) {
       return true;
     }
     LogicalStep owner = step(document, port.stepId());
-    if (owner == null || owner.binding() == null || owner.kind() == StepKind.LOCAL) {
+    if (owner == null) {
+      return false;
+    }
+    if (owner.binding() == null || owner.kind() == StepKind.LOCAL) {
       return true;
+    }
+    String storedHash = "";
+    for (ResolvedWorkBinding.PortContentHash hash : owner.binding().portContentHashes()) {
+      if (port.portName().equals(hash.port())) {
+        storedHash = hash.contentHash();
+      }
+    }
+    if (storedHash.isBlank()) {
+      return false;
     }
     ContractMaterial material = catalog.loadContract(owner.binding());
     if (!(material instanceof ContractMaterial.Ready ready)) {
       return false;
     }
+    return hashMatches(ready, port.portName(), storedHash);
+  }
+
+  private static boolean hashMatches(ContractMaterial.Ready ready, String port, String contentHash) {
     for (PortSchemaMaterial schema : ready.ports()) {
-      if (port.portName().equals(schema.port()) && schema.schema() != null && !schema.schema().isNull()) {
+      if (port.equals(schema.port())
+          && contentHash.equals(schema.contentHash())
+          && schema.schema() != null
+          && !schema.schema().isNull()) {
         return true;
       }
     }
     return false;
   }
 
+  private boolean pathInCurrentSchema(LogicalStep producer, RetainedValue value) {
+    if (producer.binding() == null) {
+      return false;
+    }
+    ContractMaterial material = catalog.loadContract(producer.binding());
+    if (!(material instanceof ContractMaterial.Ready ready)) {
+      return false;
+    }
+    String port = value.source().port() == null ? "" : value.source().port().schemaName();
+    return pathInReady(producer, ready, port, value.source().fieldPath());
+  }
+
+  private boolean pathInSchema(LogicalStep producer, String port, String path) {
+    if (producer.binding() == null) {
+      return false;
+    }
+    ContractMaterial material = catalog.loadContract(producer.binding());
+    if (!(material instanceof ContractMaterial.Ready ready)) {
+      return false;
+    }
+    return pathInReady(producer, ready, port, path);
+  }
+
+  private static boolean pathInReady(LogicalStep producer, ContractMaterial.Ready ready, String port, String path) {
+    for (PortSchemaMaterial schema : ready.ports()) {
+      if (!port.equals(schema.port()) || schema.schema() == null) {
+        continue;
+      }
+      return new SchemaFragment(
+              producer.id() + ":" + port,
+              producer.id(),
+              port,
+              schema.contentHash(),
+              schema.contractReference(),
+              schema.schema().toString())
+          .containsPath(path);
+    }
+    return false;
+  }
+
   private WorkCommit invoke(String runId, WorkTaskKind kind, String recordId, WorkTaskModel delivery) {
+    rejectIncompatible(documents.read(runId).document(), kind, recordId);
     WorkTaskMaterials materials = materials(documents.read(runId).document());
     List<ContractMaterial> contracts = contracts(documents.read(runId).document());
     return switch (kind) {
@@ -462,10 +612,14 @@ public final class WorkDocumentFilling {
 
   private WorkCommit design(String runId, String recordId, WorkTaskMaterials materials, WorkTaskModel delivery) {
     ChainWorkDocument document = documents.read(runId).document();
-    if (document.flow().steps().isEmpty() || document.documentId().equals(recordId)) {
+    if (document.flow().steps().isEmpty()) {
       return logical.design(runId, materials, delivery);
     }
-    return logical.repair(runId, recordId, materials, delivery);
+    String requirementId = recordId;
+    if (document.documentId().equals(recordId) && !document.requirements().isEmpty()) {
+      requirementId = document.requirements().get(0).id();
+    }
+    return logical.repair(runId, requirementId, materials, delivery);
   }
 
   private void markDispatch(String runId, String commandId, Target target) {
@@ -662,6 +816,64 @@ public final class WorkDocumentFilling {
     return new WorkTaskMaterials(schemas, List.of("runtime-catalog-only"), evidence);
   }
 
+  private void rejectIncompatible(ChainWorkDocument document, WorkTaskKind kind, String recordId) {
+    if (kind != WorkTaskKind.DEFINE_TRANSFERS && kind != WorkTaskKind.MAP_TRANSFER) {
+      return;
+    }
+    for (String stepId : contractSteps(document, kind, recordId)) {
+      LogicalStep step = step(document, stepId);
+      if (step == null || step.binding() == null) {
+        continue;
+      }
+      ContractMaterial material = catalog.loadContract(step.binding());
+      if (material instanceof ContractMaterial.Incompatible incompatible) {
+        throw new WorkDocumentRejectedException(
+            "INCOMPATIBLE_CONTRACT",
+            incompatible.reason() + " Step " + step.id() + ".");
+      }
+    }
+  }
+
+  private String incompatibleStep(ChainWorkDocument document, Dispatch dispatch) {
+    for (String stepId : contractSteps(document, dispatch.kind(), dispatch.recordId())) {
+      LogicalStep step = step(document, stepId);
+      if (step == null || step.binding() == null) {
+        continue;
+      }
+      if (catalog.loadContract(step.binding()) instanceof ContractMaterial.Incompatible) {
+        return step.id();
+      }
+    }
+    return "";
+  }
+
+  private static List<String> contractSteps(ChainWorkDocument document, WorkTaskKind kind, String recordId) {
+    List<String> ids = new ArrayList<>();
+    if (kind == WorkTaskKind.DEFINE_TRANSFERS) {
+      ids.add(recordId);
+      for (LogicalConnection connection : document.flow().connections()) {
+        if (recordId.equals(connection.targetStepId())) {
+          ids.add(connection.sourceStepId());
+        }
+      }
+      return ids;
+    }
+    for (LogicalStep step : document.flow().steps()) {
+      for (DataTransfer transfer : step.data().transfers()) {
+        if (!recordId.equals(transfer.id())) {
+          continue;
+        }
+        if (transfer.targetPort() != null) {
+          ids.add(transfer.targetPort().stepId());
+        }
+        for (PortRef source : transfer.sourcePorts()) {
+          ids.add(source.stepId());
+        }
+      }
+    }
+    return ids;
+  }
+
   private List<ContractMaterial> contracts(ChainWorkDocument document) {
     List<ContractMaterial> loaded = new ArrayList<>();
     for (LogicalStep step : document.flow().steps()) {
@@ -685,14 +897,15 @@ public final class WorkDocumentFilling {
       origin = open.recordRef();
       pointer = open.canonicalFieldPointer();
     }
-    if ("WRONG_OPERATION".equals(category) && isRequirement(document, record) && dispatch.kind() == WorkTaskKind.SELECT_OPERATION) {
+    if ("WRONG_OPERATION".equals(category)
+        && isRequirement(document, record)
+        && dispatch.kind() == WorkTaskKind.SELECT_OPERATION) {
+      origin = dispatch.recordId();
+      pointer = "binding";
       revealed = record;
       revealedPointer = "text";
       handler = WorkTaskKind.LOGICAL_DESIGN;
       handlerRecord = record;
-      if (pointer.isBlank()) {
-        pointer = "behavior";
-      }
     } else if ("WRONG_OPERATION".equals(category) && !targetStep(document, origin).isBlank()) {
       pointer = "behavior";
       revealed = targetStep(document, origin);
@@ -703,6 +916,16 @@ public final class WorkDocumentFilling {
       pointer = "binding";
       handler = WorkTaskKind.SELECT_OPERATION;
       handlerRecord = step(document, origin) == null ? dispatch.recordId() : origin;
+    } else if ("INCOMPATIBLE_CONTRACT".equals(category)) {
+      String broken = incompatibleStep(document, dispatch);
+      origin = dispatch.recordId();
+      if (step(document, origin) != null) {
+        pointer = "data";
+      }
+      revealed = broken;
+      revealedPointer = "binding";
+      handler = WorkTaskKind.SELECT_OPERATION;
+      handlerRecord = broken.isBlank() ? dispatch.recordId() : broken;
     } else if (ServerOwnedSubjects.OUTLINE_POINTER.equals(pointer) || "MISSING_RETAINED".equals(category)) {
       pointer = ServerOwnedSubjects.OUTLINE_POINTER;
       handler = WorkTaskKind.DEFINE_TRANSFERS;
@@ -774,6 +997,28 @@ public final class WorkDocumentFilling {
     return step.requirementIds().get(0);
   }
 
+  private static DataTransfer findTransfer(ChainWorkDocument document, String transferId) {
+    for (LogicalStep step : document.flow().steps()) {
+      for (DataTransfer transfer : step.data().transfers()) {
+        if (transferId.equals(transfer.id())) {
+          return transfer;
+        }
+      }
+    }
+    return null;
+  }
+
+  private static RetainedValue findRetained(ChainWorkDocument document, String retainedId) {
+    for (LogicalStep step : document.flow().steps()) {
+      for (RetainedValue value : step.data().retainedValues()) {
+        if (retainedId.equals(value.id())) {
+          return value;
+        }
+      }
+    }
+    return null;
+  }
+
   private static String stepIdOf(ChainWorkDocument document, String origin, String fallback) {
     if (step(document, origin) != null) {
       return origin;
@@ -809,6 +1054,7 @@ public final class WorkDocumentFilling {
           "WRONG_OPERATION",
           "INVALID_CONSTANT",
           "FABRICATED_PREFIX",
+          "INCOMPATIBLE_CONTRACT",
           "INPUT_DEFECT" -> true;
       default -> false;
     };
@@ -910,22 +1156,36 @@ public final class WorkDocumentFilling {
     return reason;
   }
 
-  private static String correctiveRecord(ChainWorkDocument document) {
-    WorkTaskRecord stash = find(document.progress().tasks(), CORRECTIVE_KEY);
-    return stash == null ? "" : stash.taskId();
+  private static void acceptCompleted(List<WorkTaskRecord> tasks, WorkTaskPlanner.Task completed) {
+    WorkTaskRecord stored = find(tasks, completed.taskKey());
+    WorkTaskRecord stamped =
+        stored == null
+            ? new WorkTaskRecord(
+                completed.taskKey(),
+                completed.kind(),
+                completed.taskId(),
+                WorkTaskState.ACCEPTED,
+                completed.stage(),
+                completed.skillId(),
+                completed.requiredInputFingerprint(),
+                List.of(completed.recordId()))
+            : accepted(stored, completed.requiredInputFingerprint());
+    replace(tasks, stamped);
   }
 
-  private static String originOf(ChainWorkDocument document) {
-    WorkTaskRecord stash = find(document.progress().tasks(), CORRECTIVE_KEY);
-    if (stash == null || stash.producedRecordIds().isEmpty()) {
-      return "";
+  private static boolean resolvedFinding(
+      WorkFinding finding, String category, String origin, String repaired, String pointer) {
+    if (category == null || category.isBlank() || !category.equals(finding.issueCategory())) {
+      return false;
     }
-    return stash.producedRecordIds().get(0);
-  }
-
-  private static String recordOf(String taskKey) {
-    int colon = taskKey.indexOf(':');
-    return colon < 0 ? taskKey : taskKey.substring(colon + 1);
+    boolean sameRecord = finding.recordRef().equals(origin) || finding.recordRef().equals(repaired);
+    if (!sameRecord) {
+      return false;
+    }
+    if (pointer == null || pointer.isBlank() || finding.canonicalFieldPointer().isBlank()) {
+      return finding.recordRef().equals(origin);
+    }
+    return pointer.equals(finding.canonicalFieldPointer());
   }
 
   private static String evidenceId(ChainWorkDocument document) {

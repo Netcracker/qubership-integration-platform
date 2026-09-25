@@ -147,11 +147,16 @@ public final class WorkBinding {
     }
     String requiredOperation = requiredOperation(state, stepId);
     if (!requiredOperation.isBlank() && !requiredOperation.equals(candidateId)) {
+      ObjectNode cited = selection != null && selection.isObject() ? ((ObjectNode) selection).deepCopy() : json.createObjectNode();
+      String requirementId = linkedRequirement(state, stepId);
+      if (!requirementId.isBlank()) {
+        cited.put("defectRecordRef", requirementId);
+      }
       return defect(
           runId,
           state,
           stepId,
-          selection,
+          cited,
           "WRONG_OPERATION",
           "Selected operation "
               + candidateId
@@ -391,6 +396,26 @@ public final class WorkBinding {
   private static String systemHint(WorkDocumentState state, String stepId) {
     JsonNode step = stepNode(state, stepId);
     return step.path("intent").asText("") + " " + step.path("label").asText("");
+  }
+
+  private static String linkedRequirement(WorkDocumentState state, String stepId) {
+    JsonNode step = stepNode(state, stepId);
+    String label = step.path("label").asText();
+    if (label.isBlank()) {
+      return "";
+    }
+    JsonNode requirements = jsonTree(state).path("requirements");
+    for (JsonNode requirementId : step.path("requirementIds")) {
+      for (JsonNode requirement : requirements) {
+        if (!requirementId.asText().equals(requirement.path("id").asText())) {
+          continue;
+        }
+        if (requirement.path("text").asText().contains(label)) {
+          return requirement.path("id").asText();
+        }
+      }
+    }
+    return "";
   }
 
   private static String requiredOperation(WorkDocumentState state, String stepId) {
