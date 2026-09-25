@@ -189,8 +189,10 @@ class WorkFillingReadinessTest {
 
     assertEquals(Readiness.Status.HALTED, plan.readiness().status());
     assertNull(plan.selected());
-    assertEquals(Reason.ACTIVE_FINDING, defect(plan, "finding-1").reason());
-    assertEquals("Finding finding-1 records an open defect on call.", defect(plan, "finding-1").evidence());
+    assertEquals(Reason.ACTIVE_FINDING, defect(plan, "select-operation:call").reason());
+    assertEquals(
+        "Finding finding-1 records an open defect on call.",
+        defect(plan, "select-operation:call").evidence());
   }
 
   private ChainWorkDocument localNoMapping() {
