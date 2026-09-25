@@ -115,6 +115,7 @@ public final class WorkMapping {
             "Mapping capture could not be parsed. The task was not completed.");
       }
       JsonNode tree = read(output);
+      dropRestatedSteps(document, tree);
       if (tree.has("steps")) {
         for (JsonNode step : tree.path("steps")) {
           if ("SERVICE_CALL".equals(step.path("kind").asText())) {
@@ -131,6 +132,40 @@ public final class WorkMapping {
       rewriteContractForm(tree, materials);
       return complete(tree);
     };
+  }
+
+  private static void dropRestatedSteps(JsonNode document, JsonNode tree) {
+    if (!(tree.get("steps") instanceof ArrayNode steps)) {
+      return;
+    }
+    for (int index = steps.size() - 1; index >= 0; index--) {
+      if (restatesExistingStep(document, steps.get(index))) {
+        steps.remove(index);
+      }
+    }
+  }
+
+  private static boolean restatesExistingStep(JsonNode document, JsonNode proposed) {
+    String id = proposed.path("existingId").asText();
+    if (id.isBlank()) {
+      id = proposed.path("id").asText();
+    }
+    String alias = proposed.path("alias").asText();
+    String label = proposed.path("label").asText();
+    for (JsonNode existing : document.path("flow").path("steps")) {
+      String existingId = existing.path("id").asText();
+      String existingLabel = existing.path("label").asText();
+      if (sameStepName(id, existingId)
+          || sameStepName(alias, existingId)
+          || sameStepName(label, existingLabel)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean sameStepName(String proposed, String existing) {
+    return !proposed.isBlank() && proposed.equals(existing);
   }
 
   private static JsonNode read(String output) {

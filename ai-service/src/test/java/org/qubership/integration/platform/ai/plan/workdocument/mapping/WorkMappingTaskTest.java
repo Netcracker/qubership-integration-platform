@@ -176,6 +176,36 @@ class WorkMappingTaskTest {
   }
 
   @Test
+  void restatedCreateCallPublishesSubjectAndANewLabelStillRejects() {
+    List<String> prompts = new ArrayList<>();
+    WorkCommit commit =
+        mapping.interpret(
+            RUN_ID,
+            materials(false),
+            prompt -> {
+              prompts.add(prompt);
+              return restatedCreateCapture();
+            });
+
+    assertEquals("PREPARED", commit.outcome().name());
+    JsonNode document = JSON.valueToTree(commit.state().document());
+    assertEquals(3, document.path("flow").path("steps").size());
+    assertEquals(1, serviceCalls(document));
+    JsonNode target = ruleTargeting(rules(document), "$.Subject").path("target");
+    assertEquals("create", target.path("stepId").asText());
+    assertEquals("request", target.path("port").asText());
+    assertTrue(prompts.getFirst().contains("The steps array stays empty."));
+    assertTrue(prompts.getFirst().contains("Refer to them by id in transfers and rules."));
+
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () -> mapping.interpret(RUN_ID, materials(false), prompt -> extraServiceCallCapture()));
+    assertEquals("DUPLICATE_SERVICE_CALL", rejected.code());
+    assertEquals(1, serviceCalls(JSON.valueToTree(documents.read(RUN_ID).document())));
+  }
+
+  @Test
   void dollarSourcePathAsksAndDoesNotStoreTheRule() {
     WorkCommit asked =
         mapping.interpret(
@@ -505,6 +535,29 @@ class WorkMappingTaskTest {
         ],"retainedValues":[]}
         """
         .formatted(LISTS, stepId, stepId, stepId, sourcePort, sourcePath, stepId, sourcePort, targetPath);
+  }
+
+  private static String restatedCreateCapture() {
+    return """
+        {"outcome":"PREPARED","requirements":[],"steps":[
+          {"existingId":"","alias":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the order event","sourceRefs":["src-map"],"requirementRefs":[]},
+          {"existingId":"","alias":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceRefs":["src-map"],"requirementRefs":[]},
+          {"existingId":"","alias":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the outcome","sourceRefs":["src-map"],"requirementRefs":[]}
+        ],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[
+          {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"OUTBOUND_REQUEST"},"requirementRefs":[],"decision":""}
+        ],"rules":[
+          {"existingId":"","alias":"rule-subject","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"Subject","retainedValueId":""},"constants":[],"behavior":"written field","evidenceRefs":["src-map"]}
+        ],"retainedValues":[]}
+        """;
+  }
+
+  private static String extraServiceCallCapture() {
+    return """
+        {"outcome":"PREPARED","requirements":[],"steps":[
+          {"existingId":"","alias":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceRefs":["src-map"],"requirementRefs":[]},
+          {"existingId":"","alias":"lookup","kind":"SERVICE_CALL","label":"Lookup","intent":"Read another record","sourceRefs":["src-map"],"requirementRefs":[]}
+        ],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[],"rules":[],"retainedValues":[]}
+        """;
   }
 
   private static String pathCapture(String path, String port, String stepId) {
