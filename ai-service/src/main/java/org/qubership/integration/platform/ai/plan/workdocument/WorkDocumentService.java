@@ -345,6 +345,78 @@ public final class WorkDocumentService {
         current.run().currentStageId());
   }
 
+  /**
+   * Returns the opaque receipt for a command that already committed. A missing command returns
+   * null. A different payload for the same command is rejected by the run store.
+   */
+  public String readFillingReceipt(String runId, String commandId, String payloadHash) {
+    requireStore();
+    ProductPipelineRunDocument current = load(runId);
+    Optional<RunTransition> replay = current.appliedCommand(commandId, payloadHash);
+    if (replay.isEmpty()) {
+      return null;
+    }
+    for (StageAttempt attempt : current.attempts()) {
+      if (attempt.runRevision() == replay.get().toRevision()) {
+        return attempt.commandReceipt();
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Records a filling result without moving the work document. A repeated command keeps the first
+   * receipt.
+   */
+  public void recordFillingReceipt(
+      String runId,
+      String commandId,
+      String payloadHash,
+      String reason,
+      String receipt,
+      RunStatus nextStatus) {
+    requireStore();
+    Objects.requireNonNull(payloadHash, "payloadHash");
+    Objects.requireNonNull(reason, "reason");
+    ProductPipelineRunDocument current = load(runId);
+    if (current.appliedCommand(commandId, payloadHash).isPresent()) {
+      return;
+    }
+    long expected = current.run().runRevision();
+    long next = expected + 1L;
+    Instant at = clock.instant();
+    String stage = current.run().currentStageId();
+    RunStatus status = nextStatus == null ? current.run().status() : nextStatus;
+    runs.commit(
+        expected,
+        new LogicalCommit(
+            current.run().runId(),
+            expected,
+            status,
+            stage,
+            current.run().stages(),
+            new StageAttempt(
+                "filling-" + commandId,
+                stage,
+                next,
+                StageStatus.SUCCEEDED,
+                at,
+                at,
+                List.of(),
+                null,
+                receipt),
+            new RunTransition(
+                expected,
+                next,
+                current.run().status(),
+                status,
+                stage,
+                at,
+                reason,
+                commandId,
+                payloadHash)));
+  }
+
   public WorkDocumentState addPassages(
       WorkDocumentState state, String sourceId, List<SourcePassage> passages) {
     return editor.addPassages(state, sourceId, passages);

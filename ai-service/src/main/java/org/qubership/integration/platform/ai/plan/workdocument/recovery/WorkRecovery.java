@@ -541,6 +541,9 @@ public final class WorkRecovery {
     if (recordId == null || recordId.isBlank()) {
       return false;
     }
+    if (recordId.equals(document.path("documentId").asText())) {
+      return true;
+    }
     try {
       ownerOf(document, recordId, "");
       return true;
