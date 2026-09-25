@@ -223,6 +223,10 @@ export const SecuredVariables: React.FC = () => {
 
   const handleUpdateVariable = useCallback(
     async (secret: string, key: string, value: string) => {
+      if (!value) {
+        setEditing(null);
+        return;
+      }
       const response = await api.updateSecuredVariables(secret, [
         { key, value },
       ]);
@@ -349,9 +353,9 @@ export const SecuredVariables: React.FC = () => {
         isAddingNew={newVariableKeys[secret]}
         editingKey={editing?.secret === secret ? editing.key : null}
         editingValue={editing?.secret === secret ? editingValue : ""}
-        onStartEditing={(key, value) => {
+        onStartEditing={(key) => {
           setEditing({ secret, key });
-          setEditingValue(value);
+          setEditingValue("");
         }}
         onChangeEditingValue={setEditingValue}
         onCancelEditing={() => {

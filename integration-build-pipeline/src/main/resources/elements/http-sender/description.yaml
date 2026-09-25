@@ -90,5 +90,5 @@ properties:
       title: Correlation id position
       type: string
       allowedValues:
-        - Header
-        - Body
+        - header
+        - body

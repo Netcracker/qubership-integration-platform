@@ -9,8 +9,8 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.MountOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
-import org.qubership.integration.platform.camelk.naming.strategies.BuildNamingContext;
 import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
+import org.qubership.integration.platform.camelk.services.BuildInfoFactory;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
@@ -28,7 +28,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.*;
 
 import static java.util.Objects.isNull;
@@ -46,9 +45,9 @@ public class MicroDomainResourceBuildContextFactory {
     private static final String HTTP_ROUTE_KIND = "HTTPRoute";
 
     private final SnapshotRepository snapshotRepository;
-    private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
     private final MicroDomainService microDomainService;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
+    private final BuildInfoFactory buildInfoFactory;
     private final IntegrationServiceCatalog integrationServiceCatalog;
     private final SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
@@ -60,9 +59,9 @@ public class MicroDomainResourceBuildContextFactory {
     @Autowired
     public MicroDomainResourceBuildContextFactory(
             SnapshotRepository snapshotRepository,
-            NamingStrategy<BuildNamingContext> buildNamingStrategy,
             MicroDomainService microDomainService,
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
+            BuildInfoFactory buildInfoFactory,
             IntegrationServiceCatalog integrationServiceCatalog,
 
             @Qualifier("sourceDslConfigMapNamingStrategy")
@@ -85,9 +84,9 @@ public class MicroDomainResourceBuildContextFactory {
             @Value("${qip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
     ) {
         this.snapshotRepository = snapshotRepository;
-        this.buildNamingStrategy = buildNamingStrategy;
         this.microDomainService = microDomainService;
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
+        this.buildInfoFactory = buildInfoFactory;
         this.integrationServiceCatalog = integrationServiceCatalog;
         this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
         this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
@@ -118,7 +117,8 @@ public class MicroDomainResourceBuildContextFactory {
             .toList();
 
         ResourceBuildOptions options = copyOptions(request.getOptions());
-        BuildInfo buildInfo = createBuildInfo(options);
+        String createdBy = auditor.getCurrentAuditor().map(User::getUsername).orElse(null);
+        BuildInfo buildInfo = buildInfoFactory.createBuildInfo(options, createdBy);
         ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo, integrationServiceCatalog)
                 .updateTo(snapshots);
 
@@ -162,23 +162,6 @@ public class MicroDomainResourceBuildContextFactory {
         return MountOptions.builder()
                 .emptyDirs(source.getEmptyDirs() == null ? new HashSet<>() : new HashSet<>(source.getEmptyDirs()))
                 .resources(source.getResources() == null ? new HashSet<>() : new HashSet<>(source.getResources()))
-                .build();
-    }
-
-    private BuildInfo createBuildInfo(ResourceBuildOptions options) {
-        String id = UUID.randomUUID().toString();
-        Instant timestamp = Instant.now();
-        BuildNamingContext buildNamingContext = BuildNamingContext.builder()
-                .id(id)
-                .timestamp(timestamp)
-                .build();
-        User createdBy = auditor.getCurrentAuditor().orElse(null);
-        return BuildInfo.builder()
-                .id(id)
-                .timestamp(timestamp)
-                .name(buildNamingStrategy.getName(buildNamingContext))
-                .createdBy(createdBy == null ? null : createdBy.getUsername())
-                .options(options)
                 .build();
     }
 

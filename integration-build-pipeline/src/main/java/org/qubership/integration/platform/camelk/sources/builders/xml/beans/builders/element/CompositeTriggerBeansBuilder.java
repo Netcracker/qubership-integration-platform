@@ -5,7 +5,7 @@ import org.qubership.integration.platform.camelk.sources.SourceBuilderContext;
 import org.qubership.integration.platform.camelk.sources.builders.xml.beans.ElementBeansBuilder;
 import org.qubership.integration.platform.chain.impl.ElementBuilder;
 import org.qubership.integration.platform.chain.model.Element;
-import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.components.ElementDescriptorHelper;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,24 +15,22 @@ import java.util.UUID;
 
 @Component
 public class CompositeTriggerBeansBuilder implements ElementBeansBuilder {
-    private final LibraryElementsService libraryService;
+    private final ElementDescriptorHelper elementDescriptorHelper;
     private final CommonBeansBuilder commonBeansBuilder;
 
     @Autowired
     public CompositeTriggerBeansBuilder(
-        LibraryElementsService libraryService,
+        ElementDescriptorHelper elementDescriptorHelper,
         CommonBeansBuilder commonBeansBuilder
     ) {
-        this.libraryService = libraryService;
+        this.elementDescriptorHelper = elementDescriptorHelper;
         this.commonBeansBuilder = commonBeansBuilder;
     }
 
     @Override
     public boolean applicableTo(Element element) {
-        return libraryService.lookupElementDescriptor(element.getType())
-                .map(ElementDescriptor::getType)
-                .map(ElementType.COMPOSITE_TRIGGER::equals)
-                .orElse(false);
+        ElementDescriptor descriptor = elementDescriptorHelper.resolveDescriptor(element.getType());
+        return ElementType.COMPOSITE_TRIGGER.equals(descriptor.getType());
     }
 
     @Override

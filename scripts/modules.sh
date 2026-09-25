@@ -15,7 +15,12 @@
 # shellcheck disable=SC2034
 
 # Modules whose POM pins qip-monorepo-parent by a literal version.
-QIP_PARENT_CHILDREN=(engine integration-build-pipeline runtime-catalog sessions-management)
+QIP_PARENT_CHILDREN=(engine integration-build-maven-plugin integration-build-pipeline runtime-catalog sessions-management)
+
+# POMs that pin the released qip-integration-build-pipeline by property. The
+# dependency appends ${changelist} in each of them, so the pin names the release
+# and a reactor build resolves the development coordinate from source.
+QIP_LIBRARY_CONSUMERS=(runtime-catalog/pom.xml integration-build-maven-plugin/pom.xml)
 
 # Backend services. A full release-all wave publishes these under one version.
 QIP_BACKEND=(engine micro-engine runtime-catalog sessions-management)
@@ -28,6 +33,7 @@ QIP_BOM_MODULES=(
     runtime-catalog
     sessions-management
     integration-build-pipeline
+    integration-build-maven-plugin
     schemas
     testing-service
     ui

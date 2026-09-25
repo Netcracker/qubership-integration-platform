@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -31,9 +32,13 @@ public class IntegrationsConfigurationBuilder {
 
     public IntegrationsConfiguration build(ResourceBuildContext<List<Snapshot>> context) {
         List<Snapshot> chains = context.getData();
+        boolean libraryDefinitionsEnabled = context.getBuildInfo().getOptions().getIntegrations().isLibraryDefinitionsEnabled();
+        List<LibraryDefinition> libraryDefinitions = libraryDefinitionsEnabled
+                ? buildLibraryDefinitions(context)
+                : Collections.emptyList();
         return IntegrationsConfiguration.builder()
                 .sources(chains.stream().map(snapshot -> buildSourceDefinition(context.updateTo(snapshot))).toList())
-                .libraries(buildLibrariesDefinitions(context))
+                .libraries(libraryDefinitions)
                 .build();
     }
 
@@ -41,7 +46,7 @@ public class IntegrationsConfigurationBuilder {
         return sourceDefinitionBuilder.build(context);
     }
 
-    private List<LibraryDefinition> buildLibrariesDefinitions(
+    private List<LibraryDefinition> buildLibraryDefinitions(
             ResourceBuildContext<List<Snapshot>> context
     ) {
         List<Snapshot> snapshots = context.getData();

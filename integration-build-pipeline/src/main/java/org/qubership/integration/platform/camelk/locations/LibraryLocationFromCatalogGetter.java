@@ -6,10 +6,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.util.UriUtils;
 
 import java.nio.charset.StandardCharsets;
-import java.util.function.Function;
 
 @Component("libraryLocationFromCatalogGetter")
-public class LibraryLocationFromCatalogGetter implements Function<ResourceBuildContext<String>, String> {
+public class LibraryLocationFromCatalogGetter implements LibraryLocationGetter {
     @Value("${spring.application.cloud_service_name}")
     private String cloudServiceName;
 

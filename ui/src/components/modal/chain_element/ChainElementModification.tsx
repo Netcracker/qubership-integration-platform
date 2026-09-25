@@ -79,6 +79,7 @@ import {
 } from "./formValidationHelpers.ts";
 import BasePathField from "./field/BasePathField.tsx";
 import ExternalRouteCheckbox from "./field/ExternalRouteCheckbox.tsx";
+import CorrelationIdSwitchField from "./field/CorrelationIdSwitchField.tsx";
 import ContextPathWithPrefixField from "./field/ContextPathWithPrefixField.tsx";
 import CopyableTextWidget from "./widget/CopyableTextWidget.tsx";
 import DescriptionTooltipFieldTemplate from "./DescriptionTooltipFieldTemplate.tsx";
@@ -240,6 +241,7 @@ const FIELDS = {
   chainTriggerElementIdField: ChainTriggerElementIdField,
   basePathField: BasePathField,
   externalRouteCheckbox: ExternalRouteCheckbox,
+  correlationIdSwitchField: CorrelationIdSwitchField,
   contextPathWithPrefixField: ContextPathWithPrefixField,
 };
 

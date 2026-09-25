@@ -228,6 +228,11 @@ describe("VariablesTable", () => {
     expect(screen.getAllByText("*****")).toHaveLength(sampleVariables.length);
   });
 
+  it("shows the mask as the editor placeholder when isValueHidden=true", () => {
+    renderTable({ isValueHidden: true, editingKey: "var-key-1" });
+    expect(screen.getByRole("textbox")).toHaveAttribute("placeholder", "*****");
+  });
+
   it("shows new variable row with the special NEW_VARIABLE_KEY key", () => {
     renderTable({ isAddingNew: true });
     const keyInput = screen.getByPlaceholderText("Key");

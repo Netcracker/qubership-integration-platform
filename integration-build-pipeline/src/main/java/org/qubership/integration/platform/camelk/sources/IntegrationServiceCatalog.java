@@ -7,6 +7,8 @@ import java.util.Collections;
 import java.util.Optional;
 
 public interface IntegrationServiceCatalog {
+    Collection<IntegrationService> findAll();
+
     Optional<IntegrationService> findById(String id);
 
     Collection<IntegrationService> findAllByIds(Collection<String> ids);

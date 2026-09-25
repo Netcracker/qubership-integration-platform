@@ -22,12 +22,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfiguration;
+import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.MountOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
-import org.qubership.integration.platform.camelk.naming.strategies.BuildNamingContext;
 import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
+import org.qubership.integration.platform.camelk.services.BuildInfoFactory;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
@@ -74,7 +75,7 @@ class MicroDomainResourceBuildContextFactoryTest {
     private static final String EGRESS_ROUTE_NAME = "payments-chain-egress-routes";
 
     private SnapshotRepository snapshotRepository;
-    private NamingStrategy<BuildNamingContext> buildNamingStrategy;
+    private BuildInfoFactory buildInfoFactory;
     private MicroDomainService microDomainService;
     private IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private IntegrationServiceCatalog integrationServiceCatalog;
@@ -89,7 +90,7 @@ class MicroDomainResourceBuildContextFactoryTest {
     @SuppressWarnings("unchecked")
     void setUp() {
         snapshotRepository = mock(SnapshotRepository.class);
-        buildNamingStrategy = mock(NamingStrategy.class);
+        buildInfoFactory = mock(BuildInfoFactory.class);
         microDomainService = mock(MicroDomainService.class);
         integrationConfigurationSerdes = mock(IntegrationConfigurationSerdes.class);
         integrationServiceCatalog = mock(IntegrationServiceCatalog.class);
@@ -100,7 +101,12 @@ class MicroDomainResourceBuildContextFactoryTest {
         auditor = mock(AuditorAware.class);
         when(auditor.getCurrentAuditor()).thenReturn(Optional.empty());
         when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of());
-        when(buildNamingStrategy.getName(any())).thenReturn(BUILD_NAME);
+        when(buildInfoFactory.createBuildInfo(any(), any())).thenAnswer(invocation -> BuildInfo.builder()
+            .id(UUID.randomUUID().toString())
+            .name(BUILD_NAME)
+            .options(invocation.getArgument(0))
+            .createdBy(invocation.getArgument(1))
+            .build());
         when(httpRoutePublicNamingStrategy.getName(any())).thenReturn(PUBLIC_ROUTE_NAME);
         when(httpRoutePrivateNamingStrategy.getName(any())).thenReturn(PRIVATE_ROUTE_NAME);
         when(httpRouteEgressNamingStrategy.getName(any())).thenReturn(EGRESS_ROUTE_NAME);
@@ -110,9 +116,9 @@ class MicroDomainResourceBuildContextFactoryTest {
     private MicroDomainResourceBuildContextFactory factoryWithHostResources(boolean hostResourcesEnabled) {
         return new MicroDomainResourceBuildContextFactory(
                 snapshotRepository,
-                buildNamingStrategy,
                 microDomainService,
                 integrationConfigurationSerdes,
+                buildInfoFactory,
                 integrationServiceCatalog,
                 sourceDslConfigMapNamingStrategy,
                 httpRoutePublicNamingStrategy,

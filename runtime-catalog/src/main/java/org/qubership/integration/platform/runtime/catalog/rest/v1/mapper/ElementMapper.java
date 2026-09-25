@@ -18,6 +18,8 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.mapper;
 
 import org.apache.commons.lang3.tuple.Pair;
 import org.mapstruct.*;
+import org.qubership.integration.platform.chain.model.Element;
+import org.qubership.integration.platform.runtime.catalog.adapters.ChainElementAdapter;
 import org.qubership.integration.platform.runtime.catalog.model.mapper.mapping.UserMapper;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -26,9 +28,9 @@ import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.El
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.ElementWithChainNameResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.ElementsCodeDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.PatchElementRequest;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.qubership.integration.platform.runtime.catalog.util.MapperUtils;
 import org.qubership.integration.platform.runtime.catalog.util.StringTrimmer;
+import org.qubership.integration.platform.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
@@ -79,8 +81,9 @@ public abstract class ElementMapper {
         } else {
             return null;
         }
-        response.setMandatoryChecksPassed(mandatoryPropertyVerificationHelper.areMandatoryPropertiesPresent(element)
-                && mandatoryPropertyVerificationHelper.isMandatoryInnerElementPresent(element));
+        Element e = new ChainElementAdapter(element);
+        response.setMandatoryChecksPassed(mandatoryPropertyVerificationHelper.areMandatoryPropertiesPresent(e)
+                && mandatoryPropertyVerificationHelper.isMandatoryInnerElementPresent(e));
         return response;
     }
 

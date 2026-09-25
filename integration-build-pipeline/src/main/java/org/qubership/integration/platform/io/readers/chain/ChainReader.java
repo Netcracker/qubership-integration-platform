@@ -94,9 +94,7 @@ public class ChainReader {
     }
 
     private File getChainYamlFile(File chainDir) {
-        File[] chainFiles = chainDir.listFiles((dir, name) ->
-                (name.endsWith(".yaml") || name.endsWith(".yml"))
-                        && (name.startsWith("chain-") || name.contains(".chain.")));
+        File[] chainFiles = chainDir.listFiles((dir, name) -> ChainFileUtil.isChainFile(name));
 
         if (chainFiles == null || chainFiles.length == 0) {
             throw new IllegalArgumentException("Directory " + chainDir.getName() + " does not contain a chain YAML file");
