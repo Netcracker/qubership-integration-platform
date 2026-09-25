@@ -87,6 +87,12 @@ public final class WorkMapping {
     constraints.add(INSTRUCTIONS);
     constraints.addAll(materials.globalConstraints());
     materials.sourceEvidence().forEach((id, text) -> constraints.add("source " + id + " " + text));
+    materials
+        .schemas()
+        .forEach(
+            schema ->
+                constraints.add(
+                    "schema " + schema.stepId() + " " + schema.portName() + " " + schema.body()));
     return new WorkTaskMaterials(materials.schemas(), constraints, materials.sourceEvidence());
   }
 
