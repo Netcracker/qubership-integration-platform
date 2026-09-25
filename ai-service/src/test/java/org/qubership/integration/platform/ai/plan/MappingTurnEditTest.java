@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.AddIntent;
 import org.qubership.integration.platform.ai.plan.MappingTurnResult.AddRule;
@@ -21,6 +22,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContra
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -107,10 +110,11 @@ class MappingTurnEditTest {
                     MappingTurnResult.changes(
                         new UpdateRule(intentId, "Status", "\"Done\"", null, null)))
             .brief();
-    assertEquals(null, ruleAt(afterConstant, "Status").value());
-    assertEquals("Set to Not Started.", ruleAt(afterConstant, "Status").behavior());
-    assertTrue(ruleAt(afterConstant, "Status").descriptive());
-    assertTrue(ruleAt(afterConstant, "Status").fieldRefs().isEmpty());
+    MappingIntentRule stored = ruleAt(afterConstant, "Status");
+    MappingValue.Copy copy = assertInstanceOf(MappingValue.Copy.class, stored.value());
+    MappingSource.Constant constant = assertInstanceOf(MappingSource.Constant.class, copy.source());
+    assertEquals("Done", constant.value().asText());
+    assertFalse(copy.source() instanceof MappingSource.Message);
 
     RequirementBrief afterFallback =
         process(
@@ -448,16 +452,13 @@ class MappingTurnEditTest {
   }
 
   private static RequirementBrief briefWithTwoRequestRules() {
-    return MappingTurnApplicator.apply(
-            rockyBrief(),
-            MappingTurnResult.changes(
-                new AddIntent(
-                    "task-start",
-                    "create-task",
-                    List.of(
-                        rule("name", "Subject", null),
-                        rule("", "Status", "Set to Not Started.")))))
-        .brief();
+    return rockyBrief().withMappingIntents(List.of(new MappingIntent(
+        "map-task-start-to-create-task", "task-start", MappingPort.OUTPUT,
+        "create-task", MappingPort.REQUEST, List.of(
+            org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleFixtures.copy(
+                "task-start", MappingPort.OUTPUT, "$.name", "$.Subject", MappingRuleStatus.USER_DEFINED),
+            org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleFixtures.constant(
+                "$.Status", "Not Started", MappingRuleStatus.USER_DEFINED)))));
   }
 
   private static RequirementBrief briefWithRequestAndResponse() {
