@@ -3,6 +3,7 @@ package org.qubership.integration.platform.camelk.locations;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -15,7 +16,7 @@ class LibraryLocationFromCatalogGetterTest {
         ReflectionTestUtils.setField(getter, "cloudServiceName", "cloud-integration-platform-catalog-v1");
 
         ResourceBuildContext<String> context = ResourceBuildContext
-                .create(BuildInfo.builder().build())
+                .create(BuildInfo.builder().build(), IntegrationServiceCatalog.EMPTY)
                 .updateTo("quote-tmf-service-Quote Management6.2-6.2");
 
         String location = getter.apply(context);
@@ -32,7 +33,7 @@ class LibraryLocationFromCatalogGetterTest {
         ReflectionTestUtils.setField(getter, "cloudServiceName", "cloud-integration-platform-catalog-v1");
 
         ResourceBuildContext<String> context = ResourceBuildContext
-                .create(BuildInfo.builder().build())
+                .create(BuildInfo.builder().build(), IntegrationServiceCatalog.EMPTY)
                 .updateTo("7f969279-ca8f-4c1d-8fc6-2aafbd1dec42");
 
         String location = getter.apply(context);
