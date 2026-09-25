@@ -105,19 +105,33 @@ class WorkFillingFaultInjectionTest {
     assertEquals(siblingRules, requestRuleIds(world.document()));
     assertEquals(siblingFingerprint, taskFingerprint(world.document(), transferTaskKey(world.document(), "formatted fallback")));
     assertEquals(WorkTaskState.ACCEPTED, taskState(world.document(), "select-operation:" + replyId), trace.toString());
-    for (int step = 0; step < 12; step++) {
+    String siblingKey = transferTaskKey(world.document(), "formatted fallback");
+    boolean replyRechecked = false;
+    for (int step = 0; step < 16; step++) {
       int outlinesNow = callsFor(world, "define-transfers-" + replyId);
       int mappingsNow = mappingsForStep(world, replyId);
-      if (outlinesNow > replyOutlines || mappingsNow > replyMappings) {
-        assertEquals(WorkTaskState.ACCEPTED, taskState(world.document(), "select-operation:" + replyId));
-      }
       FillingResult result = world.advance(trace);
       notes.add(revisionNote(world, result, siblingRules));
       assertEquals(siblingRules, requestRuleIds(world.document()), trace.toString());
+      boolean outlineCall = callsFor(world, "define-transfers-" + replyId) > outlinesNow;
+      boolean mappingCall = mappingsForStep(world, replyId) > mappingsNow;
+      boolean cheapOutline =
+          result.reasons().contains("revalidated") && result.taskId().equals("define-transfers-" + replyId);
+      boolean cheapMapping =
+          result.reasons().contains("revalidated") && result.taskId().equals("map-transfer-" + failure);
+      if (outlineCall || mappingCall || cheapOutline || cheapMapping) {
+        assertEquals(
+            WorkTaskState.ACCEPTED, taskState(world.document(), "select-operation:" + replyId), result.toString());
+        assertEquals(siblingFingerprint, taskFingerprint(world.document(), siblingKey), result.toString());
+        if (result.taskId().equals("define-transfers-" + replyId) || result.taskId().equals("map-transfer-" + failure)) {
+          replyRechecked = true;
+        }
+      }
       if (result.action() != FillingResult.Action.ADVANCED) {
         break;
       }
     }
+    assertTrue(replyRechecked, trace.toString());
     assertTrue(notes.size() >= 2, notes.toString());
     assertTrue(world.repairCharges() >= 1, trace.toString());
   }
@@ -343,7 +357,6 @@ class WorkFillingFaultInjectionTest {
     world.model.overrideCandidateId = "createTask";
     int logicalBefore = world.model.count(WorkTaskKind.LOGICAL_DESIGN);
     int outlinesBefore = world.model.count(WorkTaskKind.DEFINE_TRANSFERS);
-    int contextBefore = world.model.count(WorkTaskKind.DESCRIBE_CONTEXT);
     int mappingsBefore = world.model.count(WorkTaskKind.MAP_TRANSFER);
     boolean sawSelect = false;
     boolean logicalAccepted = false;
@@ -403,7 +416,7 @@ class WorkFillingFaultInjectionTest {
     assertTrue(logicalAccepted, trace.toString());
     assertTrue(requirementText(world.document()).contains("corrected operation"), trace.toString());
     assertTrue(sawOutline, trace.toString());
-    assertTrue(contextRechecked(world, sawContext, contextBefore), trace.toString());
+    assertTrue(sawContext, trace.toString());
     assertTrue(sawMapping || world.model.count(WorkTaskKind.MAP_TRANSFER) > mappingsBefore, trace.toString());
     assertTrue(world.model.count(WorkTaskKind.DEFINE_TRANSFERS) >= outlinesBefore, trace.toString());
     assertEquals(failureRules, ruleIds(world.document(), siblingBehavior));
@@ -483,22 +496,6 @@ class WorkFillingFaultInjectionTest {
     assertTrue(routed, trace.toString());
     assertTrue(world.model.count(WorkTaskKind.MAP_TRANSFER) > mappings);
     assertEquals(requestRules, requestRuleIds(world.document()));
-  }
-
-  private static boolean contextRechecked(FillingWorld world, boolean sawContext, int contextBefore) {
-    if (sawContext || world.model.count(WorkTaskKind.DESCRIBE_CONTEXT) > contextBefore) {
-      return true;
-    }
-    for (LogicalStep step : world.document().flow().steps()) {
-      for (RetainedValue value : step.data().retainedValues()) {
-        if (value.resolution() == RetainedResolution.RESOLVED
-            && value.source() != null
-            && !value.source().fieldPath().isBlank()) {
-          return true;
-        }
-      }
-    }
-    return false;
   }
 
   private static String otherMapping(ChainWorkDocument document) {
