@@ -5,6 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.langchain4j.service.output.OutputParsingException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
@@ -27,6 +30,7 @@ public final class WorkMapping {
   public static final String SKILL_ID = "data-mapping";
 
   private static final ObjectMapper JSON = new ObjectMapper();
+  private static final String INSTRUCTIONS = loadInstructions();
 
   private final WorkDocumentService documents;
   private final WorkTaskExecutor executor;
@@ -73,7 +77,17 @@ public final class WorkMapping {
                 List.of(),
                 List.of());
     JsonNode document = JSON.valueToTree(state.document());
-    return executor.execute(runId, scope, materials, checked(document, materials, repairRuleId, model));
+    WorkTaskMaterials instructed = withInstructions(materials);
+    return executor.execute(
+        runId, scope, instructed, checked(document, instructed, repairRuleId, model));
+  }
+
+  private static WorkTaskMaterials withInstructions(WorkTaskMaterials materials) {
+    List<String> constraints = new ArrayList<>();
+    constraints.add(INSTRUCTIONS);
+    constraints.addAll(materials.globalConstraints());
+    materials.sourceEvidence().forEach((id, text) -> constraints.add("source " + id + " " + text));
+    return new WorkTaskMaterials(materials.schemas(), constraints, materials.sourceEvidence());
   }
 
   private static WorkTaskModel checked(
@@ -149,7 +163,12 @@ public final class WorkMapping {
     }
     List<String> retained = new ArrayList<>();
     for (JsonNode value : tree.path("retainedValues")) {
-      retained.add(leaf(value.path("source").path("fieldPath").asText()));
+      JsonNode source = value.path("source");
+      String missingSource = unknownStepPort(materials, source);
+      if (missingSource != null) {
+        return missingSource;
+      }
+      retained.add(leaf(source.path("fieldPath").asText()));
     }
     for (JsonNode rule : tree.path("rules")) {
       JsonNode target = rule.path("target");
@@ -173,6 +192,10 @@ public final class WorkMapping {
         return missing;
       }
       for (JsonNode source : rule.path("sources")) {
+        String missingSource = unknownStepPort(materials, source);
+        if (missingSource != null) {
+          return missingSource;
+        }
         if (!"RETAINED".equals(source.path("kind").asText())) {
           continue;
         }
@@ -219,6 +242,17 @@ public final class WorkMapping {
       }
     }
     return null;
+  }
+
+  private static String unknownStepPort(WorkTaskMaterials materials, JsonNode source) {
+    if (!"STEP_PORT".equals(source.path("kind").asText())) {
+      return null;
+    }
+    return unknownPath(
+        materials,
+        source.path("stepId").asText(),
+        portName(source.path("port").asText()),
+        source.path("fieldPath").asText());
   }
 
   private static String unknownPath(WorkTaskMaterials materials, String stepId, String port, String path) {
@@ -294,9 +328,30 @@ public final class WorkMapping {
 
   private static boolean renameEvidence(WorkTaskMaterials materials, String sourceLeaf, String targetLeaf) {
     for (String constraint : materials.globalConstraints()) {
-      if (constraint.contains(sourceLeaf) && constraint.contains(targetLeaf)) {
+      if (containsToken(constraint, sourceLeaf) && containsToken(constraint, targetLeaf)) {
         return true;
       }
+    }
+    return false;
+  }
+
+  private static boolean containsToken(String text, String token) {
+    if (text == null || token == null || token.isEmpty()) {
+      return false;
+    }
+    int from = 0;
+    while (from <= text.length() - token.length()) {
+      int at = text.indexOf(token, from);
+      if (at < 0) {
+        return false;
+      }
+      int end = at + token.length();
+      boolean left = at == 0 || !Character.isLetterOrDigit(text.charAt(at - 1));
+      boolean right = end == text.length() || !Character.isLetterOrDigit(text.charAt(end));
+      if (left && right) {
+        return true;
+      }
+      from = at + 1;
     }
     return false;
   }
@@ -389,5 +444,16 @@ public final class WorkMapping {
     body.put("contradiction", "");
     body.put("issueCategory", "");
     return body.toString();
+  }
+
+  private static String loadInstructions() {
+    try (InputStream in = WorkMapping.class.getResourceAsStream("data-mapping.md")) {
+      if (in == null) {
+        throw new IllegalStateException("Data mapping instructions are missing.");
+      }
+      return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+    } catch (IOException failure) {
+      throw new IllegalStateException("Data mapping instructions could not be read.", failure);
+    }
   }
 }

@@ -133,6 +133,63 @@ class WorkMappingTaskTest {
     assertEquals("NEEDS_CLARIFICATION", unknown.outcome().name());
     assertFalse(targets(JSON.valueToTree(unknown.state().document())).contains("$.id"));
     assertEquals(1, serviceCalls(JSON.valueToTree(unknown.state().document())));
+
+    WorkCommit unknownSource =
+        mapping.interpret(
+            RUN_ID,
+            materials(false),
+            prompt -> sourceCapture("$.id", "SUCCESS_RESPONSE", "create", "$.status"));
+    assertEquals("NEEDS_CLARIFICATION", unknownSource.outcome().name());
+    assertFalse(sourcePaths(JSON.valueToTree(unknownSource.state().document())).contains("$.id"));
+
+    WorkCommit unknownError =
+        mapping.interpret(
+            RUN_ID,
+            materials(false),
+            prompt -> sourceCapture("$.error.text", "FAILURE_OUTCOME", "create", "$.status"));
+    assertEquals("NEEDS_CLARIFICATION", unknownError.outcome().name());
+    assertFalse(sourcePaths(JSON.valueToTree(unknownError.state().document())).contains("$.error.text"));
+  }
+
+  @Test
+  void initialPromptContainsTheSuppliedSource() {
+    List<String> prompts = new ArrayList<>();
+    mapping.interpret(
+        RUN_ID,
+        materials(false),
+        prompt -> {
+          prompts.add(prompt);
+          return suppliedCapture(false);
+        });
+
+    assertFalse(prompts.isEmpty());
+    assertTrue(prompts.getFirst().contains("supplied mapping"));
+    assertTrue(prompts.getFirst().contains("Do not invent a catalog field."));
+  }
+
+  @Test
+  void constraintThatNamesOnlyProcessInstanceIdAsks() {
+    WorkTaskMaterials onlyLonger =
+        new WorkTaskMaterials(
+            materials(false).schemas(),
+            List.of("processInstanceId"),
+            Map.of("src-map", "supplied mapping"));
+
+    WorkCommit asked = mapping.interpret(RUN_ID, onlyLonger, prompt -> processIdCapture());
+
+    assertEquals("NEEDS_CLARIFICATION", asked.outcome().name());
+    String questions = JSON.valueToTree(asked.state().document()).path("progress").path("questions").toString();
+    assertTrue(questions.contains("processId"));
+    assertTrue(questions.contains("processInstanceId"));
+    assertFalse(targets(JSON.valueToTree(asked.state().document())).contains("$.processId"));
+
+    WorkTaskMaterials embedded =
+        new WorkTaskMaterials(
+            materials(false).schemas(),
+            List.of("seeprocessId processInstanceId"),
+            Map.of("src-map", "supplied mapping"));
+    WorkCommit glued = mapping.interpret(RUN_ID, embedded, prompt -> processIdCapture());
+    assertEquals("NEEDS_CLARIFICATION", glued.outcome().name());
   }
 
   @Test
@@ -310,6 +367,17 @@ class WorkMappingTaskTest {
         .formatted(LISTS);
   }
 
+  private static String sourceCapture(String sourcePath, String sourcePort, String stepId, String targetPath) {
+    return """
+        {"outcome":"PREPARED",%s,"transfers":[
+          {"existingId":"","alias":"xfer","targetStepRef":"%s","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"%s","portName":"request"},"requirementRefs":[],"decision":""}
+        ],"rules":[
+          {"existingId":"","alias":"rule-path","transferRef":"xfer","sources":[{"kind":"STEP_PORT","stepId":"%s","port":"%s","fieldPath":"%s","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"%s","port":"%s","fieldPath":"%s","retainedValueId":""},"constants":[],"behavior":"read field","evidenceRefs":["src-map"]}
+        ],"retainedValues":[]}
+        """
+        .formatted(LISTS, stepId, stepId, stepId, sourcePort, sourcePath, stepId, sourcePort, targetPath);
+  }
+
   private static String pathCapture(String path, String port, String stepId) {
     return """
         {"outcome":"PREPARED",%s,"transfers":[
@@ -419,6 +487,21 @@ class WorkMappingTaskTest {
       }
     }
     return leaves;
+  }
+
+  private static List<String> sourcePaths(JsonNode document) {
+    List<String> paths = new ArrayList<>();
+    for (JsonNode rule : rules(document)) {
+      for (JsonNode source : rule.path("sources")) {
+        paths.add(source.path("fieldPath").asText());
+      }
+    }
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode value : step.path("data").path("retainedValues")) {
+        paths.add(value.path("source").path("fieldPath").asText());
+      }
+    }
+    return paths;
   }
 
   private static List<String> targets(JsonNode document) {

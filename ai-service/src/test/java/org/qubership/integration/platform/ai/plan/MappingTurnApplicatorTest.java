@@ -112,6 +112,15 @@ class MappingTurnApplicatorTest {
     assertEquals(
         List.of(userRule("name", "Subject", null), userRule("", "Status", "Set to Not Started.")),
         normalizedRules(after));
+    MappingIntentRule status =
+        after.rules().stream()
+            .filter(rule -> "$.Status".equals(MappingContract.canonicalPath(rule.targetPath())))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(null, status.value());
+    assertEquals("Set to Not Started.", status.behavior());
+    assertTrue(status.descriptive());
+    assertTrue(status.fieldRefs().isEmpty());
   }
 
   @Test
@@ -130,6 +139,10 @@ class MappingTurnApplicatorTest {
     assertEquals(
         List.of(userRule("title", "Summary", "{title} task")),
         normalizedRules(application.brief().mappingIntents().getFirst()));
+    MappingIntentRule summary = application.brief().mappingIntents().getFirst().rules().getFirst();
+    assertEquals(null, summary.value());
+    assertEquals("{title} task", summary.behavior());
+    assertEquals("$.title", summary.fieldRefs().getFirst().fieldPath());
   }
 
   @Test

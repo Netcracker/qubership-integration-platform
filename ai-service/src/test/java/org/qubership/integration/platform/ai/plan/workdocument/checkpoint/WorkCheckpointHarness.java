@@ -35,6 +35,7 @@ import org.qubership.integration.platform.ai.plan.workdocument.binding.Unavailab
 import org.qubership.integration.platform.ai.plan.workdocument.binding.WorkBinding;
 import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
 import org.qubership.integration.platform.ai.plan.workdocument.mapping.WorkMapping;
+import org.qubership.integration.platform.ai.plan.workdocument.task.SchemaFragment;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskModel;
@@ -234,7 +235,7 @@ public final class WorkCheckpointHarness {
             null));
     WorkTaskMaterials materials =
         new WorkTaskMaterials(
-            List.of(),
+            "mapping".equals(request.checkpoint()) ? mappingSchemas() : List.of(),
             List.of("runtime-catalog-only"),
             Map.of("src-om", spec.path("source").asText()));
     WorkCommit commit;
@@ -547,6 +548,29 @@ public final class WorkCheckpointHarness {
           "progress": {"tasks":[],"findings":[],"questions":[],"approvalReference":"","derivedResultReferences":[],"recheckStages":[]}
         }
         """;
+  }
+
+  private static List<SchemaFragment> mappingSchemas() {
+    return List.of(
+        schema(
+            "start",
+            "payload",
+            "{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},\"subRequestType\":{\"type\":\"string\"},\"orderId\":{\"type\":\"string\"},\"executionId\":{\"type\":\"string\"},\"processInstanceId\":{\"type\":\"string\"},\"executionNumber\":{\"type\":\"string\"},\"taskId\":{\"type\":\"string\"},\"priority\":{\"type\":\"string\"}}}"),
+        schema(
+            "create",
+            "request",
+            "{\"type\":\"object\",\"properties\":{\"Subject\":{\"type\":\"string\"},\"Priority\":{\"type\":\"string\"},\"Status\":{\"type\":\"string\"},\"Description\":{\"type\":\"string\"}}}"),
+        schema("create", "success", "{\"type\":\"object\",\"properties\":{\"status\":{\"type\":\"string\"}}}"),
+        schema("create", "failure", "{\"type\":\"object\",\"properties\":{\"status\":{\"type\":\"string\"}}}"),
+        schema(
+            "result",
+            "request",
+            "{\"type\":\"object\",\"properties\":{\"commandType\":{\"type\":\"string\"},\"processId\":{\"type\":\"string\"},\"error\":{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}}}}}"));
+  }
+
+  private static SchemaFragment schema(String stepId, String port, String body) {
+    return new SchemaFragment(
+        "schema-" + stepId + "-" + port, stepId, port, "hash-" + port, "ref-" + port, body);
   }
 
   private static String mappingDocument() {
