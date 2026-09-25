@@ -112,6 +112,27 @@ final class FillingWorld {
     return last;
   }
 
+  void replaceProgress(List<WorkTaskRecord> tasks, List<WorkFinding> findings, String commandId) {
+    ChainWorkDocument current = document();
+    WorkProgress progress = current.progress();
+    ChainWorkDocument next =
+        new ChainWorkDocument(
+            current.schemaVersion(),
+            current.documentId(),
+            current.sources(),
+            current.requirements(),
+            current.flow(),
+            new WorkProgress(
+                tasks,
+                findings,
+                progress.questions(),
+                progress.approvalReference(),
+                progress.derivedResultReferences(),
+                progress.recheckStages()));
+    documents.commitRecoveredDocument(
+        runId, next, commandId, commandId, "task-progress", "LOGICAL_FLOW", null);
+  }
+
   int repairCharges() {
     int count = 0;
     for (RunTransition transition : runs.load(runId).orElseThrow().transitions()) {
@@ -180,6 +201,17 @@ final class FillingWorld {
     boolean contradictAnswer;
     /** Consumed once. Scripted semantic routing evidence, not production detection. */
     String routingDefectCategory;
+    /** Outline accepts without the retained placeholder. The requirement text stays. */
+    boolean omitRetainedDeclaration;
+    /** Success mapping reports a missing retained declaration when the outline omitted it. */
+    boolean reportMissingRetained;
+    /** Next selection for this step label returns this known operation id, once. */
+    String overrideStepLabel;
+    String overrideCandidateId;
+    /** Logical repair appends this phrase so affected mappings see a text change. */
+    boolean appendCorrectedOperation;
+    /** Consumed in order by context calls. Empty uses the real process id path. */
+    final List<String> contextFieldPaths = new ArrayList<>();
 
     ScriptedWorkModel(WorkDocumentService documents, String runId) {
       this.documents = documents;
@@ -261,17 +293,22 @@ final class FillingWorld {
       return id;
     }
 
-    private static String logical(ChainWorkDocument document) {
+    private String logical(ChainWorkDocument document) {
       String source = document.sources().get(0).id();
       if (!document.flow().steps().isEmpty() && !document.requirements().isEmpty()) {
         WorkRequirement requirement = document.requirements().get(0);
+        String text = requirement.text();
+        if (appendCorrectedOperation) {
+          appendCorrectedOperation = false;
+          text = text + " corrected operation";
+        }
         return """
             {"outcome":"PREPARED",
-            "requirements":[{"existingId":"%s","alias":"","text":"onTaskStart createTask onTaskResult. corrected operation","sourceRefs":["%s"],"supersededRef":""}],
+            "requirements":[{"existingId":"%s","alias":"","text":"%s","sourceRefs":["%s"],"supersededRef":""}],
             "steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],
             "question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
             """
-            .formatted(requirement.id(), source);
+            .formatted(requirement.id(), text, source);
       }
       return """
           {"outcome":"PREPARED",
@@ -321,6 +358,15 @@ final class FillingWorld {
         wrongServiceCandidate = false;
         return "{\"outcome\":\"PREPARED\",\"candidateId\":\"other-operation\"}";
       }
+      if (overrideCandidateId != null
+          && step != null
+          && overrideStepLabel != null
+          && overrideStepLabel.equals(step.label())) {
+        String candidate = overrideCandidateId;
+        overrideCandidateId = null;
+        overrideStepLabel = null;
+        return "{\"outcome\":\"PREPARED\",\"candidateId\":\"" + candidate + "\"}";
+      }
       if (citeRequirement && step != null && !step.requirementIds().isEmpty()) {
         citeRequirement = false;
         String source = document.sources().get(0).id();
@@ -332,7 +378,7 @@ final class FillingWorld {
       return "{\"outcome\":\"PREPARED\",\"candidateId\":\"" + label + "\"}";
     }
 
-    private static String outline(ChainWorkDocument document, String stepId) {
+    private String outline(ChainWorkDocument document, String stepId) {
       LogicalStep step = step(document, stepId);
       String requirement = step.requirementIds().isEmpty() ? "" : step.requirementIds().get(0);
       String passage = document.sources().get(0).passages().get(0).id();
@@ -346,22 +392,25 @@ final class FillingWorld {
       LogicalStep trigger = byKind(document, StepKind.TRIGGER);
       LogicalStep call = byKind(document, StepKind.SERVICE_CALL);
       String retained = retainedId(document);
-      String placeholder =
-          retained.isBlank()
-              ? "{\"alias\":\"keep-process\",\"producerStepId\":\""
-                  + trigger.id()
-                  + "\",\"intendedUse\":\"process id\",\"evidenceRefs\":[\""
-                  + passage
-                  + "\"]}"
-              : "";
+      String placeholder = "";
+      if (!omitRetainedDeclaration && retained.isBlank()) {
+        placeholder =
+            "{\"alias\":\"keep-process\",\"producerStepId\":\""
+                + trigger.id()
+                + "\",\"intendedUse\":\"process id\",\"evidenceRefs\":[\""
+                + passage
+                + "\"]}";
+      }
       if (step.kind() == StepKind.SERVICE_CALL) {
-        String retainedRef = retained.isBlank() ? "" : "\"" + retained + "\"";
+        String retainedRef =
+            omitRetainedDeclaration || retained.isBlank() ? "" : "\"" + retained + "\"";
         return """
             {"outcome":"PREPARED","transfers":[{"alias":"to-request","sourceStepId":"%s","sourcePort":"payload","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["%s"],"requiredRetainedIds":[%s],"decision":""}],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
             """
             .formatted(trigger.id(), requirement, retainedRef, placeholder, requirement, passage);
       }
-      String retainedRef = retained.isBlank() ? "keep-process" : retained;
+      String retainedRef =
+          omitRetainedDeclaration ? "" : retained.isBlank() ? "keep-process" : retained;
       return """
           {"outcome":"PREPARED","transfers":[
             {"alias":"to-success","sourceStepId":"%s","sourcePort":"success","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["%s"],"requiredRetainedIds":["%s"],"decision":""},
@@ -376,6 +425,9 @@ final class FillingWorld {
       if (badContextField) {
         badContextField = false;
         return contextBody(document, producerId, source, "$.notAField");
+      }
+      if (!contextFieldPaths.isEmpty()) {
+        return contextBody(document, producerId, source, contextFieldPaths.remove(0));
       }
       return contextBody(document, producerId, source, "$.processInstanceId");
     }
@@ -406,6 +458,18 @@ final class FillingWorld {
     private String mapping(ChainWorkDocument document, String recordId) {
       DataTransfer transfer = transfer(document, recordId);
       String source = document.sources().get(0).id();
+      String sourcePort = transfer.sourcePorts().isEmpty() ? "" : transfer.sourcePorts().get(0).portName();
+      if (reportMissingRetained
+          && "success".equals(sourcePort)
+          && transfer.requiredRetainedIds().isEmpty()
+          && !hasRetainedValue(document)) {
+        reportMissingRetained = false;
+        omitRetainedDeclaration = false;
+        return """
+            {"outcome":"INPUT_DEFECT","rules":[],"decision":"","evidenceRefs":[],"question":{"text":"","choiceKind":"UNSPECIFIED","sourceStepId":"","sourcePort":"","sourceField":"","sourceRetainedId":"","targetStepId":"","targetPort":"","targetField":"","targetRetainedId":"","evidenceRefs":[]},"defect":{"recordRef":"%s","category":"MISSING_RETAINED","contradiction":"The outline has no retained declaration for the process id.","evidenceRefs":["%s"]}}
+            """
+            .formatted(recordId, source);
+      }
       if (routingDefectCategory != null) {
         String category = routingDefectCategory;
         routingDefectCategory = null;
@@ -414,7 +478,6 @@ final class FillingWorld {
             """
             .formatted(recordId, category, category, source);
       }
-      String sourcePort = transfer.sourcePorts().isEmpty() ? "" : transfer.sourcePorts().get(0).portName();
       if (siblingSource) {
         siblingSource = false;
         return """
@@ -422,7 +485,7 @@ final class FillingWorld {
             """
             .formatted(source);
       }
-      if (badMappingField) {
+      if (badMappingField && !"success".equals(sourcePort)) {
         badMappingField = false;
         String ref = transfer.sourcePorts().get(0).stepId() + "/" + sourcePort;
         return """
@@ -486,6 +549,10 @@ final class FillingWorld {
         }
       }
       return false;
+    }
+
+    private static boolean hasRetainedValue(ChainWorkDocument document) {
+      return !retainedId(document).isBlank();
     }
 
     private static String retainedId(ChainWorkDocument document) {
