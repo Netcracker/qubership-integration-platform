@@ -5,6 +5,7 @@ import lombok.Data;
 import org.qubership.integration.platform.maven.plugin.mojos.BuildCRsOptions;
 import org.qubership.integration.platform.maven.plugin.mojos.ControlPlaneType;
 
+import java.time.Instant;
 import java.util.Collection;
 
 @Data
@@ -16,6 +17,7 @@ public class BuildCRsTaskParameters {
     boolean deployAll;
     String defaultDomain;
     ControlPlaneType controlPlaneType;
+    Instant buildTimestamp;
     boolean defaultSecretEnabled;
     BuildCRsOptions options;
 }

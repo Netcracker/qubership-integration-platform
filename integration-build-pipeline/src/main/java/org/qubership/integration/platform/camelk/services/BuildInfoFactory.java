@@ -20,8 +20,16 @@ public class BuildInfoFactory {
     }
 
     public BuildInfo createBuildInfo(ResourceBuildOptions options, String createdBy) {
+        return createBuildInfo(options, createdBy, Instant.now());
+    }
+
+    /**
+     * Builds with a caller-supplied timestamp, for a host that needs the same input to produce the
+     * same output. The timestamp reaches the generated resources as the build name and the
+     * {@code DeploymentInfo} timestamp, so a clock reading makes every build differ.
+     */
+    public BuildInfo createBuildInfo(ResourceBuildOptions options, String createdBy, Instant timestamp) {
         String id = UUID.randomUUID().toString();
-        Instant timestamp = Instant.now();
         BuildNamingContext buildNamingContext = BuildNamingContext.builder()
             .id(id)
             .timestamp(timestamp)

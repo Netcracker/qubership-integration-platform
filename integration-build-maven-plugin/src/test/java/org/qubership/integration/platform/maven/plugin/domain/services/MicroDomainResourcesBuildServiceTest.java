@@ -85,7 +85,7 @@ class MicroDomainResourcesBuildServiceTest {
             return snapshot;
         });
         when(resourceBuildService.buildResources(any())).thenReturn(RESOURCE_TEXT);
-        when(buildContextFactory.createResourceBuildContext(any(), any())).thenAnswer(invocation -> {
+        when(buildContextFactory.createResourceBuildContext(any(), any(), any())).thenAnswer(invocation -> {
             BuildInfo buildInfo = BuildInfo.builder().options(invocation.getArgument(1)).build();
             return ResourceBuildContext.create(buildInfo, null).updateTo(invocation.getArgument(0));
         });
@@ -285,7 +285,7 @@ class MicroDomainResourcesBuildServiceTest {
         ArgumentCaptor<List<Snapshot>> snapshots = ArgumentCaptor.forClass(List.class);
         ArgumentCaptor<ResourceBuildOptions> options = ArgumentCaptor.forClass(ResourceBuildOptions.class);
         verify(buildContextFactory, atLeastOnce())
-            .createResourceBuildContext(snapshots.capture(), options.capture());
+            .createResourceBuildContext(snapshots.capture(), options.capture(), any());
         Map<String, Set<String>> chainIdsByDomain = new HashMap<>();
         for (int i = 0; i < options.getAllValues().size(); i++) {
             chainIdsByDomain.put(

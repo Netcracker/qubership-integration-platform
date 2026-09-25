@@ -93,6 +93,7 @@ continues. With no chains found, `build-crs` writes nothing.
 | `defaultDomain` | `String` | `cip.defaultDomain` | `me-domain` | Domain for a chain with no micro-domain deployment, reached only with `deployAll`. |
 | `controlPlaneType` | `ISTIO` or `CORE` | `cip.controlPlaneType` | `ISTIO` | `ISTIO` generates the route resources; `CORE` skips them. |
 | `defaultSecretEnabled` | `boolean` | `cip.defaultSecretEnabled` | `false` | Sets `DEFAULT_SECRET_ENABLED` in the engine container's environment. |
+| `outputTimestamp` | `String` | none | `${project.build.outputTimestamp}` | Build time stamped into the resources. See [Build timestamp](#build-timestamp). |
 | `options` | object | none | see [Resource options](#resource-options) | Shapes the generated deployment. |
 
 Set a parameter in the plugin's `<configuration>`, or on the command line through its user property:
@@ -104,6 +105,25 @@ mvn compile -Dcip.deployAll=true -Dcip.controlPlaneType=CORE
 `options` has no user property, because Maven cannot build a nested object from a single string. Set it
 in `<configuration>`. `sourceRoots` takes a comma-separated list on the command line. A value set in
 `<configuration>` wins over the user property, so `-D` only changes parameters the POM leaves unset.
+
+### Build timestamp
+
+The resources carry the build time, in the `DeploymentInfo` bean of the Camel source ConfigMap. It is the
+current time unless the project sets `project.build.outputTimestamp`, the property Maven's own plugins
+read for reproducible builds:
+
+```xml
+<properties>
+  <project.build.outputTimestamp>2026-01-01T00:00:00Z</project.build.outputTimestamp>
+</properties>
+```
+
+The value is epoch seconds or an ISO-8601 instant, with or without an offset. A blank or one-character
+value counts as unset, so a placeholder such as `a` keeps the current time. Any other value that is
+neither format fails the build.
+
+A fixed timestamp keeps the build time out of a rebuild's diff, but it does not make the output
+reproducible on its own; see [Snapshots](#snapshots).
 
 ### Which chains are built
 
@@ -352,15 +372,16 @@ The environment is chosen as follows: the environment whose id matches the servi
 not activated. runtime-catalog decides per service type and does not always fall back to the first
 environment, so an `EXTERNAL` service without an active environment can resolve differently here.
 
-The snapshot name is the build timestamp. Together with the random ids, this makes two builds of the same
-sources differ in the source and integrations configuration ConfigMaps, and every rebuild reads as a change
-in a GitOps diff. A design for reproducible output is in
+The snapshot name is the time the snapshot was built, read from the clock rather than from
+`outputTimestamp`. Together with the random ids, this makes two builds of the same sources differ in the
+source and integrations configuration ConfigMaps, even with `outputTimestamp` set, and every rebuild reads
+as a change in a GitOps diff. A design for reproducible output is in
 [`docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md`](../docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md).
 
 ## Limitations
 
 - No `skip` parameter, and the goals are not marked thread-safe.
-- Output is not reproducible, see [Snapshots](#snapshots).
+- Output is not reproducible, even with `outputTimestamp` set; see [Snapshots](#snapshots).
 
 [`FIXES.md`](FIXES.md) tracks the status of each review finding, and [`REVIEW.md`](REVIEW.md) has the
 analysis behind them.

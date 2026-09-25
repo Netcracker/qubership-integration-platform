@@ -9,6 +9,7 @@ import org.qubership.integration.platform.chain.model.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.time.Instant;
 import java.util.List;
 
 @Component
@@ -30,9 +31,10 @@ public class MicroDomainResourceBuildContextFactory {
 
     public ResourceBuildContext<List<Snapshot>> createResourceBuildContext(
         List<Snapshot> snapshots,
-        ResourceBuildOptions options
+        ResourceBuildOptions options,
+        Instant buildTimestamp
     ) {
-        BuildInfo buildInfo = buildInfoFactory.createBuildInfo(options, CREATED_BY);
+        BuildInfo buildInfo = buildInfoFactory.createBuildInfo(options, CREATED_BY, buildTimestamp);
         return ResourceBuildContext.create(buildInfo, integrationServiceCatalog)
             .updateTo(snapshots);
     }

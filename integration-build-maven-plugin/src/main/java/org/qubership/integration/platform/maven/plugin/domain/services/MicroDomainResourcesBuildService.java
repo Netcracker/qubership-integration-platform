@@ -111,7 +111,8 @@ public class MicroDomainResourcesBuildService {
         ResourceBuildOptions resourceBuildOptions =
             resourceBuildOptionsFactory.createResourceBuildOptions(domain, parameters);
         ResourceBuildContext<List<Snapshot>> buildContext =
-            resourceBuildContextFactory.createResourceBuildContext(snapshots, resourceBuildOptions);
+            resourceBuildContextFactory.createResourceBuildContext(
+                snapshots, resourceBuildOptions, parameters.getBuildTimestamp());
         buildContext.getBuildCache().put(BUILD_CRS_TASK_PARAMETERS, parameters);
         String resourceText = resourceBuildService.buildResources(buildContext);
         resourceWriteService.writeResources(parameters.getOutputDirectory(), resourceText, file ->

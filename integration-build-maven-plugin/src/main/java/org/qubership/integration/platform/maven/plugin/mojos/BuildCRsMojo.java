@@ -13,6 +13,8 @@ import org.qubership.integration.platform.maven.plugin.domain.TaskRunner;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTask;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 
+import java.time.Instant;
+import java.time.OffsetDateTime;
 import java.util.List;
 import javax.inject.Inject;
 
@@ -62,6 +64,13 @@ public class BuildCRsMojo extends AbstractMojo {
     )
     private ControlPlaneType controlPlaneType;
 
+    /**
+     * Build timestamp, taken from Maven's reproducible-build property. Set it and the build stamps that
+     * time into the resources instead of the current one.
+     */
+    @Parameter(name = "outputTimestamp", defaultValue = "${project.build.outputTimestamp}")
+    private String outputTimestamp;
+
     @Parameter(
         name = "defaultSecretEnabled",
         property = PARAMETER_PROPERTY_PREFIX + "defaultSecretEnabled",
@@ -105,8 +114,24 @@ public class BuildCRsMojo extends AbstractMojo {
             .defaultDomain(defaultDomain)
             .deployAll(deployAll)
             .controlPlaneType(controlPlaneType)
+            .buildTimestamp(parseOutputTimestamp(outputTimestamp))
             .defaultSecretEnabled(defaultSecretEnabled)
             .options(options)
             .build();
+    }
+
+    /**
+     * Reads {@code outputTimestamp} the way the reproducible-build convention defines it: epoch seconds
+     * or an ISO-8601 instant, with a blank or single-character value meaning unset, since projects leave
+     * a placeholder there until they opt in.
+     */
+    static Instant parseOutputTimestamp(String outputTimestamp) {
+        if (outputTimestamp == null || outputTimestamp.trim().length() < 2) {
+            return Instant.now();
+        }
+        String value = outputTimestamp.trim();
+        return value.chars().allMatch(Character::isDigit)
+            ? Instant.ofEpochSecond(Long.parseLong(value))
+            : OffsetDateTime.parse(value).toInstant();
     }
 }
