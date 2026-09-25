@@ -24,6 +24,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
+import org.qubership.integration.platform.ai.plan.workdocument.source.SourcePassageIndexer;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
@@ -208,6 +209,40 @@ public final class WorkDocumentService {
     return editor.applyOutline(state, scope, proposal, commandId);
   }
 
+  /**
+   * Publishes one outline revision. A repeated command with the same proposal returns the stored
+   * commit.
+   */
+  public WorkCommit applyOutline(
+      String runId, WorkTaskScope scope, OutlineProposal proposal, String commandId) {
+    requireStore();
+    Objects.requireNonNull(scope, "scope");
+    Objects.requireNonNull(proposal, "proposal");
+    ProductPipelineRunDocument current = load(runId);
+    String payloadHash = sha256(write(Map.of("outline", proposal, "task", scope.taskKey())));
+    Optional<RunTransition> replay = current.appliedCommand(commandId, payloadHash);
+    if (replay.isPresent()) {
+      return committedResult(current, replay.get());
+    }
+    WorkDocumentState state = read(runId);
+    WorkCommit edited;
+    try {
+      edited = editor.applyOutline(state, scope, proposal, commandId);
+    } catch (WorkDocumentRejectedException rejected) {
+      recordRejectedAttempt(current, commandId, rejected);
+      throw rejected;
+    }
+    return publish(
+        current,
+        edited.state(),
+        edited,
+        commandId,
+        payloadHash,
+        null,
+        "work-document",
+        current.run().currentStageId());
+  }
+
   public WorkCommit recordQuestion(
       String runId,
       WorkTaskScope scope,
@@ -304,6 +339,21 @@ public final class WorkDocumentService {
   public WorkDocumentState addPassages(
       WorkDocumentState state, String sourceId, List<SourcePassage> passages) {
     return editor.addPassages(state, sourceId, passages);
+  }
+
+  /** Indexes sources that store text and do not yet have passages. Existing passages stay put. */
+  public WorkDocumentState indexSourcePassages(WorkDocumentState state) {
+    WorkDocumentState current = WorkDocumentState.of(state.document());
+    for (WorkSource source : List.copyOf(current.document().sources())) {
+      if (source.content().isBlank() || !source.passages().isEmpty()) {
+        continue;
+      }
+      List<SourcePassage> passages = SourcePassageIndexer.index(source.id(), source.content());
+      if (!passages.isEmpty()) {
+        current = editor.addPassages(current, source.id(), passages);
+      }
+    }
+    return current;
   }
 
   public WorkSource passageSource(WorkDocumentState state, String passageId) {

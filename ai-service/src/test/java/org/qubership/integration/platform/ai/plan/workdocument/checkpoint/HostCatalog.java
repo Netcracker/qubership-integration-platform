@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan.workdocument.checkpoint;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Proxy;
 import java.net.InetAddress;
@@ -23,6 +24,7 @@ import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSys
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogToolSupport;
 import org.qubership.integration.platform.ai.plan.workdocument.binding.CatalogResolution;
 import org.qubership.integration.platform.ai.plan.workdocument.binding.ResolveApiOperationSeam;
+import org.qubership.integration.platform.ai.plan.workdocument.binding.WorkContractMaterial;
 
 /**
  * Catalog reads for a harness process on the host. Compose publishes runtime-catalog as
@@ -45,7 +47,7 @@ final class HostCatalog {
     CatalogOperationsLookupService operations = new CatalogOperationsLookupService(cache);
     CatalogSystemReadTool readTool = new CatalogSystemReadTool(client, operations, new CatalogToolSupport());
     CatalogOperationLookup lookup = new CatalogOperationLookup(new CatalogSystemFinder(client), readTool);
-    return new ResolveApiOperationSeam(lookup, null);
+    return new ResolveApiOperationSeam(lookup, null, client);
   }
 
   static void bindConversation(String conversationId) {
@@ -109,6 +111,16 @@ final class HostCatalog {
                             + args[2]
                             + (args[3] == null ? "" : "&searchFilter=" + encode(String.valueOf(args[3]))),
                         new TypeReference<List<CatalogRestClient.OperationDto>>() {});
+                case "getOperation" ->
+                    get(base + schemaPath(method.getName(), args), new TypeReference<CatalogRestClient.OperationDto>() {});
+                case "getModel" ->
+                    get(base + schemaPath(method.getName(), args), new TypeReference<CatalogRestClient.SpecificationDto>() {});
+                case "getOperationSchemas" ->
+                    get(
+                        base + schemaPath(method.getName(), args),
+                        new TypeReference<CatalogRestClient.OperationSchemaMapsDto>() {});
+                case "getOperationRequestSchema", "getOperationResponseSchema" ->
+                    get(base + schemaPath(method.getName(), args), new TypeReference<JsonNode>() {});
                 default -> throw new UnsupportedOperationException(method.getName());
               };
             });
@@ -152,6 +164,14 @@ final class HostCatalog {
       throw new IllegalStateException("CATALOG_CLIENT_UNAVAILABLE: catalog returned HTTP " + response.statusCode() + ".");
     }
     return JSON.readValue(response.body(), type);
+  }
+
+  private static String schemaPath(String method, Object[] args) {
+    String[] values = new String[args == null ? 0 : args.length];
+    for (int i = 0; i < values.length; i++) {
+      values[i] = args[i] == null ? "" : String.valueOf(args[i]);
+    }
+    return WorkContractMaterial.catalogPath(method, values);
   }
 
   private static String encode(String value) {
