@@ -19,5 +19,6 @@ public class BuildCRsTaskParameters {
     ControlPlaneType controlPlaneType;
     Instant buildTimestamp;
     boolean defaultSecretEnabled;
+    String libraryUrlTemplate;
     BuildCRsOptions options;
 }

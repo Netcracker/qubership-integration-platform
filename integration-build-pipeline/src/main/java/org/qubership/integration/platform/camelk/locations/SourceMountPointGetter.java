@@ -8,10 +8,8 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.function.Function;
-
 @Component
-public class SourceMountPointGetter implements Function<ResourceBuildContext<Snapshot>, String> {
+public class SourceMountPointGetter implements SourceLocationGetter {
     private final NamingStrategy<ResourceBuildContext<Snapshot>> configMapNamingStrategy;
     private final String mountDir;
 

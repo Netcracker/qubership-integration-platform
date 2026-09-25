@@ -16,21 +16,21 @@ Put your chain and service files under `src/main/integration`, add the plugin, a
     <execution>
       <goals>
         <goal>build-crs</goal>
-        <goal>build-libs</goal>
       </goals>
     </execution>
   </executions>
 </plugin>
 ```
 
-The generated YAML files and JAR files land in `target/`.
+The generated YAML files land in `target/`. The DTO libraries are built only on request; see
+[The `build-libs` goal](#the-build-libs-goal).
 
 ## Goals
 
 | Goal | Default phase | Output |
 | --- | --- | --- |
 | `build-crs` | `compile` | One YAML file per Kubernetes resource: the Camel K `Integration`, its ConfigMaps, `Service`, `ServiceMonitor`, and the Istio route resources. |
-| `build-libs` | `compile` | One `<specificationId>.jar` per service specification whose protocol has a code generator. |
+| `build-libs` | none | One `<specificationId>.jar` per service specification whose protocol has a code generator. |
 
 Each goal starts its own Spring context and reads every source root. By default it fails the build on the
 first error; see [Error handling](#error-handling) to collect every error in one run instead.
@@ -94,6 +94,7 @@ continues. With no chains found, `build-crs` writes nothing.
 | `controlPlaneType` | `ISTIO` or `CORE` | `cip.controlPlaneType` | `ISTIO` | `ISTIO` generates the route resources; `CORE` skips them. |
 | `defaultSecretEnabled` | `boolean` | `cip.defaultSecretEnabled` | `false` | Sets `DEFAULT_SECRET_ENABLED` in the engine container's environment. |
 | `outputTimestamp` | `String` | none | `${project.build.outputTimestamp}` | Build time stamped into the resources. See [Build timestamp](#build-timestamp). |
+| `libraryUrlTemplate` | `String` | `cip.libraryUrlTemplate` | `http://{appPrefix}-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar` | URL the engine loads each DTO library from. See [Library URL](#library-url). |
 | `options` | object | none | see [Resource options](#resource-options) | Shapes the generated deployment. |
 
 Set a parameter in the plugin's `<configuration>`, or on the command line through its user property:
@@ -124,6 +125,29 @@ neither format fails the build.
 
 A fixed timestamp keeps the build time out of a rebuild's diff, but it does not make the output
 reproducible on its own; see [Snapshots](#snapshots).
+
+### Library URL
+
+The integrations configuration tells the engine where to load each DTO library from. `libraryUrlTemplate`
+builds that URL from two placeholders:
+
+| Placeholder | Value |
+| --- | --- |
+| `{specificationId}` | The id of the specification the library was generated from. |
+| `{appPrefix}` | The plugin's application prefix, `qip`. |
+
+The default points at runtime-catalog, which serves the library it generated itself. To load the
+libraries that `build-libs` publishes instead, point the template at your repository:
+
+```xml
+<configuration>
+  <libraryUrlTemplate>https://repo.example.com/libs/my-app-1.0-{specificationId}.jar</libraryUrlTemplate>
+</configuration>
+```
+
+The placeholders take single braces, not `${...}`, because Maven would substitute a property of the same
+name before the plugin sees the template. A placeholder the plugin does not know stays in the URL
+unchanged, so a typo such as `{specId}` surfaces only when the engine fails to fetch the library.
 
 ### Which chains are built
 
@@ -246,8 +270,6 @@ standard QIP installation.
 | Variable | Default | Effect |
 | --- | --- | --- |
 | `MICRO_DOMAIN_CONTAINER_IMAGE` | `ghcr.io/netcracker/qubership-integration-micro-engine:latest` | Engine image when `options.container.image` is blank. |
-| `QIP_CATALOG_SERVICE_NAME` | `qip-runtime-catalog` | Host part of the DTO library URLs in the integrations configuration. |
-| `DEPLOYMENT_VERSION` | `v1` | Suffix of that host, giving `qip-runtime-catalog-v1`. |
 | `QIP_EGRESS_GATEWAY_URL` | `egress-gateway:8080` | Egress gateway address used in the routes. |
 | `QIP_ISTIO_HOST_RESOURCES_ENABLED` | `true` | Generates the egress `ServiceEntry` and `DestinationRule`. |
 | `QIP_REGISTER_INGRESS_CHAIN_ROUTES` | `true` | Generates the public and private gateway routes. |
@@ -257,6 +279,25 @@ Placeholder resolution is strict. A property the plugin needs and does not defin
 `Could not resolve placeholder '...'` instead of leaking `${...}` into a generated resource.
 
 ## The `build-libs` goal
+
+`build-libs` has no default phase, so listing it in an execution does nothing on its own. Run it from the
+command line, with the plugin declared in the POM:
+
+```bash
+mvn qip-integration-build:build-libs
+```
+
+Or bind it to a phase in an execution of its own:
+
+```xml
+<execution>
+  <id>build-libs</id>
+  <phase>compile</phase>
+  <goals>
+    <goal>build-libs</goal>
+  </goals>
+</execution>
+```
 
 | Parameter | Type | User property | Default | Description |
 | --- | --- | --- | --- | --- |
@@ -272,10 +313,9 @@ no DTO classes still gets a JAR, holding only the manifest.
 Each JAR is attached to the project as an artifact of type `jar`, classified by its specification id, so
 `mvn install` publishes it as `<artifactId>-<version>-<specificationId>.jar`.
 
-The integrations configuration from `build-crs` points the engine at
-`http://qip-runtime-catalog-v1:8080/v1/models/<specificationId>/dto/jar`, not at these files. Nothing in
-the plugin publishes the JARs there, so a deployment that uses them has to serve them at that URL or
-override the host through `QIP_CATALOG_SERVICE_NAME`.
+By default, the integrations configuration from `build-crs` points the engine at runtime-catalog, not at
+these files. To use them, publish them where the engine can reach them and set `libraryUrlTemplate` to
+match; see [Library URL](#library-url).
 
 ## Error handling
 

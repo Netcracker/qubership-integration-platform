@@ -18,7 +18,7 @@ import javax.inject.Inject;
 
 import static org.qubership.integration.platform.maven.plugin.mojos.MojoConstants.PARAMETER_PROPERTY_PREFIX;
 
-@Mojo(name = "build-libs", defaultPhase = LifecyclePhase.COMPILE)
+@Mojo(name = "build-libs", defaultPhase = LifecyclePhase.NONE)
 public class BuildLibsMojo extends AbstractMojo {
     @Parameter(
         name = "sourceRoots",

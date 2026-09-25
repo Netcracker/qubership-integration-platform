@@ -78,6 +78,13 @@ public class BuildCRsMojo extends AbstractMojo {
     )
     private boolean defaultSecretEnabled;
 
+    @Parameter(
+        name = "libraryUrlTemplate",
+        property = PARAMETER_PROPERTY_PREFIX + "libraryUrlTemplate",
+        defaultValue = "http://{appPrefix}-runtime-catalog-v1:8080/v1/models/{specificationId}/dto/jar"
+    )
+    private String libraryUrlTemplate;
+
     @Parameter(name = "options")
     private BuildCRsOptions options = new BuildCRsOptions();
 
@@ -116,6 +123,7 @@ public class BuildCRsMojo extends AbstractMojo {
             .controlPlaneType(controlPlaneType)
             .buildTimestamp(parseOutputTimestamp(outputTimestamp))
             .defaultSecretEnabled(defaultSecretEnabled)
+            .libraryUrlTemplate(libraryUrlTemplate)
             .options(options)
             .build();
     }

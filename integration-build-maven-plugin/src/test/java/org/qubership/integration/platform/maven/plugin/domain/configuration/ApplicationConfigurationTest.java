@@ -7,14 +7,17 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.camelk.builders.EngineRoutesResourceBuilder;
 import org.qubership.integration.platform.camelk.builders.chain.EgressRouteResourceBuilder;
 import org.qubership.integration.platform.camelk.builders.chain.HttpRouteResourceBuilder;
+import org.qubership.integration.platform.camelk.locations.LibraryLocationGetter;
 import org.qubership.integration.platform.io.readers.migrations.ImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
+import org.qubership.integration.platform.maven.plugin.domain.services.TemplateBasedLibraryLocationGetter;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class ApplicationConfigurationTest {
     private static final String MESH_TYPE_PROPERTY = "qip.control-plane.mesh-type";
@@ -66,6 +69,18 @@ class ApplicationConfigurationTest {
             assertEquals(List.of(1, 2), List.copyOf(versionsGetterService.getVersions(fileVersionDocument)));
             assertEquals(chainMigrationVersions,
                 versionsGetterService.getVersions(documentWithoutMetadata).stream().sorted().toList());
+        }
+    }
+
+    /**
+     * The shared module registers the catalog getter too. The plugin's template getter has to win the
+     * injection, or the library URLs ignore {@code libraryUrlTemplate}.
+     */
+    @Test
+    void resolvesTheLibraryLocationFromTheTemplate() {
+        try (AnnotationConfigApplicationContext context =
+                 new AnnotationConfigApplicationContext(ApplicationConfiguration.class)) {
+            assertInstanceOf(TemplateBasedLibraryLocationGetter.class, context.getBean(LibraryLocationGetter.class));
         }
     }
 }
