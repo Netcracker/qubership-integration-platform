@@ -17,6 +17,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingSource;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingValue;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
@@ -487,6 +489,10 @@ public final class BriefMappingValidator {
   }
 
   private static MappingIntentRule canonicalRule(MappingIntentRule candidate) {
+    if (candidate.value() instanceof MappingValue.Copy copy
+        && copy.source() instanceof MappingSource.Constant) {
+      return candidate.withTargetPath(MappingContract.canonicalPath(candidate.targetPath()));
+    }
     return new MappingIntentRule(
         MappingContract.canonicalPath(candidate.sourcePath()),
         MappingContract.canonicalPath(candidate.targetPath()),
