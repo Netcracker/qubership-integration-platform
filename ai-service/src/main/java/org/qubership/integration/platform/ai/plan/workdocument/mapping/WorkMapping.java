@@ -9,7 +9,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
@@ -24,7 +28,8 @@ import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMode
 /**
  * Initial mapping and a named-rule repair against the work document. The model proposes structured
  * references and behavior text. Java checks paths, renames, and retained fields, then rewrites
- * role ports and bare schema properties into contract form before publication.
+ * step labels to existing ids, and rewrites role ports and bare schema properties into contract
+ * form before publication.
  */
 public final class WorkMapping {
 
@@ -116,6 +121,7 @@ public final class WorkMapping {
       }
       JsonNode tree = read(output);
       dropRestatedSteps(document, tree);
+      rewriteStepLabels(document, tree);
       if (tree.has("steps")) {
         for (JsonNode step : tree.path("steps")) {
           if ("SERVICE_CALL".equals(step.path("kind").asText())) {
@@ -170,6 +176,58 @@ public final class WorkMapping {
 
   private static boolean sameStepName(String proposed, String existing) {
     return !proposed.isBlank() && proposed.equals(existing);
+  }
+
+  private static void rewriteStepLabels(JsonNode document, JsonNode tree) {
+    Set<String> ids = new LinkedHashSet<>();
+    Map<String, String> labelToId = new LinkedHashMap<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      String id = step.path("id").asText();
+      if (id.isBlank()) {
+        continue;
+      }
+      ids.add(id);
+      String label = step.path("label").asText();
+      if (!label.isBlank() && !labelToId.containsKey(label)) {
+        labelToId.put(label, id);
+      }
+    }
+    for (JsonNode transfer : tree.path("transfers")) {
+      rewriteStepRef(transfer, "targetStepRef", ids, labelToId);
+      rewriteStepRef(transfer.path("targetPort"), "stepId", ids, labelToId);
+      for (JsonNode source : transfer.path("sourcePorts")) {
+        rewriteStepRef(source, "stepId", ids, labelToId);
+      }
+    }
+    for (JsonNode rule : tree.path("rules")) {
+      rewriteStepRef(rule.path("target"), "stepId", ids, labelToId);
+      for (JsonNode source : rule.path("sources")) {
+        rewriteStepRef(source, "stepId", ids, labelToId);
+      }
+    }
+    for (JsonNode retained : tree.path("retainedValues")) {
+      rewriteStepRef(retained, "stepRef", ids, labelToId);
+      rewriteStepRef(retained.path("source"), "stepId", ids, labelToId);
+    }
+  }
+
+  private static void rewriteStepRef(
+      JsonNode node, String field, Set<String> ids, Map<String, String> labelToId) {
+    if (!(node instanceof ObjectNode object)) {
+      return;
+    }
+    JsonNode value = object.get(field);
+    if (value == null || !value.isTextual()) {
+      return;
+    }
+    String ref = value.asText();
+    if (ref.isBlank() || ids.contains(ref)) {
+      return;
+    }
+    String id = labelToId.get(ref);
+    if (id != null) {
+      object.put(field, id);
+    }
   }
 
   private static JsonNode read(String output) {

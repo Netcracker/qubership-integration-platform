@@ -210,7 +210,8 @@ class WorkMappingTaskTest {
     assertEquals("create", target.path("stepId").asText());
     assertEquals("request", target.path("port").asText());
     assertTrue(prompts.getFirst().contains("The steps array stays empty."));
-    assertTrue(prompts.getFirst().contains("Refer to them by id in transfers and rules."));
+    assertTrue(
+        prompts.getFirst().contains("Refer to steps by id (start, create, result), not by label."));
 
     WorkDocumentRejectedException rejected =
         assertThrows(
@@ -218,6 +219,24 @@ class WorkMappingTaskTest {
             () -> mapping.interpret(RUN_ID, materials(false), prompt -> extraServiceCallCapture()));
     assertEquals("DUPLICATE_SERVICE_CALL", rejected.code());
     assertEquals(1, serviceCalls(JSON.valueToTree(documents.read(RUN_ID).document())));
+  }
+
+  @Test
+  void taskAndOnTaskStartLabelsPublishRulesOnCreateAndStart() {
+    WorkCommit commit =
+        mapping.interpret(RUN_ID, materials(false), prompt -> labeledStepCapture());
+
+    assertEquals("PREPARED", commit.outcome().name());
+    JsonNode document = JSON.valueToTree(commit.state().document());
+    assertEquals(3, document.path("flow").path("steps").size());
+    JsonNode rule = rules(document).getFirst();
+    assertEquals("start", rule.path("sources").get(0).path("stepId").asText());
+    assertEquals("create", rule.path("target").path("stepId").asText());
+    JsonNode transfer = step(document, "create").path("data").path("transfers").get(0);
+    assertEquals("start", transfer.path("sourcePorts").get(0).path("stepId").asText());
+    assertEquals("create", transfer.path("targetPort").path("stepId").asText());
+    JsonNode retained = step(document, "start").path("data").path("retainedValues").get(0);
+    assertEquals("start", retained.path("source").path("stepId").asText());
   }
 
   @Test
@@ -565,6 +584,19 @@ class WorkMappingTaskTest {
         ],"retainedValues":[]}
         """
         .formatted(LISTS, stepId, stepId, stepId, sourcePort, sourcePath, stepId, sourcePort, targetPath);
+  }
+
+  private static String labeledStepCapture() {
+    return """
+        {"outcome":"PREPARED",%s,"transfers":[
+          {"existingId":"","alias":"xfer","targetStepRef":"Task","sourcePorts":[{"stepId":"onTaskStart","portName":"payload"}],"targetPort":{"stepId":"Task","portName":"request"},"requirementRefs":[],"decision":""}
+        ],"rules":[
+          {"existingId":"","alias":"rule-subject","transferRef":"xfer","sources":[{"kind":"STEP_PORT","stepId":"onTaskStart","port":"INBOUND_PAYLOAD","fieldPath":"$.name","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"Task","port":"OUTBOUND_REQUEST","fieldPath":"$.Subject","retainedValueId":""},"constants":[],"behavior":"name","evidenceRefs":["src-map"]}
+        ],"retainedValues":[
+          {"existingId":"","alias":"keep-order","stepRef":"onTaskStart","source":{"kind":"STEP_PORT","stepId":"onTaskStart","port":"INBOUND_PAYLOAD","fieldPath":"$.orderId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]}
+        ]}
+        """
+        .formatted(LISTS);
   }
 
   private static String restatedCreateCapture() {
