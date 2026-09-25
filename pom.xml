@@ -10,7 +10,7 @@
     <name>Monorepo Aggregator</name>
 
     <properties>
-        <revision>1.3.0</revision>
+        <revision>1.4.0</revision>
         <changelist>-SNAPSHOT</changelist>
     </properties>
 
