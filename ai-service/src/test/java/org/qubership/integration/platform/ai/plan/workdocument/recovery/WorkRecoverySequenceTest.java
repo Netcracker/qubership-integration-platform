@@ -362,6 +362,52 @@ class WorkRecoverySequenceTest {
   }
 
   @Test
+  void stageBetweenTheOriginAndTheCurrentOwnerDoesNotMoveTheCauseForward() {
+    WorkRecovery.Result logical =
+        recovery.route(
+            RUN,
+            new WorkRecovery.Defect(
+                "",
+                "rule-priority",
+                "WRONG_OPERATION",
+                "behavior",
+                "Priority targets the wrong operation.",
+                List.of("src-om"),
+                "req-flow",
+                "text"),
+            "cmd-flow");
+
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                recovery.route(
+                    RUN,
+                    new WorkRecovery.Defect(
+                        logical.findingId(),
+                        "rule-priority",
+                        "WRONG_OPERATION",
+                        "behavior",
+                        "The selected operation is not createTask.",
+                        List.of("src-om"),
+                        "create",
+                        "binding"),
+                    "cmd-services"));
+
+    assertEquals("NOT_EARLIER_OWNER", rejected.code());
+    assertEquals(WorkStage.LOGICAL_FLOW, logical.owner());
+    assertEquals(
+        WorkRecovery.causeKey(RUN, "rule-priority", "WRONG_OPERATION", "behavior"),
+        logical.causeKey());
+    assertEquals(logical.causeKey(), recovery.causeKey(RUN, logical.findingId()));
+    assertEquals("LOGICAL_FLOW", runs.load(RUN).orElseThrow().run().currentStageId());
+    assertEquals("PENDING", taskState("LOGICAL_FLOW"));
+    assertEquals("NEEDS_RECHECK", taskState("SERVICES"));
+    assertEquals("NEEDS_RECHECK", taskState("DATA_BEHAVIOR"));
+    assertEquals(1, repairCharges());
+  }
+
+  @Test
   void blockedFourthInvocationDoesNotChangeTheOwner() {
     String findingId = "";
     for (int attempt = 1; attempt <= 3; attempt++) {
