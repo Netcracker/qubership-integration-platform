@@ -3,9 +3,11 @@ package org.qubership.integration.platform.ai.plan.workdocument.task;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
@@ -39,27 +41,69 @@ public final class WorkTaskExecutor {
 
   public WorkCommit execute(
       String runId, WorkTaskScope scope, WorkTaskMaterials materials, WorkTaskModel model) {
-    String invocationId = scope.taskId() + ":" + scope.baseRevision();
-    ProductPipelineRunDocument current = load(runId);
-    if (published(current, invocationId)) {
-      RunTransition transition =
-          current.transitions().stream()
-              .filter(candidate -> invocationId.equals(candidate.commandId()))
-              .findFirst()
-              .orElseThrow(
-                  () -> new IllegalStateException("Published invocation has no matching transition."));
-      return documents.committedResult(current, transition);
+    JsonObjectSchema schema =
+        scope.taskKind() == WorkTaskKind.UNSPECIFIED
+            ? WorkDocumentCaptureSchema.captureSchema()
+            : WorkDocumentCaptureSchema.responseSchema(scope.taskKind(), null);
+    return execute(runId, scope, materials, schema, model);
+  }
+
+  public WorkCommit execute(
+      String runId,
+      WorkTaskScope scope,
+      WorkTaskMaterials materials,
+      JsonObjectSchema responseSchema,
+      WorkTaskModel model) {
+    Optional<WorkCommit> prior = publishedResult(runId, scope);
+    if (prior.isPresent()) {
+      return prior.get();
     }
+    WorkDocumentState state = reserve(runId, scope);
+    String output =
+        model.complete(
+            new WorkTaskRequest(
+                scope.taskId(),
+                scope.taskKey(),
+                scope.taskKind(),
+                WorkTaskContext.prompt(state, scope, materials),
+                responseSchema));
+    WorkTaskCapture capture = parse(output);
+    return documents.apply(runId, scope, capture, invocationId(scope));
+  }
+
+  /**
+   * Returns the commit when this scope's invocation already published. Does not call the model.
+   */
+  public Optional<WorkCommit> publishedResult(String runId, WorkTaskScope scope) {
+    String invocationId = invocationId(scope);
+    ProductPipelineRunDocument current = load(runId);
+    if (!published(current, invocationId)) {
+      return Optional.empty();
+    }
+    RunTransition transition =
+        current.transitions().stream()
+            .filter(candidate -> invocationId.equals(candidate.commandId()))
+            .findFirst()
+            .orElseThrow(
+                () -> new IllegalStateException("Published invocation has no matching transition."));
+    return Optional.of(documents.committedResult(current, transition));
+  }
+
+  /** Writes the provider-attempt reservation after the scope revision still matches. */
+  public WorkDocumentState reserve(String runId, WorkTaskScope scope) {
+    ProductPipelineRunDocument current = load(runId);
     WorkDocumentState state = documents.read(runId);
     if (!scope.baseRevision().equals(state.revision())) {
       throw new WorkDocumentRejectedException(
           "STALE_SCOPE",
           "Scope revision does not match the current document. Read the document and submit the task again.");
     }
-    recordInvocation(current, invocationId);
-    String output = model.complete(WorkTaskContext.prompt(state, scope, materials));
-    WorkTaskCapture capture = parse(output);
-    return documents.apply(runId, scope, capture, invocationId);
+    recordInvocation(current, invocationId(scope));
+    return state;
+  }
+
+  private static String invocationId(WorkTaskScope scope) {
+    return scope.taskId() + ":" + scope.baseRevision();
   }
 
   private void recordInvocation(ProductPipelineRunDocument current, String invocationId) {

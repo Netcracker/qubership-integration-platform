@@ -63,7 +63,7 @@ class WorkTaskExecutorTest {
 
     assertThrows(
         WorkDocumentRejectedException.class,
-        () -> executor.execute(RUN_ID, scope, materials(), prompt -> "not-json"));
+        () -> executor.execute(RUN_ID, scope, materials(), request -> "not-json"));
     assertThrows(
         WorkDocumentRejectedException.class,
         () ->
@@ -71,7 +71,7 @@ class WorkTaskExecutorTest {
                 RUN_ID,
                 scope,
                 materials(),
-                prompt ->
+                request ->
                     "{\"outcome\":\"PREPARED\",\"question\":\"Which port?\",\"rules\":[]}"));
 
     ProductPipelineRunDocument run = runs.load(RUN_ID).orElseThrow();
@@ -87,7 +87,7 @@ class WorkTaskExecutorTest {
 
     assertThrows(
         WorkDocumentRejectedException.class,
-        () -> executor.execute(RUN_ID, scope(), materials(), prompt -> "{\"outcome\":\"PREPARED\"}"));
+        () -> executor.execute(RUN_ID, scope(), materials(), request -> "{\"outcome\":\"PREPARED\"}"));
 
     assertEquals(before, runs.load(RUN_ID).orElseThrow().run().workDocumentRef());
     assertTrue(questions(documents.read(RUN_ID)).isEmpty());
@@ -101,7 +101,7 @@ class WorkTaskExecutorTest {
             RUN_ID,
             original,
             materials(),
-            prompt -> completeClarification());
+            request -> completeClarification());
     WorkDocumentState laterBase = documents.read(RUN_ID);
     documents.apply(
         RUN_ID,
@@ -122,7 +122,7 @@ class WorkTaskExecutorTest {
             """),
         "cmd-later");
 
-    WorkCommit replay = executor.execute(RUN_ID, original, materials(), prompt -> {
+    WorkCommit replay = executor.execute(RUN_ID, original, materials(), request -> {
       throw new AssertionError("published command must not call the model");
     });
 
@@ -139,7 +139,7 @@ class WorkTaskExecutorTest {
             RUN_ID,
             scope(),
             materials(),
-            prompt -> completeClarification());
+            request -> completeClarification());
 
     JsonNode questions = questions(commit.state());
     assertEquals(1, questions.size());
@@ -159,7 +159,7 @@ class WorkTaskExecutorTest {
                 RUN_ID,
                 scope,
                 materials(),
-                prompt ->
+                request ->
                     """
                     {"outcome":"INPUT_DEFECT","defectRecordRef":"trigger","contradiction":"The trigger contradicts the source.","defectEvidenceIds":["source-gov"],"issueCategory":"CONTRADICTION","stage":"MATERIALIZATION"}
                     """));
@@ -171,7 +171,7 @@ class WorkTaskExecutorTest {
             RUN_ID,
             scope,
             materials(),
-            prompt -> completeDefect());
+            request -> completeDefect());
 
     JsonNode finding = findings(commit.state()).get(0);
     assertEquals("trigger", finding.path("recordRef").asText());
@@ -184,7 +184,7 @@ class WorkTaskExecutorTest {
   void restartRepeatsUnfinishedCallWithoutDuplicatePublication() {
     AtomicInteger calls = new AtomicInteger();
     WorkTaskModel model =
-        prompt -> {
+        request -> {
           if (calls.incrementAndGet() == 1) {
             throw new IllegalStateException("provider dropped");
           }

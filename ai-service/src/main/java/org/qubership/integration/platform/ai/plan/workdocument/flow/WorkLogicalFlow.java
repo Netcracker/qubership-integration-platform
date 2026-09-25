@@ -11,14 +11,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import org.qubership.integration.platform.ai.plan.workdocument.CreationAllowance;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkRecordKind;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
@@ -45,9 +48,10 @@ public final class WorkLogicalFlow {
 
   public WorkCommit design(String runId, WorkTaskMaterials materials, WorkTaskModel model) {
     WorkDocumentState state = documents.read(runId);
+    String recordId = state.document().documentId();
     WorkTaskScope scope =
         new WorkTaskScope(
-            "logical-design",
+            WorkTaskPlanner.taskId(WorkTaskKind.LOGICAL_DESIGN, recordId),
             state.revision(),
             WorkStage.LOGICAL_FLOW,
             SKILL_ID,
@@ -68,23 +72,22 @@ public final class WorkLogicalFlow {
                 WorkRecordKind.RETRY_GROUP,
                 WorkRecordKind.ERROR_SCOPE),
             List.of(),
-            "logical-design",
+            WorkTaskPlanner.taskKey(WorkTaskKind.LOGICAL_DESIGN, recordId),
             WorkTaskKind.LOGICAL_DESIGN,
             "",
             null);
-    return executor.execute(runId, scope, withInstructions(materials), checked(model));
+    return execute(runId, scope, materials, model);
   }
 
   public WorkCommit repair(
       String runId, String recordId, WorkTaskMaterials materials, WorkTaskModel model) {
     WorkDocumentState state = documents.read(runId);
-    return executor.execute(
-        runId, repairScope(state, recordId), withInstructions(materials), checked(model));
+    return execute(runId, repairScope(state, recordId), materials, model);
   }
 
   public static WorkTaskScope repairScope(WorkDocumentState state, String defectRecordId) {
     return new WorkTaskScope(
-        "logical-repair-" + defectRecordId,
+        WorkTaskPlanner.taskId(WorkTaskKind.LOGICAL_DESIGN, defectRecordId),
         state.revision(),
         WorkStage.LOGICAL_FLOW,
         SKILL_ID,
@@ -93,7 +96,13 @@ public final class WorkLogicalFlow {
         true,
         false,
         List.of(),
-        List.of());
+        List.of(),
+        List.of(),
+        List.of(defectRecordId),
+        WorkTaskPlanner.taskKey(WorkTaskKind.LOGICAL_DESIGN, defectRecordId),
+        WorkTaskKind.LOGICAL_DESIGN,
+        "",
+        null);
   }
 
   public static JsonNode planningTopology(WorkDocumentState state) {
@@ -108,21 +117,24 @@ public final class WorkLogicalFlow {
     return new WorkTaskMaterials(materials.schemas(), constraints, materials.sourceEvidence());
   }
 
-  private static WorkTaskModel checked(WorkTaskModel model) {
-    return prompt -> {
-      String output = model.complete(prompt);
-      rejectSynchronousResult(output);
-      return output;
-    };
+  private WorkCommit execute(
+      String runId, WorkTaskScope scope, WorkTaskMaterials materials, WorkTaskModel model) {
+    JsonObjectSchema schema =
+        WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.LOGICAL_DESIGN, null);
+    return executor.execute(
+        runId,
+        scope,
+        withInstructions(materials),
+        schema,
+        request -> {
+          String output = model.complete(request);
+          JsonNode tree = WorkDocumentCaptureSchema.readObject(output, request.responseSchema());
+          rejectSynchronousResult(tree);
+          return WorkDocumentCaptureSchema.withUniversalLists(tree);
+        });
   }
 
-  private static void rejectSynchronousResult(String output) {
-    JsonNode tree;
-    try {
-      tree = JSON.readTree(output);
-    } catch (Exception failure) {
-      return;
-    }
+  private static void rejectSynchronousResult(JsonNode tree) {
     if (!"PREPARED".equals(tree.path("outcome").asText())) {
       return;
     }

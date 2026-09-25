@@ -50,11 +50,9 @@ class WorkMappingTaskTest {
 
   private static final Instant FIXED = Instant.parse("2026-09-24T12:00:00Z");
   private static final String RUN_ID = "run-map-1";
+  private static final String REQUEST = "xfer-request";
+  private static final String REPLY = "xfer-reply";
   private static final ObjectMapper JSON = new ObjectMapper().registerModule(new JavaTimeModule());
-  private static final String LISTS =
-      """
-      "requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[]
-      """;
 
   private WorkDocumentService documents;
   private WorkMapping mapping;
@@ -84,295 +82,184 @@ class WorkMappingTaskTest {
   }
 
   @Test
-  void suppliedMappingStaysLinkedWithoutCopyingRetainedFieldsOntoTheRequest() throws Exception {
-    WorkCommit commit = mapping.interpret(RUN_ID, materials(true), prompt -> suppliedCapture(true));
+  void suppliedMappingStaysLinkedWithoutCopyingRetainedFieldsOntoTheRequest() {
+    WorkCommit commit = mapping.interpret(RUN_ID, REQUEST, materials(false), request -> requestRules());
+    mapping.interpret(RUN_ID, REPLY, materials(false), request -> replyRules());
 
     assertEquals("PREPARED", commit.outcome().name());
-    JsonNode document = JSON.valueToTree(commit.state().document());
+    JsonNode document = JSON.valueToTree(documents.read(RUN_ID).document());
     JsonNode call = step(document, "create");
     assertEquals(1, serviceCalls(document));
-    List<JsonNode> rules = rules(document);
-    assertTrue(rules.size() >= 5);
-    for (JsonNode rule : rules) {
+    List<JsonNode> stored = rules(document);
+    assertTrue(stored.size() >= 5);
+    for (JsonNode rule : stored) {
       assertTrue(rule.path("evidenceIds").toString().contains("src-map"));
     }
-    assertTrue(behaviors(rules).contains("SALESFORCE_TASK_CREATE_ERROR"));
+    assertTrue(behaviors(stored).contains("SALESFORCE_TASK_CREATE_ERROR"));
     assertFalse(requestTargets(call).contains("executionId"));
     assertFalse(requestTargets(call).contains("orderId"));
     assertFalse(requestTargets(call).contains("processInstanceId"));
     assertFalse(requestTargets(call).contains("executionNumber"));
     assertFalse(requestTargets(call).contains("taskId"));
     assertTrue(retainedLeaves(document).contains("processInstanceId"));
-    JsonNode description = ruleTargeting(rules, "$.Description");
+    JsonNode description = ruleTargeting(stored, "$.Description");
     assertEquals("$.Description", description.path("target").path("fieldPath").asText());
-    assertEquals("string", description.path("behavior").asText().contains("string") ? "string" : schemaType("Description"));
+    assertTrue(description.path("behavior").asText().contains("string"));
   }
 
   @Test
-  void processIdRenameAsksUnlessContextNamesBothFields() {
-    WorkCommit asked = mapping.interpret(RUN_ID, materials(false), prompt -> processIdCapture());
+  void retainedRenameRequiresARecordedRelationship() {
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () -> mapping.interpret(RUN_ID, REPLY, materials(true), request -> processIdCapture(false)));
 
-    assertEquals("NEEDS_CLARIFICATION", asked.outcome().name());
-    String questions = JSON.valueToTree(asked.state().document()).path("progress").path("questions").toString();
-    assertTrue(questions.contains("processId"));
-    assertTrue(questions.contains("processInstanceId"));
-    assertFalse(targets(JSON.valueToTree(asked.state().document())).contains("$.processId"));
+    assertEquals("UNEVIDENCED_MAPPING", rejected.code());
+    assertFalse(targets(JSON.valueToTree(documents.read(RUN_ID).document())).contains("$.processId"));
+    assertTrue(questions(documents.read(RUN_ID)).isEmpty());
 
-    WorkCommit accepted = mapping.interpret(RUN_ID, materials(true), prompt -> processIdCapture());
+    WorkCommit accepted =
+        mapping.interpret(RUN_ID, REPLY, materials(true), request -> processIdCapture(true));
     assertEquals("PREPARED", accepted.outcome().name());
     assertTrue(targets(JSON.valueToTree(accepted.state().document())).contains("$.processId"));
   }
 
   @Test
-  void subjectStaysWhenProcessIdRenameNeedsAQuestion() {
-    WorkCommit commit =
-        mapping.interpret(RUN_ID, materials(false), prompt -> subjectAndProcessRenameCapture());
+  void clarificationKeepsTheAcceptedSiblingAndNamesBothFields() {
+    mapping.interpret(RUN_ID, REQUEST, materials(false), request -> subjectRule());
+    WorkCommit asked =
+        mapping.interpret(RUN_ID, REPLY, materials(false), request -> processQuestion());
 
-    assertEquals("PREPARED", commit.outcome().name());
-    JsonNode document = JSON.valueToTree(commit.state().document());
+    assertEquals("NEEDS_CLARIFICATION", asked.outcome().name());
+    JsonNode document = JSON.valueToTree(asked.state().document());
     assertTrue(targets(document).contains("$.Subject"));
     assertFalse(targets(document).contains("$.processId"));
-    String questions = document.path("progress").path("questions").toString();
-    assertTrue(questions.contains("processId"));
-    assertTrue(questions.contains("processInstanceId"));
+    JsonNode question = document.path("progress").path("questions").get(0);
+    assertEquals("FIELD_RELATIONSHIP", question.path("choice").asText());
+    assertTrue(question.toString().contains("processId"));
+    assertTrue(question.toString().contains("processInstanceId"));
     assertTrue(retainedLeaves(document).contains("processInstanceId"));
   }
 
   @Test
-  void contractNameIsNotAJsonPrefixAndUnknownPathsAreQuestions() {
-    WorkCommit prefixed = mapping.interpret(RUN_ID, materials(false), prompt -> pathCapture("$.Task.Description", "OUTBOUND_REQUEST", "create"));
-    assertEquals("NEEDS_CLARIFICATION", prefixed.outcome().name());
-    assertFalse(targets(JSON.valueToTree(prefixed.state().document())).contains("$.Task.Description"));
-
-    WorkCommit unknown = mapping.interpret(RUN_ID, materials(false), prompt -> pathCapture("$.id", "SUCCESS_RESPONSE", "create"));
-    assertEquals("NEEDS_CLARIFICATION", unknown.outcome().name());
-    assertFalse(targets(JSON.valueToTree(unknown.state().document())).contains("$.id"));
-    assertEquals(1, serviceCalls(JSON.valueToTree(unknown.state().document())));
-
-    WorkCommit unknownSource =
-        mapping.interpret(
-            RUN_ID,
-            materials(false),
-            prompt -> sourceCapture("$.id", "SUCCESS_RESPONSE", "create", "$.status"));
-    assertEquals("NEEDS_CLARIFICATION", unknownSource.outcome().name());
-    assertFalse(sourcePaths(JSON.valueToTree(unknownSource.state().document())).contains("$.id"));
-
-    WorkCommit unknownError =
-        mapping.interpret(
-            RUN_ID,
-            materials(false),
-            prompt -> sourceCapture("$.error.text", "FAILURE_OUTCOME", "create", "$.status"));
-    assertEquals("NEEDS_CLARIFICATION", unknownError.outcome().name());
-    assertFalse(sourcePaths(JSON.valueToTree(unknownError.state().document())).contains("$.error.text"));
+  void unknownPathsAndFabricatedPrefixesStayOutOfTheDocument() {
+    assertEquals(
+        "FABRICATED_PREFIX",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () -> mapping.interpret(RUN_ID, REQUEST, materials(false), request -> targetRule("$.Task.Description")))
+            .code());
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () -> mapping.interpret(RUN_ID, REQUEST, materials(false), request -> targetRule("$.id")))
+            .code());
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    mapping.interpret(
+                        RUN_ID, REQUEST, materials(false), request -> sourceRule("$.id", "$.Subject")))
+            .code());
+    JsonNode document = JSON.valueToTree(documents.read(RUN_ID).document());
+    assertEquals(0, rules(document).size());
+    assertTrue(questions(documents.read(RUN_ID)).isEmpty());
+    assertEquals(1, serviceCalls(document));
+    assertFalse(targets(document).contains("$.Task.Description"));
+    assertFalse(targets(document).contains("$.id"));
   }
 
   @Test
-  void outboundRequestAndSubjectPublishInContractForm() {
+  void barePropertyPublishesInContractForm() {
     WorkCommit commit =
-        mapping.interpret(
-            RUN_ID,
-            materials(false),
-            prompt ->
-                """
-                {"outcome":"PREPARED",%s,"transfers":[
-                  {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"OUTBOUND_REQUEST"},"requirementRefs":[],"decision":""}
-                ],"rules":[
-                  {"existingId":"","alias":"rule-subject","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"Subject","retainedValueId":""},"constants":[],"behavior":"written field","evidenceRefs":["src-map"]}
-                ],"retainedValues":[]}
-                """
-                    .formatted(LISTS));
+        mapping.interpret(RUN_ID, REQUEST, materials(false), request -> targetRule("Subject"));
 
-    assertEquals("PREPARED", commit.outcome().name());
-    JsonNode document = JSON.valueToTree(commit.state().document());
-    JsonNode target = rules(document).getFirst().path("target");
+    JsonNode target = rules(JSON.valueToTree(commit.state().document())).getFirst().path("target");
     assertEquals("request", target.path("port").asText());
     assertEquals("$.Subject", target.path("fieldPath").asText());
-    assertEquals("request", transfers(document).getFirst().path("targetPort").path("portName").asText());
+    assertEquals(REQUEST, step(JSON.valueToTree(commit.state().document()), "create").path("data").path("transfers").get(0).path("id").asText());
   }
 
   @Test
-  void restatedCreateCallPublishesSubjectAndANewLabelStillRejects() {
+  void extraStepsAreRejectedAndThePromptNamesIds() {
     List<String> prompts = new ArrayList<>();
-    WorkCommit commit =
-        mapping.interpret(
-            RUN_ID,
-            materials(false),
-            prompt -> {
-              prompts.add(prompt);
-              return restatedCreateCapture();
-            });
-
-    assertEquals("PREPARED", commit.outcome().name());
-    JsonNode document = JSON.valueToTree(commit.state().document());
-    assertEquals(3, document.path("flow").path("steps").size());
-    assertEquals(1, serviceCalls(document));
-    JsonNode target = ruleTargeting(rules(document), "$.Subject").path("target");
-    assertEquals("create", target.path("stepId").asText());
-    assertEquals("request", target.path("port").asText());
-    assertTrue(prompts.getFirst().contains("The steps array stays empty."));
-    assertTrue(prompts.getFirst().contains("refer to a step by that id"));
-    assertTrue(
-        prompts
-            .getFirst()
-            .contains(
-                "The label and the contract name are not a step id and not a JSON path segment."));
-
-    WorkDocumentRejectedException rejected =
+    assertEquals(
+        "EXTRA_PROPERTY",
         assertThrows(
-            WorkDocumentRejectedException.class,
-            () -> mapping.interpret(RUN_ID, materials(false), prompt -> extraServiceCallCapture()));
-    assertEquals("DUPLICATE_SERVICE_CALL", rejected.code());
+                WorkDocumentRejectedException.class,
+                () ->
+                    mapping.interpret(
+                        RUN_ID,
+                        REQUEST,
+                        materials(false),
+                        request -> {
+                          prompts.add(request.prompt());
+                          return targetRule("$.Subject").replace("\"rules\"", "\"steps\":[],\"rules\"");
+                        }))
+            .code());
+    assertEquals(3, JSON.valueToTree(documents.read(RUN_ID).document()).path("flow").path("steps").size());
     assertEquals(1, serviceCalls(JSON.valueToTree(documents.read(RUN_ID).document())));
-  }
-
-  @Test
-  void promptNamesEachStepById() {
-    List<String> prompts = new ArrayList<>();
-    mapping.interpret(
-        RUN_ID,
-        materials(false),
-        prompt -> {
-          prompts.add(prompt);
-          return suppliedCapture(false);
-        });
-
     String prompt = prompts.getFirst();
     assertTrue(prompt.contains("id start kind TRIGGER label onTaskStart"));
     assertTrue(prompt.contains("id create kind SERVICE_CALL label Task"));
     assertTrue(prompt.contains("id result kind REPLY label onTaskResult"));
     assertFalse(prompt.contains("step create SERVICE_CALL Task"));
-    assertTrue(prompt.contains("refer to a step by that id"));
-    assertTrue(
-        prompt.contains(
-            "The label and the contract name are not a step id and not a JSON path segment."));
-    assertTrue(
-        prompt.contains(
-            "`completeTask` is the `commandType` constant, not a step and not a service call."));
+    assertTrue(prompt.contains("A label is not a source ref."));
+    assertTrue(prompt.contains("Do not send a step"));
+    assertFalse(prompt.contains("`completeTask` is the `commandType` constant"));
   }
 
   @Test
-  void completeTaskServiceCallIsRejected() {
-    WorkDocumentRejectedException byLabel =
+  void labelsAreNotRewrittenToStepIds() {
+    assertEquals(
+        "MALFORMED_REFERENCE",
         assertThrows(
-            WorkDocumentRejectedException.class,
-            () ->
-                mapping.interpret(
-                    RUN_ID, materials(false), prompt -> completeTaskCallCapture("completeTask", "extra")));
-    assertEquals("PAYLOAD_CONSTANT", byLabel.code());
-    assertEquals(1, serviceCalls(JSON.valueToTree(documents.read(RUN_ID).document())));
-
-    WorkDocumentRejectedException byAlias =
-        assertThrows(
-            WorkDocumentRejectedException.class,
-            () ->
-                mapping.interpret(
-                    RUN_ID, materials(false), prompt -> completeTaskCallCapture("Finish", "completeTask")));
-    assertEquals("PAYLOAD_CONSTANT", byAlias.code());
-    assertFalse(labels(JSON.valueToTree(documents.read(RUN_ID).document())).contains("completeTask"));
-    assertFalse(labels(JSON.valueToTree(documents.read(RUN_ID).document())).contains("Finish"));
-  }
-
-  @Test
-  void taskPrefixStaysAQuestionWhileDescriptionStays() {
-    WorkCommit commit =
-        mapping.interpret(RUN_ID, materials(false), prompt -> descriptionAndTaskPrefixCapture());
-
-    assertEquals("PREPARED", commit.outcome().name());
-    JsonNode document = JSON.valueToTree(commit.state().document());
-    assertTrue(targets(document).contains("$.Description"));
-    assertFalse(targets(document).contains("$.Task.Description"));
-    String questions = document.path("progress").path("questions").toString();
-    assertTrue(questions.contains("Task"));
-    assertTrue(questions.contains("$.Task.Description") || questions.contains("not a JSON prefix"));
-  }
-
-  @Test
-  void processInstanceIdAloneDoesNotAuthorizeProcessId() {
-    WorkTaskMaterials sourceNamesOnlyTheLongerField =
-        new WorkTaskMaterials(
-            materials(false).schemas(),
-            List.of(),
-            Map.of("src-map", "Keep processInstanceId for the response."));
-
-    WorkCommit commit =
-        mapping.interpret(
-            RUN_ID, sourceNamesOnlyTheLongerField, prompt -> subjectAndProcessRenameCapture());
-
-    assertEquals("PREPARED", commit.outcome().name());
-    JsonNode document = JSON.valueToTree(commit.state().document());
-    assertTrue(targets(document).contains("$.Subject"));
-    assertFalse(targets(document).contains("$.processId"));
-    String questions = document.path("progress").path("questions").toString();
-    assertTrue(questions.contains("processId"));
-    assertTrue(questions.contains("processInstanceId"));
-    assertFalse(questions.contains("processId is processInstanceId"));
-  }
-
-  @Test
-  void taskAndOnTaskStartLabelsPublishRulesOnCreateAndStart() {
-    WorkCommit commit =
-        mapping.interpret(RUN_ID, materials(false), prompt -> labeledStepCapture());
-
-    assertEquals("PREPARED", commit.outcome().name());
-    JsonNode document = JSON.valueToTree(commit.state().document());
-    assertEquals(3, document.path("flow").path("steps").size());
-    JsonNode rule = rules(document).getFirst();
-    assertEquals("start", rule.path("sources").get(0).path("stepId").asText());
-    assertEquals("create", rule.path("target").path("stepId").asText());
-    JsonNode transfer = step(document, "create").path("data").path("transfers").get(0);
-    assertEquals("start", transfer.path("sourcePorts").get(0).path("stepId").asText());
-    assertEquals("create", transfer.path("targetPort").path("stepId").asText());
-    JsonNode retained = step(document, "start").path("data").path("retainedValues").get(0);
-    assertEquals("start", retained.path("source").path("stepId").asText());
-  }
-
-  @Test
-  void dollarSourcePathAsksAndDoesNotStoreTheRule() {
-    WorkCommit asked =
-        mapping.interpret(
-            RUN_ID, materials(false), prompt -> sourceCapture("$", "INBOUND_PAYLOAD", "start", "$.name"));
-
-    assertEquals("NEEDS_CLARIFICATION", asked.outcome().name());
-    JsonNode document = JSON.valueToTree(asked.state().document());
-    assertFalse(sourcePaths(document).contains("$"));
+                WorkDocumentRejectedException.class,
+                () -> mapping.interpret(RUN_ID, REQUEST, materials(false), request -> labeledSource()))
+            .code());
+    JsonNode document = JSON.valueToTree(documents.read(RUN_ID).document());
     assertEquals(0, rules(document).size());
-    assertTrue(
-        document
-            .path("progress")
-            .path("questions")
-            .toString()
-            .contains("Field path $ is not in the selected contract"));
+    assertEquals(3, document.path("flow").path("steps").size());
   }
 
   @Test
-  void initialPromptContainsTheSuppliedSource() {
-    List<String> prompts = new ArrayList<>();
-    mapping.interpret(
-        RUN_ID,
-        materials(false),
-        prompt -> {
-          prompts.add(prompt);
-          return suppliedCapture(false);
-        });
-
-    assertFalse(prompts.isEmpty());
-    assertTrue(prompts.getFirst().contains("supplied mapping"));
-    assertTrue(prompts.getFirst().contains("Do not invent a catalog field."));
+  void dollarPathIsRejectedWithoutAQuestion() {
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () -> mapping.interpret(RUN_ID, REQUEST, materials(false), request -> sourceRule("$", "$.Subject")))
+            .code());
+    JsonNode document = JSON.valueToTree(documents.read(RUN_ID).document());
+    assertEquals(0, rules(document).size());
+    assertTrue(questions(documents.read(RUN_ID)).isEmpty());
+    assertFalse(sourcePaths(document).contains("$"));
   }
 
   @Test
-  void initialPromptContainsAttachedSchemaFieldAndStep() {
+  void requestPromptKeepsTheAssignedSchemaAndOmitsTheReplySchema() {
     List<String> prompts = new ArrayList<>();
     mapping.interpret(
         RUN_ID,
+        REQUEST,
         materials(false),
-        prompt -> {
-          prompts.add(prompt);
-          return suppliedCapture(false);
+        request -> {
+          prompts.add(request.prompt());
+          return requestRules();
         });
 
-    assertFalse(prompts.isEmpty());
     String prompt = prompts.getFirst();
+    assertTrue(prompt.contains("supplied mapping"));
+    assertTrue(prompt.contains("Do not invent a prefix."));
+    assertTrue(prompt.contains("transfer " + REQUEST));
+    assertTrue(prompt.contains("source start/payload"));
+    assertTrue(prompt.contains("PREPARED contains the rules"));
+    assertTrue(prompt.contains("It contains no rules."));
+    assertTrue(prompt.contains("Put fallback, formatting, and failure text in behavior."));
+    assertTrue(prompt.contains("written as $.Property"));
+    assertTrue(prompt.contains("Do not use a lone $."));
     int field = prompt.indexOf("orderCreationDate");
     assertTrue(field >= 0);
     int lineStart = prompt.lastIndexOf('\n', field);
@@ -380,113 +267,46 @@ class WorkMappingTaskTest {
     String schemaLine =
         prompt.substring(lineStart < 0 ? 0 : lineStart + 1, lineEnd < 0 ? prompt.length() : lineEnd);
     assertTrue(schemaLine.contains("start"));
-    assertTrue(prompt.contains("supplied mapping"));
+    assertFalse(prompt.contains("commandType"));
   }
 
   @Test
-  void promptKeepsClarificationRecordsEmptyAndKeepsDescribedFormats() {
-    List<String> prompts = new ArrayList<>();
-    mapping.interpret(
-        RUN_ID,
-        materials(false),
-        prompt -> {
-          prompts.add(prompt);
-          return suppliedCapture(false);
-        });
-
-    assertFalse(prompts.isEmpty());
-    String prompt = prompts.getFirst();
-    assertTrue(prompt.contains("Every record list is empty."));
-    assertTrue(prompt.contains("Do not ask for a format the source already describes."));
-    assertTrue(prompt.contains("A schema label is not an evidence id."));
-  }
-
-  @Test
-  void promptForbidsDollarPathsAndSameFieldEcho() {
-    List<String> prompts = new ArrayList<>();
-    mapping.interpret(
-        RUN_ID,
-        materials(false),
-        prompt -> {
-          prompts.add(prompt);
-          return suppliedCapture(false);
-        });
-
-    assertFalse(prompts.isEmpty());
-    String prompt = prompts.getFirst();
-    assertTrue(prompt.contains("Use the port name from the schema line: payload, request, success, or failure."));
-    assertTrue(prompt.contains("Store a field as $.Property."));
-    assertTrue(prompt.contains("Do not use a lone $."));
-    assertTrue(prompt.contains("Echo a retained value onto the same field name."));
-  }
-
-  @Test
-  void constraintThatNamesOnlyProcessInstanceIdAsks() {
-    WorkTaskMaterials onlyLonger =
+  void textThatNamesBothFieldsDoesNotAuthorizeTheRename() {
+    WorkTaskMaterials named =
         new WorkTaskMaterials(
             materials(false).schemas(),
-            List.of("processInstanceId"),
-            Map.of("src-map", "supplied mapping"));
-
-    WorkCommit asked = mapping.interpret(RUN_ID, onlyLonger, prompt -> processIdCapture());
-
-    assertEquals("NEEDS_CLARIFICATION", asked.outcome().name());
-    String questions = JSON.valueToTree(asked.state().document()).path("progress").path("questions").toString();
-    assertTrue(questions.contains("processId"));
-    assertTrue(questions.contains("processInstanceId"));
-    assertFalse(targets(JSON.valueToTree(asked.state().document())).contains("$.processId"));
-
-    WorkTaskMaterials embedded =
-        new WorkTaskMaterials(
-            materials(false).schemas(),
-            List.of("seeprocessId processInstanceId"),
-            Map.of("src-map", "supplied mapping"));
-    WorkCommit glued = mapping.interpret(RUN_ID, embedded, prompt -> processIdCapture());
-    assertEquals("NEEDS_CLARIFICATION", glued.outcome().name());
-  }
-
-  @Test
-  void schemaConstraintContainingBothLeavesStillAsks() {
-    List<SchemaFragment> schemas = new ArrayList<>();
-    for (SchemaFragment fragment : materials(false).schemas()) {
-      if ("result".equals(fragment.stepId()) && "request".equals(fragment.portName())) {
-        schemas.add(
-            schema(
-                "result",
-                "request",
-                "{\"type\":\"object\",\"properties\":{\"commandType\":{\"type\":\"string\"},\"executionId\":{\"type\":\"string\"},\"orderId\":{\"type\":\"string\"},\"processId\":{\"type\":\"string\"},\"processInstanceId\":{\"type\":\"string\"},\"executionNumber\":{\"type\":\"string\"},\"taskId\":{\"type\":\"string\"},\"sourceAppName\":{\"type\":\"string\"},\"error\":{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}}}}}"));
-      } else {
-        schemas.add(fragment);
-      }
-    }
-    WorkTaskMaterials bothLeaves =
-        new WorkTaskMaterials(schemas, List.of(), Map.of("src-map", "supplied mapping"));
-
-    WorkCommit asked = mapping.interpret(RUN_ID, bothLeaves, prompt -> processIdCapture());
-
-    assertEquals("NEEDS_CLARIFICATION", asked.outcome().name());
-    String questions = JSON.valueToTree(asked.state().document()).path("progress").path("questions").toString();
-    assertTrue(questions.contains("processId"));
-    assertTrue(questions.contains("processInstanceId"));
-    assertFalse(targets(JSON.valueToTree(asked.state().document())).contains("$.processId"));
+            List.of("processId is the retained processInstanceId"),
+            Map.of("src-map", "Keep processInstanceId for the response."));
+    assertEquals(
+        "UNEVIDENCED_MAPPING",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () -> mapping.interpret(RUN_ID, REPLY, named, request -> processIdCapture(false)))
+            .code());
+    assertFalse(targets(JSON.valueToTree(documents.read(RUN_ID).document())).contains("$.processId"));
   }
 
   @Test
   void priorityRepairLeavesEveryOtherRuleAndIdUnchanged() throws Exception {
-    mapping.interpret(RUN_ID, materials(true), prompt -> suppliedCapture(true));
+    mapping.interpret(RUN_ID, REQUEST, materials(false), request -> requestRules());
     String before = JSON.writeValueAsString(documents.read(RUN_ID).document());
     JsonNode priorTree = JSON.readTree(before);
     String priorityId = ruleId(priorTree, "$.Priority");
-    String transferId = transferIdOf(priorTree, priorityId);
 
     WorkCommit repaired =
         mapping.repair(
-            RUN_ID, priorityId, materials(true), prompt -> repairCapture(priorityId, transferId));
+            RUN_ID,
+            priorityId,
+            materials(false),
+            request ->
+                """
+                {"outcome":"PREPARED","rules":[{"existingId":"%s","targetPath":"$.Priority","sources":[{"sourceRef":"start/payload","fieldPath":"$.priority"}],"constants":[],"behavior":"urgent maps to High","evidenceRefs":["src-map"]}],"decision":"","evidenceRefs":[]}
+                """
+                    .formatted(priorityId));
 
     JsonNode after = JSON.valueToTree(repaired.state().document());
-    JsonNode prior = JSON.readTree(before);
     assertEquals("urgent maps to High", behaviorOf(after, priorityId));
-    for (JsonNode rule : rules(prior)) {
+    for (JsonNode rule : rules(JSON.readTree(before))) {
       String id = rule.path("id").asText();
       if (id.equals(priorityId)) {
         continue;
@@ -504,11 +324,62 @@ class WorkMappingTaskTest {
             () ->
                 mapping.interpret(
                     RUN_ID,
+                    REQUEST,
                     materials(false),
-                    prompt -> {
+                    request -> {
                       throw new OutputParsingException("Mapping capture could not be parsed.", null);
                     }));
     assertEquals("MALFORMED_CAPTURE", rejected.code());
+    assertEquals(0, rules(JSON.valueToTree(documents.read(RUN_ID).document())).size());
+    assertTrue(questions(documents.read(RUN_ID)).isEmpty());
+  }
+
+  @Test
+  void emptyRulesAreRejectedAndNoMappingKeepsTheTransfer() {
+    assertEquals(
+        "UNEVIDENCED_MAPPING",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    mapping.interpret(
+                        RUN_ID,
+                        REQUEST,
+                        materials(false),
+                        request ->
+                            "{\"outcome\":\"PREPARED\",\"rules\":[],\"decision\":\"\",\"evidenceRefs\":[]}"))
+            .code());
+    assertTrue(questions(documents.read(RUN_ID)).isEmpty());
+
+    WorkCommit decided =
+        mapping.interpret(
+            RUN_ID,
+            REQUEST,
+            materials(false),
+            request ->
+                "{\"outcome\":\"PREPARED\",\"rules\":[],\"decision\":\"NO_MAPPING\",\"evidenceRefs\":[\"src-map\"]}");
+
+    JsonNode transfer = step(JSON.valueToTree(decided.state().document()), "create").path("data").path("transfers").get(0);
+    assertEquals(REQUEST, transfer.path("id").asText());
+    assertEquals("NO_MAPPING", transfer.path("decision").asText());
+    assertEquals("start", transfer.path("sourcePorts").get(0).path("stepId").asText());
+    assertEquals("create", transfer.path("targetPort").path("stepId").asText());
+    assertEquals(0, transfer.path("rules").size());
+  }
+
+  @Test
+  void oneCallThatIncludesAnotherTransferIsRejectedBeforePublication() {
+    assertEquals(
+        "EXTRA_PROPERTY",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    mapping.interpret(
+                        RUN_ID,
+                        REQUEST,
+                        materials(false),
+                        request ->
+                            "{\"outcome\":\"PREPARED\",\"transfers\":[{\"alias\":\"xfer-reply\"}],\"rules\":[],\"decision\":\"\",\"evidenceRefs\":[]}"))
+            .code());
     assertEquals(0, rules(JSON.valueToTree(documents.read(RUN_ID).document())).size());
   }
 
@@ -543,27 +414,6 @@ class WorkMappingTaskTest {
                 List.of(new MappingFieldRef("start", "INBOUND_PAYLOAD", "$.name", "")),
                 List.of(),
                 "prose and a typed value"));
-  }
-
-  @Test
-  void emptyRulesAskAndAnExplicitDecisionKeepsItsEvidence() {
-    WorkCommit unknown =
-        mapping.interpret(RUN_ID, materials(false), prompt -> transferCapture("", List.of()));
-
-    assertEquals("NEEDS_CLARIFICATION", unknown.outcome().name());
-    assertEquals(0, rules(JSON.valueToTree(unknown.state().document())).size());
-    assertTrue(
-        JSON.valueToTree(unknown.state().document()).path("progress").path("questions").toString()
-            .contains("no-mapping"));
-
-    WorkCommit decided =
-        mapping.interpret(RUN_ID, materials(false), prompt -> transferCapture("NO_MAPPING", List.of("start")));
-
-    assertEquals("PREPARED", decided.outcome().name());
-    JsonNode transfer = transfers(JSON.valueToTree(decided.state().document())).getFirst();
-    assertEquals("NO_MAPPING", transfer.path("decision").asText());
-    assertEquals(0, transfer.path("rules").size());
-    assertTrue(transfer.path("requirementIds").toString().contains("start"));
   }
 
   @Test
@@ -603,182 +453,81 @@ class WorkMappingTaskTest {
     return new SchemaFragment("schema-" + stepId + "-" + port, stepId, port, "hash-" + port, "ref-" + port, body);
   }
 
-  private static String suppliedCapture(boolean includeRename) {
-    String process =
-        includeRename
-            ? """
-            ,{"existingId":"","alias":"rule-process","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-process"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.processId","retainedValueId":""},"constants":[],"behavior":"processId reads retained processInstanceId","evidenceRefs":["src-map"]}
-            """
+  private static String requestRules() {
+    return """
+        {"outcome":"PREPARED","rules":[
+          {"alias":"rule-subject","targetPath":"$.Subject","sources":[{"sourceRef":"start/payload","fieldPath":"$.name"},{"sourceRef":"start/payload","fieldPath":"$.subRequestType"},{"sourceRef":"start/payload","fieldPath":"$.orderId"}],"constants":[],"behavior":"name, or a formatted fallback","evidenceRefs":["src-map"]},
+          {"alias":"rule-priority","targetPath":"$.Priority","sources":[{"sourceRef":"start/payload","fieldPath":"$.priority"}],"constants":[],"behavior":"high, urgent, or critical to High","evidenceRefs":["src-map"]},
+          {"alias":"rule-status","targetPath":"$.Status","sources":[],"constants":[{"name":"status","value":"Not Started"}],"behavior":"constant Not Started","evidenceRefs":["src-map"]},
+          {"alias":"rule-activity","targetPath":"$.ActivityDate","sources":[{"sourceRef":"start/payload","fieldPath":"$.parameters.orderCreationDate"}],"constants":[],"behavior":"order creation date, else today","evidenceRefs":["src-map"]},
+          {"alias":"rule-description","targetPath":"$.Description","sources":[{"sourceRef":"start/payload","fieldPath":"$.taskId"}],"constants":[],"behavior":"serialized string","evidenceRefs":["src-map"]}
+        ],"decision":"","evidenceRefs":[]}
+        """;
+  }
+
+  private static String replyRules() {
+    return """
+        {"outcome":"PREPARED","rules":[
+          {"alias":"rule-command","targetPath":"$.commandType","sources":[],"constants":[{"name":"commandType","value":"completeTask"}],"behavior":"constant completeTask","evidenceRefs":["src-map"]},
+          {"alias":"rule-failure","targetPath":"$.error.code","sources":[{"sourceRef":"create/failure","fieldPath":"$.status"}],"constants":[{"name":"code","value":"SALESFORCE_TASK_CREATE_ERROR"}],"behavior":"SALESFORCE_TASK_CREATE_ERROR plus the failure text","evidenceRefs":["src-map"]}
+        ],"decision":"","evidenceRefs":[]}
+        """;
+  }
+
+  private static String subjectRule() {
+    return """
+        {"outcome":"PREPARED","rules":[
+          {"alias":"rule-subject","targetPath":"$.Subject","sources":[{"sourceRef":"start/payload","fieldPath":"$.name"}],"constants":[],"behavior":"name","evidenceRefs":["src-map"]}
+        ],"decision":"","evidenceRefs":[]}
+        """;
+  }
+
+  private static String processIdCapture(boolean relationship) {
+    String link =
+        relationship
+            ? ",\"relationship\":{\"sourceField\":\"processInstanceId\",\"targetField\":\"processId\",\"evidenceRefs\":[\"src-map\"]}"
             : "";
     return """
-        {"outcome":"PREPARED",%s,"transfers":[
-          {"existingId":"","alias":"xfer-request","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[],"decision":""},
-          {"existingId":"","alias":"xfer-response","targetStepRef":"result","sourcePorts":[{"stepId":"create","portName":"success"}],"targetPort":{"stepId":"result","portName":"request"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-subject","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.name","retainedValueId":""},{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.subRequestType","retainedValueId":""},{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.orderId","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Subject","retainedValueId":""},"constants":[],"behavior":"name, or a formatted fallback","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"rule-priority","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.priority","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Priority","retainedValueId":""},"constants":[],"behavior":"high, urgent, or critical to High","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"rule-status","transferRef":"xfer-request","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Status","retainedValueId":""},"constants":[{"name":"status","value":"Not Started"}],"behavior":"constant Not Started","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"rule-activity","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.parameters.orderCreationDate","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.ActivityDate","retainedValueId":""},"constants":[],"behavior":"order creation date, else today","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"rule-description","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.taskId","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Description","retainedValueId":""},"constants":[],"behavior":"serialized string","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"rule-command","transferRef":"xfer-response","sources":[],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.commandType","retainedValueId":""},"constants":[{"name":"commandType","value":"completeTask"}],"behavior":"constant completeTask","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"rule-failure","transferRef":"xfer-response","sources":[{"kind":"STEP_PORT","stepId":"create","port":"FAILURE_OUTCOME","fieldPath":"$.status","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.error.code","retainedValueId":""},"constants":[{"name":"code","value":"SALESFORCE_TASK_CREATE_ERROR"}],"behavior":"SALESFORCE_TASK_CREATE_ERROR plus the failure text","evidenceRefs":["src-map"]}
-          %s
-        ],"retainedValues":[
-          {"existingId":"","alias":"keep-execution","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.executionId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"keep-order","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.orderId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"keep-process","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.processInstanceId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"keep-number","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.executionNumber","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"keep-task","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.taskId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]}
-        ]}
-        """
-        .formatted(LISTS, process);
+        {"outcome":"PREPARED","rules":[
+          {"alias":"rule-process","targetPath":"$.processId","sources":[{"sourceRef":"retained/keep-process","fieldPath":"$.processInstanceId"}],"constants":[],"behavior":"processId reads retained processInstanceId","evidenceRefs":["src-map"]%s}
+        ],"decision":"","evidenceRefs":[]}
+        """.formatted(link);
   }
 
-  private static String subjectAndProcessRenameCapture() {
+  private static String processQuestion() {
     return """
-        {"outcome":"PREPARED",%s,"transfers":[
-          {"existingId":"","alias":"xfer-request","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[],"decision":""},
-          {"existingId":"","alias":"xfer-response","targetStepRef":"result","sourcePorts":[{"stepId":"create","portName":"success"}],"targetPort":{"stepId":"result","portName":"request"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-subject","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.name","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Subject","retainedValueId":""},"constants":[],"behavior":"name","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"rule-process","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-process"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.processId","retainedValueId":""},"constants":[],"behavior":"response process id","evidenceRefs":["src-map"]}
-        ],"retainedValues":[
-          {"existingId":"","alias":"keep-process","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.processInstanceId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]}
-        ]}
-        """
-        .formatted(LISTS);
-  }
-
-  private static String processIdCapture() {
-    return """
-        {"outcome":"PREPARED",%s,"transfers":[
-          {"existingId":"","alias":"xfer-response","targetStepRef":"result","sourcePorts":[{"stepId":"create","portName":"success"}],"targetPort":{"stepId":"result","portName":"request"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-process","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-process"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.processId","retainedValueId":""},"constants":[],"behavior":"response process id","evidenceRefs":["src-map"]}
-        ],"retainedValues":[
-          {"existingId":"","alias":"keep-process","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.processInstanceId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]}
-        ]}
-        """
-        .formatted(LISTS);
-  }
-
-  private static String sourceCapture(String sourcePath, String sourcePort, String stepId, String targetPath) {
-    return """
-        {"outcome":"PREPARED",%s,"transfers":[
-          {"existingId":"","alias":"xfer","targetStepRef":"%s","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"%s","portName":"request"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-path","transferRef":"xfer","sources":[{"kind":"STEP_PORT","stepId":"%s","port":"%s","fieldPath":"%s","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"%s","port":"%s","fieldPath":"%s","retainedValueId":""},"constants":[],"behavior":"read field","evidenceRefs":["src-map"]}
-        ],"retainedValues":[]}
-        """
-        .formatted(LISTS, stepId, stepId, stepId, sourcePort, sourcePath, stepId, sourcePort, targetPath);
-  }
-
-  private static String labeledStepCapture() {
-    return """
-        {"outcome":"PREPARED",%s,"transfers":[
-          {"existingId":"","alias":"xfer","targetStepRef":"Task","sourcePorts":[{"stepId":"onTaskStart","portName":"payload"}],"targetPort":{"stepId":"Task","portName":"request"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-subject","transferRef":"xfer","sources":[{"kind":"STEP_PORT","stepId":"onTaskStart","port":"INBOUND_PAYLOAD","fieldPath":"$.name","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"Task","port":"OUTBOUND_REQUEST","fieldPath":"$.Subject","retainedValueId":""},"constants":[],"behavior":"name","evidenceRefs":["src-map"]}
-        ],"retainedValues":[
-          {"existingId":"","alias":"keep-order","stepRef":"onTaskStart","source":{"kind":"STEP_PORT","stepId":"onTaskStart","port":"INBOUND_PAYLOAD","fieldPath":"$.orderId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]}
-        ]}
-        """
-        .formatted(LISTS);
-  }
-
-  private static String restatedCreateCapture() {
-    return """
-        {"outcome":"PREPARED","requirements":[],"steps":[
-          {"existingId":"","alias":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the order event","sourceRefs":["src-map"],"requirementRefs":[]},
-          {"existingId":"","alias":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceRefs":["src-map"],"requirementRefs":[]},
-          {"existingId":"","alias":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the outcome","sourceRefs":["src-map"],"requirementRefs":[]}
-        ],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[
-          {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"OUTBOUND_REQUEST"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-subject","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"Subject","retainedValueId":""},"constants":[],"behavior":"written field","evidenceRefs":["src-map"]}
-        ],"retainedValues":[]}
+        {"outcome":"NEEDS_CLARIFICATION","rules":[],"decision":"","evidenceRefs":[],"question":{"text":"Field processId does not match source processInstanceId. Record the relationship or choose another field.","choiceKind":"FIELD_RELATIONSHIP","sourceStepId":"start","sourcePort":"payload","sourceField":"processInstanceId","sourceRetainedId":"keep-process","targetStepId":"result","targetPort":"request","targetField":"processId","targetRetainedId":"","evidenceRefs":["src-map"]}}
         """;
   }
 
-  private static String completeTaskCallCapture(String label, String alias) {
+  private static String targetRule(String path) {
     return """
-        {"outcome":"PREPARED","requirements":[],"steps":[
-          {"existingId":"","alias":"%s","kind":"SERVICE_CALL","label":"%s","intent":"Finish the task","sourceRefs":["src-map"],"requirementRefs":[]}
-        ],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[
-          {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-subject","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"Subject","retainedValueId":""},"constants":[],"behavior":"written field","evidenceRefs":["src-map"]}
-        ],"retainedValues":[]}
+        {"outcome":"PREPARED","rules":[
+          {"alias":"rule-path","targetPath":"%s","sources":[{"sourceRef":"start/payload","fieldPath":"$.name"}],"constants":[],"behavior":"written field","evidenceRefs":["src-map"]}
+        ],"decision":"","evidenceRefs":[]}
         """
-        .formatted(alias, label);
+        .formatted(path);
   }
 
-  private static String descriptionAndTaskPrefixCapture() {
+  private static String sourceRule(String sourcePath, String targetPath) {
     return """
-        {"outcome":"PREPARED",%s,"transfers":[
-          {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-prefix","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Task.Description","retainedValueId":""},"constants":[],"behavior":"prefixed","evidenceRefs":["src-map"]},
-          {"existingId":"","alias":"rule-description","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Description","retainedValueId":""},"constants":[],"behavior":"schema field","evidenceRefs":["src-map"]}
-        ],"retainedValues":[]}
+        {"outcome":"PREPARED","rules":[
+          {"alias":"rule-path","targetPath":"%s","sources":[{"sourceRef":"start/payload","fieldPath":"%s"}],"constants":[],"behavior":"read field","evidenceRefs":["src-map"]}
+        ],"decision":"","evidenceRefs":[]}
         """
-        .formatted(LISTS);
+        .formatted(targetPath, sourcePath);
   }
 
-  private static String extraServiceCallCapture() {
+  private static String labeledSource() {
     return """
-        {"outcome":"PREPARED","requirements":[],"steps":[
-          {"existingId":"","alias":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceRefs":["src-map"],"requirementRefs":[]},
-          {"existingId":"","alias":"lookup","kind":"SERVICE_CALL","label":"Lookup","intent":"Read another record","sourceRefs":["src-map"],"requirementRefs":[]}
-        ],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[],"rules":[],"retainedValues":[]}
+        {"outcome":"PREPARED","rules":[
+          {"alias":"rule-subject","targetPath":"$.Subject","sources":[{"sourceRef":"onTaskStart/payload","fieldPath":"$.name"}],"constants":[],"behavior":"name","evidenceRefs":["src-map"]}
+        ],"decision":"","evidenceRefs":[]}
         """;
   }
 
-  private static String pathCapture(String path, String port, String stepId) {
-    return """
-        {"outcome":"PREPARED",%s,"transfers":[
-          {"existingId":"","alias":"xfer","targetStepRef":"%s","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"%s","portName":"request"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-path","transferRef":"xfer","sources":[],"target":{"kind":"STEP_PORT","stepId":"%s","port":"%s","fieldPath":"%s","retainedValueId":""},"constants":[],"behavior":"written field","evidenceRefs":["src-map"]}
-        ],"retainedValues":[]}
-        """
-        .formatted(LISTS, stepId, stepId, stepId, port, path);
-  }
-
-  private static String transferCapture(String decision, List<String> requirementRefs) {
-    String refs =
-        requirementRefs.isEmpty()
-            ? ""
-            : "\"" + String.join("\",\"", requirementRefs) + "\"";
-    return """
-        {"outcome":"PREPARED",%s,"transfers":[
-          {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[%s],"decision":"%s"}
-        ],"rules":[],"retainedValues":[]}
-        """
-        .formatted(LISTS, refs, decision);
-  }
-
-  private static List<JsonNode> transfers(JsonNode document) {
-    List<JsonNode> found = new ArrayList<>();
-    for (JsonNode step : document.path("flow").path("steps")) {
-      for (JsonNode transfer : step.path("data").path("transfers")) {
-        found.add(transfer);
-      }
-    }
-    return found;
-  }
-
-  private static String repairCapture(String priorityId, String transferId) {
-    return """
-        {"outcome":"PREPARED",%s,"transfers":[],"rules":[
-          {"existingId":"%s","alias":"","transferRef":"%s","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.priority","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Priority","retainedValueId":""},"constants":[],"behavior":"urgent maps to High","evidenceRefs":["src-map"]}
-        ],"retainedValues":[]}
-        """
-        .formatted(LISTS, priorityId, transferId);
-  }
-
-  private static String schemaType(String field) {
-    return "string";
+  private static JsonNode questions(WorkDocumentState state) {
+    return JSON.valueToTree(state.document()).path("progress").path("questions");
   }
 
   private static JsonNode step(JsonNode document, String id) {
@@ -788,14 +537,6 @@ class WorkMappingTaskTest {
       }
     }
     throw new AssertionError("Missing step " + id);
-  }
-
-  private static List<String> labels(JsonNode document) {
-    List<String> labels = new ArrayList<>();
-    for (JsonNode step : document.path("flow").path("steps")) {
-      labels.add(step.path("label").asText());
-    }
-    return labels;
   }
 
   private static int serviceCalls(JsonNode document) {
@@ -860,11 +601,6 @@ class WorkMappingTaskTest {
         paths.add(source.path("fieldPath").asText());
       }
     }
-    for (JsonNode step : document.path("flow").path("steps")) {
-      for (JsonNode value : step.path("data").path("retainedValues")) {
-        paths.add(value.path("source").path("fieldPath").asText());
-      }
-    }
     return paths;
   }
 
@@ -887,19 +623,6 @@ class WorkMappingTaskTest {
 
   private static String ruleId(JsonNode document, String path) {
     return ruleTargeting(rules(document), path).path("id").asText();
-  }
-
-  private static String transferIdOf(JsonNode document, String ruleId) {
-    for (JsonNode step : document.path("flow").path("steps")) {
-      for (JsonNode transfer : step.path("data").path("transfers")) {
-        for (JsonNode rule : transfer.path("rules")) {
-          if (ruleId.equals(rule.path("id").asText())) {
-            return transfer.path("id").asText();
-          }
-        }
-      }
-    }
-    throw new AssertionError("Missing transfer for " + ruleId);
   }
 
   private static String behaviorOf(JsonNode document, String id) {
@@ -942,9 +665,19 @@ class WorkMappingTaskTest {
           "requirements": [],
           "flow": {
             "steps": [
-              {"id":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the order event","sourceIds":["src-map"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[]}},
-              {"id":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceIds":["src-map"],"requirementIds":[],"binding":{"catalogId":"sys-wfm","version":"2024.4","operationId":"createTask","protocol":"http","method":"POST","path":"/wfm/v1/tasks","contractReferences":["spec-create"],"exposedPorts":["payload","request","success","failure"]},"data":{"transfers":[],"retainedValues":[]}},
-              {"id":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the outcome","sourceIds":["src-map"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[]}}
+              {"id":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the order event","sourceIds":["src-map"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[
+                {"id":"keep-execution","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.executionId","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-map"],"producerStepId":"start","resolution":"RESOLVED"},
+                {"id":"keep-order","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.orderId","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-map"],"producerStepId":"start","resolution":"RESOLVED"},
+                {"id":"keep-process","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.processInstanceId","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-map"],"producerStepId":"start","resolution":"RESOLVED"},
+                {"id":"keep-number","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.executionNumber","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-map"],"producerStepId":"start","resolution":"RESOLVED"},
+                {"id":"keep-task","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.taskId","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-map"],"producerStepId":"start","resolution":"RESOLVED"}
+              ]}},
+              {"id":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceIds":["src-map"],"requirementIds":[],"binding":{"catalogId":"sys-wfm","version":"2024.4","operationId":"createTask","protocol":"http","method":"POST","path":"/wfm/v1/tasks","contractReferences":["spec-create"],"exposedPorts":["payload","request","success","failure"]},"data":{"transfers":[
+                {"id":"xfer-request","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementIds":[],"rules":[],"decision":"UNSPECIFIED","outcome":"UNSPECIFIED","requiredRetainedIds":[]}
+              ],"retainedValues":[]}},
+              {"id":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the outcome","sourceIds":["src-map"],"requirementIds":[],"binding":null,"data":{"transfers":[
+                {"id":"xfer-reply","sourcePorts":[{"stepId":"create","portName":"success"},{"stepId":"create","portName":"failure"}],"targetPort":{"stepId":"result","portName":"request"},"requirementIds":[],"rules":[],"decision":"UNSPECIFIED","outcome":"UNSPECIFIED","requiredRetainedIds":["keep-process"]}
+              ],"retainedValues":[]}}
             ],
             "connections": [
               {"id":"c-ok","sourceStepId":"create","outcome":"success","targetStepId":"result","routingIntent":"return success","evidenceIds":["src-map"]},

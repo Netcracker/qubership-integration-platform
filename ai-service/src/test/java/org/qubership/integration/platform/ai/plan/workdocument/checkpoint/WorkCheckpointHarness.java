@@ -38,6 +38,8 @@ import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalF
 import org.qubership.integration.platform.ai.plan.workdocument.mapping.WorkMapping;
 import org.qubership.integration.platform.ai.plan.workdocument.recovery.WorkRecovery;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner;
 import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.SchemaFragment;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
@@ -109,7 +111,14 @@ public final class WorkCheckpointHarness {
     }
     boolean binding = "binding".equals(checkpoint);
     WorkTaskModel client =
-        prompt -> completeChat(baseUrl, apiKey, model, prompt, binding ? selectionSchema() : captureSchema());
+        request -> {
+          ObjectNode schema = JSON.createObjectNode();
+          schema.put("name", request.kind().name().toLowerCase());
+          schema.set(
+              "schema",
+              JSON.valueToTree(JsonSchemaElementUtils.toMap(request.responseSchema(), true)));
+          return completeChat(baseUrl, apiKey, model, request.prompt(), schema);
+        };
     CatalogResolution catalog;
     try {
       catalog = binding ? HostCatalog.open(System.getenv("CATALOG_URL")) : new UnavailableCatalog();
@@ -169,10 +178,10 @@ public final class WorkCheckpointHarness {
     AtomicReference<String> response = new AtomicReference<>("");
     AtomicInteger modelCalls = new AtomicInteger();
     WorkTaskModel recording =
-        text -> {
+        modelRequest -> {
           modelCalls.incrementAndGet();
-          prompt.set(text);
-          String output = session.modelClient().complete(text);
+          prompt.set(modelRequest.prompt());
+          String output = session.modelClient().complete(modelRequest);
           response.set(output);
           return output;
         };
@@ -255,10 +264,10 @@ public final class WorkCheckpointHarness {
       WorkMapping mapping = new WorkMapping(documents, new WorkTaskExecutor(documents, runs, clock));
       if (repair) {
         commit = mapping.repair(runId, "rule-priority", materials, model);
-        scope.put("taskId", "mapping-repair-rule-priority");
+        scope.put("taskId", WorkTaskPlanner.taskId(WorkTaskKind.REPAIR_RULE, "rule-priority"));
       } else {
-        commit = mapping.interpret(runId, materials, model);
-        scope.put("taskId", "mapping-initial");
+        commit = mapping.interpret(runId, "xfer-request", materials, model);
+        scope.put("taskId", WorkTaskPlanner.taskId(WorkTaskKind.MAP_TRANSFER, "xfer-request"));
       }
       scope.put("skillId", WorkMapping.SKILL_ID);
       scope.put("stage", "DATA_BEHAVIOR");
@@ -272,7 +281,8 @@ public final class WorkCheckpointHarness {
       commit = flow.design(runId, materials, model);
       scope.put("skillId", WorkLogicalFlow.SKILL_ID);
       scope.put("stage", "LOGICAL_FLOW");
-      scope.put("taskId", "logical-design");
+      scope.put(
+          "taskId", WorkTaskPlanner.taskId(WorkTaskKind.LOGICAL_DESIGN, "doc-checkpoint"));
     } else {
       documents.intake(
           runId,
@@ -283,7 +293,7 @@ public final class WorkCheckpointHarness {
       commit = binding.select(runId, "create", materials, model);
       scope.put("skillId", WorkBinding.SKILL_ID);
       scope.put("stage", "SERVICES");
-      scope.put("taskId", "operation-selection");
+      scope.put("taskId", WorkTaskPlanner.taskId(WorkTaskKind.SELECT_OPERATION, "create"));
     }
     JsonNode stored = stepBinding(commit);
     String reference = "";
@@ -652,9 +662,22 @@ public final class WorkCheckpointHarness {
           "requirements": [],
           "flow": {
             "steps": [
-              {"id":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the order event","sourceIds":["src-om"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[]}},
-              {"id":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceIds":["src-om"],"requirementIds":[],"binding":{"catalogId":"sys-wfm","version":"2024.4","operationId":"createTask","protocol":"http","method":"POST","path":"/wfm/v1/tasks","contractReferences":["spec-create"],"exposedPorts":["payload","request","success","failure"]},"data":{"transfers":[],"retainedValues":[]}},
-              {"id":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the outcome","sourceIds":["src-om"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[]}}
+              {"id":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the order event","sourceIds":["src-om"],"requirementIds":[],"binding":null,"data":{"transfers":[],"retainedValues":[
+                {"id":"keep-execution","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.executionId","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-om"],"producerStepId":"start","resolution":"RESOLVED"},
+                {"id":"keep-order","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.orderId","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-om"],"producerStepId":"start","resolution":"RESOLVED"},
+                {"id":"keep-process","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.processInstanceId","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-om"],"producerStepId":"start","resolution":"RESOLVED"},
+                {"id":"keep-number","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.executionNumber","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-om"],"producerStepId":"start","resolution":"RESOLVED"},
+                {"id":"keep-task","source":{"kind":"STEP_PORT","stepId":"start","port":"payload","fieldPath":"$.taskId","retainedValueId":""},"intendedUse":"response","evidenceIds":["src-om"],"producerStepId":"start","resolution":"RESOLVED"}
+              ]}},
+              {"id":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the Salesforce task","sourceIds":["src-om"],"requirementIds":[],"binding":{"catalogId":"sys-wfm","version":"2024.4","operationId":"createTask","protocol":"http","method":"POST","path":"/wfm/v1/tasks","contractReferences":["spec-create"],"exposedPorts":["payload","request","success","failure"]},"data":{"transfers":[{"id":"xfer-request","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementIds":[],"rules":[],"decision":"UNSPECIFIED","outcome":"UNSPECIFIED","requiredRetainedIds":[]}],"retainedValues":[]}},
+              {"id":"result","kind":"REPLY","label":"onTaskResult","intent":"Return the outcome","sourceIds":["src-om"],"requirementIds":[],"binding":null,"data":{"transfers":[{"id":"xfer-reply","sourcePorts":[{"stepId":"create","portName":"success"},{"stepId":"create","portName":"failure"}],"targetPort":{"stepId":"result","portName":"request"},"requirementIds":[],"requiredRetainedIds":["keep-execution","keep-order","keep-number","keep-task"],"decision":"UNSPECIFIED","outcome":"UNSPECIFIED","rules":[
+                {"id":"rule-command","sources":[],"target":{"kind":"STEP_PORT","stepId":"result","port":"request","fieldPath":"$.commandType","retainedValueId":""},"constants":[{"name":"commandType","value":"completeTask"}],"behavior":"constant completeTask","evidenceIds":["src-om"]},
+                {"id":"rule-execution","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-execution"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"request","fieldPath":"$.executionId","retainedValueId":""},"constants":[],"behavior":"echo retained executionId","evidenceIds":["src-om"]},
+                {"id":"rule-order","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-order"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"request","fieldPath":"$.orderId","retainedValueId":""},"constants":[],"behavior":"echo retained orderId","evidenceIds":["src-om"]},
+                {"id":"rule-number","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-number"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"request","fieldPath":"$.executionNumber","retainedValueId":""},"constants":[],"behavior":"echo retained executionNumber","evidenceIds":["src-om"]},
+                {"id":"rule-task","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-task"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"request","fieldPath":"$.taskId","retainedValueId":""},"constants":[],"behavior":"echo retained taskId","evidenceIds":["src-om"]},
+                {"id":"rule-failure","sources":[{"kind":"STEP_PORT","stepId":"create","port":"failure","fieldPath":"$.status","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"result","port":"request","fieldPath":"$.error.code","retainedValueId":""},"constants":[{"name":"code","value":"SALESFORCE_TASK_CREATE_ERROR"}],"behavior":"SALESFORCE_TASK_CREATE_ERROR plus the failure text","evidenceIds":["src-om"]}
+              ]}],"retainedValues":[]}}
             ],
             "connections": [],
             "sequenceGroups": [],

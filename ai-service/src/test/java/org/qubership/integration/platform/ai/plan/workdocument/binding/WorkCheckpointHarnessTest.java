@@ -127,7 +127,7 @@ class WorkCheckpointHarnessTest {
     assertEquals("om-mapping", suppliedBody.path("caseId").asText());
     assertEquals("G2", suppliedBody.path("gate").asText());
     assertEquals("data-mapping", suppliedBody.path("taskScope").path("skillId").asText());
-    assertEquals("mapping-initial", suppliedBody.path("taskScope").path("taskId").asText());
+    assertEquals("map-transfer-xfer-request", suppliedBody.path("taskScope").path("taskId").asText());
     assertTrue(suppliedBody.path("requiredObservation").asText().contains("retained-context"));
 
     Path repair = temp.resolve("priority-repair.json");
@@ -138,7 +138,7 @@ class WorkCheckpointHarnessTest {
     JsonNode repairBody = JSON.readTree(repair.toFile());
     assertEquals(0, repairExit, Files.readString(repair));
     assertEquals("priority-repair", repairBody.path("caseId").asText());
-    assertEquals("mapping-repair-rule-priority", repairBody.path("taskScope").path("taskId").asText());
+    assertEquals("repair-rule-rule-priority", repairBody.path("taskScope").path("taskId").asText());
     assertTrue(repairBody.path("requiredObservation").asText().contains("Priority"));
     assertTrue(repairBody.path("sanitizedResponse").asText().contains("urgent maps to High"));
 
@@ -386,9 +386,9 @@ class WorkCheckpointHarnessTest {
         "configured-provider",
         "configured-model",
         false,
-        prompt -> {
+        request -> {
           providerCalls.incrementAndGet();
-          prompts.add(prompt);
+          prompts.add(request.prompt());
           return modelOutput.replace("SECRET_SLOT", SECRET);
         },
         catalog);
@@ -437,57 +437,39 @@ class WorkCheckpointHarnessTest {
         };
     return "{\"outcome\":\"PREPARED\","
         + steps
-        + ",\"requirements\":[],\"sequenceGroups\":[],\"conditionGroups\":[],\"splitGroups\":[],\"loopGroups\":[],\"retryGroups\":[],\"errorScopeGroups\":[],\"transfers\":[],\"rules\":[],\"retainedValues\":[],\"deletes\":[],"
+        + ",\"requirements\":[],\"sequenceGroups\":[],\"conditionGroups\":[],\"splitGroups\":[],\"loopGroups\":[],\"retryGroups\":[],\"errorScopeGroups\":[],\"deletes\":[],"
         + "\"question\":\"\",\"unresolvedChoice\":\"\",\"clarificationEvidenceIds\":[],\"defectRecordRef\":\"\",\"contradiction\":\"\",\"defectEvidenceIds\":[],\"issueCategory\":\"\"}";
   }
 
   private static String omMappingCapture() {
     return """
-        {"outcome":"PREPARED","requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[
-          {"existingId":"","alias":"xfer-request","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[],"decision":""},
-          {"existingId":"","alias":"xfer-response","targetStepRef":"result","sourcePorts":[{"stepId":"create","portName":"success"}],"targetPort":{"stepId":"result","portName":"request"},"requirementRefs":[],"decision":""}
-        ],"rules":[
-          {"existingId":"","alias":"rule-subject","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.name","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Subject","retainedValueId":""},"constants":[],"behavior":"name or fallback","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-priority","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.priority","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Priority","retainedValueId":""},"constants":[],"behavior":"high, urgent, or critical to High","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-status","transferRef":"xfer-request","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Status","retainedValueId":""},"constants":[{"name":"status","value":"Not Started"}],"behavior":"constant Not Started","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-activity","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.parameters.orderCreationDate","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.ActivityDate","retainedValueId":""},"constants":[],"behavior":"order creation date, else today","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-description","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.taskId","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Description","retainedValueId":""},"constants":[],"behavior":"serialized text","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-command","transferRef":"xfer-response","sources":[],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.commandType","retainedValueId":""},"constants":[{"name":"commandType","value":"completeTask"}],"behavior":"constant completeTask","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-execution","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-execution"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.executionId","retainedValueId":""},"constants":[],"behavior":"echo retained executionId","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-order","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-order"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.orderId","retainedValueId":""},"constants":[],"behavior":"echo retained orderId","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-number","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-number"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.executionNumber","retainedValueId":""},"constants":[],"behavior":"echo retained executionNumber","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-task","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-task"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.taskId","retainedValueId":""},"constants":[],"behavior":"echo retained taskId","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-process","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-process"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.processId","retainedValueId":""},"constants":[],"behavior":"processId reads retained processInstanceId","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"rule-failure","transferRef":"xfer-response","sources":[{"kind":"STEP_PORT","stepId":"create","port":"FAILURE_OUTCOME","fieldPath":"$.status","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.error.code","retainedValueId":""},"constants":[{"name":"code","value":"SALESFORCE_TASK_CREATE_ERROR"}],"behavior":"SALESFORCE_TASK_CREATE_ERROR plus the failure text","evidenceRefs":["src-om"]}
-        ],"retainedValues":[
-          {"existingId":"","alias":"keep-execution","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.executionId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"keep-order","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.orderId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"keep-process","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.processInstanceId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"keep-number","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.executionNumber","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-om"]},
-          {"existingId":"","alias":"keep-task","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.taskId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-om"]}
-        ],"question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
+        {"outcome":"PREPARED","rules":[
+          {"alias":"rule-subject","targetPath":"$.Subject","sources":[{"sourceRef":"start/payload","fieldPath":"$.name"}],"constants":[],"behavior":"name or fallback","evidenceRefs":["src-om"]},
+          {"alias":"rule-priority","targetPath":"$.Priority","sources":[{"sourceRef":"start/payload","fieldPath":"$.priority"}],"constants":[],"behavior":"high, urgent, or critical to High","evidenceRefs":["src-om"]},
+          {"alias":"rule-status","targetPath":"$.Status","sources":[],"constants":[{"name":"status","value":"Not Started"}],"behavior":"constant Not Started","evidenceRefs":["src-om"]},
+          {"alias":"rule-activity","targetPath":"$.ActivityDate","sources":[{"sourceRef":"start/payload","fieldPath":"$.parameters.orderCreationDate"}],"constants":[],"behavior":"order creation date, else today","evidenceRefs":["src-om"]},
+          {"alias":"rule-description","targetPath":"$.Description","sources":[{"sourceRef":"start/payload","fieldPath":"$.taskId"}],"constants":[],"behavior":"serialized text","evidenceRefs":["src-om"]}
+        ],"decision":"","evidenceRefs":[]}
         """;
   }
 
   private static String emptyMappingCapture() {
     return """
-        {"outcome":"PREPARED","requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[
-          {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":["start"],"decision":"NO_MAPPING"}
-        ],"rules":[],"retainedValues":[],"question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
+        {"outcome":"PREPARED","rules":[],"decision":"","evidenceRefs":[]}
         """;
   }
 
   private static String priorityRepairCapture() {
     return """
-        {"outcome":"PREPARED","requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[],"rules":[
-          {"existingId":"rule-priority","alias":"","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.priority","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Priority","retainedValueId":""},"constants":[],"behavior":"urgent maps to High","evidenceRefs":["src-om"]}
-        ],"retainedValues":[],"question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
+        {"outcome":"PREPARED","rules":[
+          {"existingId":"rule-priority","targetPath":"$.Priority","sources":[{"sourceRef":"start/payload","fieldPath":"$.priority"}],"constants":[],"behavior":"urgent maps to High","evidenceRefs":["src-om"]}
+        ],"decision":"","evidenceRefs":[]}
         """;
   }
 
   private static String selection() {
     return """
-        {"outcome":"PREPARED","candidateId":"createTask","stepId":"create","catalogId":"model-catalog","method":"DELETE","path":"/model/path","protocol":"grpc","apiKey":"SECRET_SLOT"}
+        {"outcome":"PREPARED","candidateId":"createTask"}
         """;
   }
 
