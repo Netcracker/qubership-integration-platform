@@ -124,6 +124,21 @@ class WorkMappingTaskTest {
   }
 
   @Test
+  void subjectStaysWhenProcessIdRenameNeedsAQuestion() {
+    WorkCommit commit =
+        mapping.interpret(RUN_ID, materials(false), prompt -> subjectAndProcessRenameCapture());
+
+    assertEquals("PREPARED", commit.outcome().name());
+    JsonNode document = JSON.valueToTree(commit.state().document());
+    assertTrue(targets(document).contains("$.Subject"));
+    assertFalse(targets(document).contains("$.processId"));
+    String questions = document.path("progress").path("questions").toString();
+    assertTrue(questions.contains("processId"));
+    assertTrue(questions.contains("processInstanceId"));
+    assertTrue(retainedLeaves(document).contains("processInstanceId"));
+  }
+
+  @Test
   void contractNameIsNotAJsonPrefixAndUnknownPathsAreQuestions() {
     WorkCommit prefixed = mapping.interpret(RUN_ID, materials(false), prompt -> pathCapture("$.Task.Description", "OUTBOUND_REQUEST", "create"));
     assertEquals("NEEDS_CLARIFICATION", prefixed.outcome().name());
@@ -511,6 +526,21 @@ class WorkMappingTaskTest {
         ]}
         """
         .formatted(LISTS, process);
+  }
+
+  private static String subjectAndProcessRenameCapture() {
+    return """
+        {"outcome":"PREPARED",%s,"transfers":[
+          {"existingId":"","alias":"xfer-request","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":[],"decision":""},
+          {"existingId":"","alias":"xfer-response","targetStepRef":"result","sourcePorts":[{"stepId":"create","portName":"success"}],"targetPort":{"stepId":"result","portName":"request"},"requirementRefs":[],"decision":""}
+        ],"rules":[
+          {"existingId":"","alias":"rule-subject","transferRef":"xfer-request","sources":[{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.name","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Subject","retainedValueId":""},"constants":[],"behavior":"name","evidenceRefs":["src-map"]},
+          {"existingId":"","alias":"rule-process","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-process"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.processId","retainedValueId":""},"constants":[],"behavior":"response process id","evidenceRefs":["src-map"]}
+        ],"retainedValues":[
+          {"existingId":"","alias":"keep-process","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.processInstanceId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-map"]}
+        ]}
+        """
+        .formatted(LISTS);
   }
 
   private static String processIdCapture() {

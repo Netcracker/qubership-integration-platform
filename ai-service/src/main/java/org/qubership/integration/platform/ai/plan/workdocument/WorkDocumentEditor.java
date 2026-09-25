@@ -40,6 +40,23 @@ final class WorkDocumentEditor {
     applyRetained(draft, scope, capture, aliases, known, accepted);
     applyDeletes(draft, scope, capture, known, accepted);
     WorkProgress progress = withTask(draft.progress, scope, WorkTaskState.ACCEPTED);
+    if (!capture.question().isBlank()) {
+      List<WorkQuestion> questions = new ArrayList<>(progress.questions());
+      questions.add(
+          new WorkQuestion(
+              newId(),
+              capture.unresolvedChoice(),
+              capture.question(),
+              resolveAll(capture.clarificationEvidenceIds(), aliases, sourceIds(draft))));
+      progress =
+          new WorkProgress(
+              progress.tasks(),
+              progress.findings(),
+              questions,
+              progress.approvalReference(),
+              progress.derivedResultReferences(),
+              progress.recheckStages());
+    }
     ChainWorkDocument next =
         new ChainWorkDocument(
             draft.schemaVersion,
@@ -175,10 +192,10 @@ final class WorkDocumentEditor {
             || !capture.deletes().isEmpty();
     boolean clarification = !capture.question().isBlank() || !capture.unresolvedChoice().isBlank();
     boolean defect = !capture.defectRecordRef().isBlank() || !capture.contradiction().isBlank();
-    if (capture.outcome() == WorkOutcome.PREPARED && (clarification || defect)) {
+    if (capture.outcome() == WorkOutcome.PREPARED && defect) {
       throw reject(
           "CONTRADICTORY_OUTCOME",
-          "A prepared capture cannot also ask a question or report a defect. Send one outcome.");
+          "A prepared capture cannot also report a defect. Send one outcome.");
     }
     if (capture.outcome() == WorkOutcome.NEEDS_CLARIFICATION && (preparedPayload || defect || capture.question().isBlank())) {
       throw reject(

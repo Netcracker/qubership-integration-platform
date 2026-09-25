@@ -192,7 +192,7 @@ public final class WorkCheckpointHarness {
       report.put("failureCode", "");
       report.put("durable", request.publicationStore() != null);
       write(request.report(), report);
-      return "PREPARED".equals(published.outcome()) ? 0 : 1;
+      return passed(request, published) ? 0 : 1;
     } catch (WorkDocumentRejectedException rejected) {
       write(
           request.report(),
@@ -299,7 +299,60 @@ public final class WorkCheckpointHarness {
         storeAttempts,
         scope,
         stored.path("method").asText(""),
-        stored.path("path").asText(""));
+        stored.path("path").asText(""),
+        JSON.valueToTree(commit.state().document()));
+  }
+
+  private static boolean passed(CheckpointRequest request, Published published) {
+    if (!"PREPARED".equals(published.outcome())) {
+      return false;
+    }
+    if ("om-mapping".equals(request.caseId())) {
+      return omMappingReady(published.document());
+    }
+    return true;
+  }
+
+  private static boolean omMappingReady(JsonNode document) {
+    List<String> targets = new ArrayList<>();
+    List<String> retained = new ArrayList<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode value : step.path("data").path("retainedValues")) {
+        retained.add(value.path("source").path("fieldPath").asText());
+      }
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        for (JsonNode rule : transfer.path("rules")) {
+          targets.add(rule.path("target").path("fieldPath").asText());
+        }
+      }
+    }
+    if (targets.isEmpty() || targets.contains("$.processId")) {
+      return false;
+    }
+    for (String path :
+        List.of(
+            "$.Subject",
+            "$.Priority",
+            "$.Status",
+            "$.ActivityDate",
+            "$.Description",
+            "$.commandType",
+            "$.executionId",
+            "$.orderId",
+            "$.executionNumber",
+            "$.taskId",
+            "$.error.code")) {
+      if (!targets.contains(path)) {
+        return false;
+      }
+    }
+    for (String path :
+        List.of("$.executionId", "$.orderId", "$.processInstanceId", "$.executionNumber", "$.taskId")) {
+      if (!retained.contains(path)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static JsonNode stepBinding(WorkCommit commit) {
@@ -1023,5 +1076,6 @@ public final class WorkCheckpointHarness {
       int storeAttempts,
       ObjectNode scope,
       String resolvedMethod,
-      String resolvedPath) {}
+      String resolvedPath,
+      JsonNode document) {}
 }
