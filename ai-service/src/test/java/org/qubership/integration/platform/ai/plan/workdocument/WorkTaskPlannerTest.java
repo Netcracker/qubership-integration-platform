@@ -415,8 +415,61 @@ class WorkTaskPlannerTest {
   }
 
   @Test
+  void openQuestionWithholdsTheOutlineAndALaterRepair() {
+    ChainWorkDocument accepted =
+        WorkPlanningDocuments.accept(
+            repairClosureDocument(), task -> !task.taskKey().equals("define-transfers:format"));
+    WorkQuestion question =
+        new WorkQuestion(
+            "q-call",
+            "operation",
+            "Which operation creates the task?",
+            List.of(WorkPlanningDocuments.SOURCE_ID),
+            "select-operation:call",
+            QuestionSubject.unspecified(),
+            List.of(),
+            List.of(),
+            QuestionResolution.OPEN);
+    WorkFinding finding =
+        new WorkFinding(
+            "finding-1",
+            "rule-1",
+            "WRONG_MAPPING",
+            "Priority dropped the low branch.",
+            List.of(WorkPlanningDocuments.SOURCE_ID),
+            "");
+    ChainWorkDocument questioned =
+        WorkPlanningDocuments.replaceProgress(
+            accepted,
+            new WorkProgress(
+                accepted.progress().tasks(),
+                List.of(finding),
+                List.of(question),
+                "",
+                List.of(),
+                List.of()));
+
+    Plan plan = planner.plan(questioned);
+
+    assertEquals(Reason.WAITING_FOR_TASK, block(plan, "define-transfers:call").reason());
+    assertEquals(Reason.WAITING_FOR_TASK, block(plan, "map-transfer:to-request").reason());
+    assertFalse(task(plan, "repair-rule:rule-1").ready());
+    assertTrue(task(plan, "define-transfers:format").ready());
+  }
+
+  @Test
   void handlerOnlyValueIsUnavailableOutsideTheHandler() {
     Plan plan = planner.plan(handlerDocument());
+
+    assertEquals(Reason.UNAVAILABLE_INPUT, block(plan, "map-transfer:to-reply").reason());
+    assertEquals(
+        "Retained value kept-handler is produced on step handler and is not available at step reply.",
+        block(plan, "map-transfer:to-reply").evidence());
+  }
+
+  @Test
+  void handlerWithoutScopeExitKeepsTheValueOffTheSuccessPath() {
+    Plan plan = planner.plan(handlerWithoutScopeExit());
 
     assertEquals(Reason.UNAVAILABLE_INPUT, block(plan, "map-transfer:to-reply").reason());
     assertEquals(
@@ -550,6 +603,41 @@ class WorkTaskPlannerTest {
         WorkProgress.empty());
   }
 
+  private static ChainWorkDocument repairClosureDocument() {
+    LogicalStep call =
+        WorkPlanningDocuments.step(
+            "call",
+            StepKind.SERVICE_CALL,
+            WorkPlanningDocuments.binding("createTask", "1.0.0"),
+            new StepData(
+                List.of(
+                    WorkPlanningDocuments.transfer(
+                        "to-request",
+                        "call",
+                        "call",
+                        "request",
+                        TransferOutcome.UNSPECIFIED,
+                        MappingDecision.UNSPECIFIED,
+                        List.of(WorkPlanningDocuments.rule("rule-1", "call", "call")),
+                        List.of(),
+                        WorkPlanningDocuments.REQUIREMENT_ID)),
+                List.of(),
+                WorkPlanningDocuments.covered(
+                    WorkPlanningDocuments.REQUIREMENT_ID,
+                    WorkPlanningDocuments.PASSAGE_ID,
+                    "to-request",
+                    CoverageDisposition.ASSIGNED)),
+            WorkPlanningDocuments.REQUIREMENT_ID);
+    LogicalStep format =
+        WorkPlanningDocuments.step(
+            "format",
+            StepKind.LOCAL,
+            null,
+            StepData.empty(),
+            WorkPlanningDocuments.OTHER_REQUIREMENT_ID);
+    return WorkPlanningDocuments.document("doc-1", List.of(call, format), List.of(), WorkProgress.empty());
+  }
+
   private static ChainWorkDocument handlerDocument() {
     RetainedValue kept = WorkPlanningDocuments.resolved("kept-handler", "handler");
     LogicalStep call =
@@ -592,6 +680,58 @@ class WorkTaskPlannerTest {
             WorkProgress.empty());
     return WorkPlanningDocuments.withErrorScopes(
         document, List.of(WorkPlanningDocuments.errorScope("scope-1", "call", "call", "handler", "reply")));
+  }
+
+  private static ChainWorkDocument handlerWithoutScopeExit() {
+    RetainedValue kept = WorkPlanningDocuments.resolved("kept-handler", "handler");
+    LogicalStep call =
+        WorkPlanningDocuments.step(
+            "call", StepKind.SERVICE_CALL, WorkPlanningDocuments.binding("createTask", "1.0.0"), StepData.empty());
+    LogicalStep handler =
+        WorkPlanningDocuments.step(
+            "handler",
+            StepKind.LOCAL,
+            null,
+            new StepData(List.of(), List.of(kept), DataOutline.empty()));
+    LogicalStep reply =
+        WorkPlanningDocuments.step(
+            "reply",
+            StepKind.REPLY,
+            WorkPlanningDocuments.binding("respond", "1.0.0"),
+            new StepData(
+                List.of(
+                    WorkPlanningDocuments.transfer(
+                        "to-reply",
+                        "handler",
+                        "reply",
+                        "request",
+                        TransferOutcome.UNSPECIFIED,
+                        MappingDecision.UNSPECIFIED,
+                        List.of(),
+                        List.of("kept-handler"),
+                        WorkPlanningDocuments.REQUIREMENT_ID)),
+                List.of(),
+                DataOutline.empty()),
+            WorkPlanningDocuments.REQUIREMENT_ID);
+    ChainWorkDocument document =
+        WorkPlanningDocuments.document(
+            "doc-1",
+            List.of(call, handler, reply),
+            List.of(
+                WorkPlanningDocuments.connection("ok", "call", "success", "reply"),
+                WorkPlanningDocuments.connection("fail", "call", "failure", "handler"),
+                WorkPlanningDocuments.connection("handled", "handler", "success", "reply")),
+            WorkProgress.empty());
+    return WorkPlanningDocuments.withErrorScopes(
+        document,
+        List.of(
+            new ErrorScopeGroup(
+                "scope-1",
+                "call",
+                "call",
+                List.of(new ErrorHandler("handler-1", "Exception", "handler", List.of("handler"))),
+                "",
+                List.of())));
   }
 
   private static ChainWorkDocument fourSteps() {

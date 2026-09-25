@@ -567,21 +567,22 @@ public final class WorkTaskPlanner {
   }
 
   private static void markReady(Map<String, Draft> byKey, Map<String, Block> blocks) {
-    for (Draft draft : byKey.values()) {
-      if (blocks.containsKey(draft.taskKey)) {
-        draft.ready = false;
-        continue;
-      }
-      if (draft.state != WorkTaskState.PENDING && draft.state != WorkTaskState.NEEDS_RECHECK) {
-        draft.ready = false;
-        continue;
-      }
-      List<String> unmet = unmet(byKey, blocks, draft.dependencyKeys);
-      if (unmet.isEmpty()) {
-        draft.ready = true;
-      } else {
-        draft.ready = false;
-        put(blocks, new Block(draft.taskKey, Reason.WAITING_FOR_TASK, waits(draft.taskKey, unmet)));
+    boolean changed = true;
+    while (changed) {
+      changed = false;
+      for (Draft draft : byKey.values()) {
+        if (blocks.containsKey(draft.taskKey)) {
+          draft.ready = false;
+          continue;
+        }
+        List<String> missing = unmet(byKey, blocks, draft.dependencyKeys);
+        if (!missing.isEmpty()) {
+          draft.ready = false;
+          put(blocks, new Block(draft.taskKey, Reason.WAITING_FOR_TASK, waits(draft.taskKey, missing)));
+          changed = true;
+          continue;
+        }
+        draft.ready = draft.state == WorkTaskState.PENDING || draft.state == WorkTaskState.NEEDS_RECHECK;
       }
     }
   }
@@ -591,9 +592,7 @@ public final class WorkTaskPlanner {
     for (String dependency : dependencyKeys) {
       Draft required = byKey.get(dependency);
       Block block = blocks.get(dependency);
-      boolean structurallyBlocked = block != null && structural(block.reason());
-      boolean inputBlocked = block != null && block.reason() == Reason.WAITING_FOR_INPUT;
-      if (required == null || required.state != WorkTaskState.ACCEPTED || structurallyBlocked || inputBlocked) {
+      if (required == null || required.state != WorkTaskState.ACCEPTED || block != null) {
         unmet.add(dependency);
       }
     }
@@ -1418,7 +1417,7 @@ public final class WorkTaskPlanner {
       for (ErrorScopeGroup scope : document.flow().errorScopeGroups()) {
         for (ErrorHandler handler : scope.handlers()) {
           if (scope.exitStepIds().isEmpty()) {
-            branches.add(region(handler.entryStepId(), "", handler.exitStepIds(), forward));
+            branches.add(stoppedAt(handler.entryStepId(), handler.exitStepIds(), forward));
           } else {
             for (String exit : scope.exitStepIds()) {
               branches.add(region(handler.entryStepId(), exit, handler.exitStepIds(), forward));
@@ -1438,6 +1437,30 @@ public final class WorkTaskPlanner {
         bodies.add(region(retry.bodyEntryStepId(), retry.exhaustedStepId(), retry.bodyExitStepIds(), forward));
       }
       return bodies;
+    }
+
+    private static Set<String> stoppedAt(String entry, List<String> exits, Map<String, List<String>> forward) {
+      Set<String> stops = new LinkedHashSet<>();
+      for (String exit : exits) {
+        if (exit != null && !exit.isBlank()) {
+          stops.add(exit);
+        }
+      }
+      Set<String> found = new LinkedHashSet<>();
+      ArrayDeque<String> pending = new ArrayDeque<>();
+      if (entry != null && !entry.isBlank()) {
+        pending.add(entry);
+      }
+      while (!pending.isEmpty()) {
+        String current = pending.removeFirst();
+        if (!found.add(current) || stops.contains(current)) {
+          continue;
+        }
+        for (String next : forward.getOrDefault(current, List.of())) {
+          pending.add(next);
+        }
+      }
+      return found;
     }
 
     private static Set<String> region(String entry, String stopId, List<String> seeds, Map<String, List<String>> forward) {

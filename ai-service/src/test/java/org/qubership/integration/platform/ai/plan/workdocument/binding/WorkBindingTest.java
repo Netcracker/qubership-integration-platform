@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.time.Clock;
 import java.time.Instant;
@@ -18,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument;
+import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
@@ -55,6 +57,32 @@ class WorkBindingTest {
         new WorkRepairBudget(3));
     resolution = new FakeResolution();
     binding = new WorkBinding(documents, runs, clock, resolution);
+  }
+
+  @Test
+  void catalogPublishStoresThePortContentHash() {
+    resolution.contract(readySchema("spec-create", "op-create", "2024.4", "request", "hash-schema-a"));
+    resolution.catalogHit("createTask", "sys-wfm", "2024.4", "op-create", "http", "POST", "/wfm/v1/tasks");
+
+    WorkCommit commit =
+        binding.select(RUN_ID, "create", materials(List.of()), prompt -> selection("createTask"));
+
+    JsonNode hash = step(commit.state(), "create").path("binding").path("portContentHashes").get(0);
+    assertEquals("request", hash.path("port").asText());
+    assertEquals("hash-schema-a", hash.path("contentHash").asText());
+  }
+
+  @Test
+  void apiHubPublishStoresThePortContentHash() {
+    resolution.contract(readySchema("apihub:pkg.wfm@2024.4", "op-hub", "2024.4", "request", "hash-hub-a"));
+    resolution.apiHubHit("createTask", "pkg.wfm", "2024.4", "op-hub", "http", "POST", "/wfm/v1/tasks");
+
+    WorkCommit commit =
+        binding.select(RUN_ID, "create", materials(List.of("ids-only")), prompt -> selection("createTask"));
+
+    JsonNode hash = step(commit.state(), "create").path("binding").path("portContentHashes").get(0);
+    assertEquals("request", hash.path("port").asText());
+    assertEquals("hash-hub-a", hash.path("contentHash").asText());
   }
 
   @Test
@@ -442,6 +470,17 @@ class WorkBindingTest {
         """.formatted(question);
   }
 
+  private static ContractMaterial.Ready readySchema(
+      String reference, String operationId, String version, String port, String contentHash) {
+    ObjectNode schema = JSON.createObjectNode();
+    schema.put("type", "object");
+    return new ContractMaterial.Ready(
+        reference,
+        operationId,
+        version,
+        List.of(new PortSchemaMaterial(reference, operationId, version, port, contentHash, schema)));
+  }
+
   private static JsonNode step(WorkDocumentState state, String id) {
     for (JsonNode candidate : steps(state)) {
       if (id.equals(candidate.path("id").asText())) {
@@ -535,6 +574,16 @@ class WorkBindingTest {
     int lookupCalls;
     int catalogWrites;
     private final List<CatalogHit> catalog = new ArrayList<>();
+    private ContractMaterial schema;
+
+    void contract(ContractMaterial material) {
+      schema = material;
+    }
+
+    @Override
+    public ContractMaterial loadContract(ResolvedWorkBinding binding) {
+      return schema == null ? CatalogResolution.super.loadContract(binding) : schema;
+    }
     private final List<ApiHubHit> hub = new ArrayList<>();
     private String unavailableVersion = "";
     private String unavailableHint = "";

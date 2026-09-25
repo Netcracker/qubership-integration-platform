@@ -61,6 +61,39 @@ class WorkDataOutlineTest {
   }
 
   @Test
+  void outlineStoresPortContentHashAndABodyChangeRechecksTheConsumer() {
+    seed(callDocument());
+    outlines.define(
+        RUN_ID,
+        "call",
+        new OutlineProposal(
+            "call",
+            List.of(
+                transfer("to-request", "trigger", "payload", "call", "request", TransferOutcome.UNSPECIFIED, List.of("req-request"), List.of()),
+                transfer("to-success", "trigger", "payload", "call", "success", TransferOutcome.SUCCESS, List.of("req-common"), List.of()),
+                transfer("to-failure", "trigger", "payload", "call", "failure", TransferOutcome.FAILURE, List.of("req-common"), List.of())),
+            List.of(),
+            List.of(
+                new OutlineCoverage("req-request", "passage-source-1-1", CoverageDisposition.ASSIGNED),
+                new OutlineCoverage("req-common", "passage-source-1-2", CoverageDisposition.ASSIGNED))),
+        contracts(),
+        "outline-ports");
+    ChainWorkDocument stored = documents.read(RUN_ID).document();
+    assertTrue(
+        step(stored, "call")
+            .binding()
+            .portContentHashes()
+            .contains(new ResolvedWorkBinding.PortContentHash("request", "hash-op-call-request")));
+    String transferId = transfer(step(stored, "call"), "request").id();
+
+    ChainWorkDocument accepted = WorkPlanningDocuments.accept(stored, task -> true);
+    ChainWorkDocument changed = replacePortHash(accepted, "call", "request", "hash-op-call-request-next");
+    WorkTaskPlanner.Plan plan = new WorkTaskPlanner().plan(changed);
+
+    assertEquals(WorkTaskState.NEEDS_RECHECK, plannerTask(plan, "map-transfer:" + transferId).state());
+  }
+
+  @Test
   void synchronousCallKeepsOneServiceCallAndDistinctOutcomes() {
     seed(callDocument());
     WorkCommit commit =
@@ -696,6 +729,70 @@ class WorkDataOutlineTest {
               reference, operationId, "2024.4", port, "hash-" + operationId + "-" + port + hashSuffix, schema));
     }
     return new ContractMaterial.Ready(reference, operationId, "2024.4", materials);
+  }
+
+  private static ChainWorkDocument replacePortHash(
+      ChainWorkDocument document, String stepId, String port, String contentHash) {
+    List<LogicalStep> steps = new ArrayList<>();
+    for (LogicalStep step : document.flow().steps()) {
+      if (!step.id().equals(stepId) || step.binding() == null) {
+        steps.add(step);
+        continue;
+      }
+      ResolvedWorkBinding prior = step.binding();
+      List<ResolvedWorkBinding.PortContentHash> hashes = new ArrayList<>();
+      boolean replaced = false;
+      for (ResolvedWorkBinding.PortContentHash hash : prior.portContentHashes()) {
+        if (hash.port().equals(port)) {
+          hashes.add(new ResolvedWorkBinding.PortContentHash(port, contentHash));
+          replaced = true;
+        } else {
+          hashes.add(hash);
+        }
+      }
+      if (!replaced) {
+        hashes.add(new ResolvedWorkBinding.PortContentHash(port, contentHash));
+      }
+      steps.add(
+          new LogicalStep(
+              step.id(),
+              step.kind(),
+              step.label(),
+              step.intent(),
+              step.sourceIds(),
+              step.requirementIds(),
+              new ResolvedWorkBinding(
+                  prior.catalogId(),
+                  prior.version(),
+                  prior.operationId(),
+                  prior.protocol(),
+                  prior.method(),
+                  prior.path(),
+                  prior.contractReferences(),
+                  prior.exposedPorts(),
+                  hashes),
+              step.data()));
+    }
+    LogicalFlow prior = document.flow();
+    return new ChainWorkDocument(
+        document.schemaVersion(),
+        document.documentId(),
+        document.sources(),
+        document.requirements(),
+        new LogicalFlow(
+            steps,
+            prior.connections(),
+            prior.sequenceGroups(),
+            prior.conditionGroups(),
+            prior.splitGroups(),
+            prior.loopGroups(),
+            prior.retryGroups(),
+            prior.errorScopeGroups()),
+        document.progress());
+  }
+
+  private static WorkTaskPlanner.Task plannerTask(WorkTaskPlanner.Plan plan, String taskKey) {
+    return plan.tasks().stream().filter(item -> item.taskKey().equals(taskKey)).findFirst().orElseThrow();
   }
 
   private static LogicalStep step(ChainWorkDocument document, String id) {

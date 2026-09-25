@@ -64,8 +64,65 @@ public final class WorkDataOutline {
     checkCoverage(state, target, proposal);
     checkTransfers(state, targetStepId, producers, proposal);
     checkRetained(state, producers, proposal);
+    WorkDocumentState stamped = withPortHashes(state, loaded);
     return documents.applyOutline(
-        runId, scope(state, target, producers, proposal, loaded), proposal, commandId);
+        runId,
+        stamped,
+        scope(stamped, target, producers, proposal, loaded),
+        proposal,
+        commandId);
+  }
+
+  private static WorkDocumentState withPortHashes(WorkDocumentState state, List<ContractMaterial> contracts) {
+    List<LogicalStep> steps = new ArrayList<>();
+    for (LogicalStep step : state.document().flow().steps()) {
+      steps.add(stampHashes(step, contracts));
+    }
+    LogicalFlow flow = state.document().flow();
+    ChainWorkDocument document = state.document();
+    return WorkDocumentState.of(
+        new ChainWorkDocument(
+            document.schemaVersion(),
+            document.documentId(),
+            document.sources(),
+            document.requirements(),
+            new LogicalFlow(
+                steps,
+                flow.connections(),
+                flow.sequenceGroups(),
+                flow.conditionGroups(),
+                flow.splitGroups(),
+                flow.loopGroups(),
+                flow.retryGroups(),
+                flow.errorScopeGroups()),
+            document.progress()));
+  }
+
+  private static LogicalStep stampHashes(LogicalStep step, List<ContractMaterial> contracts) {
+    if (step.binding() == null) {
+      return step;
+    }
+    List<ResolvedWorkBinding.PortContentHash> hashes = new ArrayList<>();
+    for (ContractMaterial material : matches(step.binding(), contracts)) {
+      if (!(material instanceof ContractMaterial.Ready ready)) {
+        continue;
+      }
+      for (PortSchemaMaterial port : ready.ports()) {
+        if (port.contentHash() == null || port.contentHash().isBlank()) {
+          continue;
+        }
+        hashes.add(new ResolvedWorkBinding.PortContentHash(port.port(), port.contentHash()));
+      }
+    }
+    return new LogicalStep(
+        step.id(),
+        step.kind(),
+        step.label(),
+        step.intent(),
+        step.sourceIds(),
+        step.requirementIds(),
+        step.binding().withPortContentHashes(hashes),
+        step.data());
   }
 
   private void checkContracts(
