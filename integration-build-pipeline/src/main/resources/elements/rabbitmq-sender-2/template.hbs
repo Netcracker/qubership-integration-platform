@@ -10,7 +10,11 @@
     {{/if-property}}
     <process ref="messagingXHeadersPropagationProcessor"/>
 
-    <process ref="rabbitMqSenderProcessor" />
+    {{#if-property 'propagateContext' equals='false'}}
+        <removeHeader name="Authorization"/>
+    {{else}}
+        <process ref="rabbitMqSenderProcessor" />
+    {{/if-property}}
     <toD id="{{identifier}}" uri="rabbitmq-custom:{{property 'exchange'}}{{escape (query)}}&amp;metricsCollector=#{{identifier}}"/>
 
     <process ref="messagingXHeadersPropagationRestoreProcessor"/>

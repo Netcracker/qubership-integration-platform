@@ -257,6 +257,24 @@
         "id": {
           "$ref": "#/definitions/nonblankString"
         },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "Long",
+            "Short"
+          ]
+        },
+        "deployment": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Subject deployment for this scenario. Includes its transitive dependencies; omission loads all declared deployments."
+        },
         "endpointUri": {
           "anyOf": [
             {
@@ -365,7 +383,8 @@
         }
       },
       "required": [
-        "id"
+        "id",
+        "scope"
       ],
       "allOf": [
         {
@@ -923,7 +942,7 @@
         "key": {
           "anyOf": [
             {
-              "$ref": "#/definitions/nonblankString"
+              "type": "string"
             },
             {
               "type": "null"

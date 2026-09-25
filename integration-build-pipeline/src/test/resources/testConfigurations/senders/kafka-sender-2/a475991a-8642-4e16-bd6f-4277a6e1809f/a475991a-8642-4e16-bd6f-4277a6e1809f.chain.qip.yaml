@@ -16,8 +16,10 @@ content:
     properties:
       brokers: "kafka-custom"
       connectionSourceType: "manual"
-      key: "order-id"
+      key: "${exchangeProperty.kafkaKey}"
       keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      overrideContextParams:
+        X-Request-Id: "${exchangeProperty.outboundRequestId}"
       propagateContext: true
       saslMechanism: "GSSAPI"
       securityProtocol: "PLAINTEXT"

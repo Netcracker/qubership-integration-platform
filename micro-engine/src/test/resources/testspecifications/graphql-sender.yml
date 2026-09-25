@@ -1,0 +1,62 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+fixtures:
+  - id: "graphql-service-no-auth"
+    provider: "graphql-http"
+    sourceElementId: "28f2ed0d-ac14-4154-96ad-ac2adfdd7f21"
+  - id: "graphql-service-bearer"
+    provider: "graphql-http"
+    sourceElementId: "ed2f1f36-abee-4d88-bfce-757101d2bba5"
+scenarios:
+  - id: "sends-requests-with-and-without-bearer-authentication"
+    scope: Short
+    endpointUri: "cip-chain:b855fa07-94b9-49e0-89e3-f0fffcd59f4c"
+    expectedAbsentHeaders:
+      - "CamelGraphQLQuery"
+      - "CamelGraphQLVariables"
+    interactions:
+      - fixture: "graphql-service-no-auth"
+        response:
+          status: 200
+          headers:
+            Content-Type: "application/json"
+          body:
+            data:
+              greeting:
+                message: "Hello without authentication, QIP!"
+                recipient: "QIP"
+        expectedRequest:
+          count: 1
+          method: "POST"
+          path: "/graphql"
+          headers:
+            Accept: "application/json"
+            Authorization: null
+            Content-Type: "application/json"
+          body:
+            query: "query GreetingNoAuth($name: String!) { greeting(name: $name) { message recipient } }"
+            operationName: "GreetingNoAuth"
+            variables:
+              name: "QIP"
+      - fixture: "graphql-service-bearer"
+        response:
+          status: 200
+          headers:
+            Content-Type: "application/json"
+          body:
+            data:
+              greeting:
+                message: "Hello with authentication, QIP!"
+                recipient: "QIP"
+        expectedRequest:
+          count: 1
+          method: "POST"
+          path: "/graphql"
+          headers:
+            Accept: "application/json"
+            Authorization: "Bearer qip_test_only_graphql_19287b5cd73f5542995832195929ab7194c088c166195d79110c509ea4557ec4"
+            Content-Type: "application/json"
+          body:
+            query: "query Greeting($name: String!) { greeting(name: $name) { message recipient } }"
+            operationName: "Greeting"
+            variables:
+              name: "QIP"

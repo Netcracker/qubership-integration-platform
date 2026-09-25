@@ -11,4 +11,5 @@ maven_command=(mvn --batch-mode -Dgpg.skip=true)
 "${maven_command[@]}" "$@" -pl runtime-catalog -PsnapshotTests \
     -Dsnapshot.bundle.directory="$snapshot_bundle_directory" clean test
 "${maven_command[@]}" "$@" -pl micro-engine -PsnapshotTests \
+    -Dsnapshot.workers="${SNAPSHOT_WORKERS:-6}" \
     -Dsnapshot.bundle.directory="$snapshot_bundle_directory" clean test

@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+fixtures:
+  - id: "jms-broker"
+    provider: "artemis-jms-container"
+    sourceElementId: "89e76247-1a97-4bbf-a418-b0d4104c96e3"
+scenarios:
+  - id: "publishes-message"
+    scope: Short
+    endpointUri: "cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334"
+    body: "JMS message"
+    expectedBody: "JMS message"
+    interactions:
+      - fixture: "jms-broker"
+        expectedRequest:
+          count: 1
+          destination: "jms/BulkQuotationRequest/queue"
+          body: "JMS message"

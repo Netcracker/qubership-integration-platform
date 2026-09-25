@@ -83,6 +83,10 @@ class LogCaptureSnapshotFixtureProvider implements SnapshotFixtureProvider {
         @Override
         public void start() {
             recordingChainLogger.clear();
+        }
+
+        @Override
+        public void beforeRouteLoad(CamelContext camelContext) {
             MDC.remove(BusinessIds.BUSINESS_IDS);
         }
 

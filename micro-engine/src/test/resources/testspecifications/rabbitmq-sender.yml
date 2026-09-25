@@ -1,0 +1,3907 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+subject: rabbitmq-sender
+deployments:
+- id: rabbitmq-sender
+  route: rabbitmq-sender
+- id: rabbitmq-sender-broker
+  route: rabbitmq-sender-broker
+- id: rabbitmq-sender-maas
+  route: rabbitmq-sender-maas
+fixtures:
+- id: rabbitmq-broker
+  provider: rabbitmq-container
+  sourceElementId: 9425be17-d0e2-4081-8068-6b14e4cb433e
+  deployment: rabbitmq-sender
+- id: rabbitmq-no-context-broker
+  provider: rabbitmq-container
+  sourceElementId: f2fec252-829d-4d9d-832e-5744a7a993d9
+  deployment: rabbitmq-sender
+- id: rabbitmq-override-broker
+  provider: rabbitmq-container
+  sourceElementId: 585e2fbb-c303-4c2b-b588-7f7687ee7118
+  deployment: rabbitmq-sender
+- id: rabbitmq-routing-key-broker
+  provider: rabbitmq-container
+  sourceElementId: c0787d0f-b3bf-4ac3-9d6f-8498f4700c29
+  deployment: rabbitmq-sender
+- id: rabbitmq-failure-broker
+  provider: rabbitmq-container
+  sourceElementId: 6a17468d-7cfc-42a2-b322-2f4f4c312044
+  deployment: rabbitmq-sender-broker
+- id: rabbitmq-maas-broker
+  provider: rabbitmq-container
+  sourceElementId: 33323786-5bfe-46f2-b080-48a849b8a0be
+  deployment: rabbitmq-sender-maas
+scenarios:
+- id: publishes-messages-through-sender-variants
+  scope: Short
+  deployment: rabbitmq-sender
+  endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+  invocations:
+  - id: first
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: RabbitMQ message
+    headers:
+      Authorization: Bearer snapshot-first
+      X-Request-Id: incoming-first
+      X-Snapshot-Header: first
+    expectedBody: RabbitMQ message
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: RabbitMQ message
+        headers:
+          Authorization: null
+          X-Snapshot-Header: first
+          X-Request-Id: incoming-first
+      response:
+        properties:
+          expectedMessageProperties:
+            contentType: text/plain
+            contentEncoding: UTF-8
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: unicode
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: "Order received \u2014 caf\u00e9 \u2615"
+    headers:
+      Authorization: Bearer snapshot-unicode
+      X-Request-Id: incoming-unicode
+      X-Snapshot-Header: unicode
+    expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: "Order received \u2014 caf\u00e9 \u2615"
+        headers:
+          Authorization: null
+          X-Snapshot-Header: unicode
+          X-Request-Id: incoming-unicode
+      response:
+        properties:
+          expectedMessageProperties:
+            contentType: text/plain
+            contentEncoding: UTF-8
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: empty
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: ''
+    headers:
+      Authorization: Bearer snapshot-empty
+      X-Request-Id: incoming-empty
+      X-Snapshot-Header: empty
+    expectedBody: ''
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: ''
+        headers:
+          Authorization: null
+          X-Snapshot-Header: empty
+          X-Request-Id: incoming-empty
+      response:
+        properties:
+          expectedMessageProperties:
+            contentType: text/plain
+            contentEncoding: UTF-8
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: fresh-context
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: No previous headers
+    expectedBody: No previous headers
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: No previous headers
+        headers:
+          Authorization: null
+          X-Snapshot-Header: null
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: no-context-first
+    endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
+    body: RabbitMQ message without context
+    headers:
+      Authorization: Bearer snapshot-first
+      X-Request-Id: incoming-first
+      X-Snapshot-Header: first
+    expectedBody: RabbitMQ message without context
+    expectedHeaders:
+      X-Snapshot-Header: first
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: RabbitMQ message without context
+        headers:
+          Authorization: null
+          X-Request-Id: null
+          X-Snapshot-Header: first
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: second
+    endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
+    body: "Order received \u2014 caf\u00e9 \u2615"
+    headers:
+      Authorization: Bearer snapshot-second
+      X-Request-Id: incoming-second
+      X-Snapshot-Header: second
+    expectedBody: "Order received \u2014 caf\u00e9 \u2615"
+    expectedHeaders:
+      X-Snapshot-Header: second
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: "Order received \u2014 caf\u00e9 \u2615"
+        headers:
+          Authorization: null
+          X-Request-Id: null
+          X-Snapshot-Header: second
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: no-context-fresh-context
+    endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
+    body: No previous headers
+    expectedBody: No previous headers
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - X-Snapshot-Header
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: No previous headers
+        headers:
+          Authorization: null
+          X-Request-Id: null
+          X-Snapshot-Header: null
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: replaces-incoming-value
+    endpointUri: cip-chain:e33de23c-651b-4485-97a2-75f6cf796025
+    body: Configured context replaces incoming value
+    headers:
+      Authorization: Bearer replaces-incoming-value
+      X-Test-Param: incoming-first
+      X-Request-Id: replaces-incoming-value
+    expectedBody: Configured context replaces incoming value
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - X-Test-Param
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Configured context replaces incoming value
+        headers:
+          Authorization: null
+          X-Test-Param: test-value
+          X-Request-Id: replaces-incoming-value
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: null-body
+    endpointUri: cip-chain:e33de23c-651b-4485-97a2-75f6cf796025
+    body: null
+    headers:
+      Authorization: Bearer null-body
+      X-Test-Param: incoming-error
+      X-Request-Id: null-body
+    expectedBody: null
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - X-Test-Param
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: null
+        headers:
+          Authorization: null
+          X-Test-Param: test-value
+          X-Request-Id: null-body
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    expectedFailure:
+      type: org.springframework.amqp.support.converter.MessageConversionException
+      message: Cannot send message as message body is null, and option allowNullBody is false.
+      cause: null
+  - id: after-null-body
+    endpointUri: cip-chain:e33de23c-651b-4485-97a2-75f6cf796025
+    body: Context override after failed publication
+    headers:
+      Authorization: Bearer after-null-body
+      X-Test-Param: incoming-second
+      X-Request-Id: after-null-body
+    expectedBody: Context override after failed publication
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - X-Test-Param
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Context override after failed publication
+        headers:
+          Authorization: null
+          X-Test-Param: test-value
+          X-Request-Id: after-null-body
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: no-incoming-context
+    endpointUri: cip-chain:e33de23c-651b-4485-97a2-75f6cf796025
+    body: Context override without incoming context
+    headers:
+      Authorization: Bearer no-incoming-context
+    expectedBody: Context override without incoming context
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - X-Test-Param
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Context override without incoming context
+        headers:
+          Authorization: null
+          X-Test-Param: test-value
+      response:
+        properties:
+          expectedContextHeaders:
+            X-Request-Id: X-Request-Id
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: configured-key
+    endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
+    body: Message for configured-key
+    headers:
+      X-Request-Id: configured-key
+    expectedBody: Message for configured-key
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Message for configured-key
+        headers:
+          Authorization: null
+          X-Request-Id: configured-key
+          CamelSpringRabbitmqRoutingOverrideKey: null
+        key: orderId
+      response:
+        properties:
+          bindings:
+          - exchange: test
+            routingKey: priority
+          - exchange: test
+            routingKey: ''
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: override-key
+    endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
+    body: Message for override-key
+    headers:
+      X-Request-Id: override-key
+      CamelSpringRabbitmqRoutingOverrideKey: priority
+    expectedBody: Message for override-key
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Message for override-key
+        headers:
+          Authorization: null
+          X-Request-Id: override-key
+          CamelSpringRabbitmqRoutingOverrideKey: null
+        key: priority
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: configured-key-after-override
+    endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
+    body: Message for configured-key-after-override
+    headers:
+      X-Request-Id: configured-key-after-override
+    expectedBody: Message for configured-key-after-override
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Message for configured-key-after-override
+        headers:
+          Authorization: null
+          X-Request-Id: configured-key-after-override
+          CamelSpringRabbitmqRoutingOverrideKey: null
+        key: orderId
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: empty-override
+    endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
+    body: Message for empty-override
+    headers:
+      X-Request-Id: empty-override
+      CamelSpringRabbitmqRoutingOverrideKey: ''
+    expectedBody: Message for empty-override
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Message for empty-override
+        headers:
+          Authorization: null
+          X-Request-Id: empty-override
+          CamelSpringRabbitmqRoutingOverrideKey: null
+        key: ''
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: configured-key-after-empty-override
+    endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
+    body: Message for configured-key-after-empty-override
+    headers:
+      X-Request-Id: configured-key-after-empty-override
+    expectedBody: Message for configured-key-after-empty-override
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Message for configured-key-after-empty-override
+        headers:
+          Authorization: null
+          X-Request-Id: configured-key-after-empty-override
+          CamelSpringRabbitmqRoutingOverrideKey: null
+        key: orderId
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: unbound-override
+    endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
+    body: Message for unbound-override
+    headers:
+      X-Request-Id: unbound-override
+      CamelSpringRabbitmqRoutingOverrideKey: unbound
+    expectedBody: Message for unbound-override
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Message for unbound-override
+        headers:
+          Authorization: null
+          X-Request-Id: unbound-override
+        key: unbound
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: configured-key-after-unbound-override
+    endpointUri: cip-chain:88d981e3-8fc9-4122-aacf-d21738b86e69
+    body: Message for configured-key-after-unbound-override
+    headers:
+      X-Request-Id: configured-key-after-unbound-override
+    expectedBody: Message for configured-key-after-unbound-override
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Message for configured-key-after-unbound-override
+        headers:
+          Authorization: null
+          X-Request-Id: configured-key-after-unbound-override
+          CamelSpringRabbitmqRoutingOverrideKey: null
+        key: orderId
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+- id: publishes-messages-with-routing-and-context-and-recovers
+  scope: Long
+  deployment: rabbitmq-sender
+  endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+  invocations:
+  - id: all-byte-values
+    body: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        bodyType: bytes
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyBase64: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8gISIjJCUmJygpKissLS4vMDEyMzQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTk9QUVJTVFVWV1hZWltcXV5fYGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn+AgYKDhIWGh4iJiouMjY6PkJGSk5SVlpeYmZqbnJ2en6ChoqOkpaanqKmqq6ytrq+wsbKztLW2t7i5uru8vb6/wMHCw8TFxsfIycrLzM3Oz9DR0tPU1dbX2Nna29zd3t/g4eLj5OXm5+jp6uvs7e7v8PHy8/T19vf4+fr7/P3+/w==
+          expectedBodyLength: 256
+          expectedMessageProperties:
+            contentType: application/octet-stream
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: empty-bytes
+    body: ''
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        bodyType: bytes
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyBase64: ''
+          expectedBodyLength: 0
+          expectedMessageProperties:
+            contentType: application/octet-stream
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: buffer
+    body: 00ff80c32800
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        bodyType: byte-buffer
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyBase64: AP+AwygA
+          expectedBodyLength: 6
+          expectedMessageProperties:
+            contentType: application/octet-stream
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: stream
+    body: 00ff8073747265616d00
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        bodyType: input-stream
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyBase64: AP+Ac3RyZWFtAA==
+          expectedBodyLength: 10
+          expectedMessageProperties:
+            contentType: application/octet-stream
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: empty-stream
+    body: ''
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        bodyType: input-stream
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyBase64: ''
+          expectedBodyLength: 0
+          expectedMessageProperties:
+            contentType: application/octet-stream
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: text-after-streams
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Readable after binary values
+    expectedBody: Readable after binary values
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Readable after binary values
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedMessageProperties:
+            contentType: text/plain
+            contentEncoding: UTF-8
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: explicit-properties
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: '{"order":17}'
+    headers:
+      CamelSpringRabbitmqMessageId: message-17
+      CamelSpringRabbitmqCorrelationId: correlation-42
+      CamelSpringRabbitmqReplyTo: snapshot-replies
+      CamelSpringRabbitmqExpiration: '600000'
+      CamelSpringRabbitmqAppId: snapshot-app
+      CamelSpringRabbitmqType: order.created
+      CamelSpringRabbitmqPriority: 7
+      CamelSpringRabbitmqDeliveryMode: NON_PERSISTENT
+      CamelSpringRabbitmqContentType: application/json
+      CamelSpringRabbitmqContentEncoding: UTF-8
+      CamelSpringRabbitmqUserId: snapshot
+      CamelSpringRabbitmqClusterId: snapshot-cluster
+    expectedBody: '{"order":17}'
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: '{"order":17}'
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqMessageId: null
+          CamelSpringRabbitmqCorrelationId: null
+          CamelSpringRabbitmqReplyTo: null
+          CamelSpringRabbitmqExpiration: null
+          CamelSpringRabbitmqAppId: null
+          CamelSpringRabbitmqType: null
+          CamelSpringRabbitmqPriority: null
+          CamelSpringRabbitmqDeliveryMode: null
+          CamelSpringRabbitmqContentType: null
+          CamelSpringRabbitmqContentEncoding: null
+          CamelSpringRabbitmqUserId: null
+          CamelSpringRabbitmqClusterId: null
+      response:
+        properties:
+          expectedMessageProperties:
+            messageId: message-17
+            correlationId: correlation-42
+            replyTo: snapshot-replies
+            expiration: '600000'
+            appId: snapshot-app
+            type: order.created
+            priority: 7
+            deliveryMode: 1
+            contentType: application/json
+            contentEncoding: UTF-8
+            userId: snapshot
+            clusterId: snapshot-cluster
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: persistent
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Persistent message
+    headers:
+      CamelSpringRabbitmqDeliveryMode: PERSISTENT
+      CamelSpringRabbitmqPriority: '3'
+    expectedBody: Persistent message
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Persistent message
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedMessageProperties:
+            deliveryMode: 2
+            priority: 3
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: default-properties
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Default properties
+    expectedBody: Default properties
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Default properties
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedMessageProperties:
+            messageId: null
+            correlationId: null
+            replyTo: null
+            expiration: null
+            appId: null
+            type: null
+            userId: null
+            clusterId: null
+            timestamp: null
+            contentType: text/plain
+            contentEncoding: UTF-8
+            deliveryMode: 2
+            priority: 0
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: typed-headers
+    body: Typed headers
+    headers:
+      X-Text: "caf\u00e9"
+      X-Boolean: true
+      X-Integer: -2147483648
+      X-Long: 9223372036854775807
+      X-Double: 1.25
+      X-Bytes: 00ff80c328
+      X-List:
+      - first
+      - 2
+      - true
+      X-Map:
+        nested: value
+        number: 3
+      CamelSnapshotInternal: hidden
+      content-type: ignored/type
+      content-encoding: ignored-encoding
+      content-length: 999
+    driver:
+      provider: typedHeaders
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        headerTypes:
+          X-Bytes: bytes
+          X-Integer: integer
+          X-Long: long
+          X-Double: double
+    expectedBody: Typed headers
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+      internalOnly: not-a-message-header
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Typed headers
+        headers:
+          Authorization: null
+          X-Text: "caf\u00e9"
+          X-Boolean: true
+          X-Integer: -2147483648
+          X-Long: 9223372036854775807
+          X-Double: 1.25
+          X-Bytes: AP+Awyg=
+          X-List:
+          - first
+          - 2
+          - true
+          X-Map:
+            nested: value
+            number: 3
+          CamelSnapshotInternal: null
+          content-type: null
+          content-encoding: null
+          content-length: null
+          internalOnly: null
+        properties:
+          internalOnly: not-a-message-header
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    properties:
+      internalOnly: not-a-message-header
+  - id: no-previous-headers
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Fresh headers
+    expectedBody: Fresh headers
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Fresh headers
+        headers:
+          Authorization: null
+          X-Text: null
+          X-Boolean: null
+          X-Integer: null
+          X-Long: null
+          X-Double: null
+          X-Bytes: null
+          X-List: null
+          X-Map: null
+          CamelSnapshotInternal: null
+          content-type: null
+          content-encoding: null
+          content-length: null
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: alternate-exchange
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Alternate exchange
+    headers:
+      CamelSpringRabbitmqExchangeOverrideName: snapshot-alternate
+      CamelSpringRabbitmqRoutingOverrideKey: orders.created
+    expectedBody: Alternate exchange
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqExchangeOverrideName
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: snapshot-alternate
+        key: orders.created
+        body: Alternate exchange
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          CamelSpringRabbitmqExchangeName: null
+          CamelSpringRabbitmqRoutingKey: null
+      response:
+        properties:
+          bindings:
+          - exchange: snapshot-alternate
+            routingKey: orders.created
+          - exchange: test
+            routingKey: priority
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: routing-key-only
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Alternate routing key
+    headers:
+      CamelSpringRabbitmqRoutingOverrideKey: priority
+    expectedBody: Alternate routing key
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqExchangeOverrideName
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        key: priority
+        body: Alternate routing key
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          CamelSpringRabbitmqExchangeName: null
+          CamelSpringRabbitmqRoutingKey: null
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: original-destination
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Original destination
+    expectedBody: Original destination
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqExchangeOverrideName
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Original destination
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          CamelSpringRabbitmqExchangeName: null
+          CamelSpringRabbitmqRoutingKey: null
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: consumer-headers-do-not-override
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Consumer headers are ignored
+    headers:
+      CamelSpringRabbitmqExchangeName: does-not-exist
+      CamelSpringRabbitmqRoutingKey: unbound
+    expectedBody: Consumer headers are ignored
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqExchangeOverrideName
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Consumer headers are ignored
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          CamelSpringRabbitmqExchangeName: null
+          CamelSpringRabbitmqRoutingKey: null
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: unbound-key
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: No bound queue
+    headers:
+      CamelSpringRabbitmqRoutingOverrideKey: unbound
+    expectedBody: No bound queue
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqExchangeOverrideName
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        key: unbound
+        body: No bound queue
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: unbound
+          CamelSpringRabbitmqExchangeName: null
+          CamelSpringRabbitmqRoutingKey: null
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: after-unbound-key
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Routed after unbound key
+    expectedBody: Routed after unbound key
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqExchangeOverrideName
+    - CamelSpringRabbitmqRoutingOverrideKey
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Routed after unbound key
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          CamelSpringRabbitmqExchangeName: null
+          CamelSpringRabbitmqRoutingKey: null
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: latin1
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: "caf\u00e9 d\u00e9j\u00e0 vu"
+    headers:
+      CamelSpringRabbitmqContentEncoding: ISO-8859-1
+    expectedBody: "caf\u00e9 d\u00e9j\u00e0 vu"
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: "caf\u00e9 d\u00e9j\u00e0 vu"
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyBase64: Y2Fm6SBk6WrgIHZ1
+          expectedBodyLength: 12
+          expectedMessageProperties:
+            contentEncoding: ISO-8859-1
+            contentType: text/plain
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: utf16
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: "Order \u2615"
+    headers:
+      CamelSpringRabbitmqContentEncoding: UTF-16LE
+    expectedBody: "Order \u2615"
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: "Order \u2615"
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyBase64: TwByAGQAZQByACAAFSY=
+          expectedBodyLength: 14
+          expectedMessageProperties:
+            contentEncoding: UTF-16LE
+            contentType: text/plain
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: multiple-frames
+    body: x
+    driver:
+      provider: repeatedBody
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        repeat: 204800
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyLength: 204800
+          expectedBodySha256: 5d4abf60daba0b11555b6da942dd4f40d5f99ee617e14ba4ba686b47d75a5049
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: default-encoding-after-overrides
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: "UTF-8 again: caf\u00e9"
+    expectedBody: "UTF-8 again: caf\u00e9"
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: "UTF-8 again: caf\u00e9"
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyBase64: VVRGLTggYWdhaW46IGNhZsOp
+          expectedBodyLength: 18
+          expectedMessageProperties:
+            contentEncoding: UTF-8
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: null-body
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: null
+    headers:
+      Authorization: Bearer null-body
+      X-Request-Id: incoming-null-body
+    expectedBody: null
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: org.springframework.amqp.support.converter.MessageConversionException
+      message: Cannot send message as message body is null, and option allowNullBody is false.
+      cause: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: null
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-null-body
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: after-null-body
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Accepted after null-body
+    headers:
+      Authorization: Bearer after-null-body
+      X-Request-Id: after-null-body
+    expectedBody: Accepted after null-body
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after null-body
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqContentEncoding: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          X-Request-Id: after-null-body
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: invalid-charset
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Bad encoding
+    headers:
+      CamelSpringRabbitmqContentEncoding: snapshot-invalid-charset
+      Authorization: Bearer invalid-charset
+      X-Request-Id: incoming-invalid-charset
+    expectedBody: Bad encoding
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: org.springframework.amqp.support.converter.MessageConversionException
+      message: failed to convert to byte[] for rabbitmq message
+      cause:
+        type: java.io.UnsupportedEncodingException
+        message: snapshot-invalid-charset
+        cause: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Bad encoding
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-invalid-charset
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: after-invalid-charset
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Accepted after invalid-charset
+    headers:
+      Authorization: Bearer after-invalid-charset
+      X-Request-Id: after-invalid-charset
+    expectedBody: Accepted after invalid-charset
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after invalid-charset
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqContentEncoding: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          X-Request-Id: after-invalid-charset
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: invalid-exchange-type
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Bad exchange type
+    headers:
+      CamelSpringRabbitmqExchangeOverrideName: 17
+      Authorization: Bearer invalid-exchange-type
+      X-Request-Id: incoming-invalid-exchange-type
+    expectedBody: Bad exchange type
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: java.lang.ClassCastException
+      message: class java.lang.Integer cannot be cast to class java.lang.String (java.lang.Integer and java.lang.String are
+        in module java.base of loader 'bootstrap')
+      cause: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Bad exchange type
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-invalid-exchange-type
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: after-invalid-exchange-type
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Accepted after invalid-exchange-type
+    headers:
+      Authorization: Bearer after-invalid-exchange-type
+      X-Request-Id: after-invalid-exchange-type
+    expectedBody: Accepted after invalid-exchange-type
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after invalid-exchange-type
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqContentEncoding: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          X-Request-Id: after-invalid-exchange-type
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: invalid-routing-key-type
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Bad routing key type
+    headers:
+      CamelSpringRabbitmqRoutingOverrideKey: 23
+      Authorization: Bearer invalid-routing-key-type
+      X-Request-Id: incoming-invalid-routing-key-type
+    expectedBody: Bad routing key type
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: java.lang.ClassCastException
+      message: class java.lang.Integer cannot be cast to class java.lang.String (java.lang.Integer and java.lang.String are
+        in module java.base of loader 'bootstrap')
+      cause: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Bad routing key type
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-invalid-routing-key-type
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: after-invalid-routing-key-type
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Accepted after invalid-routing-key-type
+    headers:
+      Authorization: Bearer after-invalid-routing-key-type
+      X-Request-Id: after-invalid-routing-key-type
+    expectedBody: Accepted after invalid-routing-key-type
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after invalid-routing-key-type
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqContentEncoding: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          X-Request-Id: after-invalid-routing-key-type
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: first-generated-id
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: A fresh request ID for first-generated-id
+    headers:
+      Authorization: Bearer first-generated-id
+    expectedBody: A fresh request ID for first-generated-id
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: A fresh request ID for first-generated-id
+        headers:
+          Authorization: null
+          X-Snapshot-Header: null
+      response:
+        properties:
+          expectedContextHeaders:
+            X-Request-Id: X-Request-Id
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: second-generated-id
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: A fresh request ID for second-generated-id
+    headers:
+      Authorization: Bearer second-generated-id
+    expectedBody: A fresh request ID for second-generated-id
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: A fresh request ID for second-generated-id
+        headers:
+          Authorization: null
+          X-Snapshot-Header: null
+      response:
+        properties:
+          expectedContextHeaders:
+            X-Request-Id: X-Request-Id
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: first-version
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Message with v1
+    headers:
+      X-Request-Id: first-version
+      X-Version: v1
+    expectedBody: Message with v1
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Message with v1
+        headers:
+          Authorization: null
+          X-Request-Id: first-version
+          X-Version: v1
+          version: v1
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: second-version
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Message with v2
+    headers:
+      X-Request-Id: second-version
+      X-Version: v2
+    expectedBody: Message with v2
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Message with v2
+        headers:
+          Authorization: null
+          X-Request-Id: second-version
+          X-Version: v2
+          version: v2
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: no-version-context
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Message without a previous version
+    headers:
+      X-Request-Id: no-version-context
+    expectedBody: Message without a previous version
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Message without a previous version
+        headers:
+          Authorization: null
+          X-Request-Id: no-version-context
+          X-Version: null
+          version: null
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: positive-timestamp
+    body: AMQP timestamp in seconds
+    headers:
+      CamelSpringRabbitmqTimestamp: 1700000000123
+    expectedBody: AMQP timestamp in seconds
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: AMQP timestamp in seconds
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqTimestamp: null
+      response:
+        properties:
+          expectedMessageProperties:
+            timestamp: 1700000000000
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    driver:
+      provider: typedHeaders
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        headerTypes:
+          CamelSpringRabbitmqTimestamp: date
+  - id: without-timestamp
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: No timestamp on the next message
+    expectedBody: No timestamp on the next message
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: No timestamp on the next message
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqTimestamp: null
+      response:
+        properties:
+          expectedMessageProperties:
+            timestamp: null
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: empty-buffer
+    body: ''
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        headers:
+          Authorization: null
+      response:
+        properties:
+          expectedBodyBase64: ''
+          expectedBodyLength: 0
+          expectedMessageProperties:
+            contentType: application/octet-stream
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        bodyType: byte-buffer
+  - id: integer-body
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: 42
+    headers:
+      Authorization: Bearer integer-body
+      X-Request-Id: integer-body
+    expectedBody: 42
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: 42
+        headers:
+          Authorization: null
+          X-Request-Id: integer-body
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    expectedFailure:
+      type: org.springframework.amqp.support.converter.MessageConversionException
+      message: failed to convert to byte[] for rabbitmq message
+      cause:
+        type: org.apache.camel.NoTypeConversionAvailableException
+        message: 'No type converter available to convert from type: java.lang.Integer to the required type: byte[]'
+        cause: null
+  - id: after-integer-body
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Accepted after integer-body
+    headers:
+      X-Request-Id: after-integer-body
+    expectedBody: Accepted after integer-body
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after integer-body
+        headers:
+          Authorization: null
+          X-Request-Id: after-integer-body
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: boolean-body
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: true
+    headers:
+      Authorization: Bearer boolean-body
+      X-Request-Id: boolean-body
+    expectedBody: true
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: true
+        headers:
+          Authorization: null
+          X-Request-Id: boolean-body
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    expectedFailure:
+      type: org.springframework.amqp.support.converter.MessageConversionException
+      message: failed to convert to byte[] for rabbitmq message
+      cause:
+        type: org.apache.camel.NoTypeConversionAvailableException
+        message: 'No type converter available to convert from type: java.lang.Boolean to the required type: byte[]'
+        cause: null
+  - id: after-boolean-body
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Accepted after boolean-body
+    headers:
+      X-Request-Id: after-boolean-body
+    expectedBody: Accepted after boolean-body
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after boolean-body
+        headers:
+          Authorization: null
+          X-Request-Id: after-boolean-body
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: positioned-buffer
+    body: '00010203'
+    headers:
+      Authorization: Bearer positioned-buffer
+      X-Request-Id: positioned-buffer
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        headers:
+          Authorization: null
+          X-Request-Id: positioned-buffer
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+        bodyType: byte-buffer
+        bufferPosition: 2
+    expectedFailure:
+      type: org.apache.camel.TypeConversionException
+      message: 'Error during type conversion from type: java.nio.HeapByteBuffer to the required type: byte[] with value java.nio.HeapByteBuffer[pos=2
+        lim=4 cap=4] due to java.nio.BufferUnderflowException: null'
+      cause:
+        type: java.nio.BufferUnderflowException
+        message: null
+        cause: null
+  - id: after-positioned-buffer
+    endpointUri: cip-chain:95160f10-b129-44e0-8fef-8afeedbf8b5e
+    body: Accepted after positioned buffer
+    headers:
+      X-Request-Id: after-positioned-buffer
+    expectedBody: Accepted after positioned buffer
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after positioned buffer
+        headers:
+          Authorization: null
+          X-Request-Id: after-positioned-buffer
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: no-context-null-body
+    endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
+    body: null
+    headers:
+      Authorization: Bearer null-body
+      X-Request-Id: incoming-null-body
+    expectedBody: null
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: org.springframework.amqp.support.converter.MessageConversionException
+      message: Cannot send message as message body is null, and option allowNullBody is false.
+      cause: null
+    interactions:
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: null
+        headers:
+          Authorization: null
+          X-Request-Id: null
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: no-context-after-null-body
+    endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
+    body: Accepted after null-body
+    headers:
+      Authorization: Bearer after-null-body
+      X-Request-Id: after-null-body
+    expectedBody: Accepted after null-body
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after null-body
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqContentEncoding: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          X-Request-Id: null
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: no-context-invalid-charset
+    endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
+    body: Bad encoding
+    headers:
+      CamelSpringRabbitmqContentEncoding: snapshot-invalid-charset
+      Authorization: Bearer invalid-charset
+      X-Request-Id: incoming-invalid-charset
+    expectedBody: Bad encoding
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: org.springframework.amqp.support.converter.MessageConversionException
+      message: failed to convert to byte[] for rabbitmq message
+      cause:
+        type: java.io.UnsupportedEncodingException
+        message: snapshot-invalid-charset
+        cause: null
+    interactions:
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Bad encoding
+        headers:
+          Authorization: null
+          X-Request-Id: null
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+  - id: no-context-after-invalid-charset
+    endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
+    body: Accepted after invalid-charset
+    headers:
+      Authorization: Bearer after-invalid-charset
+      X-Request-Id: after-invalid-charset
+    expectedBody: Accepted after invalid-charset
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-no-context-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after invalid-charset
+        headers:
+          Authorization: null
+          CamelSpringRabbitmqContentEncoding: null
+          CamelSpringRabbitmqExchangeOverrideName: null
+          CamelSpringRabbitmqRoutingOverrideKey: null
+          X-Request-Id: null
+    - fixture: rabbitmq-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-override-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: rabbitmq-routing-key-broker
+      expectedRequest:
+        count: 0
+        destination: test
+      response:
+        properties:
+          expectedSendCount: 0
+- id: recovers-after-credential-permission-and-broker-failures
+  scope: Long
+  deployment: rabbitmq-sender-broker
+  endpointUri: cip-chain:68ef6d16-3fe7-4cfc-b9a9-5248b34f56fb
+  invocations:
+  - id: before-password-change
+    body: Accepted with configured credentials
+    headers:
+      Authorization: Bearer snapshot-before-password-change
+      X-Request-Id: incoming-before-password-change
+      X-Snapshot-Header: before-password-change
+    expectedBody: Accepted with configured credentials
+    expectedHeaders:
+      X-Snapshot-Header: before-password-change
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted with configured credentials
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-before-password-change
+          X-Snapshot-Header: before-password-change
+  - id: invalid-password
+    body: Rejected with the old password
+    headers:
+      Authorization: Bearer snapshot-invalid-password
+      X-Request-Id: incoming-invalid-password
+      X-Snapshot-Header: invalid-password
+    expectedBody: Rejected with the old password
+    expectedHeaders:
+      X-Snapshot-Header: invalid-password
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: org.springframework.amqp.AmqpAuthenticationException
+      message: 'com.rabbitmq.client.AuthenticationFailureException: ACCESS_REFUSED - Login was refused using authentication
+        mechanism PLAIN. For details see the broker logfile.'
+      cause:
+        type: com.rabbitmq.client.AuthenticationFailureException
+        message: ACCESS_REFUSED - Login was refused using authentication mechanism PLAIN. For details see the broker
+          logfile.
+        cause: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Rejected with the old password
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-invalid-password
+          X-Snapshot-Header: invalid-password
+      response:
+        properties:
+          brokerAction:
+            action: change-password
+            username: snapshot-sender
+            password: changed-password
+  - id: restored-password
+    body: Accepted after password restoration
+    headers:
+      Authorization: Bearer snapshot-restored-password
+      X-Request-Id: incoming-restored-password
+      X-Snapshot-Header: restored-password
+    expectedBody: Accepted after password restoration
+    expectedHeaders:
+      X-Snapshot-Header: restored-password
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after password restoration
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-restored-password
+          X-Snapshot-Header: restored-password
+      response:
+        properties:
+          brokerAction:
+            action: restore-password
+            username: snapshot-sender
+            password: snapshot
+  - id: before-user-deletion
+    body: Accepted before user deletion
+    headers:
+      Authorization: Bearer snapshot-before-user-deletion
+      X-Request-Id: incoming-before-user-deletion
+      X-Snapshot-Header: before-user-deletion
+    expectedBody: Accepted before user deletion
+    expectedHeaders:
+      X-Snapshot-Header: before-user-deletion
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted before user deletion
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-before-user-deletion
+          X-Snapshot-Header: before-user-deletion
+  - id: unknown-user
+    body: Rejected after user deletion
+    headers:
+      Authorization: Bearer snapshot-unknown-user
+      X-Request-Id: incoming-unknown-user
+      X-Snapshot-Header: unknown-user
+    expectedBody: Rejected after user deletion
+    expectedHeaders:
+      X-Snapshot-Header: unknown-user
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: org.springframework.amqp.AmqpAuthenticationException
+      message: 'com.rabbitmq.client.AuthenticationFailureException: ACCESS_REFUSED - Login was refused using authentication
+        mechanism PLAIN. For details see the broker logfile.'
+      cause:
+        type: com.rabbitmq.client.AuthenticationFailureException
+        message: ACCESS_REFUSED - Login was refused using authentication mechanism PLAIN. For details see the broker
+          logfile.
+        cause: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Rejected after user deletion
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-unknown-user
+          X-Snapshot-Header: unknown-user
+      response:
+        properties:
+          brokerAction:
+            action: delete-user
+            username: snapshot-sender
+  - id: restored-user
+    body: Accepted after user restoration
+    headers:
+      Authorization: Bearer snapshot-restored-user
+      X-Request-Id: incoming-restored-user
+      X-Snapshot-Header: restored-user
+    expectedBody: Accepted after user restoration
+    expectedHeaders:
+      X-Snapshot-Header: restored-user
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after user restoration
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-restored-user
+          X-Snapshot-Header: restored-user
+      response:
+        properties:
+          brokerAction:
+            action: restore-user
+            username: snapshot-sender
+            password: snapshot
+            vhost: /snapshot-sender
+  - id: before-access-revocation
+    body: Accepted in the configured virtual host
+    headers:
+      Authorization: Bearer snapshot-before-access-revocation
+      X-Request-Id: incoming-before-access-revocation
+      X-Snapshot-Header: before-access-revocation
+    expectedBody: Accepted in the configured virtual host
+    expectedHeaders:
+      X-Snapshot-Header: before-access-revocation
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted in the configured virtual host
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-before-access-revocation
+          X-Snapshot-Header: before-access-revocation
+  - id: denied-vhost
+    body: Rejected without virtual host access
+    headers:
+      Authorization: Bearer snapshot-denied-vhost
+      X-Request-Id: incoming-denied-vhost
+      X-Snapshot-Header: denied-vhost
+    expectedBody: Rejected without virtual host access
+    expectedHeaders:
+      X-Snapshot-Header: denied-vhost
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: org.springframework.amqp.AmqpIOException
+      message: java.io.IOException
+      cause:
+        type: java.io.IOException
+        message: null
+        cause:
+          type: com.rabbitmq.client.ShutdownSignalException
+          message: 'connection error; protocol method: #method<connection.close>(reply-code=530, reply-text=NOT_ALLOWED
+            - access to vhost ''/snapshot-sender'' refused for user ''snapshot-sender'', class-id=10, method-id=40)'
+          cause: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Rejected without virtual host access
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-denied-vhost
+          X-Snapshot-Header: denied-vhost
+      response:
+        properties:
+          brokerAction:
+            action: deny-vhost
+            username: snapshot-sender
+            vhost: /snapshot-sender
+  - id: restored-vhost
+    body: Accepted after virtual host access restoration
+    headers:
+      Authorization: Bearer snapshot-restored-vhost
+      X-Request-Id: incoming-restored-vhost
+      X-Snapshot-Header: restored-vhost
+    expectedBody: Accepted after virtual host access restoration
+    expectedHeaders:
+      X-Snapshot-Header: restored-vhost
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after virtual host access restoration
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-restored-vhost
+          X-Snapshot-Header: restored-vhost
+      response:
+        properties:
+          brokerAction:
+            action: restore-vhost
+            username: snapshot-sender
+            vhost: /snapshot-sender
+  - id: before-disconnect
+    body: Accepted before broker disconnect
+    headers:
+      Authorization: Bearer snapshot-before-disconnect
+      X-Request-Id: incoming-before-disconnect
+      X-Snapshot-Header: before-disconnect
+    expectedBody: Accepted before broker disconnect
+    expectedHeaders:
+      X-Snapshot-Header: before-disconnect
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted before broker disconnect
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-before-disconnect
+          X-Snapshot-Header: before-disconnect
+  - id: new-connection
+    body: Accepted over a new connection
+    headers:
+      Authorization: Bearer snapshot-new-connection
+      X-Request-Id: incoming-new-connection
+      X-Snapshot-Header: new-connection
+    expectedBody: Accepted over a new connection
+    expectedHeaders:
+      X-Snapshot-Header: new-connection
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted over a new connection
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-new-connection
+          X-Snapshot-Header: new-connection
+      response:
+        properties:
+          brokerAction:
+            action: close-connections
+            username: snapshot-sender
+          expectedChannelCloseCode: 320
+  - id: after-disconnect
+    body: Accepted after reconnect
+    headers:
+      Authorization: Bearer snapshot-after-disconnect
+      X-Request-Id: incoming-after-disconnect
+      X-Snapshot-Header: after-disconnect
+    expectedBody: Accepted after reconnect
+    expectedHeaders:
+      X-Snapshot-Header: after-disconnect
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after reconnect
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-after-disconnect
+          X-Snapshot-Header: after-disconnect
+  - id: before-stop
+    body: Accepted before broker stop
+    headers:
+      Authorization: Bearer snapshot-before-stop
+      X-Request-Id: incoming-before-stop
+      X-Snapshot-Header: before-stop
+    expectedBody: Accepted before broker stop
+    expectedHeaders:
+      X-Snapshot-Header: before-stop
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted before broker stop
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-before-stop
+          X-Snapshot-Header: before-stop
+  - id: stopped-broker
+    body: Rejected while the broker is stopped
+    headers:
+      Authorization: Bearer snapshot-stopped-broker
+      X-Request-Id: incoming-stopped-broker
+      X-Snapshot-Header: stopped-broker
+    expectedBody: Rejected while the broker is stopped
+    expectedHeaders:
+      X-Snapshot-Header: stopped-broker
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    expectedFailure:
+      type: org.springframework.amqp.AmqpIOException
+      message: java.io.IOException
+      cause:
+        type: java.io.IOException
+        message: null
+        cause:
+          type: com.rabbitmq.client.ShutdownSignalException
+          message: connection error
+          cause:
+            type: java.io.EOFException
+            message: null
+            cause: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Rejected while the broker is stopped
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-stopped-broker
+          X-Snapshot-Header: stopped-broker
+      response:
+        properties:
+          brokerAction:
+            action: stop
+  - id: restarted-broker
+    body: Accepted after broker restart
+    headers:
+      Authorization: Bearer snapshot-restarted-broker
+      X-Request-Id: incoming-restarted-broker
+      X-Snapshot-Header: restarted-broker
+    expectedBody: Accepted after broker restart
+    expectedHeaders:
+      X-Snapshot-Header: restarted-broker
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after broker restart
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-restarted-broker
+          X-Snapshot-Header: restarted-broker
+      response:
+        properties:
+          brokerAction:
+            action: start
+  - id: after-restart
+    body: Accepted on the recovered connection
+    headers:
+      Authorization: Bearer snapshot-after-restart
+      X-Request-Id: incoming-after-restart
+      X-Snapshot-Header: after-restart
+    expectedBody: Accepted on the recovered connection
+    expectedHeaders:
+      X-Snapshot-Header: after-restart
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted on the recovered connection
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-after-restart
+          X-Snapshot-Header: after-restart
+  - id: before-missing-exchange
+    body: Accepted before missing exchange
+    headers:
+      Authorization: Bearer snapshot-before-missing-exchange
+      X-Request-Id: incoming-before-missing-exchange
+      X-Snapshot-Header: before-missing-exchange
+    expectedBody: Accepted before missing exchange
+    expectedHeaders:
+      X-Snapshot-Header: before-missing-exchange
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted before missing exchange
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-before-missing-exchange
+          X-Snapshot-Header: before-missing-exchange
+  - id: missing-exchange
+    body: Rejected by missing exchange
+    headers:
+      Authorization: Bearer snapshot-missing-exchange
+      X-Request-Id: incoming-missing-exchange
+      X-Snapshot-Header: missing-exchange
+      CamelSpringRabbitmqExchangeOverrideName: snapshot-missing-exchange
+    expectedBody: Rejected by missing exchange
+    expectedHeaders:
+      X-Snapshot-Header: missing-exchange
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    - CamelSpringRabbitmqExchangeOverrideName
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 0
+        destination: snapshot-missing-exchange
+        body: Rejected by missing exchange
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-missing-exchange
+          X-Snapshot-Header: missing-exchange
+      response:
+        properties:
+          expectedChannelCloseCode: 404
+  - id: after-missing-exchange
+    body: Accepted on a replacement channel
+    headers:
+      Authorization: Bearer snapshot-after-missing-exchange
+      X-Request-Id: incoming-after-missing-exchange
+      X-Snapshot-Header: after-missing-exchange
+    expectedBody: Accepted on a replacement channel
+    expectedHeaders:
+      X-Snapshot-Header: after-missing-exchange
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted on a replacement channel
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-after-missing-exchange
+          X-Snapshot-Header: after-missing-exchange
+  - id: before-write-revocation
+    body: Accepted before write revocation
+    headers:
+      Authorization: Bearer snapshot-before-write-revocation
+      X-Request-Id: incoming-before-write-revocation
+      X-Snapshot-Header: before-write-revocation
+    expectedBody: Accepted before write revocation
+    expectedHeaders:
+      X-Snapshot-Header: before-write-revocation
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted before write revocation
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-before-write-revocation
+          X-Snapshot-Header: before-write-revocation
+  - id: denied-write
+    body: Rejected without write permission
+    headers:
+      Authorization: Bearer snapshot-denied-write
+      X-Request-Id: incoming-denied-write
+      X-Snapshot-Header: denied-write
+    expectedBody: Rejected without write permission
+    expectedHeaders:
+      X-Snapshot-Header: denied-write
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 0
+        destination: test
+        body: Rejected without write permission
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-denied-write
+          X-Snapshot-Header: denied-write
+      response:
+        properties:
+          brokerAction:
+            action: deny-write
+            username: snapshot-sender
+            vhost: /snapshot-sender
+          expectedChannelCloseCode: 403
+  - id: restored-write
+    body: Accepted after write permission restoration
+    headers:
+      Authorization: Bearer snapshot-restored-write
+      X-Request-Id: incoming-restored-write
+      X-Snapshot-Header: restored-write
+    expectedBody: Accepted after write permission restoration
+    expectedHeaders:
+      X-Snapshot-Header: restored-write
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-failure-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        body: Accepted after write permission restoration
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-restored-write
+          X-Snapshot-Header: restored-write
+      response:
+        properties:
+          brokerAction:
+            action: restore-write
+            username: snapshot-sender
+            vhost: /snapshot-sender
+- id: publishes-through-maas-with-custom-credentials-and-vhost
+  scope: Long
+  deployment: rabbitmq-sender-maas
+  endpointUri: cip-chain:6c39bf8f-06fb-4c08-8b3a-068551d60e26
+  invocations:
+  - id: resolved-vhost
+    body: Message through MaaS
+    headers:
+      Authorization: Bearer snapshot-maas-first
+      X-Request-Id: incoming-maas-first
+      X-Snapshot-Header: maas-first
+    expectedBody: Message through MaaS
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-maas-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        key: maas.order
+        body: Message through MaaS
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-maas-first
+          X-Snapshot-Header: maas-first
+      response:
+        properties:
+          maasClassifier: snapshot-orders
+          maasNamespace: snapshot-maas-namespace
+          expectedMessageProperties:
+            contentType: text/plain
+            contentEncoding: UTF-8
+  - id: reused-connection
+    body: Second message through MaaS
+    headers:
+      Authorization: Bearer snapshot-maas-second
+      X-Request-Id: incoming-maas-second
+      X-Snapshot-Header: maas-second
+    expectedBody: Second message through MaaS
+    expectedAbsentHeaders:
+    - Authorization
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+      internalProperty_enableAuthRestore: null
+    interactions:
+    - fixture: rabbitmq-maas-broker
+      expectedRequest:
+        count: 1
+        destination: test
+        key: maas.order
+        body: Second message through MaaS
+        headers:
+          Authorization: null
+          X-Request-Id: incoming-maas-second
+          X-Snapshot-Header: maas-second
+      response:
+        properties:
+          expectedMessageProperties:
+            contentType: text/plain
+            contentEncoding: UTF-8

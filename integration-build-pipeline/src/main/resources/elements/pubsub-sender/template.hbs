@@ -10,6 +10,14 @@
             <process ref="contextPropagationProcessor"/>
         {{/if-property}}
 
+        {{#if-property 'messageOrderingEnabled' equals='true'}}
+            {{#if-property 'orderingKey' not-empty=''}}
+                <setHeader name="CamelGooglePubsubOrderingKey">
+                    <simple>{{escape (property 'orderingKey')}}</simple>
+                </setHeader>
+            {{/if-property}}
+        {{/if-property}}
+
         <toD uri="google-pubsub:{{property 'projectId'}}:{{property 'destinationName'}}{{escape (query)}}&amp;serviceAccountKey=base64:{{property 'serviceAccountKey'}}&amp;serializer=#bean:customGooglePubSubSerializer"/>
 
         <doFinally>

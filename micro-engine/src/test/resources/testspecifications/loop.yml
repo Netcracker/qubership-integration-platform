@@ -9,6 +9,7 @@ deployments:
     route: "loop copy context false"
 scenarios:
   - id: "loop-completes"
+    scope: Short
     endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
     body: "Original"
     expectedProperties:
@@ -16,6 +17,7 @@ scenarios:
       counter: 0
 
   - id: "skips-iterations-when-counter-is-zero"
+    scope: Short
     endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
     body: "Original"
     properties:
@@ -25,6 +27,7 @@ scenarios:
       counter: 0
 
   - id: "enforces-maximum-iteration-limit"
+    scope: Short
     endpointUri: "cip-chain:37a60fa1-2564-4c62-92e9-2b5f82fe5933"
     invocations:
       - id: "completes-after-fifteen-iterations"
@@ -47,6 +50,7 @@ scenarios:
           counter: 1
 
   - id: "copies-start-context-for-each-counted-iteration"
+    scope: Short
     endpointUri: "cip-chain:323784c9-d55f-491f-b0da-4cc25a002243"
     body: "Original"
     properties:
@@ -54,6 +58,7 @@ scenarios:
     expectedBody: "S:2"
 
   - id: "skips-counted-iterations-when-count-is-zero"
+    scope: Short
     endpointUri: "cip-chain:323784c9-d55f-491f-b0da-4cc25a002243"
     body: "Original"
     properties:
@@ -61,6 +66,7 @@ scenarios:
     expectedBody: "S"
 
   - id: "reuses-context-across-counted-iterations"
+    scope: Short
     endpointUri: "cip-chain:84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
     body: "Original"
     properties:
@@ -71,6 +77,7 @@ scenarios:
       iterationIndex: null
 
   - id: "skips-counted-iterations-without-copy-when-count-is-zero"
+    scope: Short
     endpointUri: "cip-chain:84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
     body: "Original"
     properties:
@@ -81,6 +88,7 @@ scenarios:
       iterationIndex: null
 
   - id: "clears-custom-iteration-index-after-script-failure"
+    scope: Short
     endpointUri: "cip-chain:84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
     invocations:
       - id: "fails-on-second-iteration"

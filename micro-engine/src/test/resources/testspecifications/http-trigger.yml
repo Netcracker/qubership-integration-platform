@@ -1,0 +1,37 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+scenarios:
+  - id: "handles-get-request"
+    scope: Short
+    driver:
+      provider: "http-trigger"
+      parameters:
+        method: "GET"
+        path: "/routes/test"
+    expectedBody: "Http Trigger called successfully"
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+
+  - id: "rejects-non-empty-get-body"
+    scope: Short
+    driver:
+      provider: "http-trigger"
+      parameters:
+        method: "GET"
+        path: "/routes/test"
+    body: "not allowed"
+    expectedBody:
+      code: "QIP-0100"
+      message: "Request has not passed input validations, configured within requested chain"
+      reason: "Chain failed during request validation."
+      extra:
+        sessionId:
+          $match: "uuid"
+        failedElementId:
+          $match: "uuid"
+        validationResult: "Not empty body is not allowed with [GET] method, request rejected"
+    expectedHeaders:
+      CamelHttpResponseCode: 400
+      content-type: "application/json"
+    expectedProperties:
+      internalProperty_sessionFailed: "true"
+      internalProperty_elementFailed: "true"
