@@ -820,7 +820,13 @@ class WorkDocumentEditorTest {
         replace,
         delete,
         List.of(),
-        List.of());
+        List.of(),
+        create ? CreationAllowance.anyParent(WorkRecordKind.values()) : List.of(),
+        replace ? owned : List.of(),
+        "task-1",
+        WorkTaskKind.UNSPECIFIED,
+        "",
+        null);
   }
 
   private static Map<String, byte[]> ruleBytes(WorkDocumentState state) throws Exception {

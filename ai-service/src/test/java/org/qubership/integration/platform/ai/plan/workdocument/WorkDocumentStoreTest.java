@@ -396,7 +396,13 @@ class WorkDocumentStoreTest {
         false,
         false,
         List.of(),
-        List.of());
+        List.of(),
+        CreationAllowance.anyParent(WorkRecordKind.STEP),
+        List.of(),
+        "create-task",
+        WorkTaskKind.LOGICAL_DESIGN,
+        "",
+        null);
   }
 
   private static WorkTaskCapture createdStep(String alias, String intent) {

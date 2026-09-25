@@ -928,7 +928,7 @@ class WorkMappingTaskTest {
   private static String seededDocument() {
     return """
         {
-          "schemaVersion": 1,
+          "schemaVersion": 2,
           "documentId": "doc-map",
           "sources": [{
             "id": "src-map",

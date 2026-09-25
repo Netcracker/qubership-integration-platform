@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -227,6 +228,92 @@ public final class ProductPipelineRunStore {
     blobStore.putIfVersion(runKey(mutation.runId()), write(next), versioned.version());
     return load(mutation.runId())
         .orElseThrow(() -> new IllegalStateException("committed run disappeared"));
+  }
+
+  /** Outcome of one physical provider attempt, recorded apart from the logical task receipt. */
+  public enum ProviderDeliveryOutcome {
+    COMPLETED,
+    UNCERTAIN
+  }
+
+  public ProductPipelineRunDocument reserveProviderDelivery(String runId, String reservationId) {
+    return recordDelivery(runId, reservationId, "RESERVED", StageStatus.RUNNING);
+  }
+
+  public ProductPipelineRunDocument recordProviderDelivery(
+      String runId, String reservationId, ProviderDeliveryOutcome outcome) {
+    Objects.requireNonNull(outcome, "outcome");
+    StageStatus status =
+        outcome == ProviderDeliveryOutcome.COMPLETED ? StageStatus.SUCCEEDED : StageStatus.FAILED;
+    return recordDelivery(runId, reservationId, outcome.name(), status);
+  }
+
+  public List<String> providerDeliveryReservations(ProductPipelineRunDocument document) {
+    return deliveryIds(document, "RESERVED");
+  }
+
+  public List<String> confirmedProviderDeliveries(ProductPipelineRunDocument document) {
+    return deliveryIds(document, "COMPLETED");
+  }
+
+  public List<String> uncertainProviderDeliveries(ProductPipelineRunDocument document) {
+    return deliveryIds(document, "UNCERTAIN");
+  }
+
+  private ProductPipelineRunDocument recordDelivery(
+      String runId, String reservationId, String outcome, StageStatus status) {
+    requireText(runId, "runId");
+    requireText(reservationId, "reservationId");
+    ProductPipelineRunDocument current =
+        load(runId)
+            .orElseThrow(() -> new IllegalArgumentException("run was not found: " + runId));
+    String reason = "provider-delivery:" + outcome + ":" + reservationId;
+    for (RunTransition transition : current.transitions()) {
+      if (reason.equals(transition.reason())) {
+        return current;
+      }
+    }
+    long expected = current.run().runRevision();
+    long next = expected + 1L;
+    Instant at = clock.instant();
+    String stage = current.run().currentStageId();
+    return commit(
+        expected,
+        new LogicalCommit(
+            runId,
+            expected,
+            current.run().status(),
+            stage,
+            current.run().stages(),
+            new StageAttempt(
+                "delivery-" + reservationId + "-" + outcome,
+                stage,
+                next,
+                status,
+                at,
+                at,
+                List.of(),
+                null,
+                null),
+            new RunTransition(
+                expected, next, current.run().status(), current.run().status(), stage, at, reason, null, null),
+            null,
+            null));
+  }
+
+  private static List<String> deliveryIds(ProductPipelineRunDocument document, String outcome) {
+    String prefix = "provider-delivery:" + outcome + ":";
+    List<String> ids = new ArrayList<>();
+    if (document == null) {
+      return ids;
+    }
+    for (RunTransition transition : document.transitions()) {
+      String reason = transition.reason();
+      if (reason != null && reason.startsWith(prefix)) {
+        ids.add(reason.substring(prefix.length()));
+      }
+    }
+    return List.copyOf(ids);
   }
 
   private ProductPipelineRunDocument read(VersionedBlob versioned) {
