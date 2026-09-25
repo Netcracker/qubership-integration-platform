@@ -94,7 +94,15 @@ public final class WorkDocumentService {
     }
     WorkDocumentState state = read(runId);
     WorkCommit edited = editor.apply(state, taskScope, capture, commandId);
-    return publish(current, edited.state(), edited, commandId, payloadHash, repairBudget);
+    return publish(
+        current,
+        edited.state(),
+        edited,
+        commandId,
+        payloadHash,
+        repairBudget,
+        "work-document",
+        current.run().currentStageId());
   }
 
   public WorkCommit intake(
@@ -113,7 +121,15 @@ public final class WorkDocumentService {
     WorkCommit edited =
         new WorkCommit(
             state.revision(), List.of(), WorkOutcome.PREPARED, commandId, state, Map.of());
-    return publish(current, state, edited, commandId, payloadHash, repairBudget);
+    return publish(
+        current,
+        state,
+        edited,
+        commandId,
+        payloadHash,
+        repairBudget,
+        "work-document",
+        current.run().currentStageId());
   }
 
   public WorkCommit intake(
@@ -139,7 +155,44 @@ public final class WorkDocumentService {
             commandId,
             state,
             Map.of());
-    return publish(current, state, edited, commandId, payloadHash, repairBudget);
+    return publish(
+        current,
+        state,
+        edited,
+        commandId,
+        payloadHash,
+        repairBudget,
+        "work-document",
+        current.run().currentStageId());
+  }
+
+  /**
+   * Publishes a recovered document and the ledger charge in one run commit. A repeated command
+   * returns the committed result and does not charge again.
+   */
+  public WorkCommit commitRecoveredDocument(
+      String runId,
+      ChainWorkDocument document,
+      String commandId,
+      String payloadHash,
+      String transitionReason,
+      String stageId,
+      WorkRepairBudget repairBudget) {
+    requireStore();
+    Objects.requireNonNull(document, "document");
+    Objects.requireNonNull(payloadHash, "payloadHash");
+    Objects.requireNonNull(transitionReason, "transitionReason");
+    ProductPipelineRunDocument current = load(runId);
+    Optional<RunTransition> replay = current.appliedCommand(commandId, payloadHash);
+    if (replay.isPresent()) {
+      return committedResult(current, replay.get());
+    }
+    WorkDocumentState state = WorkDocumentState.of(document);
+    WorkCommit edited =
+        new WorkCommit(
+            state.revision(), List.of(), WorkOutcome.PREPARED, commandId, state, Map.of());
+    return publish(
+        current, state, edited, commandId, payloadHash, repairBudget, transitionReason, stageId);
   }
 
   public WorkDocumentState attachResolvedBinding(
@@ -153,7 +206,9 @@ public final class WorkDocumentService {
       WorkCommit edited,
       String commandId,
       String payloadHash,
-      WorkRepairBudget repairBudget) {
+      WorkRepairBudget repairBudget,
+      String transitionReason,
+      String stageId) {
     Reference previous = current.run().workDocumentRef();
     Revision stored =
         artifacts.append(
@@ -170,7 +225,7 @@ public final class WorkDocumentService {
     long next = expected + 1L;
     StageStatus stageStatus = stageStatus(edited.outcome());
     RunStatus runStatus = runStatus(edited.outcome());
-    String stageId = current.run().currentStageId();
+    String publishedStage = stageId == null || stageId.isBlank() ? current.run().currentStageId() : stageId;
     Instant at = clock.instant();
     Reference reference = stored.reference();
     LogicalCommit commit =
@@ -178,11 +233,11 @@ public final class WorkDocumentService {
             current.run().runId(),
             expected,
             runStatus,
-            stageId,
-            stagesWithPublication(current, stageId, stageStatus, reference),
+            publishedStage,
+            stagesWithPublication(current, publishedStage, stageStatus, reference),
             new StageAttempt(
                 "work-" + commandId,
-                stageId,
+                publishedStage,
                 next,
                 stageStatus,
                 at,
@@ -195,9 +250,9 @@ public final class WorkDocumentService {
                 next,
                 current.run().status(),
                 runStatus,
-                stageId,
+                publishedStage,
                 at,
-                "work-document",
+                transitionReason,
                 commandId,
                 payloadHash),
             reference,

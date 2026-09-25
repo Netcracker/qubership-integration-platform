@@ -47,6 +47,52 @@ class RecoveryDecisionValidatorTest {
   }
 
   @Test
+  void documentRecordReferenceIsAcceptedEvidence() {
+    RecoveryEvidence withRecord =
+        new RecoveryEvidence(
+            1,
+            "failure-1",
+            "WRONG_OPERATION",
+            "DATA_BEHAVIOR",
+            "",
+            null,
+            null,
+            List.of(planRef),
+            List.of(),
+            null,
+            List.of(),
+            List.of("create"));
+    RecoveryDecision decision =
+        new RecoveryDecision(
+            RecoveryCauseClass.DERIVATION_DEFECT,
+            planRef,
+            List.of("create"),
+            RecoveryAction.REGENERATE_ARTIFACT,
+            List.of(),
+            "",
+            "Revise record create and submit the correction.");
+    assertTrue(
+        RecoveryDecisionValidator.validate(decision, new RecoveryContext(withRecord, null, null, "en"))
+            .accepted());
+
+    RecoveryDecision unknown =
+        new RecoveryDecision(
+            RecoveryCauseClass.DERIVATION_DEFECT,
+            planRef,
+            List.of("missing-record"),
+            RecoveryAction.REGENERATE_ARTIFACT,
+            List.of(),
+            "",
+            "Revise record create and submit the correction.");
+    assertFalse(
+        RecoveryDecisionValidator.validate(decision, new RecoveryContext(evidence, null, null, "en"))
+            .accepted());
+    assertFalse(
+        RecoveryDecisionValidator.validate(unknown, new RecoveryContext(withRecord, null, null, "en"))
+            .accepted());
+  }
+
+  @Test
   void nullDecisionOrContextIsRejected() {
     RecoveryDecision decision = validReviseBrief();
     assertFalse(RecoveryDecisionValidator.validate(null, context).accepted());

@@ -141,24 +141,54 @@ class WorkCheckpointHarnessTest {
   }
 
   @Test
-  void missingCapabilitiesFailWithoutCallingTheModel() throws Exception {
-    for (String checkpoint : List.of("recovery")) {
+  void recoveryCasesRouteWithoutCallingTheModel() throws Exception {
+    for (String caseId :
+        List.of("wrong-binding-recovery", "same-cause-limit", "restart-recovery")) {
       List<String> prompts = new ArrayList<>();
       AtomicInteger catalogCalls = new AtomicInteger();
-      Path report = temp.resolve(checkpoint + ".json");
+      AtomicInteger providerCalls = new AtomicInteger();
+      Path report = temp.resolve(caseId + ".json");
       int exit =
           WorkCheckpointHarness.run(
-              request(checkpoint, "om-mapping", report),
-              session(prompts, catalogCalls, capture("unused")));
+              request("recovery", caseId, report),
+              session(prompts, catalogCalls, capture("unused"), providerCalls));
       JsonNode body = JSON.readTree(report.toFile());
-      assertEquals(1, exit);
-      assertEquals("FAILED", body.path("outcome").asText());
-      assertEquals("MISSING_CAPABILITY", body.path("failureCode").asText());
-      assertEquals(checkpoint, body.path("checkpoint").asText());
+      assertEquals(0, exit, Files.readString(report));
+      assertEquals("PREPARED", body.path("outcome").asText(), Files.readString(report));
+      assertEquals("recovery", body.path("checkpoint").asText());
+      assertEquals(caseId, body.path("caseId").asText());
+      assertEquals("G2", body.path("gate").asText());
+      assertEquals(0, body.path("modelCalls").asInt());
+      assertEquals(0, providerCalls.get());
       assertTrue(prompts.isEmpty());
       assertEquals(0, catalogCalls.get());
       assertFalse(body.path("materialized").asBoolean());
+      assertTrue(body.path("rulesPreserved").asBoolean());
+      assertFalse(body.path("causeKey").asText().isBlank());
     }
+
+    JsonNode wrong = JSON.readTree(temp.resolve("wrong-binding-recovery.json").toFile());
+    assertEquals("SERVICES", wrong.path("ownerStage").asText());
+    assertTrue(wrong.path("recheckStages").toString().contains("DATA_BEHAVIOR"));
+    assertFalse(wrong.path("recheckStages").toString().contains("SERVICES"));
+    assertEquals(
+        "Mapping finding returns to binding and marks later work for recheck",
+        wrong.path("requiredObservation").asText());
+
+    JsonNode limited = JSON.readTree(temp.resolve("same-cause-limit.json").toFile());
+    assertEquals(3, limited.path("attempts").asInt());
+    assertTrue(limited.path("blocked").asBoolean());
+    assertEquals(0, limited.path("repairsRemaining").asInt());
+    assertEquals(
+        "Three corrective invocations maximum across stage hops",
+        limited.path("requiredObservation").asText());
+
+    JsonNode restarted = JSON.readTree(temp.resolve("restart-recovery.json").toFile());
+    assertEquals(2, restarted.path("repairsRemaining").asInt());
+    assertFalse(restarted.path("blocked").asBoolean());
+    assertEquals(
+        "Cause identity and remaining allowance persist after restart",
+        restarted.path("requiredObservation").asText());
   }
 
   @Test
@@ -206,8 +236,18 @@ class WorkCheckpointHarnessTest {
   }
 
   @Test
-  void scriptFailsMappingBeforeAnyTool() throws Exception {
-    Path report = temp.resolve("mapping.json");
+  void scriptRefusesRecoveryUntilLiveIsExplicit() throws Exception {
+    Path report = temp.resolve("recovery-refused.json");
+    Path bin = temp.resolve("bin-recovery");
+    Files.createDirectories(bin);
+    Path touched = temp.resolve("recovery-tool-ran");
+    Files.writeString(bin.resolve("curl"), "#!/bin/sh\ntouch '" + touched + "'\nexit 0\n");
+    Files.writeString(bin.resolve("mvn"), "#!/bin/sh\ntouch '" + touched + "'\nexit 0\n");
+    Files.writeString(bin.resolve("mvnw"), "#!/bin/sh\ntouch '" + touched + "'\nexit 0\n");
+    bin.resolve("curl").toFile().setExecutable(true);
+    bin.resolve("mvn").toFile().setExecutable(true);
+    bin.resolve("mvnw").toFile().setExecutable(true);
+
     ProcessBuilder builder =
         new ProcessBuilder(
             "bash",
@@ -218,15 +258,21 @@ class WorkCheckpointHarnessTest {
             "wrong-binding-recovery",
             "--report",
             report.toString());
-    builder.environment().put("WORK_CHECKPOINT_LIVE", "1");
+    builder.environment().put("PATH", bin + ":" + System.getenv("PATH"));
+    builder.environment().remove("WORK_CHECKPOINT_LIVE");
     builder.redirectErrorStream(true);
     Process process = builder.start();
     String output = new String(process.getInputStream().readAllBytes());
     int exit = process.waitFor();
-    assertEquals(1, exit, output);
+
+    assertEquals(2, exit, output);
+    assertFalse(Files.exists(touched), output);
     JsonNode body = JSON.readTree(report.toFile());
-    assertEquals("MISSING_CAPABILITY", body.path("failureCode").asText());
+    assertEquals("REFUSED", body.path("outcome").asText());
+    assertEquals("LIVE_NOT_ENABLED", body.path("failureCode").asText());
     assertEquals("recovery", body.path("checkpoint").asText());
+    assertEquals("wrong-binding-recovery", body.path("caseId").asText());
+    assertFalse(Files.readString(script()).contains("MISSING_CAPABILITY"));
   }
 
   @Test

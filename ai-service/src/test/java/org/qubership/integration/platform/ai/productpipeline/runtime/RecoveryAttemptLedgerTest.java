@@ -321,6 +321,46 @@ class RecoveryAttemptLedgerTest {
   }
 
   @Test
+  void documentCauseKeyKeepsOneSlotAcrossStageNames() {
+    RecoveryAttemptLedger budget =
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(3, 2, 12));
+    String identity = "run\0rule-priority\0WRONG_OPERATION\0behavior";
+    RecoveryAttemptKey key = budget.documentCauseKey(identity);
+    assertEquals(RecoveryAttemptLedger.DOCUMENT_CAUSE_OWNER, key.ownerStageId());
+    assertFalse(key.evidenceIdentity().contains("DATA_BEHAVIOR"));
+    List<RunTransition> journal = new ArrayList<>();
+    journal.add(transition(budget.recordRepair(key, ""), "DATA_BEHAVIOR"));
+    journal.add(transition(budget.recordRepair(key, ""), "SERVICES"));
+    journal.add(transition(budget.recordRepair(key, ""), "LOGICAL_FLOW"));
+    assertFalse(budget.mayRepair(journal, key, InputOrigin.TRUSTED));
+    assertEquals(0, budget.remaining(journal, key, InputOrigin.TRUSTED).semanticRepairsRemaining());
+    RecoveryAttemptLedger restarted =
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(3, 2, 12));
+    assertFalse(
+        restarted.mayRepair(journal, restarted.documentCauseKey(identity), InputOrigin.TRUSTED));
+  }
+
+  @Test
+  void technicalRetriesUseTheCeilingWithoutSpendingTheCorrectiveBudget() {
+    RecoveryAttemptLedger open =
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(3, 2, 12));
+    RecoveryAttemptKey cause = open.documentCauseKey("run\0create\0WRONG_OPERATION\0binding");
+    RecoveryAttemptKey technical = open.technicalKey("run");
+    List<RunTransition> journal = new ArrayList<>();
+    journal.add(transition(open.recordTechnicalRetry(technical), "DATA_BEHAVIOR"));
+    journal.add(transition(open.recordTechnicalRetry(technical), "DATA_BEHAVIOR"));
+    assertTrue(open.mayTechnicalRetry(journal, technical, 5));
+    assertFalse(open.mayTechnicalRetry(journal, technical, 2));
+    assertEquals(0, open.repairsUsed(journal, cause, InputOrigin.TRUSTED));
+    assertEquals(3, open.remaining(journal, cause, InputOrigin.TRUSTED).semanticRepairsRemaining());
+
+    RecoveryAttemptLedger tight =
+        new RecoveryAttemptLedger(new RecoveryAttemptLedger.Limits(3, 2, 2));
+    assertFalse(tight.mayTechnicalRetry(journal, technical, 5));
+    assertEquals(0, tight.repairsUsed(journal, cause, InputOrigin.TRUSTED));
+  }
+
+  @Test
   void remainingFeedsTheSemanticRecoveryTuple() {
     List<RunTransition> journal = new ArrayList<>();
     RecoveryAttemptKey key = ledger.key("analysis", UNKNOWN_PROPERTY, "brief-a", journal);

@@ -14,6 +14,24 @@
       "id": "priority-repair",
       "observation": "Only the assigned Priority rule changes",
       "source": "Repair only the Priority rule. Urgent maps to High. Leave every other request rule, response rule, retained value, and id unchanged."
+    },
+    {
+      "gate": "G2",
+      "checkpoint": "recovery",
+      "id": "wrong-binding-recovery",
+      "observation": "Mapping finding returns to binding and marks later work for recheck"
+    },
+    {
+      "gate": "G2",
+      "checkpoint": "recovery",
+      "id": "same-cause-limit",
+      "observation": "Three corrective invocations maximum across stage hops"
+    },
+    {
+      "gate": "G2",
+      "checkpoint": "recovery",
+      "id": "restart-recovery",
+      "observation": "Cause identity and remaining allowance persist after restart"
     }
   ]
 }

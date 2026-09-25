@@ -16,6 +16,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -35,6 +36,9 @@ import org.qubership.integration.platform.ai.plan.workdocument.binding.Unavailab
 import org.qubership.integration.platform.ai.plan.workdocument.binding.WorkBinding;
 import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
 import org.qubership.integration.platform.ai.plan.workdocument.mapping.WorkMapping;
+import org.qubership.integration.platform.ai.plan.workdocument.recovery.WorkRecovery;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
+import org.qubership.integration.platform.ai.productpipeline.stage.ProductPipelineStageExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.SchemaFragment;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
@@ -47,7 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
 /**
  * Opt-in checkpoint runner. It calls logical design, operation selection, or supplied mapping and
- * records the model the caller configured. Recovery is not implemented and fails closed.
+ * records the model the caller configured. Recovery injects a finding and does not call the model.
  */
 public final class WorkCheckpointHarness {
 
@@ -140,14 +144,13 @@ public final class WorkCheckpointHarness {
       return 2;
     }
     if ("recovery".equals(checkpoint)) {
-      write(
-          request.report(),
-          failed(
-              checkpoint,
-              request.caseId(),
-              "MISSING_CAPABILITY",
-              "The " + checkpoint + " capability is not implemented. The harness does not report success."));
-      return 1;
+      if (!request.invokeFacades()) {
+        write(
+            request.report(),
+            refused(checkpoint, request.caseId(), "LIVE_NOT_ENABLED", "Facade invocation is off."));
+        return 2;
+      }
+      return runRecovery(request, session);
     }
     if (!request.invokeFacades()) {
       write(
@@ -159,7 +162,7 @@ public final class WorkCheckpointHarness {
     if (spec == null) {
       write(
           request.report(),
-          failed(checkpoint, request.caseId(), "UNKNOWN_CASE", "Case is not one of the fixed G1 ids."));
+          failed(checkpoint, request.caseId(), "UNKNOWN_CASE", "Case is not one of the fixed checkpoint ids."));
       return 2;
     }
     AtomicReference<String> prompt = new AtomicReference<>("");
@@ -312,7 +315,10 @@ public final class WorkCheckpointHarness {
   }
 
   private static JsonNode caseSpec(CheckpointRequest request) throws Exception {
-    String file = "mapping".equals(request.checkpoint()) ? "g2-cases.json" : "g1-cases.json";
+    String file =
+        "mapping".equals(request.checkpoint()) || "recovery".equals(request.checkpoint())
+            ? "g2-cases.json"
+            : "g1-cases.json";
     JsonNode root = JSON.readTree(request.fixtureRoot().resolve(file).toFile());
     for (JsonNode item : root.path("cases")) {
       if (request.caseId().equals(item.path("id").asText())
@@ -682,6 +688,321 @@ public final class WorkCheckpointHarness {
         }
         """;
   }
+
+  private static int runRecovery(CheckpointRequest request, CheckpointSession session) throws Exception {
+    JsonNode spec = caseSpec(request);
+    if (spec == null) {
+      write(
+          request.report(),
+          failed(
+              request.checkpoint(),
+              request.caseId(),
+              "UNKNOWN_CASE",
+              "Case is not one of the fixed checkpoint ids."));
+      return 2;
+    }
+    try {
+      RecoveryRun routed = executeRecovery(request);
+      ObjectNode report = base(request.checkpoint(), request.caseId(), spec, session);
+      report.put("outcome", routed.ok() ? "PREPARED" : "FAILED");
+      report.put("documentRevision", routed.documentRevision());
+      report.put("attempts", routed.correctiveCharges());
+      report.put("failureCode", routed.ok() ? "" : "RECOVERY_OBSERVATION");
+      report.put("ownerStage", routed.ownerStage());
+      report.put("causeKey", routed.causeKey());
+      report.put("repairsRemaining", routed.repairsRemaining());
+      report.put("blocked", routed.blocked());
+      report.put("rulesPreserved", routed.rulesPreserved());
+      report.set("recheckStages", JSON.valueToTree(routed.recheckStages()));
+      report.put("modelCalls", 0);
+      report.put("sanitizedRequest", "");
+      report.put("sanitizedResponse", "");
+      report.put("durable", request.publicationStore() != null);
+      write(request.report(), report);
+      return routed.ok() ? 0 : 1;
+    } catch (WorkDocumentRejectedException rejected) {
+      write(
+          request.report(),
+          failureReport(
+              request.checkpoint(),
+              request.caseId(),
+              spec,
+              session,
+              rejected.code(),
+              rejected.getMessage(),
+              "",
+              ""));
+      return 1;
+    } catch (RuntimeException failure) {
+      write(
+          request.report(),
+          failureReport(
+              request.checkpoint(),
+              request.caseId(),
+              spec,
+              session,
+              failureCode(failure),
+              String.valueOf(failure.getMessage()),
+              "",
+              ""));
+      return 1;
+    }
+  }
+
+  private static RecoveryRun executeRecovery(CheckpointRequest request) throws Exception {
+    boolean durable = request.publicationStore() != null;
+    if (durable && request.publicationStore() instanceof InMemoryArtifactBlobStore) {
+      throw new IllegalStateException(
+          "STORE_UNAVAILABLE: an in-memory map is not a durable document store.");
+    }
+    ArtifactBlobStore blobs = durable ? request.publicationStore() : new InMemoryArtifactBlobStore();
+    Clock clock = durable ? Clock.systemUTC() : Clock.fixed(FIXED, ZoneOffset.UTC);
+    CompilationArtifacts artifacts = new CompilationArtifacts(blobs, JSON, clock);
+    ProductPipelineRunStore runs = new ProductPipelineRunStore(blobs, JSON, clock);
+    WorkDocumentService documents = new WorkDocumentService(runs, artifacts, JSON);
+    String runId = "checkpoint-" + request.caseId();
+    runs.create(
+        new RunSnapshot(
+            runId,
+            "checkpoint-" + request.caseId(),
+            1L,
+            RunStatus.RUNNING,
+            "DATA_BEHAVIOR",
+            List.of(new StageSnapshot("DATA_BEHAVIOR", StageStatus.RUNNING, List.of(), null)),
+            null));
+    documents.intake(
+        runId,
+        new WorkDocumentState("pending", JSON.readValue(recoveryDocument(), ChainWorkDocument.class)),
+        "cmd-seed",
+        new WorkRepairBudget(3));
+    WorkRecovery recovery = WorkRecovery.create(documents, runs);
+    return switch (request.caseId()) {
+      case "wrong-binding-recovery" -> wrongBinding(documents, runs, recovery, runId);
+      case "same-cause-limit" -> sameCause(documents, runs, recovery, runId);
+      case "restart-recovery" -> restartRecovery(documents, runs, recovery, runId);
+      default -> throw new IllegalArgumentException("Case is not one of the fixed checkpoint ids.");
+    };
+  }
+
+  private static RecoveryRun wrongBinding(
+      WorkDocumentService documents, ProductPipelineRunStore runs, WorkRecovery recovery, String runId) {
+    WorkRecovery.Result routed =
+        recovery.route(
+            runId,
+            WorkRecovery.Defect.of(
+                "create", "WRONG_OPERATION", "binding", "Mapping found the wrong operation."),
+            "cmd-wrong-binding");
+    List<String> recheck = recheckStages(documents, runId);
+    boolean rules = rulesPreserved(documents, runId);
+    boolean ok =
+        routed.owner() == WorkStage.SERVICES
+            && routed.dispatched()
+            && recheck.contains("DATA_BEHAVIOR")
+            && !recheck.contains("SERVICES")
+            && rules;
+    return new RecoveryRun(
+        ok,
+        documents.read(runId).revision(),
+        correctiveCharges(runs, runId),
+        routed.owner().name(),
+        routed.causeKey(),
+        routed.repairsRemaining(),
+        false,
+        rules,
+        recheck);
+  }
+
+  private static RecoveryRun sameCause(
+      WorkDocumentService documents, ProductPipelineRunStore runs, WorkRecovery recovery, String runId) {
+    WorkRecovery.Result mapping =
+        recovery.route(
+            runId,
+            WorkRecovery.Defect.of(
+                "rule-priority", "WRONG_OPERATION", "behavior", "Priority targets the wrong operation."),
+            "cmd-map");
+    WorkRecovery.Result binding =
+        recovery.route(
+            runId,
+            new WorkRecovery.Defect(
+                "",
+                "rule-priority",
+                "WRONG_OPERATION",
+                "behavior",
+                "The selected operation is not createTask.",
+                List.of("src-om"),
+                "create",
+                "binding"),
+            "cmd-bind");
+    WorkRecovery.Result logical =
+        recovery.route(
+            runId,
+            new WorkRecovery.Defect(
+                mapping.findingId(),
+                "rule-priority",
+                "WRONG_OPERATION",
+                "behavior",
+                "The flow should not call that API.",
+                List.of("src-om"),
+                "req-flow",
+                "text"),
+            "cmd-flow");
+    WorkRecovery.Result blocked =
+        recovery.route(
+            runId,
+            new WorkRecovery.Defect(
+                mapping.findingId(),
+                "rule-priority",
+                "WRONG_OPERATION",
+                "behavior",
+                "Another wording for the same defect.",
+                List.of("src-om"),
+                "",
+                ""),
+            "cmd-fourth");
+    int charges = correctiveCharges(runs, runId);
+    boolean rules = rulesPreserved(documents, runId);
+    boolean ok =
+        mapping.causeKey().equals(binding.causeKey())
+            && mapping.causeKey().equals(logical.causeKey())
+            && mapping.causeKey().equals(blocked.causeKey())
+            && charges == 3
+            && blocked.exhausted()
+            && !blocked.dispatched()
+            && rules;
+    return new RecoveryRun(
+        ok,
+        documents.read(runId).revision(),
+        charges,
+        logical.owner().name(),
+        blocked.causeKey(),
+        blocked.repairsRemaining(),
+        blocked.exhausted(),
+        rules,
+        recheckStages(documents, runId));
+  }
+
+  private static RecoveryRun restartRecovery(
+      WorkDocumentService documents, ProductPipelineRunStore runs, WorkRecovery recovery, String runId) {
+    WorkRecovery.Result first =
+        recovery.route(
+            runId,
+            WorkRecovery.Defect.of("rule-priority", "WRONG_OPERATION", "behavior", "Priority is wrong."),
+            "cmd-once");
+    WorkRecovery restarted = WorkRecovery.create(documents, runs);
+    String causeKey = restarted.causeKey(runId, first.findingId());
+    int remaining = restarted.repairsRemaining(runId, causeKey);
+    boolean ok = first.causeKey().equals(causeKey) && remaining == first.repairsRemaining() && remaining == 2;
+    return new RecoveryRun(
+        ok,
+        documents.read(runId).revision(),
+        correctiveCharges(runs, runId),
+        first.owner().name(),
+        causeKey,
+        remaining,
+        false,
+        rulesPreserved(documents, runId),
+        recheckStages(documents, runId));
+  }
+
+  private static List<String> recheckStages(WorkDocumentService documents, String runId) {
+    List<String> stages = new ArrayList<>();
+    for (JsonNode stage : JSON.valueToTree(documents.read(runId).document()).path("progress").path("recheckStages")) {
+      stages.add(stage.asText());
+    }
+    return stages;
+  }
+
+  private static boolean rulesPreserved(WorkDocumentService documents, String runId) {
+    List<String> ids = new ArrayList<>();
+    for (JsonNode step : JSON.valueToTree(documents.read(runId).document()).path("flow").path("steps")) {
+      if (!"create".equals(step.path("id").asText())) {
+        continue;
+      }
+      for (JsonNode rule : step.path("data").path("transfers").get(0).path("rules")) {
+        ids.add(rule.path("id").asText());
+      }
+    }
+    return ids.equals(List.of("rule-subject", "rule-priority"));
+  }
+
+  private static int correctiveCharges(ProductPipelineRunStore runs, String runId) {
+    return (int)
+        runs.load(runId).orElseThrow().transitions().stream()
+            .filter(
+                transition ->
+                    transition.reason() != null
+                        && transition.reason()
+                            .startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX))
+            .count();
+  }
+
+  private static String recoveryDocument() {
+    return """
+        {
+          "schemaVersion": 1,
+          "documentId": "doc-recovery",
+          "sources": [{
+            "id": "src-om",
+            "role": "MAPPING",
+            "contentReference": "artifact://mapping",
+            "contentHash": "hash-map",
+            "originalName": "mapping.txt",
+            "suppliedIdentifier": "MAP-1",
+            "correctionOf": []
+          }],
+          "requirements": [
+            {"id":"req-flow","text":"Create a task","sourceIds":["src-om"],"supersededRequirementId":""},
+            {"id":"req-other","text":"Keep the order id","sourceIds":["src-om"],"supersededRequirementId":""}
+          ],
+          "flow": {
+            "steps": [
+              {"id":"start","kind":"TRIGGER","label":"onTaskStart","intent":"Receive the order","sourceIds":["src-om"],"requirementIds":["req-flow"],"binding":null,"data":{"transfers":[],"retainedValues":[]}},
+              {"id":"create","kind":"SERVICE_CALL","label":"Task","intent":"Create the task","sourceIds":["src-om"],"requirementIds":["req-flow"],"binding":{"catalogId":"sys-wfm","version":"2024.4","operationId":"createTask","protocol":"http","method":"POST","path":"/wfm/v1/tasks","contractReferences":["spec-create"],"exposedPorts":["request"]},"data":{"transfers":[{
+                "id":"xfer-request",
+                "sourcePorts":[{"stepId":"start","portName":"payload"}],
+                "targetPort":{"stepId":"create","portName":"request"},
+                "requirementIds":["req-flow"],
+                "rules":[
+                  {"id":"rule-subject","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Subject","retainedValueId":""},"constants":[],"behavior":"name","evidenceIds":["src-om"]},
+                  {"id":"rule-priority","sources":[],"target":{"kind":"STEP_PORT","stepId":"create","port":"OUTBOUND_REQUEST","fieldPath":"$.Priority","retainedValueId":""},"constants":[],"behavior":"high to High","evidenceIds":["src-om"]}
+                ],
+                "decision":"UNSPECIFIED"
+              }],"retainedValues":[]}}
+            ],
+            "connections": [],
+            "sequenceGroups": [{"id":"group-main","memberStepIds":["start","create"]}],
+            "conditionGroups": [],
+            "splitGroups": [],
+            "loopGroups": [],
+            "retryGroups": [],
+            "errorScopeGroups": []
+          },
+          "progress": {
+            "tasks": [
+              {"taskId":"logical-design","state":"ACCEPTED","stage":"LOGICAL_FLOW","skillId":"logical-design"},
+              {"taskId":"operation-selection","state":"ACCEPTED","stage":"SERVICES","skillId":"operation-selection"},
+              {"taskId":"mapping-initial","state":"ACCEPTED","stage":"DATA_BEHAVIOR","skillId":"data-mapping"}
+            ],
+            "findings": [],
+            "questions": [],
+            "approvalReference": "",
+            "derivedResultReferences": [],
+            "recheckStages": []
+          }
+        }
+        """;
+  }
+
+  private record RecoveryRun(
+      boolean ok,
+      String documentRevision,
+      int correctiveCharges,
+      String ownerStage,
+      String causeKey,
+      int repairsRemaining,
+      boolean blocked,
+      boolean rulesPreserved,
+      List<String> recheckStages) {}
 
   private record Published(
       String outcome,

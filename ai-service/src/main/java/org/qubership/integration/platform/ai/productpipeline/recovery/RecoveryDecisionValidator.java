@@ -101,6 +101,11 @@ public final class RecoveryDecisionValidator {
         ids.add(finding.occurrenceId());
       }
     }
+    for (String recordId : evidence.documentRecordRefs()) {
+      if (recordId != null && !recordId.isBlank()) {
+        ids.add(recordId);
+      }
+    }
     return ids;
   }
 
