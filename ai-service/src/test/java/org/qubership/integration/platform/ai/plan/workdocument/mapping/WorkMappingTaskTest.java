@@ -125,6 +125,25 @@ class WorkMappingTaskTest {
   }
 
   @Test
+  void questionStepOutsideTheTransferIsRejected() {
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    mapping.interpret(
+                        RUN_ID,
+                        REQUEST,
+                        materials(false),
+                        request ->
+                            """
+                            {"outcome":"NEEDS_CLARIFICATION","rules":[],"decision":"","question":{"text":"Which source?","choiceKind":"UNSPECIFIED","sourceStepId":"elsewhere","sourcePort":"payload","sourceField":"","sourceRetainedId":"","targetStepId":"create","targetPort":"request","targetField":"","targetRetainedId":"","evidenceRefs":["src-map"]}}
+                            """))
+            .code());
+    assertTrue(questions(documents.read(RUN_ID)).isEmpty());
+  }
+
+  @Test
   void clarificationKeepsTheAcceptedSiblingAndNamesBothFields() {
     mapping.interpret(RUN_ID, REQUEST, materials(false), request -> subjectRule());
     WorkCommit asked =
@@ -361,6 +380,7 @@ class WorkMappingTaskTest {
     JsonNode transfer = step(JSON.valueToTree(decided.state().document()), "create").path("data").path("transfers").get(0);
     assertEquals(REQUEST, transfer.path("id").asText());
     assertEquals("NO_MAPPING", transfer.path("decision").asText());
+    assertTrue(transfer.path("evidenceIds").toString().contains("src-map"));
     assertEquals("start", transfer.path("sourcePorts").get(0).path("stepId").asText());
     assertEquals("create", transfer.path("targetPort").path("stepId").asText());
     assertEquals(0, transfer.path("rules").size());

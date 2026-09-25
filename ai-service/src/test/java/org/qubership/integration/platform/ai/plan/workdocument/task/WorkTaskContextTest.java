@@ -45,6 +45,17 @@ class WorkTaskContextTest {
   }
 
   @Test
+  void promptPrintsGoverningPassageTextAndOmitsAnUnrelatedPassage() throws Exception {
+    String prompt = prompt();
+
+    assertTrue(prompt.contains("passage-gov"));
+    assertTrue(prompt.contains("hash-passage-gov"));
+    assertTrue(prompt.contains("GOVERNING_PASSAGE_TEXT"));
+    assertFalse(prompt.contains("UNRELATED_PASSAGE_TEXT"));
+    assertFalse(prompt.contains("UNRELATED_SCHEMA_BODY"));
+  }
+
+  @Test
   void promptKeepsSourceCorrectedByIncludedEvidence() throws Exception {
     String prompt =
         WorkTaskContext.prompt(
@@ -132,7 +143,14 @@ class WorkTaskContextTest {
             "contentHash": "hash-gov",
             "originalName": "governing.md",
             "suppliedIdentifier": "GOV-1",
-            "correctionOf": ["source-prior"]
+            "correctionOf": ["source-prior"],
+            "passages": [{
+              "id": "passage-gov",
+              "sourceId": "source-gov",
+              "contentHash": "hash-passage-gov",
+              "text": "GOVERNING_PASSAGE_TEXT",
+              "parentHeading": ""
+            }]
           },
           {
             "id": "source-prior",
@@ -150,7 +168,14 @@ class WorkTaskContextTest {
             "contentHash": "hash-other",
             "originalName": "other.md",
             "suppliedIdentifier": "OTHER",
-            "correctionOf": []
+            "correctionOf": [],
+            "passages": [{
+              "id": "passage-other",
+              "sourceId": "source-other",
+              "contentHash": "hash-passage-other",
+              "text": "UNRELATED_PASSAGE_TEXT",
+              "parentHeading": ""
+            }]
           }
         ],
         "requirements": [

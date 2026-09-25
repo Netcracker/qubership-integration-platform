@@ -152,7 +152,8 @@ record DataTransfer(
     List<MappingRule> rules,
     MappingDecision decision,
     TransferOutcome outcome,
-    List<String> requiredRetainedIds) {
+    List<String> requiredRetainedIds,
+    List<String> evidenceIds) {
 
   public DataTransfer {
     sourcePorts = Lists.copy(sourcePorts);
@@ -161,6 +162,28 @@ record DataTransfer(
     decision = decision == null ? MappingDecision.UNSPECIFIED : decision;
     outcome = outcome == null ? TransferOutcome.UNSPECIFIED : outcome;
     requiredRetainedIds = Lists.copy(requiredRetainedIds);
+    evidenceIds = Lists.copy(evidenceIds);
+  }
+
+  public DataTransfer(
+      String id,
+      List<PortRef> sourcePorts,
+      PortRef targetPort,
+      List<String> requirementIds,
+      List<MappingRule> rules,
+      MappingDecision decision,
+      TransferOutcome outcome,
+      List<String> requiredRetainedIds) {
+    this(
+        id,
+        sourcePorts,
+        targetPort,
+        requirementIds,
+        rules,
+        decision,
+        outcome,
+        requiredRetainedIds,
+        List.of());
   }
 
   public DataTransfer(
@@ -184,7 +207,15 @@ record DataTransfer(
 
   DataTransfer withRules(List<MappingRule> nextRules) {
     return new DataTransfer(
-        id, sourcePorts, targetPort, requirementIds, nextRules, decision, outcome, requiredRetainedIds);
+        id,
+        sourcePorts,
+        targetPort,
+        requirementIds,
+        nextRules,
+        decision,
+        outcome,
+        requiredRetainedIds,
+        evidenceIds);
   }
 }
 

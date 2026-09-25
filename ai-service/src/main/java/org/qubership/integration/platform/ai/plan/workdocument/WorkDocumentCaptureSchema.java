@@ -53,7 +53,7 @@ public final class WorkDocumentCaptureSchema {
     return switch (kind) {
       case LOGICAL_DESIGN -> (JsonObjectSchema) schema(LogicalDesignCapture.class);
       case SELECT_OPERATION -> operationSelectionSchema();
-      case DEFINE_TRANSFERS -> outlineSchema();
+      case DEFINE_TRANSFERS -> outlineSchema(allowed);
       case DESCRIBE_CONTEXT -> retainedSchema(allowed);
       case MAP_TRANSFER -> mappingSchema(allowed, false);
       case REPAIR_RULE -> mappingSchema(allowed, true);
@@ -222,7 +222,7 @@ public final class WorkDocumentCaptureSchema {
         new JsonStringSchema());
   }
 
-  private static JsonObjectSchema outlineSchema() {
+  private static JsonObjectSchema outlineSchema(CaptureChoices choices) {
     JsonObjectSchema transfer =
         object(
             List.of(
@@ -237,11 +237,11 @@ public final class WorkDocumentCaptureSchema {
             "alias",
             new JsonStringSchema(),
             "sourceStepId",
-            new JsonStringSchema(),
+            stringEnum(choices.stepIds()),
             "sourcePort",
-            new JsonStringSchema(),
+            stringEnum(choices.sourcePorts()),
             "targetPort",
-            new JsonStringSchema(),
+            stringEnum(choices.targetPorts()),
             "outcome",
             enumOf("UNSPECIFIED", "SUCCESS", "FAILURE"),
             "requirementIds",
@@ -256,7 +256,7 @@ public final class WorkDocumentCaptureSchema {
             "alias",
             new JsonStringSchema(),
             "producerStepId",
-            new JsonStringSchema(),
+            stringEnum(choices.stepIds()),
             "intendedUse",
             new JsonStringSchema(),
             "evidenceRefs",

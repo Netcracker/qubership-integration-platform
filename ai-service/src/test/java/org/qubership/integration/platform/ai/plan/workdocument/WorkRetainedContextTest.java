@@ -103,6 +103,49 @@ class WorkRetainedContextTest {
   }
 
   @Test
+  void callPlaceholderUsesItsResponsePort() {
+    WorkCommit commit =
+        context.describe(
+            RUN_ID,
+            "other",
+            new WorkTaskMaterials(
+                List.of(
+                    new SchemaFragment(
+                        "schema-other",
+                        "other",
+                        "success",
+                        "hash",
+                        "ref",
+                        "{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}}}")),
+                List.of(),
+                Map.of("source-1", "task id")),
+            request -> value("task-id", "$.id"));
+
+    assertEquals("$.id", path("task-id"));
+    assertEquals("success", port("task-id"));
+    assertEquals("PREPARED", commit.outcome().name());
+  }
+
+  @Test
+  void questionStepOutsideTheDocumentIsRejected() {
+    assertEquals(
+        "MALFORMED_REFERENCE",
+        assertThrows(
+                WorkDocumentRejectedException.class,
+                () ->
+                    context.describe(
+                        RUN_ID,
+                        "trigger",
+                        materials(),
+                        request ->
+                            """
+                            {"outcome":"NEEDS_CLARIFICATION","values":[],"question":{"text":"Which step?","choiceKind":"UNSPECIFIED","sourceStepId":"missing-step","sourcePort":"payload","sourceField":"","sourceRetainedId":"","targetStepId":"trigger","targetPort":"payload","targetField":"","targetRetainedId":"","evidenceRefs":["source-1"]}}
+                            """))
+            .code());
+    assertTrue(JSON.valueToTree(documents.read(RUN_ID).document()).path("progress").path("questions").isEmpty());
+  }
+
+  @Test
   void fieldRelationshipQuestionStoresBothFields() {
     WorkCommit asked =
         context.describe(
@@ -130,6 +173,18 @@ class WorkRetainedContextTest {
       }
     }
     return "";
+  }
+
+  private String port(String id) {
+    JsonNode document = JSON.valueToTree(documents.read(RUN_ID).document());
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode retained : step.path("data").path("retainedValues")) {
+        if (id.equals(retained.path("id").asText())) {
+          return retained.path("source").path("port").asText();
+        }
+      }
+    }
+    throw new AssertionError(id);
   }
 
   private String path(String id) {

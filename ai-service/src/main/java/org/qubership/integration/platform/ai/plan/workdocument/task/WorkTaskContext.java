@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
 
 /** Compact prompt for one server-owned scope. Unrelated rules and schemas stay out. */
@@ -21,11 +22,14 @@ public final class WorkTaskContext {
   public static String prompt(
       WorkDocumentState state, WorkTaskScope scope, WorkTaskMaterials materials) {
     JsonNode document = JSON.valueToTree(state.document());
+    boolean outline = scope.taskKind() == WorkTaskKind.DEFINE_TRANSFERS;
     Set<String> owned = Set.copyOf(scope.ownedRecordIds());
-    JsonNode transfers = ownedTransfers(document, owned);
-    Set<String> ownedSteps = ownedSteps(document, transfers);
-    Set<String> ports = ports(document, transfers);
-    Set<String> sources = governingSources(document, transfers);
+    JsonNode transfers = outline ? JSON.createArrayNode() : ownedTransfers(document, owned);
+    Set<String> ownedSteps = outline ? owned : ownedSteps(document, transfers);
+    Set<String> ports = outline ? exposedPorts(document, ownedSteps) : ports(document, transfers);
+    Set<String> sources =
+        outline ? sourcesForSteps(document, ownedSteps) : governingSources(document, transfers);
+    Set<String> requirementIds = outline ? requirementIds(document, ownedSteps) : Set.of();
 
     StringBuilder prompt = new StringBuilder();
     prompt.append("task ").append(scope.taskId()).append('\n');
@@ -82,6 +86,27 @@ public final class WorkTaskContext {
           .append(source.path("contentHash").asText())
           .append(' ')
           .append(materials.sourceEvidence().getOrDefault(id, ""))
+          .append('\n');
+      for (JsonNode passage : source.path("passages")) {
+        prompt
+            .append("passage ")
+            .append(passage.path("id").asText())
+            .append(' ')
+            .append(passage.path("contentHash").asText())
+            .append(' ')
+            .append(passage.path("text").asText())
+            .append('\n');
+      }
+    }
+    for (JsonNode requirement : document.path("requirements")) {
+      if (!requirementIds.contains(requirement.path("id").asText())) {
+        continue;
+      }
+      prompt
+          .append("requirement ")
+          .append(requirement.path("id").asText())
+          .append(' ')
+          .append(requirement.path("text").asText())
           .append('\n');
     }
     for (JsonNode transfer : transfers) {
@@ -186,6 +211,54 @@ public final class WorkTaskContext {
     return null;
   }
 
+  private static Set<String> exposedPorts(JsonNode document, Set<String> stepIds) {
+    Set<String> ports = new LinkedHashSet<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      if (!stepIds.contains(step.path("id").asText())) {
+        continue;
+      }
+      for (JsonNode port : step.path("binding").path("exposedPorts")) {
+        ports.add(portKey(step.path("id").asText(), port.asText()));
+      }
+    }
+    return ports;
+  }
+
+  private static Set<String> requirementIds(JsonNode document, Set<String> stepIds) {
+    Set<String> ids = new LinkedHashSet<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      if (!stepIds.contains(step.path("id").asText())) {
+        continue;
+      }
+      for (JsonNode requirementId : step.path("requirementIds")) {
+        ids.add(requirementId.asText());
+      }
+    }
+    ids.remove("");
+    return ids;
+  }
+
+  private static Set<String> sourcesForSteps(JsonNode document, Set<String> stepIds) {
+    Set<String> sources = new LinkedHashSet<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      if (!stepIds.contains(step.path("id").asText())) {
+        continue;
+      }
+      for (JsonNode sourceId : step.path("sourceIds")) {
+        sources.add(sourceId.asText());
+      }
+    }
+    for (JsonNode requirement : document.path("requirements")) {
+      if (!requirementIds(document, stepIds).contains(requirement.path("id").asText())) {
+        continue;
+      }
+      for (JsonNode sourceId : requirement.path("sourceIds")) {
+        sources.add(sourceId.asText());
+      }
+    }
+    return withCorrections(document, sources);
+  }
+
   private static Set<String> governingSources(JsonNode document, JsonNode transfers) {
     Set<String> requirementIds = new LinkedHashSet<>();
     Set<String> sources = new LinkedHashSet<>();
@@ -230,6 +303,10 @@ public final class WorkTaskContext {
         sources.add(sourceId.asText());
       }
     }
+    return withCorrections(document, sources);
+  }
+
+  private static Set<String> withCorrections(JsonNode document, Set<String> sources) {
     Map<String, JsonNode> byId = new LinkedHashMap<>();
     for (JsonNode source : document.path("sources")) {
       byId.put(source.path("id").asText(), source);
@@ -249,6 +326,7 @@ public final class WorkTaskContext {
         }
       }
     }
+    sources.remove("");
     return sources;
   }
 

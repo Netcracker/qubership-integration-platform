@@ -10,9 +10,14 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.service.output.OutputParsingException;
 import org.qubership.integration.platform.ai.plan.workdocument.CreationAllowance;
+import org.qubership.integration.platform.ai.plan.workdocument.QuestionChoiceKind;
+import org.qubership.integration.platform.ai.plan.workdocument.QuestionFieldRef;
+import org.qubership.integration.platform.ai.plan.workdocument.QuestionSubject;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkCommit;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentCaptureSchema;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
@@ -23,9 +28,11 @@ import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskContext;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskExecutor;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskMaterials;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskModel;
+import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskRequest;
 
 /**
  * Initial logical design and a bounded repair. The model cannot turn a synchronous result into
@@ -119,19 +126,102 @@ public final class WorkLogicalFlow {
 
   private WorkCommit execute(
       String runId, WorkTaskScope scope, WorkTaskMaterials materials, WorkTaskModel model) {
+    Optional<WorkCommit> prior = executor.publishedResult(runId, scope);
+    if (prior.isPresent()) {
+      return prior.get();
+    }
+    WorkDocumentState state = executor.reserve(runId, scope);
     JsonObjectSchema schema =
         WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.LOGICAL_DESIGN, null);
-    return executor.execute(
-        runId,
-        scope,
-        withInstructions(materials),
-        schema,
-        request -> {
-          String output = model.complete(request);
-          JsonNode tree = WorkDocumentCaptureSchema.readObject(output, request.responseSchema());
-          rejectSynchronousResult(tree);
-          return WorkDocumentCaptureSchema.withUniversalLists(tree);
-        });
+    String output;
+    try {
+      output =
+          model.complete(
+              new WorkTaskRequest(
+                  scope.taskId(),
+                  scope.taskKey(),
+                  scope.taskKind(),
+                  WorkTaskContext.prompt(state, scope, withInstructions(materials)),
+                  schema));
+    } catch (OutputParsingException failure) {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_CAPTURE", "Logical design could not be parsed. The task was not completed.");
+    }
+    JsonNode tree = WorkDocumentCaptureSchema.readObject(output, schema);
+    String outcome = tree.path("outcome").asText();
+    String invocation = scope.taskId() + ":" + state.revision();
+    if ("NEEDS_CLARIFICATION".equals(outcome)) {
+      if (hasDesignRecords(tree) || !tree.path("defectRecordRef").asText().isBlank()) {
+        throw new WorkDocumentRejectedException(
+            "CONTRADICTORY_OUTCOME",
+            "A clarification needs one question and no design records. Remove the other branches.");
+      }
+      String text = tree.path("question").asText();
+      if (text.isBlank()) {
+        throw new WorkDocumentRejectedException(
+            "MALFORMED_CAPTURE", "A clarification needs question text. Name the unresolved choice.");
+      }
+      QuestionSubject subject =
+          new QuestionSubject(
+              QuestionChoiceKind.UNSPECIFIED,
+              new QuestionFieldRef(state.document().documentId(), "", "/flow", ""),
+              QuestionFieldRef.empty());
+      return documents.recordQuestion(
+          runId, scope, text, subject, List.of(), texts(tree.path("clarificationEvidenceIds")), invocation);
+    }
+    if ("PREPARED".equals(outcome)) {
+      if (!tree.path("question").asText().isBlank() || !tree.path("defectRecordRef").asText().isBlank()) {
+        throw new WorkDocumentRejectedException(
+            "CONTRADICTORY_OUTCOME",
+            "A prepared design cannot also ask a question or report a defect. Send one outcome.");
+      }
+      rejectSynchronousResult(tree);
+    } else if ("INPUT_DEFECT".equals(outcome)) {
+      if (!tree.path("question").asText().isBlank() || hasDesignRecords(tree)) {
+        throw new WorkDocumentRejectedException(
+            "CONTRADICTORY_OUTCOME",
+            "A defect capture cannot include a question or design records. Send the defect alone.");
+      }
+    } else {
+      throw new WorkDocumentRejectedException(
+          "MALFORMED_CAPTURE",
+          "Outcome " + outcome + " is unknown. Use PREPARED, NEEDS_CLARIFICATION, or INPUT_DEFECT.");
+    }
+    return documents.apply(
+        runId, scope, WorkDocumentCaptureSchema.parse(WorkDocumentCaptureSchema.withUniversalLists(tree)), invocation);
+  }
+
+  private static boolean hasDesignRecords(JsonNode tree) {
+    for (String name :
+        List.of(
+            "requirements",
+            "steps",
+            "connections",
+            "sequenceGroups",
+            "conditionGroups",
+            "splitGroups",
+            "loopGroups",
+            "retryGroups",
+            "errorScopeGroups",
+            "deletes")) {
+      JsonNode node = tree.path(name);
+      if (node.isArray() && !node.isEmpty()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static List<String> texts(JsonNode node) {
+    List<String> values = new ArrayList<>();
+    if (node != null && node.isArray()) {
+      for (JsonNode child : node) {
+        if (!child.asText().isBlank()) {
+          values.add(child.asText());
+        }
+      }
+    }
+    return values;
   }
 
   private static void rejectSynchronousResult(JsonNode tree) {
