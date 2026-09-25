@@ -143,6 +143,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_graphql.xml"
                 ),
                 Arguments.of(
+                        "GraphQL Service Call element without before",
+                        "/testData/input/builder/templates/service_call_graphql_no_before.yml",
+                        "/testData/output/builder/templates/service_call_graphql_no_before.xml"
+                ),
+                Arguments.of(
                         "External HTTP Sender element",
                         "/testData/input/builder/templates/http_sender_external.yml",
                         "/testData/output/builder/templates/http_sender_external.xml"
