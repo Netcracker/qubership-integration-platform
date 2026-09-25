@@ -1,37 +1,138 @@
 package org.qubership.integration.platform.ai.qipknowledge.artifact;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import java.util.List;
 
 /**
- * One field copy, constant, default, or expression inside a {@link MappingIntent}. Status is
- * assigned by runtime validation, not by the LLM.
+ * An interpreted requirement. A rule is either the temporary typed form or the descriptive form,
+ * never both. Validation owns its status.
  */
-@JsonIgnoreProperties(ignoreUnknown = true)
 public record MappingIntentRule(
-    @JsonProperty("sourcePath") String sourcePath,
-    @JsonProperty("targetPath") String targetPath,
-    @JsonProperty("expression") String expression,
-    @JsonProperty("status") MappingRuleStatus status) {
+    String id,
+    List<String> requirementIds,
+    String targetPath,
+    @JsonInclude(JsonInclude.Include.NON_NULL) MappingValue value,
+    MappingCondition condition,
+    MappingRuleStatus status,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) List<MappingFieldRef> fieldRefs,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) List<MappingConstant> constants,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) String behavior) {
 
   public MappingIntentRule {
-    sourcePath = sourcePath == null ? "" : sourcePath.trim();
+    id = id == null ? "" : id.trim();
+    requirementIds = requirementIds == null ? List.of() : List.copyOf(requirementIds);
     targetPath = targetPath == null ? "" : targetPath.trim();
-    expression = expression == null || expression.isBlank() ? null : expression.trim();
+    condition = condition == null ? MappingCondition.always() : condition;
     status = status == null ? MappingRuleStatus.PROPOSED : status;
+    fieldRefs = fieldRefs == null ? List.of() : List.copyOf(fieldRefs);
+    constants = constants == null ? List.of() : List.copyOf(constants);
+    behavior = behavior == null ? "" : behavior;
+    if (value != null && (!fieldRefs.isEmpty() || !constants.isEmpty() || !behavior.isBlank())) {
+      throw new IllegalArgumentException(
+          "A mapping rule has one representation. Remove the typed value or the descriptive sources, constants, and behavior.");
+    }
   }
 
-  @JsonIgnore
+  public MappingIntentRule(
+      String id,
+      List<String> requirementIds,
+      String targetPath,
+      MappingValue value,
+      MappingCondition condition,
+      MappingRuleStatus status) {
+    this(id, requirementIds, targetPath, value, condition, status, List.of(), List.of(), "");
+  }
+
+  /** Java convenience for callers that already own a direct copy or custom requirement. */
+  public MappingIntentRule(String sourcePath, String targetPath, String expression,
+      MappingRuleStatus status) {
+    this("", List.of(), targetPath,
+        expression != null && !expression.isBlank()
+            ? new MappingValue.Custom(expression.trim(), List.of())
+            : sourcePath == null || sourcePath.isBlank() ? null
+                : new MappingValue.Copy(new MappingSource.Message("", null, sourcePath.trim())),
+        MappingCondition.always(), status);
+  }
+
   public MappingIntentRule(String sourcePath, String targetPath, String expression) {
     this(sourcePath, targetPath, expression, MappingRuleStatus.PROPOSED);
   }
 
-  public MappingIntentRule withStatus(MappingRuleStatus newStatus) {
-    return new MappingIntentRule(sourcePath, targetPath, expression, newStatus);
+  public static MappingIntentRule descriptive(
+      String id,
+      List<String> requirementIds,
+      String targetPath,
+      List<MappingFieldRef> sources,
+      List<MappingConstant> constants,
+      String behavior) {
+    return new MappingIntentRule(
+        id,
+        requirementIds,
+        targetPath,
+        null,
+        MappingCondition.always(),
+        MappingRuleStatus.PROPOSED,
+        sources,
+        constants,
+        behavior);
   }
 
+  public MappingIntentRule withStatus(MappingRuleStatus newStatus) {
+    return new MappingIntentRule(
+        id, requirementIds, targetPath, value, condition, newStatus, fieldRefs, constants, behavior);
+  }
+
+  public MappingIntentRule withTargetPath(String path) {
+    return new MappingIntentRule(
+        id, requirementIds, path, value, condition, status, fieldRefs, constants, behavior);
+  }
+
+  public MappingIntentRule withBehavior(String nextBehavior) {
+    return new MappingIntentRule(
+        id, requirementIds, targetPath, value, condition, status, fieldRefs, constants, nextBehavior);
+  }
+
+  @JsonIgnore
+  public boolean descriptive() {
+    return value == null && (!fieldRefs.isEmpty() || !constants.isEmpty() || !behavior.isBlank());
+  }
+
+  @JsonIgnore
+  public List<MappingSource> sources() {
+    return value == null ? List.of() : value.sources();
+  }
+
+  /** Presentation only. Composite operations retain their operands in {@link #value()}. */
+  @JsonIgnore
+  public String sourcePath() {
+    if (descriptive()) {
+      for (MappingFieldRef source : fieldRefs) {
+        if (!source.fieldPath().isBlank()) {
+          return source.fieldPath();
+        }
+      }
+      return "";
+    }
+    return value instanceof MappingValue.Copy copy && copy.source() instanceof MappingSource.Message message
+        ? message.path() : "";
+  }
+
+  /** Presentation only; no compiler parses this description. */
+  @JsonIgnore
+  public String expression() {
+    if (descriptive()) {
+      return behavior.isBlank() ? null : behavior;
+    }
+    return value == null || value instanceof MappingValue.Copy copy
+        && copy.source() instanceof MappingSource.Message ? null : MappingValue.describe(value);
+  }
+
+  @JsonIgnore
   public boolean identityCopy() {
-    return expression == null && !sourcePath.isBlank() && sourcePath.equals(targetPath);
+    return condition.when() == MappingCondition.When.ALWAYS
+        && value instanceof MappingValue.Copy copy
+        && copy.source() instanceof MappingSource.Message message
+        && message.path() != null && message.path().equals(targetPath);
   }
 }

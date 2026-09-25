@@ -1,0 +1,19 @@
+{
+  "gateModel": "gpt-6-luna",
+  "cases": [
+    {
+      "gate": "G2",
+      "checkpoint": "mapping",
+      "id": "om-mapping",
+      "observation": "Original request, response, and retained-context rules survive",
+      "source": "Request mapping (onTaskStart -> Task): Subject = name, or a formatted fallback. Priority maps high, urgent, or critical to High. Status = Not Started. ActivityDate uses the order creation date, else today. Description is serialized text. Keep executionId, orderId, processInstanceId, executionNumber, and taskId for the response. Response mapping echoes those retained values. commandType = completeTask. On failure: error.code SALESFORCE_TASK_CREATE_ERROR plus the Salesforce error text."
+    },
+    {
+      "gate": "G2",
+      "checkpoint": "mapping",
+      "id": "priority-repair",
+      "observation": "Only the assigned Priority rule changes",
+      "source": "Repair only the Priority rule. Urgent maps to High. Leave every other request rule, response rule, retained value, and id unchanged."
+    }
+  ]
+}
