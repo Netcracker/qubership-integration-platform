@@ -567,7 +567,10 @@ public final class WorkCheckpointHarness {
             "request",
             "{\"type\":\"object\",\"properties\":{\"Subject\":{\"type\":\"string\"},\"Priority\":{\"type\":\"string\"},\"Status\":{\"type\":\"string\"},\"ActivityDate\":{\"type\":\"string\"},\"Description\":{\"type\":\"string\"}}}"),
         schema("create", "success", "{\"type\":\"object\",\"properties\":{\"status\":{\"type\":\"string\"}}}"),
-        schema("create", "failure", "{\"type\":\"object\",\"properties\":{\"status\":{\"type\":\"string\"}}}"),
+        schema(
+            "create",
+            "failure",
+            "{\"type\":\"object\",\"properties\":{\"status\":{\"type\":\"string\"},\"error\":{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}}}}}"),
         schema(
             "result",
             "request",

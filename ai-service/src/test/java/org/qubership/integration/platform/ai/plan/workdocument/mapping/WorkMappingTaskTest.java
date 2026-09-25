@@ -205,6 +205,7 @@ class WorkMappingTaskTest {
     String prompt = prompts.getFirst();
     assertTrue(prompt.contains("Every record list is empty."));
     assertTrue(prompt.contains("Do not ask for a format the source already describes."));
+    assertTrue(prompt.contains("A schema label is not an evidence id."));
   }
 
   @Test
@@ -230,6 +231,32 @@ class WorkMappingTaskTest {
             Map.of("src-map", "supplied mapping"));
     WorkCommit glued = mapping.interpret(RUN_ID, embedded, prompt -> processIdCapture());
     assertEquals("NEEDS_CLARIFICATION", glued.outcome().name());
+  }
+
+  @Test
+  void schemaConstraintContainingBothLeavesStillAsks() {
+    List<SchemaFragment> schemas = new ArrayList<>();
+    for (SchemaFragment fragment : materials(false).schemas()) {
+      if ("result".equals(fragment.stepId()) && "request".equals(fragment.portName())) {
+        schemas.add(
+            schema(
+                "result",
+                "request",
+                "{\"type\":\"object\",\"properties\":{\"commandType\":{\"type\":\"string\"},\"executionId\":{\"type\":\"string\"},\"orderId\":{\"type\":\"string\"},\"processId\":{\"type\":\"string\"},\"processInstanceId\":{\"type\":\"string\"},\"executionNumber\":{\"type\":\"string\"},\"taskId\":{\"type\":\"string\"},\"sourceAppName\":{\"type\":\"string\"},\"error\":{\"type\":\"object\",\"properties\":{\"code\":{\"type\":\"string\"},\"text\":{\"type\":\"string\"}}}}}"));
+      } else {
+        schemas.add(fragment);
+      }
+    }
+    WorkTaskMaterials bothLeaves =
+        new WorkTaskMaterials(schemas, List.of(), Map.of("src-map", "supplied mapping"));
+
+    WorkCommit asked = mapping.interpret(RUN_ID, bothLeaves, prompt -> processIdCapture());
+
+    assertEquals("NEEDS_CLARIFICATION", asked.outcome().name());
+    String questions = JSON.valueToTree(asked.state().document()).path("progress").path("questions").toString();
+    assertTrue(questions.contains("processId"));
+    assertTrue(questions.contains("processInstanceId"));
+    assertFalse(targets(JSON.valueToTree(asked.state().document())).contains("$.processId"));
   }
 
   @Test
