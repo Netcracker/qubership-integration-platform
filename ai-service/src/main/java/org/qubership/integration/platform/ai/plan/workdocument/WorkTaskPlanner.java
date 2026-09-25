@@ -65,7 +65,7 @@ public final class WorkTaskPlanner {
     blockCycles(graph, byKey, blocks);
     blockReferences(document, graph, byKey, blocks);
     blockCoverage(document, byKey, blocks);
-    blockFindings(document, blocks);
+    blockFindings(document, byKey, blocks);
     blockQuestions(document, byKey, blocks);
     markReady(byKey, blocks);
     List<Draft> ordered = new ArrayList<>(byKey.values());
@@ -233,7 +233,10 @@ public final class WorkTaskPlanner {
     }
     for (String retainedId : transfer.requiredRetainedIds()) {
       RetainedValue value = graph.retained(retainedId);
-      String producer = value == null ? "" : producerId(value, graph);
+      if (value == null || value.satisfiesConsumer()) {
+        continue;
+      }
+      String producer = producerId(value, graph);
       if (!producer.isBlank()) {
         dependencies.add(taskKey(WorkTaskKind.DESCRIBE_CONTEXT, producer));
       }
@@ -286,15 +289,6 @@ public final class WorkTaskPlanner {
         draft.state = WorkTaskState.NEEDS_RECHECK;
       } else {
         draft.state = record.state();
-      }
-    }
-    for (WorkQuestion question : document.progress().questions()) {
-      if (question.resolution() != QuestionResolution.ANSWERED) {
-        continue;
-      }
-      Draft owner = byKey.get(question.ownerTaskKey());
-      if (owner != null && owner.state == WorkTaskState.ACCEPTED) {
-        owner.state = WorkTaskState.NEEDS_RECHECK;
       }
     }
   }
@@ -502,17 +496,26 @@ public final class WorkTaskPlanner {
     }
   }
 
-  private static void blockFindings(ChainWorkDocument document, Map<String, Block> blocks) {
+  private static void blockFindings(ChainWorkDocument document, Map<String, Draft> byKey, Map<String, Block> blocks) {
     for (WorkFinding finding : document.progress().findings()) {
       if (rule(document, finding.recordRef()) != null) {
         continue;
       }
-      put(
-          blocks,
+      Block block =
           new Block(
               finding.id(),
               Reason.ACTIVE_FINDING,
-              "Finding " + finding.id() + " records an open defect on " + finding.recordRef() + "."));
+              "Finding " + finding.id() + " records an open defect on " + finding.recordRef() + ".");
+      boolean attached = false;
+      for (Draft draft : byKey.values()) {
+        if (contains(draft.assignedRecordIds, finding.recordRef()) || contains(draft.scopeIds, finding.recordRef())) {
+          put(blocks, new Block(draft.taskKey, block.reason(), block.evidence()));
+          attached = true;
+        }
+      }
+      if (!attached) {
+        put(blocks, block);
+      }
     }
   }
 
@@ -520,16 +523,28 @@ public final class WorkTaskPlanner {
     List<WorkQuestion> questions = new ArrayList<>(document.progress().questions());
     questions.sort((left, right) -> left.id().compareTo(right.id()));
     for (WorkQuestion question : questions) {
-      if (question.resolution() != QuestionResolution.OPEN && question.resolution() != QuestionResolution.ANSWERED) {
+      if (question.resolution() == QuestionResolution.ANSWERED) {
+        Draft owner = byKey.get(question.ownerTaskKey());
+        if (owner != null && owner.state == WorkTaskState.ACCEPTED) {
+          continue;
+        }
+        for (Draft draft : byKey.values()) {
+          if (draft.taskKey.equals(question.ownerTaskKey())) {
+            continue;
+          }
+          if (intersects(draft.assignedRecordIds, question.blockedRecordIds())) {
+            put(blocks, questionBlock(question, draft.taskKey));
+          }
+        }
+        continue;
+      }
+      if (question.resolution() != QuestionResolution.OPEN) {
         continue;
       }
       for (Draft draft : byKey.values()) {
         boolean owner = draft.taskKey.equals(question.ownerTaskKey());
         boolean blockedRecord = intersects(draft.assignedRecordIds, question.blockedRecordIds());
-        if (question.resolution() == QuestionResolution.OPEN && owner) {
-          put(blocks, questionBlock(question, draft.taskKey));
-        }
-        if (blockedRecord && !(owner && question.resolution() == QuestionResolution.ANSWERED)) {
+        if (owner || blockedRecord) {
           put(blocks, questionBlock(question, draft.taskKey));
         }
       }
@@ -577,7 +592,8 @@ public final class WorkTaskPlanner {
       Draft required = byKey.get(dependency);
       Block block = blocks.get(dependency);
       boolean structurallyBlocked = block != null && structural(block.reason());
-      if (required == null || required.state != WorkTaskState.ACCEPTED || structurallyBlocked) {
+      boolean inputBlocked = block != null && block.reason() == Reason.WAITING_FOR_INPUT;
+      if (required == null || required.state != WorkTaskState.ACCEPTED || structurallyBlocked || inputBlocked) {
         unmet.add(dependency);
       }
     }
@@ -818,14 +834,28 @@ public final class WorkTaskPlanner {
     for (String port : ports) {
       parts.add("port").add(port);
     }
+    List<String> schemas = new ArrayList<>();
+    for (ResolvedWorkBinding.PortContentHash hash : binding.portContentHashes()) {
+      schemas.add(hash.port() + "=" + hash.contentHash());
+    }
+    Collections.sort(schemas);
+    for (String schema : schemas) {
+      parts.add("schema").add(schema);
+    }
   }
 
   private static void appendGoverningSources(Parts parts, ChainWorkDocument document, List<String> requirementIds) {
+    List<WorkRequirement> requirements = new ArrayList<>();
     Set<String> sourceIds = new LinkedHashSet<>();
     for (WorkRequirement requirement : document.requirements()) {
       if (requirementIds.contains(requirement.id())) {
+        requirements.add(requirement);
         sourceIds.addAll(requirement.sourceIds());
       }
+    }
+    requirements.sort((left, right) -> left.id().compareTo(right.id()));
+    for (WorkRequirement requirement : requirements) {
+      parts.add("constraint").add(requirement.id()).add(requirement.text());
     }
     List<WorkSource> sources = new ArrayList<>();
     for (WorkSource source : document.sources()) {
@@ -836,6 +866,11 @@ public final class WorkTaskPlanner {
     sources.sort((left, right) -> left.id().compareTo(right.id()));
     for (WorkSource source : sources) {
       parts.add("governing").add(source.id()).add(source.contentHash());
+      List<SourcePassage> passages = new ArrayList<>(source.passages());
+      passages.sort((left, right) -> left.id().compareTo(right.id()));
+      for (SourcePassage passage : passages) {
+        parts.add("passage").add(passage.id()).add(passage.contentHash());
+      }
     }
   }
 
@@ -888,6 +923,9 @@ public final class WorkTaskPlanner {
       List<RetainedValue> values = new ArrayList<>(step.data().retainedValues());
       values.sort((left, right) -> left.id().compareTo(right.id()));
       for (RetainedValue value : values) {
+        if (value.satisfiesConsumer()) {
+          continue;
+        }
         String producer = value.producerStepId().isBlank() ? step.id() : value.producerStepId();
         grouped.computeIfAbsent(producer, key -> new ArrayList<>()).add(value);
       }
@@ -1050,6 +1088,10 @@ public final class WorkTaskPlanner {
     return false;
   }
 
+  private static boolean contains(List<String> values, String candidate) {
+    return candidate != null && values.contains(candidate);
+  }
+
   private static String cycleEvidence(Set<String> steps) {
     List<String> sorted = new ArrayList<>(steps);
     Collections.sort(sorted);
@@ -1178,13 +1220,13 @@ public final class WorkTaskPlanner {
   private record OwnedTransfer(String stepId, DataTransfer transfer) {}
 
   /**
-   * Design edges omit loop and retry back-edges and correlation callbacks.
-   * Those runtime edges are not scheduling dependencies.
+   * Scheduling edges omit loop and retry back-edges and correlation callbacks.
+   * Availability keeps correlation edges and still omits those back-edges.
    */
   private static final class Graph {
     private final Map<String, LogicalStep> steps;
     private final Map<String, RetainedValue> retained;
-    private final Map<String, List<String>> forward;
+    private final Map<String, List<String>> reachable;
     private final Map<String, List<String>> producers;
     private final List<Set<String>> branches;
     private final List<Set<String>> bodies;
@@ -1193,14 +1235,14 @@ public final class WorkTaskPlanner {
     private Graph(
         Map<String, LogicalStep> steps,
         Map<String, RetainedValue> retained,
-        Map<String, List<String>> forward,
+        Map<String, List<String>> reachable,
         Map<String, List<String>> producers,
         List<Set<String>> branches,
         List<Set<String>> bodies,
         Set<String> cycleSteps) {
       this.steps = steps;
       this.retained = retained;
-      this.forward = forward;
+      this.reachable = reachable;
       this.producers = producers;
       this.branches = branches;
       this.bodies = bodies;
@@ -1218,23 +1260,32 @@ public final class WorkTaskPlanner {
           retained.put(value.id(), value);
         }
       }
-      Set<String> runtime = runtimeEdges(document);
+      Set<String> returns = returnEdges(document);
+      Set<String> correlations = correlationEdges(document);
       Map<String, List<String>> forward = new LinkedHashMap<>();
+      Map<String, List<String>> reachable = new LinkedHashMap<>();
       Map<String, List<String>> backward = new LinkedHashMap<>();
       for (String stepId : steps.keySet()) {
         forward.put(stepId, new ArrayList<>());
+        reachable.put(stepId, new ArrayList<>());
         backward.put(stepId, new ArrayList<>());
       }
       for (LogicalConnection connection : document.flow().connections()) {
-        forward.computeIfAbsent(connection.sourceStepId(), key -> new ArrayList<>());
-        backward.computeIfAbsent(connection.targetStepId(), key -> new ArrayList<>());
-        if (runtime.contains(edge(connection))) {
+        String key = edge(connection);
+        boolean returned = returns.contains(key);
+        if (!returned) {
+          reachable.computeIfAbsent(connection.sourceStepId(), id -> new ArrayList<>()).add(connection.targetStepId());
+        }
+        if (returned || correlations.contains(key)) {
           continue;
         }
-        forward.computeIfAbsent(connection.sourceStepId(), key -> new ArrayList<>()).add(connection.targetStepId());
-        backward.computeIfAbsent(connection.targetStepId(), key -> new ArrayList<>()).add(connection.sourceStepId());
+        forward.computeIfAbsent(connection.sourceStepId(), id -> new ArrayList<>()).add(connection.targetStepId());
+        backward.computeIfAbsent(connection.targetStepId(), id -> new ArrayList<>()).add(connection.sourceStepId());
       }
       for (List<String> next : forward.values()) {
+        Collections.sort(next);
+      }
+      for (List<String> next : reachable.values()) {
         Collections.sort(next);
       }
       Map<String, List<String>> producers = new LinkedHashMap<>();
@@ -1243,7 +1294,7 @@ public final class WorkTaskPlanner {
       }
       List<Set<String>> branches = branches(document, forward);
       List<Set<String>> bodies = bodies(document, forward);
-      return new Graph(steps, retained, forward, producers, branches, bodies, cyclic(forward));
+      return new Graph(steps, retained, reachable, producers, branches, bodies, cyclic(forward));
     }
 
     private LogicalStep step(String stepId) {
@@ -1291,7 +1342,7 @@ public final class WorkTaskPlanner {
         if (!seen.add(current)) {
           continue;
         }
-        for (String next : forward.getOrDefault(current, List.of())) {
+        for (String next : reachable.getOrDefault(current, List.of())) {
           if (goal.equals(next) || goal.equals(current)) {
             return true;
           }
@@ -1319,24 +1370,31 @@ public final class WorkTaskPlanner {
       return sorted;
     }
 
-    private static Set<String> runtimeEdges(ChainWorkDocument document) {
-      Set<String> runtime = new LinkedHashSet<>();
+    private static Set<String> correlationEdges(ChainWorkDocument document) {
+      Set<String> edges = new LinkedHashSet<>();
       for (LogicalConnection connection : document.flow().connections()) {
         if ("correlation".equals(connection.outcome())) {
-          runtime.add(edge(connection));
+          edges.add(edge(connection));
         }
+      }
+      return edges;
+    }
+
+    private static Set<String> returnEdges(ChainWorkDocument document) {
+      Set<String> edges = new LinkedHashSet<>();
+      for (LogicalConnection connection : document.flow().connections()) {
         for (LoopGroup loop : document.flow().loopGroups()) {
           if (returns(connection, loop.ownerStepId(), loop.bodyEntryStepId(), loop.bodyExitStepIds())) {
-            runtime.add(edge(connection));
+            edges.add(edge(connection));
           }
         }
         for (RetryGroup retry : document.flow().retryGroups()) {
           if (returns(connection, retry.ownerStepId(), retry.bodyEntryStepId(), retry.bodyExitStepIds())) {
-            runtime.add(edge(connection));
+            edges.add(edge(connection));
           }
         }
       }
-      return runtime;
+      return edges;
     }
 
     private static boolean returns(LogicalConnection connection, String owner, String entry, List<String> exits) {
@@ -1355,6 +1413,17 @@ public final class WorkTaskPlanner {
       for (SplitGroup group : document.flow().splitGroups()) {
         for (SplitBranch branch : group.branches()) {
           branches.add(region(branch.entryStepId(), group.reconvergenceStepId(), branch.exitStepIds(), forward));
+        }
+      }
+      for (ErrorScopeGroup scope : document.flow().errorScopeGroups()) {
+        for (ErrorHandler handler : scope.handlers()) {
+          if (scope.exitStepIds().isEmpty()) {
+            branches.add(region(handler.entryStepId(), "", handler.exitStepIds(), forward));
+          } else {
+            for (String exit : scope.exitStepIds()) {
+              branches.add(region(handler.entryStepId(), exit, handler.exitStepIds(), forward));
+            }
+          }
         }
       }
       return branches;

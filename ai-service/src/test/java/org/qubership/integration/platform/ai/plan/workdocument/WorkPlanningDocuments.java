@@ -227,6 +227,36 @@ final class WorkPlanningDocuments {
     return replaceFlow(document, steps, document.flow().connections());
   }
 
+  static ChainWorkDocument withErrorScopes(ChainWorkDocument document, List<ErrorScopeGroup> groups) {
+    LogicalFlow prior = document.flow();
+    return new ChainWorkDocument(
+        document.schemaVersion(),
+        document.documentId(),
+        document.sources(),
+        document.requirements(),
+        new LogicalFlow(
+            prior.steps(),
+            prior.connections(),
+            prior.sequenceGroups(),
+            prior.conditionGroups(),
+            prior.splitGroups(),
+            prior.loopGroups(),
+            prior.retryGroups(),
+            groups),
+        document.progress());
+  }
+
+  static ErrorScopeGroup errorScope(
+      String id, String ownerStepId, String tryEntryStepId, String handlerEntryStepId, String exitStepId) {
+    return new ErrorScopeGroup(
+        id,
+        ownerStepId,
+        tryEntryStepId,
+        List.of(new ErrorHandler("handler-1", "Exception", handlerEntryStepId, List.of(handlerEntryStepId))),
+        "",
+        List.of(exitStepId));
+  }
+
   static ChainWorkDocument replaceFlow(
       ChainWorkDocument document, List<LogicalStep> steps, List<LogicalConnection> connections) {
     LogicalFlow prior = document.flow();

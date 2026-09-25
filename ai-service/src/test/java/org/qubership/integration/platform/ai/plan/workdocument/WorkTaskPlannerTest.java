@@ -6,9 +6,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.plan.workdocument.ResolvedWorkBinding.PortContentHash;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner.Block;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner.Plan;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner.Reason;
@@ -230,7 +232,11 @@ class WorkTaskPlannerTest {
     assertEquals(
         "Retained value kept-loop is produced on step call and is not available at step reply.",
         block(loop, "map-transfer:to-exit").evidence());
-    assertEquals(Reason.UNAVAILABLE_INPUT, block(callback, "map-transfer:to-callback").reason());
+    assertTrue(
+        callback.blocked().stream()
+            .noneMatch(
+                item ->
+                    item.taskKey().equals("map-transfer:to-callback") && item.reason() == Reason.UNAVAILABLE_INPUT));
   }
 
   @Test
@@ -279,6 +285,313 @@ class WorkTaskPlannerTest {
 
     assertEquals(Reason.DUPLICATE_KEY, block(plan, "map-transfer:same").reason());
     assertFalse(task(plan, "map-transfer:same").ready());
+  }
+
+  @Test
+  void answeredQuestionDoesNotReopenAnAcceptedOwnerAndDependentsResume() {
+    ChainWorkDocument accepted = WorkPlanningDocuments.accept(answeredReply(), task -> true);
+
+    Plan plan = planner.plan(accepted);
+
+    assertEquals(WorkTaskState.ACCEPTED, task(plan, "map-transfer:to-reply").state());
+    assertTrue(plan.blocked().stream().noneMatch(item -> item.taskKey().equals("select-operation:reply")));
+    assertEquals(WorkTaskPlanner.Readiness.Status.READY_FOR_PRESENTATION, plan.readiness().status());
+  }
+
+  @Test
+  void schemaOrPassageChangeRechecksTheConsumer() {
+    ChainWorkDocument accepted = WorkPlanningDocuments.accept(hashedCalls(), task -> true);
+
+    ChainWorkDocument rehashed =
+        replaceSchemaHash(accepted, "call-a", "request", "hash-schema-b");
+    Plan afterSchema = planner.plan(rehashed);
+    assertEquals(WorkTaskState.NEEDS_RECHECK, task(afterSchema, "map-transfer:to-a").state());
+    assertEquals(WorkTaskState.ACCEPTED, task(afterSchema, "map-transfer:to-b").state());
+
+    ChainWorkDocument repassaged =
+        replacePassageHash(accepted, WorkPlanningDocuments.PASSAGE_ID, "hash-passage-changed");
+    Plan afterPassage = planner.plan(repassaged);
+    assertEquals(WorkTaskState.NEEDS_RECHECK, task(afterPassage, "map-transfer:to-a").state());
+    assertEquals(WorkTaskState.ACCEPTED, task(afterPassage, "map-transfer:to-b").state());
+
+    ChainWorkDocument reworded = replaceRequirementText(accepted, WorkPlanningDocuments.REQUIREMENT_ID, "Map the corrected order");
+    Plan afterText = planner.plan(reworded);
+    assertEquals(WorkTaskState.NEEDS_RECHECK, task(afterText, "map-transfer:to-a").state());
+    assertEquals(WorkTaskState.ACCEPTED, task(afterText, "map-transfer:to-b").state());
+    assertEquals(WorkTaskState.ACCEPTED, task(afterText, "logical-design:doc-1").state());
+  }
+
+  @Test
+  void storedBindingWithoutPortHashesStillReads() throws Exception {
+    String legacy =
+        "{\"catalogId\":\"sys\",\"version\":\"1\",\"operationId\":\"op\",\"protocol\":\"http\",\"method\":\"POST\",\"path\":\"/op\",\"contractReferences\":[\"spec\"],\"exposedPorts\":[\"request\"]}";
+    ResolvedWorkBinding binding = new ObjectMapper().readValue(legacy, ResolvedWorkBinding.class);
+
+    assertEquals(List.of(), binding.portContentHashes());
+  }
+
+  @Test
+  void findingOnAStepBlocksThatTaskAndHaltsWhenNothingElseIsReady() {
+    ChainWorkDocument accepted =
+        WorkPlanningDocuments.accept(singleCall(), task -> task.kind() == WorkTaskKind.LOGICAL_DESIGN);
+    WorkFinding finding =
+        new WorkFinding(
+            "finding-1",
+            "call",
+            "WRONG_ACTION",
+            "The call is the wrong action.",
+            List.of(WorkPlanningDocuments.SOURCE_ID),
+            "");
+    ChainWorkDocument withFinding =
+        WorkPlanningDocuments.replaceProgress(
+            accepted,
+            new WorkProgress(accepted.progress().tasks(), List.of(finding), List.of(), "", List.of(), List.of()));
+
+    Plan plan = planner.plan(withFinding);
+
+    assertFalse(task(plan, "select-operation:call").ready());
+    assertEquals(Reason.ACTIVE_FINDING, block(plan, "select-operation:call").reason());
+    assertEquals(
+        "Finding finding-1 records an open defect on call.",
+        block(plan, "select-operation:call").evidence());
+    assertNull(plan.selected());
+    assertEquals(WorkTaskPlanner.Readiness.Status.HALTED, plan.readiness().status());
+  }
+
+  @Test
+  void openQuestionOnAPrerequisiteWithholdsDependents() {
+    ChainWorkDocument accepted =
+        WorkPlanningDocuments.accept(
+            twoBareCalls(),
+            task -> task.kind() == WorkTaskKind.LOGICAL_DESIGN || task.kind() == WorkTaskKind.SELECT_OPERATION);
+    WorkQuestion question =
+        new WorkQuestion(
+            "q-a",
+            "operation",
+            "Which operation creates the task?",
+            List.of(WorkPlanningDocuments.SOURCE_ID),
+            "select-operation:call-a",
+            QuestionSubject.unspecified(),
+            List.of(),
+            List.of(),
+            QuestionResolution.OPEN);
+    ChainWorkDocument questioned =
+        WorkPlanningDocuments.replaceProgress(
+            accepted,
+            new WorkProgress(accepted.progress().tasks(), List.of(), List.of(question), "", List.of(), List.of()));
+
+    Plan plan = planner.plan(questioned);
+
+    assertFalse(task(plan, "define-transfers:call-a").ready());
+    assertEquals(Reason.WAITING_FOR_TASK, block(plan, "define-transfers:call-a").reason());
+    assertTrue(task(plan, "define-transfers:call-b").ready());
+    assertEquals("define-transfers:call-b", plan.selected().taskKey());
+  }
+
+  @Test
+  void resolvedRetainedValueDoesNotCreateAContextTask() {
+    ChainWorkDocument ready =
+        WorkPlanningDocuments.accept(
+            resolvedRetainedDocument(),
+            task -> task.kind() != WorkTaskKind.MAP_TRANSFER);
+
+    Plan plan = planner.plan(ready);
+
+    assertTrue(keys(plan).stream().noneMatch(key -> key.startsWith("describe-context:")));
+    assertFalse(task(plan, "map-transfer:to-request").dependencyKeys().stream().anyMatch(key -> key.startsWith("describe-context:")));
+    assertTrue(task(plan, "map-transfer:to-request").ready());
+  }
+
+  @Test
+  void callbackCorrelationKeepsTheCallerValueAvailable() {
+    Plan plan = planner.plan(callbackDocument());
+
+    assertTrue(plan.blocked().stream().noneMatch(item -> item.reason() == Reason.CYCLE));
+    assertTrue(
+        plan.blocked().stream()
+            .noneMatch(
+                item ->
+                    item.taskKey().equals("map-transfer:to-callback") && item.reason() == Reason.UNAVAILABLE_INPUT));
+  }
+
+  @Test
+  void handlerOnlyValueIsUnavailableOutsideTheHandler() {
+    Plan plan = planner.plan(handlerDocument());
+
+    assertEquals(Reason.UNAVAILABLE_INPUT, block(plan, "map-transfer:to-reply").reason());
+    assertEquals(
+        "Retained value kept-handler is produced on step handler and is not available at step reply.",
+        block(plan, "map-transfer:to-reply").evidence());
+  }
+
+  private static ChainWorkDocument answeredReply() {
+    LogicalStep trigger =
+        WorkPlanningDocuments.step(
+            "trigger", StepKind.TRIGGER, WorkPlanningDocuments.binding("receive", "1.0.0"), StepData.empty());
+    LogicalStep reply =
+        WorkPlanningDocuments.step(
+            "reply",
+            StepKind.REPLY,
+            WorkPlanningDocuments.binding("respond", "1.0.0"),
+            new StepData(
+                List.of(
+                    WorkPlanningDocuments.transfer(
+                        "to-reply",
+                        "trigger",
+                        "reply",
+                        "request",
+                        TransferOutcome.UNSPECIFIED,
+                        MappingDecision.UNSPECIFIED,
+                        List.of(WorkPlanningDocuments.rule("rule-reply", "trigger", "reply")),
+                        List.of(),
+                        WorkPlanningDocuments.REQUIREMENT_ID)),
+                List.of(),
+                WorkPlanningDocuments.covered(
+                    WorkPlanningDocuments.REQUIREMENT_ID,
+                    WorkPlanningDocuments.PASSAGE_ID,
+                    "to-reply",
+                    CoverageDisposition.ASSIGNED)),
+            WorkPlanningDocuments.REQUIREMENT_ID);
+    WorkQuestion question =
+        new WorkQuestion(
+            "q-reply",
+            "field",
+            "Which reply field carries the id?",
+            List.of(WorkPlanningDocuments.SOURCE_ID),
+            "map-transfer:to-reply",
+            QuestionSubject.unspecified(),
+            List.of("to-reply", "reply"),
+            List.of(WorkPlanningDocuments.SOURCE_ID),
+            QuestionResolution.ANSWERED);
+    return WorkPlanningDocuments.replaceProgress(
+        WorkPlanningDocuments.document(
+            "doc-1",
+            List.of(trigger, reply),
+            List.of(WorkPlanningDocuments.connection("c1", "trigger", "success", "reply")),
+            WorkProgress.empty()),
+        new WorkProgress(List.of(), List.of(), List.of(question), "", List.of(), List.of()));
+  }
+
+  private static ChainWorkDocument hashedCalls() {
+    return replaceSchemaHash(twoCalls(), "call-a", "request", "hash-schema-a");
+  }
+
+  private static ChainWorkDocument singleCall() {
+    return WorkPlanningDocuments.document(
+        "doc-1",
+        List.of(
+            WorkPlanningDocuments.step(
+                "call",
+                StepKind.SERVICE_CALL,
+                WorkPlanningDocuments.binding("createTask", "1.0.0"),
+                StepData.empty(),
+                WorkPlanningDocuments.REQUIREMENT_ID)),
+        List.of(),
+        WorkProgress.empty());
+  }
+
+  private static ChainWorkDocument twoBareCalls() {
+    return WorkPlanningDocuments.document(
+        "doc-1",
+        List.of(
+            WorkPlanningDocuments.step(
+                "call-a",
+                StepKind.SERVICE_CALL,
+                WorkPlanningDocuments.binding("createTask", "1.0.0"),
+                StepData.empty(),
+                WorkPlanningDocuments.REQUIREMENT_ID),
+            WorkPlanningDocuments.step(
+                "call-b",
+                StepKind.SERVICE_CALL,
+                WorkPlanningDocuments.binding("notify", "1.0.0"),
+                StepData.empty(),
+                WorkPlanningDocuments.OTHER_REQUIREMENT_ID)),
+        List.of(),
+        WorkProgress.empty());
+  }
+
+  private static ChainWorkDocument resolvedRetainedDocument() {
+    RetainedValue kept = WorkPlanningDocuments.resolved("kept-order", "trigger");
+    LogicalStep trigger =
+        WorkPlanningDocuments.step(
+            "trigger",
+            StepKind.TRIGGER,
+            WorkPlanningDocuments.binding("receive", "1.0.0"),
+            new StepData(List.of(), List.of(kept), DataOutline.empty()),
+            WorkPlanningDocuments.REQUIREMENT_ID);
+    LogicalStep call =
+        WorkPlanningDocuments.step(
+            "call",
+            StepKind.SERVICE_CALL,
+            WorkPlanningDocuments.binding("createTask", "1.0.0"),
+            new StepData(
+                List.of(
+                    WorkPlanningDocuments.transfer(
+                        "to-request",
+                        "trigger",
+                        "call",
+                        "request",
+                        TransferOutcome.UNSPECIFIED,
+                        MappingDecision.UNSPECIFIED,
+                        List.of(WorkPlanningDocuments.rule("rule-1", "trigger", "call")),
+                        List.of("kept-order"),
+                        WorkPlanningDocuments.REQUIREMENT_ID)),
+                List.of(),
+                WorkPlanningDocuments.covered(
+                    WorkPlanningDocuments.REQUIREMENT_ID,
+                    WorkPlanningDocuments.PASSAGE_ID,
+                    "to-request",
+                    CoverageDisposition.ASSIGNED)),
+            WorkPlanningDocuments.REQUIREMENT_ID);
+    return WorkPlanningDocuments.document(
+        "doc-1",
+        List.of(trigger, call),
+        List.of(WorkPlanningDocuments.connection("c1", "trigger", "success", "call")),
+        WorkProgress.empty());
+  }
+
+  private static ChainWorkDocument handlerDocument() {
+    RetainedValue kept = WorkPlanningDocuments.resolved("kept-handler", "handler");
+    LogicalStep call =
+        WorkPlanningDocuments.step(
+            "call", StepKind.SERVICE_CALL, WorkPlanningDocuments.binding("createTask", "1.0.0"), StepData.empty());
+    LogicalStep handler =
+        WorkPlanningDocuments.step(
+            "handler",
+            StepKind.LOCAL,
+            null,
+            new StepData(List.of(), List.of(kept), DataOutline.empty()));
+    LogicalStep reply =
+        WorkPlanningDocuments.step(
+            "reply",
+            StepKind.REPLY,
+            WorkPlanningDocuments.binding("respond", "1.0.0"),
+            new StepData(
+                List.of(
+                    WorkPlanningDocuments.transfer(
+                        "to-reply",
+                        "handler",
+                        "reply",
+                        "request",
+                        TransferOutcome.UNSPECIFIED,
+                        MappingDecision.UNSPECIFIED,
+                        List.of(),
+                        List.of("kept-handler"),
+                        WorkPlanningDocuments.REQUIREMENT_ID)),
+                List.of(),
+                DataOutline.empty()),
+            WorkPlanningDocuments.REQUIREMENT_ID);
+    ChainWorkDocument document =
+        WorkPlanningDocuments.document(
+            "doc-1",
+            List.of(call, handler, reply),
+            List.of(
+                WorkPlanningDocuments.connection("ok", "call", "success", "reply"),
+                WorkPlanningDocuments.connection("fail", "call", "failure", "handler"),
+                WorkPlanningDocuments.connection("handled", "handler", "success", "reply")),
+            WorkProgress.empty());
+    return WorkPlanningDocuments.withErrorScopes(
+        document, List.of(WorkPlanningDocuments.errorScope("scope-1", "call", "call", "handler", "reply")));
   }
 
   private static ChainWorkDocument fourSteps() {
@@ -867,6 +1180,80 @@ class WorkTaskPlannerTest {
       }
     }
     return WorkPlanningDocuments.replaceFlow(document, steps, document.flow().connections());
+  }
+
+  private static ChainWorkDocument replaceSchemaHash(
+      ChainWorkDocument document, String stepId, String port, String contentHash) {
+    List<LogicalStep> steps = new ArrayList<>();
+    for (LogicalStep step : document.flow().steps()) {
+      if (step.id().equals(stepId) && step.binding() != null) {
+        ResolvedWorkBinding prior = step.binding();
+        steps.add(
+            new LogicalStep(
+                step.id(),
+                step.kind(),
+                step.label(),
+                step.intent(),
+                step.sourceIds(),
+                step.requirementIds(),
+                new ResolvedWorkBinding(
+                    prior.catalogId(),
+                    prior.version(),
+                    prior.operationId(),
+                    prior.protocol(),
+                    prior.method(),
+                    prior.path(),
+                    prior.contractReferences(),
+                    prior.exposedPorts(),
+                    List.of(new PortContentHash(port, contentHash))),
+                step.data()));
+      } else {
+        steps.add(step);
+      }
+    }
+    return WorkPlanningDocuments.replaceFlow(document, steps, document.flow().connections());
+  }
+
+  private static ChainWorkDocument replacePassageHash(
+      ChainWorkDocument document, String passageId, String contentHash) {
+    List<WorkSource> sources = new ArrayList<>();
+    for (WorkSource source : document.sources()) {
+      List<SourcePassage> passages = new ArrayList<>();
+      for (SourcePassage passage : source.passages()) {
+        if (passage.id().equals(passageId)) {
+          passages.add(
+              new SourcePassage(passage.id(), passage.sourceId(), contentHash, passage.text(), passage.parentHeading()));
+        } else {
+          passages.add(passage);
+        }
+      }
+      sources.add(
+          new WorkSource(
+              source.id(),
+              source.role(),
+              source.contentReference(),
+              source.contentHash(),
+              source.originalName(),
+              source.suppliedIdentifier(),
+              source.correctionOf(),
+              source.content(),
+              passages));
+    }
+    return WorkPlanningDocuments.withSources(document, sources, document.requirements());
+  }
+
+  private static ChainWorkDocument replaceRequirementText(
+      ChainWorkDocument document, String requirementId, String text) {
+    List<WorkRequirement> requirements = new ArrayList<>();
+    for (WorkRequirement requirement : document.requirements()) {
+      if (requirement.id().equals(requirementId)) {
+        requirements.add(
+            new WorkRequirement(requirement.id(), text, requirement.sourceIds(), requirement.supersededRequirementId()));
+      } else {
+        requirements.add(requirement);
+      }
+    }
+    return WorkPlanningDocuments.withSources(document, document.sources(), requirements);
   }
 
   private static ChainWorkDocument replaceSourceHash(ChainWorkDocument document, String sourceId, String contentHash) {
