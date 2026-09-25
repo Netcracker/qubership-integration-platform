@@ -10,3 +10,10 @@ Store the author's supplied mapping on the existing steps. Repair only the assig
 - Use the selected contract field path. A contract name is not a JSON prefix.
 - Empty rules do not show that mapping is unnecessary. Record NO_MAPPING only with evidence.
 - Do not add another service call.
+- PREPARED stores the rules, retained values, and transfers you can take from the supplied source.
+  Put the author's fallback, failure, and formatting text in behavior.
+  Do not ask for a format the source already describes.
+- NEEDS_CLARIFICATION sends one question and one unresolved choice. Every record list is empty.
+  Do not send requirements, transfers, rules, or retained values with that outcome.
+- Ask only when a field path is absent from both the source and the schema.
+  A contract name is not a path, and an unknown catalog field is still a question.

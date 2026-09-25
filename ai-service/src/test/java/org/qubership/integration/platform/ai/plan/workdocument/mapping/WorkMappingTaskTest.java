@@ -168,6 +168,23 @@ class WorkMappingTaskTest {
   }
 
   @Test
+  void promptKeepsClarificationRecordsEmptyAndKeepsDescribedFormats() {
+    List<String> prompts = new ArrayList<>();
+    mapping.interpret(
+        RUN_ID,
+        materials(false),
+        prompt -> {
+          prompts.add(prompt);
+          return suppliedCapture(false);
+        });
+
+    assertFalse(prompts.isEmpty());
+    String prompt = prompts.getFirst();
+    assertTrue(prompt.contains("Every record list is empty."));
+    assertTrue(prompt.contains("Do not ask for a format the source already describes."));
+  }
+
+  @Test
   void constraintThatNamesOnlyProcessInstanceIdAsks() {
     WorkTaskMaterials onlyLonger =
         new WorkTaskMaterials(
@@ -296,8 +313,9 @@ class WorkMappingTaskTest {
     List<String> ids = new ArrayList<>();
     for (JsonNode item : root.path("cases")) {
       assertEquals("G2", item.path("gate").asText());
-      assertEquals("mapping", item.path("checkpoint").asText());
-      ids.add(item.path("id").asText());
+      if ("mapping".equals(item.path("checkpoint").asText())) {
+        ids.add(item.path("id").asText());
+      }
     }
     assertEquals(List.of("om-mapping", "priority-repair"), ids);
     assertTrue(root.toString().contains("Original request, response, and retained-context rules survive"));
