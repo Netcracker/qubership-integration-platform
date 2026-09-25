@@ -10,6 +10,7 @@ import org.qubership.integration.platform.engine.model.constants.BusinessIds;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureDefinition;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureInteraction;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureLogExpectation;
+import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.slf4j.MDC;
 
@@ -96,7 +97,8 @@ class LogCaptureSnapshotFixtureProvider implements SnapshotFixtureProvider {
             camelContext.getGlobalOptions().put(JacksonConstants.ENABLE_TYPE_CONVERTER, Boolean.TRUE.toString());
             SimpleLanguage simpleLanguage = (SimpleLanguage) camelContext.resolveLanguage("simple");
             SnapshotFixtureRouteScope.bind(camelContext, routes, deploymentId + ':' + fixtureId, Map.of(
-                    LOG_RECORD_PROCESSOR_BEAN_NAME, new LogRecordProcessor(recordingChainLogger, simpleLanguage)
+                    LOG_RECORD_PROCESSOR_BEAN_NAME, new LogRecordProcessor(
+                            recordingChainLogger, simpleLanguage, new ChainRuntimePropertiesService())
             ));
         }
 
