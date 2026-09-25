@@ -138,6 +138,13 @@ class WorkCheckpointHarnessTest {
     assertEquals("mapping-repair-rule-priority", repairBody.path("taskScope").path("taskId").asText());
     assertTrue(repairBody.path("requiredObservation").asText().contains("Priority"));
     assertTrue(repairBody.path("sanitizedResponse").asText().contains("urgent maps to High"));
+
+    Path empty = temp.resolve("om-empty.json");
+    int emptyExit =
+        WorkCheckpointHarness.run(
+            request("mapping", "om-mapping", empty),
+            session(new ArrayList<>(), new AtomicInteger(), emptyMappingCapture()));
+    assertEquals(1, emptyExit, Files.readString(empty));
   }
 
   @Test
@@ -447,6 +454,7 @@ class WorkCheckpointHarnessTest {
           {"existingId":"","alias":"rule-order","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-order"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.orderId","retainedValueId":""},"constants":[],"behavior":"echo retained orderId","evidenceRefs":["src-om"]},
           {"existingId":"","alias":"rule-number","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-number"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.executionNumber","retainedValueId":""},"constants":[],"behavior":"echo retained executionNumber","evidenceRefs":["src-om"]},
           {"existingId":"","alias":"rule-task","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-task"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.taskId","retainedValueId":""},"constants":[],"behavior":"echo retained taskId","evidenceRefs":["src-om"]},
+          {"existingId":"","alias":"rule-process","transferRef":"xfer-response","sources":[{"kind":"RETAINED","stepId":"","port":null,"fieldPath":"","retainedValueId":"keep-process"}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.processId","retainedValueId":""},"constants":[],"behavior":"processId reads retained processInstanceId","evidenceRefs":["src-om"]},
           {"existingId":"","alias":"rule-failure","transferRef":"xfer-response","sources":[{"kind":"STEP_PORT","stepId":"create","port":"FAILURE_OUTCOME","fieldPath":"$.status","retainedValueId":""}],"target":{"kind":"STEP_PORT","stepId":"result","port":"OUTBOUND_REQUEST","fieldPath":"$.error.code","retainedValueId":""},"constants":[{"name":"code","value":"SALESFORCE_TASK_CREATE_ERROR"}],"behavior":"SALESFORCE_TASK_CREATE_ERROR plus the failure text","evidenceRefs":["src-om"]}
         ],"retainedValues":[
           {"existingId":"","alias":"keep-execution","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.executionId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-om"]},
@@ -455,6 +463,14 @@ class WorkCheckpointHarnessTest {
           {"existingId":"","alias":"keep-number","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.executionNumber","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-om"]},
           {"existingId":"","alias":"keep-task","stepRef":"start","source":{"kind":"STEP_PORT","stepId":"start","port":"INBOUND_PAYLOAD","fieldPath":"$.taskId","retainedValueId":""},"intendedUse":"response","evidenceRefs":["src-om"]}
         ],"question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
+        """;
+  }
+
+  private static String emptyMappingCapture() {
+    return """
+        {"outcome":"PREPARED","requirements":[],"steps":[],"connections":[],"sequenceGroups":[],"conditionGroups":[],"splitGroups":[],"loopGroups":[],"retryGroups":[],"errorScopeGroups":[],"deletes":[],"transfers":[
+          {"existingId":"","alias":"xfer","targetStepRef":"create","sourcePorts":[{"stepId":"start","portName":"payload"}],"targetPort":{"stepId":"create","portName":"request"},"requirementRefs":["start"],"decision":"NO_MAPPING"}
+        ],"rules":[],"retainedValues":[],"question":"","unresolvedChoice":"","clarificationEvidenceIds":[],"defectRecordRef":"","contradiction":"","defectEvidenceIds":[],"issueCategory":""}
         """;
   }
 

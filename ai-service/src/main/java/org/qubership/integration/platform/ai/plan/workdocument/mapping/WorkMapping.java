@@ -125,11 +125,15 @@ public final class WorkMapping {
           }
         }
       }
-      String question = problem(document, materials, repairRuleId, tree);
+      List<String> keptRenames = new ArrayList<>();
+      String question = problem(document, materials, repairRuleId, tree, keptRenames);
       if (question != null) {
         return clarification(question, sourceId(document));
       }
       rewriteContractForm(tree, materials);
+      if (!keptRenames.isEmpty()) {
+        return preparedWithQuestion(tree, keptRenames.getFirst(), sourceId(document));
+      }
       return complete(tree);
     };
   }
@@ -182,7 +186,11 @@ public final class WorkMapping {
   }
 
   private static String problem(
-      JsonNode document, WorkTaskMaterials materials, String repairRuleId, JsonNode tree) {
+      JsonNode document,
+      WorkTaskMaterials materials,
+      String repairRuleId,
+      JsonNode tree,
+      List<String> keptRenames) {
     if (!"PREPARED".equals(tree.path("outcome").asText())) {
       return null;
     }
@@ -219,46 +227,87 @@ public final class WorkMapping {
       }
       retained.add(leaf(source.path("fieldPath").asText()));
     }
-    for (JsonNode rule : tree.path("rules")) {
-      JsonNode target = rule.path("target");
-      String path = target.path("fieldPath").asText();
-      String targetLeaf = leaf(path);
-      if ("request".equals(portName(target.path("port").asText()))
-          && serviceCall(document, target.path("stepId").asText())
-          && retained.contains(targetLeaf)) {
-        throw new WorkDocumentRejectedException(
-            "RETAINED_ON_REQUEST",
-            "Retained field "
-                + targetLeaf
-                + " stays in context. Do not add it to the service request.");
-      }
-      String prefixed = inventedPrefix(document, materials, target.path("stepId").asText(), portName(target.path("port").asText()), path);
-      if (prefixed != null) {
-        return prefixed;
-      }
-      String missing = unknownPath(materials, target.path("stepId").asText(), portName(target.path("port").asText()), path);
-      if (missing != null) {
-        return missing;
-      }
-      for (JsonNode source : rule.path("sources")) {
-        String missingSource = unknownStepPort(materials, source);
-        if (missingSource != null) {
-          return missingSource;
+    String renameQuestion = null;
+    if (tree.get("rules") instanceof ArrayNode rules) {
+      List<Integer> dropped = new ArrayList<>();
+      for (int index = 0; index < rules.size(); index++) {
+        JsonNode rule = rules.get(index);
+        String blocking = blockingRuleProblem(document, materials, rule, retained);
+        if (blocking != null) {
+          return blocking;
         }
-        if (!"RETAINED".equals(source.path("kind").asText())) {
-          continue;
+        String rename = unnamedRename(materials, tree, rule);
+        if (rename != null) {
+          dropped.add(index);
+          if (renameQuestion == null) {
+            renameQuestion = rename;
+          }
         }
-        String sourceLeaf = sourceLeaf(tree, source);
-        if (sourceLeaf.isBlank() || sourceLeaf.equalsIgnoreCase(targetLeaf)) {
-          continue;
-        }
-        if (!renameEvidence(materials, sourceLeaf, targetLeaf)) {
-          return "Field "
+      }
+      for (int index = dropped.size() - 1; index >= 0; index--) {
+        rules.remove(dropped.get(index).intValue());
+      }
+    }
+    if (renameQuestion != null && tree.path("rules").isEmpty()) {
+      return renameQuestion;
+    }
+    if (renameQuestion != null) {
+      keptRenames.add(renameQuestion);
+    }
+    return null;
+  }
+
+  private static String blockingRuleProblem(
+      JsonNode document, WorkTaskMaterials materials, JsonNode rule, List<String> retained) {
+    JsonNode target = rule.path("target");
+    String path = target.path("fieldPath").asText();
+    String targetLeaf = leaf(path);
+    if ("request".equals(portName(target.path("port").asText()))
+        && serviceCall(document, target.path("stepId").asText())
+        && retained.contains(targetLeaf)) {
+      throw new WorkDocumentRejectedException(
+          "RETAINED_ON_REQUEST",
+          "Retained field "
               + targetLeaf
-              + " does not match source "
-              + sourceLeaf
-              + ". Provide context evidence for that relationship.";
-        }
+              + " stays in context. Do not add it to the service request.");
+    }
+    String prefixed =
+        inventedPrefix(
+            document, materials, target.path("stepId").asText(), portName(target.path("port").asText()), path);
+    if (prefixed != null) {
+      return prefixed;
+    }
+    String missing =
+        unknownPath(
+            materials, target.path("stepId").asText(), portName(target.path("port").asText()), path);
+    if (missing != null) {
+      return missing;
+    }
+    for (JsonNode source : rule.path("sources")) {
+      String missingSource = unknownStepPort(materials, source);
+      if (missingSource != null) {
+        return missingSource;
+      }
+    }
+    return null;
+  }
+
+  private static String unnamedRename(WorkTaskMaterials materials, JsonNode tree, JsonNode rule) {
+    String targetLeaf = leaf(rule.path("target").path("fieldPath").asText());
+    for (JsonNode source : rule.path("sources")) {
+      if (!"RETAINED".equals(source.path("kind").asText())) {
+        continue;
+      }
+      String sourceLeaf = sourceLeaf(tree, source);
+      if (sourceLeaf.isBlank() || sourceLeaf.equalsIgnoreCase(targetLeaf)) {
+        continue;
+      }
+      if (!renameEvidence(materials, sourceLeaf, targetLeaf)) {
+        return "Field "
+            + targetLeaf
+            + " does not match source "
+            + sourceLeaf
+            + ". Provide context evidence for that relationship.";
       }
     }
     return null;
@@ -482,6 +531,21 @@ public final class WorkMapping {
   private static String sourceId(JsonNode document) {
     String id = document.path("sources").path(0).path("id").asText();
     return id.isBlank() ? "src-map" : id;
+  }
+
+  private static String preparedWithQuestion(JsonNode tree, String question, String sourceId) {
+    try {
+      ObjectNode body = (ObjectNode) JSON.readTree(complete(tree));
+      body.put("outcome", "PREPARED");
+      body.put("question", question);
+      body.put("unresolvedChoice", "mapping-field");
+      ArrayNode evidence = JSON.createArrayNode();
+      evidence.add(sourceId);
+      body.set("clarificationEvidenceIds", evidence);
+      return body.toString();
+    } catch (Exception failure) {
+      throw new IllegalStateException("Prepared mapping capture could not be written.", failure);
+    }
   }
 
   private static String complete(JsonNode tree) {
