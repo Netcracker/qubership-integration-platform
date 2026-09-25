@@ -13,7 +13,7 @@ Statuses: `open`, `fixed`, `partial`, `accepted`, `postponed`, `won't fix`, `out
 | F4 | Nested elements duplicated in the snapshot element graph | major | fixed | `86b24ed33` |
 | F5 | No equivalence test against the runtime-catalog pipeline | major | out of scope | |
 | F6 | Module missing from every CI workflow and from `scripts/modules.sh` | major | fixed | `c17abe0d8` |
-| F7 | Generated resource contents differ between runs | medium | postponed | |
+| F7 | Generated resource contents differ between runs | medium | partial | `f5eebdf9e` |
 | F8 | Dead `qip.cr.build` block in the plugin's `application.yml` | medium | fixed | `bcdb973dc` |
 | F9 | Service file filter accepts context and MCP services, reader handles only integration systems | medium | fixed | `28833e817` |
 | F10 | Shared-module changes alter runtime-catalog behavior | medium | accepted | |
@@ -342,9 +342,38 @@ it can be picked up without redoing the analysis:
 - [`docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md`](../docs/superpowers/specs/2026-09-21-reproducible-maven-plugin-output-design.md), committed in `172d4ec7a` and `be7913a6e`
 - [`docs/superpowers/plans/2026-09-21-reproducible-maven-plugin-output.md`](../docs/superpowers/plans/2026-09-21-reproducible-maven-plugin-output.md), committed in `51ff166af`
 
-Nothing was implemented. Six generators draw random ids or read the clock, five of them shared with
-runtime-catalog, so two builds of the same sources still differ in the two ConfigMaps that carry the
-Camel source and the integrations configuration. Every rebuild reads as a change in a GitOps diff.
+Six generators draw random ids or read the clock, five of them shared with runtime-catalog, so two
+builds of the same sources still differ in the two ConfigMaps that carry the Camel source and the
+integrations configuration. Every rebuild reads as a change in a GitOps diff.
+
+#### The build timestamp, implemented September 25, 2026, `f5eebdf9e`
+
+Tasks 1 and 6 of the plan, and nothing else from it.
+
+- `BuildInfoFactory` in `integration-build-pipeline` gained a `createBuildInfo` overload that takes the
+  timestamp. The two-argument method delegates with `Instant.now()`, and runtime-catalog calls that one,
+  so its output is unchanged.
+- `BuildCRsMojo` reads an `outputTimestamp` parameter, defaulting to `${project.build.outputTimestamp}`,
+  and passes it through `BuildCRsTaskParameters` and `MicroDomainResourceBuildContextFactory` to the
+  overload. It accepts epoch seconds or an ISO-8601 instant, and treats a blank or one-character value as
+  unset, falling back to the clock.
+- One departure from the plan: the parser is a package-private static method,
+  `BuildCRsMojo.parseOutputTimestamp`, so a test can pin it.
+
+Verified:
+
+- `BuildInfoFactoryTest` failed to compile before the overload and passes after it; the pipeline's 463
+  tests pass.
+- `BuildCRsMojoTest` covers epoch seconds, the `Z` and offset forms, surrounding whitespace, the unset
+  placeholders, and the rejection of a value in neither format. The plugin's 108 tests pass.
+- Two builds of `triggers/http-trigger` with `-Dproject.build.outputTimestamp=2026-01-01T00:00:00Z` both
+  carry the `DeploymentInfo` timestamp `1767225600`, which no longer appears in their diff. Without the
+  property the timestamp is the current time.
+
+Still moving between two builds: the snapshot name, which `SnapshotBuildService` reads from the clock and
+which reaches the output as `snapshot.name` and the chain name suffix, and the random ids. The plan puts
+the snapshot name in Task 7, with the derived snapshot and element ids, and the ids in Tasks 2 to 5
+and 7.
 
 ## Out of scope
 
