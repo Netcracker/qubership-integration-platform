@@ -140,7 +140,6 @@ public class OperationService {
 
     public JsonNode getResponseSchema(String operationId, String contentType, String responseCode) {
         Operation operation = getOperation(operationId);
-        System.out.print(operation.getResponseSchemas().get(responseCode).path(contentType));
         return operation.getResponseSchemas().get(responseCode).path(contentType);
     }
 
