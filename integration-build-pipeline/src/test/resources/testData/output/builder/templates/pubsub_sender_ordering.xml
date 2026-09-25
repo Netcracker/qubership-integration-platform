@@ -1,0 +1,17 @@
+<route>
+    <step id="901b0809-56db-4acd-9142-4e10f8e0cae2">
+        <doTry>
+            <process ref="contextPropagationProcessor"/>
+            <setHeader name="CamelGooglePubsubOrderingKey">
+                <simple>test_ordering_key</simple>
+            </setHeader>
+            <toD uri="google-pubsub:test_project_id:test_destination_name?lazyStartProducer=false&amp;messageOrderingEnabled=true&amp;serviceAccountKey=base64:test_service_account_name&amp;serializer=#bean:customGooglePubSubSerializer"/>
+
+            <doFinally>
+                <removeProperty name="internalProperty_overrideContextParams"/>
+                <removeHeader name="CamelGooglePubsubOrderingKey"/>
+                <process ref="contextRestoreProcessor"/>
+            </doFinally>
+        </doTry>
+    </step>
+</route>
