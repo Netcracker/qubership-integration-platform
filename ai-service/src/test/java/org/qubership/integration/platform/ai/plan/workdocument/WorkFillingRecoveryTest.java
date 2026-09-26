@@ -309,6 +309,77 @@ class WorkFillingRecoveryTest {
   }
 
   @Test
+  void linkingAnExistingRetainedIdMovesTheRepairToVerification() throws Exception {
+    FillingWorld world = FillingWorld.start("run-link-existing");
+    world.model.omitRetainedDeclaration = true;
+    List<String> trace = new ArrayList<>();
+    String triggerId = "";
+    String transferId = "";
+    boolean planted = false;
+    for (int step = 0; step < 40 && transferId.isBlank(); step++) {
+      FillingResult result = world.advance(trace);
+      answer(world, result);
+      if (triggerId.isBlank()) {
+        triggerId = stepId(world.document(), StepKind.TRIGGER);
+      }
+      if (!planted && !triggerId.isBlank()) {
+        plantRetained(world, triggerId, "keep-existing");
+        planted = true;
+      }
+      transferId = successTransfer(world.document());
+    }
+    assertTrue(planted, trace.toString());
+    assertFalse(transferId.isBlank(), trace.toString());
+    DataTransfer open = transfer(world.document(), transferId);
+    assertFalse(open.requiredRetainedIds().contains("keep-existing"), open.toString());
+    int mappings = world.model.count(WorkTaskKind.MAP_TRANSFER);
+    world.model.inject(
+        WorkTaskKind.MAP_TRANSFER,
+        mappings + 1,
+        missingRetainedDefect(transferId, world.document().sources().get(0).id()));
+    String findingId = "";
+    for (int step = 0; step < 20 && findingId.isBlank(); step++) {
+      FillingResult result = world.advance(trace);
+      answer(world, result);
+      if (result.reasons().contains("MISSING_RETAINED")) {
+        for (WorkFinding finding : world.document().progress().findings()) {
+          if ("MISSING_RETAINED".equals(finding.issueCategory()) && transferId.equals(finding.recordRef())) {
+            findingId = finding.id();
+          }
+        }
+      }
+    }
+    assertFalse(findingId.isBlank(), trace.toString());
+    int outlines = world.model.count(WorkTaskKind.DEFINE_TRANSFERS);
+    world.model.inject(
+        WorkTaskKind.DEFINE_TRANSFERS,
+        outlines + 1,
+        outlineCapture(
+            world.document(),
+            transferId,
+            List.of("keep-existing"),
+            "",
+            coveragePassage(world.document(), transferId)));
+    FillingResult repaired = world.advance(trace);
+    RepairAssignment repair = activeRepair(world.document());
+    assertTrue(repair != null, repaired.toString());
+    assertEquals(RepairAssignment.VERIFY, repair.phase(), repaired + "\n" + trace);
+    assertTrue(findingOpen(world.document(), findingId), world.document().progress().findings().toString());
+    DataTransfer stored = transfer(world.document(), transferId);
+    assertEquals(transferId, stored.id());
+    assertTrue(stored.requiredRetainedIds().contains("keep-existing"), stored.toString());
+    assertTrue(repair.candidateRevision().startsWith("prior:"), repair.candidateRevision());
+    assertFalse(repair.candidateRevision().contains("keep-existing"), repair.candidateRevision());
+  }
+
+  @Test
+  void retainedObligationStaysOpenWithoutANewResolvingLink() throws Exception {
+    assertUnlinkedValueStaysOpen();
+    assertIdAlreadyOnTheTransferStaysOpen();
+    assertCoverageOnlyEditStaysOpen();
+  }
+
+  @Test
   void consumerWaitsWhileADependencyIsNotReady() throws Exception {
     FillingWorld world = FillingWorld.start("run-blocked-consumer");
     world.model.omitRetainedDeclaration = true;
@@ -600,4 +671,310 @@ class WorkFillingRecoveryTest {
     }
     return count;
   }
+
+  private static void assertUnlinkedValueStaysOpen() throws Exception {
+    Held held = holdMissingRetained("run-new-unlinked", true);
+    int retainedBefore = retainedCount(held.world.document());
+    FillingResult repaired =
+        repairOutline(held, List.of(), "keep-unlinked", coveragePassage(held.world.document(), held.transferId));
+    assertOwnerStillOpen(held, repaired);
+    DataTransfer stored = transfer(held.world.document(), held.transferId);
+    assertTrue(stored.requiredRetainedIds().isEmpty(), stored.toString());
+    assertTrue(retainedCount(held.world.document()) > retainedBefore, held.trace.toString());
+  }
+
+  private static void assertIdAlreadyOnTheTransferStaysOpen() throws Exception {
+    FillingWorld world = FillingWorld.start("run-already-linked");
+    List<String> trace = new ArrayList<>();
+    String transferId = "";
+    for (int step = 0; step < 40 && transferId.isBlank(); step++) {
+      FillingResult result = world.advance(trace);
+      answer(world, result);
+      transferId = linkedTransfer(world.document());
+    }
+    assertFalse(transferId.isBlank(), trace.toString());
+    List<String> linked = List.copyOf(transfer(world.document(), transferId).requiredRetainedIds());
+    int mappings = world.model.count(WorkTaskKind.MAP_TRANSFER);
+    world.model.inject(
+        WorkTaskKind.MAP_TRANSFER,
+        mappings + 1,
+        missingRetainedDefect(transferId, world.document().sources().get(0).id()));
+    String findingId = "";
+    for (int step = 0; step < 20 && findingId.isBlank(); step++) {
+      FillingResult result = world.advance(trace);
+      answer(world, result);
+      if (result.reasons().contains("MISSING_RETAINED")) {
+        for (WorkFinding finding : world.document().progress().findings()) {
+          if ("MISSING_RETAINED".equals(finding.issueCategory()) && transferId.equals(finding.recordRef())) {
+            findingId = finding.id();
+          }
+        }
+      }
+    }
+    assertFalse(findingId.isBlank(), trace.toString());
+    Held held = new Held(world, trace, transferId, findingId);
+    FillingResult repaired =
+        repairOutline(held, linked, "", coveragePassage(world.document(), transferId));
+    assertOwnerStillOpen(held, repaired);
+    assertEquals(linked, transfer(world.document(), transferId).requiredRetainedIds());
+  }
+
+  private static void assertCoverageOnlyEditStaysOpen() throws Exception {
+    Held held = holdMissingRetained("run-coverage-only", true);
+    String passage = alternatePassage(held.world.document(), held.transferId);
+    assertNotEquals(coveragePassage(held.world.document(), held.transferId), passage);
+    FillingResult repaired = repairOutline(held, List.of(), "", passage);
+    assertOwnerStillOpen(held, repaired);
+    DataTransfer stored = transfer(held.world.document(), held.transferId);
+    assertTrue(stored.requiredRetainedIds().isEmpty(), stored.toString());
+    boolean cited = false;
+    for (LogicalStep step : held.world.document().flow().steps()) {
+      for (DataTransfer candidate : step.data().transfers()) {
+        if (!held.transferId.equals(candidate.id())) {
+          continue;
+        }
+        for (CoverageEntry entry : step.data().outline().coverage()) {
+          if (passage.equals(entry.passageId())) {
+            cited = true;
+          }
+        }
+      }
+    }
+    assertTrue(cited, held.trace.toString());
+  }
+
+  private static Held holdMissingRetained(String runId, boolean omitRetained) throws Exception {
+    FillingWorld world = FillingWorld.start(runId);
+    world.model.omitRetainedDeclaration = omitRetained;
+    world.model.reportMissingRetained = true;
+    List<String> trace = new ArrayList<>();
+    String transferId = "";
+    String findingId = "";
+    for (int step = 0; step < 40 && findingId.isBlank(); step++) {
+      FillingResult result = world.advance(trace);
+      answer(world, result);
+      if (result.reasons().contains("MISSING_RETAINED")) {
+        for (WorkFinding finding : world.document().progress().findings()) {
+          if ("MISSING_RETAINED".equals(finding.issueCategory()) && finding.canonicalFieldPointer().isBlank()) {
+            transferId = finding.recordRef();
+            findingId = finding.id();
+          }
+        }
+      }
+    }
+    assertFalse(findingId.isBlank(), trace.toString());
+    return new Held(world, trace, transferId, findingId);
+  }
+
+  private static FillingResult repairOutline(
+      Held held, List<String> retainedIds, String placeholderAlias, String passageId) {
+    int outlines = held.world.model.count(WorkTaskKind.DEFINE_TRANSFERS);
+    held.world.model.inject(
+        WorkTaskKind.DEFINE_TRANSFERS,
+        outlines + 1,
+        outlineCapture(held.world.document(), held.transferId, retainedIds, placeholderAlias, passageId));
+    return held.world.advance(held.trace);
+  }
+
+  private static void assertOwnerStillOpen(Held held, FillingResult repaired) {
+    RepairAssignment repair = activeRepair(held.world.document());
+    assertTrue(repair != null, repaired.toString());
+    assertEquals(RepairAssignment.OWNER, repair.phase(), repaired + "\n" + held.trace);
+    assertTrue(findingOpen(held.world.document(), held.findingId), held.world.document().progress().findings().toString());
+  }
+
+  private static void answer(FillingWorld world, FillingResult result) throws Exception {
+    if (result.action() == FillingResult.Action.WAITING_FOR_INPUT && !result.questionIds().isEmpty()) {
+      world.filling.acceptInput(world.runId, result.questionIds().get(0), "answer-retained", FillingWorld.answerText());
+    }
+  }
+
+  private static void plantRetained(FillingWorld world, String producerId, String retainedId) {
+    ChainWorkDocument current = world.document();
+    String evidence = current.sources().get(0).passages().get(0).id();
+    List<LogicalStep> steps = new ArrayList<>();
+    for (LogicalStep step : current.flow().steps()) {
+      if (!step.id().equals(producerId)) {
+        steps.add(step);
+        continue;
+      }
+      List<RetainedValue> values = new ArrayList<>(step.data().retainedValues());
+      values.add(
+          new RetainedValue(
+              retainedId, null, "process id", List.of(evidence), producerId, RetainedResolution.UNRESOLVED));
+      steps.add(
+          new LogicalStep(
+              step.id(),
+              step.kind(),
+              step.label(),
+              step.intent(),
+              step.sourceIds(),
+              step.requirementIds(),
+              step.binding(),
+              step.data().withRetained(values)));
+    }
+    LogicalFlow flow = current.flow();
+    world.documents.commitRecoveredDocument(
+        world.runId,
+        new ChainWorkDocument(
+            current.schemaVersion(),
+            current.documentId(),
+            current.sources(),
+            current.requirements(),
+            new LogicalFlow(
+                steps,
+                flow.connections(),
+                flow.sequenceGroups(),
+                flow.conditionGroups(),
+                flow.splitGroups(),
+                flow.loopGroups(),
+                flow.retryGroups(),
+                flow.errorScopeGroups()),
+            current.progress()),
+        "plant-" + retainedId,
+        "plant-" + retainedId,
+        "plant-retained",
+        "DATA_BEHAVIOR",
+        null);
+  }
+
+  private static String outlineCapture(
+      ChainWorkDocument document,
+      String transferId,
+      List<String> retainedIds,
+      String placeholderAlias,
+      String passageId) {
+    DataTransfer transfer = transfer(document, transferId);
+    String sourceStep = transfer.sourcePorts().get(0).stepId();
+    String sourcePort = transfer.sourcePorts().get(0).portName();
+    String targetPort = transfer.targetPort().portName();
+    String requirement = requirementFor(document, transferId);
+    StringBuilder retained = new StringBuilder();
+    for (String id : retainedIds) {
+      if (retained.length() > 0) {
+        retained.append(',');
+      }
+      retained.append('"').append(id).append('"');
+    }
+    String placeholder = "";
+    if (placeholderAlias != null && !placeholderAlias.isBlank()) {
+      placeholder =
+          "{\"existingId\":\"\",\"alias\":\""
+              + placeholderAlias
+              + "\",\"producerStepId\":\""
+              + sourceStep
+              + "\",\"intendedUse\":\"process id\",\"evidenceRefs\":[\""
+              + passageId
+              + "\"]}";
+    }
+    return "{\"outcome\":\"PREPARED\",\"transfers\":[{\"existingId\":\""
+        + transferId
+        + "\",\"alias\":\"\",\"sourceStepId\":\""
+        + sourceStep
+        + "\",\"sourcePort\":\""
+        + sourcePort
+        + "\",\"targetPort\":\""
+        + targetPort
+        + "\",\"outcome\":\""
+        + transfer.outcome().name()
+        + "\",\"requirementIds\":[\""
+        + requirement
+        + "\"],\"requiredRetainedIds\":["
+        + retained
+        + "],\"decision\":\"\"}],\"retainedPlaceholders\":["
+        + placeholder
+        + "],\"coverage\":[{\"requirementId\":\""
+        + requirement
+        + "\",\"passageId\":\""
+        + passageId
+        + "\",\"disposition\":\"ASSIGNED\"}]}";
+  }
+
+  private static String missingRetainedDefect(String transferId, String sourceId) {
+    return "{\"outcome\":\"INPUT_DEFECT\",\"rules\":[],\"decision\":\"\",\"evidenceRefs\":[],\"question\":{\"text\":\"\",\"choiceKind\":\"UNSPECIFIED\",\"sourceStepId\":\"\",\"sourcePort\":\"\",\"sourceField\":\"\",\"sourceRetainedId\":\"\",\"targetStepId\":\"\",\"targetPort\":\"\",\"targetField\":\"\",\"targetRetainedId\":\"\",\"evidenceRefs\":[]},\"defect\":{\"recordRef\":\""
+        + transferId
+        + "\",\"category\":\"MISSING_RETAINED\",\"contradiction\":\"The outline has no retained declaration for the process id.\",\"evidenceRefs\":[\""
+        + sourceId
+        + "\"]}}";
+  }
+
+  private static String requirementFor(ChainWorkDocument document, String transferId) {
+    for (LogicalStep step : document.flow().steps()) {
+      for (DataTransfer candidate : step.data().transfers()) {
+        if (!transferId.equals(candidate.id())) {
+          continue;
+        }
+        if (!candidate.requirementIds().isEmpty()) {
+          return candidate.requirementIds().get(0);
+        }
+        if (!step.requirementIds().isEmpty()) {
+          return step.requirementIds().get(0);
+        }
+      }
+    }
+    return document.requirements().isEmpty() ? "" : document.requirements().get(0).id();
+  }
+
+  private static String coveragePassage(ChainWorkDocument document, String transferId) {
+    for (LogicalStep step : document.flow().steps()) {
+      boolean owns = false;
+      for (DataTransfer candidate : step.data().transfers()) {
+        if (transferId.equals(candidate.id())) {
+          owns = true;
+        }
+      }
+      if (!owns) {
+        continue;
+      }
+      for (CoverageEntry entry : step.data().outline().coverage()) {
+        if (!entry.passageId().isBlank()) {
+          return entry.passageId();
+        }
+      }
+    }
+    return document.sources().get(0).passages().get(0).id();
+  }
+
+  private static String alternatePassage(ChainWorkDocument document, String transferId) {
+    String current = coveragePassage(document, transferId);
+    for (SourcePassage passage : document.sources().get(0).passages()) {
+      if (!passage.id().equals(current)) {
+        return passage.id();
+      }
+    }
+    return current;
+  }
+
+  private static String successTransfer(ChainWorkDocument document) {
+    for (LogicalStep step : document.flow().steps()) {
+      for (DataTransfer candidate : step.data().transfers()) {
+        if (!candidate.sourcePorts().isEmpty() && "success".equals(candidate.sourcePorts().get(0).portName())) {
+          return candidate.id();
+        }
+      }
+    }
+    return "";
+  }
+
+  private static String linkedTransfer(ChainWorkDocument document) {
+    for (LogicalStep step : document.flow().steps()) {
+      for (DataTransfer candidate : step.data().transfers()) {
+        if (!candidate.requiredRetainedIds().isEmpty()) {
+          return candidate.id();
+        }
+      }
+    }
+    return "";
+  }
+
+  private static String stepId(ChainWorkDocument document, StepKind kind) {
+    for (LogicalStep step : document.flow().steps()) {
+      if (step.kind() == kind) {
+        return step.id();
+      }
+    }
+    return "";
+  }
+
+  private record Held(FillingWorld world, List<String> trace, String transferId, String findingId) {}
 }
