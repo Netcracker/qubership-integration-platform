@@ -139,51 +139,25 @@ final class SequentialFillingModel implements WorkTaskModel {
     JsonNode call = byKind(document, "SERVICE_CALL");
     String placeholders = retainedIds(document).isEmpty() ? placeholders(trigger.path("id").asText(), passage) : "";
     if ("SERVICE_CALL".equals(kind)) {
-      String requestId = transferId(step, "payload");
       return """
-          {"outcome":"PREPARED","transfers":[{"alias":"%s","existingId":"%s","sourceStepId":"%s","sourcePort":"payload","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["%s"],"requiredRetainedIds":[],"decision":""}],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
+          {"outcome":"PREPARED","transfers":[{"alias":"to-request","sourceStepId":"%s","sourcePort":"payload","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["%s"],"requiredRetainedIds":[],"decision":""}],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
           """
-          .formatted(
-              requestId.isBlank() ? "to-request" : "",
-              requestId,
-              trigger.path("id").asText(),
-              requirement,
-              placeholders,
-              requirement,
-              passage);
+          .formatted(trigger.path("id").asText(), requirement, placeholders, requirement, passage);
     }
-    String successId = transferId(step, "success");
-    String failureId = transferId(step, "failure");
     return """
         {"outcome":"PREPARED","transfers":[
-          {"alias":"%s","existingId":"%s","sourceStepId":"%s","sourcePort":"success","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["%s"],"requiredRetainedIds":[%s],"decision":""},
-          {"alias":"%s","existingId":"%s","sourceStepId":"%s","sourcePort":"failure","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":[],"requiredRetainedIds":[],"decision":""}
+          {"alias":"to-success","sourceStepId":"%s","sourcePort":"success","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["%s"],"requiredRetainedIds":[%s],"decision":""},
+          {"alias":"to-failure","sourceStepId":"%s","sourcePort":"failure","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":[],"requiredRetainedIds":[],"decision":""}
         ],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
         """
         .formatted(
-            successId.isBlank() ? "to-success" : "",
-            successId,
             call.path("id").asText(),
             requirement,
             retainedRefs(document),
-            failureId.isBlank() ? "to-failure" : "",
-            failureId,
             call.path("id").asText(),
             placeholders,
             requirement,
             passage);
-  }
-
-  private static String transferId(JsonNode step, String sourcePort) {
-    if (step == null) {
-      return "";
-    }
-    for (JsonNode transfer : step.path("data").path("transfers")) {
-      if (sourcePort.equals(transfer.path("sourcePorts").path(0).path("portName").asText())) {
-        return transfer.path("id").asText();
-      }
-    }
-    return "";
   }
 
   private static String placeholders(String producerId, String passage) {

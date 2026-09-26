@@ -95,6 +95,43 @@ class WorkFillingRecoveryTest {
   }
 
   @Test
+  void outlineRepairKeepsMissingRetainedWhenTheTransferOmitsIt() throws Exception {
+    FillingWorld world = FillingWorld.start("run-retained-open");
+    world.model.omitRetainedDeclaration = true;
+    world.model.reportMissingRetained = true;
+    List<String> trace = new ArrayList<>();
+    String consumerTransfer = "";
+    boolean detected = false;
+    for (int step = 0; step < 30 && !detected; step++) {
+      FillingResult result = world.advance(trace);
+      if (result.reasons().contains("MISSING_RETAINED")) {
+        detected = true;
+        for (WorkFinding finding : world.document().progress().findings()) {
+          if ("MISSING_RETAINED".equals(finding.issueCategory()) && finding.canonicalFieldPointer().isBlank()) {
+            consumerTransfer = finding.recordRef();
+          }
+        }
+      }
+    }
+    assertTrue(detected, trace.toString());
+    assertFalse(consumerTransfer.isBlank(), world.document().progress().findings().toString());
+    int outlines = world.model.count(WorkTaskKind.DEFINE_TRANSFERS);
+    FillingResult repaired = world.advance(trace);
+    assertTrue(world.model.count(WorkTaskKind.DEFINE_TRANSFERS) > outlines, repaired.toString());
+    DataTransfer stored = transfer(world.document(), consumerTransfer);
+    assertTrue(stored != null && stored.requiredRetainedIds().isEmpty(), trace.toString());
+    boolean stillOpen = false;
+    for (WorkFinding finding : world.document().progress().findings()) {
+      if ("MISSING_RETAINED".equals(finding.issueCategory())
+          && consumerTransfer.equals(finding.recordRef())
+          && finding.canonicalFieldPointer().isBlank()) {
+        stillOpen = true;
+      }
+    }
+    assertTrue(stillOpen, world.document().progress().findings().toString());
+  }
+
+  @Test
   void networkFailureRetriesWithTheConfiguredDelayAndNoBusinessQuestion() throws Exception {
     FillingWorld world = FillingWorld.start("run-network");
     world.model.inject(WorkTaskKind.LOGICAL_DESIGN, 1, "CONNECT");
@@ -175,6 +212,17 @@ class WorkFillingRecoveryTest {
     return rules.contains("formatted fallback")
         || rules.contains("failure code")
         || rules.contains("processInstanceId");
+  }
+
+  private static DataTransfer transfer(ChainWorkDocument document, String transferId) {
+    for (LogicalStep step : document.flow().steps()) {
+      for (DataTransfer candidate : step.data().transfers()) {
+        if (transferId.equals(candidate.id())) {
+          return candidate;
+        }
+      }
+    }
+    return null;
   }
 
   private static int callsFor(FillingWorld world, String taskId) {
