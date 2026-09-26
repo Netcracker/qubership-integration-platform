@@ -716,7 +716,7 @@ public final class WorkDataOutline {
       transfers.add(
           new OutlineTransfer(
               node.path("alias").asText(),
-              node.path("existingId").asText(""),
+              "",
               List.of(
                   new PortRef(
                       node.path("sourceStepId").asText(), schemaPort(node.path("sourcePort").asText()))),

@@ -401,15 +401,18 @@ class WorkFillingHarnessTest {
       assertEquals("early-prevention", verdict, Files.readString(report));
       assertTrue(fault.path("earlyPrevention").asBoolean());
     }
-    if (exit == 3) {
-      assertEquals(1, body.path("questions").size(), Files.readString(report));
-      JsonNode question = body.path("questions").get(0);
-      assertEquals("FIELD_RELATIONSHIP", question.path("choiceKind").asText());
-      assertEquals("$.processInstanceId", question.path("source").path("fieldPath").asText());
-      assertEquals("$.processId", question.path("target").path("fieldPath").asText());
-    } else {
-      assertEquals(0, exit, Files.readString(report));
+    assertEquals(1, exit, Files.readString(report));
+    assertEquals("HALTED", body.path("outcome").asText(), Files.readString(report));
+    JsonNode haltedDocument = JSON.readTree(report.resolveSibling("final-document.json").toFile());
+    boolean missingRetainedRemains = false;
+    for (JsonNode finding : haltedDocument.path("progress").path("findings")) {
+      if ("MISSING_RETAINED".equals(finding.path("issueCategory").asText())) {
+        missingRetainedRemains = true;
+      }
     }
+    assertTrue(
+        missingRetainedRemains,
+        "10E halt: filling leaves MISSING_RETAINED open after the outline repair. " + Files.readString(report));
     JsonNode faultBlob = JSON.readTree(store.get("harness/fault-run-upstream").orElseThrow());
     assertTrue(faultBlob.path("reportedMissing").asBoolean(), faultBlob.toString());
     assertFalse(body.path("documentReference").asText().isBlank());
