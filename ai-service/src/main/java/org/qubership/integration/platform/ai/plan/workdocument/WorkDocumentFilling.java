@@ -210,7 +210,7 @@ public final class WorkDocumentFilling {
       stamp(runId, commandId, dispatch.taskKey(), true);
       return afterTask(runId, dispatch.taskId(), List.of(WorkOutcome.PREPARED.name()));
     }
-    String responsible = WorkTaskPlanner.taskKey(repair.responsibleKind(), repair.responsibleRecordId());
+    String responsible = ownerDispatchKey(document, repair);
     if (acted.equals(responsible) && !acted.equals(repair.consumerTaskKey())) {
       stamp(runId, commandId, responsible, false);
       ChainWorkDocument after = documents.read(runId).document();
@@ -232,7 +232,7 @@ public final class WorkDocumentFilling {
           repair.responsibleRecordId(),
           repair.updateIds(),
           repair.createParentIds(),
-          WorkDocumentState.of(after).revision(),
+          repair.candidateRevision(),
           RepairAssignment.VERIFY);
       return afterTask(runId, dispatch.taskId(), List.of(WorkOutcome.PREPARED.name()));
     }
@@ -250,8 +250,7 @@ public final class WorkDocumentFilling {
       return false;
     }
     String acted = WorkTaskPlanner.taskKey(dispatch.kind(), dispatch.recordId());
-    String responsible = WorkTaskPlanner.taskKey(repair.responsibleKind(), repair.responsibleRecordId());
-    return acted.equals(responsible);
+    return acted.equals(ownerDispatchKey(document, repair));
   }
 
   private FillingResult retryRepair(
@@ -445,9 +444,9 @@ public final class WorkDocumentFilling {
   private Target choose(String runId, ChainWorkDocument document, WorkTaskPlanner.Plan plan) {
     RepairAssignment repair = activeRepair(document);
     if (repair != null && RepairAssignment.OWNER.equals(repair.phase())) {
-      String responsible = WorkTaskPlanner.taskKey(repair.responsibleKind(), repair.responsibleRecordId());
+      String responsible = ownerDispatchKey(document, repair);
       if (!questionBlocks(document, responsible)) {
-        return new Target(repair.responsibleKind(), repair.responsibleRecordId(), responsible, false);
+        return new Target(repair.responsibleKind(), ownerRecordId(document, repair), responsible, false);
       }
     }
     if (repair != null && RepairAssignment.VERIFY.equals(repair.phase())) {
@@ -765,8 +764,15 @@ public final class WorkDocumentFilling {
       return logical.design(runId, materials, delivery);
     }
     String requirementId = recordId;
-    if (document.documentId().equals(recordId) && !document.requirements().isEmpty()) {
-      requirementId = document.requirements().get(0).id();
+    if (document.documentId().equals(recordId)) {
+      RepairAssignment repair = activeRepair(document);
+      if (repair != null
+          && repair.responsibleKind() == WorkTaskKind.LOGICAL_DESIGN
+          && isRequirement(document, repair.responsibleRecordId())) {
+        requirementId = repair.responsibleRecordId();
+      } else if (!document.requirements().isEmpty()) {
+        requirementId = document.requirements().get(0).id();
+      }
     }
     return logical.repair(runId, requirementId, materials, delivery);
   }
@@ -1228,30 +1234,88 @@ public final class WorkDocumentFilling {
       }
       return catalog.loadContract(broken.binding()) instanceof ContractMaterial.Ready;
     }
-    String current = recordSignature(document, repair.responsibleRecordId());
+    String current = assignedEvidence(document, repair.responsibleKind(), repair.responsibleRecordId());
     String baseline = baselineBody(repair.candidateRevision());
     return !current.isBlank() && !current.equals(baseline);
+  }
+
+  private static String ownerDispatchKey(ChainWorkDocument document, RepairAssignment repair) {
+    if (repair.responsibleKind() == WorkTaskKind.LOGICAL_DESIGN) {
+      return WorkTaskPlanner.taskKey(WorkTaskKind.LOGICAL_DESIGN, document.documentId());
+    }
+    return WorkTaskPlanner.taskKey(repair.responsibleKind(), repair.responsibleRecordId());
+  }
+
+  private static String ownerRecordId(ChainWorkDocument document, RepairAssignment repair) {
+    if (repair.responsibleKind() == WorkTaskKind.LOGICAL_DESIGN) {
+      return document.documentId() == null ? "" : document.documentId();
+    }
+    return repair.responsibleRecordId();
   }
 
   private static String obligationBaseline(ChainWorkDocument document, DefectSite site) {
     if ("MISSING_RETAINED".equals(site.category())) {
       StringBuilder prior = new StringBuilder("prior:");
-      List<String> ids = new ArrayList<>();
-      for (LogicalStep step : document.flow().steps()) {
-        for (RetainedValue value : step.data().retainedValues()) {
-          ids.add(value.id());
+      DataTransfer transfer = findTransfer(document, site.origin());
+      if (transfer != null) {
+        List<String> ids = transfer.requiredRetainedIds();
+        for (int index = 0; index < ids.size(); index++) {
+          if (index > 0) {
+            prior.append(',');
+          }
+          prior.append(ids.get(index));
         }
-      }
-      ids.sort(String::compareTo);
-      for (int index = 0; index < ids.size(); index++) {
-        if (index > 0) {
-          prior.append(',');
-        }
-        prior.append(ids.get(index));
       }
       return prior.toString();
     }
-    return "state:" + recordSignature(document, site.handlerRecordId());
+    return "state:" + assignedEvidence(document, site.handlerKind(), site.handlerRecordId());
+  }
+
+  private static String assignedEvidence(ChainWorkDocument document, WorkTaskKind kind, String recordId) {
+    if (kind == WorkTaskKind.LOGICAL_DESIGN) {
+      return requirementText(document, recordId);
+    }
+    if (kind == WorkTaskKind.DEFINE_TRANSFERS) {
+      return outlineSignature(document, recordId);
+    }
+    return recordSignature(document, recordId);
+  }
+
+  private static String requirementText(ChainWorkDocument document, String recordId) {
+    for (WorkRequirement requirement : document.requirements()) {
+      if (recordId.equals(requirement.id())) {
+        return requirement.text();
+      }
+    }
+    return "";
+  }
+
+  private static String outlineSignature(ChainWorkDocument document, String stepId) {
+    LogicalStep step = step(document, stepId);
+    if (step == null) {
+      return "";
+    }
+    StringBuilder body = new StringBuilder();
+    for (DataTransfer transfer : step.data().transfers()) {
+      body.append(transfer.id()).append('=');
+      List<String> retainedIds = transfer.requiredRetainedIds();
+      for (int index = 0; index < retainedIds.size(); index++) {
+        if (index > 0) {
+          body.append(',');
+        }
+        body.append(retainedIds.get(index));
+      }
+      body.append(';');
+    }
+    for (CoverageEntry entry : step.data().outline().coverage()) {
+      body.append(entry.requirementId())
+          .append('|')
+          .append(entry.passageId())
+          .append('|')
+          .append(entry.disposition().name())
+          .append(';');
+    }
+    return body.toString();
   }
 
   private static String keptBaseline(ChainWorkDocument document, String findingId, String fresh) {
