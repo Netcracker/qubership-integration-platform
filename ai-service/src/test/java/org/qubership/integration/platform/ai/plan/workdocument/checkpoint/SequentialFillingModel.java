@@ -4,7 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.plan.workdocument.PromptRepairCapture;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskModel;
@@ -127,6 +129,15 @@ final class SequentialFillingModel implements WorkTaskModel {
     String prompt = request.prompt();
     JsonNode step = step(document, stepId);
     if (prompt != null && prompt.contains("allowed-update ")) {
+      List<String> existing = retainedIds(document);
+      if (prompt.contains("MISSING_RETAINED") && !existing.isEmpty()) {
+        return PromptRepairCapture.outline(
+            prompt,
+            String.valueOf(request.responseSchema()),
+            PromptRepairCapture.Link.DECLARE,
+            RETAINED_FIELDS,
+            existing);
+      }
       return PromptRepairCapture.outline(
           prompt,
           String.valueOf(request.responseSchema()),
@@ -156,7 +167,7 @@ final class SequentialFillingModel implements WorkTaskModel {
     return """
         {"outcome":"PREPARED","transfers":[
           {"alias":"to-success","sourceStepId":"%s","sourcePort":"success","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["%s"],"requiredRetainedIds":[%s],"decision":""},
-          {"alias":"to-failure","sourceStepId":"%s","sourcePort":"failure","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":[],"requiredRetainedIds":[],"decision":""}
+          {"alias":"to-failure","sourceStepId":"%s","sourcePort":"failure","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":[],"requiredRetainedIds":[%s],"decision":""}
         ],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
         """
         .formatted(
@@ -164,6 +175,7 @@ final class SequentialFillingModel implements WorkTaskModel {
             requirement,
             retainedRefs(document),
             call.path("id").asText(),
+            retainedRefs(document),
             placeholders,
             requirement,
             passage);
@@ -271,8 +283,7 @@ final class SequentialFillingModel implements WorkTaskModel {
     if (reportMissingRetained
         && !alreadyReported(document)
         && "success".equals(sourcePort)
-        && transfer.path("requiredRetainedIds").isEmpty()
-        && retainedIds(document).isEmpty()) {
+        && transfer.path("requiredRetainedIds").isEmpty()) {
       reportedMissing = true;
       return """
           {"outcome":"INPUT_DEFECT","rules":[],"decision":"","evidenceRefs":[],"question":{"text":"","choiceKind":"UNSPECIFIED","sourceStepId":"","sourcePort":"","sourceField":"","sourceRetainedId":"","targetStepId":"","targetPort":"","targetField":"","targetRetainedId":"","evidenceRefs":[]},"defect":{"recordRef":"%s","category":"MISSING_RETAINED","contradiction":"The outline has no retained declaration for the process id.","evidenceRefs":["%s"]}}
@@ -281,16 +292,10 @@ final class SequentialFillingModel implements WorkTaskModel {
     }
     if ("failure".equals(sourcePort)) {
       String call = transfer.path("sourcePorts").path(0).path("stepId").asText();
-      return """
-          {"outcome":"PREPARED","rules":[
-            {"alias":"rule-failure","targetPath":"$.error.code","sources":[{"sourceRef":"%s/failure","fieldPath":"$.status"}],"constants":[{"name":"code","value":"SALESFORCE_TASK_CREATE_ERROR"}],"behavior":"failure code","evidenceRefs":["%s"]},
-            {"alias":"rule-error-text","targetPath":"$.error.message","sources":[{"sourceRef":"%s/failure","fieldPath":"$.status"}],"constants":[],"behavior":"Salesforce error text","evidenceRefs":["%s"]}
-          ],"decision":"","evidenceRefs":[]}
-          """
-          .formatted(call, source, call, source);
+      return failureRules(document, transfer, call, source);
     }
     if ("success".equals(sourcePort)) {
-      String retained = retainedIdFor(document, "$.processInstanceId");
+      String retained = retainedIdFor(document, transfer, "$.processInstanceId");
       if (retained.isBlank()) {
         retained = transfer.path("requiredRetainedIds").path(0).asText();
       }
@@ -303,7 +308,7 @@ final class SequentialFillingModel implements WorkTaskModel {
             .formatted(trigger.path("id").asText(), retained, reply.path("id").asText(), source);
       }
       String call = transfer.path("sourcePorts").path(0).path("stepId").asText();
-      return successRules(document, call, source);
+      return successRules(document, transfer, call, source);
     }
     String trigger = transfer.path("sourcePorts").path(0).path("stepId").asText();
     return requestRules(trigger, source);
@@ -370,14 +375,85 @@ final class SequentialFillingModel implements WorkTaskModel {
     return body.toString();
   }
 
-  private String successRules(JsonNode document, String call, String source) {
+  private String failureRules(JsonNode document, JsonNode transfer, String call, String source) {
     ObjectNode body = json.createObjectNode();
     body.put("outcome", "PREPARED");
     ArrayNode rules = body.putArray("rules");
-    rule(rules, "rule-command", "$.commandType", List.of(), call, "success", "commandType", "completeTask", source, "constant completeTask");
-    rule(rules, "rule-source-app", "$.sourceAppName", List.of(), call, "success", "sourceAppName", "salesforce", source, "constant salesforce");
+    commonResponseRules(rules, document, transfer, source);
+    rule(
+        rules,
+        "rule-failure",
+        "$.error.code",
+        List.of("$.status"),
+        call,
+        "failure",
+        "code",
+        "SALESFORCE_TASK_CREATE_ERROR",
+        source,
+        "failure code");
+    rule(
+        rules,
+        "rule-error-text",
+        "$.error.message",
+        List.of("$.status"),
+        call,
+        "failure",
+        "",
+        "",
+        source,
+        "Salesforce error text");
+    body.put("decision", "");
+    body.putArray("evidenceRefs");
+    return body.toString();
+  }
+
+  private String successRules(JsonNode document, JsonNode transfer, String call, String source) {
+    ObjectNode body = json.createObjectNode();
+    body.put("outcome", "PREPARED");
+    ArrayNode rules = body.putArray("rules");
+    commonResponseRules(rules, document, transfer, source);
+    rule(
+        rules,
+        "rule-salesforce-id",
+        "$.parameters.salesforceTaskId",
+        List.of("$.id"),
+        call,
+        "success",
+        "",
+        "",
+        source,
+        "Salesforce id");
+    body.put("decision", "");
+    body.putArray("evidenceRefs");
+    return body.toString();
+  }
+
+  private void commonResponseRules(
+      ArrayNode rules, JsonNode document, JsonNode transfer, String source) {
+    rule(
+        rules,
+        "rule-command",
+        "$.commandType",
+        List.of(),
+        "",
+        "",
+        "commandType",
+        "completeTask",
+        source,
+        "constant completeTask");
+    rule(
+        rules,
+        "rule-source-app",
+        "$.sourceAppName",
+        List.of(),
+        "",
+        "",
+        "sourceAppName",
+        "salesforce",
+        source,
+        "constant salesforce");
     for (String field : List.of("executionId", "orderId", "executionNumber", "taskId")) {
-      String retained = retainedIdFor(document, "$." + field);
+      String retained = retainedIdFor(document, transfer, "$." + field);
       if (retained.isBlank()) {
         continue;
       }
@@ -391,7 +467,7 @@ final class SequentialFillingModel implements WorkTaskModel {
       item.put("behavior", "echo " + field);
       item.putArray("evidenceRefs").add(source);
     }
-    String process = retainedIdFor(document, "$.processInstanceId");
+    String process = retainedIdFor(document, transfer, "$.processInstanceId");
     if (!process.isBlank()) {
       ObjectNode relationship = rules.addObject();
       relationship.put("alias", "rule-process");
@@ -407,20 +483,6 @@ final class SequentialFillingModel implements WorkTaskModel {
       link.put("targetField", "processId");
       link.putArray("evidenceRefs").add(source);
     }
-    rule(
-        rules,
-        "rule-salesforce-id",
-        "$.parameters.salesforceTaskId",
-        List.of("$.id"),
-        call,
-        "success",
-        "",
-        "",
-        source,
-        "Salesforce id");
-    body.put("decision", "");
-    body.putArray("evidenceRefs");
-    return body.toString();
   }
 
   private static void rule(
@@ -502,29 +564,32 @@ final class SequentialFillingModel implements WorkTaskModel {
     return ids;
   }
 
-  private static String retainedIdFor(JsonNode document, String fieldPath) {
-    for (JsonNode step : document.path("flow").path("steps")) {
-      for (JsonNode value : step.path("data").path("retainedValues")) {
-        if (fieldPath.equals(value.path("source").path("fieldPath").asText())
-            || fieldPath.equals(fieldPath(value.path("intendedUse").asText()))) {
-          String id = value.path("id").asText();
-          if (!id.isBlank() && fieldPath.equals(value.path("source").path("fieldPath").asText())) {
-            return id;
-          }
+  private static String retainedIdFor(JsonNode document, JsonNode transfer, String fieldPath) {
+    Set<String> allowed = new LinkedHashSet<>();
+    if (transfer != null) {
+      for (JsonNode id : transfer.path("requiredRetainedIds")) {
+        if (!id.asText().isBlank()) {
+          allowed.add(id.asText());
         }
       }
     }
+    String resolved = "";
+    String intended = "";
     for (JsonNode step : document.path("flow").path("steps")) {
       for (JsonNode value : step.path("data").path("retainedValues")) {
-        if (fieldPath.equals(fieldPath(value.path("intendedUse").asText()))) {
-          String id = value.path("id").asText();
-          if (!id.isBlank()) {
-            return id;
-          }
+        String id = value.path("id").asText();
+        if (id.isBlank() || !allowed.contains(id)) {
+          continue;
+        }
+        if (resolved.isBlank() && fieldPath.equals(value.path("source").path("fieldPath").asText())) {
+          resolved = id;
+        }
+        if (intended.isBlank() && fieldPath.equals(fieldPath(value.path("intendedUse").asText()))) {
+          intended = id;
         }
       }
     }
-    return "";
+    return resolved.isBlank() ? intended : resolved;
   }
 
   private static JsonNode transfer(JsonNode document, String recordId) {
