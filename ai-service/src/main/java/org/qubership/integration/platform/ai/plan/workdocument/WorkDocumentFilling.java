@@ -3,12 +3,15 @@ package org.qubership.integration.platform.ai.plan.workdocument;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.time.Clock;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
@@ -317,10 +320,10 @@ public final class WorkDocumentFilling {
     if (routed.dispatched()) {
       stash(runId, commandId, routed.owner(), site.handlerKind(), site.handlerRecordId(), site);
       String consumer = WorkTaskPlanner.taskKey(dispatch.kind(), dispatch.recordId());
+      ChainWorkDocument assigned = documents.read(runId).document();
       List<String> updates =
-          findTransfer(documents.read(runId).document(), site.origin()) == null
-              ? List.of()
-              : List.of(site.origin());
+          findTransfer(assigned, site.origin()) == null ? List.of() : List.of(site.origin());
+      List<String> parents = createParents(assigned, site);
       saveRepair(
           runId,
           "assign:" + commandId,
@@ -335,8 +338,8 @@ public final class WorkDocumentFilling {
           site.handlerKind(),
           site.handlerRecordId(),
           updates,
-          List.of(),
-          "",
+          parents,
+          keptBaseline(assigned, routed.findingId(), obligationBaseline(assigned, site)),
           RepairAssignment.OWNER);
       return result(
           runId,
@@ -448,14 +451,16 @@ public final class WorkDocumentFilling {
       }
     }
     if (repair != null && RepairAssignment.VERIFY.equals(repair.phase())) {
-      Target preparation = preparation(document, plan, repair);
-      if (preparation != null) {
-        return preparation;
-      }
-      if (structurallyRepaired(document, repair) && !questionBlocks(document, repair.consumerTaskKey())) {
-        Target consumer = consumerTarget(document, repair);
-        if (consumer != null) {
-          return consumer;
+      if (!blockedDependency(document, plan, repair)) {
+        Target preparation = preparation(document, plan, repair);
+        if (preparation != null) {
+          return preparation;
+        }
+        if (structurallyRepaired(document, repair) && !questionBlocks(document, repair.consumerTaskKey())) {
+          Target consumer = consumerTarget(document, repair);
+          if (consumer != null) {
+            return consumer;
+          }
         }
       }
     }
@@ -1103,12 +1108,40 @@ public final class WorkDocumentFilling {
       if (!consumer.dependencyKeys().contains(task.taskKey()) || task.state() == WorkTaskState.ACCEPTED) {
         continue;
       }
-      if (!task.ready() && !cheap(document, task)) {
+      if (repair.consumerTaskKey().equals(task.taskKey())) {
         continue;
+      }
+      if (!task.ready() && !cheap(document, task)) {
+        return null;
       }
       return new Target(task.kind(), task.recordId(), task.taskKey(), cheap(document, task));
     }
     return null;
+  }
+
+  private boolean blockedDependency(
+      ChainWorkDocument document, WorkTaskPlanner.Plan plan, RepairAssignment repair) {
+    WorkTaskPlanner.Task consumer = null;
+    for (WorkTaskPlanner.Task task : plan.tasks()) {
+      if (repair.consumerTaskKey().equals(task.taskKey())) {
+        consumer = task;
+      }
+    }
+    if (consumer == null) {
+      return true;
+    }
+    for (WorkTaskPlanner.Task task : plan.tasks()) {
+      if (!consumer.dependencyKeys().contains(task.taskKey()) || task.state() == WorkTaskState.ACCEPTED) {
+        continue;
+      }
+      if (repair.consumerTaskKey().equals(task.taskKey())) {
+        continue;
+      }
+      if (!task.ready() && !cheap(document, task)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private Target consumerTarget(ChainWorkDocument document, RepairAssignment repair) {
@@ -1142,10 +1175,14 @@ public final class WorkDocumentFilling {
 
   private boolean canVerify(ChainWorkDocument document) {
     RepairAssignment repair = activeRepair(document);
-    return repair != null
-        && RepairAssignment.VERIFY.equals(repair.phase())
-        && structurallyRepaired(document, repair)
-        && !questionBlocks(document, repair.consumerTaskKey());
+    if (repair == null
+        || !RepairAssignment.VERIFY.equals(repair.phase())
+        || !structurallyRepaired(document, repair)
+        || questionBlocks(document, repair.consumerTaskKey())) {
+      return false;
+    }
+    WorkTaskPlanner.Plan plan = planner.plan(document);
+    return !blockedDependency(document, plan, repair) && preparation(document, plan, repair) == null;
   }
 
   private static boolean verificationWaiting(ChainWorkDocument document) {
@@ -1171,18 +1208,124 @@ public final class WorkDocumentFilling {
       if (transfer == null || transfer.requiredRetainedIds().isEmpty()) {
         return false;
       }
+      Set<String> prior = priorRetainedIds(repair.candidateRevision());
+      boolean created = false;
       for (String retainedId : transfer.requiredRetainedIds()) {
         RetainedValue value = findRetained(document, retainedId);
         if (value == null || value.producerStepId().isBlank() || step(document, value.producerStepId()) == null) {
           return false;
         }
+        if (!prior.contains(retainedId) && repair.createParentIds().contains(value.producerStepId())) {
+          created = true;
+        }
       }
-      return true;
+      return created;
     }
-    return findTransfer(document, repair.recordRef()) != null
-        || step(document, repair.recordRef()) != null
-        || findRetained(document, repair.recordRef()) != null
-        || document.documentId().equals(repair.recordRef());
+    if ("INCOMPATIBLE_CONTRACT".equals(repair.issueCategory())) {
+      LogicalStep broken = step(document, repair.responsibleRecordId());
+      if (broken == null || broken.binding() == null) {
+        return false;
+      }
+      return catalog.loadContract(broken.binding()) instanceof ContractMaterial.Ready;
+    }
+    String current = recordSignature(document, repair.responsibleRecordId());
+    String baseline = baselineBody(repair.candidateRevision());
+    return !current.isBlank() && !current.equals(baseline);
+  }
+
+  private static String obligationBaseline(ChainWorkDocument document, DefectSite site) {
+    if ("MISSING_RETAINED".equals(site.category())) {
+      StringBuilder prior = new StringBuilder("prior:");
+      List<String> ids = new ArrayList<>();
+      for (LogicalStep step : document.flow().steps()) {
+        for (RetainedValue value : step.data().retainedValues()) {
+          ids.add(value.id());
+        }
+      }
+      ids.sort(String::compareTo);
+      for (int index = 0; index < ids.size(); index++) {
+        if (index > 0) {
+          prior.append(',');
+        }
+        prior.append(ids.get(index));
+      }
+      return prior.toString();
+    }
+    return "state:" + recordSignature(document, site.handlerRecordId());
+  }
+
+  private static String keptBaseline(ChainWorkDocument document, String findingId, String fresh) {
+    RepairAssignment existing = activeRepair(document);
+    if (existing != null
+        && findingId.equals(existing.findingId())
+        && RepairAssignment.OWNER.equals(existing.phase())
+        && (existing.candidateRevision().startsWith("prior:")
+            || existing.candidateRevision().startsWith("state:"))) {
+      return existing.candidateRevision();
+    }
+    return fresh;
+  }
+
+  private static Set<String> priorRetainedIds(String baseline) {
+    Set<String> ids = new LinkedHashSet<>();
+    if (baseline == null || !baseline.startsWith("prior:")) {
+      return ids;
+    }
+    String body = baseline.substring("prior:".length());
+    if (body.isBlank()) {
+      return ids;
+    }
+    for (int start = 0; start <= body.length(); ) {
+      int comma = body.indexOf(',', start);
+      int end = comma < 0 ? body.length() : comma;
+      if (end > start) {
+        ids.add(body.substring(start, end));
+      }
+      if (comma < 0) {
+        break;
+      }
+      start = comma + 1;
+    }
+    return ids;
+  }
+
+  private static String baselineBody(String baseline) {
+    if (baseline != null && baseline.startsWith("state:")) {
+      return baseline.substring("state:".length());
+    }
+    return baseline == null ? "" : baseline;
+  }
+
+  private static String recordSignature(ChainWorkDocument document, String recordId) {
+    LogicalStep step = step(document, recordId);
+    if (step != null && step.binding() != null) {
+      return step.binding().operationId() + "@" + step.binding().version();
+    }
+    DataTransfer transfer = findTransfer(document, recordId);
+    if (transfer != null) {
+      return transfer.requiredRetainedIds().size() + ":" + transfer.rules().size();
+    }
+    return "";
+  }
+
+  private static List<String> createParents(ChainWorkDocument document, DefectSite site) {
+    if (site.handlerKind() != WorkTaskKind.DEFINE_TRANSFERS) {
+      return List.of();
+    }
+    List<String> parents = new ArrayList<>();
+    ArrayDeque<String> pending = new ArrayDeque<>();
+    Set<String> seen = new LinkedHashSet<>();
+    pending.add(site.handlerRecordId());
+    while (!pending.isEmpty()) {
+      String current = pending.removeFirst();
+      for (LogicalConnection connection : document.flow().connections()) {
+        if (current.equals(connection.targetStepId()) && seen.add(connection.sourceStepId())) {
+          parents.add(connection.sourceStepId());
+          pending.add(connection.sourceStepId());
+        }
+      }
+    }
+    return parents;
   }
 
   private DefectSite site(
@@ -1193,11 +1336,6 @@ public final class WorkDocumentFilling {
     String revealedPointer = "";
     WorkTaskKind handler = dispatch.kind();
     String handlerRecord = dispatch.recordId();
-    WorkFinding open = openCause(document, category);
-    if (open != null && !open.canonicalFieldPointer().isBlank()) {
-      origin = open.recordRef();
-      pointer = open.canonicalFieldPointer();
-    }
     if ("WRONG_OPERATION".equals(category)
         && isRequirement(document, record)
         && dispatch.kind() == WorkTaskKind.SELECT_OPERATION) {
@@ -1266,16 +1404,6 @@ public final class WorkDocumentFilling {
         handlerRecord,
         owner,
         findingId);
-  }
-
-  private static WorkFinding openCause(ChainWorkDocument document, String category) {
-    WorkFinding found = null;
-    for (WorkFinding finding : document.progress().findings()) {
-      if (category.equals(finding.issueCategory()) && !finding.canonicalFieldPointer().isBlank()) {
-        found = finding;
-      }
-    }
-    return found;
   }
 
   private static String targetStep(ChainWorkDocument document, String recordId) {

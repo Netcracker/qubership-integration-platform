@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
 import java.util.function.Supplier;
+import org.qubership.integration.platform.ai.plan.workdocument.PromptRepairCapture;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskModel;
 import org.qubership.integration.platform.ai.plan.workdocument.task.WorkTaskRequest;
 
@@ -41,7 +42,7 @@ final class SequentialFillingModel implements WorkTaskModel {
     return switch (request.kind()) {
       case LOGICAL_DESIGN -> logical(current);
       case SELECT_OPERATION -> selection(current, recordId);
-      case DEFINE_TRANSFERS -> outline(current, recordId, request.prompt());
+      case DEFINE_TRANSFERS -> outline(current, recordId, request);
       case DESCRIBE_CONTEXT -> context(current, recordId);
       case MAP_TRANSFER, REPAIR_RULE -> mapping(current, recordId);
       default -> throw new IllegalStateException("Unexpected task " + request.kind());
@@ -122,10 +123,15 @@ final class SequentialFillingModel implements WorkTaskModel {
     return "{\"outcome\":\"PREPARED\",\"candidateId\":\"" + label + "\"}";
   }
 
-  private String outline(JsonNode document, String stepId, String prompt) {
+  private String outline(JsonNode document, String stepId, WorkTaskRequest request) {
+    String prompt = request.prompt();
     JsonNode step = step(document, stepId);
-    if (prompt != null && prompt.contains("allowed-update ") && step != null && step.path("data").path("transfers").size() > 0) {
-      return repairOutline(document, step, prompt);
+    if (prompt != null && prompt.contains("allowed-update ")) {
+      return PromptRepairCapture.outline(
+          prompt,
+          String.valueOf(request.responseSchema()),
+          PromptRepairCapture.Link.DECLARE,
+          RETAINED_FIELDS);
     }
     String kind = step == null ? "" : step.path("kind").asText();
     String requirement = step == null || step.path("requirementIds").isEmpty()
@@ -163,60 +169,6 @@ final class SequentialFillingModel implements WorkTaskModel {
             passage);
   }
 
-  private String repairOutline(JsonNode document, JsonNode step, String prompt) {
-    String passage = document.path("sources").path(0).path("passages").path(0).path("id").asText();
-    JsonNode trigger = byKind(document, "TRIGGER");
-    String requirement = step.path("requirementIds").path(0).asText();
-    boolean missing = prompt.contains("MISSING_RETAINED");
-    String placeholders = "";
-    if (missing && retainedIds(document).isEmpty()) {
-      placeholders = placeholders(trigger.path("id").asText(), passage);
-    }
-    StringBuilder transfers = new StringBuilder();
-    for (JsonNode transfer : step.path("data").path("transfers")) {
-      String id = transfer.path("id").asText();
-      if (!prompt.contains("allowed-update " + id)) {
-        continue;
-      }
-      if (transfers.length() > 0) {
-        transfers.append(',');
-      }
-      String sourceStep = transfer.path("sourcePorts").path(0).path("stepId").asText();
-      String sourcePort = transfer.path("sourcePorts").path(0).path("portName").asText();
-      String targetPort = transfer.path("targetPort").path("portName").asText();
-      String retained;
-      if (transfer.path("requiredRetainedIds").size() > 0) {
-        retained = textList(transfer.path("requiredRetainedIds"));
-      } else if (missing && "success".equals(sourcePort)) {
-        retained = retainedIds(document).isEmpty() ? aliasRefs() : textList(retainedIds(document));
-      } else {
-        retained = "";
-      }
-      String requirements = transfer.path("requirementIds").size() == 0
-          ? ""
-          : textList(transfer.path("requirementIds"));
-      transfers
-          .append("{\"existingId\":\"")
-          .append(id)
-          .append("\",\"alias\":\"\",\"sourceStepId\":\"")
-          .append(sourceStep)
-          .append("\",\"sourcePort\":\"")
-          .append(sourcePort)
-          .append("\",\"targetPort\":\"")
-          .append(targetPort)
-          .append("\",\"outcome\":\"")
-          .append(transfer.path("outcome").asText("UNSPECIFIED"))
-          .append("\",\"requirementIds\":[")
-          .append(requirements)
-          .append("],\"requiredRetainedIds\":[")
-          .append(retained)
-          .append("],\"decision\":\"\"}");
-    }
-    return """
-        {"outcome":"PREPARED","transfers":[%s],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
-        """
-        .formatted(transfers, placeholders, requirement, passage);
-  }
 
   private static String textList(JsonNode values) {
     StringBuilder body = new StringBuilder();
@@ -426,6 +378,9 @@ final class SequentialFillingModel implements WorkTaskModel {
     rule(rules, "rule-source-app", "$.sourceAppName", List.of(), call, "success", "sourceAppName", "salesforce", source, "constant salesforce");
     for (String field : List.of("executionId", "orderId", "executionNumber", "taskId")) {
       String retained = retainedIdFor(document, "$." + field);
+      if (retained.isBlank()) {
+        continue;
+      }
       ObjectNode item = rules.addObject();
       item.put("alias", "rule-echo-" + field);
       item.put("targetPath", "$." + field);
@@ -437,19 +392,21 @@ final class SequentialFillingModel implements WorkTaskModel {
       item.putArray("evidenceRefs").add(source);
     }
     String process = retainedIdFor(document, "$.processInstanceId");
-    ObjectNode relationship = rules.addObject();
-    relationship.put("alias", "rule-process");
-    relationship.put("targetPath", "$.processId");
-    ObjectNode from = relationship.putArray("sources").addObject();
-    from.put("sourceRef", "retained/" + process);
-    from.put("fieldPath", "$.processInstanceId");
-    relationship.putArray("constants");
-    relationship.put("behavior", "processId reads retained processInstanceId");
-    relationship.putArray("evidenceRefs").add(source);
-    ObjectNode link = relationship.putObject("relationship");
-    link.put("sourceField", "processInstanceId");
-    link.put("targetField", "processId");
-    link.putArray("evidenceRefs").add(source);
+    if (!process.isBlank()) {
+      ObjectNode relationship = rules.addObject();
+      relationship.put("alias", "rule-process");
+      relationship.put("targetPath", "$.processId");
+      ObjectNode from = relationship.putArray("sources").addObject();
+      from.put("sourceRef", "retained/" + process);
+      from.put("fieldPath", "$.processInstanceId");
+      relationship.putArray("constants");
+      relationship.put("behavior", "processId reads retained processInstanceId");
+      relationship.putArray("evidenceRefs").add(source);
+      ObjectNode link = relationship.putObject("relationship");
+      link.put("sourceField", "processInstanceId");
+      link.put("targetField", "processId");
+      link.putArray("evidenceRefs").add(source);
+    }
     rule(
         rules,
         "rule-salesforce-id",

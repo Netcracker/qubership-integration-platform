@@ -184,6 +184,8 @@ final class FillingWorld {
     private final WorkDocumentService documents;
     private final String runId;
     private final List<String> calls = new ArrayList<>();
+    private final List<WorkTaskRequest> requests = new ArrayList<>();
+    private String lastResponse = "";
     private final List<Injection> injections = new ArrayList<>();
     private final AtomicInteger logical = new AtomicInteger();
     private final AtomicInteger binding = new AtomicInteger();
@@ -205,6 +207,8 @@ final class FillingWorld {
     boolean omitRetainedDeclaration;
     /** A later outline update names the original transfer and still omits its retained dependency. */
     boolean ineffectiveOutlineRepair;
+    /** A later outline update creates a retained value and does not link it to the transfer. */
+    boolean unlinkedRetainedRepair;
     /** Success mapping reports a missing retained declaration when the outline omitted it. */
     boolean reportMissingRetained;
     /** Next selection for this step label returns this known operation id, once. */
@@ -228,6 +232,14 @@ final class FillingWorld {
       return List.copyOf(calls);
     }
 
+    List<WorkTaskRequest> requests() {
+      return List.copyOf(requests);
+    }
+
+    String lastResponse() {
+      return lastResponse;
+    }
+
     int count(WorkTaskKind kind) {
       int count = 0;
       for (String call : calls) {
@@ -241,6 +253,7 @@ final class FillingWorld {
     @Override
     public String complete(WorkTaskRequest request) {
       calls.add(request.kind().name() + " " + request.taskId());
+      requests.add(request);
       int ordinal =
           switch (request.kind()) {
             case LOGICAL_DESIGN -> logical.incrementAndGet();
@@ -268,14 +281,17 @@ final class FillingWorld {
       }
       ChainWorkDocument document = documents.read(runId).document();
       String recordId = recordId(request);
-      return switch (request.kind()) {
+      String response =
+          switch (request.kind()) {
         case LOGICAL_DESIGN -> logical(document);
         case SELECT_OPERATION -> selection(document, recordId);
-        case DEFINE_TRANSFERS -> outline(document, recordId, request.prompt());
+        case DEFINE_TRANSFERS -> outline(document, recordId, request);
         case DESCRIBE_CONTEXT -> context(document, recordId);
         case MAP_TRANSFER, REPAIR_RULE -> mapping(document, recordId);
         default -> throw new IllegalStateException("Unexpected task " + request.kind());
       };
+      lastResponse = response;
+      return response;
     }
 
     private static String recordId(WorkTaskRequest request) {
@@ -380,10 +396,17 @@ final class FillingWorld {
       return "{\"outcome\":\"PREPARED\",\"candidateId\":\"" + label + "\"}";
     }
 
-    private String outline(ChainWorkDocument document, String stepId, String prompt) {
+    private String outline(ChainWorkDocument document, String stepId, WorkTaskRequest request) {
+      String prompt = request.prompt();
       LogicalStep step = step(document, stepId);
-      if (!step.data().transfers().isEmpty() && prompt != null && prompt.contains("allowed-update ")) {
-        return repairOutline(document, step, prompt);
+      if (prompt != null && prompt.contains("allowed-update ")) {
+        PromptRepairCapture.Link link =
+            ineffectiveOutlineRepair
+                ? PromptRepairCapture.Link.OMIT
+                : unlinkedRetainedRepair
+                    ? PromptRepairCapture.Link.UNLINKED
+                    : PromptRepairCapture.Link.DECLARE;
+        return PromptRepairCapture.outline(prompt, String.valueOf(request.responseSchema()), link);
       }
       String requirement = step.requirementIds().isEmpty() ? "" : step.requirementIds().get(0);
       String passage = document.sources().get(0).passages().get(0).id();
@@ -425,64 +448,6 @@ final class FillingWorld {
           .formatted(call.id(), requirement, retainedRef, call.id(), placeholder, requirement, passage);
     }
 
-    private String repairOutline(ChainWorkDocument document, LogicalStep step, String prompt) {
-      String requirement = step.requirementIds().isEmpty() ? "" : step.requirementIds().get(0);
-      String passage = document.sources().get(0).passages().get(0).id();
-      LogicalStep trigger = byKind(document, StepKind.TRIGGER);
-      String retained = retainedId(document);
-      boolean link = !ineffectiveOutlineRepair && !omitRetainedDeclaration;
-      String placeholder = "";
-      String newAlias = "";
-      if (link && retained.isBlank()) {
-        newAlias = "keep-process";
-        placeholder =
-            "{\"existingId\":\"\",\"alias\":\""
-                + newAlias
-                + "\",\"producerStepId\":\""
-                + trigger.id()
-                + "\",\"intendedUse\":\"process id\",\"evidenceRefs\":[\""
-                + passage
-                + "\"]}";
-      }
-      StringBuilder transfers = new StringBuilder();
-      for (DataTransfer transfer : step.data().transfers()) {
-        if (!prompt.contains("allowed-update " + transfer.id())) {
-          continue;
-        }
-        if (transfers.length() > 0) {
-          transfers.append(',');
-        }
-        String sourceStep = transfer.sourcePorts().isEmpty() ? "" : transfer.sourcePorts().get(0).stepId();
-        String sourcePort = transfer.sourcePorts().isEmpty() ? "" : transfer.sourcePorts().get(0).portName();
-        String targetPort = transfer.targetPort() == null ? "" : transfer.targetPort().portName();
-        String retainedRef = "";
-        if (!transfer.requiredRetainedIds().isEmpty()) {
-          retainedRef = "\"" + String.join("\",\"", transfer.requiredRetainedIds()) + "\"";
-        } else if (link && "success".equals(sourcePort)) {
-          retainedRef = retained.isBlank() ? "\"" + newAlias + "\"" : "\"" + retained + "\"";
-        }
-        transfers
-            .append("{\"existingId\":\"")
-            .append(transfer.id())
-            .append("\",\"alias\":\"\",\"sourceStepId\":\"")
-            .append(sourceStep)
-            .append("\",\"sourcePort\":\"")
-            .append(sourcePort)
-            .append("\",\"targetPort\":\"")
-            .append(targetPort)
-            .append("\",\"outcome\":\"")
-            .append(transfer.outcome().name())
-            .append("\",\"requirementIds\":[")
-            .append(transfer.requirementIds().isEmpty() ? "" : "\"" + String.join("\",\"", transfer.requirementIds()) + "\"")
-            .append("],\"requiredRetainedIds\":[")
-            .append(retainedRef)
-            .append("],\"decision\":\"\"}");
-      }
-      return """
-          {"outcome":"PREPARED","transfers":[%s],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
-          """
-          .formatted(transfers, placeholder, requirement, passage);
-    }
 
     private String context(ChainWorkDocument document, String producerId) {
       String source = document.sources().get(0).id();
