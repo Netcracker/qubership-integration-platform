@@ -41,7 +41,7 @@ final class SequentialFillingModel implements WorkTaskModel {
     return switch (request.kind()) {
       case LOGICAL_DESIGN -> logical(current);
       case SELECT_OPERATION -> selection(current, recordId);
-      case DEFINE_TRANSFERS -> outline(current, recordId);
+      case DEFINE_TRANSFERS -> outline(current, recordId, request.prompt());
       case DESCRIBE_CONTEXT -> context(current, recordId);
       case MAP_TRANSFER, REPAIR_RULE -> mapping(current, recordId);
       default -> throw new IllegalStateException("Unexpected task " + request.kind());
@@ -122,8 +122,11 @@ final class SequentialFillingModel implements WorkTaskModel {
     return "{\"outcome\":\"PREPARED\",\"candidateId\":\"" + label + "\"}";
   }
 
-  private String outline(JsonNode document, String stepId) {
+  private String outline(JsonNode document, String stepId, String prompt) {
     JsonNode step = step(document, stepId);
+    if (prompt != null && prompt.contains("allowed-update ") && step != null && step.path("data").path("transfers").size() > 0) {
+      return repairOutline(document, step, prompt);
+    }
     String kind = step == null ? "" : step.path("kind").asText();
     String requirement = step == null || step.path("requirementIds").isEmpty()
         ? ""
@@ -160,13 +163,101 @@ final class SequentialFillingModel implements WorkTaskModel {
             passage);
   }
 
+  private String repairOutline(JsonNode document, JsonNode step, String prompt) {
+    String passage = document.path("sources").path(0).path("passages").path(0).path("id").asText();
+    JsonNode trigger = byKind(document, "TRIGGER");
+    String requirement = step.path("requirementIds").path(0).asText();
+    boolean missing = prompt.contains("MISSING_RETAINED");
+    String placeholders = "";
+    if (missing && retainedIds(document).isEmpty()) {
+      placeholders = placeholders(trigger.path("id").asText(), passage);
+    }
+    StringBuilder transfers = new StringBuilder();
+    for (JsonNode transfer : step.path("data").path("transfers")) {
+      String id = transfer.path("id").asText();
+      if (!prompt.contains("allowed-update " + id)) {
+        continue;
+      }
+      if (transfers.length() > 0) {
+        transfers.append(',');
+      }
+      String sourceStep = transfer.path("sourcePorts").path(0).path("stepId").asText();
+      String sourcePort = transfer.path("sourcePorts").path(0).path("portName").asText();
+      String targetPort = transfer.path("targetPort").path("portName").asText();
+      String retained;
+      if (transfer.path("requiredRetainedIds").size() > 0) {
+        retained = textList(transfer.path("requiredRetainedIds"));
+      } else if (missing && "success".equals(sourcePort)) {
+        retained = retainedIds(document).isEmpty() ? aliasRefs() : textList(retainedIds(document));
+      } else {
+        retained = "";
+      }
+      String requirements = transfer.path("requirementIds").size() == 0
+          ? ""
+          : textList(transfer.path("requirementIds"));
+      transfers
+          .append("{\"existingId\":\"")
+          .append(id)
+          .append("\",\"alias\":\"\",\"sourceStepId\":\"")
+          .append(sourceStep)
+          .append("\",\"sourcePort\":\"")
+          .append(sourcePort)
+          .append("\",\"targetPort\":\"")
+          .append(targetPort)
+          .append("\",\"outcome\":\"")
+          .append(transfer.path("outcome").asText("UNSPECIFIED"))
+          .append("\",\"requirementIds\":[")
+          .append(requirements)
+          .append("],\"requiredRetainedIds\":[")
+          .append(retained)
+          .append("],\"decision\":\"\"}");
+    }
+    return """
+        {"outcome":"PREPARED","transfers":[%s],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
+        """
+        .formatted(transfers, placeholders, requirement, passage);
+  }
+
+  private static String textList(JsonNode values) {
+    StringBuilder body = new StringBuilder();
+    for (JsonNode value : values) {
+      if (body.length() > 0) {
+        body.append(',');
+      }
+      body.append('"').append(value.asText()).append('"');
+    }
+    return body.toString();
+  }
+
+  private static String textList(List<String> values) {
+    StringBuilder body = new StringBuilder();
+    for (String value : values) {
+      if (body.length() > 0) {
+        body.append(',');
+      }
+      body.append('"').append(value).append('"');
+    }
+    return body.toString();
+  }
+
+  private static String aliasRefs() {
+    StringBuilder body = new StringBuilder();
+    for (String field : RETAINED_FIELDS) {
+      if (body.length() > 0) {
+        body.append(',');
+      }
+      body.append("\"keep-").append(field).append('"');
+    }
+    return body.toString();
+  }
+
   private static String placeholders(String producerId, String passage) {
     StringBuilder body = new StringBuilder();
     for (String field : RETAINED_FIELDS) {
       if (body.length() > 0) {
         body.append(',');
       }
-      body.append("{\"alias\":\"keep-")
+      body.append("{\"existingId\":\"\",\"alias\":\"keep-")
           .append(field)
           .append("\",\"producerStepId\":\"")
           .append(producerId)

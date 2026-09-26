@@ -203,6 +203,8 @@ final class FillingWorld {
     String routingDefectCategory;
     /** Outline accepts without the retained placeholder. The requirement text stays. */
     boolean omitRetainedDeclaration;
+    /** A later outline update names the original transfer and still omits its retained dependency. */
+    boolean ineffectiveOutlineRepair;
     /** Success mapping reports a missing retained declaration when the outline omitted it. */
     boolean reportMissingRetained;
     /** Next selection for this step label returns this known operation id, once. */
@@ -269,7 +271,7 @@ final class FillingWorld {
       return switch (request.kind()) {
         case LOGICAL_DESIGN -> logical(document);
         case SELECT_OPERATION -> selection(document, recordId);
-        case DEFINE_TRANSFERS -> outline(document, recordId);
+        case DEFINE_TRANSFERS -> outline(document, recordId, request.prompt());
         case DESCRIBE_CONTEXT -> context(document, recordId);
         case MAP_TRANSFER, REPAIR_RULE -> mapping(document, recordId);
         default -> throw new IllegalStateException("Unexpected task " + request.kind());
@@ -378,8 +380,11 @@ final class FillingWorld {
       return "{\"outcome\":\"PREPARED\",\"candidateId\":\"" + label + "\"}";
     }
 
-    private String outline(ChainWorkDocument document, String stepId) {
+    private String outline(ChainWorkDocument document, String stepId, String prompt) {
       LogicalStep step = step(document, stepId);
+      if (!step.data().transfers().isEmpty() && prompt != null && prompt.contains("allowed-update ")) {
+        return repairOutline(document, step, prompt);
+      }
       String requirement = step.requirementIds().isEmpty() ? "" : step.requirementIds().get(0);
       String passage = document.sources().get(0).passages().get(0).id();
       String source = document.sources().get(0).id();
@@ -418,6 +423,65 @@ final class FillingWorld {
           ],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
           """
           .formatted(call.id(), requirement, retainedRef, call.id(), placeholder, requirement, passage);
+    }
+
+    private String repairOutline(ChainWorkDocument document, LogicalStep step, String prompt) {
+      String requirement = step.requirementIds().isEmpty() ? "" : step.requirementIds().get(0);
+      String passage = document.sources().get(0).passages().get(0).id();
+      LogicalStep trigger = byKind(document, StepKind.TRIGGER);
+      String retained = retainedId(document);
+      boolean link = !ineffectiveOutlineRepair && !omitRetainedDeclaration;
+      String placeholder = "";
+      String newAlias = "";
+      if (link && retained.isBlank()) {
+        newAlias = "keep-process";
+        placeholder =
+            "{\"existingId\":\"\",\"alias\":\""
+                + newAlias
+                + "\",\"producerStepId\":\""
+                + trigger.id()
+                + "\",\"intendedUse\":\"process id\",\"evidenceRefs\":[\""
+                + passage
+                + "\"]}";
+      }
+      StringBuilder transfers = new StringBuilder();
+      for (DataTransfer transfer : step.data().transfers()) {
+        if (!prompt.contains("allowed-update " + transfer.id())) {
+          continue;
+        }
+        if (transfers.length() > 0) {
+          transfers.append(',');
+        }
+        String sourceStep = transfer.sourcePorts().isEmpty() ? "" : transfer.sourcePorts().get(0).stepId();
+        String sourcePort = transfer.sourcePorts().isEmpty() ? "" : transfer.sourcePorts().get(0).portName();
+        String targetPort = transfer.targetPort() == null ? "" : transfer.targetPort().portName();
+        String retainedRef = "";
+        if (!transfer.requiredRetainedIds().isEmpty()) {
+          retainedRef = "\"" + String.join("\",\"", transfer.requiredRetainedIds()) + "\"";
+        } else if (link && "success".equals(sourcePort)) {
+          retainedRef = retained.isBlank() ? "\"" + newAlias + "\"" : "\"" + retained + "\"";
+        }
+        transfers
+            .append("{\"existingId\":\"")
+            .append(transfer.id())
+            .append("\",\"alias\":\"\",\"sourceStepId\":\"")
+            .append(sourceStep)
+            .append("\",\"sourcePort\":\"")
+            .append(sourcePort)
+            .append("\",\"targetPort\":\"")
+            .append(targetPort)
+            .append("\",\"outcome\":\"")
+            .append(transfer.outcome().name())
+            .append("\",\"requirementIds\":[")
+            .append(transfer.requirementIds().isEmpty() ? "" : "\"" + String.join("\",\"", transfer.requirementIds()) + "\"")
+            .append("],\"requiredRetainedIds\":[")
+            .append(retainedRef)
+            .append("],\"decision\":\"\"}");
+      }
+      return """
+          {"outcome":"PREPARED","transfers":[%s],"retainedPlaceholders":[%s],"coverage":[{"requirementId":"%s","passageId":"%s","disposition":"ASSIGNED"}]}
+          """
+          .formatted(transfers, placeholder, requirement, passage);
     }
 
     private String context(ChainWorkDocument document, String producerId) {

@@ -223,6 +223,8 @@ public final class WorkDocumentCaptureSchema {
   }
 
   private static JsonObjectSchema outlineSchema(CaptureChoices choices) {
+    List<String> transferIdentity = identityChoices(choices.transferIds());
+    List<String> retainedIdentity = identityChoices(choices.retainedIds());
     JsonObjectSchema transfer =
         object(
             List.of(
@@ -236,6 +238,8 @@ public final class WorkDocumentCaptureSchema {
                 "decision"),
             "alias",
             new JsonStringSchema(),
+            "existingId",
+            stringEnum(transferIdentity),
             "sourceStepId",
             stringEnum(choices.stepIds()),
             "sourcePort",
@@ -255,6 +259,8 @@ public final class WorkDocumentCaptureSchema {
             List.of("alias", "producerStepId", "intendedUse", "evidenceRefs"),
             "alias",
             new JsonStringSchema(),
+            "existingId",
+            stringEnum(retainedIdentity),
             "producerStepId",
             stringEnum(choices.stepIds()),
             "intendedUse",
@@ -432,6 +438,15 @@ public final class WorkDocumentCaptureSchema {
 
   private static JsonEnumSchema enumOf(String... values) {
     return JsonEnumSchema.builder().enumValues(List.of(values)).build();
+  }
+
+  private static List<String> identityChoices(List<String> ids) {
+    java.util.LinkedHashSet<String> choices = new java.util.LinkedHashSet<>();
+    choices.add("");
+    if (ids != null) {
+      choices.addAll(ids);
+    }
+    return List.copyOf(choices);
   }
 
   private static JsonSchemaElement stringEnum(List<String> values) {

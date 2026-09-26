@@ -10,7 +10,19 @@ public record CaptureChoices(
     List<String> retainedIds,
     List<String> stepIds,
     List<String> sourcePorts,
-    List<String> targetPorts) {
+    List<String> targetPorts,
+    List<String> transferIds) {
+
+  public CaptureChoices(
+      List<String> sourceRefs,
+      List<String> evidenceRefs,
+      List<String> ruleIds,
+      List<String> retainedIds,
+      List<String> stepIds,
+      List<String> sourcePorts,
+      List<String> targetPorts) {
+    this(sourceRefs, evidenceRefs, ruleIds, retainedIds, stepIds, sourcePorts, targetPorts, List.of());
+  }
 
   public CaptureChoices {
     sourceRefs = sourceRefs == null ? List.of() : List.copyOf(sourceRefs);
@@ -20,6 +32,7 @@ public record CaptureChoices(
     stepIds = stepIds == null ? List.of() : List.copyOf(stepIds);
     sourcePorts = sourcePorts == null ? List.of() : List.copyOf(sourcePorts);
     targetPorts = targetPorts == null ? List.of() : List.copyOf(targetPorts);
+    transferIds = transferIds == null ? List.of() : List.copyOf(transferIds);
   }
 
   public CaptureChoices(

@@ -98,6 +98,7 @@ class WorkFillingRecoveryTest {
   void outlineRepairKeepsMissingRetainedWhenTheTransferOmitsIt() throws Exception {
     FillingWorld world = FillingWorld.start("run-retained-open");
     world.model.omitRetainedDeclaration = true;
+    world.model.ineffectiveOutlineRepair = true;
     world.model.reportMissingRetained = true;
     List<String> trace = new ArrayList<>();
     String consumerTransfer = "";

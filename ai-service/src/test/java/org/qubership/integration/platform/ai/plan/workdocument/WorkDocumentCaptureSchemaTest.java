@@ -66,6 +66,32 @@ class WorkDocumentCaptureSchemaTest {
     assertTrue(names.contains("outcome"));
   }
 
+  @Test
+  void outlineRepairSchemaNamesExistingTransferAndRetainedIds() {
+    CaptureChoices choices =
+        new CaptureChoices(
+            List.of(),
+            List.of(),
+            List.of(),
+            List.of("kept-order"),
+            List.of("trigger", "reply"),
+            List.of("success"),
+            List.of("request"),
+            List.of("transfer-success"));
+    JsonObjectSchema schema =
+        WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.DEFINE_TRANSFERS, choices);
+    JsonObjectSchema transfer =
+        (JsonObjectSchema) ((JsonArraySchema) schema.properties().get("transfers")).items();
+    JsonObjectSchema retained =
+        (JsonObjectSchema) ((JsonArraySchema) schema.properties().get("retainedPlaceholders")).items();
+    assertTrue(transfer.properties().containsKey("existingId"));
+    assertTrue(retained.properties().containsKey("existingId"));
+    String transferIds = transfer.properties().get("existingId").toString();
+    String retainedIds = retained.properties().get("existingId").toString();
+    assertTrue(transferIds.contains("transfer-success"), transferIds);
+    assertTrue(retainedIds.contains("kept-order"), retainedIds);
+  }
+
   private static void collect(JsonSchemaElement element, List<String> names) {
     if (element instanceof JsonObjectSchema object) {
       object.properties().forEach(

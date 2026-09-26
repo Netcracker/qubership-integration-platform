@@ -420,7 +420,18 @@ record WorkProgress(
     List<WorkQuestion> questions,
     String approvalReference,
     List<String> derivedResultReferences,
-    List<String> recheckStages) {
+    List<String> recheckStages,
+    List<RepairAssignment> repairs) {
+
+  public WorkProgress(
+      List<WorkTaskRecord> tasks,
+      List<WorkFinding> findings,
+      List<WorkQuestion> questions,
+      String approvalReference,
+      List<String> derivedResultReferences,
+      List<String> recheckStages) {
+    this(tasks, findings, questions, approvalReference, derivedResultReferences, recheckStages, List.of());
+  }
 
   public WorkProgress {
     tasks = Lists.copy(tasks);
@@ -428,11 +439,29 @@ record WorkProgress(
     questions = Lists.copy(questions);
     derivedResultReferences = Lists.copy(derivedResultReferences);
     recheckStages = Lists.copy(recheckStages);
+    repairs = Lists.copy(repairs);
     approvalReference = approvalReference == null ? "" : approvalReference;
   }
 
   static WorkProgress empty() {
     return new WorkProgress(List.of(), List.of(), List.of(), "", List.of(), List.of());
+  }
+
+  WorkProgress replacing(
+      List<WorkTaskRecord> nextTasks, List<WorkFinding> nextFindings, List<WorkQuestion> nextQuestions) {
+    return new WorkProgress(
+        nextTasks,
+        nextFindings,
+        nextQuestions,
+        approvalReference,
+        derivedResultReferences,
+        recheckStages,
+        repairs);
+  }
+
+  WorkProgress withRepairs(List<RepairAssignment> nextRepairs) {
+    return new WorkProgress(
+        tasks, findings, questions, approvalReference, derivedResultReferences, recheckStages, nextRepairs);
   }
 }
 

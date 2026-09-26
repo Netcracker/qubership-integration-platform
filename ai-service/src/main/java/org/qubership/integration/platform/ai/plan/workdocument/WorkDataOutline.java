@@ -107,16 +107,48 @@ public final class WorkDataOutline {
     List<String> owned = new ArrayList<>();
     owned.add(targetStepId);
     owned.addAll(predecessors);
+    LogicalStep target = step(state, targetStepId);
+    RepairAssignment repair = repairFor(state.document(), targetStepId);
+    List<String> transferIds = new ArrayList<>();
+    List<String> retainedIds = new ArrayList<>();
+    if (repair != null && !repair.updateIds().isEmpty()) {
+      for (String id : repair.updateIds()) {
+        if (transferOn(target, id)) {
+          transferIds.add(id);
+        }
+        if (retainedExists(state, id)) {
+          retainedIds.add(id);
+        }
+      }
+    } else {
+      for (DataTransfer transfer : target.data().transfers()) {
+        transferIds.add(transfer.id());
+      }
+      for (LogicalStep producer : state.document().flow().steps()) {
+        if (!predecessors.contains(producer.id())) {
+          continue;
+        }
+        for (RetainedValue value : producer.data().retainedValues()) {
+          retainedIds.add(value.id());
+        }
+      }
+    }
     CaptureChoices choices =
         new CaptureChoices(
             List.of(),
             List.of(),
             List.of(),
-            List.of(),
+            retainedIds,
             List.copyOf(predecessors),
             exposedPorts(state, predecessors),
-            exposedPorts(state, Set.of(targetStepId)));
+            exposedPorts(state, Set.of(targetStepId)),
+            transferIds);
     JsonObjectSchema schema = WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.DEFINE_TRANSFERS, choices);
+    List<CreationAllowance> promptAllowances = new ArrayList<>();
+    promptAllowances.add(new CreationAllowance(WorkRecordKind.TRANSFER, targetStepId));
+    for (String producer : predecessors) {
+      promptAllowances.add(new CreationAllowance(WorkRecordKind.RETAINED_VALUE, producer));
+    }
     WorkTaskScope promptScope =
         new WorkTaskScope(
             taskId,
@@ -124,13 +156,13 @@ public final class WorkDataOutline {
             WorkStage.DATA_BEHAVIOR,
             SKILL_ID,
             owned,
+            true,
+            true,
             false,
-            false,
-            false,
             List.of(),
             List.of(),
-            List.of(),
-            List.of(),
+            promptAllowances,
+            transferIds,
             taskKey,
             WorkTaskKind.DEFINE_TRANSFERS,
             "",
@@ -624,8 +656,36 @@ public final class WorkDataOutline {
     List<CreationAllowance> allowances = new ArrayList<>();
     allowances.add(new CreationAllowance(WorkRecordKind.OUTLINE, target.id()));
     allowances.add(new CreationAllowance(WorkRecordKind.TRANSFER, target.id()));
-    for (String producer : producers) {
-      allowances.add(new CreationAllowance(WorkRecordKind.RETAINED_VALUE, producer));
+    RepairAssignment repair = repairFor(state.document(), target.id());
+    Set<String> parents = repair == null || repair.createParentIds().isEmpty()
+        ? producers
+        : new LinkedHashSet<>(repair.createParentIds());
+    for (String producer : parents) {
+      if (producers.contains(producer)) {
+        allowances.add(new CreationAllowance(WorkRecordKind.RETAINED_VALUE, producer));
+      }
+    }
+    List<String> replacements = new ArrayList<>();
+    if (repair != null && !repair.updateIds().isEmpty()) {
+      replacements.addAll(repair.updateIds());
+    } else {
+      for (DataTransfer transfer : target.data().transfers()) {
+        replacements.add(transfer.id());
+      }
+      for (String producer : producers) {
+        LogicalStep owner = null;
+        for (LogicalStep candidate : state.document().flow().steps()) {
+          if (candidate.id().equals(producer)) {
+            owner = candidate;
+          }
+        }
+        if (owner == null) {
+          continue;
+        }
+        for (RetainedValue value : owner.data().retainedValues()) {
+          replacements.add(value.id());
+        }
+      }
     }
     return new WorkTaskScope(
         "define-transfers-" + target.id(),
@@ -634,16 +694,48 @@ public final class WorkDataOutline {
         SKILL_ID,
         List.of(target.id()),
         true,
-        false,
+        true,
         false,
         List.of(),
         List.of(),
         allowances,
-        List.of(),
+        replacements,
         "define-transfers:" + target.id(),
         WorkTaskKind.DEFINE_TRANSFERS,
         fingerprint(state, proposal, contracts),
         null);
+  }
+
+  private static RepairAssignment repairFor(ChainWorkDocument document, String targetStepId) {
+    RepairAssignment found = null;
+    for (RepairAssignment repair : document.progress().repairs()) {
+      if (WorkTaskKind.DEFINE_TRANSFERS == repair.responsibleKind()
+          && targetStepId.equals(repair.responsibleRecordId())
+          && RepairAssignment.OWNER.equals(repair.phase())) {
+        found = repair;
+      }
+    }
+    return found;
+  }
+
+  private static boolean transferOn(LogicalStep step, String transferId) {
+    for (DataTransfer transfer : step.data().transfers()) {
+      if (transferId.equals(transfer.id())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean retainedExists(WorkDocumentState state, String retainedId) {
+    for (LogicalStep step : state.document().flow().steps()) {
+      for (RetainedValue value : step.data().retainedValues()) {
+        if (retainedId.equals(value.id())) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   private static String fingerprint(
@@ -716,7 +808,7 @@ public final class WorkDataOutline {
       transfers.add(
           new OutlineTransfer(
               node.path("alias").asText(),
-              "",
+              node.path("existingId").asText(),
               List.of(
                   new PortRef(
                       node.path("sourceStepId").asText(), schemaPort(node.path("sourcePort").asText()))),
@@ -731,7 +823,7 @@ public final class WorkDataOutline {
       retained.add(
           new OutlineRetained(
               node.path("alias").asText(),
-              "",
+              node.path("existingId").asText(),
               node.path("producerStepId").asText(),
               node.path("intendedUse").asText(),
               texts(node.path("evidenceRefs"))));
