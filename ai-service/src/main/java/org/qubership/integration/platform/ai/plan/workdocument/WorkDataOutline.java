@@ -143,12 +143,9 @@ public final class WorkDataOutline {
             exposedPorts(state, predecessors),
             exposedPorts(state, Set.of(targetStepId)),
             transferIds);
-    JsonObjectSchema schema = WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.DEFINE_TRANSFERS, choices);
-    List<CreationAllowance> promptAllowances = new ArrayList<>();
-    promptAllowances.add(new CreationAllowance(WorkRecordKind.TRANSFER, targetStepId));
-    for (String producer : predecessors) {
-      promptAllowances.add(new CreationAllowance(WorkRecordKind.RETAINED_VALUE, producer));
-    }
+    JsonObjectSchema schema =
+        WorkDocumentCaptureSchema.responseSchema(WorkTaskKind.DEFINE_TRANSFERS, choices, repair != null);
+    List<CreationAllowance> promptAllowances = creationAllowances(repair, targetStepId, predecessors);
     WorkTaskScope promptScope =
         new WorkTaskScope(
             taskId,
@@ -653,18 +650,10 @@ public final class WorkDataOutline {
       Set<String> producers,
       OutlineProposal proposal,
       List<ContractMaterial> contracts) {
+    RepairAssignment repair = repairFor(state.document(), target.id());
     List<CreationAllowance> allowances = new ArrayList<>();
     allowances.add(new CreationAllowance(WorkRecordKind.OUTLINE, target.id()));
-    allowances.add(new CreationAllowance(WorkRecordKind.TRANSFER, target.id()));
-    RepairAssignment repair = repairFor(state.document(), target.id());
-    Set<String> parents = repair == null || repair.createParentIds().isEmpty()
-        ? producers
-        : new LinkedHashSet<>(repair.createParentIds());
-    for (String producer : parents) {
-      if (producers.contains(producer)) {
-        allowances.add(new CreationAllowance(WorkRecordKind.RETAINED_VALUE, producer));
-      }
-    }
+    allowances.addAll(creationAllowances(repair, target.id(), producers));
     List<String> replacements = new ArrayList<>();
     if (repair != null && !repair.updateIds().isEmpty()) {
       replacements.addAll(repair.updateIds());
@@ -704,6 +693,27 @@ public final class WorkDataOutline {
         WorkTaskKind.DEFINE_TRANSFERS,
         fingerprint(state, proposal, contracts),
         null);
+  }
+
+  private static List<CreationAllowance> creationAllowances(
+      RepairAssignment repair, String targetStepId, Set<String> producers) {
+    List<CreationAllowance> allowances = new ArrayList<>();
+    if (repair == null) {
+      allowances.add(new CreationAllowance(WorkRecordKind.TRANSFER, targetStepId));
+      for (String producer : producers) {
+        allowances.add(new CreationAllowance(WorkRecordKind.RETAINED_VALUE, producer));
+      }
+      return allowances;
+    }
+    if (repair.createParentIds().contains(targetStepId)) {
+      allowances.add(new CreationAllowance(WorkRecordKind.TRANSFER, targetStepId));
+    }
+    for (String parent : repair.createParentIds()) {
+      if (producers.contains(parent)) {
+        allowances.add(new CreationAllowance(WorkRecordKind.RETAINED_VALUE, parent));
+      }
+    }
+    return allowances;
   }
 
   private static RepairAssignment repairFor(ChainWorkDocument document, String targetStepId) {
