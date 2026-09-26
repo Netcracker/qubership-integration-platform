@@ -62,7 +62,37 @@ class WorkFillingHarnessTest {
     assertEquals(1, body.path("questions").size());
     assertEquals("FIELD_RELATIONSHIP", body.path("questions").get(0).path("choiceKind").asText());
     assertTrue(body.path("sourceHash").asText().length() >= 64);
-    assertTrue(Files.readString(report.resolveSibling("task-trace.jsonl")).contains("advance-"));
+    String trace = Files.readString(report.resolveSibling("task-trace.jsonl"));
+    assertTrue(trace.contains("advance-"));
+    assertTrue(trace.contains("\"type\":\"dispatch\""));
+    assertTrue(trace.contains("\"type\":\"result\""));
+    assertTrue(sameCommandHasDispatchAndResult(trace), trace);
+    assertTrue(trace.contains("\"dependencyKeys\""));
+    assertTrue(trace.contains("\"inputFingerprint\""));
+    assertTrue(trace.contains("\"passageRefs\""));
+    assertTrue(trace.contains("\"baseRevision\""));
+    assertTrue(trace.contains("\"producedRecordIds\""));
+    String stages = Files.readString(report.resolveSibling("stage-assertions.jsonl"));
+    assertTrue(stages.contains("\"field\":\"sourcePaths\""));
+    assertTrue(stages.contains("\"field\":\"retainedIds\""));
+    assertTrue(stages.contains("\"field\":\"taskStates\""));
+    JsonNode call = body.path("invocations").get(0);
+    assertTrue(call.has("assignedRecordIds"));
+    assertTrue(call.has("dependencyKeys"));
+    assertTrue(call.has("inputFingerprint"));
+    assertTrue(call.has("portHashes"));
+    JsonNode waited = JSON.readTree(report.resolveSibling("final-document.json").toFile());
+    assertTrue(sourcePaths(waited).contains("$.woOrderType"), sourcePaths(waited).toString());
+    assertTrue(sourcePaths(waited).contains("$.orderType"));
+    assertTrue(sourcePaths(waited).contains("$.executionId"));
+    assertTrue(sourcePaths(waited).contains("$.executionNumber"));
+    assertTrue(sourcePaths(waited).contains("$.parameters"));
+    assertTrue(retainedPaths(waited).contains("$.executionId"), retainedPaths(waited).toString());
+    assertTrue(retainedPaths(waited).contains("$.orderId"));
+    assertTrue(retainedPaths(waited).contains("$.processInstanceId"));
+    assertTrue(retainedPaths(waited).contains("$.executionNumber"));
+    assertTrue(retainedPaths(waited).contains("$.taskId"));
+    assertTrue(expectedOf(body, "description-names").contains("$.woOrderType"));
     assertTrue(Files.exists(report.resolveSibling("final-document.json")));
     assertTrue(Files.exists(report.resolveSibling("contract-provenance.json")));
     assertTrue(Files.exists(report.resolveSibling("stage-assertions.jsonl")));
@@ -320,8 +350,19 @@ class WorkFillingHarnessTest {
     assertTrue(fault.path("productionDetection").asBoolean());
     assertFalse(fault.path("scriptedSemanticDetection").asBoolean());
     assertTrue(fault.path("preservedRecordsRemain").asBoolean());
-    assertNotEquals(fault.path("actualModelOutput").asText(), fault.path("validationInput").asText());
-    assertTrue(fault.path("validationInput").asText().contains("missing-step/payload"));
+    Path validationFile = Path.of(fault.path("validationInput").asText());
+    Path actualFile = Path.of(fault.path("actualModelOutput").asText());
+    assertTrue(Files.isRegularFile(validationFile), fault.path("validationInput").asText());
+    assertTrue(Files.isRegularFile(actualFile), fault.path("actualModelOutput").asText());
+    assertTrue(Files.readString(validationFile).contains("missing-step/payload"));
+    assertFalse(Files.readString(actualFile).contains("missing-step/payload"));
+    assertEquals("MAP_TRANSFER", fault.path("actualRepairKind").asText());
+    assertTrue(fault.path("recheckedConsumers").isArray());
+    String controlledTrace = Files.readString(report.resolveSibling("task-trace.jsonl"));
+    assertTrue(controlledTrace.contains("\"type\":\"recovery\""));
+    assertTrue(controlledTrace.contains("\"causeKey\""));
+    assertTrue(controlledTrace.contains("\"repairCharges\""));
+    assertTrue(controlledTrace.contains("\"preservedSiblingIds\""));
   }
 
   @Test
@@ -346,7 +387,7 @@ class WorkFillingHarnessTest {
     assertTrue(fault.path("injectionApplied").asBoolean(), Files.readString(report));
     assertFalse(fault.path("productionDetection").asBoolean());
     assertFalse(fault.path("scriptedSemanticDetection").asBoolean());
-    assertTrue(fault.path("lateDiscoveryProvenSeparately").asBoolean());
+    assertFalse(fault.path("lateDiscoveryProvenSeparately").asBoolean());
     assertTrue(
         fault
             .path("lateDiscoveryInterfaceTest")
@@ -360,7 +401,17 @@ class WorkFillingHarnessTest {
       assertEquals("early-prevention", verdict, Files.readString(report));
       assertTrue(fault.path("earlyPrevention").asBoolean());
     }
-    assertTrue(exit == 0 || exit == 3 || exit == 1, Files.readString(report));
+    if (exit == 3) {
+      assertEquals(1, body.path("questions").size(), Files.readString(report));
+      JsonNode question = body.path("questions").get(0);
+      assertEquals("FIELD_RELATIONSHIP", question.path("choiceKind").asText());
+      assertEquals("$.processInstanceId", question.path("source").path("fieldPath").asText());
+      assertEquals("$.processId", question.path("target").path("fieldPath").asText());
+    } else {
+      assertEquals(0, exit, Files.readString(report));
+    }
+    JsonNode faultBlob = JSON.readTree(store.get("harness/fault-run-upstream").orElseThrow());
+    assertTrue(faultBlob.path("reportedMissing").asBoolean(), faultBlob.toString());
     assertFalse(body.path("documentReference").asText().isBlank());
   }
 
@@ -390,8 +441,12 @@ class WorkFillingHarnessTest {
     assertEquals("rules.behavior", fault.path("changedField").asText());
     assertFalse(fault.path("productionDetection").asBoolean());
     assertFalse(fault.path("scriptedSemanticDetection").asBoolean());
-    assertTrue(fault.path("actualModelOutput").asText().contains("low"));
-    assertFalse(fault.path("validationInput").asText().contains("low"));
+    Path semanticActual = Path.of(fault.path("actualModelOutput").asText());
+    Path semanticValidation = Path.of(fault.path("validationInput").asText());
+    assertTrue(Files.isRegularFile(semanticActual), fault.path("actualModelOutput").asText());
+    assertTrue(Files.isRegularFile(semanticValidation), fault.path("validationInput").asText());
+    assertTrue(Files.readString(semanticActual).contains("low"));
+    assertFalse(Files.readString(semanticValidation).contains("low"));
     assertFalse(body.path("documentReference").asText().isBlank());
     assertTrue(body.path("attempts").asInt() > 0);
   }
@@ -630,6 +685,71 @@ class WorkFillingHarnessTest {
       }
     }
     return text.toString();
+  }
+
+  private static boolean sameCommandHasDispatchAndResult(String trace) throws Exception {
+    java.util.Map<String, java.util.Set<String>> types = new java.util.LinkedHashMap<>();
+    int start = 0;
+    while (start < trace.length()) {
+      int end = trace.indexOf('\n', start);
+      if (end < 0) {
+        end = trace.length();
+      }
+      String line = trace.substring(start, end);
+      start = end + 1;
+      if (line.isBlank()) {
+        continue;
+      }
+      JsonNode event = JSON.readTree(line);
+      types
+          .computeIfAbsent(event.path("commandId").asText(), key -> new java.util.LinkedHashSet<>())
+          .add(event.path("type").asText());
+    }
+    for (java.util.Set<String> seen : types.values()) {
+      if (seen.contains("dispatch") && seen.contains("result")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static String expectedOf(JsonNode report, String id) {
+    for (JsonNode row : report.path("requirementChecklist")) {
+      if (id.equals(row.path("id").asText())) {
+        return row.path("expected").asText();
+      }
+    }
+    return "";
+  }
+
+  private static List<String> sourcePaths(JsonNode document) {
+    List<String> paths = new ArrayList<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        for (JsonNode rule : transfer.path("rules")) {
+          for (JsonNode source : rule.path("sources")) {
+            String path = source.path("fieldPath").asText();
+            if (!path.isBlank()) {
+              paths.add(path);
+            }
+          }
+        }
+      }
+    }
+    return paths;
+  }
+
+  private static List<String> retainedPaths(JsonNode document) {
+    List<String> paths = new ArrayList<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode value : step.path("data").path("retainedValues")) {
+        String path = value.path("source").path("fieldPath").asText();
+        if (!path.isBlank()) {
+          paths.add(path);
+        }
+      }
+    }
+    return paths;
   }
 
   private static List<String> labels(JsonNode document) {

@@ -318,7 +318,8 @@ public final class WorkDocumentFilling {
         String origin = stash.producedRecordIds().isEmpty() ? "" : stash.producedRecordIds().get(0);
         String repaired = stash.taskId();
         String pointer = stash.acceptedInputFingerprint();
-        findings.removeIf(finding -> resolvedFinding(finding, category, origin, repaired, pointer));
+        findings.removeIf(
+            finding -> resolvedFinding(document, finding, category, origin, repaired, pointer));
       }
     }
     commitProgress(runId, "progress:" + commandId, document, tasks, findings, sha256(taskKey));
@@ -1242,18 +1243,45 @@ public final class WorkDocumentFilling {
   }
 
   private static boolean resolvedFinding(
-      WorkFinding finding, String category, String origin, String repaired, String pointer) {
+      ChainWorkDocument document,
+      WorkFinding finding,
+      String category,
+      String origin,
+      String repaired,
+      String pointer) {
     if (category == null || category.isBlank() || !category.equals(finding.issueCategory())) {
       return false;
     }
-    boolean sameRecord = finding.recordRef().equals(origin) || finding.recordRef().equals(repaired);
+    boolean sameRecord =
+        finding.recordRef().equals(origin)
+            || finding.recordRef().equals(repaired)
+            || transferOnStep(document, finding.recordRef(), origin)
+            || transferOnStep(document, finding.recordRef(), repaired);
     if (!sameRecord) {
       return false;
     }
     if (pointer == null || pointer.isBlank() || finding.canonicalFieldPointer().isBlank()) {
-      return finding.recordRef().equals(origin);
+      return finding.recordRef().equals(origin)
+          || transferOnStep(document, finding.recordRef(), origin)
+          || transferOnStep(document, finding.recordRef(), repaired);
     }
     return pointer.equals(finding.canonicalFieldPointer());
+  }
+
+  private static boolean transferOnStep(ChainWorkDocument document, String recordRef, String stepId) {
+    if (recordRef == null || recordRef.isBlank() || stepId == null || stepId.isBlank()) {
+      return false;
+    }
+    LogicalStep owner = step(document, stepId);
+    if (owner == null) {
+      return false;
+    }
+    for (DataTransfer transfer : owner.data().transfers()) {
+      if (recordRef.equals(transfer.id())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static String evidenceId(ChainWorkDocument document) {
