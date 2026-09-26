@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import java.nio.file.Path;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
@@ -77,6 +78,33 @@ class FillingEvidenceContractTest {
   }
 
   @Test
+  void failureMappingKeepsCommonResponseFieldsAndOmitsTheSalesforceId() {
+    SequentialFillingModel model = new SequentialFillingModel(() -> failureDocument(), false);
+    String response =
+        model.complete(
+            new WorkTaskRequest(
+                "map-transfer-fail",
+                "map-transfer:fail",
+                WorkTaskKind.MAP_TRANSFER,
+                "prompt",
+                JsonObjectSchema.builder().build()));
+    assertTrue(response.contains("\"targetPath\":\"$.commandType\""), response);
+    assertTrue(response.contains("completeTask"), response);
+    assertTrue(response.contains("\"targetPath\":\"$.sourceAppName\""), response);
+    assertTrue(response.contains("\"value\":\"salesforce\""), response);
+    for (String field : List.of("executionId", "orderId", "executionNumber", "taskId")) {
+      assertTrue(response.contains("\"targetPath\":\"$." + field + "\""), response);
+    }
+    assertTrue(response.contains("\"targetPath\":\"$.processId\""), response);
+    assertTrue(response.contains("processInstanceId"), response);
+    assertTrue(response.contains("\"targetPath\":\"$.error.code\""), response);
+    assertTrue(response.contains("SALESFORCE_TASK_CREATE_ERROR"), response);
+    assertTrue(response.contains("\"targetPath\":\"$.error.message\""), response);
+    assertTrue(response.contains("\"fieldPath\":\"$.status\""), response);
+    assertFalse(response.contains("salesforceTaskId"), response);
+  }
+
+  @Test
   void catalogDigestIsNotASyntheticContract() {
     assertFalse(FillingCheckpoint.syntheticContentHash("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"));
     assertTrue(FillingCheckpoint.syntheticContentHash("hash-payload-1"));
@@ -141,6 +169,36 @@ class FillingEvidenceContractTest {
     process.put("behavior", "");
     process.putArray("sources");
     process.putArray("constants");
+    return document;
+  }
+
+  private static ObjectNode failureDocument() {
+    ObjectNode document = JSON.createObjectNode();
+    document.putArray("sources").addObject().put("id", "src");
+    ArrayNode steps = document.putObject("flow").putArray("steps");
+    ObjectNode trigger = steps.addObject();
+    trigger.put("id", "start");
+    trigger.put("kind", "TRIGGER");
+    ArrayNode retained = trigger.putObject("data").putArray("retainedValues");
+    for (String field : List.of("executionId", "orderId", "processInstanceId", "executionNumber", "taskId")) {
+      ObjectNode value = retained.addObject();
+      value.put("id", "keep-" + field);
+      value.put("intendedUse", field);
+      value.putObject("source").put("fieldPath", "$." + field);
+    }
+    ObjectNode reply = steps.addObject();
+    reply.put("id", "reply");
+    reply.put("kind", "REPLY");
+    ObjectNode transfer = reply.putObject("data").putArray("transfers").addObject();
+    transfer.put("id", "fail");
+    ArrayNode ids = transfer.putArray("requiredRetainedIds");
+    for (String field : List.of("executionId", "orderId", "processInstanceId", "executionNumber", "taskId")) {
+      ids.add("keep-" + field);
+    }
+    transfer.putArray("sourcePorts").addObject().put("stepId", "call").put("portName", "failure");
+    ObjectNode call = steps.addObject();
+    call.put("id", "call");
+    call.put("kind", "SERVICE_CALL");
     return document;
   }
 

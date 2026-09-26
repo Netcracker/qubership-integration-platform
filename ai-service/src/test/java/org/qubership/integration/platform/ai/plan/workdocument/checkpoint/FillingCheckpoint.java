@@ -1575,15 +1575,28 @@ final class FillingCheckpoint {
           ObjectNode copy = (ObjectNode) JSON.readTree(actual);
           if (copy.path("retainedPlaceholders").size() > 0 || hasRetained(copy)) {
             String before = actual;
-            copy.putArray("retainedPlaceholders");
-            for (JsonNode transfer : copy.path("transfers")) {
-              if (transfer instanceof ObjectNode object) {
-                object.putArray("requiredRetainedIds");
+            if (failurePort(copy)) {
+              for (JsonNode transfer : copy.path("transfers")) {
+                if (transfer instanceof ObjectNode object
+                    && "success".equals(object.path("sourcePort").asText())) {
+                  object.putArray("requiredRetainedIds");
+                }
+              }
+            } else {
+              copy.putArray("retainedPlaceholders");
+              for (JsonNode transfer : copy.path("transfers")) {
+                if (transfer instanceof ObjectNode object) {
+                  object.putArray("requiredRetainedIds");
+                }
               }
             }
             String after = JSON.writeValueAsString(copy);
             if (!injectionApplied) {
-              remember(document, "retainedPlaceholders", before, after);
+              remember(
+                  document,
+                  failurePort(copy) ? "requiredRetainedIds" : "retainedPlaceholders",
+                  before,
+                  after);
             }
             return after;
           }
@@ -1640,6 +1653,15 @@ final class FillingCheckpoint {
             object.put("behavior", "high, urgent, or critical to High");
             return true;
           }
+        }
+      }
+      return false;
+    }
+
+    private static boolean failurePort(JsonNode tree) {
+      for (JsonNode transfer : tree.path("transfers")) {
+        if ("failure".equals(transfer.path("sourcePort").asText())) {
+          return true;
         }
       }
       return false;
