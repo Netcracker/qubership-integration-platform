@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.plan.workdocument;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -215,6 +216,36 @@ class WorkFillingFaultInjectionTest {
     assertTrue(world.model.count(WorkTaskKind.DEFINE_TRANSFERS) > outlinesAtDetection);
     assertTrue(world.model.count(WorkTaskKind.DESCRIBE_CONTEXT) > contextAtDetection);
     assertTrue(notes.size() >= 3, notes.toString());
+    String successTransfer = consumer.startsWith("map-transfer-") ? consumer.substring("map-transfer-".length()) : "";
+    int replyTransfers = transfersOn(world.document(), successTransfer);
+    boolean consumerVerified = callsFor(world, consumer) > consumerCalls;
+    boolean findingClosed = false;
+    for (int step = 0; step < 25 && !findingClosed; step++) {
+      FillingResult result = world.advance(trace);
+      if (!result.questionIds().isEmpty()) {
+        world.filling.acceptInput(
+            world.runId, result.questionIds().get(0), "process-id", FillingWorld.answerText());
+      }
+      if (callsFor(world, consumer) > consumerCalls) {
+        consumerVerified = true;
+      }
+      findingClosed = consumerVerified && !openMissingRetained(world.document(), successTransfer);
+      if (result.action() == FillingResult.Action.HALTED && result.questionIds().isEmpty()) {
+        break;
+      }
+    }
+    assertTrue(consumerVerified, trace.toString());
+    assertTrue(
+        findingClosed,
+        world.document().progress().findings()
+            + " transfer="
+            + transferById(world.document(), successTransfer)
+            + " repairs="
+            + world.document().progress().repairs());
+    DataTransfer repaired = transferById(world.document(), successTransfer);
+    assertNotNull(repaired, trace.toString());
+    assertFalse(repaired.requiredRetainedIds().isEmpty(), repaired.toString());
+    assertEquals(replyTransfers, transfersOn(world.document(), successTransfer), trace.toString());
   }
 
   @Test
@@ -615,6 +646,37 @@ class WorkFillingFaultInjectionTest {
       }
     }
     return "";
+  }
+
+  private static int transfersOn(ChainWorkDocument document, String transferId) {
+    for (LogicalStep step : document.flow().steps()) {
+      for (DataTransfer transfer : step.data().transfers()) {
+        if (transferId.equals(transfer.id())) {
+          return step.data().transfers().size();
+        }
+      }
+    }
+    return 0;
+  }
+
+  private static DataTransfer transferById(ChainWorkDocument document, String transferId) {
+    for (LogicalStep step : document.flow().steps()) {
+      for (DataTransfer transfer : step.data().transfers()) {
+        if (transferId.equals(transfer.id())) {
+          return transfer;
+        }
+      }
+    }
+    return null;
+  }
+
+  private static boolean openMissingRetained(ChainWorkDocument document, String transferId) {
+    for (WorkFinding finding : document.progress().findings()) {
+      if ("MISSING_RETAINED".equals(finding.issueCategory()) && transferId.equals(finding.recordRef())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static String failureTransferId(ChainWorkDocument document) {

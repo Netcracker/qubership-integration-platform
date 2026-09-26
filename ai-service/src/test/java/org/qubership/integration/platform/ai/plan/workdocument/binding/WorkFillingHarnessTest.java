@@ -336,12 +336,12 @@ class WorkFillingHarnessTest {
       body = JSON.readTree(report.toFile());
     }
     JsonNode document = JSON.readTree(report.resolveSibling("final-document.json").toFile());
-    assertEquals(1, exit, Files.readString(report));
+    assertEquals(0, exit, Files.readString(report));
     assertEquals(0, sessionCalls.get());
     assertEquals("READY_FOR_PRESENTATION", body.path("outcome").asText());
-    assertEquals("FIELD_ASSERTION", body.path("failureCode").asText());
-    assertEquals(1, body.path("pendingTasks").asInt());
-    assertTrue(openTasks(document).contains("DESCRIBE_CONTEXT PENDING"));
+    assertEquals("", body.path("failureCode").asText());
+    assertEquals(0, body.path("pendingTasks").asInt());
+    assertFalse(openTasks(document).contains("DESCRIBE_CONTEXT PENDING"));
     assertEquals("detected-and-repaired", body.path("faultVerdict").asText());
     JsonNode fault = JSON.readTree(report.resolveSibling("fault-report.json").toFile());
     assertTrue(fault.path("injectionApplied").asBoolean());
@@ -401,18 +401,34 @@ class WorkFillingHarnessTest {
       assertEquals("early-prevention", verdict, Files.readString(report));
       assertTrue(fault.path("earlyPrevention").asBoolean());
     }
-    assertEquals(1, exit, Files.readString(report));
-    assertEquals("HALTED", body.path("outcome").asText(), Files.readString(report));
-    JsonNode haltedDocument = JSON.readTree(report.resolveSibling("final-document.json").toFile());
+    if (exit == 3) {
+      Path input = temp.resolve("upstream-input.json");
+      writeAnswer(input, body);
+      exit =
+          WorkCheckpointHarness.run(
+              request(
+                  "om-upstream-recovery",
+                  "run-upstream",
+                  report,
+                  store,
+                  true,
+                  input,
+                  40,
+                  null,
+                  true),
+              session(new AtomicInteger()));
+      body = JSON.readTree(report.toFile());
+    }
+    assertEquals(0, exit, Files.readString(report));
+    assertEquals("READY_FOR_PRESENTATION", body.path("outcome").asText(), Files.readString(report));
+    JsonNode repairedDocument = JSON.readTree(report.resolveSibling("final-document.json").toFile());
     boolean missingRetainedRemains = false;
-    for (JsonNode finding : haltedDocument.path("progress").path("findings")) {
+    for (JsonNode finding : repairedDocument.path("progress").path("findings")) {
       if ("MISSING_RETAINED".equals(finding.path("issueCategory").asText())) {
         missingRetainedRemains = true;
       }
     }
-    assertTrue(
-        missingRetainedRemains,
-        "10E halt: filling leaves MISSING_RETAINED open after the outline repair. " + Files.readString(report));
+    assertFalse(missingRetainedRemains, Files.readString(report));
     JsonNode faultBlob = JSON.readTree(store.get("harness/fault-run-upstream").orElseThrow());
     assertTrue(faultBlob.path("reportedMissing").asBoolean(), faultBlob.toString());
     assertFalse(body.path("documentReference").asText().isBlank());

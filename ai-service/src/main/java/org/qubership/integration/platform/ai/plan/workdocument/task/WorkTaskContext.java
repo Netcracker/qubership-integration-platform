@@ -24,7 +24,8 @@ public final class WorkTaskContext {
     JsonNode document = JSON.valueToTree(state.document());
     boolean outline = scope.taskKind() == WorkTaskKind.DEFINE_TRANSFERS;
     Set<String> owned = Set.copyOf(scope.ownedRecordIds());
-    JsonNode transfers = outline ? JSON.createArrayNode() : ownedTransfers(document, owned);
+    String outlineTarget = outline ? outlineTarget(scope) : "";
+    JsonNode transfers = outline ? transfersOn(document, outlineTarget) : ownedTransfers(document, owned);
     Set<String> ownedSteps = outline ? owned : ownedSteps(document, transfers);
     Set<String> ports = outline ? exposedPorts(document, ownedSteps) : ports(document, transfers);
     Set<String> sources =
@@ -110,12 +111,80 @@ public final class WorkTaskContext {
           .append('\n');
     }
     for (JsonNode transfer : transfers) {
+      if (outline) {
+        prompt.append("transfer ").append(transfer.path("id").asText());
+        prompt.append(" source");
+        for (JsonNode source : transfer.path("sourcePorts")) {
+          prompt
+              .append(' ')
+              .append(source.path("stepId").asText())
+              .append('/')
+              .append(source.path("portName").asText());
+        }
+        prompt
+            .append(" target ")
+            .append(transfer.path("targetPort").path("portName").asText())
+            .append(" outcome ")
+            .append(transfer.path("outcome").asText())
+            .append(" retained");
+        for (JsonNode retainedId : transfer.path("requiredRetainedIds")) {
+          prompt.append(' ').append(retainedId.asText());
+        }
+        prompt.append('\n');
+      }
       for (JsonNode rule : transfer.path("rules")) {
         prompt
             .append("rule ")
             .append(rule.path("id").asText())
             .append(' ')
             .append(rule.path("behavior").asText())
+            .append('\n');
+      }
+    }
+    if (outline) {
+      for (JsonNode step : document.path("flow").path("steps")) {
+        for (JsonNode value : step.path("data").path("retainedValues")) {
+          String producer = value.path("producerStepId").asText();
+          if (!owned.contains(producer) && !outlineTarget.equals(step.path("id").asText())) {
+            continue;
+          }
+          prompt
+              .append("retained ")
+              .append(value.path("id").asText())
+              .append(" producer ")
+              .append(producer)
+              .append(" use ")
+              .append(value.path("intendedUse").asText())
+              .append('\n');
+        }
+      }
+      for (JsonNode finding : document.path("progress").path("findings")) {
+        String record = finding.path("recordRef").asText();
+        if (!mentions(transfers, record) && !outlineTarget.equals(record)) {
+          continue;
+        }
+        prompt
+            .append("finding ")
+            .append(finding.path("id").asText())
+            .append(" category ")
+            .append(finding.path("issueCategory").asText())
+            .append(" record ")
+            .append(record)
+            .append(" pointer ")
+            .append(finding.path("canonicalFieldPointer").asText())
+            .append(' ')
+            .append(finding.path("contradiction").asText())
+            .append('\n');
+      }
+      for (String id : scope.replacementIds()) {
+        prompt.append("allowed-update ").append(id).append('\n');
+      }
+      for (var allowance : scope.creationAllowances()) {
+        prompt
+            .append("allowed-create ")
+            .append(allowance.kind())
+            .append(' ')
+            .append(allowance.parentId())
             .append('\n');
       }
     }
@@ -135,6 +204,36 @@ public final class WorkTaskContext {
           .append('\n');
     }
     return prompt.toString();
+  }
+
+  private static String outlineTarget(WorkTaskScope scope) {
+    String prefix = "define-transfers-";
+    if (scope.taskId() != null && scope.taskId().startsWith(prefix)) {
+      return scope.taskId().substring(prefix.length());
+    }
+    return scope.ownedRecordIds().isEmpty() ? "" : scope.ownedRecordIds().get(0);
+  }
+
+  private static JsonNode transfersOn(JsonNode document, String stepId) {
+    var found = JSON.createArrayNode();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      if (!stepId.equals(step.path("id").asText())) {
+        continue;
+      }
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        found.add(transfer);
+      }
+    }
+    return found;
+  }
+
+  private static boolean mentions(JsonNode transfers, String recordId) {
+    for (JsonNode transfer : transfers) {
+      if (recordId.equals(transfer.path("id").asText())) {
+        return true;
+      }
+    }
+    return false;
   }
 
   private static JsonNode ownedTransfers(JsonNode document, Set<String> owned) {

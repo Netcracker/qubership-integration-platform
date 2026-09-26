@@ -50,14 +50,7 @@ final class WorkDocumentEditor {
       List<WorkQuestion> questions = new ArrayList<>(progress.questions());
       questions.add(question(scope, capture.unresolvedChoice(), capture.question(),
           resolveAll(capture.clarificationEvidenceIds(), aliases, evidenceIds(draft)), List.of()));
-      progress =
-          new WorkProgress(
-              progress.tasks(),
-              progress.findings(),
-              questions,
-              progress.approvalReference(),
-              progress.derivedResultReferences(),
-              progress.recheckStages());
+      progress = progress.replacing(progress.tasks(), progress.findings(), questions);
     }
     ChainWorkDocument next =
         new ChainWorkDocument(
@@ -227,6 +220,15 @@ final class WorkDocumentEditor {
             "MALFORMED_REFERENCE",
             "Producer " + retained.producerStepId() + " does not exist. Name an existing step.");
       }
+      if (!retained.existingId().isBlank()
+          && retainedOnProducer(draft, retained.producerStepId(), retained.existingId())
+          && !scope.allowsReplacement(retained.existingId())) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "Retained value "
+                + retained.existingId()
+                + " is outside the assigned scope. Update only an assigned retained value.");
+      }
       resolveAll(retained.evidenceIds(), aliases, evidenceIds(draft));
       String id =
           allocateOutlineRecord(
@@ -240,14 +242,22 @@ final class WorkDocumentEditor {
                   + " is not a retained value on "
                   + retained.producerStepId()
                   + ". Reuse only a retained value from that producer.");
+      RetainedValue previous = retainedOn(draft, id);
+      boolean sameObligation =
+          previous != null
+              && previous.intendedUse().equals(retained.intendedUse())
+              && previous.evidenceIds().equals(retained.evidenceIds())
+              && previous.producerStepId().equals(retained.producerStepId());
       RetainedValue stored =
-          new RetainedValue(
-              id,
-              null,
-              retained.intendedUse(),
-              retained.evidenceIds(),
-              retained.producerStepId(),
-              RetainedResolution.UNRESOLVED);
+          sameObligation
+              ? previous
+              : new RetainedValue(
+                  id,
+                  null,
+                  retained.intendedUse(),
+                  retained.evidenceIds(),
+                  retained.producerStepId(),
+                  RetainedResolution.UNRESOLVED);
       replaceRetained(draft, retained.producerStepId(), stored);
       known.add(id);
       accepted.add(id);
@@ -270,6 +280,15 @@ final class WorkDocumentEditor {
             "OUTSIDE_SCOPE",
             "Transfer target is outside step " + proposal.targetStepId() + ". Keep the assigned target.");
       }
+      if (!captured.existingId().isBlank()
+          && transferOnStep(draft, proposal.targetStepId(), captured.existingId())
+          && !scope.allowsReplacement(captured.existingId())) {
+        throw reject(
+            "OUTSIDE_SCOPE",
+            "Transfer "
+                + captured.existingId()
+                + " is outside the assigned scope. Update only an assigned transfer.");
+      }
       String id =
           allocateOutlineRecord(
               aliases,
@@ -284,14 +303,17 @@ final class WorkDocumentEditor {
                   + ". Reuse only a transfer that already belongs to this target.");
       List<String> retainedIds = resolveAll(captured.requiredRetainedIds(), aliases, known);
       List<String> resolvedRequirements = resolveAll(captured.requirementIds(), aliases, known);
+      DataTransfer previous = findTransfer(draft, id);
       DataTransfer stored =
           new DataTransfer(
               id,
               sources,
               target,
               resolvedRequirements,
-              List.of(),
-              decision(captured.decision()),
+              previous == null ? List.of() : previous.rules(),
+              captured.decision().isBlank() && previous != null
+                  ? previous.decision()
+                  : decision(captured.decision()),
               captured.outcome(),
               retainedIds);
       replaceTransfer(draft, proposal.targetStepId(), stored);
@@ -304,7 +326,14 @@ final class WorkDocumentEditor {
         }
       }
     }
-    List<CoverageEntry> coverage = new ArrayList<>();
+    LogicalStep current = find(draft.steps, proposal.targetStepId(), LogicalStep::id);
+    java.util.Map<String, CoverageEntry> coverage = new java.util.LinkedHashMap<>();
+    for (CoverageEntry existing : current.data().outline().coverage()) {
+      coverage.put(existing.requirementId() + "\n" + existing.passageId(), existing);
+      if (!existing.requirementId().isBlank() && !requirementIds.contains(existing.requirementId())) {
+        requirementIds.add(existing.requirementId());
+      }
+    }
     for (OutlineCoverage entry : proposal.coverage()) {
       if (!entry.passageId().isBlank()) {
         passageSource(WorkDocumentState.of(documentFrom(draft, state.document().progress())), entry.passageId());
@@ -312,9 +341,20 @@ final class WorkDocumentEditor {
       if (!entry.requirementId().isBlank() && !requirementIds.contains(entry.requirementId())) {
         requirementIds.add(entry.requirementId());
       }
-      coverage.add(new CoverageEntry(entry.requirementId(), entry.passageId(), entry.disposition()));
+      coverage.put(
+          entry.requirementId() + "\n" + entry.passageId(),
+          new CoverageEntry(entry.requirementId(), entry.passageId(), entry.disposition()));
     }
-    DataOutline outline = new DataOutline(requirementIds, transferIds, coverage);
+    List<String> storedTransferIds = new ArrayList<>();
+    for (DataTransfer transfer : current.data().transfers()) {
+      storedTransferIds.add(transfer.id());
+      for (String requirementId : transfer.requirementIds()) {
+        if (!requirementIds.contains(requirementId)) {
+          requirementIds.add(requirementId);
+        }
+      }
+    }
+    DataOutline outline = new DataOutline(requirementIds, storedTransferIds, new ArrayList<>(coverage.values()));
     for (int i = 0; i < draft.steps.size(); i++) {
       LogicalStep step = draft.steps.get(i);
       if (step.id().equals(proposal.targetStepId())) {
@@ -363,13 +403,7 @@ final class WorkDocumentEditor {
             QuestionResolution.OPEN));
     WorkProgress progress =
         withTask(
-            new WorkProgress(
-                prior.tasks(),
-                prior.findings(),
-                questions,
-                prior.approvalReference(),
-                prior.derivedResultReferences(),
-                prior.recheckStages()),
+            prior.replacing(prior.tasks(), prior.findings(), questions),
             scope,
             WorkTaskState.NEEDS_INPUT,
             List.of());
@@ -479,14 +513,7 @@ final class WorkDocumentEditor {
           "MALFORMED_REFERENCE",
           "Owner " + question.ownerTaskKey() + " does not exist. Reopen a task the document already stores.");
     }
-    WorkProgress progress =
-        new WorkProgress(
-            tasks,
-            prior.findings(),
-            questions,
-            prior.approvalReference(),
-            prior.derivedResultReferences(),
-            prior.recheckStages());
+    WorkProgress progress = prior.replacing(tasks, prior.findings(), questions);
     ChainWorkDocument next =
         new ChainWorkDocument(
             state.document().schemaVersion(),
@@ -563,6 +590,17 @@ final class WorkDocumentEditor {
       }
     }
     return false;
+  }
+
+  private static RetainedValue retainedOn(Draft draft, String retainedId) {
+    for (LogicalStep step : draft.steps) {
+      for (RetainedValue value : step.data().retainedValues()) {
+        if (value.id().equals(retainedId)) {
+          return value;
+        }
+      }
+    }
+    return null;
   }
 
   private static boolean retainedOnProducer(Draft draft, String producerStepId, String retainedId) {
@@ -685,17 +723,7 @@ final class WorkDocumentEditor {
               resolveAll(capture.defectEvidenceIds(), Map.of(), evidenceIds(state.document()))));
     }
     WorkProgress progress =
-        withTask(
-            new WorkProgress(
-                prior.tasks(),
-                findings,
-                questions,
-                prior.approvalReference(),
-                prior.derivedResultReferences(),
-                prior.recheckStages()),
-            scope,
-            taskState,
-            List.of());
+        withTask(prior.replacing(prior.tasks(), findings, questions), scope, taskState, List.of());
     ChainWorkDocument next =
         new ChainWorkDocument(
             state.document().schemaVersion(),
@@ -1483,13 +1511,7 @@ final class WorkDocumentEditor {
     if (!replaced) {
       tasks.add(previous == null ? next : taskRow(scope, state, producedRecordIds, deletedIds, previous));
     }
-    return new WorkProgress(
-        tasks,
-        progress.findings(),
-        progress.questions(),
-        progress.approvalReference(),
-        progress.derivedResultReferences(),
-        progress.recheckStages());
+    return progress.replacing(tasks, progress.findings(), progress.questions());
   }
 
   private static WorkTaskRecord taskRow(
