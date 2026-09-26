@@ -127,7 +127,7 @@ public final class WorkDocumentFilling {
     }
     ChainWorkDocument current = documents.read(runId).document();
     WorkTaskPlanner.Task planned = planned(current, dispatch.taskKey());
-    if (planned != null && cheap(current, planned)) {
+    if (planned != null && cheap(current, planned) && !repairOwner(current, dispatch)) {
       stamp(runId, commandId, dispatch.taskKey(), false);
       return persist(runId, commandId, payloadHash, afterTask(runId, dispatch.taskId(), List.of("revalidated")));
     }
@@ -194,9 +194,78 @@ public final class WorkDocumentFilling {
       return routeCommit(runId, commandId, dispatch, published);
     }
     if (published.outcome() == WorkOutcome.PREPARED) {
-      stamp(runId, commandId, dispatch.taskKey(), true);
+      return acceptPrepared(runId, commandId, dispatch);
     }
     return afterTask(runId, dispatch.taskId(), List.of(published.outcome().name()));
+  }
+
+  private FillingResult acceptPrepared(String runId, String commandId, Dispatch dispatch) {
+    ChainWorkDocument document = documents.read(runId).document();
+    RepairAssignment repair = activeRepair(document);
+    String acted = WorkTaskPlanner.taskKey(dispatch.kind(), dispatch.recordId());
+    if (repair == null) {
+      stamp(runId, commandId, dispatch.taskKey(), true);
+      return afterTask(runId, dispatch.taskId(), List.of(WorkOutcome.PREPARED.name()));
+    }
+    String responsible = WorkTaskPlanner.taskKey(repair.responsibleKind(), repair.responsibleRecordId());
+    if (acted.equals(responsible) && !acted.equals(repair.consumerTaskKey())) {
+      stamp(runId, commandId, responsible, false);
+      ChainWorkDocument after = documents.read(runId).document();
+      if (!structurallyRepaired(after, repair)) {
+        return retryRepair(runId, commandId, dispatch, repair);
+      }
+      saveRepair(
+          runId,
+          "verify:" + commandId,
+          repair.findingId(),
+          repair.causeKey(),
+          repair.recordRef(),
+          repair.issueCategory(),
+          repair.fieldPointer(),
+          repair.contradiction(),
+          repair.detectionTaskKey(),
+          repair.consumerTaskKey(),
+          repair.responsibleKind(),
+          repair.responsibleRecordId(),
+          repair.updateIds(),
+          repair.createParentIds(),
+          WorkDocumentState.of(after).revision(),
+          RepairAssignment.VERIFY);
+      return afterTask(runId, dispatch.taskId(), List.of(WorkOutcome.PREPARED.name()));
+    }
+    if (acted.equals(repair.consumerTaskKey())) {
+      stamp(runId, commandId, acted, true);
+      return afterTask(runId, dispatch.taskId(), List.of(WorkOutcome.PREPARED.name()));
+    }
+    stamp(runId, commandId, dispatch.taskKey(), false);
+    return afterTask(runId, dispatch.taskId(), List.of(WorkOutcome.PREPARED.name()));
+  }
+
+  private boolean repairOwner(ChainWorkDocument document, Dispatch dispatch) {
+    RepairAssignment repair = activeRepair(document);
+    if (repair == null || !RepairAssignment.OWNER.equals(repair.phase())) {
+      return false;
+    }
+    String acted = WorkTaskPlanner.taskKey(dispatch.kind(), dispatch.recordId());
+    String responsible = WorkTaskPlanner.taskKey(repair.responsibleKind(), repair.responsibleRecordId());
+    return acted.equals(responsible);
+  }
+
+  private FillingResult retryRepair(
+      String runId, String commandId, Dispatch dispatch, RepairAssignment repair) {
+    DefectSite site =
+        new DefectSite(
+            repair.recordRef(),
+            repair.issueCategory(),
+            repair.fieldPointer(),
+            repair.contradiction(),
+            "",
+            "",
+            repair.responsibleKind(),
+            repair.responsibleRecordId(),
+            stageOf(repair.responsibleKind()),
+            repair.findingId());
+    return applyRoute(runId, "retry-" + commandId, dispatch, site);
   }
 
   private FillingResult routeRejection(
@@ -217,21 +286,58 @@ public final class WorkDocumentFilling {
   }
 
   private FillingResult applyRoute(String runId, String commandId, Dispatch dispatch, DefectSite site) {
+    String origin = site.origin();
+    String category = site.category();
+    String pointer = site.pointer();
+    ChainWorkDocument current = documents.read(runId).document();
+    if (!site.findingId().isBlank()) {
+      for (WorkFinding finding : current.progress().findings()) {
+        if (site.findingId().equals(finding.id())) {
+          origin = finding.recordRef();
+          category = finding.issueCategory();
+          pointer = finding.canonicalFieldPointer();
+        }
+      }
+    }
     WorkRecovery.Result routed =
         recovery.route(
             runId,
             new WorkRecovery.Defect(
-                "",
-                site.origin(),
-                site.category(),
-                site.pointer(),
+                site.findingId(),
+                origin,
+                category,
+                pointer,
                 site.contradiction(),
                 List.of(evidenceId(documents.read(runId).document())),
                 site.revealed(),
-                site.revealedPointer()),
+                site.revealedPointer(),
+                site.handlerKind(),
+                site.handlerRecordId()),
             "recover:" + commandId);
     if (routed.dispatched()) {
       stash(runId, commandId, routed.owner(), site.handlerKind(), site.handlerRecordId(), site);
+      String consumer = WorkTaskPlanner.taskKey(dispatch.kind(), dispatch.recordId());
+      List<String> updates =
+          findTransfer(documents.read(runId).document(), site.origin()) == null
+              ? List.of()
+              : List.of(site.origin());
+      saveRepair(
+          runId,
+          "assign:" + commandId,
+          routed.findingId(),
+          routed.causeKey(),
+          site.origin(),
+          site.category(),
+          site.pointer(),
+          site.contradiction(),
+          consumer,
+          consumer,
+          site.handlerKind(),
+          site.handlerRecordId(),
+          updates,
+          List.of(),
+          "",
+          RepairAssignment.OWNER);
       return result(
           runId,
           FillingResult.Action.ADVANCED,
@@ -311,33 +417,53 @@ public final class WorkDocumentFilling {
       }
     }
     List<WorkFinding> findings = new ArrayList<>(document.progress().findings());
+    boolean removedRepairFinding = false;
     if (clearCorrective) {
-      WorkTaskRecord stash = find(document.progress().tasks(), CORRECTIVE_KEY);
-      if (stash != null) {
-        String category = stash.skillId();
-        String origin = stash.producedRecordIds().isEmpty() ? "" : stash.producedRecordIds().get(0);
-        String repaired = stash.taskId();
-        String pointer = stash.acceptedInputFingerprint();
-        findings.removeIf(finding -> resolvedFinding(finding, category, origin, repaired, pointer));
+      RepairAssignment repair = activeRepair(document);
+      if (repair != null) {
+        int before = findings.size();
+        findings.removeIf(finding -> repair.findingId().equals(finding.id()));
+        removedRepairFinding = findings.size() < before;
+      } else {
+        WorkTaskRecord stash = find(document.progress().tasks(), CORRECTIVE_KEY);
+        if (stash != null) {
+          String category = stash.skillId();
+          String origin = stash.producedRecordIds().isEmpty() ? "" : stash.producedRecordIds().get(0);
+          String repaired = stash.taskId();
+          String pointer = stash.acceptedInputFingerprint();
+          findings.removeIf(finding -> resolvedFinding(finding, category, origin, repaired, pointer));
+        }
       }
     }
-    commitProgress(runId, "progress:" + commandId, document, tasks, findings, sha256(taskKey));
+    boolean closedRepair = removedRepairFinding;
+    commitProgress(runId, "progress:" + commandId, document, tasks, findings, sha256(taskKey), closedRepair);
   }
 
   private Target choose(String runId, ChainWorkDocument document, WorkTaskPlanner.Plan plan) {
+    RepairAssignment repair = activeRepair(document);
+    if (repair != null && RepairAssignment.OWNER.equals(repair.phase())) {
+      String responsible = WorkTaskPlanner.taskKey(repair.responsibleKind(), repair.responsibleRecordId());
+      if (!questionBlocks(document, responsible)) {
+        return new Target(repair.responsibleKind(), repair.responsibleRecordId(), responsible, false);
+      }
+    }
+    if (repair != null && RepairAssignment.VERIFY.equals(repair.phase())) {
+      Target preparation = preparation(document, plan, repair);
+      if (preparation != null) {
+        return preparation;
+      }
+      if (structurallyRepaired(document, repair) && !questionBlocks(document, repair.consumerTaskKey())) {
+        Target consumer = consumerTarget(document, repair);
+        if (consumer != null) {
+          return consumer;
+        }
+      }
+    }
     WorkTaskRecord stash = find(document.progress().tasks(), CORRECTIVE_KEY);
-    if (stash != null && repairing(load(runId))) {
+    if (stash != null && repairing(load(runId)) && repair == null) {
       return new Target(stash.kind(), stash.taskId(), CORRECTIVE_KEY, false);
     }
     WorkTaskPlanner.Task selected = plan.selected();
-    if (selected == null
-        || WorkTaskPlanner.KIND_ORDER.indexOf(selected.kind())
-            > WorkTaskPlanner.KIND_ORDER.indexOf(WorkTaskKind.DESCRIBE_CONTEXT)) {
-      Target context = droppedContextRecheck(document, plan);
-      if (context != null) {
-        return context;
-      }
-    }
     if (selected == null) {
       return null;
     }
@@ -383,6 +509,10 @@ public final class WorkDocumentFilling {
     if (stored == null || stored.acceptedInputFingerprint().isBlank()) {
       return false;
     }
+    if (task.kind() == WorkTaskKind.DESCRIBE_CONTEXT
+        && !task.requiredInputFingerprint().equals(stored.acceptedInputFingerprint())) {
+      return false;
+    }
     if (task.kind() == WorkTaskKind.DEFINE_TRANSFERS) {
       return cheapOutline(document, task);
     }
@@ -417,52 +547,6 @@ public final class WorkDocumentFilling {
       }
     }
     return true;
-  }
-
-  private Target droppedContextRecheck(ChainWorkDocument document, WorkTaskPlanner.Plan plan) {
-    if (!logicalAccepted(document)) {
-      return null;
-    }
-    Target found = null;
-    for (WorkTaskRecord task : document.progress().tasks()) {
-      if (task.kind() != WorkTaskKind.DESCRIBE_CONTEXT) {
-        continue;
-      }
-      if (task.state() != WorkTaskState.NEEDS_RECHECK || planned(plan, task.taskKey())) {
-        continue;
-      }
-      String recordId = recordId(task);
-      if (recordId.isBlank() || !cheapContext(document, recordId)) {
-        continue;
-      }
-      if (found == null || task.taskKey().compareTo(found.taskKey()) < 0) {
-        found = new Target(WorkTaskKind.DESCRIBE_CONTEXT, recordId, task.taskKey(), true);
-      }
-    }
-    return found;
-  }
-
-  private static boolean planned(WorkTaskPlanner.Plan plan, String taskKey) {
-    for (WorkTaskPlanner.Task task : plan.tasks()) {
-      if (taskKey.equals(task.taskKey())) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static boolean logicalAccepted(ChainWorkDocument document) {
-    String key = WorkTaskPlanner.taskKey(WorkTaskKind.LOGICAL_DESIGN, document.documentId());
-    WorkTaskRecord stored = find(document.progress().tasks(), key);
-    return stored != null && stored.state() == WorkTaskState.ACCEPTED;
-  }
-
-  private static String recordId(WorkTaskRecord task) {
-    String prefix = WorkTaskPlanner.taskKey(task.kind(), "");
-    if (task.taskKey() != null && task.taskKey().startsWith(prefix)) {
-      return task.taskKey().substring(prefix.length());
-    }
-    return "";
   }
 
   private boolean cheapContext(ChainWorkDocument document, WorkTaskPlanner.Task task) {
@@ -722,7 +806,8 @@ public final class WorkDocumentFilling {
             site.category(),
             site.pointer(),
             List.of(site.origin())));
-    commitProgress(runId, "stash:" + commandId, document, tasks, document.progress().findings(), sha256(recordId));
+    commitProgress(
+        runId, "stash:" + commandId, document, tasks, document.progress().findings(), sha256(recordId), false);
   }
 
   private void ensureStash(String runId, String commandId, Dispatch dispatch) {
@@ -743,8 +828,12 @@ public final class WorkDocumentFilling {
       ChainWorkDocument document,
       List<WorkTaskRecord> tasks,
       List<WorkFinding> findings,
-      String payloadHash) {
-    WorkProgress progress = document.progress();
+      String payloadHash,
+      boolean clearRepairs) {
+    WorkProgress progress = document.progress().replacing(tasks, findings, document.progress().questions());
+    if (clearRepairs) {
+      progress = progress.withRepairs(List.of());
+    }
     ChainWorkDocument next =
         new ChainWorkDocument(
             document.schemaVersion(),
@@ -752,13 +841,7 @@ public final class WorkDocumentFilling {
             document.sources(),
             document.requirements(),
             document.flow(),
-            new WorkProgress(
-                tasks,
-                findings,
-                progress.questions(),
-                progress.approvalReference(),
-                progress.derivedResultReferences(),
-                progress.recheckStages()));
+            progress);
     documents.commitRecoveredDocument(
         runId, next, commandId, payloadHash, "task-progress", documentStage(load(runId)), null);
   }
@@ -779,6 +862,13 @@ public final class WorkDocumentFilling {
 
   private FillingResult terminal(String runId, WorkTaskPlanner.Plan plan) {
     WorkTaskPlanner.Readiness readiness = plan.readiness();
+    ChainWorkDocument document = documents.read(runId).document();
+    if (readiness.status() == WorkTaskPlanner.Readiness.Status.HALTED && verificationWaiting(document)) {
+      return result(runId, FillingResult.Action.WAITING_FOR_INPUT, "", List.of("waiting-for-input"), 0L);
+    }
+    if (readiness.status() == WorkTaskPlanner.Readiness.Status.HALTED && canVerify(document)) {
+      return result(runId, FillingResult.Action.ADVANCED, "", List.of("work-remaining"), 0L);
+    }
     return switch (readiness.status()) {
       case READY_FOR_PRESENTATION ->
           result(runId, FillingResult.Action.READY_FOR_PRESENTATION, "", List.of("ready"), 0L);
@@ -944,6 +1034,157 @@ public final class WorkDocumentFilling {
     return loaded;
   }
 
+  private void saveRepair(
+      String runId,
+      String commandId,
+      String findingId,
+      String causeKey,
+      String recordRef,
+      String category,
+      String pointer,
+      String contradiction,
+      String detectionTaskKey,
+      String consumerTaskKey,
+      WorkTaskKind responsibleKind,
+      String responsibleRecordId,
+      List<String> updateIds,
+      List<String> createParentIds,
+      String candidateRevision,
+      String phase) {
+    ChainWorkDocument document = documents.read(runId).document();
+    RepairAssignment assignment =
+        new RepairAssignment(
+            findingId,
+            causeKey,
+            recordRef,
+            category,
+            pointer,
+            contradiction,
+            detectionTaskKey,
+            consumerTaskKey,
+            responsibleKind,
+            responsibleRecordId,
+            updateIds,
+            createParentIds,
+            candidateRevision,
+            phase);
+    WorkProgress progress = document.progress().withRepairs(List.of(assignment));
+    ChainWorkDocument next =
+        new ChainWorkDocument(
+            document.schemaVersion(),
+            document.documentId(),
+            document.sources(),
+            document.requirements(),
+            document.flow(),
+            progress);
+    documents.commitRecoveredDocument(
+        runId, next, commandId, sha256(findingId + phase), "repair-assignment", documentStage(load(runId)), null);
+  }
+
+  private static RepairAssignment activeRepair(ChainWorkDocument document) {
+    List<RepairAssignment> repairs = document.progress().repairs();
+    if (repairs.isEmpty()) {
+      return null;
+    }
+    return repairs.get(repairs.size() - 1);
+  }
+
+  private Target preparation(ChainWorkDocument document, WorkTaskPlanner.Plan plan, RepairAssignment repair) {
+    WorkTaskPlanner.Task consumer = null;
+    for (WorkTaskPlanner.Task task : plan.tasks()) {
+      if (repair.consumerTaskKey().equals(task.taskKey())) {
+        consumer = task;
+      }
+    }
+    if (consumer == null) {
+      return null;
+    }
+    for (WorkTaskPlanner.Task task : plan.tasks()) {
+      if (!consumer.dependencyKeys().contains(task.taskKey()) || task.state() == WorkTaskState.ACCEPTED) {
+        continue;
+      }
+      if (!task.ready() && !cheap(document, task)) {
+        continue;
+      }
+      return new Target(task.kind(), task.recordId(), task.taskKey(), cheap(document, task));
+    }
+    return null;
+  }
+
+  private Target consumerTarget(ChainWorkDocument document, RepairAssignment repair) {
+    WorkTaskKind kind = kindOf(repair.consumerTaskKey());
+    String recordId = recordOf(repair.consumerTaskKey(), kind);
+    if (kind == null || recordId.isBlank()) {
+      return null;
+    }
+    WorkTaskPlanner.Task planned = planned(document, repair.consumerTaskKey());
+    boolean revalidate = planned != null && cheap(document, planned);
+    return new Target(kind, recordId, repair.consumerTaskKey(), revalidate);
+  }
+
+  private static WorkTaskKind kindOf(String taskKey) {
+    for (WorkTaskKind kind : WorkTaskPlanner.KIND_ORDER) {
+      String prefix = WorkTaskPlanner.taskKey(kind, "");
+      if (taskKey != null && taskKey.startsWith(prefix)) {
+        return kind;
+      }
+    }
+    return null;
+  }
+
+  private static String recordOf(String taskKey, WorkTaskKind kind) {
+    if (kind == null || taskKey == null) {
+      return "";
+    }
+    String prefix = WorkTaskPlanner.taskKey(kind, "");
+    return taskKey.startsWith(prefix) ? taskKey.substring(prefix.length()) : "";
+  }
+
+  private boolean canVerify(ChainWorkDocument document) {
+    RepairAssignment repair = activeRepair(document);
+    return repair != null
+        && RepairAssignment.VERIFY.equals(repair.phase())
+        && structurallyRepaired(document, repair)
+        && !questionBlocks(document, repair.consumerTaskKey());
+  }
+
+  private static boolean verificationWaiting(ChainWorkDocument document) {
+    RepairAssignment repair = activeRepair(document);
+    if (repair == null || !RepairAssignment.VERIFY.equals(repair.phase())) {
+      return false;
+    }
+    return questionBlocks(document, repair.consumerTaskKey());
+  }
+
+  private static boolean questionBlocks(ChainWorkDocument document, String taskKey) {
+    for (WorkQuestion question : document.progress().questions()) {
+      if (question.resolution() == QuestionResolution.OPEN && taskKey.equals(question.ownerTaskKey())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean structurallyRepaired(ChainWorkDocument document, RepairAssignment repair) {
+    if ("MISSING_RETAINED".equals(repair.issueCategory())) {
+      DataTransfer transfer = findTransfer(document, repair.recordRef());
+      if (transfer == null || transfer.requiredRetainedIds().isEmpty()) {
+        return false;
+      }
+      for (String retainedId : transfer.requiredRetainedIds()) {
+        RetainedValue value = findRetained(document, retainedId);
+        if (value == null || value.producerStepId().isBlank() || step(document, value.producerStepId()) == null) {
+          return false;
+        }
+      }
+      return true;
+    }
+    return findTransfer(document, repair.recordRef()) != null
+        || step(document, repair.recordRef()) != null
+        || findRetained(document, repair.recordRef()) != null
+        || document.documentId().equals(repair.recordRef());
+  }
+
   private DefectSite site(
       ChainWorkDocument document, Dispatch dispatch, String category, String contradiction, String record) {
     String origin = record == null || record.isBlank() ? dispatch.recordId() : record;
@@ -986,11 +1227,12 @@ public final class WorkDocumentFilling {
       revealedPointer = "binding";
       handler = WorkTaskKind.SELECT_OPERATION;
       handlerRecord = broken.isBlank() ? dispatch.recordId() : broken;
-    } else if (ServerOwnedSubjects.OUTLINE_POINTER.equals(pointer) || "MISSING_RETAINED".equals(category)) {
-      pointer = ServerOwnedSubjects.OUTLINE_POINTER;
+    } else if ("MISSING_RETAINED".equals(category)) {
       handler = WorkTaskKind.DEFINE_TRANSFERS;
       handlerRecord = stepIdOf(document, origin, dispatch.recordId());
-      origin = handlerRecord;
+    } else if (ServerOwnedSubjects.OUTLINE_POINTER.equals(pointer)) {
+      handler = WorkTaskKind.DEFINE_TRANSFERS;
+      handlerRecord = stepIdOf(document, origin, dispatch.recordId());
     } else if (dispatch.kind() == WorkTaskKind.DEFINE_TRANSFERS) {
       pointer = ServerOwnedSubjects.OUTLINE_POINTER;
       origin = step(document, dispatch.recordId()) == null ? origin : dispatch.recordId();
@@ -1007,8 +1249,23 @@ public final class WorkDocumentFilling {
       origin = origin.isBlank() ? dispatch.recordId() : origin;
     }
     WorkStage owner = stageOf(handler);
+    String findingId = "";
+    for (WorkFinding finding : document.progress().findings()) {
+      if (category.equals(finding.issueCategory()) && origin.equals(finding.recordRef())) {
+        findingId = finding.id();
+      }
+    }
     return new DefectSite(
-        origin, category, pointer, contradiction, revealed, revealedPointer, handler, handlerRecord, owner);
+        origin,
+        category,
+        pointer,
+        contradiction,
+        revealed,
+        revealedPointer,
+        handler,
+        handlerRecord,
+        owner,
+        findingId);
   }
 
   private static WorkFinding openCause(ChainWorkDocument document, String category) {
@@ -1371,7 +1628,8 @@ public final class WorkDocumentFilling {
       String revealedPointer,
       WorkTaskKind handlerKind,
       String handlerRecordId,
-      WorkStage owner) {}
+      WorkStage owner,
+      String findingId) {}
 
   /** The provider answered, then the document changed. The handler must not publish that output. */
   private static final class StaleProposal extends RuntimeException {}

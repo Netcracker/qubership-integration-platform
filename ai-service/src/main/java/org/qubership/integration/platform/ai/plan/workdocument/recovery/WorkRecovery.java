@@ -9,16 +9,20 @@ import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument;
+import org.qubership.integration.platform.ai.plan.workdocument.ServerOwnedSubjects;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentRejectedException;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkRepairBudget;
-import org.qubership.integration.platform.ai.plan.workdocument.ServerOwnedSubjects;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAction;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContext;
@@ -127,7 +131,13 @@ public final class WorkRecovery {
     RecoveryDecision decision;
     Reference documentRef = current.run().workDocumentRef();
     if (allowed) {
-      markTasks((ObjectNode) next.withObject("progress"), owner);
+      markTasks(
+          (ObjectNode) next.withObject("progress"),
+          next,
+          owner,
+          stored.origin(),
+          request.responsibleKind(),
+          request.responsibleRecordId());
       reason = ledger.recordRepair(key, "");
       decision = businessDecision(documentRef, stored.origin(), owner, false);
     } else {
@@ -332,23 +342,54 @@ public final class WorkRecovery {
     return stored.id();
   }
 
-  private static void markTasks(ObjectNode progress, WorkStage owner) {
+  private static void markTasks(
+      ObjectNode progress,
+      JsonNode document,
+      WorkStage owner,
+      String originRecordId,
+      WorkTaskKind responsibleKind,
+      String responsibleRecordId) {
+    ChainWorkDocument parsed = JSON.convertValue(document, ChainWorkDocument.class);
+    WorkTaskPlanner.Plan plan = new WorkTaskPlanner().plan(parsed);
+    String ownerKey = ownerKey(plan, owner, originRecordId, responsibleKind, responsibleRecordId);
+    Set<String> dependents = dependentsOf(plan, ownerKey);
+    Set<String> planned = new LinkedHashSet<>();
+    for (WorkTaskPlanner.Task task : plan.tasks()) {
+      planned.add(task.taskKey());
+    }
     ArrayNode tasks = progress.withArray("tasks");
     List<String> later = laterStages(owner);
     boolean ownerSeen = false;
     for (JsonNode task : tasks) {
       ObjectNode node = (ObjectNode) task;
-      String stage = node.path("stage").asText();
-      if (owner.name().equals(stage)) {
+      String key = node.path("taskKey").asText();
+      if (key.isBlank()) {
+        key = node.path("taskId").asText();
+      }
+      if (!ownerKey.isBlank() && ownerKey.equals(key)) {
         node.put("state", "PENDING");
         ownerSeen = true;
-      } else if (later.contains(stage)) {
+      } else if (dependents.contains(key)) {
         node.put("state", "NEEDS_RECHECK");
+      } else if (!planned.contains(key)) {
+        String stage = node.path("stage").asText();
+        if (owner.name().equals(stage)) {
+          node.put("state", "PENDING");
+          ownerSeen = true;
+        } else if (later.contains(stage)) {
+          node.put("state", "NEEDS_RECHECK");
+        }
       }
     }
     if (!ownerSeen) {
       ObjectNode task = tasks.addObject();
-      task.put("taskId", "recovery-" + owner.name());
+      if (!ownerKey.isBlank()) {
+        task.put("taskKey", ownerKey);
+        task.put("taskId", ownerKey.replace(':', '-'));
+        task.put("kind", responsibleKind == null ? WorkTaskKind.UNSPECIFIED.name() : responsibleKind.name());
+      } else {
+        task.put("taskId", "recovery-" + owner.name());
+      }
       task.put("state", "PENDING");
       task.put("stage", owner.name());
       task.put("skillId", skillId(owner));
@@ -356,6 +397,64 @@ public final class WorkRecovery {
     ArrayNode recheck = JSON.createArrayNode();
     later.forEach(recheck::add);
     progress.set("recheckStages", recheck);
+  }
+
+  private static String ownerKey(
+      WorkTaskPlanner.Plan plan,
+      WorkStage owner,
+      String originRecordId,
+      WorkTaskKind responsibleKind,
+      String responsibleRecordId) {
+    if (responsibleKind == WorkTaskKind.LOGICAL_DESIGN) {
+      for (WorkTaskPlanner.Task task : plan.tasks()) {
+        if (task.kind() == WorkTaskKind.LOGICAL_DESIGN) {
+          return task.taskKey();
+        }
+      }
+    }
+    if (responsibleKind != null
+        && responsibleKind != WorkTaskKind.UNSPECIFIED
+        && responsibleRecordId != null
+        && !responsibleRecordId.isBlank()) {
+      return WorkTaskPlanner.taskKey(responsibleKind, responsibleRecordId);
+    }
+    String exact = "";
+    String assigned = "";
+    for (WorkTaskPlanner.Task task : plan.tasks()) {
+      if (task.stage() != owner) {
+        continue;
+      }
+      if (originRecordId.equals(task.recordId())) {
+        exact = task.taskKey();
+      } else if (assigned.isBlank() && task.assignedRecordIds().contains(originRecordId)) {
+        assigned = task.taskKey();
+      }
+    }
+    return exact.isBlank() ? assigned : exact;
+  }
+
+  private static Set<String> dependentsOf(WorkTaskPlanner.Plan plan, String ownerKey) {
+    Set<String> dependents = new LinkedHashSet<>();
+    if (ownerKey == null || ownerKey.isBlank()) {
+      return dependents;
+    }
+    boolean changed = true;
+    while (changed) {
+      changed = false;
+      for (WorkTaskPlanner.Task task : plan.tasks()) {
+        if (ownerKey.equals(task.taskKey()) || dependents.contains(task.taskKey())) {
+          continue;
+        }
+        for (String dependency : task.dependencyKeys()) {
+          if (ownerKey.equals(dependency) || dependents.contains(dependency)) {
+            dependents.add(task.taskKey());
+            changed = true;
+            break;
+          }
+        }
+      }
+    }
+    return dependents;
   }
 
   private static void addNextAction(ObjectNode progress, String origin, String action) {
@@ -735,7 +834,31 @@ public final class WorkRecovery {
       String contradiction,
       List<String> evidenceIds,
       String revealedRecordId,
-      String revealedFieldPointer) {
+      String revealedFieldPointer,
+      WorkTaskKind responsibleKind,
+      String responsibleRecordId) {
+
+    public Defect(
+        String findingId,
+        String originRecordId,
+        String issueCategory,
+        String fieldPointer,
+        String contradiction,
+        List<String> evidenceIds,
+        String revealedRecordId,
+        String revealedFieldPointer) {
+      this(
+          findingId,
+          originRecordId,
+          issueCategory,
+          fieldPointer,
+          contradiction,
+          evidenceIds,
+          revealedRecordId,
+          revealedFieldPointer,
+          WorkTaskKind.UNSPECIFIED,
+          "");
+    }
 
     public Defect {
       findingId = findingId == null ? "" : findingId;
@@ -746,6 +869,8 @@ public final class WorkRecovery {
       evidenceIds = evidenceIds == null ? List.of() : List.copyOf(evidenceIds);
       revealedRecordId = revealedRecordId == null ? "" : revealedRecordId;
       revealedFieldPointer = revealedFieldPointer == null ? "" : revealedFieldPointer;
+      responsibleKind = responsibleKind == null ? WorkTaskKind.UNSPECIFIED : responsibleKind;
+      responsibleRecordId = responsibleRecordId == null ? "" : responsibleRecordId;
     }
 
     public static Defect of(

@@ -389,17 +389,23 @@ class WorkTaskPlannerTest {
   }
 
   @Test
-  void resolvedRetainedValueDoesNotCreateAContextTask() {
+  void resolvedRetainedValueKeepsTheContextTaskAndItsFingerprint() {
     ChainWorkDocument ready =
         WorkPlanningDocuments.accept(
             resolvedRetainedDocument(),
             task -> task.kind() != WorkTaskKind.MAP_TRANSFER);
 
     Plan plan = planner.plan(ready);
+    Task context = task(plan, "describe-context:trigger");
 
-    assertTrue(keys(plan).stream().noneMatch(key -> key.startsWith("describe-context:")));
-    assertFalse(task(plan, "map-transfer:to-request").dependencyKeys().stream().anyMatch(key -> key.startsWith("describe-context:")));
+    assertEquals(WorkTaskState.ACCEPTED, context.state());
+    assertFalse(context.requiredInputFingerprint().isBlank());
+    assertTrue(task(plan, "map-transfer:to-request").dependencyKeys().contains("describe-context:trigger"));
     assertTrue(task(plan, "map-transfer:to-request").ready());
+    Plan again = planner.plan(ready);
+    assertEquals(context.requiredInputFingerprint(), task(again, "describe-context:trigger").requiredInputFingerprint());
+    assertEquals(WorkTaskState.ACCEPTED, task(again, "describe-context:trigger").state());
+    assertFalse(task(again, "describe-context:trigger").ready());
   }
 
   @Test

@@ -67,6 +67,7 @@ public final class WorkTaskPlanner {
     blockCoverage(document, byKey, blocks);
     blockFindings(document, byKey, blocks);
     blockQuestions(document, byKey, blocks);
+    blockUnreconciled(document, byKey, blocks);
     markReady(byKey, blocks);
     List<Draft> ordered = new ArrayList<>(byKey.values());
     ordered.sort(WorkTaskPlanner::byKindThenKey);
@@ -200,7 +201,7 @@ public final class WorkTaskPlanner {
         assigned,
         List.of(producerId),
         dependencies,
-        fingerprintContext(graph, producerId, values));
+        fingerprintContext(document, graph, producerId, values));
   }
 
   private static Draft mapping(ChainWorkDocument document, Graph graph, OwnedTransfer owned) {
@@ -233,7 +234,7 @@ public final class WorkTaskPlanner {
     }
     for (String retainedId : transfer.requiredRetainedIds()) {
       RetainedValue value = graph.retained(retainedId);
-      if (value == null || value.satisfiesConsumer()) {
+      if (value == null) {
         continue;
       }
       String producer = producerId(value, graph);
@@ -566,6 +567,30 @@ public final class WorkTaskPlanner {
     return new Block(taskKey, Reason.WAITING_FOR_INPUT, "Question " + question.id() + " blocks " + taskKey + ".");
   }
 
+  private static void blockUnreconciled(
+      ChainWorkDocument document, Map<String, Draft> byKey, Map<String, Block> blocks) {
+    for (WorkTaskRecord stored : document.progress().tasks()) {
+      if (stored.state() != WorkTaskState.PENDING
+          && stored.state() != WorkTaskState.NEEDS_RECHECK
+          && stored.state() != WorkTaskState.RUNNING) {
+        continue;
+      }
+      if (byKey.containsKey(stored.taskKey()) || "corrective-target".equals(stored.taskKey())) {
+        continue;
+      }
+      put(
+          blocks,
+          new Block(
+              stored.taskKey(),
+              Reason.UNRECONCILED,
+              "Stored task "
+                  + stored.taskKey()
+                  + " is "
+                  + stored.state()
+                  + " and is not a current obligation."));
+    }
+  }
+
   private static void markReady(Map<String, Draft> byKey, Map<String, Block> blocks) {
     boolean changed = true;
     while (changed) {
@@ -715,16 +740,36 @@ public final class WorkTaskPlanner {
     return parts.hash();
   }
 
-  private static String fingerprintContext(Graph graph, String producerId, List<RetainedValue> values) {
+  private static String fingerprintContext(
+      ChainWorkDocument document, Graph graph, String producerId, List<RetainedValue> values) {
     Parts parts = new Parts().add("context").add(producerId);
     LogicalStep producer = graph.step(producerId);
     appendBinding(parts, producer == null ? null : producer.binding());
     List<RetainedValue> sorted = new ArrayList<>(values);
     sorted.sort((left, right) -> left.id().compareTo(right.id()));
     for (RetainedValue value : sorted) {
-      parts.add("value").add(value.id()).add(value.resolution().name()).add(fieldPath(value)).add(value.intendedUse());
+      parts.add("obligation").add(value.id()).add(value.intendedUse());
+      List<String> evidence = new ArrayList<>(value.evidenceIds());
+      Collections.sort(evidence);
+      for (String evidenceId : evidence) {
+        parts.add("evidence").add(evidenceId).add(evidenceHash(document, evidenceId));
+      }
     }
     return parts.hash();
+  }
+
+  private static String evidenceHash(ChainWorkDocument document, String evidenceId) {
+    for (WorkSource source : document.sources()) {
+      if (evidenceId.equals(source.id())) {
+        return source.contentHash();
+      }
+      for (SourcePassage passage : source.passages()) {
+        if (evidenceId.equals(passage.id())) {
+          return passage.contentHash();
+        }
+      }
+    }
+    return "";
   }
 
   private static String fingerprintMapping(ChainWorkDocument document, Graph graph, OwnedTransfer owned) {
@@ -922,9 +967,6 @@ public final class WorkTaskPlanner {
       List<RetainedValue> values = new ArrayList<>(step.data().retainedValues());
       values.sort((left, right) -> left.id().compareTo(right.id()));
       for (RetainedValue value : values) {
-        if (value.satisfiesConsumer()) {
-          continue;
-        }
         String producer = value.producerStepId().isBlank() ? step.id() : value.producerStepId();
         grouped.computeIfAbsent(producer, key -> new ArrayList<>()).add(value);
       }
@@ -1068,6 +1110,7 @@ public final class WorkTaskPlanner {
       case COVERAGE_GAP -> 6;
       case UNEVIDENCED_MAPPING -> 7;
       case ACTIVE_FINDING -> 8;
+      case UNRECONCILED -> 8;
       case WAITING_FOR_INPUT -> 9;
       case WAITING_FOR_TASK -> 10;
     };
@@ -1573,6 +1616,7 @@ public final class WorkTaskPlanner {
     COVERAGE_GAP,
     UNEVIDENCED_MAPPING,
     ACTIVE_FINDING,
+    UNRECONCILED,
     WAITING_FOR_INPUT,
     WAITING_FOR_TASK
   }
