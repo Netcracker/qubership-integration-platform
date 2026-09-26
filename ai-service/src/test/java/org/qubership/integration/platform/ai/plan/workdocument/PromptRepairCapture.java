@@ -24,6 +24,15 @@ public final class PromptRepairCapture {
   }
 
   public static String outline(String prompt, String schema, Link link, List<String> namedUses) {
+    return outline(prompt, schema, link, namedUses, List.of());
+  }
+
+  public static String outline(
+      String prompt,
+      String schema,
+      Link link,
+      List<String> namedUses,
+      List<String> existingRetainedIds) {
     String passage = firstToken(prompt, "passage ");
     List<String> requirements = new ArrayList<>();
     String producer = "";
@@ -43,9 +52,10 @@ public final class PromptRepairCapture {
       }
     }
     boolean missing = prompt != null && prompt.contains("MISSING_RETAINED");
+    boolean reuse = existingRetainedIds != null && !existingRetainedIds.isEmpty();
     List<String> aliases = new ArrayList<>();
     String placeholder = "";
-    if (missing && link != Link.OMIT && !producer.isBlank() && !passage.isBlank()) {
+    if (!reuse && missing && link != Link.OMIT && !producer.isBlank() && !passage.isBlank()) {
       if (namedUses != null) {
         for (String use : namedUses) {
           if (use != null && !use.isBlank() && prompt.contains(use)) {
@@ -74,7 +84,9 @@ public final class PromptRepairCapture {
       List<String> listed = tokensAfter(line, " requirements ");
       assigned.addAll(listed);
       String retained = "";
-      if (missing && link == Link.DECLARE && "success".equals(sourcePort) && !aliases.isEmpty()) {
+      if (missing && link == Link.DECLARE && "success".equals(sourcePort) && reuse) {
+        retained = quoted(existingRetainedIds);
+      } else if (missing && link == Link.DECLARE && "success".equals(sourcePort) && !aliases.isEmpty()) {
         retained = quoted(aliases);
       }
       if (transfers.length() > 0) {
