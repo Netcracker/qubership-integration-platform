@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.plan.workdocument;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -728,6 +729,184 @@ class WorkDataOutlineTest {
         """;
   }
 
+  @Test
+  void unknownAliasAndStaleRevisionLeaveNoPlaceholderOrTransferLink() {
+    seed(callDocument());
+    outlines.define(RUN_ID, "call", callRequestOutline(), contracts(), "outline-base");
+    ChainWorkDocument before = documents.read(RUN_ID).document();
+    String transferId = step(before, "call").data().transfers().get(0).id();
+    int retainedBefore = retainedCount(before);
+    int transfersBefore = step(before, "call").data().transfers().size();
+    WorkDocumentState state = documents.read(RUN_ID);
+    List<CreationAllowance> allowances =
+        List.of(
+            new CreationAllowance(WorkRecordKind.OUTLINE, "call"),
+            new CreationAllowance(WorkRecordKind.RETAINED_VALUE, "trigger"));
+    WorkTaskScope current =
+        outlineScope(state.revision(), allowances, List.of(transferId));
+    OutlineProposal unknown =
+        new OutlineProposal(
+            "call",
+            List.of(
+                new OutlineTransfer(
+                    "",
+                    transferId,
+                    List.of(new PortRef("trigger", "payload")),
+                    new PortRef("call", "request"),
+                    TransferOutcome.UNSPECIFIED,
+                    List.of("req-request"),
+                    List.of("missing-alias"),
+                    "")),
+            List.of(new OutlineRetained("keep-process", "", "trigger", "process id", List.of("not-a-passage"))),
+            List.of(
+                new OutlineCoverage("req-request", "passage-source-1-1", CoverageDisposition.ASSIGNED),
+                new OutlineCoverage("req-common", "passage-source-1-2", CoverageDisposition.NO_MAPPING)));
+    WorkDocumentRejectedException alias =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () -> documents.applyOutline(RUN_ID, current, unknown, "cmd-unknown-alias"));
+    assertEquals("MALFORMED_REFERENCE", alias.code());
+    assertUnchangedOutline(before, transferId, retainedBefore, transfersBefore);
+
+    WorkTaskScope stale = outlineScope("stale-revision", allowances, List.of(transferId));
+    OutlineProposal fresh =
+        new OutlineProposal(
+            "call",
+            List.of(
+                new OutlineTransfer(
+                    "",
+                    transferId,
+                    List.of(new PortRef("trigger", "payload")),
+                    new PortRef("call", "request"),
+                    TransferOutcome.UNSPECIFIED,
+                    List.of("req-request"),
+                    List.of("keep-process"),
+                    "")),
+            List.of(
+                new OutlineRetained(
+                    "keep-process", "", "trigger", "process id", List.of("passage-source-1-1"))),
+            List.of(
+                new OutlineCoverage("req-request", "passage-source-1-1", CoverageDisposition.ASSIGNED),
+                new OutlineCoverage("req-common", "passage-source-1-2", CoverageDisposition.NO_MAPPING)));
+    WorkDocumentRejectedException revision =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () -> documents.applyOutline(RUN_ID, stale, fresh, "cmd-stale-outline"));
+    assertEquals("STALE_SCOPE", revision.code());
+    assertUnchangedOutline(before, transferId, retainedBefore, transfersBefore);
+  }
+
+  @Test
+  void repairOutlineDoesNotCreateATransferBesideTheOriginal() {
+    seed(callDocument());
+    outlines.define(RUN_ID, "call", callRequestOutline(), contracts(), "outline-repair-base");
+    ChainWorkDocument current = documents.read(RUN_ID).document();
+    String transferId = step(current, "call").data().transfers().get(0).id();
+    documents.commitRecoveredDocument(
+        RUN_ID,
+        new ChainWorkDocument(
+            current.schemaVersion(),
+            current.documentId(),
+            current.sources(),
+            current.requirements(),
+            current.flow(),
+            current
+                .progress()
+                .withRepairs(
+                    List.of(
+                        new RepairAssignment(
+                            "finding-outline",
+                            "cause-outline",
+                            transferId,
+                            "MISSING_RETAINED",
+                            "",
+                            "The transfer has no retained declaration.",
+                            "map-transfer:" + transferId,
+                            "map-transfer:" + transferId,
+                            WorkTaskKind.DEFINE_TRANSFERS,
+                            "call",
+                            List.of(transferId),
+                            List.of("trigger"),
+                            "prior:",
+                            RepairAssignment.OWNER)))),
+        "plant-repair",
+        "plant-repair",
+        "repair-assignment",
+        "DATA_BEHAVIOR",
+        null);
+    String[] prompt = {""};
+    WorkDataOutline proposing = proposing();
+    WorkDocumentRejectedException rejected =
+        assertThrows(
+            WorkDocumentRejectedException.class,
+            () ->
+                proposing.propose(
+                    RUN_ID,
+                    "call",
+                    outlineMaterials(),
+                    contracts(),
+                    request -> {
+                      prompt[0] = request.prompt();
+                      return """
+                          {"outcome":"PREPARED","transfers":[{"existingId":"","alias":"extra","sourceStepId":"trigger","sourcePort":"payload","targetPort":"request","outcome":"UNSPECIFIED","requirementIds":["req-request"],"requiredRetainedIds":[],"decision":""}],"retainedPlaceholders":[],"coverage":[{"requirementId":"req-request","passageId":"passage-source-1-1","disposition":"ASSIGNED"},{"requirementId":"req-common","passageId":"passage-source-1-2","disposition":"NO_MAPPING"}]}
+                          """;
+                    },
+                    "cmd-extra-transfer"));
+    assertEquals("MALFORMED_REFERENCE", rejected.code());
+    assertFalse(prompt[0].contains("allowed-create TRANSFER"), prompt[0]);
+    assertTrue(prompt[0].contains("allowed-create RETAINED_VALUE trigger"), prompt[0]);
+    assertTrue(prompt[0].contains("allowed-update " + transferId), prompt[0]);
+    ChainWorkDocument after = documents.read(RUN_ID).document();
+    assertEquals(1, step(after, "call").data().transfers().size());
+    assertEquals(transferId, step(after, "call").data().transfers().get(0).id());
+  }
+
+  @Test
+  void equalLabelsRepairByIdWithoutMergingInteractions() {
+    seed(duplicateCalls());
+    outlines.define(
+        RUN_ID, "call-1", requestOutline("call-1", "req-1", "passage-source-1-1"), contracts(), "outline-call-1");
+    outlines.define(
+        RUN_ID, "call-2", requestOutline("call-2", "req-1", "passage-source-1-1"), contracts(), "outline-call-2");
+    ChainWorkDocument outlined = documents.read(RUN_ID).document();
+    LogicalStep first = step(outlined, "call-1");
+    LogicalStep second = step(outlined, "call-2");
+    String firstTransfer = first.data().transfers().get(0).id();
+    String secondTransfer = second.data().transfers().get(0).id();
+    assertEquals(first.label(), second.label());
+    assertEquals(first.binding().operationId(), second.binding().operationId());
+    assertNotEquals(firstTransfer, secondTransfer);
+    outlines.define(
+        RUN_ID,
+        "call-1",
+        new OutlineProposal(
+            "call-1",
+            List.of(
+                new OutlineTransfer(
+                    "",
+                    firstTransfer,
+                    List.of(new PortRef("trigger", "payload")),
+                    new PortRef("call-1", "request"),
+                    TransferOutcome.UNSPECIFIED,
+                    List.of("req-1"),
+                    List.of(),
+                    "")),
+            List.of(),
+            List.of(new OutlineCoverage("req-1", "passage-source-1-1", CoverageDisposition.ASSIGNED))),
+        contracts(),
+        "repair-call-1");
+    ChainWorkDocument repaired = documents.read(RUN_ID).document();
+    LogicalStep repairedFirst = step(repaired, "call-1");
+    LogicalStep repairedSecond = step(repaired, "call-2");
+    assertEquals(firstTransfer, repairedFirst.data().transfers().get(0).id());
+    assertEquals(secondTransfer, repairedSecond.data().transfers().get(0).id());
+    assertEquals(1, repairedFirst.data().transfers().size());
+    assertEquals(1, repairedSecond.data().transfers().size());
+    assertEquals(repairedFirst.label(), repairedSecond.label());
+    assertEquals(repairedFirst.binding().operationId(), repairedSecond.binding().operationId());
+    assertEquals(3, repaired.flow().steps().size());
+  }
+
   private void seed(ChainWorkDocument document) {
     documents.intake(RUN_ID, WorkDocumentState.of(document), "cmd-seed", new WorkRepairBudget(3));
   }
@@ -862,6 +1041,25 @@ class WorkDataOutlineTest {
     return new SourcePassage(id, "source-1", sha256(text), text, heading);
   }
 
+  private static OutlineProposal callRequestOutline() {
+    return new OutlineProposal(
+        "call",
+        List.of(
+            transfer(
+                "to-request",
+                "trigger",
+                "payload",
+                "call",
+                "request",
+                TransferOutcome.UNSPECIFIED,
+                List.of("req-request"),
+                List.of())),
+        List.of(),
+        List.of(
+            new OutlineCoverage("req-request", "passage-source-1-1", CoverageDisposition.ASSIGNED),
+            new OutlineCoverage("req-common", "passage-source-1-2", CoverageDisposition.NO_MAPPING)));
+  }
+
   private static OutlineProposal requestOutline(String target, String requirementId, String passageId) {
     return new OutlineProposal(
         target,
@@ -986,6 +1184,46 @@ class WorkDataOutlineTest {
 
   private static WorkTaskPlanner.Task plannerTask(WorkTaskPlanner.Plan plan, String taskKey) {
     return plan.tasks().stream().filter(item -> item.taskKey().equals(taskKey)).findFirst().orElseThrow();
+  }
+
+  private static WorkTaskScope outlineScope(
+      String revision, List<CreationAllowance> allowances, List<String> replacements) {
+    return new WorkTaskScope(
+        "define-transfers-call",
+        revision,
+        WorkStage.DATA_BEHAVIOR,
+        WorkDataOutline.SKILL_ID,
+        List.of("call"),
+        true,
+        true,
+        false,
+        List.of(),
+        List.of(),
+        allowances,
+        replacements,
+        "define-transfers:call",
+        WorkTaskKind.DEFINE_TRANSFERS,
+        "",
+        null);
+  }
+
+  private static int retainedCount(ChainWorkDocument document) {
+    int count = 0;
+    for (LogicalStep step : document.flow().steps()) {
+      count += step.data().retainedValues().size();
+    }
+    return count;
+  }
+
+  private void assertUnchangedOutline(
+      ChainWorkDocument before, String transferId, int retainedBefore, int transfersBefore) {
+    ChainWorkDocument after = documents.read(RUN_ID).document();
+    LogicalStep call = step(after, "call");
+    assertEquals(transfersBefore, call.data().transfers().size());
+    assertEquals(transferId, call.data().transfers().get(0).id());
+    assertTrue(call.data().transfers().get(0).requiredRetainedIds().isEmpty());
+    assertEquals(retainedBefore, retainedCount(after));
+    assertEquals(before.progress().approvalReference(), after.progress().approvalReference());
   }
 
   private static LogicalStep step(ChainWorkDocument document, String id) {

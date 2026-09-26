@@ -353,10 +353,6 @@ public final class WorkRecovery {
     WorkTaskPlanner.Plan plan = new WorkTaskPlanner().plan(parsed);
     String ownerKey = ownerKey(plan, owner, originRecordId, responsibleKind, responsibleRecordId);
     Set<String> dependents = dependentsOf(plan, ownerKey);
-    Set<String> planned = new LinkedHashSet<>();
-    for (WorkTaskPlanner.Task task : plan.tasks()) {
-      planned.add(task.taskKey());
-    }
     ArrayNode tasks = progress.withArray("tasks");
     List<String> later = laterStages(owner);
     boolean ownerSeen = false;
@@ -371,14 +367,6 @@ public final class WorkRecovery {
         ownerSeen = true;
       } else if (dependents.contains(key)) {
         node.put("state", "NEEDS_RECHECK");
-      } else if (!planned.contains(key)) {
-        String stage = node.path("stage").asText();
-        if (owner.name().equals(stage)) {
-          node.put("state", "PENDING");
-          ownerSeen = true;
-        } else if (later.contains(stage)) {
-          node.put("state", "NEEDS_RECHECK");
-        }
       }
     }
     if (!ownerSeen) {

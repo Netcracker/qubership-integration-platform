@@ -130,6 +130,10 @@ public final class WorkTaskContext {
         for (JsonNode retainedId : transfer.path("requiredRetainedIds")) {
           prompt.append(' ').append(retainedId.asText());
         }
+        prompt.append(" requirements");
+        for (JsonNode requirementId : transfer.path("requirementIds")) {
+          prompt.append(' ').append(requirementId.asText());
+        }
         prompt.append('\n');
       }
       for (JsonNode rule : transfer.path("rules")) {
@@ -187,6 +191,22 @@ public final class WorkTaskContext {
             .append(allowance.parentId())
             .append('\n');
       }
+    }
+    for (JsonNode repair : document.path("progress").path("repairs")) {
+      if (!scope.taskKey().equals(repair.path("consumerTaskKey").asText())) {
+        continue;
+      }
+      if (!"VERIFY".equals(repair.path("phase").asText())) {
+        continue;
+      }
+      prompt
+          .append("finding ")
+          .append(repair.path("findingId").asText())
+          .append(" record ")
+          .append(repair.path("recordRef").asText())
+          .append(' ')
+          .append(repair.path("contradiction").asText())
+          .append('\n');
     }
     for (SchemaFragment schema : materials.schemas()) {
       if (!ports.contains(schema.stepId() + "\n" + schema.portName())) {

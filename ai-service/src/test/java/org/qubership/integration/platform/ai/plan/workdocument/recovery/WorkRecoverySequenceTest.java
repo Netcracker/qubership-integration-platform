@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentServi
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkRepairBudget;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkStage;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskKind;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAction;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
 import org.qubership.integration.platform.ai.productpipeline.runtime.RecoveryAttemptLedger;
@@ -69,6 +70,31 @@ class WorkRecoverySequenceTest {
   }
 
   @Test
+  void unrelatedAcceptedWorkKeepsItsStatusWhenTheOwnerIsMarked() {
+    WorkRecovery.Result routed =
+        recovery.route(
+            RUN,
+            new WorkRecovery.Defect(
+                "",
+                "xfer-request",
+                "MISSING_RETAINED",
+                "",
+                "The transfer has no retained declaration.",
+                List.of("src-om"),
+                "",
+                "",
+                WorkTaskKind.DEFINE_TRANSFERS,
+                "create"),
+            "cmd-unrelated");
+
+    assertTrue(routed.dispatched());
+    assertEquals("ACCEPTED", taskStateById("logical-design"));
+    assertEquals("ACCEPTED", taskStateById("operation-selection"));
+    assertEquals("ACCEPTED", taskStateById("mapping-initial"));
+    assertEquals("PENDING", taskStateById("define-transfers:create"));
+  }
+
+  @Test
   void mappingFindingReturnsToBindingAndKeepsMappingRulesForRecheck() {
     WorkRecovery.Result routed =
         recovery.route(
@@ -87,9 +113,10 @@ class WorkRecoverySequenceTest {
     assertEquals(WorkStage.SERVICES, routed.owner());
     assertTrue(routed.dispatched());
     assertEquals(RecoveryAction.REGENERATE_ARTIFACT, routed.decision().action());
-    assertEquals("NEEDS_RECHECK", taskState("DATA_BEHAVIOR"));
-    assertEquals("PENDING", taskState("SERVICES"));
-    assertEquals("ACCEPTED", taskState("LOGICAL_FLOW"));
+    assertEquals("ACCEPTED", taskStateById("logical-design"));
+    assertEquals("ACCEPTED", taskStateById("operation-selection"));
+    assertEquals("ACCEPTED", taskStateById("mapping-initial"));
+    assertEquals("PENDING", taskStateById("select-operation:create"));
     assertTrue(recheckStages().contains("DATA_BEHAVIOR"));
     assertFalse(recheckStages().contains("SERVICES"));
     assertEquals(List.of("rule-subject", "rule-priority"), ruleIds());
@@ -141,9 +168,10 @@ class WorkRecoverySequenceTest {
     assertEquals(WorkStage.SERVICES, binding.owner());
     assertEquals(WorkStage.LOGICAL_FLOW, logical.owner());
     assertEquals(0, logical.repairsRemaining());
-    assertEquals("NEEDS_RECHECK", taskState("SERVICES"));
-    assertEquals("NEEDS_RECHECK", taskState("DATA_BEHAVIOR"));
-    assertEquals("PENDING", taskState("LOGICAL_FLOW"));
+    assertEquals("ACCEPTED", taskStateById("logical-design"));
+    assertEquals("ACCEPTED", taskStateById("operation-selection"));
+    assertEquals("ACCEPTED", taskStateById("mapping-initial"));
+    assertEquals("PENDING", taskStateById("recovery-LOGICAL_FLOW"));
     assertEquals(List.of("rule-subject", "rule-priority"), ruleIds());
     assertEquals(3, repairCharges());
     assertEquals("WRONG_OPERATION", findingCategory(mapping.findingId()));
@@ -328,9 +356,10 @@ class WorkRecoverySequenceTest {
     assertEquals(WorkStage.SERVICES, replay.owner());
     assertTrue(routed.dispatched());
     assertEquals(2, replay.repairsRemaining());
-    assertEquals("PENDING", taskState(runId, "LOGICAL_FLOW"));
-    assertEquals("PENDING", taskState(runId, "SERVICES"));
-    assertEquals("NEEDS_RECHECK", taskState(runId, "DATA_BEHAVIOR"));
+    assertEquals("PENDING", taskStateById(runId, "logical-design"));
+    assertEquals("ACCEPTED", taskStateById(runId, "operation-selection"));
+    assertEquals("ACCEPTED", taskStateById(runId, "mapping-initial"));
+    assertEquals("PENDING", taskStateById(runId, "recovery-SERVICES"));
     assertEquals(1, repairCharges(runId));
   }
 
@@ -401,9 +430,12 @@ class WorkRecoverySequenceTest {
         logical.causeKey());
     assertEquals(logical.causeKey(), recovery.causeKey(RUN, logical.findingId()));
     assertEquals("LOGICAL_FLOW", runs.load(RUN).orElseThrow().run().currentStageId());
-    assertEquals("PENDING", taskState("LOGICAL_FLOW"));
-    assertEquals("NEEDS_RECHECK", taskState("SERVICES"));
-    assertEquals("NEEDS_RECHECK", taskState("DATA_BEHAVIOR"));
+    assertEquals("ACCEPTED", taskStateById("logical-design"));
+    assertEquals("ACCEPTED", taskStateById("operation-selection"));
+    assertEquals("ACCEPTED", taskStateById("mapping-initial"));
+    assertEquals("PENDING", taskStateById("recovery-LOGICAL_FLOW"));
+    assertTrue(recheckStages().contains("SERVICES"));
+    assertTrue(recheckStages().contains("DATA_BEHAVIOR"));
     assertEquals(1, repairCharges());
   }
 
@@ -445,9 +477,10 @@ class WorkRecoverySequenceTest {
     assertFalse(blocked.dispatched());
     assertTrue(blocked.exhausted());
     assertEquals(WorkStage.DATA_BEHAVIOR, blocked.owner());
-    assertEquals("PENDING", taskState("DATA_BEHAVIOR"));
-    assertEquals("ACCEPTED", taskState("LOGICAL_FLOW"));
-    assertEquals("ACCEPTED", taskState("SERVICES"));
+    assertEquals("ACCEPTED", taskStateById("mapping-initial"));
+    assertEquals("PENDING", taskStateById("repair-rule:rule-priority"));
+    assertEquals("ACCEPTED", taskStateById("logical-design"));
+    assertEquals("ACCEPTED", taskStateById("operation-selection"));
     assertEquals(3, repairCharges());
   }
 
@@ -502,6 +535,19 @@ class WorkRecoverySequenceTest {
 
   private JsonNode document(String runId) {
     return JSON.valueToTree(documents.read(runId).document());
+  }
+
+  private String taskStateById(String taskId) {
+    return taskStateById(RUN, taskId);
+  }
+
+  private String taskStateById(String runId, String taskId) {
+    for (JsonNode task : document(runId).path("progress").path("tasks")) {
+      if (taskId.equals(task.path("taskKey").asText()) || taskId.equals(task.path("taskId").asText())) {
+        return task.path("state").asText();
+      }
+    }
+    return "";
   }
 
   private String taskState(String stage) {

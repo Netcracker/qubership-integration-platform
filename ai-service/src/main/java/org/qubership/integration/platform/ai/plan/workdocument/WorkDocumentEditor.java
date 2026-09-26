@@ -263,7 +263,8 @@ final class WorkDocumentEditor {
       accepted.add(id);
     }
     for (OutlineTransfer captured : proposal.transfers()) {
-      if (!scope.allowsCreation(WorkRecordKind.TRANSFER, proposal.targetStepId())) {
+      if (captured.existingId().isBlank()
+          && !scope.allowsCreation(WorkRecordKind.TRANSFER, proposal.targetStepId())) {
         throw reject(
             "OUTSIDE_SCOPE",
             "Transfer creation under "

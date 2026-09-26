@@ -49,11 +49,20 @@ public final class WorkDocumentCaptureSchema {
 
   /** Model-facing schema for one task kind. The universal capture is not a live response schema. */
   public static JsonObjectSchema responseSchema(WorkTaskKind kind, CaptureChoices choices) {
+    return responseSchema(kind, choices, false);
+  }
+
+  /**
+   * When {@code requireExistingTransfer} is set, a transfer capture must name an existing id.
+   * A repair uses that form so an omitted id cannot allocate a second transfer.
+   */
+  public static JsonObjectSchema responseSchema(
+      WorkTaskKind kind, CaptureChoices choices, boolean requireExistingTransfer) {
     CaptureChoices allowed = choices == null ? CaptureChoices.none() : choices;
     return switch (kind) {
       case LOGICAL_DESIGN -> (JsonObjectSchema) schema(LogicalDesignCapture.class);
       case SELECT_OPERATION -> operationSelectionSchema();
-      case DEFINE_TRANSFERS -> outlineSchema(allowed);
+      case DEFINE_TRANSFERS -> outlineSchema(allowed, requireExistingTransfer);
       case DESCRIBE_CONTEXT -> retainedSchema(allowed);
       case MAP_TRANSFER -> mappingSchema(allowed, false);
       case REPAIR_RULE -> mappingSchema(allowed, true);
@@ -222,20 +231,27 @@ public final class WorkDocumentCaptureSchema {
         new JsonStringSchema());
   }
 
-  private static JsonObjectSchema outlineSchema(CaptureChoices choices) {
-    List<String> transferIdentity = identityChoices(choices.transferIds());
+  private static JsonObjectSchema outlineSchema(CaptureChoices choices, boolean requireExistingTransfer) {
+    List<String> transferIdentity =
+        requireExistingTransfer ? listedIds(choices.transferIds()) : identityChoices(choices.transferIds());
     List<String> retainedIdentity = identityChoices(choices.retainedIds());
+    List<String> transferRequired = new ArrayList<>();
+    if (requireExistingTransfer) {
+      transferRequired.add("existingId");
+    }
+    transferRequired.addAll(
+        List.of(
+            "alias",
+            "sourceStepId",
+            "sourcePort",
+            "targetPort",
+            "outcome",
+            "requirementIds",
+            "requiredRetainedIds",
+            "decision"));
     JsonObjectSchema transfer =
         object(
-            List.of(
-                "alias",
-                "sourceStepId",
-                "sourcePort",
-                "targetPort",
-                "outcome",
-                "requirementIds",
-                "requiredRetainedIds",
-                "decision"),
+            transferRequired,
             "alias",
             new JsonStringSchema(),
             "existingId",
@@ -443,8 +459,18 @@ public final class WorkDocumentCaptureSchema {
   private static List<String> identityChoices(List<String> ids) {
     java.util.LinkedHashSet<String> choices = new java.util.LinkedHashSet<>();
     choices.add("");
+    choices.addAll(listedIds(ids));
+    return List.copyOf(choices);
+  }
+
+  private static List<String> listedIds(List<String> ids) {
+    java.util.LinkedHashSet<String> choices = new java.util.LinkedHashSet<>();
     if (ids != null) {
-      choices.addAll(ids);
+      for (String id : ids) {
+        if (id != null && !id.isBlank()) {
+          choices.add(id);
+        }
+      }
     }
     return List.copyOf(choices);
   }
