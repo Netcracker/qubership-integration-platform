@@ -20,7 +20,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.plan.workdocument.ChainWorkDocument;
 import org.qubership.integration.platform.ai.plan.workdocument.FillingCheckpointIntake;
+import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskPlanner;
 import org.qubership.integration.platform.ai.plan.workdocument.FillingResult;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentFilling;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentService;
@@ -232,13 +234,27 @@ final class FillingCheckpoint {
       SequentialFillingModel fake =
           new SequentialFillingModel(
               () -> JSON.valueToTree(documents.read(runId).document()),
-              "om-upstream-recovery".equals(request.caseId()));
+              "om-upstream-recovery".equals(request.caseId()),
+              fault.reportedMissing);
       WorkTaskModel delegate = request.sequentialFake() ? fake : session.modelClient();
       WorkTaskModel transport =
           task -> {
+            ChainWorkDocument current = documents.read(runId).document();
+            String baseRevision = documents.read(runId).revision();
             String actual = delegate.complete(task);
             String validation = fault.apply(task.kind(), actual, JSON.valueToTree(documents.read(runId).document()));
-            invocations.add(Invocation.of(task, actual, validation, cursor));
+            if (actual.contains("MISSING_RETAINED")) {
+              fault.reportedMissing = true;
+            }
+            invocations.add(
+                Invocation.of(
+                    task,
+                    actual,
+                    validation,
+                    cursor,
+                    plannedTask(current, task.taskKey()),
+                    JSON.valueToTree(current),
+                    baseRevision));
             if (task.kind() == WorkTaskKind.MAP_TRANSFER || task.kind() == WorkTaskKind.REPAIR_RULE) {
               cursor.mappingModelCalls++;
               if (ownsOneTransfer(documents, runId, task)) {
@@ -246,13 +262,11 @@ final class FillingCheckpoint {
               }
             }
             cursor.modelCalls++;
-            if (!fault.detectionMechanism.isBlank() && fault.actualRepairKind.isBlank()) {
-              fault.actualRepairKind = task.kind().name();
+            if (!fault.detectionMechanism.isBlank()
+                && fault.actualRepairKind.equals(task.kind().name())) {
+              fault.correctiveModelCalls++;
               if (task.kind() == WorkTaskKind.DEFINE_TRANSFERS) {
                 fault.downstreamReturn = true;
-              }
-              if (task.kind() == WorkTaskKind.MAP_TRANSFER || task.kind() == WorkTaskKind.REPAIR_RULE) {
-                fault.correctiveModelCalls++;
               }
             }
             try {
@@ -284,7 +298,8 @@ final class FillingCheckpoint {
         cursor.pending = "";
         saveCursor(request.publicationStore(), runId, cursor);
         note(fault, replayed);
-        emit(request, documents, runId, played, replayed, invocations, appendTrace);
+        applyRoute(fault, JSON.valueToTree(documents.read(runId).document()));
+        emit(request, documents, runs, runId, played, replayed, invocations, fault, appendTrace);
         appendTrace = true;
         saveFault(request.publicationStore(), runId, fault);
         if (request.inputFile() == null && terminal(replayed)) {
@@ -331,7 +346,8 @@ final class FillingCheckpoint {
         cursor.pending = "";
         saveCursor(request.publicationStore(), runId, cursor);
         note(fault, last);
-        emit(request, documents, runId, commandId, last, invocations, appendTrace);
+        applyRoute(fault, JSON.valueToTree(documents.read(runId).document()));
+        emit(request, documents, runs, runId, commandId, last, invocations, fault, appendTrace);
         appendTrace = true;
         saveFault(request.publicationStore(), runId, fault);
         if (blockingFailure(documents, runId)) {
@@ -474,12 +490,11 @@ final class FillingCheckpoint {
     report.put("openQuestions", questions.size());
     report.put("pendingTasks", pending(document));
     report.put("uncoveredRequirements", uncovered(document));
-    report.put("syntheticSchemaCount", request.sequentialFake() ? syntheticSchemas(document) : 0);
+    report.put("syntheticSchemaCount", syntheticSchemas(document));
     report.set("caseBindings", caseBindings(document));
     report.set("requirementChecklist", checklist(document));
     Invocation latest = invocations.isEmpty() ? null : invocations.get(invocations.size() - 1);
     report.put("sanitizedRequest", latest == null ? "" : WorkCheckpointHarness.sanitize(latest.prompt));
-    report.put("sanitizedResponse", latest == null ? "" : WorkCheckpointHarness.sanitize(latest.validationInput));
     ArrayNode invocationNodes = report.putArray("invocations");
     Path artifacts = request.report().resolveSibling("artifacts");
     Files.createDirectories(artifacts);
@@ -502,19 +517,29 @@ final class FillingCheckpoint {
       node.put("recordId", invocation.recordId);
       node.put("promptHash", sha256(invocation.prompt));
       node.put("responseSchemaHash", sha256(invocation.schemaJson));
-      node.put("controlledFault", invocation.controlled);
+      node.put("controlledFault", invocation.controlled());
       node.put("requestArtifact", requestFile.toString());
       node.put("actualModelOutput", responseFile.toString());
       node.put("validationInput", validationFile.toString());
       node.put("responseSchemaArtifact", schemaFile.toString());
+      node.set("assignedRecordIds", JSON.readTree(invocation.assignedRecordIds()));
+      node.set("dependencyKeys", JSON.readTree(invocation.dependencyKeys()));
+      node.put("inputFingerprint", invocation.inputFingerprint());
+      node.set("portHashes", JSON.readTree(invocation.portHashes()));
+      if (invocation == latest) {
+        report.put("sanitizedResponse", responseFile.toString());
+      }
       index++;
+    }
+    if (latest == null) {
+      report.put("sanitizedResponse", "");
     }
     if (faultCase) {
       report.put("faultVerdict", verdict);
-      writeFault(request, fault, verdict, document);
+      writeFault(request, fault, verdict, document, invocations, artifacts);
     }
     writeJson(request.report().resolveSibling("final-document.json"), document);
-    writeJson(request.report().resolveSibling("contract-provenance.json"), provenance(document, request.sequentialFake()));
+    writeJson(request.report().resolveSibling("contract-provenance.json"), provenance(document));
     write(request.report(), report);
     int exit =
         switch (action) {
@@ -618,23 +643,15 @@ final class FillingCheckpoint {
   }
 
   private static String readyGap(JsonNode document, Cursor cursor, CheckpointRequest request) {
-    if (!"om-progressive".equals(request.caseId()) && !"om-controlled-recovery".equals(request.caseId())) {
+    if (!"om-progressive".equals(request.caseId())
+        && !"om-controlled-recovery".equals(request.caseId())
+        && !"om-upstream-recovery".equals(request.caseId())) {
       return null;
     }
-    String behaviors = behaviors(document);
-    String constants = constants(document);
-    List<String> targets = targets(document);
-    if (!behaviors.contains("formatted fallback")) {
-      return "subject";
-    }
-    if (!behaviors.contains("low") || !behaviors.contains("Normal")) {
-      return "priority";
-    }
-    if (!constants.contains("Not Started") || !behaviors.contains("order creation date") || !behaviors.contains("woOrderType")) {
-      return "request-rules";
-    }
-    if (!constants.contains("SALESFORCE_TASK_CREATE_ERROR") || !targets.contains("$.processId")) {
-      return "response";
+    for (JsonNode row : checklist(document)) {
+      if (!row.path("passed").asBoolean()) {
+        return row.path("id").asText();
+      }
     }
     if (cursor.mappingModelCalls < 3 || cursor.mappingModelCalls != cursor.mappingOneTransfer) {
       return "mapping-calls";
@@ -651,44 +668,41 @@ final class FillingCheckpoint {
   private static void emit(
       CheckpointRequest request,
       WorkDocumentService documents,
+      ProductPipelineRunStore runs,
       String runId,
       String commandId,
       FillingResult result,
       List<Invocation> invocations,
+      Fault fault,
       boolean append)
       throws Exception {
     Invocation match = null;
+    int matchIndex = 0;
     for (int index = invocations.size() - 1; index >= 0; index--) {
       if (commandId.equals(invocations.get(index).commandId)) {
         match = invocations.get(index);
+        matchIndex = index + 1;
         break;
       }
     }
-    ObjectNode event = JSON.createObjectNode();
-    event.put("type", "result");
-    event.put("commandId", commandId);
-    event.put("taskId", result.taskId());
-    event.put("action", result.action().name());
-    event.put("documentRevision", result.documentRevision());
-    event.put("documentReference", result.documentReference());
-    event.set("reasons", JSON.valueToTree(result.reasons()));
+    JsonNode document = JSON.valueToTree(documents.read(runId).document());
+    ObjectNode event = traceEvent(request, documents, runId, commandId, result, match, matchIndex, document, runs, fault);
+    boolean writing = append;
     if (match != null) {
-      event.put("type", "dispatch");
-      event.put("kind", match.kind);
-      event.put("recordId", match.recordId);
-      event.put("taskKey", match.taskKey);
-      event.put("promptHash", sha256(match.prompt));
-      event.put("responseSchemaHash", sha256(match.schemaJson));
-      event.put("controlledFault", match.controlled);
-      event.put("actualModelOutputDiffers", !match.actualOutput.equals(match.validationInput));
+      ObjectNode dispatch = event.deepCopy();
+      dispatch.put("type", "dispatch");
+      appendLine(request.report().resolveSibling("task-trace.jsonl"), dispatch, writing);
+      writing = true;
     }
-    appendLine(request.report().resolveSibling("task-trace.jsonl"), event, append);
+    ObjectNode recorded = event.deepCopy();
+    recorded.put("type", "result");
+    appendLine(request.report().resolveSibling("task-trace.jsonl"), recorded, writing);
     ObjectNode assertion = JSON.createObjectNode();
     assertion.put("commandId", commandId);
     assertion.put("inputTask", result.taskId());
     assertion.put("action", result.action().name());
     assertion.put("outputRevision", result.documentRevision());
-    assertion.set("checks", checks(JSON.valueToTree(documents.read(runId).document())));
+    assertion.set("checks", checks(document));
     appendLine(request.report().resolveSibling("stage-assertions.jsonl"), assertion, append);
     boolean rejection = false;
     for (String reason : result.reasons()) {
@@ -697,20 +711,76 @@ final class FillingCheckpoint {
       }
     }
     if (rejection) {
-      ObjectNode rejected = event.deepCopy();
+      ObjectNode rejected = recorded.deepCopy();
       rejected.put("type", "rejection");
       appendLine(request.report().resolveSibling("task-trace.jsonl"), rejected, true);
+      ObjectNode recovery = recorded.deepCopy();
+      recovery.put("type", "recovery");
+      appendLine(request.report().resolveSibling("task-trace.jsonl"), recovery, true);
     }
     if (result.action() == FillingResult.Action.WAITING_FOR_INPUT) {
-      ObjectNode wait = event.deepCopy();
+      ObjectNode wait = recorded.deepCopy();
       wait.put("type", "wait");
       appendLine(request.report().resolveSibling("task-trace.jsonl"), wait, true);
     }
     if (!result.documentReference().isBlank()) {
-      ObjectNode published = event.deepCopy();
+      ObjectNode published = recorded.deepCopy();
       published.put("type", "publication");
       appendLine(request.report().resolveSibling("task-trace.jsonl"), published, true);
     }
+  }
+
+  private static ObjectNode traceEvent(
+      CheckpointRequest request,
+      WorkDocumentService documents,
+      String runId,
+      String commandId,
+      FillingResult result,
+      Invocation match,
+      int matchIndex,
+      JsonNode document,
+      ProductPipelineRunStore runs,
+      Fault fault) {
+    ObjectNode event = JSON.createObjectNode();
+    event.put("commandId", commandId);
+    event.put("taskId", result.taskId());
+    event.put("taskKey", match == null ? "" : match.taskKey());
+    event.put("kind", match == null ? "" : match.kind());
+    event.put("recordId", match == null ? "" : match.recordId());
+    event.put("action", result.action().name());
+    event.set("assignedRecordIds", jsonArray(match == null ? "[]" : match.assignedRecordIds()));
+    event.set("dependencyKeys", jsonArray(match == null ? "[]" : match.dependencyKeys()));
+    event.put("inputFingerprint", match == null ? "" : match.inputFingerprint());
+    event.put("promptHash", match == null ? "" : sha256(match.prompt()));
+    event.put("responseSchemaHash", match == null ? "" : sha256(match.schemaJson()));
+    event.put("baseRevision", match == null ? "" : match.baseRevision());
+    event.put("documentRevision", result.documentRevision());
+    event.put("committedRevision", result.documentRevision());
+    event.put("documentReference", result.documentReference());
+    event.set("reasons", JSON.valueToTree(result.reasons()));
+    event.set("passageRefs", passageRefs(document));
+    event.set("producedRecordIds", producedIds(document, result.taskId(), match == null ? "" : match.taskKey()));
+    event.set("portHashes", jsonArray(match == null ? "[]" : match.portHashes()));
+    event.put("controlledFault", match != null && match.controlled());
+    event.put("ownedChange", fault.changedField);
+    event.set("preservedSiblingIds", siblingRuleIds(document, fault));
+    String cause = causeKey(runId, document, result.reasons());
+    event.put("causeKey", cause);
+    event.put("repairCharges", repairCharges(documents, runs, runId, cause));
+    if (match != null) {
+      Path artifacts = request.report().resolveSibling("artifacts");
+      String name = "call-" + matchIndex;
+      event.put("requestArtifact", artifacts.resolve(name + "-request.txt").toString());
+      event.put("responseArtifact", artifacts.resolve(name + "-model-response.txt").toString());
+      event.put("validationArtifact", artifacts.resolve(name + "-validation-input.txt").toString());
+      event.put("responseSchemaArtifact", artifacts.resolve(name + "-schema.json").toString());
+    } else {
+      event.put("requestArtifact", "");
+      event.put("responseArtifact", "");
+      event.put("validationArtifact", "");
+      event.put("responseSchemaArtifact", "");
+    }
+    return event;
   }
 
   private static void emitAnswer(CheckpointRequest request, String questionId, String inputId, boolean append)
@@ -722,7 +792,7 @@ final class FillingCheckpoint {
     appendLine(request.report().resolveSibling("task-trace.jsonl"), event, append);
   }
 
-  private static ArrayNode checks(JsonNode document) {
+  static ArrayNode checks(JsonNode document) {
     ArrayNode checks = JSON.createArrayNode();
     ObjectNode version = checks.addObject();
     version.put("field", "schemaVersion");
@@ -746,20 +816,102 @@ final class FillingCheckpoint {
     receive.put("expected", "absent");
     receive.put("observed", extra ? "present" : "absent");
     receive.put("passed", !extra);
+    ObjectNode sources = checks.addObject();
+    sources.put("field", "sourcePaths");
+    ArrayNode observedSources = sources.putArray("observed");
+    boolean sourcesReal = true;
+    for (String path : sourcePaths(document)) {
+      observedSources.add(path);
+      if (!path.startsWith("$.")) {
+        sourcesReal = false;
+      }
+    }
+    sources.put("passed", sourcesReal);
+    ObjectNode retained = checks.addObject();
+    retained.put("field", "retainedIds");
+    ArrayNode observedRetained = retained.putArray("observed");
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode value : step.path("data").path("retainedValues")) {
+        String id = value.path("id").asText();
+        if (!id.isBlank()) {
+          observedRetained.add(id);
+        }
+      }
+    }
+    retained.put("passed", true);
+    ObjectNode tasks = checks.addObject();
+    tasks.put("field", "taskStates");
+    ArrayNode observedTasks = tasks.putArray("observed");
+    for (JsonNode task : document.path("progress").path("tasks")) {
+      observedTasks.add(task.path("taskKey").asText() + " " + task.path("state").asText());
+    }
+    tasks.put("passed", true);
+    ObjectNode description = checks.addObject();
+    description.put("field", "descriptionSources");
+    description.put("passed", descriptionSources(document));
     return checks;
   }
 
-  private static ArrayNode checklist(JsonNode document) {
-    String behaviors = behaviors(document);
-    String constants = constants(document);
+  static ArrayNode checklist(JsonNode document) {
     ArrayNode list = JSON.createArrayNode();
-    check(list, "subject-fallback", "formatted fallback", behaviors.contains("formatted fallback"));
-    check(list, "priority-branches", "low and Normal", behaviors.contains("low") && behaviors.contains("Normal"));
-    check(list, "status-constant", "Not Started", constants.contains("Not Started"));
-    check(list, "activity-date", "order creation date", behaviors.contains("order creation date"));
-    check(list, "description-names", "woOrderType", behaviors.contains("woOrderType"));
-    check(list, "failure-code", "SALESFORCE_TASK_CREATE_ERROR", constants.contains("SALESFORCE_TASK_CREATE_ERROR"));
-    check(list, "process-id", "$.processId", targets(document).contains("$.processId"));
+    check(
+        list,
+        "subject-fallback",
+        "$.name $.subRequestType $.orderId",
+        sourcePath(document, "$.Subject", "$.name")
+            && sourcePath(document, "$.Subject", "$.subRequestType")
+            && sourcePath(document, "$.Subject", "$.orderId"));
+    check(
+        list,
+        "priority-branches",
+        "$.priority high urgent critical low Normal",
+        sourcePath(document, "$.Priority", "$.priority") && priorityBranches(rule(document, "$.Priority")));
+    check(list, "status-constant", "Not Started", constantValue(document, "$.Status", "Not Started"));
+    check(
+        list,
+        "activity-date",
+        "$.parameters.orderCreationDate",
+        sourcePath(document, "$.ActivityDate", "$.parameters.orderCreationDate"));
+    check(
+        list,
+        "description-names",
+        "$.taskId $.executionId $.executionNumber $.orderType $.subRequestType $.woOrderType $.parameters",
+        descriptionSources(document));
+    check(
+        list,
+        "failure-code",
+        "SALESFORCE_TASK_CREATE_ERROR",
+        constantValue(document, "$.error.code", "SALESFORCE_TASK_CREATE_ERROR"));
+    check(
+        list,
+        "error-text",
+        "$.error.message",
+        sourcePath(document, "$.error.message", "$.status"));
+    check(list, "process-id", "$.processInstanceId $.processId", processRelationship(document));
+    check(
+        list,
+        "retained-values",
+        "$.executionId $.orderId $.processInstanceId $.executionNumber $.taskId",
+        retainedPath(document, "$.executionId")
+            && retainedPath(document, "$.orderId")
+            && retainedPath(document, "$.processInstanceId")
+            && retainedPath(document, "$.executionNumber")
+            && retainedPath(document, "$.taskId"));
+    check(list, "response-command", "completeTask", constantValue(document, "$.commandType", "completeTask"));
+    check(list, "response-source-app", "salesforce", constantValue(document, "$.sourceAppName", "salesforce"));
+    check(
+        list,
+        "response-echoes",
+        "$.executionId $.orderId $.executionNumber $.taskId",
+        echo(document, "$.executionId")
+            && echo(document, "$.orderId")
+            && echo(document, "$.executionNumber")
+            && echo(document, "$.taskId"));
+    check(
+        list,
+        "salesforce-task-id",
+        "$.parameters.salesforceTaskId",
+        sourcePath(document, "$.parameters.salesforceTaskId", "$.id"));
     return list;
   }
 
@@ -770,14 +922,31 @@ final class FillingCheckpoint {
     item.put("passed", passed);
   }
 
-  private static void writeFault(CheckpointRequest request, Fault fault, String verdict, JsonNode document)
+  private static void writeFault(
+      CheckpointRequest request,
+      Fault fault,
+      String verdict,
+      JsonNode document,
+      List<Invocation> invocations,
+      Path artifacts)
       throws Exception {
+    String actualPath = "";
+    String validationPath = "";
+    int index = 1;
+    for (Invocation invocation : invocations) {
+      if (invocation.controlled()) {
+        String name = "call-" + index;
+        actualPath = artifacts.resolve(name + "-model-response.txt").toString();
+        validationPath = artifacts.resolve(name + "-validation-input.txt").toString();
+      }
+      index++;
+    }
     ObjectNode body = JSON.createObjectNode();
     body.put("caseId", request.caseId());
     body.put("injectionApplied", fault.injectionApplied);
     body.put("changedField", fault.changedField);
-    body.put("actualModelOutput", fault.original);
-    body.put("validationInput", fault.mutated);
+    body.put("actualModelOutput", actualPath);
+    body.put("validationInput", validationPath);
     body.put("controlledFault", fault.injectionApplied);
     body.put("detectionMechanism", fault.detectionMechanism);
     body.put("detectionTask", fault.detectionTask);
@@ -789,7 +958,15 @@ final class FillingCheckpoint {
     body.put("downstreamReturn", fault.downstreamReturn);
     body.put("earlyPrevention", "early-prevention".equals(verdict));
     body.put("correctiveModelCalls", fault.correctiveModelCalls);
-    body.put("lateDiscoveryProvenSeparately", "om-upstream-recovery".equals(request.caseId()));
+    body.put("lateDiscoveryProvenSeparately", false);
+    ArrayNode rechecks = body.putArray("recheckedConsumers");
+    for (JsonNode task : document.path("progress").path("tasks")) {
+      if ("NEEDS_RECHECK".equals(task.path("state").asText())) {
+        rechecks.add(task.path("taskKey").asText());
+      }
+    }
+    body.set("preservedSiblingIds", siblingRuleIds(document, fault));
+    body.put("repairCharges", recoveryFindings(document));
     body.put(
         "lateDiscoveryInterfaceTest",
         "om-upstream-recovery".equals(request.caseId())
@@ -843,17 +1020,16 @@ final class FillingCheckpoint {
     return bindings;
   }
 
-  private static String portNamed(JsonNode step, String name) {
+  static String portNamed(JsonNode step, String name) {
     for (JsonNode port : step.path("binding").path("exposedPorts")) {
       if (name.equals(port.asText())) {
         return name;
       }
     }
-    JsonNode ports = step.path("binding").path("exposedPorts");
-    return ports.size() == 0 ? "" : ports.get(0).asText();
+    return "";
   }
 
-  private static ArrayNode provenance(JsonNode document, boolean synthetic) {
+  private static ArrayNode provenance(JsonNode document) {
     ArrayNode rows = JSON.createArrayNode();
     for (JsonNode step : document.path("flow").path("steps")) {
       JsonNode binding = step.path("binding");
@@ -862,13 +1038,14 @@ final class FillingCheckpoint {
       }
       for (JsonNode hash : binding.path("portContentHashes")) {
         ObjectNode row = rows.addObject();
+        String contentHash = hash.path("contentHash").asText();
         row.put("stepId", step.path("id").asText());
         row.put("operationId", binding.path("operationId").asText());
         row.put("version", binding.path("version").asText());
         row.put("port", hash.path("port").asText());
-        row.put("contentHash", hash.path("contentHash").asText());
+        row.put("contentHash", contentHash);
         row.put("reference", binding.path("contractReferences").path(0).asText());
-        row.put("synthetic", synthetic);
+        row.put("synthetic", syntheticContentHash(contentHash));
       }
     }
     return rows;
@@ -924,10 +1101,28 @@ final class FillingCheckpoint {
     return missing;
   }
 
+  static boolean syntheticContentHash(String hash) {
+    if (hash == null || hash.length() != 64) {
+      return true;
+    }
+    for (int index = 0; index < hash.length(); index++) {
+      char character = hash.charAt(index);
+      boolean hex = (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f');
+      if (!hex) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private static int syntheticSchemas(JsonNode document) {
     int count = 0;
     for (JsonNode step : document.path("flow").path("steps")) {
-      count += step.path("binding").path("portContentHashes").size();
+      for (JsonNode hash : step.path("binding").path("portContentHashes")) {
+        if (syntheticContentHash(hash.path("contentHash").asText())) {
+          count++;
+        }
+      }
     }
     return count;
   }
@@ -1154,7 +1349,12 @@ final class FillingCheckpoint {
               node.path("schemaJson").asText(),
               node.path("actualOutput").asText(),
               node.path("validationInput").asText(),
-              node.path("controlled").asBoolean()));
+              node.path("controlled").asBoolean(),
+              node.path("assignedRecordIds").isMissingNode() ? "[]" : node.path("assignedRecordIds").toString(),
+              node.path("dependencyKeys").isMissingNode() ? "[]" : node.path("dependencyKeys").toString(),
+              node.path("inputFingerprint").asText(""),
+              node.path("portHashes").isMissingNode() ? "[]" : node.path("portHashes").toString(),
+              node.path("baseRevision").asText("")));
     }
     return list;
   }
@@ -1174,6 +1374,11 @@ final class FillingCheckpoint {
       node.put("actualOutput", invocation.actualOutput());
       node.put("validationInput", invocation.validationInput());
       node.put("controlled", invocation.controlled());
+      node.set("assignedRecordIds", jsonArray(invocation.assignedRecordIds()));
+      node.set("dependencyKeys", jsonArray(invocation.dependencyKeys()));
+      node.put("inputFingerprint", invocation.inputFingerprint());
+      node.set("portHashes", jsonArray(invocation.portHashes()));
+      node.put("baseRevision", invocation.baseRevision());
     }
     store.put("harness/invocations-" + runId, JSON.writeValueAsBytes(array));
   }
@@ -1210,6 +1415,7 @@ final class FillingCheckpoint {
     fault.omitRetained = node.path("omitRetained").asBoolean();
     fault.controlledUsed = node.path("controlledUsed").asBoolean();
     fault.semanticUsed = node.path("semanticUsed").asBoolean();
+    fault.reportedMissing = node.path("reportedMissing").asBoolean();
     for (JsonNode id : node.path("preservedIds")) {
       fault.preservedIds.add(id.asText());
     }
@@ -1232,6 +1438,7 @@ final class FillingCheckpoint {
     node.put("omitRetained", fault.omitRetained);
     node.put("controlledUsed", fault.controlledUsed);
     node.put("semanticUsed", fault.semanticUsed);
+    node.put("reportedMissing", fault.reportedMissing);
     ArrayNode ids = node.putArray("preservedIds");
     for (String id : fault.preservedIds) {
       ids.add(id);
@@ -1335,6 +1542,7 @@ final class FillingCheckpoint {
     private boolean omitRetained;
     private boolean controlledUsed;
     private boolean semanticUsed;
+    private boolean reportedMissing;
     private final List<String> preservedIds = new ArrayList<>();
 
     private Fault(String caseId) {
@@ -1447,6 +1655,327 @@ final class FillingCheckpoint {
     }
   }
 
+  private static void applyRoute(Fault fault, JsonNode document) {
+    for (JsonNode task : document.path("progress").path("tasks")) {
+      if (!"corrective-target".equals(task.path("taskKey").asText())) {
+        continue;
+      }
+      String kind = task.path("kind").asText();
+      if (!kind.isBlank() && fault.actualRepairKind.isBlank()) {
+        fault.actualRepairKind = kind;
+      }
+    }
+  }
+
+  private static WorkTaskPlanner.Task plannedTask(ChainWorkDocument document, String taskKey) {
+    if (document == null || taskKey == null || taskKey.isBlank()) {
+      return null;
+    }
+    for (WorkTaskPlanner.Task task : new WorkTaskPlanner().plan(document).tasks()) {
+      if (taskKey.equals(task.taskKey())) {
+        return task;
+      }
+    }
+    return null;
+  }
+
+  private static JsonNode jsonArray(String text) {
+    try {
+      JsonNode node = JSON.readTree(text == null || text.isBlank() ? "[]" : text);
+      return node.isArray() ? node : JSON.createArrayNode();
+    } catch (Exception failure) {
+      return JSON.createArrayNode();
+    }
+  }
+
+  private static ArrayNode passageRefs(JsonNode document) {
+    ArrayNode refs = JSON.createArrayNode();
+    for (JsonNode source : document.path("sources")) {
+      for (JsonNode passage : source.path("passages")) {
+        String id = passage.path("id").asText();
+        if (!id.isBlank()) {
+          refs.add(id);
+        }
+      }
+    }
+    return refs;
+  }
+
+  private static ArrayNode producedIds(JsonNode document, String taskId, String taskKey) {
+    ArrayNode ids = JSON.createArrayNode();
+    for (JsonNode task : document.path("progress").path("tasks")) {
+      boolean sameTask = taskId.equals(task.path("taskId").asText()) || taskKey.equals(task.path("taskKey").asText());
+      if (!sameTask) {
+        continue;
+      }
+      for (JsonNode id : task.path("producedRecordIds")) {
+        ids.add(id.asText());
+      }
+    }
+    return ids;
+  }
+
+  private static ArrayNode siblingRuleIds(JsonNode document, Fault fault) {
+    ArrayNode ids = JSON.createArrayNode();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        for (JsonNode rule : transfer.path("rules")) {
+          String id = rule.path("id").asText();
+          if (!id.isBlank() && !id.equals(fault.detectionTask)) {
+            ids.add(id);
+          }
+        }
+      }
+    }
+    return ids;
+  }
+
+  private static String causeKey(String runId, JsonNode document, List<String> reasons) {
+    for (JsonNode finding : document.path("progress").path("findings")) {
+      String category = finding.path("issueCategory").asText();
+      boolean named = false;
+      for (String reason : reasons) {
+        if (reason.equals(category)) {
+          named = true;
+        }
+      }
+      if (!named) {
+        continue;
+      }
+      return WorkRecovery.causeKey(
+          runId,
+          finding.path("recordRef").asText(),
+          category,
+          finding.path("canonicalFieldPointer").asText());
+    }
+    return "";
+  }
+
+  private static int repairCharges(
+      WorkDocumentService documents, ProductPipelineRunStore runs, String runId, String cause) {
+    if (documents == null || runs == null || cause == null || cause.isBlank()) {
+      return 0;
+    }
+    try {
+      return WorkRecovery.create(documents, runs).repairsRemaining(runId, cause);
+    } catch (RuntimeException failure) {
+      return 0;
+    }
+  }
+
+  private static int recoveryFindings(JsonNode document) {
+    int count = 0;
+    for (JsonNode finding : document.path("progress").path("findings")) {
+      String category = finding.path("issueCategory").asText();
+      if ("MALFORMED_REFERENCE".equals(category)
+          || "MISSING_RETAINED".equals(category)
+          || "INPUT_DEFECT".equals(category)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private static ArrayNode portHashes(JsonNode document, String recordId, List<String> assigned) {
+    ArrayNode hashes = JSON.createArrayNode();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      if (!stepOwns(step, recordId, assigned)) {
+        continue;
+      }
+      addHashes(hashes, step);
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        if (!transferOwns(transfer, recordId, assigned)) {
+          continue;
+        }
+        for (JsonNode source : transfer.path("sourcePorts")) {
+          addHashes(hashes, stepById(document, source.path("stepId").asText()));
+        }
+      }
+    }
+    return hashes;
+  }
+
+  private static boolean stepOwns(JsonNode step, String recordId, List<String> assigned) {
+    if (recordId.equals(step.path("id").asText()) || assigned.contains(step.path("id").asText())) {
+      return true;
+    }
+    for (JsonNode transfer : step.path("data").path("transfers")) {
+      if (transferOwns(transfer, recordId, assigned)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean transferOwns(JsonNode transfer, String recordId, List<String> assigned) {
+    if (recordId.equals(transfer.path("id").asText()) || assigned.contains(transfer.path("id").asText())) {
+      return true;
+    }
+    for (JsonNode rule : transfer.path("rules")) {
+      if (recordId.equals(rule.path("id").asText()) || assigned.contains(rule.path("id").asText())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static JsonNode stepById(JsonNode document, String id) {
+    for (JsonNode step : document.path("flow").path("steps")) {
+      if (id.equals(step.path("id").asText())) {
+        return step;
+      }
+    }
+    return null;
+  }
+
+  private static void addHashes(ArrayNode hashes, JsonNode step) {
+    if (step == null) {
+      return;
+    }
+    JsonNode binding = step.path("binding");
+    for (JsonNode hash : binding.path("portContentHashes")) {
+      ObjectNode row = hashes.addObject();
+      row.put("port", hash.path("port").asText());
+      row.put("contentHash", hash.path("contentHash").asText());
+      row.put("version", binding.path("version").asText());
+      row.put("reference", binding.path("contractReferences").path(0).asText());
+    }
+  }
+
+  private static List<String> sourcePaths(JsonNode document) {
+    List<String> paths = new ArrayList<>();
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        for (JsonNode rule : transfer.path("rules")) {
+          for (JsonNode source : rule.path("sources")) {
+            String path = source.path("fieldPath").asText();
+            if (!path.isBlank()) {
+              paths.add(path);
+            }
+          }
+        }
+      }
+    }
+    return paths;
+  }
+
+  private static JsonNode rule(JsonNode document, String target) {
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode transfer : step.path("data").path("transfers")) {
+        for (JsonNode rule : transfer.path("rules")) {
+          if (target.equals(rule.path("target").path("fieldPath").asText())) {
+            return rule;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  private static boolean sourcePath(JsonNode document, String target, String path) {
+    JsonNode found = rule(document, target);
+    if (found == null) {
+      return false;
+    }
+    for (JsonNode source : found.path("sources")) {
+      if (path.equals(source.path("fieldPath").asText())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean descriptionSources(JsonNode document) {
+    return sourcePath(document, "$.Description", "$.taskId")
+        && sourcePath(document, "$.Description", "$.executionId")
+        && sourcePath(document, "$.Description", "$.executionNumber")
+        && sourcePath(document, "$.Description", "$.orderType")
+        && sourcePath(document, "$.Description", "$.subRequestType")
+        && sourcePath(document, "$.Description", "$.woOrderType")
+        && sourcePath(document, "$.Description", "$.parameters");
+  }
+
+  private static boolean priorityBranches(JsonNode rule) {
+    if (rule == null) {
+      return false;
+    }
+    String behavior = rule.path("behavior").asText();
+    return behavior.contains("high")
+        && behavior.contains("urgent")
+        && behavior.contains("critical")
+        && behavior.contains("low")
+        && behavior.contains("Normal");
+  }
+
+  private static boolean constantValue(JsonNode document, String target, String value) {
+    JsonNode found = rule(document, target);
+    if (found == null) {
+      return false;
+    }
+    for (JsonNode constant : found.path("constants")) {
+      if (value.equals(constant.path("value").asText())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean retainedPath(JsonNode document, String path) {
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode value : step.path("data").path("retainedValues")) {
+        if (path.equals(value.path("source").path("fieldPath").asText())) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  private static String retainedField(JsonNode document, String retainedId) {
+    for (JsonNode step : document.path("flow").path("steps")) {
+      for (JsonNode value : step.path("data").path("retainedValues")) {
+        if (retainedId.equals(value.path("id").asText())) {
+          return value.path("source").path("fieldPath").asText();
+        }
+      }
+    }
+    return "";
+  }
+
+  private static boolean echo(JsonNode document, String target) {
+    JsonNode found = rule(document, target);
+    if (found == null) {
+      return false;
+    }
+    for (JsonNode source : found.path("sources")) {
+      String retainedId = source.path("retainedValueId").asText();
+      if (!retainedId.isBlank() && target.equals(retainedField(document, retainedId))) {
+        return true;
+      }
+      if (target.equals(source.path("fieldPath").asText())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean processRelationship(JsonNode document) {
+    JsonNode found = rule(document, "$.processId");
+    if (found == null) {
+      return false;
+    }
+    for (JsonNode source : found.path("sources")) {
+      String retainedId = source.path("retainedValueId").asText();
+      if ("$.processInstanceId".equals(retainedField(document, retainedId))) {
+        return true;
+      }
+      if ("$.processInstanceId".equals(source.path("fieldPath").asText())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   private record Invocation(
       String commandId,
       String taskId,
@@ -1457,15 +1986,29 @@ final class FillingCheckpoint {
       String schemaJson,
       String actualOutput,
       String validationInput,
-      boolean controlled) {
+      boolean controlled,
+      String assignedRecordIds,
+      String dependencyKeys,
+      String inputFingerprint,
+      String portHashes,
+      String baseRevision) {
 
-    private static Invocation of(WorkTaskRequest task, String actual, String validation, Cursor cursor) {
+    private static Invocation of(
+        WorkTaskRequest task,
+        String actual,
+        String validation,
+        Cursor cursor,
+        WorkTaskPlanner.Task planned,
+        JsonNode document,
+        String baseRevision) {
       String schema;
       try {
         schema = JSON.writeValueAsString(JsonSchemaElementUtils.toMap(task.responseSchema(), true));
       } catch (Exception failure) {
         schema = "";
       }
+      List<String> assigned = planned == null ? List.of() : planned.assignedRecordIds();
+      List<String> dependencies = planned == null ? List.of() : planned.dependencyKeys();
       return new Invocation(
           cursor.pending.isBlank() ? "advance-" + Math.max(cursor.next - 1, 1) : cursor.pending,
           task.taskId(),
@@ -1476,7 +2019,12 @@ final class FillingCheckpoint {
           schema,
           actual,
           validation,
-          !actual.equals(validation));
+          !actual.equals(validation),
+          JSON.valueToTree(assigned).toString(),
+          JSON.valueToTree(dependencies).toString(),
+          planned == null ? "" : planned.requiredInputFingerprint(),
+          FillingCheckpoint.portHashes(document, FillingCheckpoint.recordId(task), assigned).toString(),
+          baseRevision == null ? "" : baseRevision);
     }
   }
 }

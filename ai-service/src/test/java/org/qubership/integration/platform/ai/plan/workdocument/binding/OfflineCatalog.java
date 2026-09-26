@@ -140,9 +140,15 @@ public final class OfflineCatalog implements CatalogResolution {
         properties.putObject("executionNumber").put("type", "string");
         properties.putObject("taskId").put("type", "string");
         properties.putObject("priority").put("type", "string");
+        properties.putObject("orderType").put("type", "string");
+        properties.putObject("woOrderType").put("type", "string");
         properties.putObject("parameters").put("type", "object").putObject("properties").putObject("orderCreationDate").put("type", "string");
       }
-      case "success", "failure" -> properties.putObject("status").put("type", "string");
+      case "success" -> {
+        properties.putObject("id").put("type", "string");
+        properties.putObject("status").put("type", "string");
+      }
+      case "failure" -> properties.putObject("status").put("type", "string");
       case "request" -> {
         properties.putObject("Subject").put("type", "string");
         ObjectNode priority = properties.putObject("Priority").put("type", "string");
@@ -159,7 +165,12 @@ public final class OfflineCatalog implements CatalogResolution {
         properties.putObject("executionNumber").put("type", "string");
         properties.putObject("taskId").put("type", "string");
         properties.putObject("sourceAppName").put("type", "string");
-        properties.putObject("error").put("type", "object").putObject("properties").putObject("code").put("type", "string");
+        properties.putObject("parameters").put("type", "object").putObject("properties").putObject("salesforceTaskId").put("type", "string");
+        ObjectNode error = properties.putObject("error");
+        error.put("type", "object");
+        ObjectNode errorProperties = error.putObject("properties");
+        errorProperties.putObject("code").put("type", "string");
+        errorProperties.putObject("message").put("type", "string");
       }
       default -> properties.putObject("value").put("type", "string");
     }

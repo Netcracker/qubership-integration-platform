@@ -236,6 +236,8 @@ public final class WorkDocumentCaptureSchema {
                 "decision"),
             "alias",
             new JsonStringSchema(),
+            "existingId",
+            new JsonStringSchema(),
             "sourceStepId",
             stringEnum(choices.stepIds()),
             "sourcePort",
