@@ -1,8 +1,11 @@
 package org.qubership.integration.platform.engine.routes.support;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.rabbitmq.client.ShutdownSignalException;
 import org.apache.camel.CamelExchangeException;
 import org.apache.camel.Exchange;
 import org.apache.kafka.common.errors.TimeoutException;
@@ -10,13 +13,19 @@ import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFailureExpectation;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioInvocation;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.MockExchanges;
 import org.qubership.integration.platform.engine.testutils.ObjectMappers;
+import org.springframework.amqp.AmqpIOException;
 
+import java.io.EOFException;
+import java.io.IOException;
+import java.net.ConnectException;
+import java.net.SocketException;
 import java.security.cert.CertificateExpiredException;
 import java.security.cert.CertificateNotYetValidException;
 import java.time.Instant;
@@ -232,7 +241,153 @@ class SnapshotFailureAssertionsTest {
         assertMatch(expected, actual);
     }
 
-    private SnapshotFailureExpectation expectation(ObjectNode failure) throws JsonProcessingException {
+    @Test
+    void shouldMatchEofWhenStoppedBrokerFailureAllowsSocketAlternatives() throws JsonProcessingException {
+        assertMatch(stoppedBrokerExpectation(), stoppedBrokerFailure(new EOFException()));
+    }
+
+    @ParameterizedTest
+    @NullSource
+    @ValueSource(strings = {"Connection reset", "Socket closed", "Operating system socket error"})
+    void shouldMatchSocketTextWhenOnlySocketAlternativeIgnoresMessage(String message) throws JsonProcessingException {
+        assertMatch(stoppedBrokerExpectation(), stoppedBrokerFailure(new SocketException(message)));
+    }
+
+    @Test
+    void shouldRejectUnlistedTypesAndExtraCausesWhenStoppedBrokerFailureAllowsAlternatives() throws JsonProcessingException {
+        SnapshotFailureExpectation expected = stoppedBrokerExpectation();
+        SocketException withCause = new SocketException("Connection reset");
+        withCause.initCause(new IOException("Additional cause"));
+        EOFException eofWithCause = new EOFException();
+        eofWithCause.initCause(new IOException("Additional cause"));
+
+        assertMismatch(expected, stoppedBrokerFailure(new IOException()));
+        assertMismatch(expected, stoppedBrokerFailure(new ConnectException("Connection reset")));
+        assertMismatch(expected, stoppedBrokerFailure(withCause));
+        assertMismatch(expected, stoppedBrokerFailure(eofWithCause));
+        assertMismatch(expected, stoppedBrokerFailure(new EOFException("Unexpected EOF details")));
+        assertMismatch(expected, stoppedBrokerFailure(null));
+    }
+
+    @Test
+    void shouldRequireOuterFailureDetailsWhenOnlyLeafHasAlternatives() throws JsonProcessingException {
+        SnapshotFailureExpectation expected = stoppedBrokerExpectation();
+        AmqpIOException actual = stoppedBrokerFailure(new SocketException("Connection reset"));
+
+        assertMismatch(expected, new IllegalStateException("java.io.IOException", actual.getCause()));
+        assertMismatch(expected, new AmqpIOException("Different outer message", actual.getCause()));
+        assertMismatch(expected, new AmqpIOException(new IOException("Different IO message", actual.getCause().getCause())));
+        assertMismatch(expected, new AmqpIOException(new IOException()));
+        assertMismatch(expected, null);
+    }
+
+    @Test
+    void shouldRequireNullMessageWhenIgnoreMessageIsAbsent() throws JsonProcessingException {
+        SnapshotFailureExpectation expected = expectation(failure(SocketException.class, null, null));
+
+        assertMatch(expected, new SocketException());
+        assertMismatch(expected, new SocketException("Connection reset"));
+    }
+
+    @Test
+    void shouldMatchWhenAlternativesContainOtherAlternatives() throws JsonProcessingException {
+        SnapshotFailureExpectation expected = expectation(alternatives(
+                failure(IllegalStateException.class, "First alternative", null),
+                alternatives(failure(EOFException.class, null, null), failure(SocketException.class, "Socket closed", null))
+        ));
+
+        assertMatch(expected, new EOFException());
+        assertMatch(expected, new SocketException("Socket closed"));
+        assertMismatch(expected, new SocketException("Other message"));
+        assertMismatch(expected, null);
+    }
+
+    @Test
+    void shouldDescribeActualCauseChainWhenNoAlternativeMatches() throws JsonProcessingException {
+        IOException leaf = new IOException("Unexpected leaf", new IllegalStateException("Additional cause"));
+        SnapshotFailureExpectation expected = stoppedBrokerExpectation();
+
+        AssertionError error = assertThrows(AssertionError.class, () -> SnapshotFailureAssertions.assertMatches(
+                expected, stoppedBrokerFailure(leaf), "Stopped broker"
+        ));
+
+        assertTrue(error.getMessage().contains("failure.cause.cause.cause"));
+        assertTrue(error.getMessage().contains("type=java.io.IOException, message=Unexpected leaf"));
+        assertTrue(error.getMessage().contains("cause={type=java.lang.IllegalStateException, message=Additional cause, cause=none}"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"anyOf\":null}",
+            "{\"anyOf\":[]}",
+            "{\"anyOf\":{}}",
+            "{\"anyOf\":\"java.io.EOFException\"}",
+            "{\"anyOf\":[null]}",
+            "{\"anyOf\":[{}]}",
+            "{\"anyOf\":[1]}",
+            "{\"anyOf\":[{\"anyOf\":[]}]}",
+            "{\"anyOf\":[],\"type\":\"java.io.EOFException\",\"message\":null,\"cause\":null}",
+            "{\"anyOf\":[],\"ignoreMessage\":true}",
+            "{\"anyOf\":[],\"unknown\":true}"
+    })
+    void shouldRejectMalformedAlternativesWhenParsingExpectedFailure(String json) throws JsonProcessingException {
+        JsonNode invalidFailure = objectMapper.readTree(json);
+
+        JsonProcessingException error = assertThrows(JsonProcessingException.class, () -> expectation(invalidFailure));
+
+        assertTrue(error.getMessage().contains("Snapshot scenario invocation 'failure-assertion' expectedFailure"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "{\"type\":\"java.net.SocketException\",\"cause\":null}",
+            "{\"type\":\"java.net.SocketException\",\"ignoreMessage\":false,\"cause\":null}",
+            "{\"type\":\"java.net.SocketException\",\"ignoreMessage\":null,\"cause\":null}",
+            "{\"type\":\"java.net.SocketException\",\"ignoreMessage\":\"true\",\"cause\":null}",
+            "{\"type\":\"java.net.SocketException\",\"ignoreMessage\":1,\"cause\":null}",
+            "{\"type\":\"java.net.SocketException\",\"ignoreMessage\":true,\"message\":null,\"cause\":null}",
+            "{\"type\":\"java.net.SocketException\",\"ignoreMessage\":true,\"message\":\"reset\",\"cause\":null}",
+            "{\"type\":\"java.net.SocketException\",\"message\":true,\"cause\":null}",
+            "{\"type\":\"java.net.SocketException\",\"ignoreMessage\":true}",
+            "{\"ignoreMessage\":true,\"cause\":null}",
+            "{\"type\":\"java.net.SocketException\",\"ignoreMessage\":true,\"cause\":null,\"unknown\":true}"
+    })
+    void shouldRejectInvalidMessagePolicyWhenParsingExpectedFailure(String json) throws JsonProcessingException {
+        JsonNode invalidFailure = objectMapper.readTree(json);
+
+        JsonProcessingException error = assertThrows(JsonProcessingException.class, () -> expectation(invalidFailure));
+
+        assertTrue(error.getMessage().contains("Snapshot scenario invocation 'failure-assertion' expectedFailure"));
+    }
+
+    private SnapshotFailureExpectation stoppedBrokerExpectation() throws JsonProcessingException {
+        ObjectNode socketFailure = failure(SocketException.class, null, null);
+        socketFailure.remove("message");
+        socketFailure.put("ignoreMessage", true);
+        return expectation(failure(AmqpIOException.class, "java.io.IOException", failure(
+                IOException.class, null, failure(
+                        ShutdownSignalException.class, "connection error",
+                        alternatives(failure(EOFException.class, null, null), socketFailure)
+                )
+        )));
+    }
+
+    private AmqpIOException stoppedBrokerFailure(Throwable leaf) {
+        ShutdownSignalException shutdown = new ShutdownSignalException(true, false, null, null);
+        shutdown.initCause(leaf);
+        return new AmqpIOException(new IOException(null, shutdown));
+    }
+
+    private ObjectNode alternatives(ObjectNode... failures) {
+        ObjectNode result = objectMapper.createObjectNode();
+        ArrayNode alternatives = result.putArray("anyOf");
+        for (ObjectNode failure : failures) {
+            alternatives.add(failure);
+        }
+        return result;
+    }
+
+    private SnapshotFailureExpectation expectation(JsonNode failure) throws JsonProcessingException {
         ObjectNode invocation = objectMapper.createObjectNode();
         invocation.put("id", "failure-assertion");
         invocation.set("expectedFailure", failure);

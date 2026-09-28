@@ -424,8 +424,12 @@ class AsyncFlowSnapshotFixtureProvider implements SnapshotFixtureProvider {
         if (expectedFailure == null) {
             return "none";
         }
+        if (!expectedFailure.getAlternatives().isEmpty()) {
+            return "{anyOf=" + expectedFailure.getAlternatives().stream()
+                    .map(AsyncFlowSnapshotFixtureProvider::expectedFailureDescription).toList() + "}";
+        }
         return "{type=" + expectedFailure.getType()
-                + ", message=" + expectedFailure.getMessage()
+                + (expectedFailure.isMessageIgnored() ? ", ignoreMessage=true" : ", message=" + expectedFailure.getMessage())
                 + ", cause=" + expectedFailureDescription(expectedFailure.getCause()) + "}";
     }
 

@@ -3601,9 +3601,13 @@ scenarios:
           type: com.rabbitmq.client.ShutdownSignalException
           message: connection error
           cause:
-            type: java.io.EOFException
-            message: null
-            cause: null
+            anyOf:
+            - type: java.io.EOFException
+              message: null
+              cause: null
+            - type: java.net.SocketException
+              ignoreMessage: true
+              cause: null
     interactions:
     - fixture: rabbitmq-failure-broker
       expectedRequest:

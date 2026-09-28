@@ -644,7 +644,7 @@
               "$ref": "#/definitions/failure"
             }
           ],
-          "description": "Exact exception type, message, and complete cause chain. Omit when execution must succeed."
+          "description": "Exception type, message, and complete cause chain, with explicit alternatives or ignored messages when needed. Omit when execution must succeed."
         }
       },
       "required": [
@@ -666,6 +666,29 @@
       }
     },
     "failure": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/singleFailure"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/definitions/failure"
+              }
+            }
+          },
+          "required": [
+            "anyOf"
+          ]
+        }
+      ]
+    },
+    "singleFailure": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -677,6 +700,10 @@
             "string",
             "null"
           ]
+        },
+        "ignoreMessage": {
+          "const": true,
+          "description": "Skip message comparison for this exception only. Use instead of message."
         },
         "cause": {
           "anyOf": [
@@ -691,8 +718,19 @@
       },
       "required": [
         "type",
-        "message",
         "cause"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "message"
+          ]
+        },
+        {
+          "required": [
+            "ignoreMessage"
+          ]
+        }
       ]
     },
     "interaction": {
@@ -987,7 +1025,7 @@
               "$ref": "#/definitions/failure"
             }
           ],
-          "description": "Exact exception type, message, and complete cause chain for async-flow. Omit when the captured exchange must succeed."
+          "description": "Exception type, message, and complete cause chain for async-flow, with explicit alternatives or ignored messages when needed. Omit when the captured exchange must succeed."
         }
       }
     },

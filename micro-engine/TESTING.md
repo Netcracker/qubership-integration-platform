@@ -597,7 +597,17 @@ branch to succeed. Expectations match completed branches independently of comple
 order. Use `expectedExchanges: []` when a scenario does not invoke that fixture's deployment;
 the fixture then verifies that no branches were dispatched or completed.
 
-Failure expectations compare the exact exception type, message, and complete cause chain.
+Failure expectations compare the exact exception type, message, and complete cause chain by default.
+Use `anyOf` at any level to list accepted failure shapes. Each alternative checks its own
+type, message, and complete cause chain. An `anyOf` object must contain only a nonempty list
+of failure expectations.
+
+For system-dependent error text, replace `message` with `ignoreMessage: true` at that level.
+The exception type and cause still match exactly. Set `message: null` to require a null
+message; omitting both fields or specifying both is invalid. The RabbitMQ `stopped-broker`
+invocation uses this form only for the `SocketException` alternative at the end of the cause
+chain. It also accepts `EOFException` with a null message; the outer exceptions remain exact.
+
 For `CamelExchangeException`, write `Exchange[<exchange-id>]` in the expected message:
 the comparison replaces the exception's exchange ID with this placeholder. The rest of
 the message and each cause are still checked exactly.

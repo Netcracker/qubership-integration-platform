@@ -14,6 +14,7 @@ import java.util.regex.Pattern;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public final class SnapshotFailureAssertions {
     private static final String LOOPBACK_PORT = "<loopback-port>";
@@ -33,8 +34,12 @@ public final class SnapshotFailureAssertions {
         if (expected == null || actual == null) {
             return expected == null && actual == null;
         }
+        if (!expected.getAlternatives().isEmpty()) {
+            return expected.getAlternatives().stream().anyMatch(alternative -> matches(alternative, actual));
+        }
         return expected.getType().equals(actual.getClass().getName())
-                && Objects.equals(expected.getMessage(), normalizedFailureMessage(actual, expected.getMessage()))
+                && (expected.isMessageIgnored()
+                    || Objects.equals(expected.getMessage(), normalizedFailureMessage(actual, expected.getMessage())))
                 && matches(expected.getCause(), actual.getCause());
     }
 
@@ -59,6 +64,14 @@ public final class SnapshotFailureAssertions {
             );
             return;
         }
+        if (!expected.getAlternatives().isEmpty()) {
+            assertTrue(
+                    matches(expected, actual),
+                    () -> description + " did not match any expected failure at '" + failurePath
+                            + "'. Actual failure: " + failureDescription(actual)
+            );
+            return;
+        }
         assertNotNull(
                 actual,
                 () -> description + " did not provide the expected exception at '" + failurePath + "'."
@@ -68,12 +81,23 @@ public final class SnapshotFailureAssertions {
                 actual.getClass().getName(),
                 () -> description + " failed with an unexpected exception type at '" + failurePath + "'."
         );
-        assertEquals(
-                expected.getMessage(),
-                normalizedFailureMessage(actual, expected.getMessage()),
-                () -> description + " failed with an unexpected exception message at '" + failurePath + "'."
-        );
+        if (!expected.isMessageIgnored()) {
+            assertEquals(
+                    expected.getMessage(),
+                    normalizedFailureMessage(actual, expected.getMessage()),
+                    () -> description + " failed with an unexpected exception message at '" + failurePath + "'."
+            );
+        }
         assertMatches(expected.getCause(), actual.getCause(), description, failurePath + ".cause");
+    }
+
+    private static String failureDescription(Throwable failure) {
+        if (failure == null) {
+            return "none";
+        }
+        return "{type=" + failure.getClass().getName()
+                + ", message=" + failure.getMessage()
+                + ", cause=" + failureDescription(failure.getCause()) + "}";
     }
 
     private static String normalizedFailureMessage(Throwable failure, String expectedMessage) {
