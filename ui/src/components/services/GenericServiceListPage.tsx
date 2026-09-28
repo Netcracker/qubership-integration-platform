@@ -108,6 +108,7 @@ export const GenericServiceListPage: React.FC<GenericServiceListPageProps> = ({
                   placement: "bottom",
                 }}
                 buttonProps={{
+                  "data-testid": "services-export",
                   iconName: "cloudDownload",
                   onClick: () => onExport(),
                 }}
@@ -116,6 +117,7 @@ export const GenericServiceListPage: React.FC<GenericServiceListPageProps> = ({
                 require={{ service: ["import"] }}
                 tooltipProps={{ title: "Upload services", placement: "bottom" }}
                 buttonProps={{
+                  "data-testid": "services-import",
                   iconName: "cloudUpload",
                   onClick: () => {
                     showModal({
@@ -133,6 +135,7 @@ export const GenericServiceListPage: React.FC<GenericServiceListPageProps> = ({
                 require={{ service: ["create"] }}
                 tooltipProps={{ title: "Create service", placement: "bottom" }}
                 buttonProps={{
+                  "data-testid": "services-create",
                   type: "primary",
                   iconName: "plus",
                   onClick: () => {

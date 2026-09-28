@@ -460,19 +460,28 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
       extraActions={[
         ...(tab === "internal"
           ? [
-              <Require key="service-discovery" permissions={{ service: ["execute"] }}>
-                <ServiceDiscoveryButton
-                  onSystemsDiscovered={(systemIds: string[]) => {
-                    if (systemIds.length > 0) {
-                      void loadServices();
-                    }
-                  }}
-                />
+              <Require
+                key="service-discovery"
+                permissions={{ service: ["execute"] }}
+              >
+                <span data-testid="services-discovery">
+                  <ServiceDiscoveryButton
+                    onSystemsDiscovered={(systemIds: string[]) => {
+                      if (systemIds.length > 0) {
+                        void loadServices();
+                      }
+                    }}
+                  />
+                </span>
               </Require>,
             ]
           : []),
-        filterButton,
-        servicesTable.FilterButton(),
+        <span key="filter" data-testid="services-filter">
+          {filterButton}
+        </span>,
+        <span key="column-settings" data-testid="services-column-settings">
+          {servicesTable.FilterButton()}
+        </span>,
       ]}
       serviceType={getSystemType(tab)}
       onCreate={(name, description) => handleCreate(name, description)}

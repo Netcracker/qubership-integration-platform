@@ -1080,6 +1080,7 @@ const Chains = () => {
               size="small"
               type="text"
               icon={<OverridableIcon name="more" />}
+              data-testid="chains-row-actions"
             />
           </ProtectedDropdown>
         </>
@@ -1169,8 +1170,13 @@ const Chains = () => {
           }
           trailing={
             <>
-              {filterButton}
-              <span style={{ flexShrink: 0 }}>{columnSettingsButton}</span>
+              <span data-testid="chains-filter">{filterButton}</span>
+              <span
+                data-testid="chains-column-settings"
+                style={{ flexShrink: 0 }}
+              >
+                {columnSettingsButton}
+              </span>
               <ProtectedButton
                 require={{ chain: ["read"] }}
                 tooltipProps={{
@@ -1178,6 +1184,7 @@ const Chains = () => {
                   placement: "bottom",
                 }}
                 buttonProps={{
+                  "data-testid": "chains-compare",
                   iconName: "compare",
                   disabled: selectedChains.length !== 2,
                   onClick: onCompareChainsBtnClick,
@@ -1187,6 +1194,7 @@ const Chains = () => {
                 require={{ chain: ["create"] }}
                 tooltipProps={{ title: "Paste", placement: "bottom" }}
                 buttonProps={{
+                  "data-testid": "chains-paste",
                   iconName: "carryOut",
                   onClick: () => {
                     Promise.resolve(pasteItem(getFolderId())).catch(
@@ -1202,6 +1210,7 @@ const Chains = () => {
                   placement: "bottom",
                 }}
                 buttonProps={{
+                  "data-testid": "chains-deploy",
                   iconName: "send",
                   onClick: onDeployBtnClick,
                 }}
@@ -1213,6 +1222,7 @@ const Chains = () => {
                   placement: "bottom",
                 }}
                 buttonProps={{
+                  "data-testid": "chains-export",
                   iconName: "cloudDownload",
                   onClick: onExportBtnClick,
                 }}
@@ -1221,6 +1231,7 @@ const Chains = () => {
                 require={{ chain: ["export"] }}
                 tooltipProps={{ title: "Import chains", placement: "bottom" }}
                 buttonProps={{
+                  "data-testid": "chains-import",
                   iconName: "cloudUpload",
                   onClick: onImportBtnClick,
                 }}
@@ -1232,6 +1243,7 @@ const Chains = () => {
                   placement: "bottom",
                 }}
                 buttonProps={{
+                  "data-testid": "chains-delete",
                   iconName: "delete",
                   onClick: onDeleteBtnClick,
                 }}

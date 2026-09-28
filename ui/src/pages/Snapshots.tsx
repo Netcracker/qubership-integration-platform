@@ -451,6 +451,7 @@ export const Snapshots: React.FC = () => {
                 type: "primary",
                 iconName: "plus",
                 onClick: onCreateBtnClick,
+                "data-testid": "snapshots-create",
               }}
             />
           </>
