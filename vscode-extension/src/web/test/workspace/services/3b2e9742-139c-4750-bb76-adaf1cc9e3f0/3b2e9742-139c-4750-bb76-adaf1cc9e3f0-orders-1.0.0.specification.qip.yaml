@@ -1,0 +1,96 @@
+---
+id: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0-orders-1.0.0"
+$schema: "http://qubership.org/schemas/product/qip/specification"
+name: "1.0.0"
+content:
+  deprecated: false
+  version: "1.0.0"
+  source: "MANUAL"
+  operations:
+  - id: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0-orders-1.0.0-createOrder"
+    name: "createOrder"
+    method: "POST"
+    path: "/orders"
+    specification:
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                type: "object"
+                properties:
+                  id:
+                    type: "string"
+          description: "the order that was created"
+        "422":
+          content:
+            application/json:
+              schema:
+                type: "object"
+                properties:
+                  reason:
+                    type: "string"
+          description: "the order was rejected"
+      operationId: "createOrder"
+      requestBody:
+        content:
+          application/xml:
+            schema:
+              type: "object"
+              properties:
+                sku:
+                  type: "string"
+          application/json:
+            schema:
+              type: "object"
+              required:
+              - "sku"
+              properties:
+                sku:
+                  type: "string"
+                quantity:
+                  type: "integer"
+        required: true
+    requestSchema:
+      application/xml:
+        $id: "http://system.catalog/schemas/#/components/schemas/Schema"
+        type: "object"
+        $schema: "http://json-schema.org/draft-07/schema#"
+        properties:
+          sku:
+            type: "string"
+      application/json:
+        $id: "http://system.catalog/schemas/#/components/schemas/Schema"
+        type: "object"
+        $schema: "http://json-schema.org/draft-07/schema#"
+        required:
+        - "sku"
+        properties:
+          sku:
+            type: "string"
+          quantity:
+            type: "integer"
+    responseSchemas:
+      "201":
+        application/json:
+          $id: "http://system.catalog/schemas/#/components/schemas/Schema"
+          type: "object"
+          $schema: "http://json-schema.org/draft-07/schema#"
+          properties:
+            id:
+              type: "string"
+      "422":
+        application/json:
+          $id: "http://system.catalog/schemas/#/components/schemas/Schema"
+          type: "object"
+          $schema: "http://json-schema.org/draft-07/schema#"
+          properties:
+            reason:
+              type: "string"
+  specificationSources:
+  - id: "2a2c17cb-2b8c-4f30-862d-9108300ff54c"
+    name: "orders.openapi.yaml"
+    sourceHash: "137f50c13a270ebb1ddb2dad2f48bccfe7c69598f8313297749d1546f87f5be3"
+    fileName: "source-3b2e9742-139c-4750-bb76-adaf1cc9e3f0-orders-1.0.0/orders.openapi.yaml"
+    mainSource: true
+  parentId: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0-orders"

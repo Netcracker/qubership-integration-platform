@@ -9,6 +9,11 @@ of [Qubership Integration Platform](../README.md).
 
 This application should be built by Visual Studio Code itself (usually F5 hotkey at opened project in Visual Studio Code).
 
+## Tests
+
+Run `npm run test:unit` for the Jest suite and `npm run test:integration` for the integration tests, which run in
+VS Code for the Web and need the upstream builds from `npm run prepare-deps`.
+
 ## Contribution
 
 For the details on contribution, see [Contribution Guide](../CONTRIBUTING.md). For details on reporting of security issues
