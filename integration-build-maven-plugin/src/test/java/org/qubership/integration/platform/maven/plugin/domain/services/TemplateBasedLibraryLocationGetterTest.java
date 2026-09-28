@@ -3,6 +3,7 @@ package org.qubership.integration.platform.maven.plugin.domain.services;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.maven.plugin.domain.tasks.BuildCRsTaskParameters;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -24,6 +25,13 @@ class TemplateBasedLibraryLocationGetterTest {
     }
 
     @Test
+    void encodesSpecificationIdWithSpacesAndOtherReservedCharacters() {
+        assertEquals(
+            "http://qip-runtime-catalog-v1:8080/v1/models/quote-tmf-service-Quote%20Management6.2-6.2/dto/jar",
+            getter.apply(context(DEFAULT_TEMPLATE, "quote-tmf-service-Quote Management6.2-6.2")));
+    }
+
+    @Test
     void fillsEveryPlaceholderOfACustomTemplate() {
         String template = "https://repo.example.com/{appPrefix}/{specificationId}/{specificationId}.jar";
 
@@ -41,7 +49,9 @@ class TemplateBasedLibraryLocationGetterTest {
 
     @Test
     void failsWhenTheBuildParametersAreMissing() {
-        ResourceBuildContext<String> context = ResourceBuildContext.create(BuildInfo.builder().build()).updateTo("spec-1");
+        ResourceBuildContext<String> context = ResourceBuildContext
+            .create(BuildInfo.builder().build(), IntegrationServiceCatalog.EMPTY)
+            .updateTo("spec-1");
 
         RuntimeException exception = assertThrows(RuntimeException.class, () -> getter.apply(context));
 
@@ -49,7 +59,8 @@ class TemplateBasedLibraryLocationGetterTest {
     }
 
     private static ResourceBuildContext<String> context(String template, String specificationId) {
-        ResourceBuildContext<String> context = ResourceBuildContext.create(BuildInfo.builder().build())
+        ResourceBuildContext<String> context = ResourceBuildContext
+            .create(BuildInfo.builder().build(), IntegrationServiceCatalog.EMPTY)
             .updateTo(specificationId);
         context.getBuildCache().put(
             BUILD_CRS_TASK_PARAMETERS,

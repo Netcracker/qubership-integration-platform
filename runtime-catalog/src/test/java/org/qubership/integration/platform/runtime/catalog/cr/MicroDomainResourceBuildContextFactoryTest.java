@@ -29,6 +29,7 @@ import org.qubership.integration.platform.camelk.model.options.ResourceBuildOpti
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
 import org.qubership.integration.platform.camelk.services.BuildInfoFactory;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
@@ -77,6 +78,7 @@ class MicroDomainResourceBuildContextFactoryTest {
     private BuildInfoFactory buildInfoFactory;
     private MicroDomainService microDomainService;
     private IntegrationConfigurationSerdes integrationConfigurationSerdes;
+    private IntegrationServiceCatalog integrationServiceCatalog;
     private SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
     private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
     private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
@@ -91,6 +93,7 @@ class MicroDomainResourceBuildContextFactoryTest {
         buildInfoFactory = mock(BuildInfoFactory.class);
         microDomainService = mock(MicroDomainService.class);
         integrationConfigurationSerdes = mock(IntegrationConfigurationSerdes.class);
+        integrationServiceCatalog = mock(IntegrationServiceCatalog.class);
         sourceDslConfigMapNamingStrategy = mock(SourceDslConfigMapNamingStrategy.class);
         httpRoutePublicNamingStrategy = mock(NamingStrategy.class);
         httpRoutePrivateNamingStrategy = mock(NamingStrategy.class);
@@ -116,6 +119,7 @@ class MicroDomainResourceBuildContextFactoryTest {
                 microDomainService,
                 integrationConfigurationSerdes,
                 buildInfoFactory,
+                integrationServiceCatalog,
                 sourceDslConfigMapNamingStrategy,
                 httpRoutePublicNamingStrategy,
                 httpRoutePrivateNamingStrategy,
@@ -197,6 +201,17 @@ class MicroDomainResourceBuildContextFactoryTest {
         assertTrue(context.getData().isEmpty());
         verify(snapshotRepository).findAllByIdIn(List.of("snap-1"));
         verify(microDomainService, never()).getMainIntegrationResources(any());
+    }
+
+    @DisplayName("Wires the injected IntegrationServiceCatalog into the built context -- a factory that built "
+            + "its own or omitted one previously left every external-system service-call element unable to "
+            + "resolve its system at build time")
+    @Test
+    void buildsContextWithRealServiceCatalog() {
+        ResourceBuildContext<List<Snapshot>> context =
+                factory.createResourceBuildContext(request(options()), false).context();
+
+        assertSame(integrationServiceCatalog, context.getServiceCatalog());
     }
 
     @DisplayName("Stamps the requesting user onto the build, since a micro domain keeps no deployment row to audit")

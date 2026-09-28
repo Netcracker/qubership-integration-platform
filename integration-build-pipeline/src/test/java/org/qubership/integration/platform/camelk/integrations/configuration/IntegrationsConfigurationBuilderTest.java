@@ -6,6 +6,7 @@ import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.IntegrationsConfigurationOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.library.constants.CamelOptions;
@@ -62,6 +63,6 @@ class IntegrationsConfigurationBuilderTest {
         BuildInfo buildInfo = BuildInfo.builder()
             .options(ResourceBuildOptions.builder().integrations(integrations).build())
             .build();
-        return ResourceBuildContext.create(buildInfo).updateTo(List.of(snapshot));
+        return ResourceBuildContext.create(buildInfo, IntegrationServiceCatalog.EMPTY).updateTo(List.of(snapshot));
     }
 }

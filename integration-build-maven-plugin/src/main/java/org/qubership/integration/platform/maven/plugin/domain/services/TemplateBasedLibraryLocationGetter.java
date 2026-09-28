@@ -8,7 +8,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
+import org.springframework.web.util.UriUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 
@@ -30,9 +32,10 @@ public class TemplateBasedLibraryLocationGetter implements LibraryLocationGetter
             .map(BuildCRsTaskParameters.class::cast)
             .orElseThrow(() -> new RuntimeException("Failed to get build parameters"));
         String specificationId = context.getData();
+        String encodedSpecificationId = UriUtils.encodePathSegment(specificationId, StandardCharsets.UTF_8);
         String template = parameters.getLibraryUrlTemplate();
         Map<String, String> values = Map.of(
-            "specificationId", specificationId,
+            "specificationId", encodedSpecificationId,
             "appPrefix", appPrefix
         );
         StringSubstitutor substitutor = new StringSubstitutor(values, "{", "}");
