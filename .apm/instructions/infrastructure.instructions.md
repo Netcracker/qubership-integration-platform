@@ -27,7 +27,7 @@ docker compose -f infrastructure/docker-compose.yml down
 
 The live check for the per-type service file names (#553), against a running stack. Creates one service of each of the
 five kinds, exports and re-imports through the three v1 endpoint families, then repeats with
-`QIP_EXPORT_LEGACY_FORMAT=true`. **The legacy hop restores exactly three** — nothing scans for
+`CIP_EXPORT_LEGACY_FORMAT=true`. **The legacy hop restores exactly three** — nothing scans for
 `context-service-<id>.yaml` or `mcp-service-<id>.yaml`, in this version or any older one, so those two are written and
 discovered by nothing, and the import answers 204.
 
@@ -57,7 +57,7 @@ helm install --create-namespace --namespace qip qip infrastructure/qip-dev
 kubectl delete all,secrets,configmaps,pvc -n <NAMESPACE> --all
 ```
 
-Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `qip-dev/values.yaml`); like Compose it only proxies to a locally-served UI. `values.yaml` toggles `qip.deploy.classic` (Spring engine) vs `qip.deploy.micro` (Quarkus micro-engine, image `ghcr.io/netcracker/qubership-integration-micro-engine:latest`).
+Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `qip-dev/values.yaml`); like Compose it only proxies to a locally-served UI. `values.yaml` toggles `cip.deploy.classic` (Spring engine) vs `cip.deploy.micro` (Quarkus micro-engine, image `ghcr.io/netcracker/qubership-integration-micro-engine:latest`).
 
 ### Structure
 
