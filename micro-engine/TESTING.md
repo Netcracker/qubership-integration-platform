@@ -433,8 +433,8 @@ empty bytes, numeric boundaries, booleans, Unicode strings, and omission of unsu
 They also check the stored header bytes after a connection reset and a lost acknowledgment.
 
 The `rabbitmq-sender.yml` manifest defines four scenarios and 89 invocations across three
-exported chains. Functional scenarios cover bodies, headers, context overrides, disabled
-context propagation, and configured routing keys. Broker failure checks cover credentials,
+exported chains. Functional scenarios cover bodies, headers, context overrides,
+`propagateContext: false`, and configured routing keys. Broker failure checks cover credentials,
 vhost access, connection loss, broker restart, and channel errors. The MaaS scenario resolves
 a classifier through the production MaaS resolver and publishes with its returned credentials
 and vhost. The fixture supplies only the external MaaS client response.
@@ -444,7 +444,10 @@ sender and context processors, registers request ID, version, and test-header co
 and restores the previous providers and context when the scenario ends.
 
 The functional chain has four independent trigger-to-sender routes: default settings,
-disabled context propagation, a context override, and a configured routing key.
+`propagateContext: false`, a context override, and a configured routing key.
+With `propagateContext: false`, the template skips `contextPropagationProcessor` but still
+runs `rabbitMqSenderProcessor`. The tests expect the request ID in the published message
+and no `Authorization` header, including when the request ID is generated.
 Invocations select the existing entrypoint for the sender they exercise.
 `publishes-messages-through-sender-variants` contains 18 Short invocations;
 `publishes-messages-with-routing-and-context-and-recovers` contains 47 Long invocations.
@@ -527,6 +530,10 @@ first so the initial send obtains a short-lived token from an empty credentials 
 Later invocations reuse the refreshed token. Topic recreation precedes the final topic
 deletion. The separate OAuth rejection scenario starts with an empty credentials cache
 to check `invalid_grant`. Each scenario starts its own emulator.
+
+Pub/Sub invocations supply ordering keys through the `CamelGooglePubsubOrderingKey`
+input header. The template does not evaluate the element's `orderingKey` setting.
+The scenarios check that this setting neither overrides an input header nor supplies a missing key.
 
 Pub/Sub fixtures check each invocation's Publish requests, including the topic, payload,
 attributes, and ordering key. `expectedRequest.key` specifies the ordering key; omitting

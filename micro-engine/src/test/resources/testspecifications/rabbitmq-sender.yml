@@ -228,14 +228,15 @@ scenarios:
       response:
         properties:
           expectedSendCount: 0
+  # RabbitMQ still dumps the current context when propagateContext is false.
   - id: no-context-first
     endpointUri: cip-chain:1e126088-9c32-448c-b16d-7cb04cd8dde4
-    body: RabbitMQ message without context
+    body: RabbitMQ message with propagation disabled
     headers:
       Authorization: Bearer snapshot-first
       X-Request-Id: incoming-first
       X-Snapshot-Header: first
-    expectedBody: RabbitMQ message without context
+    expectedBody: RabbitMQ message with propagation disabled
     expectedHeaders:
       X-Snapshot-Header: first
     expectedAbsentHeaders:
@@ -249,10 +250,10 @@ scenarios:
       expectedRequest:
         count: 1
         destination: test
-        body: RabbitMQ message without context
+        body: RabbitMQ message with propagation disabled
         headers:
           Authorization: null
-          X-Request-Id: null
+          X-Request-Id: incoming-first
           X-Snapshot-Header: first
     - fixture: rabbitmq-broker
       expectedRequest:
@@ -299,7 +300,7 @@ scenarios:
         body: "Order received \u2014 caf\u00e9 \u2615"
         headers:
           Authorization: null
-          X-Request-Id: null
+          X-Request-Id: incoming-second
           X-Snapshot-Header: second
     - fixture: rabbitmq-broker
       expectedRequest:
@@ -341,8 +342,11 @@ scenarios:
         body: No previous headers
         headers:
           Authorization: null
-          X-Request-Id: null
           X-Snapshot-Header: null
+      response:
+        properties:
+          expectedContextHeaders:
+            X-Request-Id: X-Request-Id
     - fixture: rabbitmq-broker
       expectedRequest:
         count: 0
@@ -3010,7 +3014,7 @@ scenarios:
         body: null
         headers:
           Authorization: null
-          X-Request-Id: null
+          X-Request-Id: incoming-null-body
     - fixture: rabbitmq-broker
       expectedRequest:
         count: 0
@@ -3056,7 +3060,7 @@ scenarios:
           CamelSpringRabbitmqContentEncoding: null
           CamelSpringRabbitmqExchangeOverrideName: null
           CamelSpringRabbitmqRoutingOverrideKey: null
-          X-Request-Id: null
+          X-Request-Id: after-null-body
     - fixture: rabbitmq-broker
       expectedRequest:
         count: 0
@@ -3107,7 +3111,7 @@ scenarios:
         body: Bad encoding
         headers:
           Authorization: null
-          X-Request-Id: null
+          X-Request-Id: incoming-invalid-charset
     - fixture: rabbitmq-broker
       expectedRequest:
         count: 0
@@ -3153,7 +3157,7 @@ scenarios:
           CamelSpringRabbitmqContentEncoding: null
           CamelSpringRabbitmqExchangeOverrideName: null
           CamelSpringRabbitmqRoutingOverrideKey: null
-          X-Request-Id: null
+          X-Request-Id: after-invalid-charset
     - fixture: rabbitmq-broker
       expectedRequest:
         count: 0

@@ -339,16 +339,15 @@ public class TemplateServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"customer<&>1", "${exchangeProperty.orderingKey}"})
-    void shouldSetPubSubOrderingHeaderWhenOrderingKeyIsConfigured(String orderingKey) throws IOException {
+    void shouldLeavePubSubOrderingHeaderUnchangedWhenOrderingKeyIsConfigured(String orderingKey) throws IOException {
         Element element = readRootElement("/testData/input/builder/templates/pubsub_sender.yml");
         element.getProperties().put("messageOrderingEnabled", true);
         element.getProperties().put("orderingKey", orderingKey);
 
         String route = wrap(templateService.applyTemplate(element));
 
-        JAXPXPathEngine xpath = new JAXPXPathEngine();
-        assertEquals(orderingKey, xpath.evaluate(
-                "/route/step/doTry/setHeader[@name='CamelGooglePubsubOrderingKey'][following-sibling::toD]/simple",
+        assertEquals("0", new JAXPXPathEngine().evaluate(
+                "count(//*[@name='CamelGooglePubsubOrderingKey'])",
                 Input.fromString(route).build()));
     }
 
@@ -386,7 +385,7 @@ public class TemplateServiceTest {
     }
 
     @Test
-    void shouldRemoveRabbitMqAuthorizationWhenContextPropagationIsDisabled() throws IOException {
+    void shouldRunRabbitMqSenderProcessorWhenContextPropagationIsDisabled() throws IOException {
         Element element = readRootElement("/testData/input/builder/templates/rabbitmq_sender_2.yml");
         element.getProperties().put("propagateContext", false);
 
@@ -394,10 +393,10 @@ public class TemplateServiceTest {
 
         JAXPXPathEngine xpath = new JAXPXPathEngine();
         assertEquals("0", xpath.evaluate(
-                "count(//process[@ref='rabbitMqSenderProcessor' or @ref='contextPropagationProcessor'])",
+                "count(//process[@ref='contextPropagationProcessor'])",
                 Input.fromString(route).build()));
         assertEquals("1", xpath.evaluate(
-                "count(/route/doTry/removeHeader[@name='Authorization'][following-sibling::toD])",
+                "count(/route/doTry/process[@ref='rabbitMqSenderProcessor'][following-sibling::toD])",
                 Input.fromString(route).build()));
     }
 
