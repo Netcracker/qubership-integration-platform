@@ -48,7 +48,7 @@ otel:
   sdk:
     disabled: true
 
-qip:
+cip:
   standalone: true
   pubsub:
     emulator:

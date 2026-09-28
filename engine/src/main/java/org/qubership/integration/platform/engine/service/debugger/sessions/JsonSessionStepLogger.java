@@ -29,7 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import static net.logstash.logback.marker.Markers.append;
 
 @Component
-@ConditionalOnProperty(name = "qip.logging.format", havingValue = "json", matchIfMissing = true)
+@ConditionalOnProperty(name = "cip.logging.format", havingValue = "json", matchIfMissing = true)
 public class JsonSessionStepLogger implements SessionStepLogger {
 
     private static final Logger LOG = LoggerFactory.getLogger(JsonSessionStepLogger.class);

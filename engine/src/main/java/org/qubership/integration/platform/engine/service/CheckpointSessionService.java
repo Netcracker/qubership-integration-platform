@@ -55,9 +55,9 @@ public class CheckpointSessionService {
     private final ObjectMapper jsonMapper;
     private final IdempotencyRecordService idempotencyRecordService;
     private final ChainDeploymentChecker chainDeploymentChecker;
-    @Value("${qip.sessions.checkpoints.cleanup.interval}")
+    @Value("${cip.sessions.checkpoints.cleanup.interval}")
     private String idempotencyKeyTTL;
-    @Value("${qip.camel.routes.prefix}")
+    @Value("${cip.camel.routes.prefix}")
     private String routesPrefix;
 
     @Autowired

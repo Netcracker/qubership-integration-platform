@@ -21,7 +21,7 @@ import org.springframework.context.annotation.Configuration;
  * listener. The listener below does nothing else; it exists so that the context carries the exchange.
  */
 @Configuration
-@ConditionalOnProperty(value = "qip.testing.enabled", havingValue = "true")
+@ConditionalOnProperty(value = "cip.testing.enabled", havingValue = "true")
 public class TestingHttpComponentConfiguration {
 
     private static final HttpActivityListener NOOP_LISTENER = new NoopActivityListener();

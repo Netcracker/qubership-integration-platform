@@ -72,7 +72,7 @@ public class PersistenceCheckpointAutoConfiguration {
      * Used for chain checkpoints and sessions
      */
     @Bean("checkpointDataSource")
-    @ConditionalOnProperty(value = "qip.standalone", havingValue = "false")
+    @ConditionalOnProperty(value = "cip.standalone", havingValue = "false")
     DataSource checkpointDataSource(
             DatabasePool dbaasConnectionPool,
             DbaasClassifierFactory classifierFactory,

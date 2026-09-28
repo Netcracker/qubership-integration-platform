@@ -10,9 +10,9 @@ import org.springframework.context.annotation.Bean;
 @AutoConfiguration
 public class CamelPubSubConfiguration {
     @Bean
-    @ConditionalOnProperty(name = "qip.pubsub.emulator.enabled", havingValue = "true")
+    @ConditionalOnProperty(name = "cip.pubsub.emulator.enabled", havingValue = "true")
     public ComponentCustomizer servletCustomComponentCustomizer(
-            @Value("${qip.pubsub.emulator.address}") String address
+            @Value("${cip.pubsub.emulator.address}") String address
     ) {
         return ComponentCustomizer.builder(GooglePubsubComponent.class)
                 .build((component) -> {

@@ -63,7 +63,7 @@ public class SessionsService {
 
     private final Random random = new Random();
 
-    @Value("${qip.sessions.sampler.probabilistic}")
+    @Value("${cip.sessions.sampler.probabilistic}")
     private double samplerProbabilistic;
 
     @Autowired
