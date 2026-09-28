@@ -33,7 +33,7 @@ components:
           format: int64
           description: "Duration of session execution, in ms"
         executionStatus:
-          description: "Duration of session execution, in ms"
+          description: Session execution status
           type: string
           $ref: "#/components/schemas/ExecutionStatus"
         chainId:
