@@ -1,0 +1,36 @@
+{
+  "name": "@netcracker/qip-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Qubership Integration Platform - end-to-end tests against the local stack",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:compose": "QIP_TARGET=compose playwright test",
+    "test:k8s": "QIP_TARGET=k8s playwright test",
+    "release-check": "node support/release-check.mjs",
+    "report": "playwright show-report",
+    "check-types": "tsc --noEmit",
+    "reconcile": "node --experimental-strip-types registry/reconcile.mjs",
+    "refresh-operations": "node --experimental-strip-types registry/refresh-operations.mjs",
+    "frozen-checksums": "node --experimental-strip-types fixtures/archives/write-checksums.mjs"
+  },
+  "devDependencies": {
+    "@apidevtools/json-schema-ref-parser": "^16.0.2",
+    "@playwright/test": "^1.62.0",
+    "@types/amqplib": "^0.10.8",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "@types/ssh2-sftp-client": "^9.0.6",
+    "ajv": "^8.20.0",
+    "amqplib": "^2.0.1",
+    "js-yaml": "^4.3.2",
+    "jszip": "^3.10.1",
+    "kafkajs": "^2.2.4",
+    "ssh2-sftp-client": "^12.1.1",
+    "typescript": "^5.9.3"
+  }
+}
