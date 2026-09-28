@@ -27,7 +27,7 @@ public class HttpRoutePublicNamingStrategy extends K8sResourceNamingStrategy<Res
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-            @Value("${qip.cr.naming.http-route.public-suffix:-chain-public-routes}")
+            @Value("${cip.cr.naming.http-route.public-suffix:-chain-public-routes}")
             String suffix
     ) {
         super(nameVerifier);

@@ -20,17 +20,17 @@ protoc:
   grpc-java-plugin: /usr/bin/protoc-gen-grpc-java
   work-directory: /tmp/tmp-data
 
-qip:
+cip:
   access-control:
     resource-type:
       chain: QIP-CHAIN
   istio:
     host-resources:
-      enabled: ${QIP_ISTIO_HOST_RESOURCES_ENABLED:true}
+      enabled: ${CIP_ISTIO_HOST_RESOURCES_ENABLED:true}
   control-plane:
     chain-routes-registration:
-      ingress-gateways: ${QIP_REGISTER_INGRESS_CHAIN_ROUTES:true} # public/private/internal gateway
-      egress-gateway: ${QIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
+      ingress-gateways: ${CIP_REGISTER_INGRESS_CHAIN_ROUTES:true} # public/private/internal gateway
+      egress-gateway: ${CIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
     routes:
       public:
         v1-prefix: /api/v1/${app.prefix}/engine
@@ -41,7 +41,7 @@ qip:
     egress:
       name: egress-gateway
       protocol: http
-      url: ${QIP_EGRESS_GATEWAY_URL:egress-gateway:8080}
+      url: ${CIP_EGRESS_GATEWAY_URL:egress-gateway:8080}
     public:
       name: public-gateway
     private:

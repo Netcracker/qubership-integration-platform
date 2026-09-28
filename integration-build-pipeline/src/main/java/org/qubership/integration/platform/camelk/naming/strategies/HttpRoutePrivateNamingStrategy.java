@@ -27,7 +27,7 @@ public class HttpRoutePrivateNamingStrategy extends K8sResourceNamingStrategy<Re
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-            @Value("${qip.cr.naming.http-route.private-suffix:-chain-private-routes}")
+            @Value("${cip.cr.naming.http-route.private-suffix:-chain-private-routes}")
             String suffix
     ) {
         super(nameVerifier);

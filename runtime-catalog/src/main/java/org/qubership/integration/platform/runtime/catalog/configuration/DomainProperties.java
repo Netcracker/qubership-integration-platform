@@ -4,7 +4,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @Data
-@ConfigurationProperties(prefix = "qip.deploy")
+@ConfigurationProperties(prefix = "cip.deploy")
 public class DomainProperties {
     @Data
     public static class DeployMethodConfiguration {
