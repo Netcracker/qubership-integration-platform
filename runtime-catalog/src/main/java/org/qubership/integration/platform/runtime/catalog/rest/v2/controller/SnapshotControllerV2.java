@@ -2,6 +2,7 @@ package org.qubership.integration.platform.runtime.catalog.rest.v2.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
@@ -20,6 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping(value = {"/v2/catalog/snapshots", "/api/cip/v2/snapshots"}, produces = MediaType.APPLICATION_JSON_VALUE)
 @CrossOrigin(origins = "*")
+@Tag(name = "snapshot-controller-v-2", description = "Snapshot Controller V2")
 public class SnapshotControllerV2 {
     private final SnapshotService snapshotService;
     private final SnapshotMapper snapshotMapper;

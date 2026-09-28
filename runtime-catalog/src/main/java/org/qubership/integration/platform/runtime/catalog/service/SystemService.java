@@ -163,6 +163,11 @@ public class SystemService extends SystemBaseService {
     }
 
     @Transactional
+    public Collection<IntegrationSystem> findAll() {
+        return systemRepository.findAll();
+    }
+
+    @Transactional
     public IntegrationSystem findById(String systemId) {
         return systemRepository.findById(systemId)
                 .orElseThrow(() -> new EntityNotFoundException(SYSTEM_WITH_ID_NOT_FOUND_MESSAGE + systemId));

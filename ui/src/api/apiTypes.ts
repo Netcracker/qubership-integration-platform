@@ -1333,7 +1333,7 @@ export type ServiceOptions = {
 
 export type ContainerOptions = {
   image?: string;
-  imagePoolPolicy?: "Always" | "Never" | "IfNotPresent";
+  imagePullPolicy?: "Always" | "Never" | "IfNotPresent";
 };
 
 export type LiveExchange = {

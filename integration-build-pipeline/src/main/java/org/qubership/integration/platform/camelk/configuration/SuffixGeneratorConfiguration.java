@@ -5,8 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.context.annotation.Bean;
 
-import java.util.Random;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 @AutoConfiguration
 public class SuffixGeneratorConfiguration {
@@ -14,8 +13,8 @@ public class SuffixGeneratorConfiguration {
     private int suffixLength;
 
     @Bean("suffixGenerator")
-    public Supplier<String> suffixGenerator() {
-        StringGenerator generator = new StringGenerator(new Random());
-        return () -> generator.generate(suffixLength);
+    public Function<Long, String> suffixGenerator() {
+        StringGenerator generator = new StringGenerator();
+        return (seed) -> generator.generate(suffixLength, seed);
     }
 }

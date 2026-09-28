@@ -154,6 +154,7 @@ const VariablesTable: React.FC<VariablesTableProps> = ({
             <div className={styles["editing-wrapper"]}>
               <Input.TextArea
                 autoFocus
+                placeholder={isValueHidden ? "*****" : undefined}
                 value={editingValue}
                 onChange={(e) => onChangeEditingValue(e.target.value)}
                 onKeyDown={onKeyDown}

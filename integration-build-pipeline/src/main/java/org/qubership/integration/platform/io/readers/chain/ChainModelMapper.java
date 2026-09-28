@@ -26,9 +26,10 @@ import org.qubership.integration.platform.io.model.exportimport.chain.Dependency
 import org.qubership.integration.platform.io.model.exportimport.chain.DeploymentExternalEntity;
 import org.qubership.integration.platform.io.model.exportimport.chain.MaskedFieldExternalEntity;
 import org.qubership.integration.platform.io.readers.migrations.common.GroupPathUtils;
-import org.qubership.integration.platform.library.components.LibraryElementsService;
+import org.qubership.integration.platform.library.components.ElementDescriptorHelper;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementType;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Component;
 
@@ -38,8 +39,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.qubership.integration.platform.io.readers.chain.ImportConstants.CONTAINER;
 
 /**
  * Builds an {@link ImportChain} from a deserialized chain export.
@@ -51,12 +50,15 @@ import static org.qubership.integration.platform.io.readers.chain.ImportConstant
  */
 @Component
 public class ChainModelMapper {
-
-    private final LibraryElementsService libraryService;
+    private final ElementDescriptorHelper elementDescriptorHelper;
     private final ChainElementPropertiesSubstitutor propertiesSubstitutor;
 
-    public ChainModelMapper(LibraryElementsService libraryService, ChainElementPropertiesSubstitutor propertiesSubstitutor) {
-        this.libraryService = libraryService;
+    @Autowired
+    public ChainModelMapper(
+        ElementDescriptorHelper elementDescriptorHelper,
+        ChainElementPropertiesSubstitutor propertiesSubstitutor
+    ) {
+        this.elementDescriptorHelper = elementDescriptorHelper;
         this.propertiesSubstitutor = propertiesSubstitutor;
     }
 
@@ -104,10 +106,10 @@ public class ChainModelMapper {
 
         // Swimlanes first, so later elements can resolve their swimlane membership by id.
         externalElements.stream()
-                .filter(external -> isSwimlaneType(external.getType()))
+                .filter(external -> elementDescriptorHelper.isSwimlaneType(external.getType()))
                 .forEach(external -> createElement(external, fileSource, resultElements));
         externalElements.stream()
-                .filter(external -> !isSwimlaneType(external.getType()))
+                .filter(external -> !elementDescriptorHelper.isSwimlaneType(external.getType()))
                 .forEach(external -> createElement(external, fileSource, resultElements));
 
         return resultElements;
@@ -118,7 +120,7 @@ public class ChainModelMapper {
             @Nullable PropertyFileSource fileSource,
             Map<String, ElementImpl> resultElements
     ) {
-        ElementDescriptor descriptor = resolveDescriptor(external.getType());
+        ElementDescriptor descriptor = elementDescriptorHelper.resolveDescriptor(external.getType());
 
         ElementImpl element = new ElementImpl();
         element.setContainer(descriptor.isContainer());
@@ -153,25 +155,6 @@ public class ChainModelMapper {
 
         resultElements.put(element.getId(), element);
         return element;
-    }
-
-    private ElementDescriptor resolveDescriptor(String type) {
-        return libraryService.lookupElementDescriptor(type)
-                .orElseGet(() -> {
-                    if (CONTAINER.equals(type)) {
-                        ElementDescriptor containerDescriptor = new ElementDescriptor();
-                        containerDescriptor.setType(ElementType.CONTAINER);
-                        containerDescriptor.setContainer(true);
-                        return containerDescriptor;
-                    }
-                    throw new IllegalArgumentException("Element of type " + type + " not found");
-                });
-    }
-
-    private boolean isSwimlaneType(String type) {
-        return libraryService.lookupElementDescriptor(type)
-                .map(descriptor -> descriptor.getType() == ElementType.SWIMLANE)
-                .orElse(false);
     }
 
     private ServiceEnvironment mapEnvironment(

@@ -14,6 +14,9 @@ public class IntegrationsConfigurationOptions {
     @Builder.Default
     private boolean camelKSourcesUtilized = false;
 
+    @Builder.Default
+    private boolean libraryDefinitionsEnabled = true;
+
     private String configurationLocation;
 
     public boolean isConfigurationConfigMapNeeded() {

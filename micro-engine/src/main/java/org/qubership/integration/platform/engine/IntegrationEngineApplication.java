@@ -18,20 +18,37 @@ package org.qubership.integration.platform.engine;
 
 import jakarta.ws.rs.core.Application;
 import org.eclipse.microprofile.openapi.annotations.OpenAPIDefinition;
+import org.eclipse.microprofile.openapi.annotations.enums.SecuritySchemeType;
 import org.eclipse.microprofile.openapi.annotations.extensions.Extension;
+import org.eclipse.microprofile.openapi.annotations.info.Contact;
 import org.eclipse.microprofile.openapi.annotations.info.Info;
+import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
+import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
 import org.eclipse.microprofile.openapi.annotations.servers.Server;
 
 @OpenAPIDefinition(
         info = @Info(
-                title = "QIP Engine",
-                description = "REST API of QIP Engine Microservice",
+                title = "Cloud Integration Platform MicroEngine",
+                description = "REST API of Cloud Integration Platform MicroEngine microservice",
                 version = "v1",
-                extensions = {@Extension(name = "x-api-kind", value = "no-bwc")}
+                extensions = {@Extension(name = "x-api-kind", value = "no-bwc")},
+                contact = @Contact(
+                    name = "Netcracker Opensource Group",
+                    email = "opensourcegroup@netcracker.com"
+                )
         ),
         servers = {
                 @Server(url = "/")
+        },
+        security = {
+                @SecurityRequirement(name = "BearerAuth")
         }
+)
+@SecurityScheme(
+        securitySchemeName = "BearerAuth",
+        type = SecuritySchemeType.HTTP,
+        scheme = "bearer",
+        bearerFormat = "JWT"
 )
 public class IntegrationEngineApplication extends Application {
 }
