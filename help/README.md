@@ -1,13 +1,13 @@
 # qubership-integration-help
 
-This repository stores helper documents for the [Cloud Integration Platform](https://github.com/Netcracker/qubership-integration-platform) (CIP).
+This directory stores helper documents for the [Cloud Integration Platform](../README.md) (CIP).
 
 CIP is an open-source integration solution built on [Apache Camel](https://camel.apache.org/index.html). It enables integration between diverse systems while handling data transformation, process orchestration and mapping between different system formats.
 
-The documents from this repository are consumed by:
+The documents from this directory are consumed by:
 
-- [Qubership Integration UI](https://github.com/Netcracker/qubership-integration-ui/) — web interface for designing and managing integration chains
-- [Qubership Integration VSCode Extension](https://github.com/Netcracker/qubership-integration-vscode-extension) — Visual Studio Code extension for working with QIP
+- [Qubership Integration UI](../ui) — web interface for designing and managing integration chains
+- [Qubership Integration VSCode Extension](../vscode-extension) — Visual Studio Code extension for working with QIP
 
 ## Documentation Structure
 
@@ -31,9 +31,9 @@ Documents are written in Markdown. The naming convention uses numeric prefixes w
 
 This software is licensed under Apache License Version 2.0. License text is located in the [LICENSE](../LICENSE) file.
 
-## Related Repositories
+## Related modules
 
-- [qubership-integration-platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment guide
-- [qubership-integration-ui](https://github.com/Netcracker/qubership-integration-ui/) — web UI
-- [qubership-integration-vscode-extension](https://github.com/Netcracker/qubership-integration-vscode-extension) — VSCode extension
+- [qubership-integration-platform](../README.md) — core deployment guide
+- [qubership-integration-ui](../ui) — web UI
+- [qubership-integration-vscode-extension](../vscode-extension) — VSCode extension
 

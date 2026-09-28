@@ -54,7 +54,7 @@ npm -w @netcracker/qip-schemas run build
 npm -w @netcracker/qip-ui run build
 ```
 
-The `prebuild` step clones the [help repository](https://github.com/Netcracker/qubership-integration-help.git) into `ui/public/doc/`, so network access is required.
+The `fetch-docs` step copies [`help/docs/`](help/docs/) into `ui/public/doc/`.
 
 ### Step 4 — Start the local backend stack
 

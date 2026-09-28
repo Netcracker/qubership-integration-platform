@@ -163,7 +163,6 @@ export async function createService(
         specification: serviceRequest.specification || "",
         environments: [],
         labels: LabelUtils.fromEntityLabels(serviceRequest.labels || []),
-        migrations: [],
       },
     };
 

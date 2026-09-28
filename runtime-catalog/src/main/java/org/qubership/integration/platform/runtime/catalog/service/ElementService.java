@@ -23,6 +23,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.io.model.exportimport.system.ServiceEnvironment;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.model.*;
+import org.qubership.integration.platform.runtime.catalog.adapters.ChainElementAdapter;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementCreationException;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ElementValidationException;
@@ -41,8 +42,8 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.element.CreateElementRequest;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.system.SystemType;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.qubership.integration.platform.runtime.catalog.util.ElementPropertyDefaults;
+import org.qubership.integration.platform.verification.properties.verifiers.MandatoryPropertyVerificationHelper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.lang.NonNull;
@@ -808,7 +809,7 @@ public class ElementService extends ElementBaseService {
         }
 
         for (ElementProperty property : descriptor.getProperties().getAll()) {
-            if (!mandatoryPropertyVerificationHelper.isMandatoryPropertyPresent(property, element)) {
+            if (!mandatoryPropertyVerificationHelper.isMandatoryPropertyPresent(property, new ChainElementAdapter(element))) {
                 throw new ElementValidationException("Value not found for " + property.getName());
             }
 

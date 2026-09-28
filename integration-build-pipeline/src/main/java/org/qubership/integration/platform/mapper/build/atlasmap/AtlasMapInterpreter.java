@@ -136,7 +136,7 @@ public class AtlasMapInterpreter implements org.qubership.integration.platform.m
         try {
             return objectMapper.writeValueAsString(atlasMapping);
         } catch (JsonProcessingException e) {
-            throw new MapperException(SERIALIZE_CONFIGURATION_ERROR_MESSAGE);
+            throw new MapperException(SERIALIZE_CONFIGURATION_ERROR_MESSAGE, e);
         }
     }
 

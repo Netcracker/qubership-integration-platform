@@ -4,10 +4,8 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.util.function.Function;
-
 @Component("libraryLocationFromCatalogGetter")
-public class LibraryLocationFromCatalogGetter implements Function<ResourceBuildContext<String>, String> {
+public class LibraryLocationFromCatalogGetter implements LibraryLocationGetter {
     @Value("${spring.application.cloud_service_name}")
     private String cloudServiceName;
 

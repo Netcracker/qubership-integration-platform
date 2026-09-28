@@ -37,6 +37,7 @@ import org.qubership.integration.platform.io.model.exportimport.chain.ChainExter
 import org.qubership.integration.platform.io.model.exportimport.chain.DependencyExternalEntity;
 import org.qubership.integration.platform.io.model.exportimport.chain.DeploymentExternalEntity;
 import org.qubership.integration.platform.io.model.exportimport.chain.MaskedFieldExternalEntity;
+import org.qubership.integration.platform.library.components.ElementDescriptorHelper;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.configuration.ElementDescriptorProperties;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
@@ -73,7 +74,7 @@ class ChainModelMapperTest {
         libraryService.registerElement(descriptor("swimlane", ElementType.SWIMLANE, false));
 
         ChainElementPropertiesSubstitutor substitutor = new ChainElementPropertiesSubstitutor(new ObjectMapper());
-        mapper = new ChainModelMapper(libraryService, substitutor);
+        mapper = new ChainModelMapper(new ElementDescriptorHelper(libraryService), substitutor);
     }
 
     @DisplayName("Import copies every scalar chain field from the external content")

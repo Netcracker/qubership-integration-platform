@@ -43,5 +43,6 @@ public class ResourceBuildOptions {
     @Builder.Default
     private IntegrationsConfigurationOptions integrations = new IntegrationsConfigurationOptions();
 
-    private String serviceAccount;
+    @Builder.Default
+    private String serviceAccount = "default";
 }
