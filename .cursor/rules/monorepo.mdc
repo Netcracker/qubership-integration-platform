@@ -1,5 +1,5 @@
 ---
-description: Monorepo layout, top-level build commands, branch model, CI, and the release process.
+description: "Monorepo layout, top-level build commands, branch model, CI, and the release process."
 globs: "**/*"
 ---
 
