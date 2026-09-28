@@ -39,7 +39,7 @@ public class CheckpointSessionDTO {
     @Schema(description = "Duration of session execution, in ms")
     private Long duration;
 
-    @Schema(description = "Duration of session execution, in ms")
+    @Schema(description = "Session execution status")
     private ExecutionStatus executionStatus;
 
     @Schema(description = "Id of the chain it was executed on")

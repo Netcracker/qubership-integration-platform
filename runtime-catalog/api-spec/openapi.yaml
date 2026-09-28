@@ -199,12 +199,10 @@ components:
           type: "array"
         limit:
           description: "Max rows to return"
-          example: 100
           format: "int32"
           type: "integer"
         offset:
           description: "Row offset"
-          example: 0
           format: "int32"
           type: "integer"
       type: "object"
@@ -10852,6 +10850,8 @@ tags:
   name: "system-model-controller"
 - description: "Dependency Controller"
   name: "dependency-controller"
+- description: "Snapshot Controller V2"
+  name: "snapshot-controller-v-2"
 - description: "Bulk Deployment Controller"
   name: "bulk-deployment-controller"
 - description: "Live Exchanges Controller"

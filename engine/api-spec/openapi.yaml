@@ -39,7 +39,7 @@ components:
           description: "engine pod ip address on which chain was executed"
           type: "string"
         executionStatus:
-          description: "Duration of session execution, in ms"
+          description: "Session execution status"
           enum:
           - "IN_PROGRESS"
           - "COMPLETED_NORMALLY"
