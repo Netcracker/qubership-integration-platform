@@ -152,9 +152,9 @@ services:
     ports:
       - "8095:8080"
     environment:
-      QIP_TESTING_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable&search_path=testing_service"
-      QIP_TESTING_CATALOG_ADDRESS: "http://runtime-catalog:8080"
-      QIP_TESTING_ENGINE_ADDRESS: "http://engine:8080"
+      CIP_TESTING_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable&search_path=testing_service"
+      CIP_TESTING_CATALOG_ADDRESS: "http://runtime-catalog:8080"
+      CIP_TESTING_ENGINE_ADDRESS: "http://engine:8080"
       # The installation-wide flag every service reads. It defaults to production,
       # which hides the Testing section in the UI, and a local stack is not one.
       PRODUCTION_MODE: "false"

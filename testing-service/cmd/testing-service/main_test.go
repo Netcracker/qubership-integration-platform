@@ -117,11 +117,11 @@ func TestLoadConfigReportsAMalformedFile(t *testing.T) {
 }
 
 func TestEnvironmentOverridesTheFile(t *testing.T) {
-	t.Setenv("QIP_TESTING_POSTGRES_DSN", "postgres://env-host:5432/testing")
-	t.Setenv("QIP_TESTING_POSTGRES_MAXCONNECTIONS", "32")
-	t.Setenv("QIP_TESTING_EXECUTION_INTERVAL", "45s")
-	t.Setenv("QIP_TESTING_EXECUTION_WORKERS", "9")
-	t.Setenv("QIP_TESTING_PPROF_ENABLED", "false")
+	t.Setenv("CIP_TESTING_POSTGRES_DSN", "postgres://env-host:5432/testing")
+	t.Setenv("CIP_TESTING_POSTGRES_MAXCONNECTIONS", "32")
+	t.Setenv("CIP_TESTING_EXECUTION_INTERVAL", "45s")
+	t.Setenv("CIP_TESTING_EXECUTION_WORKERS", "9")
+	t.Setenv("CIP_TESTING_PPROF_ENABLED", "false")
 
 	cfg, err := loadConfig(writeConfig(t, sampleConfig))
 	require.NoError(t, err)
@@ -137,8 +137,8 @@ func TestEnvironmentOverridesTheFile(t *testing.T) {
 }
 
 func TestEnvironmentConfiguresTheServiceWithoutAFile(t *testing.T) {
-	t.Setenv("QIP_TESTING_POSTGRES_DSN", "postgres://env-only:5432/testing")
-	t.Setenv("QIP_TESTING_SERVER_BIND", ":8181")
+	t.Setenv("CIP_TESTING_POSTGRES_DSN", "postgres://env-only:5432/testing")
+	t.Setenv("CIP_TESTING_SERVER_BIND", ":8181")
 
 	cfg, err := loadConfig(filepath.Join(t.TempDir(), "absent.yaml"))
 	require.NoError(t, err)
@@ -159,9 +159,9 @@ func TestVariablesWithoutThePrefixAreIgnored(t *testing.T) {
 // The chart hands the credentials over on their own rather than splicing them
 // into the DSN, where a `#`, `/` or `?` would cut the URL short.
 func TestTheEnvironmentCarriesCredentialsThatNeedNoEncoding(t *testing.T) {
-	t.Setenv("QIP_TESTING_POSTGRES_DSN", "postgres://db:5432/testing?sslmode=disable")
-	t.Setenv("QIP_TESTING_POSTGRES_USER", "us@r")
-	t.Setenv("QIP_TESTING_POSTGRES_PASSWORD", "pa/s?s#1")
+	t.Setenv("CIP_TESTING_POSTGRES_DSN", "postgres://db:5432/testing?sslmode=disable")
+	t.Setenv("CIP_TESTING_POSTGRES_USER", "us@r")
+	t.Setenv("CIP_TESTING_POSTGRES_PASSWORD", "pa/s?s#1")
 
 	cfg, err := loadConfig(filepath.Join(t.TempDir(), "absent.yaml"))
 	require.NoError(t, err)
@@ -178,9 +178,9 @@ func TestTheEnvironmentCarriesCredentialsThatNeedNoEncoding(t *testing.T) {
 }
 
 func TestEnvKey(t *testing.T) {
-	assert.Equal(t, "postgres.user", envKey("QIP_TESTING_POSTGRES_USER"))
-	assert.Equal(t, "postgres.dsn", envKey("QIP_TESTING_POSTGRES_DSN"))
-	assert.Equal(t, "execution.workers", envKey("QIP_TESTING_EXECUTION_WORKERS"))
+	assert.Equal(t, "postgres.user", envKey("CIP_TESTING_POSTGRES_USER"))
+	assert.Equal(t, "postgres.dsn", envKey("CIP_TESTING_POSTGRES_DSN"))
+	assert.Equal(t, "execution.workers", envKey("CIP_TESTING_EXECUTION_WORKERS"))
 }
 
 // The installation-wide flag, which every service of the platform reads rather
@@ -196,9 +196,9 @@ func TestTheInstallationWideProductionModeIsRead(t *testing.T) {
 }
 
 // The mode has one source. A `production` key in the file and a
-// QIP_TESTING_PRODUCTION variable both leave it unset.
+// CIP_TESTING_PRODUCTION variable both leave it unset.
 func TestOnlyTheInstallationWideFlagSetsTheMode(t *testing.T) {
-	t.Setenv("QIP_TESTING_PRODUCTION", "false")
+	t.Setenv("CIP_TESTING_PRODUCTION", "false")
 
 	cfg, err := loadConfig(writeConfig(t, "production: false\n"))
 	require.NoError(t, err)
@@ -286,7 +286,7 @@ func TestTheEnvironmentTurnsProductionModeOff(t *testing.T) {
 
 func TestTheShippedConfigurationTakesTheDsnFromTheEnvironment(t *testing.T) {
 	dsn := "postgres://user:secret@db:5432/testing?sslmode=disable&search_path=testing_service"
-	t.Setenv("QIP_TESTING_POSTGRES_DSN", dsn)
+	t.Setenv("CIP_TESTING_POSTGRES_DSN", dsn)
 
 	cfg, err := loadConfig(filepath.Join("..", "..", "application.yaml"))
 	require.NoError(t, err)
