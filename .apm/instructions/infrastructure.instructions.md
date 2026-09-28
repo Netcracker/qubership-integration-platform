@@ -57,7 +57,7 @@ helm install --create-namespace --namespace qip qip infrastructure/qip-dev
 kubectl delete all,secrets,configmaps,pvc -n <NAMESPACE> --all
 ```
 
-Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `qip-dev/values.yaml`); like Compose it only proxies to a locally-served UI. `values.yaml` toggles `cip.deploy.classic` (Spring engine) vs `cip.deploy.micro` (Quarkus micro-engine, image `ghcr.io/netcracker/qubership-integration-micro-engine:latest`).
+Helm UI is exposed via NodePort at `http://localhost:30080/` (port set in `qip-dev/values.yaml`); like Compose it only proxies to a locally-served UI. `values.yaml` toggles `qip.deploy.classic` (Spring engine) vs `qip.deploy.micro` (Quarkus micro-engine, image `ghcr.io/netcracker/qubership-integration-micro-engine:latest`).
 
 ### Structure
 
