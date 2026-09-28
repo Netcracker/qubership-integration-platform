@@ -1,0 +1,18 @@
+asyncapi: 2.6.0
+info:
+  title: E2E AsyncAPI Kafka Trigger
+  version: 1.0.0
+servers:
+  production:
+    url: kafka:29092
+    protocol: kafka
+channels:
+  e2e-{{RUN}}-async-api-kafka:
+    subscribe:
+      operationId: e2eAsyncApiKafkaSubscribe
+      message:
+        payload:
+          type: object
+          properties:
+            ping:
+              type: string

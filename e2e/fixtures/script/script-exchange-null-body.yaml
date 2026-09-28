@@ -1,0 +1,51 @@
+id: "e2e50003-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-script-exchange-null-body"
+description: "A null body in and out. The first script records what a request carrying no body at\
+  \ all arrives as and then drops the body; the second records what the step after a setBody(null)\
+  \ is handed, and leaves it dropped, so the caller is answered with nothing."
+content:
+  labels: []
+  elements:
+  - id: "e2e50003-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-exchange-null-body"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50003-0000-4000-8000-000000000003"
+    name: "Drop Body"
+    type: "script"
+    properties:
+      script: |-
+        // script-exchange-null-body/drop-body
+        // What an empty request arrives as is recorded rather than assumed. String.valueOf is
+        // avoided throughout: on a null argument Groovy binds it to valueOf(char[]) and throws.
+        def carried = exchange.getIn().getBody()
+        exchange.getIn().setHeader('e2e-in-null', (carried == null).toString())
+        exchange.getIn().setHeader('e2e-in-class', carried == null ? 'null' : carried.getClass().getName())
+        exchange.getIn().setBody(null)
+  - id: "e2e50003-0000-4000-8000-000000000004"
+    name: "Read Null Body"
+    type: "script"
+    properties:
+      script: |-
+        // script-exchange-null-body/read-null-body
+        def carried = exchange.getIn().getBody()
+        def text = exchange.getIn().getBody(String.class)
+        exchange.getIn().setHeader('e2e-null-seen', (carried == null).toString())
+        exchange.getIn().setHeader('e2e-null-text', text == null ? 'null' : text)
+  dependencies:
+  - from: "e2e50003-0000-4000-8000-000000000002"
+    to: "e2e50003-0000-4000-8000-000000000003"
+  - from: "e2e50003-0000-4000-8000-000000000003"
+    to: "e2e50003-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

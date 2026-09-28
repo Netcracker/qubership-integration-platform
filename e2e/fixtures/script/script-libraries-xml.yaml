@@ -1,0 +1,53 @@
+id: "e2e50007-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-script-libraries-xml"
+description: "groovy-xml reached from a script through both of its parsers. XmlSlurper reads the\
+  \ document as a GPath, XmlParser reads the same bytes into a groovy.util.Node tree, and the last\
+  \ script reports what each of them saw, so one answer covers the pair."
+content:
+  labels: []
+  elements:
+  - id: "e2e50007-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-libraries-xml"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50007-0000-4000-8000-000000000003"
+    name: "Slurp Xml"
+    type: "script"
+    properties:
+      script: |-
+        // script-libraries-xml/slurp-xml
+        // The document is put back on the body unchanged, so the parser below reads the same bytes
+        // this one did rather than a rendering of the GPath.
+        def document = exchange.getIn().getBody(String.class)
+        def root = new groovy.xml.XmlSlurper().parseText(document)
+        exchange.getIn().setHeader('e2e-xml-slurper-token', root.token.text())
+        exchange.getIn().setHeader('e2e-xml-slurper-items', root.item.size().toString())
+        exchange.getIn().setBody(document)
+  - id: "e2e50007-0000-4000-8000-000000000004"
+    name: "Parse Xml"
+    type: "script"
+    properties:
+      script: |-
+        // script-libraries-xml/parse-xml
+        // XmlParser answers a groovy.util.Node tree, which is what separates it from the slurper
+        // above: the class is reported so the answer says which parser produced which reading.
+        def root = new groovy.xml.XmlParser().parseText(exchange.getIn().getBody(String.class))
+        def message = exchange.getIn()
+        exchange.getIn().setBody('{"slurperToken":"' + message.getHeader('e2e-xml-slurper-token') + '","slurperItems":' + message.getHeader('e2e-xml-slurper-items') + ',"parserToken":"' + root.token.text() + '","parserItems":' + root.item.size() + ',"parserClass":"' + root.getClass().getName() + '"}')
+  dependencies:
+  - from: "e2e50007-0000-4000-8000-000000000002"
+    to: "e2e50007-0000-4000-8000-000000000003"
+  - from: "e2e50007-0000-4000-8000-000000000003"
+    to: "e2e50007-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

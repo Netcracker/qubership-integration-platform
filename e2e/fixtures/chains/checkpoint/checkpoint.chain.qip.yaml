@@ -1,0 +1,43 @@
+---
+id: "e2e00013-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-checkpoint"
+description: "Tier-1 fixture for the Checkpoint element. Deploying it registers a second, generated\
+  \ route for the retry endpoint, and calling the chain saves the exchange context, so the element\
+  \ covers both halves of the checkpoint pair at its defaults."
+content:
+  labels: []
+  elements:
+  - id: "e2e00013-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-checkpoint"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00013-0000-4000-8000-000000000003"
+    name: "Checkpoint"
+    type: "checkpoint"
+    properties:
+      checkpointElementId: "e2e00013-0000-4000-8000-000000000003"
+      contextPath: "/chains/e2e00013-0000-4000-8000-000000000001/sessions/{checkpointSessionId}/checkpoint-elements/e2e00013-0000-4000-8000-000000000003/retry"
+      externalRoute: false
+      httpMethodRestrict: "POST"
+  - id: "e2e00013-0000-4000-8000-000000000004"
+    name: "After Checkpoint"
+    type: "script"
+    properties:
+      script: "exchange.getMessage().setBody('{\"checkpoint\":\"passed\"}')"
+  dependencies:
+  - from: "e2e00013-0000-4000-8000-000000000002"
+    to: "e2e00013-0000-4000-8000-000000000003"
+  - from: "e2e00013-0000-4000-8000-000000000003"
+    to: "e2e00013-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

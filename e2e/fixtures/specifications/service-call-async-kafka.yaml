@@ -1,0 +1,27 @@
+asyncapi: 2.6.0
+info:
+  title: E2E Service Call Kafka
+  version: 1.0.0
+servers:
+  production:
+    url: kafka:29092
+    protocol: kafka
+channels:
+  e2e-{{RUN}}-service-call-kafka-publish:
+    publish:
+      operationId: e2eServiceCallKafkaPublish
+      message:
+        payload:
+          type: object
+          properties:
+            ping:
+              type: string
+  e2e-{{RUN}}-service-call-kafka-subscribe:
+    subscribe:
+      operationId: e2eServiceCallKafkaSubscribe
+      message:
+        payload:
+          type: object
+          properties:
+            ping:
+              type: string
