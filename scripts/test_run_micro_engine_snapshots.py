@@ -115,7 +115,7 @@ class SnapshotRunnerTest(unittest.TestCase):
                 "-nsu",
                 "test",
             ],
-            commands[0]["args"][len(MAVEN_OPTIONS) :],
+            commands[0]["args"][len(MAVEN_OPTIONS):],
         )
 
     def test_preserves_maven_failure_exit_code(self):
