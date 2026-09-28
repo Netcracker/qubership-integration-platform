@@ -70,6 +70,8 @@ The Python 3 launcher is an optional wrapper around the same Maven command:
 python3 scripts/run-micro-engine-snapshots.py --workers 2 -- -Dsnapshot.target=kafka-sender
 ```
 
+The launcher prefers the repository's Maven Wrapper (`mvnw` or `mvnw.cmd`).
+If the wrapper file is absent, it runs `mvn` from `PATH`.
 Pass Maven options after `--`, including `-s`, `-nsu`, and `-Dsnapshot.bundle.directory`.
 The launcher starts one Maven process, which manages compilation and the worker JVMs.
 The fresh-bundle script `scripts/test-micro-engine-snapshots.sh` also uses six workers by default;
@@ -465,7 +467,7 @@ imply a route failure. Declare route failures separately with `expectedFailure`.
 `expectedRequest.headers` checks AMQP user headers. With `count: 0`, it checks prepared
 Camel headers before the send. `expectedRequest.properties`
 checks Camel exchange properties captured before the send. Binary user header values
-use Base64 strings in expectations; nested maps and lists retain their structure.
+use base64 strings in expectations; nested maps and lists retain their structure.
 
 RabbitMQ `response.properties` accepts these controls:
 

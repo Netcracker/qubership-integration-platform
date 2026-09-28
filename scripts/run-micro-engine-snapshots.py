@@ -3,8 +3,8 @@
 
 import argparse
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 
 def positive_integer(value):
@@ -26,14 +26,15 @@ def main():
 
     repo_root = Path(__file__).resolve().parent.parent
     wrapper = repo_root / ("mvnw.cmd" if os.name == "nt" else "mvnw")
-    command = [str(wrapper), "-q", "-B", "-Dstyle.color=never", "-pl", "micro-engine",
+    maven_executable = str(wrapper) if wrapper.is_file() else "mvn"
+    command = [maven_executable, "-q", "-B", "-Dstyle.color=never", "-pl", "micro-engine",
                "-PsnapshotTests", "-Dgpg.skip=true", f"-Dsnapshot.workers={arguments.workers}",
                *maven_arguments, "test"]
     try:
         os.chdir(repo_root)
-        os.execv(wrapper, command)
+        os.execvp(maven_executable, command)
     except OSError as error:
-        print(f"Cannot start Maven: {error}", file=sys.stderr)
+        print(f"Cannot start Maven '{maven_executable}': {error}", file=sys.stderr)
         return 1
 
 
