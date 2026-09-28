@@ -29,6 +29,7 @@ import org.qubership.integration.platform.runtime.catalog.model.consul.txn.reque
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.request.TxnRequest;
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.request.TxnVerb;
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.response.TxnResponse;
+import org.qubership.integration.platform.runtime.catalog.secrets.PodSecrets;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -48,6 +49,7 @@ import java.util.Map;
 public class ConsulClient {
     public static final int MAX_TXN_SIZE = 64;
     public static final String CONSUL_TOKEN_HEADER = "X-Consul-Token";
+    public static final String CONSUL_TOKEN_SECRET_PROPERTY = "CONSUL_ADMIN_TOKEN";
     public static final String CONSUL_INDEX_HEADER = "X-Consul-Index";
     public static final String CONSUL_KV_PATH = "/v1/kv";
     public static final String CONSUL_TXN_PATH = "/v1/txn";
@@ -232,7 +234,12 @@ public class ConsulClient {
     private HttpHeaders buildCommonHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(CONSUL_TOKEN_HEADER, consulToken);
+        headers.set(CONSUL_TOKEN_HEADER, resolveConsulToken());
         return headers;
+    }
+
+    private String resolveConsulToken() {
+        String token = PodSecrets.read(CONSUL_TOKEN_SECRET_PROPERTY);
+        return token == null ? consulToken : token;
     }
 }

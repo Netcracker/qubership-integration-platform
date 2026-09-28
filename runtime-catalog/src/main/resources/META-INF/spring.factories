@@ -1,2 +1,4 @@
 org.springframework.boot.context.config.ConfigDataLocationResolver=\
 org.qubership.integration.platform.runtime.catalog.consul.ConsulUrlWithSchemaDataLocationResolver
+org.springframework.boot.env.EnvironmentPostProcessor=\
+org.qubership.integration.platform.runtime.catalog.secrets.PodSecretsEnvironmentPostProcessor

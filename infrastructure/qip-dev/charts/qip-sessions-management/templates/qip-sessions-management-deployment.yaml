@@ -87,4 +87,12 @@ spec:
           ports:
             - containerPort: 8080
           resources: {}
+          volumeMounts:
+            - name: pod-secrets
+              mountPath: /etc/secrets/pod-secrets
+              readOnly: true
+      volumes:
+        - name: pod-secrets
+          secret:
+            secretName: {{ .Release.Name }}-sessions-management-pod-secrets
       restartPolicy: Always

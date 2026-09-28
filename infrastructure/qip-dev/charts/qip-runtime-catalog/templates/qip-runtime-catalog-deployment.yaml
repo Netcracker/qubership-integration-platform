@@ -150,4 +150,12 @@ spec:
           ports:
             - containerPort: 8080
             - containerPort: 5005
+          volumeMounts:
+            - name: pod-secrets
+              mountPath: /etc/secrets/pod-secrets
+              readOnly: true
+      volumes:
+        - name: pod-secrets
+          secret:
+            secretName: {{ .Release.Name }}-runtime-catalog-pod-secrets
       restartPolicy: Always

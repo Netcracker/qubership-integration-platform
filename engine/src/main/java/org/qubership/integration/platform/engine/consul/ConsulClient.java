@@ -22,6 +22,7 @@ import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.model.consul.CreateSessionRequest;
 import org.qubership.integration.platform.engine.model.consul.CreateSessionResponse;
 import org.qubership.integration.platform.engine.model.consul.KeyResponse;
+import org.qubership.integration.platform.engine.secrets.PodSecrets;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -39,6 +40,7 @@ import java.util.Map;
 @Component
 public class ConsulClient {
     public static final String CONSUL_TOKEN_HEADER = "X-Consul-Token";
+    public static final String CONSUL_TOKEN_SECRET_PROPERTY = "CONSUL_ADMIN_TOKEN";
     public static final String CONSUL_INDEX_HEADER = "X-Consul-Index";
     public static final String CONSUL_KV_PATH = "/v1/kv";
     public static final String CREATE_SESSION_PATH = "/v1/session/create";
@@ -170,7 +172,12 @@ public class ConsulClient {
     private HttpHeaders buildCommonHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(CONSUL_TOKEN_HEADER, consulToken);
+        headers.set(CONSUL_TOKEN_HEADER, resolveConsulToken());
         return headers;
+    }
+
+    private String resolveConsulToken() {
+        String token = PodSecrets.read(CONSUL_TOKEN_SECRET_PROPERTY);
+        return token == null ? consulToken : token;
     }
 }
