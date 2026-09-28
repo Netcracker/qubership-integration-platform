@@ -204,6 +204,9 @@ checks for untrusted, expired, and mismatched TLS certificates each use a fresh 
 Within a combined scenario, offsets account for earlier records in each topic and partition,
 including retries that produce duplicates and batches that fail after sending some records.
 Unkeyed records with automatic partition selection follow checks that require exact offsets.
+The fixture sets `retention.ms=-1` on every topic it creates or recreates. Records with fixed
+historical timestamps must remain available until the scenario verifies them, even when Kafka
+runs retention cleanup during a long scenario. Explicit topic deletion still works.
 The fixture uploads the broker startup script to a temporary path and publishes it with an
 atomic rename after the upload completes. This prevents `Text file busy` errors when the
 container shell tries to execute a script that Docker is still writing. The plaintext and TLS

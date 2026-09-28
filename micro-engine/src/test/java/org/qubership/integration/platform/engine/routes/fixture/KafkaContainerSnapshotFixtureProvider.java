@@ -455,7 +455,10 @@ class KafkaContainerSnapshotFixtureProvider implements SnapshotFixtureProvider {
         }
 
         private void createTopic(String topic) throws Exception {
-            admin.createTopics(List.of(new NewTopic(topic, topicPartitions, (short) 1)))
+            // Keep records with fixed historical timestamps until the scenario verifies them.
+            NewTopic snapshotTopic = new NewTopic(topic, topicPartitions, (short) 1)
+                    .configs(Map.of(TopicConfig.RETENTION_MS_CONFIG, "-1"));
+            admin.createTopics(List.of(snapshotTopic))
                     .all().get(ADMIN_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             if (usesSasl()) {
                 KafkaSaslSupport.applyTopicAcl(admin, topic, "writer", true);
