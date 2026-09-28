@@ -82,23 +82,23 @@ public class MetricsStore {
 
     private static final int CHAINS_DEPLOYMENTS_NUMBER = 1;
 
-    @ConfigProperty(name = "qip.metrics.prometheus.init.delay")
+    @ConfigProperty(name = "cip.metrics.prometheus.init.delay")
     long lagDelay;
 
     @Getter
-    @ConfigProperty(name = "qip.metrics.enabled")
+    @ConfigProperty(name = "cip.metrics.enabled")
     boolean metricsEnabled;
 
     @Getter
-    @ConfigProperty(name = "qip.metrics.http-payload-metrics.enabled")
+    @ConfigProperty(name = "cip.metrics.http-payload-metrics.enabled")
     boolean httpPayloadMetricsEnabled;
 
     @Getter
-    @ConfigProperty(name = "qip.metrics.http-payload-metrics.buckets")
+    @ConfigProperty(name = "cip.metrics.http-payload-metrics.buckets")
     double[] httpPayloadMetricsBuckets;
 
     @Getter
-    @ConfigProperty(name = "qip.metrics.session-duration.buckets")
+    @ConfigProperty(name = "cip.metrics.session-duration.buckets")
     private Duration[] sessionDurationBuckets;
 
     @Getter

@@ -17,7 +17,7 @@ import org.qubership.integration.platform.engine.service.SdsService;
 @Slf4j
 @OnRouteAdded
 @ApplicationScoped
-@IfBuildProperty(name = "qip.sds.enabled", stringValue = "true")
+@IfBuildProperty(name = "cip.sds.enabled", stringValue = "true")
 public class RegisterSdsSchedulerJobsAction implements EventProcessingAction<CamelEvent.RouteAddedEvent> {
     @Inject
     SdsService sdsService;
