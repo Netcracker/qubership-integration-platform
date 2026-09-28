@@ -1,5 +1,5 @@
 ---
-description: Spring Boot execution engine: architecture, deployment lifecycle, datasources, and build.
+description: "Spring Boot execution engine: architecture, deployment lifecycle, datasources, and build."
 globs: "engine/**"
 ---
 

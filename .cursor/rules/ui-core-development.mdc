@@ -1,5 +1,5 @@
 ---
-description: Core development guidance for the QIP UI workspace.
+description: "Core development guidance for the QIP UI workspace."
 globs: "ui/**/*.{ts,tsx,js,jsx,css,scss,json,md}"
 ---
 

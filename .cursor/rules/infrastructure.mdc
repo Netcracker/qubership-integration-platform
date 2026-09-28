@@ -1,5 +1,5 @@
 ---
-description: Local Docker Compose and Helm stack: commands, ports, and layout.
+description: "Local Docker Compose and Helm stack: commands, ports, and layout."
 globs: "infrastructure/**"
 ---
 

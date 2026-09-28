@@ -1,5 +1,5 @@
 ---
-description: Sessions management service: architecture over OpenSearch, build, and configuration.
+description: "Sessions management service: architecture over OpenSearch, build, and configuration."
 globs: "sessions-management/**"
 ---
 
