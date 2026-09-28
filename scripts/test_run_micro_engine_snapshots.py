@@ -107,6 +107,7 @@ class SnapshotRunnerTest(unittest.TestCase):
         self.assertEqual(1, len(commands))
         self.assertEqual(
             [
+                *MAVEN_OPTIONS,
                 "-Dsnapshot.workers=3",
                 "-Dsnapshot.target=kafka-sender",
                 "-Dsnapshot.scenario=publishes-gzip-compressed-records",
@@ -115,7 +116,7 @@ class SnapshotRunnerTest(unittest.TestCase):
                 "-nsu",
                 "test",
             ],
-            commands[0]["args"][len(MAVEN_OPTIONS):],
+            commands[0]["args"],
         )
 
     def test_preserves_maven_failure_exit_code(self):
