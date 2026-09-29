@@ -44,7 +44,7 @@ import javax.annotation.Nullable;
 @Component
 public class ConsulService {
 
-    private static final String SESSION_PREFIX = "qip-engine-session-";
+    private static final String SESSION_PREFIX = "cip-engine-session-";
     public static final long SESSION_RENEW_DELAY = 30 * 1000;
     public static final String SESSION_TTL_STRING = "60s";
     private static final String WAIT_TIMEOUT_STRING = "20s";
