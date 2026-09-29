@@ -21,7 +21,6 @@ alias. Every other module gets a plain rename.
 - The `qip_engine_app` pod label, the `qip-elements-*` OpenSearch indices, the `…/schemas/product/qip/*` JSON-schema
   URIs, and the `qip.org/cleanup` finalizer.
 - Property values that contain `qip`, such as `/api/v1/qip/engine`, `qip-runtime-catalog`, and `qip-engine-session-`.
-- Environment variables owned by services outside this scope, such as `QIP_AI_*`.
 - Go identifiers such as the `internal/qip` package, and chart or directory names such as `qip-testing-service`.
 
 ## Resolution rule
@@ -118,9 +117,9 @@ Keys under `app.prefix` and `application.prefix` are not in the `qip` namespace 
 | runtime-catalog | `QIP_EXPORT_LEGACY_FORMAT`, `QIP_EXPORT_LEGACY_RESOURCE_NAMES`, `QIP_EXPORT_REMOVE_UNUSED_SPECS`, `QIP_EGRESS_GATEWAY_URL`, `QIP_ISTIO_ENABLED`, `QIP_ISTIO_HOST_RESOURCES_ENABLED`, `QIP_REGISTER_INGRESS_CHAIN_ROUTES`, `QIP_REGISTER_EGRESS_CHAIN_ROUTES` |
 | micro-engine | `QIP_CHAINS_CONFIGURATION_URL`, `QIP_LIBRARIES_PATH`, `QIP_ENGINE_DOMAIN` |
 | integration-build-pipeline | `CamelKIntegrationResourceBuilder` writes `CIP_ENGINE_DOMAIN` and `CIP_CHAINS_CONFIGURATION_URL` into micro-engine pods |
-| integration-build-maven-plugin | `QIP_EGRESS_GATEWAY_URL`, `QIP_ISTIO_HOST_RESOURCES_ENABLED`, `QIP_REGISTER_INGRESS_CHAIN_ROUTES`, `QIP_REGISTER_EGRESS_CHAIN_ROUTES` |
+| integration-build-maven-plugin | `QIP_EGRESS_GATEWAY_URL`, `QIP_ISTIO_HOST_RESOURCES_ENABLED`, `QIP_REGISTER_INGRESS_CHAIN_ROUTES`, `QIP_REGISTER_EGRESS_CHAIN_ROUTES`, `QIP_CATALOG_SERVICE_NAME` |
 | testing-service | `envPrefix = "QIP_TESTING_"` → `"CIP_TESTING_"` in `cmd/testing-service/main.go`, with its comments, `main_test.go`, and the comments in `application.yaml` |
-| infrastructure | `docker-compose.yml` (three `QIP_TESTING_*`), and in the `qip-testing-service` chart `qip-testing-service-deployment.yaml` (`name` and `configMapKeyRef.key`) and `testing-service-env-configmap.yaml` (keys and comment) |
+| infrastructure | `docker-compose.yml` (three `QIP_TESTING_*`), and in the `qip-testing-service` chart `qip-testing-service-deployment.yaml` (`name` and `configMapKeyRef.key`) and `testing-service-env-configmap.yaml` (keys and comment). The commented-out `qip-ai-assistant` block in `docker-compose.yml`: its ten `QIP_AI_*` variables and their `${QIP_AI_…}` host references become `CIP_AI_*`. The ai-assistant service lives in a separate repository and must rename the variables it reads to match. |
 
 ### Documentation
 
