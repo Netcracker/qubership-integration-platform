@@ -81,7 +81,7 @@ public class MicroDomainResourceBuildContextFactory {
 
             AuditorAware<User> auditor,
 
-            @Value("${qip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
+            @Value("${cip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
     ) {
         this.snapshotRepository = snapshotRepository;
         this.microDomainService = microDomainService;
@@ -316,7 +316,7 @@ public class MicroDomainResourceBuildContextFactory {
      * and seeded; {@code EgressRouteResourceBuilder} looks up only the keys it actually needs.
      *
      * <p>Skipping this call is safe only while {@code EgressRouteResourceBuilder} skips generating
-     * those resources, which is why both read the same {@code qip.istio.host-resources.enabled}.
+     * those resources, which is why both read the same {@code cip.istio.host-resources.enabled}.
      * Keep the two gates in step. A build that generates a {@code ServiceEntry} or
      * {@code DestinationRule} from an unseeded cache sees an empty existing spec, and since the
      * document is written with a PUT, every field it does not carry is deleted from the cluster --

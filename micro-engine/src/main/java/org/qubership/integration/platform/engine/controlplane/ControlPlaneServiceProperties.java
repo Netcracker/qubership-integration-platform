@@ -3,7 +3,7 @@ package org.qubership.integration.platform.engine.controlplane;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 
-@ConfigMapping(prefix = "qip.control-plane")
+@ConfigMapping(prefix = "cip.control-plane")
 public interface ControlPlaneServiceProperties {
     EgressProperties egress();
 

@@ -42,7 +42,7 @@ public class SystemModelDtoMapper {
 
     @Autowired
     public SystemModelDtoMapper(
-            @Value("${qip.json.schemas.specification:http://qubership.org/schemas/product/qip/specification}") URI schemaUri
+            @Value("${cip.json.schemas.specification:http://qubership.org/schemas/product/qip/specification}") URI schemaUri
     ) {
         this.schemaUri = schemaUri;
     }

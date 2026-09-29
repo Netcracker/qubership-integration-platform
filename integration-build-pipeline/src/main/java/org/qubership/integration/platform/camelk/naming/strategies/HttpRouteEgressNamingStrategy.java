@@ -27,7 +27,7 @@ public class HttpRouteEgressNamingStrategy extends K8sResourceNamingStrategy<Res
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-            @Value("${qip.cr.naming.http-route.egress-suffix:-egress-routes}")
+            @Value("${cip.cr.naming.http-route.egress-suffix:-egress-routes}")
             String suffix
     ) {
         super(nameVerifier);

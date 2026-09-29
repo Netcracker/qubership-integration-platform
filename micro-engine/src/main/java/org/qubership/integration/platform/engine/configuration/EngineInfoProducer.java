@@ -11,7 +11,7 @@ import java.net.UnknownHostException;
 
 @Slf4j
 public class EngineInfoProducer {
-    @ConfigProperty(name = "qip.engine.domain")
+    @ConfigProperty(name = "cip.engine.domain")
     String domain;
 
     @Produces

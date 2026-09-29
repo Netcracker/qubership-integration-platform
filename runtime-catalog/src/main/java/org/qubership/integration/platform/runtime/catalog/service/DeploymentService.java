@@ -92,13 +92,13 @@ public class DeploymentService {
     private final org.qubership.integration.platform.camelk.services.RoutesGetterService routesGetterService;
     private final IntegrationServiceCatalog integrationServiceCatalog;
 
-    @Value("${qip.chains.triggers.check.enabled}")
+    @Value("${cip.chains.triggers.check.enabled}")
     private boolean triggersCheckEnabled;
 
-    @Value("${qip.control-plane.chain-routes-registration.egress-gateway:true}")
+    @Value("${cip.control-plane.chain-routes-registration.egress-gateway:true}")
     private boolean registerOnEgress;
 
-    @Value("${qip.control-plane.chain-routes-registration.ingress-gateways:true}")
+    @Value("${cip.control-plane.chain-routes-registration.ingress-gateways:true}")
     private boolean registerOnIncomingGateways;
 
     // <id, userId, message, type, optionalFields>

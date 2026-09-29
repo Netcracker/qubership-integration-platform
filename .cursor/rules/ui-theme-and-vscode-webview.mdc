@@ -1,5 +1,5 @@
 ---
-description: Theme and VS Code webview guidance for QIP UI.
+description: "Theme and VS Code webview guidance for QIP UI."
 globs: "ui/**/*.{ts,tsx,css,scss}"
 ---
 

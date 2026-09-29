@@ -72,8 +72,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         }
 )
 @TestPropertySource(properties = {
-        "qip.gateway.egress.protocol=http",
-        "qip.gateway.egress.url=egress-gateway:8080"
+        "cip.gateway.egress.protocol=http",
+        "cip.gateway.egress.url=egress-gateway:8080"
 })
 @ExtendWith(SpringExtension.class)
 @ExtendWith(MockitoExtension.class)

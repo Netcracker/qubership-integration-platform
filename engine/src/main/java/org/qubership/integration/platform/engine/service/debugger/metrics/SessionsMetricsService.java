@@ -48,7 +48,7 @@ public class SessionsMetricsService {
     private static final String UNABLE_TO_RETRIEVE_SESSION_METRICS_ERROR_MESSAGE = "Unable to retrieve session metrics from opensearch";
     private static final String UNABLE_TO_RETRIEVE_CHECKPOINTS_METRICS_ERROR_MESSAGE = "Unable to retrieve checkpoints metrics from postgres";
 
-    @Value("${qip.opensearch.index.elements.name}")
+    @Value("${cip.opensearch.index.elements.name}")
     private String indexName;
 
     private final MetricsStore metricsStore;

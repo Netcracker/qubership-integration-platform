@@ -16,7 +16,7 @@ This directory contains Docker compose files designed to run Qubership Integrati
 
 `test-service-type-roundtrip.sh` exercises the service file format against the running stack. It creates one service of
 each of the five kinds, exports and re-imports them in the current format — checking both halves of the format, the
-file name and the `$schema` that states the type — then repeats the export with `QIP_EXPORT_LEGACY_FORMAT=true` and
+file name and the `$schema` that states the type — then repeats the export with `CIP_EXPORT_LEGACY_FORMAT=true` and
 checks what survives the downgrade: plain services only.
 
 ```bash

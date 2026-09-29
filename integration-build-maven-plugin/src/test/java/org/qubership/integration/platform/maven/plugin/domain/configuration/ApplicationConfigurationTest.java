@@ -20,8 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 
 class ApplicationConfigurationTest {
-    private static final String MESH_TYPE_PROPERTY = "qip.control-plane.mesh-type";
-    private static final String ISTIO_ENABLED_PROPERTY = "qip.istio.enabled";
+    private static final String MESH_TYPE_PROPERTY = "cip.control-plane.mesh-type";
+    private static final String ISTIO_ENABLED_PROPERTY = "cip.istio.enabled";
 
     @AfterEach
     void clearProperties() {

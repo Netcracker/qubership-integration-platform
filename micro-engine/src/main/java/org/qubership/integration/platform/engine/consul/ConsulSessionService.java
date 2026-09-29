@@ -25,7 +25,7 @@ public class ConsulSessionService {
     public static final String CREATE_SESSION_EVENT = "consul-session-created";
 
     private static final String SESSION_RENEW_INTERVAL = "30s";
-    private static final String SESSION_PREFIX = "qip-engine-session-";
+    private static final String SESSION_PREFIX = "cip-engine-session-";
     private static final SessionBehavior SESSION_BEHAVIOR = SessionBehavior.DELETE;
     private static final long SESSION_TTL = 60;
     private static final long CONSUL_AWAIT_BUFFER_MS = 1_000;

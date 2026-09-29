@@ -48,7 +48,7 @@ import static java.util.Objects.isNull;
 @Slf4j
 @Component
 @ConditionalOnProperty(
-    name = "qip.camel.component.rabbitmq.predeploy-check-enabled",
+    name = "cip.camel.component.rabbitmq.predeploy-check-enabled",
     havingValue = "true",
     matchIfMissing = true
 )

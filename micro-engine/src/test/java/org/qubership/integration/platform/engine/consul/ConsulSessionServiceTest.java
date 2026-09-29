@@ -68,7 +68,7 @@ class ConsulSessionServiceTest {
         verify(consulClient).createSessionWithOptions(optionsCaptor.capture());
 
         SessionOptions options = optionsCaptor.getValue();
-        assertTrue(options.getName().startsWith("qip-engine-session-"));
+        assertTrue(options.getName().startsWith("cip-engine-session-"));
         assertEquals(60L, options.getTtl());
         assertEquals(SessionBehavior.DELETE, options.getBehavior());
     }

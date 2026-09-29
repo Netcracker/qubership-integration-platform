@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "qip.opensearch.kafka-client.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "cip.opensearch.kafka-client.enabled", havingValue = "false", matchIfMissing = true)
 public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnable {
 
     private final long queueMaxSizeBytes;
@@ -63,13 +63,13 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
 
     private long currentWriteTimeout = 0;
 
-    @Value("${qip.opensearch.write.batch.count}")
+    @Value("${cip.opensearch.write.batch.count}")
     private int queueDrainThreshold;
-    @Value("${qip.opensearch.write.retry.timeout.minimum}")
+    @Value("${cip.opensearch.write.retry.timeout.minimum}")
     private long writeTimeoutDefaultMin;
-    @Value("${qip.opensearch.write.retry.timeout.maximum}")
+    @Value("${cip.opensearch.write.retry.timeout.maximum}")
     private long writeTimeoutDefaultMax;
-    @Value("${qip.opensearch.index.elements.name}-session-elements")
+    @Value("${cip.opensearch.index.elements.name}-session-elements")
     private String indexName;
 
     private static final int EXCEPTION_COOLDOWN_DELAY = 10000;
@@ -80,11 +80,11 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
     private static final int RETRY_COUNT_ON_WRITE_ERROR = 5;
 
     @Autowired
-    public OpenSearchWriterDefault(@Value("${qip.sessions.queue.capacity}") int sessionBufferCapacity,
-                                   @Value("${qip.sessions.queue.max-size-mb}") int queueMaxSizeMb,
-                                   @Value("${qip.sessions.bulk-request.max-size-kb}") int bulkRequestMaxSizeKb,
-                                   @Value("${qip.sessions.bulk-request.payload-size-threshold-kb}") int bulkRequestPayloadSizeThresholdKb,
-                                   @Value("${qip.sessions.bulk-request.elements-count-threshold}") int bulkRequestElementsCountThreshold,
+    public OpenSearchWriterDefault(@Value("${cip.sessions.queue.capacity}") int sessionBufferCapacity,
+                                   @Value("${cip.sessions.queue.max-size-mb}") int queueMaxSizeMb,
+                                   @Value("${cip.sessions.bulk-request.max-size-kb}") int bulkRequestMaxSizeKb,
+                                   @Value("${cip.sessions.bulk-request.payload-size-threshold-kb}") int bulkRequestPayloadSizeThresholdKb,
+                                   @Value("${cip.sessions.bulk-request.elements-count-threshold}") int bulkRequestElementsCountThreshold,
                                    DbaasOpensearchClient dbaasOpenSearchClient,
                                    @Qualifier("jsonMapper") ObjectMapper mapper) {
         sessionElementsQueue = new LinkedBlockingQueue<>(sessionBufferCapacity);

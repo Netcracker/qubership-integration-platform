@@ -102,7 +102,7 @@ public class ChainImportService {
     private final ChainModelMapper chainModelMapper;
     private final ChainReader chainReader;
 
-    @Value("${qip.build.artifact-descriptor-version}")
+    @Value("${cip.build.artifact-descriptor-version}")
     private String artifactDescriptorVersion;
     @Value("${app.prefix}")
     private String appName;

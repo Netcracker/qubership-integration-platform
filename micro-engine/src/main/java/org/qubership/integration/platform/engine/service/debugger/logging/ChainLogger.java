@@ -29,7 +29,7 @@ import org.qubership.integration.platform.engine.service.debugger.tracing.Tracin
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 
 @ApplicationScoped
-@IfBuildProperty(name = "qip.logging.format", stringValue = "text")
+@IfBuildProperty(name = "cip.logging.format", stringValue = "text")
 public class ChainLogger extends AbstractChainLogger {
     private static final String LOG_EXCHANGE_FORMAT = "Headers: {}, body: {}, exchange properties: {}";
 

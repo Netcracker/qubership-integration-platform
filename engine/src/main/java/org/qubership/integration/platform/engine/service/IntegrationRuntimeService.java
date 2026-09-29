@@ -137,7 +137,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                 (CircuitBreakerDefinition) definition));
     }
 
-    @Value("${qip.camel.stream-caching.enabled}")
+    @Value("${cip.camel.stream-caching.enabled}")
     private boolean enableStreamCaching;
 
     private final int streamCachingBufferSize;
@@ -156,7 +156,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         EngineStateReporter engineStateReporter,
         @Qualifier("deploymentExecutor") Executor deploymentExecutor,
         CamelDebuggerPropertiesService propertiesService,
-        @Value("${qip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
+        @Value("${cip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
         Predicate<FilteringEntity> camelMessageHistoryFilter,
         DeploymentReadinessService deploymentReadinessService,
         DeploymentProcessingService deploymentProcessingService,

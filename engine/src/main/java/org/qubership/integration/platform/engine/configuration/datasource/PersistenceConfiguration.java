@@ -11,7 +11,7 @@ import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration
 @EnableConfigurationProperties({DbaasPostgresDataSourceProperties.class})
-@ConditionalOnProperty(value = "qip.standalone", havingValue = "false")
+@ConditionalOnProperty(value = "cip.standalone", havingValue = "false")
 public class PersistenceConfiguration {
 
     @Bean

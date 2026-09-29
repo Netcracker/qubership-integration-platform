@@ -119,13 +119,13 @@ public class MicroDomainService {
 
     private final IntegrationServiceCatalog integrationServiceCatalog;
 
-    @Value("${qip.chains.external-routes.base-path}")
+    @Value("${cip.chains.external-routes.base-path}")
     String baseRoutePrefix;
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")
@@ -141,7 +141,7 @@ public class MicroDomainService {
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
             GenericCustomResources genericCustomResources,
             IntegrationServiceCatalog integrationServiceCatalog,
-            @Value("${qip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled,
+            @Value("${cip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled,
             RoutesGetterService routesGetterService,
             SnapshotRepository snapshotRepository,
             @Qualifier("httpRoutePublicNamingStrategy")

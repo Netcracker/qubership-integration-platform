@@ -34,8 +34,8 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
-@ConditionalOnProperty(name = "qip.istio.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "cip.control-plane.mesh-type", havingValue = "Istio")
+@ConditionalOnProperty(name = "cip.istio.enabled", havingValue = "true")
 public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     public static final String EGRESS_HTTP_ROUTE_CACHE_KEY = "egressHttpRoute";
     private static final String ROUTES_CACHE_KEY = "egressRouteResourceBuilder.routes";
@@ -53,19 +53,19 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
 
-    @Value("${qip.gateway.egress.name}")
+    @Value("${cip.gateway.egress.name}")
     String egressGatewayName;
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")
     String bgVersion;
 
-    @Value("${qip.istio.host-resources.enabled:true}")
+    @Value("${cip.istio.host-resources.enabled:true}")
     boolean hostResourcesEnabled;
 
     @Autowired

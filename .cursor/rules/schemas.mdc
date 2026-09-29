@@ -1,5 +1,5 @@
 ---
-description: JSON Schema sources and the ts-node build and codegen pipeline.
+description: "JSON Schema sources and the ts-node build and codegen pipeline."
 globs: "schemas/**"
 ---
 

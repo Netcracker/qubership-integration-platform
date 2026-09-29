@@ -13,7 +13,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Component("controlPlaneService")
-@ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(value = "cip.control-plane.enabled", havingValue = "false", matchIfMissing = true)
 public class ControlPlaneDevService implements ControlPlaneService {
 
     public List<RouteConfigurationResponse> getRoutesList() throws JsonProcessingException, ControlPlaneException, RestClientException {

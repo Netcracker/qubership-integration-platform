@@ -29,13 +29,13 @@ import java.util.stream.IntStream;
 
 @Component
 public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Snapshot>> {
-    private static final String QIP_CHAINS_CONFIGURATION_PATH = "/etc/integrations-config.yaml";
+    private static final String CIP_CHAINS_CONFIGURATION_PATH = "/etc/integrations-config.yaml";
     private static final String TEMPLATE_NAME = "integration";
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")
@@ -161,7 +161,7 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         if (context.getBuildInfo().getOptions().getIntegrations().isConfigurationConfigMapNeeded()) {
             String name = integrationsConfigurationConfigMapNamingStrategy.getName(context);
             String resource = String.format("configmap:%s/%s@%s", name,
-                    IntegrationsConfigurationConfigMapBuilder.CONTENT_KEY, QIP_CHAINS_CONFIGURATION_PATH);
+                    IntegrationsConfigurationConfigMapBuilder.CONTENT_KEY, CIP_CHAINS_CONFIGURATION_PATH);
             resources.add(resource);
         }
         Set<String> result = new HashSet<>(context.getBuildInfo().getOptions().getMount().getResources());
@@ -191,11 +191,11 @@ public class CamelKIntegrationResourceBuilder implements ResourceBuilder<List<Sn
         Map<String, String> environment = new HashMap<>(context.getBuildInfo().getOptions().getEnvironment());
         environment.put("CLOUD_SERVICE_NAME", cloudServiceNamingStrategy.getName(context));
         environment.put("BG_VERSION", bgVersion);
-        environment.put("QIP_ENGINE_DOMAIN", context.getBuildInfo().getOptions().getName());
+        environment.put("CIP_ENGINE_DOMAIN", context.getBuildInfo().getOptions().getName());
         if (!context.getBuildInfo().getOptions().getIntegrations().isCamelKSourcesUtilized()) {
             String location = context.getBuildInfo().getOptions().getIntegrations().getConfigurationLocation();
-            environment.put("QIP_CHAINS_CONFIGURATION_URL",
-                    StringUtils.isBlank(location) ? "file:" + QIP_CHAINS_CONFIGURATION_PATH : location);
+            environment.put("CIP_CHAINS_CONFIGURATION_URL",
+                    StringUtils.isBlank(location) ? "file:" + CIP_CHAINS_CONFIGURATION_PATH : location);
         }
         return environment
                 .entrySet()

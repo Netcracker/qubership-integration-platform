@@ -40,7 +40,7 @@ public class MicroserviceRestTemplateAutoConfiguration {
     private final Duration defaultRestTemplateTimeout;
 
     @Autowired
-    public MicroserviceRestTemplateAutoConfiguration(@Value("${qip.restclient.timeout}") long restTemplateTimeout) {
+    public MicroserviceRestTemplateAutoConfiguration(@Value("${cip.restclient.timeout}") long restTemplateTimeout) {
         defaultRestTemplateTimeout = Duration.ofMillis(restTemplateTimeout);
     }
 

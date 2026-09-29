@@ -19,7 +19,7 @@ blue-green:
     enabled: ${BLUEGREEN_ENABLED:false}
   state-monitor:
     dev:
-      enabled: ${qip.standalone:false}
+      enabled: ${cip.standalone:false}
 
 spring:
   autoconfigure:
@@ -228,8 +228,8 @@ camel:
     bean:
       bean-info-cache-size: 30 # until took the fix from https://issues.apache.org/jira/browse/CAMEL-22775
     kafka: # new parameters will not be automatically set to 'kafka-custom' element, need to change KafkaCustomComponentConfiguration
-      ssl-truststore-location: ${qip.local-truststore.store.path}
-      ssl-truststore-password: ${qip.local-truststore.store.password}
+      ssl-truststore-location: ${cip.local-truststore.store.path}
+      ssl-truststore-password: ${cip.local-truststore.store.password}
       ssl-truststore-type: JKS
     metrics:
       metric-registry: io.micrometer.prometheus.PrometheusMeterRegistry
@@ -242,7 +242,7 @@ camel:
     request-filter-header:
       name: 'requestFilterHeaderAllowlist'
 
-qip:
+cip:
   variables:
     default-secret:
       enabled: ${DEFAULT_SECRET_ENABLED:false}
@@ -278,9 +278,9 @@ qip:
     internal:
       name: internal-gateway-service
   istio:
-    enabled: ${QIP_ISTIO_ENABLED:true}
+    enabled: ${CIP_ISTIO_ENABLED:true}
     host-resources:
-      enabled: ${QIP_ISTIO_HOST_RESOURCES_ENABLED:true}
+      enabled: ${CIP_ISTIO_HOST_RESOURCES_ENABLED:true}
   control-plane:
     enabled: ${CONTROL_PLANE_ENABLED:false}
     mesh-type: ${SERVICE_MESH_TYPE:Core}
@@ -310,7 +310,7 @@ qip:
           maximum: 300000
     index:
       elements:
-        name: qip-elements-${spring.application.namespace}
+        name: ${app.prefix}-elements-${spring.application.namespace}
         shards: ${OPENSEARCH_INDEX_SHARDS:3}
     rollover:
       min_index_age: 1d
@@ -338,7 +338,7 @@ qip:
       capacity: 10000
     bulk-request:
       max-size-kb: 4096
-      payload-size-threshold-kb: ${qip.sessions.bulk-request.max-size-kb}
+      payload-size-threshold-kb: ${cip.sessions.bulk-request.max-size-kb}
       elements-count-threshold: 2
     checkpoints:
       cleanup:
@@ -370,7 +370,7 @@ qip:
     expired-records-cleanup-cron: ${IDEMPOTENCY_RECORDS_CLEANUP_CRON:0 */5 * ? * *}
   chains:
     external-routes:
-      base-path: ${qip.camel.routes.prefix}
+      base-path: ${cip.camel.routes.prefix}
 
 kubernetes:
   devmode: ${KUBE_DEV_MODE:false}

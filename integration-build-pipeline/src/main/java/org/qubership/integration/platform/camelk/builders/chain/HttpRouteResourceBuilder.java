@@ -31,8 +31,8 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
-@ConditionalOnProperty(name = "qip.istio.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "cip.control-plane.mesh-type", havingValue = "Istio")
+@ConditionalOnProperty(name = "cip.istio.enabled", havingValue = "true")
 public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     public static final String PUBLIC_HTTP_ROUTE_CACHE_KEY = "publicHttpRoute";
     public static final String PRIVATE_HTTP_ROUTE_CACHE_KEY = "privateHttpRoute";
@@ -49,19 +49,19 @@ public class HttpRouteResourceBuilder implements ResourceBuilder<List<Snapshot>>
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
 
-    @Value("${qip.chains.external-routes.base-path}")
+    @Value("${cip.chains.external-routes.base-path}")
     String baseRoutePrefix;
 
-    @Value("${qip.gateway.public.name}")
+    @Value("${cip.gateway.public.name}")
     String publicGatewayName;
 
-    @Value("${qip.gateway.private.name}")
+    @Value("${cip.gateway.private.name}")
     String privateGatewayName;
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")

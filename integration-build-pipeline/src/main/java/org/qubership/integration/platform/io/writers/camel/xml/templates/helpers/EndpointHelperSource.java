@@ -39,16 +39,16 @@ import static org.qubership.integration.platform.library.constants.CamelOptions.
 @TemplatesHelper
 public class EndpointHelperSource {
 
-    @Value("${qip.gateway.egress.url}")
+    @Value("${cip.gateway.egress.url}")
     private String gatewayUrl;
 
-    @Value("${qip.gateway.egress.protocol}")
+    @Value("${cip.gateway.egress.protocol}")
     private String gatewayProtocol;
 
-    @Value("${qip.control-plane.chain-routes-registration.egress-gateway:true}")
+    @Value("${cip.control-plane.chain-routes-registration.egress-gateway:true}")
     private boolean registerOnEgress;
 
-    @Value("${qip.gateway.service-path-prefix:/qip/}")
+    @Value("${cip.gateway.service-path-prefix:/qip/}")
     private String gatewayServicePathPrefix;
 
     private static final String ADDRESS_IS_EMPTY_MSG = "Please fill environment address field on the service.";

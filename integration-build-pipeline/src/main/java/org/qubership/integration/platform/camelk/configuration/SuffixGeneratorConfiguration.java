@@ -9,7 +9,7 @@ import java.util.function.Function;
 
 @AutoConfiguration
 public class SuffixGeneratorConfiguration {
-    @Value("${qip.cr.naming.chain.suffix-length:7}")
+    @Value("${cip.cr.naming.chain.suffix-length:7}")
     private int suffixLength;
 
     @Bean("suffixGenerator")
