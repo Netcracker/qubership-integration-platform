@@ -310,7 +310,7 @@ cip:
           maximum: 300000
     index:
       elements:
-        name: qip-elements-${spring.application.namespace}
+        name: ${app.prefix}-elements-${spring.application.namespace}
         shards: ${OPENSEARCH_INDEX_SHARDS:3}
     rollover:
       min_index_age: 1d
