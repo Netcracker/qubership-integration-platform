@@ -189,6 +189,16 @@ public class TemplateServiceTest {
                 //         "/testData/output/builder/templates/mapper_2.xml"
                 // ),
                 Arguments.of(
+                        "PubSub Sender element",
+                        "/testData/input/builder/templates/pubsub_sender.yml",
+                        "/testData/output/builder/templates/pubsub_sender.xml"
+                ),
+                Arguments.of(
+                        "PubSub Sender element with message ordering",
+                        "/testData/input/builder/templates/pubsub_sender_ordering.yml",
+                        "/testData/output/builder/templates/pubsub_sender_ordering.xml"
+                ),
+                Arguments.of(
                         "Quartz Scheduler element",
                         "/testData/input/builder/templates/quartz_scheduler.yml",
                         "/testData/output/builder/templates/quartz_scheduler.xml"
