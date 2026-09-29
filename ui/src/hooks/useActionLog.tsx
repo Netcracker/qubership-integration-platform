@@ -71,11 +71,14 @@ export const useActionLog = (
     await queryClient.resetQueries({ queryKey: ["actionLogs", filters] });
   }, [queryClient, filters]);
 
+  const { fetchNextPage: fetchNextQueryPage } = actionLogsQuery;
+  const fetchNextPage = useCallback(async () => {
+    await fetchNextQueryPage();
+  }, [fetchNextQueryPage]);
+
   return {
     logsData,
-    fetchNextPage: async () => {
-      await actionLogsQuery.fetchNextPage();
-    },
+    fetchNextPage,
     hasNextPage: actionLogsQuery.hasNextPage,
     isFetching: actionLogsQuery.isFetching,
     isLoading: actionLogsQuery.isLoading,

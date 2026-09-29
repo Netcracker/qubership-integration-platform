@@ -8,8 +8,9 @@ import {
   Table,
   Tooltip,
 } from "antd";
-import React, { UIEvent, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useActionLog } from "../../hooks/useActionLog.tsx";
+import { useTableInfiniteScroll } from "../../hooks/useTableInfiniteScroll.ts";
 import {
   capitalize,
   formatSnakeCased,
@@ -174,22 +175,16 @@ export const ActionsLog: React.FC = () => {
     [logsData, searchTerm],
   );
 
-  const lastScrollTopRef = useRef(0);
+  const [containerRef, containerHeight] = useResizeHeight<HTMLDivElement>();
 
-  const onScroll = async (event: UIEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLDivElement;
-    // The scroll event fires on horizontal scroll too; only react to vertical
-    // movement so sideways scrolling never triggers a page fetch.
-    const movedVertically = target.scrollTop !== lastScrollTopRef.current;
-    lastScrollTopRef.current = target.scrollTop;
-    const isScrolledToTheEnd =
-      target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
-    if (movedVertically && hasNextPage && !isFetching && isScrolledToTheEnd) {
-      await fetchNextPage();
-    }
-  };
-
-  const [containerRef, containerHeight] = useResizeHeight<HTMLElement>();
+  const loadMore = useCallback(() => {
+    void fetchNextPage();
+  }, [fetchNextPage]);
+  useTableInfiniteScroll(containerRef, {
+    isLoading: isFetching,
+    allLoaded: !hasNextPage,
+    loadMore,
+  });
 
   const {
     columnResize: actionLogColumnResize,
@@ -547,7 +542,7 @@ export const ActionsLog: React.FC = () => {
           }}
         >
           <div
-            ref={containerRef as unknown as React.Ref<HTMLDivElement>}
+            ref={containerRef}
             style={{
               height: "100%",
               display: "flex",
@@ -566,7 +561,6 @@ export const ActionsLog: React.FC = () => {
               pagination={false}
               rowKey="id"
               loading={isFetching}
-              onScroll={(event) => void onScroll(event)}
               components={actionLogColumnResize.resizableHeaderComponents}
               onChange={handleConfiguredTableChange}
               onRow={(row) => {
