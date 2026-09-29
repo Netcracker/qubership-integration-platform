@@ -347,6 +347,4 @@ listeners: # settings for spring @EventListener's
       delay: 5000
 
 springdoc:
-  swagger-ui:
-    tagsSorter: alpha
-    operationsSorter: alpha
+  writer-with-order-by-keys: true

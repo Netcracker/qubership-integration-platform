@@ -111,6 +111,4 @@ logging:
   config: classpath:logback-spring.xml
 
 springdoc:
-  swagger-ui:
-    tagsSorter: alpha
-    operationsSorter: alpha
+  writer-with-order-by-keys: true

@@ -143,6 +143,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_graphql.xml"
                 ),
                 Arguments.of(
+                        "GraphQL Service Call element without before",
+                        "/testData/input/builder/templates/service_call_graphql_no_before.yml",
+                        "/testData/output/builder/templates/service_call_graphql_no_before.xml"
+                ),
+                Arguments.of(
                         "External HTTP Sender element",
                         "/testData/input/builder/templates/http_sender_external.yml",
                         "/testData/output/builder/templates/http_sender_external.xml"
@@ -188,6 +193,16 @@ public class TemplateServiceTest {
                 //         "/testData/input/builder/templates/mapper_2.yml",
                 //         "/testData/output/builder/templates/mapper_2.xml"
                 // ),
+                Arguments.of(
+                        "PubSub Sender element",
+                        "/testData/input/builder/templates/pubsub_sender.yml",
+                        "/testData/output/builder/templates/pubsub_sender.xml"
+                ),
+                Arguments.of(
+                        "PubSub Sender element with message ordering",
+                        "/testData/input/builder/templates/pubsub_sender_ordering.yml",
+                        "/testData/output/builder/templates/pubsub_sender_ordering.xml"
+                ),
                 Arguments.of(
                         "Quartz Scheduler element",
                         "/testData/input/builder/templates/quartz_scheduler.yml",

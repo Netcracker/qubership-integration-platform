@@ -1,11 +1,13 @@
 <route>
-    <doTry>
-        <process id="900dc7b8-456e-4029-aece-8ef7bc46baef" ref="contextPropagationProcessor"/>
-        <toD uri="google-pubsub:test_project_id:test_destination_name?lazyStartProducer=false&amp;messageOrderingEnabled=false&amp;serviceAccountKey=base64:test_service_account_name&amp;serializer=#bean:customGooglePubSubSerializer"/>
+    <step id="901b0809-56db-4acd-9142-4e10f8e0cae2">
+        <doTry>
+            <process ref="contextPropagationProcessor"/>
+            <toD uri="google-pubsub:test_project_id:test_destination_name?lazyStartProducer=false&amp;messageOrderingEnabled=false&amp;serviceAccountKey=base64:test_service_account_name&amp;serializer=#bean:customGooglePubSubSerializer"/>
 
-        <doFinally>
-            <removeProperty name="internalProperty_overrideContextParams"/>
-            <process ref="contextRestoreProcessor"/>
-        </doFinally>
-    </doTry>
+            <doFinally>
+                <removeProperty name="internalProperty_overrideContextParams"/>
+                <process ref="contextRestoreProcessor"/>
+            </doFinally>
+        </doTry>
+    </step>
 </route>
