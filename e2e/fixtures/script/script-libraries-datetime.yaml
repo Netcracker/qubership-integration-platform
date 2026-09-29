@@ -1,0 +1,39 @@
+id: "e2e50008-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-script-libraries-datetime"
+description: "groovy-datetime reached from a script. Every reading here is an extension method the\
+  \ module adds to java.time — `+` on a LocalDate, `format(String)`, and `upto` — so a chain that\
+  \ answers proves the module is on the classpath and not merely that java.time is."
+content:
+  labels: []
+  elements:
+  - id: "e2e50008-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-libraries-datetime"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50008-0000-4000-8000-000000000003"
+    name: "Use Datetime"
+    type: "script"
+    properties:
+      script: |-
+        // script-libraries-datetime/use-datetime
+        // A fixed date rather than today's, so the answer is a constant the spec can assert whole.
+        def date = java.time.LocalDate.parse('2026-09-01')
+        def later = date + 30
+        def visited = 0
+        date.upto(later) { visited++ }
+        exchange.getIn().setBody('{"formatted":"' + date.format('yyyy/MM/dd') + '","later":"' + later + '","visited":' + visited + '}')
+  dependencies:
+  - from: "e2e50008-0000-4000-8000-000000000002"
+    to: "e2e50008-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

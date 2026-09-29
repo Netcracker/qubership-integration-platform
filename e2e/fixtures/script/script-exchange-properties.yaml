@@ -1,0 +1,60 @@
+id: "e2e50005-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-script-exchange-properties"
+description: "A script writing exchange properties and a later script reading them back. The header\
+  \ modification between the two is the point of the shape: it knows nothing about a property, so\
+  \ what the last script reads has survived an element that never touched it."
+content:
+  labels: []
+  elements:
+  - id: "e2e50005-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-exchange-properties"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50005-0000-4000-8000-000000000003"
+    name: "Write Property"
+    type: "script"
+    properties:
+      script: |-
+        // script-exchange-properties/write-property
+        // A property rather than a header: nothing downstream carries it deliberately, so the
+        // read at the end is about the exchange and not about the message.
+        exchange.setProperty('e2eScriptProperty', exchange.getIn().getHeader('e2e-in'))
+        exchange.setProperty('e2eScriptStamp', 'set-by-script')
+  - id: "e2e50005-0000-4000-8000-000000000004"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-hop: "{{RUN}}"
+      headerModificationToRemove: []
+  - id: "e2e50005-0000-4000-8000-000000000005"
+    name: "Read Property"
+    type: "script"
+    properties:
+      script: |-
+        // script-exchange-properties/read-property
+        def carried = exchange.getProperty('e2eScriptProperty')
+        def stamp = exchange.getProperty('e2eScriptStamp')
+        // Properties and headers are two namespaces. `e2e-hop` is on the message, put there by the
+        // element in between, and asking the exchange for a property of that name answers nothing.
+        def hopIsHeaderOnly = exchange.getProperty('e2e-hop') == null && exchange.getIn().getHeader('e2e-hop') != null
+        exchange.getIn().setBody('{"carried":"' + carried + '","stamp":"' + stamp + '","hopIsHeaderOnly":' + hopIsHeaderOnly + '}')
+  dependencies:
+  - from: "e2e50005-0000-4000-8000-000000000002"
+    to: "e2e50005-0000-4000-8000-000000000003"
+  - from: "e2e50005-0000-4000-8000-000000000003"
+    to: "e2e50005-0000-4000-8000-000000000004"
+  - from: "e2e50005-0000-4000-8000-000000000004"
+    to: "e2e50005-0000-4000-8000-000000000005"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

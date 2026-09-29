@@ -1,0 +1,36 @@
+id: "e2e50018-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-script-failures-unresolved"
+description: "A script that parses and names a class no library on the engine carries. The import\
+  \ is what makes it a compile failure rather than a runtime one: Groovy resolves a dotted\
+  \ expression dynamically, so a fully qualified name in the body compiles and deploys. Owned by\
+  \ specs/runtime/script-failures.spec.ts, because the deployment never goes live."
+content:
+  labels: []
+  elements:
+  - id: "e2e50018-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-failures-unresolved"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50018-0000-4000-8000-000000000003"
+    name: "Unresolved Class"
+    type: "script"
+    properties:
+      script: |-
+        // script-failures-unresolved/missing-import
+        import org.qubership.integration.e2e.NoSuchLibraryClass
+        exchange.getIn().setBody(new NoSuchLibraryClass().toString())
+  dependencies:
+  - from: "e2e50018-0000-4000-8000-000000000002"
+    to: "e2e50018-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

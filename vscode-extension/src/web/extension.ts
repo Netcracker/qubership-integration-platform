@@ -483,9 +483,10 @@ async function enrichWebview(
   activeWebviewPanels.set(panelId, panel);
 
   sendThemeToWebview(panel);
-  setTimeout(() => sendThemeToWebview(panel), 300);
+  const themeResend = setTimeout(() => sendThemeToWebview(panel), 300);
 
   panel.onDidDispose(() => {
+    clearTimeout(themeResend);
     activeWebviewPanels.delete(panelId);
   });
 

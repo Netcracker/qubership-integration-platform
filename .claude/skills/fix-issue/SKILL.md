@@ -134,7 +134,7 @@ Choose the reproduction from `verification.md` by module:
 
 | Module | Reproduction | Healthy peer |
 |---|---|---|
-| ui | Playwright from a scratch directory, screenshot of the element, both themes | a neighboring control the issue does not name |
+| ui | a case in `e2e/specs/ui/` (or Jest when jsdom shows it); scratch Playwright for screenshots in both themes | a neighboring control the issue does not name |
 | runtime-catalog, sessions-management | request matrix before/after with `diff`; container log gated on level | the sibling endpoint on the same mapper |
 | engine, micro-engine | compiled Camel XML from `deployments/update`, two variants in one chain | the element variant that works |
 | vscode-extension | real exports run through the code under test; Jest as reproduction | the protocol or shape that works |

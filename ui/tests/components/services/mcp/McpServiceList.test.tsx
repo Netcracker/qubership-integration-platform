@@ -565,7 +565,7 @@ describe("McpServiceList", () => {
     renderPage();
 
     await waitFor(() => expect(mockGetMcpSystems).toHaveBeenCalled());
-    fireEvent.click(screen.getByTestId("action-download-selected-services"));
+    fireEvent.click(screen.getByTestId("services-export"));
 
     expect(messageInfoSpy).toHaveBeenCalledWith("No services selected");
     messageInfoSpy.mockRestore();
@@ -586,7 +586,7 @@ describe("McpServiceList", () => {
     const [headerCheckbox] = screen.getAllByRole("checkbox");
     fireEvent.click(headerCheckbox);
 
-    fireEvent.click(screen.getByTestId("action-download-selected-services"));
+    fireEvent.click(screen.getByTestId("services-export"));
 
     await waitFor(() =>
       expect(mockExportMcpSystems).toHaveBeenCalledWith(
@@ -601,7 +601,7 @@ describe("McpServiceList", () => {
     renderPage();
 
     await waitFor(() => expect(mockGetMcpSystems).toHaveBeenCalled());
-    fireEvent.click(screen.getByTestId("action-create-service"));
+    fireEvent.click(screen.getByTestId("services-create"));
 
     expect(mockShowModal).toHaveBeenCalledWith(
       expect.objectContaining({ component: expect.anything() }),
@@ -622,7 +622,7 @@ describe("McpServiceList", () => {
     await waitFor(() => expect(mockShowModal).not.toHaveBeenCalled());
 
     // Trigger Create button to capture what was passed to showModal
-    fireEvent.click(screen.getByTestId("action-create-service"));
+    fireEvent.click(screen.getByTestId("services-create"));
 
     expect(mockShowModal).toHaveBeenCalled();
   });
@@ -635,7 +635,7 @@ describe("McpServiceList", () => {
 
     // Directly invoke the onCreate prop that was passed into GenericServiceListPage.
     // We access it by triggering the modal and calling the stored argument.
-    fireEvent.click(screen.getByTestId("action-create-service"));
+    fireEvent.click(screen.getByTestId("services-create"));
 
     const modalArg = mockShowModal.mock.calls[0][0] as {
       component: React.ReactElement<{
@@ -668,7 +668,7 @@ describe("McpServiceList", () => {
     await waitFor(() => expect(mockGetMcpSystems).toHaveBeenCalledTimes(1));
 
     // Trigger the Upload button to open the import modal.
-    fireEvent.click(screen.getByTestId("action-upload-services"));
+    fireEvent.click(screen.getByTestId("services-import"));
     expect(mockShowModal).toHaveBeenCalled();
 
     // Capture the onSuccess callback from the ImportServicesModal and call it.

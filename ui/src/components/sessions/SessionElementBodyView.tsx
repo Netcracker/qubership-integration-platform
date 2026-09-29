@@ -11,6 +11,7 @@ import {
 type SessionElementBodyViewProps = React.HTMLAttributes<HTMLElement> & {
   headers: Record<string, string>;
   body?: string;
+  "data-testid"?: string;
 };
 
 export function guessLanguageFromContentType(
@@ -68,6 +69,7 @@ export function setUpDocumentFormatting(
 export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
   headers,
   body,
+  "data-testid": dataTestId = "session-body-editor",
 }) => {
   const [language, setLanguage] = useState<string | undefined>(undefined);
   const monacoTheme = useMonacoTheme();
@@ -86,6 +88,7 @@ export const SessionElementBodyView: React.FC<SessionElementBodyViewProps> = ({
   return (
     <Editor
       className="qip-editor"
+      wrapperProps={{ "data-testid": dataTestId }}
       language={language}
       value={body}
       theme={monacoTheme}

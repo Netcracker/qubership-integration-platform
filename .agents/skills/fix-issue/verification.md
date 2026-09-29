@@ -29,8 +29,15 @@ Companion to `SKILL.md`, gates 2 and 4. Every recipe here was used in a run; eve
 
 ## ui
 
-Reproduction is Playwright from a scratch directory. Never add it to `ui/package.json`: the
-workspace has no end-to-end infrastructure, and a browser download would land on the whole team.
+A defect only a browser shows (layout, focus, a missing redraw, a screen that throws) gets its
+regression case in `e2e/specs/ui/`, following "The browser layer" in `e2e/AGENTS.md`; the #679
+cases in `e2e/specs/ui/chain-tabs.spec.ts` are the shape. Run it with
+`cd e2e && npm test -- --project=ui`, which builds and serves the bundle itself. A defect jsdom
+renders the same way gets a Jest case under `ui/tests/` instead.
+
+Evidence that does not become a case, such as a screenshot for the pull request in both themes,
+comes from Playwright in a scratch directory. Never add Playwright to `ui/package.json`: a browser
+download would land on the whole team.
 
 ```bash
 mkdir -p "$TMP/e2e" && cd "$TMP/e2e" && npm init -y && npm i playwright

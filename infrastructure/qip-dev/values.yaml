@@ -5,6 +5,66 @@ postgres:
 gateways:
   enabled: true
 
+# The platform services take the same settings:
+#   image.tag  the image tag.
+#   nodePort   a fixed node port for port 8080. Setting it makes the Service a
+#              NodePort and drops the debug port 5005 from it, where the
+#              service has one: reach that with kubectl port-forward.
+#   loadBalancerPort  the port a second Service, of type LoadBalancer,
+#              publishes and forwards to 8080. Docker Desktop's kind-based
+#              cluster publishes a LoadBalancer port on the host and a
+#              NodePort not at all.
+#   strategy   the Deployment strategy.
+#   podAnnotations  annotations on the pod template.
+#   extraEnv   container environment entries added after the chart's own.
+# The engine and the catalog also take their heap and Metaspace sizes.
+qip-engine:
+  image:
+    tag: latest
+  nodePort:
+  loadBalancerPort:
+  podAnnotations: {}
+  strategy:
+    type: Recreate
+  extraEnv: []
+  jvm:
+    maxHeap: 832m
+    metaspaceSize: 384m
+    maxMetaspaceSize: 384m
+
+qip-runtime-catalog:
+  image:
+    tag: latest
+  nodePort:
+  loadBalancerPort:
+  # Extra ClusterIP Service names for port 8080.
+  serviceAliases: []
+  podAnnotations: {}
+  strategy: {}
+  extraEnv: []
+  jvm:
+    maxHeap: 642m
+    metaspaceSize: 192m
+    maxMetaspaceSize: 192m
+
+qip-sessions-management:
+  image:
+    tag: latest
+  nodePort:
+  loadBalancerPort:
+  podAnnotations: {}
+  strategy: {}
+  extraEnv: []
+
+qip-testing-service:
+  image:
+    tag: latest
+  nodePort:
+  loadBalancerPort:
+  podAnnotations: {}
+  strategy: {}
+  extraEnv: []
+
 global:
   blueGreenVersion: v1
   postgres:
@@ -20,6 +80,11 @@ global:
     production: true
     ui:
       port: 30080
+      # Port 8080 of the proxy on a second Service, of type LoadBalancer, for a
+      # cluster that publishes no NodePort on the host (Docker Desktop's kind-based one).
+      loadBalancerPort:
+      # Annotations on the proxy's pod template.
+      podAnnotations: {}
       # The chart installs a proxy, not the UI: `location /` and `/doc/` go back to
       # a dev server on your own machine. host.docker.internal is the name Docker
       # Desktop provides; minikube offers host.minikube.internal, and on kind you
@@ -32,6 +97,9 @@ global:
       # than named literally. 10.96.0.10 is the kubeadm default, which Docker
       # Desktop, kind and minikube all use; k3s and k3d put CoreDNS at 10.43.0.10.
       resolver: 10.96.0.10
+      # Proxy routes for the e2e suite: /e2e/svc/<service>/ reaches port 8080 of
+      # any Service in the namespace, and /e2e/gateway/ reaches the public gateway.
+      e2eLocations: false
     variables:
       defaultSecret:
         enabled: false
