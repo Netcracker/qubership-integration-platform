@@ -386,6 +386,4 @@ kubernetes:
     label: ${app.prefix}-variable-type
 
 springdoc:
-  swagger-ui:
-    tagsSorter: alpha
-    operationsSorter: alpha
+  writer-with-order-by-keys: true
