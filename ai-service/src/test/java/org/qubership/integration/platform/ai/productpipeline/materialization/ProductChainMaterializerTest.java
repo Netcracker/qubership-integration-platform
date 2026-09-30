@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -20,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogElement;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializeResult;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.CatalogGraphMaterializer;
 import org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap;
@@ -136,6 +138,47 @@ class ProductChainMaterializerTest {
     materializer.resume(inputs, checkpoint);
 
     verify(catalog, never()).applyGraph(any(), any(), any());
+  }
+
+  @Test
+  void preservesOwnershipInCheckpointsAndOnRestart() throws Exception {
+    ProductChainMaterializer.Inputs inputs = inputs();
+    MaterializationMap owners =
+        new MaterializationMap(
+            "catalog-chain-1",
+            Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"),
+            Map.of("edge-1", "catalog-trigger-1"),
+            Map.of());
+    when(catalog.resolveOrCreateChain(RUN_ID, "demo-chain", "Demo"))
+        .thenReturn(io.smallrye.mutiny.Uni.createFrom().item("catalog-chain-1"));
+    when(catalog.applyGraph(any(), eq(inputs.graph()), any()))
+        .thenReturn(
+            io.smallrye.mutiny.Uni.createFrom()
+                .item(CatalogGraphMaterializeResult.noOp(owners)));
+    when(factsService.load("catalog-chain-1"))
+        .thenReturn(
+            new ChainCatalogFacts(
+                "catalog-chain-1", "demo-chain", "Demo", 0, 0, "", List.of(), List.of(),
+                "built_in_catalog"));
+
+    MaterializationResult initial = materializer.resume(inputs, null);
+    materializer.markComplete(inputs, materializer.markReconciled(inputs, initial));
+
+    ArgumentCaptor<AppendCommand> saved = ArgumentCaptor.forClass(AppendCommand.class);
+    verify(artifactStore, atLeastOnce()).append(saved.capture());
+    List<MaterializationCheckpoint> checkpoints =
+        saved.getAllValues().stream()
+            .map(command -> (MaterializationCheckpoint) command.payload())
+            .filter(checkpoint -> checkpoint.completedPhase() != MaterializationPhase.CHAIN)
+            .toList();
+    assertEquals(4, checkpoints.size());
+    for (MaterializationCheckpoint checkpoint : checkpoints) {
+      assertEquals(owners, checkpoint.materializationMap(), checkpoint.completedPhase().name());
+      ObjectMapper mapper = new ObjectMapper();
+      MaterializationCheckpoint persisted =
+          mapper.readValue(mapper.writeValueAsBytes(checkpoint), MaterializationCheckpoint.class);
+      assertEquals(owners, materializer.resume(inputs, persisted).materializationMap());
+    }
   }
 
   @Test
