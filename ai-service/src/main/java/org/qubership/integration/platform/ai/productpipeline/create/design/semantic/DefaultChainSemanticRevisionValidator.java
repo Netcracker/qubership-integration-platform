@@ -1036,7 +1036,10 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
         continue;
       }
       if (!isBehaviorOwned(operation, intentsBySite, regionRequired, brief)) {
-        errors.add("orphan script: " + operation.nodeId());
+        errors.add("orphan script: " + operation.nodeId()
+            + ". Bind its mappingIntentId on an adjacent edge; when both endpoints are scripts,"
+            + " the source script owns the mapping. Place the mapping on this script's outgoing"
+            + " edge to its destination call, or keep an approved BEHAVIOR fact on a behavior script.");
       }
     }
   }

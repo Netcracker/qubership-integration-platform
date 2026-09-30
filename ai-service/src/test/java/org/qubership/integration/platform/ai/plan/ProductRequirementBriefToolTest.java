@@ -230,7 +230,7 @@ class ProductRequirementBriefToolTest {
     assertTrue(result.accepted(), result.toString());
     RequirementBrief brief = (RequirementBrief) candidate.get();
     assertEquals(1, brief.mappingIntents().size());
-    assertEquals("title", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    assertEquals("$.title", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
     assertEquals("Subject", brief.mappingIntents().getFirst().rules().getFirst().targetPath());
     assertEquals(MappingPort.OUTPUT, brief.mappingIntents().getFirst().sourcePort());
     assertEquals(MappingPort.REQUEST, brief.mappingIntents().getFirst().targetPort());

@@ -436,6 +436,38 @@ class CaptureRepairRunnerTest {
     assertTrue(captured.get());
   }
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void repairFeedbackKeepsLiteralBracesThroughQute(boolean customFactory) {
+    AtomicInteger calls = new AtomicInteger();
+    AtomicBoolean captured = new AtomicBoolean(false);
+    String detail = "Invalid authorizationConfiguration: #{SERVICE_PASSWORD}; JSON {\"type\":\"none\"}";
+
+    runner.runWithRepair(
+        message -> {
+          if (calls.incrementAndGet() == 1) {
+            feedbackStore.recordPlanValidationFailure("conv-1", detail);
+          } else {
+            String rendered = io.quarkus.qute.Engine.builder().addDefaults()
+                .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
+                    .MustacheTemplateVariableStyleParserHook())
+                .build().parse(message).render();
+            assertTrue(rendered.contains("#{SERVICE_PASSWORD}"));
+            assertTrue(rendered.contains("{\"type\":\"none\"}"));
+            captured.set(true);
+          }
+          return Multi.createFrom().empty();
+        },
+        captured::get,
+        () -> feedbackStore.lastPlanFailure("conv-1"),
+        () -> {}, "captureGraphPatch", "initial", true,
+        customFactory ? feedback -> feedback.summary() : null)
+        .collect().asList().await().indefinitely();
+
+    assertEquals(2, calls.get());
+    assertTrue(captured.get());
+  }
+
   @Test
   void stopsAtConfiguredRepairLimitWithoutCapture() {
     CaptureRepairRunner boundedRunner =

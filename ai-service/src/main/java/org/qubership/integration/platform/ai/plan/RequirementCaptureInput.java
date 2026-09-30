@@ -25,7 +25,9 @@ public final class RequirementCaptureInput {
       @NullableCaptureValue String participant,
       @NullableCaptureValue String operation,
       @NullableCaptureValue String description,
-      @NullableCaptureValue ServiceCallFailureMode failureMode,
+      @NullableCaptureValue(description = "INLINE_RESPONSE when this call's failure fields go to the same"
+          + " result delivery; ERROR_SCOPE only for a requested catch path; null propagates and skips successors.")
+          ServiceCallFailureMode failureMode,
       @NullableCaptureValue RetryInput retryPolicy) {}
 
   public record RetryInput(
