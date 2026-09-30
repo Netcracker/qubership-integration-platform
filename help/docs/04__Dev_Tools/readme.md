@@ -15,8 +15,8 @@ Tab is specifically designed to contain developer tools for the purposes of test
 
 ### View "Dev Tools" Section
 By navigating to "Dev Tools", next tabs are going to be available:
-- [MaaS](1__MaaS/maas.md) - allows to create Kafka topics or RabbitMQ exchanges/queues in MaaS.
-- [Diagnostic](2__Diagnostic/diagnostic.md) - allows to execute system validations to find issues and get resolution hints.
+- [MaaS](1__MaaS/readme.md) - allows to create Kafka topics or RabbitMQ exchanges/queues in MaaS.
+- [Diagnostic](2__Diagnostic/readme.md) - allows to execute system validations to find issues and get resolution hints.
 
 ## Configuration
 

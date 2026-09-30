@@ -72,8 +72,8 @@ To expand the engine tree and see **chain deployments**, click ![20](img/down.sv
 
 **Chain deployment card**  structure:
 - **Chain name** - name of the chain deployed on current engine.
-- **Snapshot Name** - name of the deployed [Snapshot](../../01__Chains/2__Snapshots/snapshots.md).
-- **Status** - deployment status. Detailed information is available in [Deployments page](../../01__Chains/3__Deployments/deployments.md).
+- **Snapshot Name** - name of the deployed [Snapshot](../../01__Chains/2__Snapshots/readme.md).
+- **Status** - deployment status. Detailed information is available in [Deployments page](../../01__Chains/3__Deployments/readme.md).
 
 ## Data Storage
 

@@ -134,7 +134,7 @@ namespace: "Cloud_space"
 ENV_TYPE: "PROD"
 1: "1"
 ```
-If there are Import Instructions configured for common variables that are going to be imported, system **ignores** them during the import process. Find more details about Import Instructions in the respective article: [Import Instructions](../4__Import_Instructions/import_instructions.md).
+If there are Import Instructions configured for common variables that are going to be imported, system **ignores** them during the import process. Find more details about Import Instructions in the respective article: [Import Instructions](../4__Import_Instructions/readme.md).
 > ℹ️ **Note:** There are syntax specifics, that shall be considered:
 >
 > - every numeric key shall be wrapped with quotation marks.

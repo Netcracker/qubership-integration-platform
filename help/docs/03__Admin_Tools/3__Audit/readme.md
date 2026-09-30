@@ -65,7 +65,7 @@ Audit allows tracking most of the actions in UI. Click on the expandable section
 | Import Instructions                | Update    | Update existing import instruction.                                                                                                                                       |
 | Import Instructions                | Delete    | Delete import instruction.                                                                                                                                                |
 | Import Instructions                | Import    | Upload import instructions.                                                                                                                                               |
-| Exchange                           | Delete    | Terminate the exchange manually on ["Live Exchanges"](../8__Live_Exchanges/live_exchanges.md) tab.                                                                        |
+| Exchange                           | Delete    | Terminate the exchange manually on ["Live Exchanges"](../8__Live_Exchanges/readme.md) tab.                                                                        |
 
 </details>
 
@@ -131,4 +131,3 @@ Please refer to [logging page] for more details regarding data storage.
 ---
 
 Configuration is being done during the CIP installation with ACTION_LOG_CLEANUP_INTERVAL and ACTION_LOG_CLEANUP_CRON variables. Please refer to Installation Notes for more details.
-

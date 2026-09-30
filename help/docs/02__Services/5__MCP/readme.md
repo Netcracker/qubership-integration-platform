@@ -70,7 +70,7 @@ Parameters tab contains the following information:
   It might contain **custom** labels, entered by user via Cloud Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
-- **Identifier** - unique identifier of the MCP service. This identifier is used when selecting MCP services in [MCP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md).
+- **Identifier** - unique identifier of the MCP service. This identifier is used when selecting MCP services in [MCP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/readme.md).
 - **Instructions** - Instructions that describe how MCP clients should use this service.
 
 For <ins>Web UI</ins> there is some additional information:

@@ -78,7 +78,7 @@ Next information is available, when element's name clicked and window with its d
 There is also "**Only modified**" switch, available for "**Headers**", "**Exchange properties**" and "**Technical context**" tabs, that could be used to only show records that were modified during the processing.
 
 ### Retry Session
-To retry any session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../../01__Chains/1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
+To retry any session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../../01__Chains/1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/readme.md) element was configured in the chain at the time of session failure.
 
 ### Export Session(s)
 To export session(s) to a **JSON** file, please mark all required sessions via checkbox and click **Export** button ![Download](img/cloud-download.svg). To limit the amount of exported data, **Export** button is disabled when all sessions are marked via global checkbox on top of the table. Export is also possible from sessions details window, where all session's steps are presented.
@@ -99,4 +99,4 @@ Please refer to [logging page] for more details regarding data storage.
 
 ---
 
-Session logs are being captured as per [logging settings](../../01__Chains/5__Logging/logging.md).
+Session logs are being captured as per [logging settings](../../01__Chains/5__Logging/readme.md).

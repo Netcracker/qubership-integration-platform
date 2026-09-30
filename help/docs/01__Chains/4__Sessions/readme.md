@@ -48,7 +48,7 @@ Table contains current chain's sessions, aggregated by correlation identifier, i
 - **Session level** - shows level of logging for specific session.
 - **Duration** - shows 2 time values: 1st one is a duration of synchronous main session thread, 2nd one (in brackets) is summary duration of all synchronous and asynchronous threads. In case value is more than 1 second, it will be displayed in seconds, otherwise in milliseconds.
 - **Snapshot** - snapshot version of deployment.
-    > ℹ️ **Note**: **After manual [snapshot](../2__Snapshots/snapshots.md) renaming, current parameter's value will not be updated automatically (even for the new sessions)**. To see updated snapshot name, it is required to redeploy the chain.
+    > ℹ️ **Note**: **After manual [snapshot](../2__Snapshots/readme.md) renaming, current parameter's value will not be updated automatically (even for the new sessions)**. To see updated snapshot name, it is required to redeploy the chain.
 - **Engine** - name of the session engine domain with pod address (without port) in parentheses.
 
 **Control panel**
@@ -94,7 +94,7 @@ Next information is available, when element's name clicked and window with its d
 There is also "**Only modified**" switch, available for "**Headers**", "**Exchange properties**" and "**Technical context**" tabs, that could be used to only show records that were modified during the processing.
 
 ### Retry Failed Session
-To retry failed session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) element was configured in the chain at the time of session failure.
+To retry failed session, find it in the table and click retry ![Redo|20](img/redo.svg) button. Retry can only be performed if at least one [Checkpoint](../1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/readme.md) element was configured in the chain at the time of session failure.
 
 ### Export Sessions
 To export session(s) to a **JSON** file, please mark all required sessions via checkbox and click **Export** button ![Download|20](img/cloud-download.svg). To limit the amount of exported data, **Export** button is disabled when all sessions are marked via global checkbox on top of the table. Export is also possible from sessions details window, where all session's steps are presented.

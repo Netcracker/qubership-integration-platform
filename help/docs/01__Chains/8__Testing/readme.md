@@ -53,7 +53,7 @@ Rows are loaded page by page as the table is scrolled. When some rows are still 
 
 Click anywhere in a row except a link cell to open the **Test Case Details** side panel, which repeats the fields above in read-only form. The link cells navigate instead: **Name** opens the test case editor and **Element** opens the element in the chain graph.
 
-> ℹ️ **Note:** Importing test cases is available only from the cross-chain list under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md); creating one is available only here, because a new test case needs a chain to pick its trigger from.
+> ℹ️ **Note:** Importing test cases is available only from the cross-chain list under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md); creating one is available only here, because a new test case needs a chain to pick its trigger from.
 
 ### Create a Test Case
 Click **Create a test case** and fill in the dialog:
@@ -68,7 +68,7 @@ The new test case is created with **Enabled** off, a timeout of 120000 ms, the f
 
 ![General tab of a test case](img/test-case-editor.png)
 
-The editor has three tabs and a **Save** button in the chain header, beside the chain tabs, where the **Apply** button of the [Logging](../5__Logging/logging.md) and [Properties](../7__Properties/readme.md) tabs sits. **Save** stays disabled until something has changed and the test case is valid: it needs a name, a chain, a trigger element, an HTTP method and valid validation rules. Saving keeps the editor open. Leaving it with unsaved changes raises a confirmation; switching between the editor's own tabs does not.
+The editor has three tabs and a **Save** button in the chain header, beside the chain tabs, where the **Apply** button of the [Logging](../5__Logging/readme.md) and [Properties](../7__Properties/readme.md) tabs sits. **Save** stays disabled until something has changed and the test case is valid: it needs a name, a chain, a trigger element, an HTTP method and valid validation rules. Saving keeps the editor open. Leaving it with unsaved changes raises a confirmation; switching between the editor's own tabs does not.
 
 #### General Tab
 Names the test case and the call it makes:
@@ -178,7 +178,7 @@ Changing the **Condition** of a rule clears its parameters, because the paramete
 > ℹ️ **Note:** A rule that cannot be evaluated at run time does not stop the work around it. A mock carrying such a rule is passed over, and the call falls through to the next mock; a broken response validation rule is recorded as a validation error and the test case run still finishes.
 
 ### Run Test Cases
-Select test cases in the table and click **Run selected test cases**. The service creates a **test run** over them and reports it with a notification naming the run identifier. The notification links to the run only when the cases were started from the cross-chain list under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md), because that is where the runs list lives and chain rights alone do not open it.
+Select test cases in the table and click **Run selected test cases**. The service creates a **test run** over them and reports it with a notification naming the run identifier. The notification links to the run only when the cases were started from the cross-chain list under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md), because that is where the runs list lives and chain rights alone do not open it.
 
 While the run proceeds:
 
@@ -187,7 +187,7 @@ While the run proceeds:
 3. For an enabled test case, the testing service calls the chain's **HTTP Trigger** with the request configured on the **General** and **Request Parameters** tabs, and links the resulting chain [session](../4__Sessions/readme.md) to the case run. The call goes to the engine the chain is deployed to, so a chain on a micro-engine domain is tested on that domain. A chain deployed to more than one domain is tested on one of them, which the testing service records in its log.
 4. The response is checked against every enabled response validation rule. Each rule that does not hold is stored as a validation error against the case run, and the case run still reaches **_Finished_**.
 
-Separate test runs execute **in parallel**, so several runs can progress at the same time. Test runs themselves are managed under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md).
+Separate test runs execute **in parallel**, so several runs can progress at the same time. Test runs themselves are managed under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md).
 
 ### Test Case Runs Table View
 
@@ -241,7 +241,7 @@ Failures outside the rules are recorded here as well - a test case with no trigg
 ## Permissions
 
 ---
-Everything on the **Testing** tab is gated by the rights of the chain it belongs to. The same screens under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) ask for the matching **Admin Tools** rights instead:
+Everything on the **Testing** tab is gated by the rights of the chain it belongs to. The same screens under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md) ask for the matching **Admin Tools** rights instead:
 
 | Action                                                     | Right on the chain tab | Right under Admin Tools |
 |------------------------------------------------------------|------------------------|-------------------------|
@@ -288,7 +288,7 @@ Testing depends on two services. The testing service reports whether the install
 
 ### Testing Service Mode
 
-The UI shows the **Testing** tab and the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) only when the testing service runs in non-production mode.
+The UI shows the **Testing** tab and the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md) only when the testing service runs in non-production mode.
 
 | Environment variable | Default | Description |
 |---|---|---|

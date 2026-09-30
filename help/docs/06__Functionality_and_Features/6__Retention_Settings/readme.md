@@ -58,7 +58,7 @@ Cloud integration platform allows to configure proper retention logic for **[Act
 
 ### DPT Kafka Topics Retention
 
-Cloud integration platform allows to configure proper retention logic forKafka topics,related to **[DPT events]** and [Retry events from DPT (via Kafka)](../7__Retry_Events_From_DPT_Via_Kafka/retry_events_from_dpt_via_kafka.md). Retention is controlled via next parameters, that shall be specified during deployment:
+Cloud integration platform allows to configure proper retention logic forKafka topics,related to **[DPT events]** and [Retry events from DPT (via Kafka)](../7__Retry_Events_From_DPT_Via_Kafka/readme.md). Retention is controlled via next parameters, that shall be specified during deployment:
 
 | CMDB Parameter                              | Mandatory   |   Default Value | Description                                                                                                                                                                                                                                                                                                                         |    Sample |
 |:--------------------------------------------|:------------|----------------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------:|

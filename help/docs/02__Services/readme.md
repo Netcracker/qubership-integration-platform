@@ -16,8 +16,8 @@ There are next possible service types, supported by the system:
   with CIP and may be called directly. Usable in [Service Call](../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md)
   and [AsyncAPI Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/readme.md) elements.
 - ![implemented](img/implemented.svg) [Implemented](3__Implemented/readme.md) - custom services, usually created from [HTTP Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md).
-- ![context](img/context.svg) [Context](4__Context/context.md) - database instance used for storing chain contexts, further enabling creation, retrieval and deletion of context data. Usable in [Context Storage](../01__Chains/1__Graph/1__Elements_Library/4__Services/1__Context_Storage/context_storage.md) element.
-- ![mcp](img/mcp.svg) [MCP](5__MCP/mcp.md) - services that expose chains as tools through the Model Context Protocol. Usable in [MCP Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md) elements.
+- ![context](img/context.svg) [Context](4__Context/readme.md) - database instance used for storing chain contexts, further enabling creation, retrieval and deletion of context data. Usable in [Context Storage](../01__Chains/1__Graph/1__Elements_Library/4__Services/1__Context_Storage/readme.md) element.
+- ![mcp](img/mcp.svg) [MCP](5__MCP/readme.md) - services that expose chains as tools through the Model Context Protocol. Usable in [MCP Trigger](../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/readme.md) elements.
 
 ### Services data model
 ![Services data model](img/class_diagram.svg)
