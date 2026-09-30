@@ -518,6 +518,19 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void usesSchemaLoopLimitUnlessAnExplicitLimitIsProvided() {
+    ChainPlanGraph defaultGraph =
+        compiler.compile(loopRevision(LoopMode.DO_WHILE, null), CONTRACT, List.of());
+    ChainPlanGraph explicitGraph =
+        compiler.compile(loopRevision(LoopMode.DO_WHILE, 25), CONTRACT, List.of());
+
+    assertEquals("1500", property(node(defaultGraph, "loop-1"), "maxLoopIteration"));
+    assertEquals("25", property(node(explicitGraph, "loop-1"), "maxLoopIteration"));
+    assertEquals("true", property(node(defaultGraph, "loop-1"), "doWhile"));
+    assertEquals("items", property(node(defaultGraph, "loop-1"), "expression"));
+  }
+
+  @Test
   void writesRetryPropertiesOnTheOwner() {
     ChainPlanGraph graph =
         compiler.compile(retryRevision(), CONTRACT, List.of(binding("call-1")));
@@ -1136,6 +1149,10 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   private static ChainSemanticRevision loopRevision(LoopMode mode) {
+    return loopRevision(mode, 1500);
+  }
+
+  private static ChainSemanticRevision loopRevision(LoopMode mode, Integer safetyBound) {
     return revision(
         List.of(entry("http-in", "trigger-http", "loop-1")),
         List.of(
@@ -1151,7 +1168,7 @@ class DefaultChainSemanticGraphCompilerTest {
                 "body-script",
                 List.of("body-script"),
                 "after-loop",
-                new LoopPolicy(mode, "items", 1500))),
+                new LoopPolicy(mode, "items", safetyBound))),
         List.of(
             sequence("edge-entry", "trigger-http", "loop-1", null),
             new SemanticExecutionEdge(

@@ -45,15 +45,18 @@ For a condition whose branches finish independently, omit `reconvergenceNodeId`.
 
 Execution edges form a DAG, including loops. A loop region describes repetition; never draw an
 edge back to its owner, a previous node, or the trigger. For `loop-2`, supply `ownerNodeId`,
-`bodyEntryNodeId`, `bodyExitNodeIds`, `exitNodeId`, `loopMode`, `loopExpression`, and a positive
-`loopSafetyBound`. Copy the approved mode and expression exactly. `LOOP_BODY` connects the owner
+`bodyEntryNodeId`, `bodyExitNodeIds`, `exitNodeId`, `loopMode`, and `loopExpression`.
+Copy the approved mode and expression exactly. Include a positive `loopSafetyBound` only when
+the approved brief explicitly requests an iteration cap. Otherwise omit it; the server applies
+the element schema default. Do not infer a cap from the loop expression or choose a sample value.
+`LOOP_BODY` connects the owner
 to the first body node; `LOOP_EXIT` connects the last body node to `exitNodeId`. Both edges name the
 loop's `regionId`. Use sequence edges between body nodes. Loop membership comes from `loopRegions`;
 do not add containment with `role=body`, which `loop-2` does not declare.
 
-Example for an approved do-while loop with bound 10, a body script, and a script after the loop.
+Example for an approved do-while loop without a requested cap, a body script, and a script after the loop.
 The anchor is `inbound`; the approved facts are `loop-policy`, `body-work`, and `after-work`.
-Replace the example ids, expression, and bound with values appropriate to the supplied brief.
+Replace the example ids and expression with values from the supplied brief.
 
 ```json
 {
@@ -67,7 +70,7 @@ Replace the example ids, expression, and bound with values appropriate to the su
     "loopRegions": [{
       "regionId": "repeat-region", "ownerNodeId": "repeat",
       "bodyEntryNodeId": "work", "bodyExitNodeIds": ["work"], "exitNodeId": "after",
-      "loopMode": "DO_WHILE", "loopExpression": "${header.more} == \"true\"", "loopSafetyBound": 10
+      "loopMode": "DO_WHILE", "loopExpression": "${header.more} == \"true\""
     }],
     "edges": [
       {"sourceNodeId": "inbound", "targetNodeId": "repeat"},
