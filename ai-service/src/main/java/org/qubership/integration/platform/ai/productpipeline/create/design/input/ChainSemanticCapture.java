@@ -205,7 +205,8 @@ public record ChainSemanticCapture(
       @Description("nodeId reached when the loop finishes") String exitNodeId,
       @Description("COPY or DO_WHILE") LoopMode loopMode,
       @Description("Loop expression, e.g. the collection to iterate") String loopExpression,
-      @Description("Positive iteration cap") Integer loopSafetyBound) {
+      @Description("Positive iteration cap explicitly requested in the approved brief; otherwise omit")
+          Integer loopSafetyBound) {
 
     CapturedLoopRegion {
       bodyExitNodeIds = copy(bodyExitNodeIds);

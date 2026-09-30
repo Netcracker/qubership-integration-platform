@@ -225,7 +225,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     };
   }
 
-  private static void applyRegion(
+  private void applyRegion(
       SemanticRegion region,
       Map<String, SemanticNode> nodesById,
       Map<String, List<PlanProperty>> extraByNode,
@@ -236,11 +236,17 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       case SemanticRegion.Split ignored -> {}
       case SemanticRegion.Loop loop -> {
         addProperty(extraByNode, loop.ownerNodeId(), "expression", loop.policy().expression());
-        addProperty(
-            extraByNode,
-            loop.ownerNodeId(),
-            "maxLoopIteration",
-            Integer.toString(loop.policy().safetyBound()));
+        Integer safetyBound = loop.policy().safetyBound();
+        if (safetyBound == null) {
+          var schema = schemaService.elementPropertiesSchemaModel("loop-2")
+              .propertyDefs().get("maxLoopIteration");
+          var defaultValue = schema == null ? null : schema.get("default");
+          if (defaultValue == null || !defaultValue.canConvertToInt() || defaultValue.intValue() <= 0) {
+            throw new IllegalStateException("Loop schema must define a positive default iteration cap");
+          }
+          safetyBound = defaultValue.intValue();
+        }
+        addProperty(extraByNode, loop.ownerNodeId(), "maxLoopIteration", safetyBound.toString());
         switch (loop.policy().mode()) {
           case LoopMode.COPY ->
               addProperty(extraByNode, loop.ownerNodeId(), "copy", "true");
