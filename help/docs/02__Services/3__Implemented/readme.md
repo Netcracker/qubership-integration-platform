@@ -203,8 +203,8 @@ To add specification group to Implemented service:
 2. Specify the **name** of the specification group on the opened pop-up.
 3. There are two options to add API Specification:
     - **Import File** - on this tab you can import file with API specification by dragging it to the **"drop"** window or by using **"browse"** option.
-    - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
-> ℹ️ **Note:** Via checkbox _**"External routes only"**_ it is possible to control showing only respective [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) in the list.
+    - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) endpoint, configured within a particular chain and create API Specification from it.
+> ℹ️ **Note:** Via checkbox _**"External routes only"**_ it is possible to control showing only respective [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) in the list.
 
 4. Confirm operation with **"Import File"** button.
 
@@ -219,8 +219,8 @@ To add API specification into existing specification group:
     > - API Specification **version must be unique inside of API Specification group for any type of service**. Import of API Specification with non-unique version will result in version duplication error.
     > - OpenAPI 3.2.0 specifications are imported using the OpenAPI 3.1 parser. Features available only in OpenAPI 3.2.0 are not supported and are dropped during import. The system shows a warning notification when this happens.
 
-    - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) endpoint, configured within a particular chain and create API Specification from it.
-    > ℹ️ **Note:** Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
+    - **Import from Chains** - on this tab, it is possible to select existing [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) endpoint, configured within a particular chain and create API Specification from it.
+    > ℹ️ **Note:** Checked _**"External routes only"**_ parameter allows to create specification only from chains with external [HTTP Triggers](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md).
 3. Confirm operation with **"Import File"** button.
 
 ### Add Environment
@@ -318,7 +318,7 @@ System allows to export service with all its API specifications, environments an
 
 ---
 
-- In CIP UI: for any Implemented services, the service parameters and configuration is stored in CIP Catalog database. Please refer to [CIP Architecture](../../05__Architecture/cip_architecture.md) for common data storage overview.
+- In CIP UI: for any Implemented services, the service parameters and configuration is stored in CIP Catalog database. Please refer to [CIP Architecture](../../05__Architecture/readme.md) for common data storage overview.
 - In CIP VSCode Extension: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
 
 ## Configuration

@@ -229,8 +229,8 @@ To export the chain(s), simply select respective rows in the table with checkbox
 If no chains are selected, clicking the button exports all chains after confirmation.
 During export, you can adjust the data to be downloaded using the following checkboxes in the dialog window. All checkboxes are unchecked by default:
 
-- **Export related sub-chains** - if selected, the system also exports the whole tree of chains, that are connected via [Chain Call](1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) and [Chain Trigger](1__Graph/1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) elements,
-sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
+- **Export related sub-chains** - if selected, the system also exports the whole tree of chains, that are connected via [Chain Call](1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/readme.md) and [Chain Trigger](1__Graph/1__Elements_Library/6__Triggers/2__Chain_Trigger/readme.md) elements,
+sub-chains selected as failure handling option on "Failure Response Mapping" tab for [HTTP Trigger](1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md)
 and sub-chains selected as the handler for duplicate idempotency keys on the "Idempotency" tab of the relevant trigger.
 - **Export related services** - if selected, the system also exports services and specifications, utilized within chains.
 - **Export all common variables** - if selected, the system also exports all common variables, utilized within chains.
@@ -242,7 +242,7 @@ To deploy desired chains, mark them via checkboxes (use checkbox in table headin
 If no chains are selected, clicking the button deploys all available chains.
 In both cases, a pop-up opens requesting additional data:
 
-- **Engine Domains** - one or more engine domains the selected chains will be deployed on. Choose from the list of existing domains, or type a name that does not exist yet to deploy on a new **Micro** domain. Availability of each domain type depends on configuration — see [Domains](../03__Admin_Tools/1__Domains/domains.md).
+- **Engine Domains** - one or more engine domains the selected chains will be deployed on. Choose from the list of existing domains, or type a name that does not exist yet to deploy on a new **Micro** domain. Availability of each domain type depends on configuration — see [Domains](../03__Admin_Tools/1__Domains/readme.md).
 - **Snapshot Action** - defines if new snapshot must be deployed. There are two actions available:
   - **Create new** - system will attempt to redeploy the chain with new snapshot.
   - **Reuse latest, otherwise create new** - system will attempt to reuse latest snapshot. If it does not exist - redeploy will be attempted with newly created snapshot.

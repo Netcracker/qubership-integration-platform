@@ -356,7 +356,7 @@ System allows to export service with all its API specifications, environments an
 
 ---
 
-- In CIP UI: for any Inner Cloud services, the service parameters and configuration is stored in CIP Catalog database. Please refer to [CIP Architecture](../../05__Architecture/cip_architecture.md) for common data storage overview.
+- In CIP UI: for any Inner Cloud services, the service parameters and configuration is stored in CIP Catalog database. Please refer to [CIP Architecture](../../05__Architecture/readme.md) for common data storage overview.
 - In CIP VSCode Extension: services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
 
 ## Configuration
@@ -364,4 +364,3 @@ System allows to export service with all its API specifications, environments an
 ---
 
 Environment configuration steps are fully covered by Installation Notes.
-

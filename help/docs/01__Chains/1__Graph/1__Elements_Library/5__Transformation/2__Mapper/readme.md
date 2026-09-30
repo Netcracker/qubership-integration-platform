@@ -307,7 +307,7 @@ It is possible to apply transformation to mapped attributes on each of Mapper Vi
 - **Table View** - click on the field in "**Transformation**" field for target attribute, when source attributes are specified in the table, and then define transformation settings. It is possible to add and update transformation description independently of transformation itself in "**Transformation Description**" field for target attribute.
 - **Text View** - manually enter transformation setting with custom syntax, described in "Switch to Text View" section of this article.
 
-Please refer to the ["Data Transformation via Mapper"](1__Transformation/transformation.md) article for all details regarding supported transformations.
+Please refer to the ["Data Transformation via Mapper"](1__Transformation/readme.md) article for all details regarding supported transformations.
 
 #### Remove Connection
 To remove the connection between source and target field in **Graph View**, it is required to right-click on the arrow to open small dialog window and select "**Delete**" option. To remove multiple connections at once, select them with **Ctrl** button and then choose "**Delete**" option from dialog window, requested via right-click. In **Table View** select one of three variants:

@@ -281,7 +281,7 @@ java.lang.IllegalArgumentException: AMQP addresses has invalid format, check con
 
 #### Sub-Chains
 
-When chains, that are being deployed, are linked via [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md)/[Chain Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/2__Chain_Trigger/chain_trigger.md) the way it forms cyclic relationship, system registers an error:
+When chains, that are being deployed, are linked via [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/readme.md)/[Chain Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/2__Chain_Trigger/readme.md) the way it forms cyclic relationship, system registers an error:
 
 - Found cyclic dependency for chain with id {}. Sequential deployment of all related sub-chains is not available, hence it will be performed in common mode
 - Unable to find chain with trigger id {}. Sequential deployment of all related sub-chains is not available, hence it will be performed in common mode
@@ -738,7 +738,7 @@ If configured properly and appropriate event happens (e.g. error, warning, etc.)
 
 ---
 
-Logging options and level for ***microservice logs,*** ***session logs*** *and* ***DPT logs*** could be configured by the user via [Deployments](../../01__Chains/3__Deployments/deployments.md) tab, there is no specific UI available for Tracing or Action log configuration (although Action logs could still be viewed via specific screen in CIP). To get more details about viewing logs via UI components, please refer to [Sessions](../../01__Chains/4__Sessions/sessions.md) and [Audit](../../03__Admin_Tools/3__Audit/audit.md) articles.
+Logging options and level for ***microservice logs,*** ***session logs*** *and* ***DPT logs*** could be configured by the user via [Deployments](../../01__Chains/3__Deployments/deployments.md) tab, there is no specific UI available for Tracing or Action log configuration (although Action logs could still be viewed via specific screen in CIP). To get more details about viewing logs via UI components, please refer to [Sessions](../../01__Chains/4__Sessions/readme.md) and [Audit](../../03__Admin_Tools/3__Audit/audit.md) articles.
 
 ## Data Storage
 

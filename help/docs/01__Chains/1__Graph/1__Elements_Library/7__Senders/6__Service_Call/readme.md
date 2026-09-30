@@ -131,7 +131,7 @@ query getVehicle {
 ### "Prepare request" Tab
 The tab is responsible for choosing an action on receiving the request. Possible actions:
 - **None** - no specific actions.
-- **Scripting** - groovy script (specified in the code block) will be executed on request. More additional information available in [Script](../../5__Transformation/1__Script/script.md).
+- **Scripting** - groovy script (specified in the code block) will be executed on request. More additional information available in [Script](../../5__Transformation/1__Script/readme.md).
 
     > ℹ️ **Note:** **Some element's details are stored in Camel Exchange properties** and available for usage locally via every "Scripting" module under the Service Call. Such properties (specific ones for the protocol) are listed in the next table (click on the expandable section below):
     > <details><summary>Service Call exchange properties</summary>
@@ -166,7 +166,7 @@ The tab is responsible for choosing an action on receiving the request. Possible
     >
     > </details>
 
-- **Mapping** - specific mapping rules will be applied on request, with no possibility to edit schemes, that come with service call. More additional information available in [Mapper](../../5__Transformation/2__Mapper/mapper.md).
+- **Mapping** - specific mapping rules will be applied on request, with no possibility to edit schemes, that come with service call. More additional information available in [Mapper](../../5__Transformation/2__Mapper/readme.md).
 
 > ℹ️ **Note:** **For GraphQL** and **Protobuf** specification there is no ability to select request body schema for mapping from the API Specification. Please, define it manually.
 
@@ -202,8 +202,8 @@ This tab is specifically designed to control validation message format, that wil
 ### "Handle Response" Tab
 The tab is responsible for configuring the handling logic based on response code, which can either be selected from list of predefined response codes in API Specification or new one (custom) can be created by entering the code number and clicking **`Enter`** button. Once it is defined, next actions become available for selection:
 - **None** - no specific actions will be performed.
-- **Scripting** - script, specified in the code block, will be executed for added code/range. Additional information is available in specialized section: [Script](../../5__Transformation/1__Script/script.md).
-- **Mapping** - system shows mapper interface, that allows the structure of the response message to be mapped to the desired/target message structure, while also applying transformations, if necessary. Specific mapping rules will be applied to added code/range, with no possibility to edit schemes, that come with service call. Additional information is available in specialized section: [Mapper](../../5__Transformation/2__Mapper/mapper.md).
+- **Scripting** - script, specified in the code block, will be executed for added code/range. Additional information is available in specialized section: [Script](../../5__Transformation/1__Script/readme.md).
+- **Mapping** - system shows mapper interface, that allows the structure of the response message to be mapped to the desired/target message structure, while also applying transformations, if necessary. Specific mapping rules will be applied to added code/range, with no possibility to edit schemes, that come with service call. Additional information is available in specialized section: [Mapper](../../5__Transformation/2__Mapper/readme.md).
 
 There is also "**Throw exception on transformation failure**" checkbox available on the tab, when option "**Mapping**" is selected. When it is checked, Integration Platform throws an exception if data transformation fails during chain processing.
 

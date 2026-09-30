@@ -68,7 +68,7 @@ The new test case is created with **Enabled** off, a timeout of 120000 ms, the f
 
 ![General tab of a test case](img/test-case-editor.png)
 
-The editor has three tabs and a **Save** button in the chain header, beside the chain tabs, where the **Apply** button of the [Logging](../5__Logging/logging.md) and [Properties](../7__Properties/properties.md) tabs sits. **Save** stays disabled until something has changed and the test case is valid: it needs a name, a chain, a trigger element, an HTTP method and valid validation rules. Saving keeps the editor open. Leaving it with unsaved changes raises a confirmation; switching between the editor's own tabs does not.
+The editor has three tabs and a **Save** button in the chain header, beside the chain tabs, where the **Apply** button of the [Logging](../5__Logging/logging.md) and [Properties](../7__Properties/readme.md) tabs sits. **Save** stays disabled until something has changed and the test case is valid: it needs a name, a chain, a trigger element, an HTTP method and valid validation rules. Saving keeps the editor open. Leaving it with unsaved changes raises a confirmation; switching between the editor's own tabs does not.
 
 #### General Tab
 Names the test case and the call it makes:
@@ -184,7 +184,7 @@ While the run proceeds:
 
 1. Each test case in the run is turned into a test case run and executed in order. Test cases inside a single run execute **sequentially**, one at a time.
 2. A disabled test case is not called; its case run finishes with the status **_Skipped_**.
-3. For an enabled test case, the testing service calls the chain's **HTTP Trigger** with the request configured on the **General** and **Request Parameters** tabs, and links the resulting chain [session](../4__Sessions/sessions.md) to the case run. The call goes to the engine the chain is deployed to, so a chain on a micro-engine domain is tested on that domain. A chain deployed to more than one domain is tested on one of them, which the testing service records in its log.
+3. For an enabled test case, the testing service calls the chain's **HTTP Trigger** with the request configured on the **General** and **Request Parameters** tabs, and links the resulting chain [session](../4__Sessions/readme.md) to the case run. The call goes to the engine the chain is deployed to, so a chain on a micro-engine domain is tested on that domain. A chain deployed to more than one domain is tested on one of them, which the testing service records in its log.
 4. The response is checked against every enabled response validation rule. Each rule that does not hold is stored as a validation error against the case run, and the case run still reaches **_Finished_**.
 
 Separate test runs execute **in parallel**, so several runs can progress at the same time. Test runs themselves are managed under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md).
@@ -207,7 +207,7 @@ The table lists the case runs of the chain, sorted by start time descending. The
 - **Start** - start datetime of the case run.
 - **Finish** - finish datetime of the case run.
 - **Errors** - number of validation errors recorded. A count above zero is a clickable reference to them; a zero is plain text, since the errors page would open empty.
-- **Session** - the chain session the case run produced, a clickable reference to the [session](../4__Sessions/sessions.md). When no session can be resolved, the identifier is shown as plain text.
+- **Session** - the chain session the case run produced, a clickable reference to the [session](../4__Sessions/readme.md). When no session can be resolved, the identifier is shown as plain text.
 
 **Test Run** and **Session** cannot be sorted on; every other column can.
 

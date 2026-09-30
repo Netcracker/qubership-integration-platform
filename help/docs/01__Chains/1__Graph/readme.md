@@ -59,7 +59,7 @@ The next actions are available upper right corner:
 To add a new element, find the suitable one from the left library panel and then drag it to the graph space.
 
 ### Place Element to the Containers
-To put the element into containers (e.g. [swimlanes](1__Elements_Library/8__Grouping/1__Swimlane/readme.md) and container-like element as [Loop](1__Elements_Library/1__Routing/8__Loop/readme.md), [Split](1__Elements_Library/1__Routing/4__Split/split.md), etc.), simply drag the element from the graph or element table to the container.
+To put the element into containers (e.g. [swimlanes](1__Elements_Library/8__Grouping/1__Swimlane/readme.md) and container-like element as [Loop](1__Elements_Library/1__Routing/8__Loop/readme.md), [Split](1__Elements_Library/1__Routing/4__Split/readme.md), etc.), simply drag the element from the graph or element table to the container.
 
 ### Connect Elements
 To connect the elements simply drop one element on another one or hover the mouse on the white dot (placed on the right border of the one element), click it and drag the connection line to the target element.

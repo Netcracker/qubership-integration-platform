@@ -66,7 +66,7 @@ Please, refer to the respective articles for more details.
 
 ---
 
-Please refer to [CIP Architecture](../../05__Architecture/cip_architecture.md) for global data storage information.
+Please refer to [CIP Architecture](../../05__Architecture/readme.md) for global data storage information.
 
 ## Configuration
 

@@ -38,7 +38,7 @@ Cloud Integration Platform will apply its own default hardcoded option and notif
   - **Default (Consul)** - when default settings from Consul are applied.
   - **Custom** - when chain's custom settings from Consul are applied.
   - **Default (Fallback)** - when Consul has no settings available, and system applied its own default values. In this case, system will also show a proper warning message.
-- **Sessions Level** - level of logs for chain [sessions](../../01__Chains/4__Sessions/sessions.md). Possible values:
+- **Sessions Level** - level of logs for chain [sessions](../../01__Chains/4__Sessions/readme.md). Possible values:
   - **Off** _(Default value)_ - logging is fully turned off.
   - **Error** - only sessions failed with errors are going to be logged. If failed elements are part of sub-chain(s), session will also show Chain Call(s) to maintain proper structure.
   This level of logging has a low effect on performance, as it handles only failed sessions and considers writing the data, related to the failed element only. Memory and storage capacity consumption is also considered to be on low level.
@@ -82,4 +82,3 @@ There are next additional articles, that could bring more details regarding data
 
 - In CIP UI: custom logging configuration is being done via CIP UI ("Logging settings" tab under the chain). Please refer to [general logging page] for more details regarding logging capabilities and log formats. It is also possible to setup predefined chain-specific and default logging settings in Consul, which is described in detail in section **Deployment Profiles in Consul** of [Deployment Process] article.
 - In CIP VSCode Extension: custom logging configuration is not supported.
-

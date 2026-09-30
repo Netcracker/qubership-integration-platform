@@ -14,7 +14,7 @@ This tab is intended to provide the functionality for Administrators.
 ### View "Admin Tools" Section
 Click "Admin Tools" main tab on top of the screen to get access to additional sections:
 
-- [Domains](1__Domains/domains.md) - shows details about domains and engines.
+- [Domains](1__Domains/readme.md) - shows details about domains and engines.
 - [Variables](2__Variables/variables.md) - allows to manage common and secured variables.
 - [Audit](3__Audit/audit.md) - contains tracking information about performed operations in the system.
 - [Import Instructions](4__Import_Instructions/import_instructions.md) - allows to manage import instructions.

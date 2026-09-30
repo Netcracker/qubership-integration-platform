@@ -50,7 +50,7 @@ Additionally, at the top of the table there is search box providing ability to f
 
 ### Session View
 Click **Session ID value** in the respective row of sessions table to see the list of logged chain's elements, that are related to the same session. To expand or collapse compound element simply click the element itself or use ![20](img/right.svg) button to expand/collapse all elements at once. Next columns and elements are available for the table:
-- **Element Name** - name of the element, participated in the processing. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
+- **Element Name** - name of the element, participated in the processing. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/readme.md) will open related configuration graph instead of chain element.
 - **Status** - processing status.
 - **Duration** - processing duration in milliseconds.
 - **Start Time** - processing start datetime.
@@ -67,12 +67,12 @@ Click **Session ID value** in the respective row of sessions table to see the li
 ### Session's element view
 Click element's name to open additional window with detailed element's information, including its state before and after it has been executed. For convenient navigation between elements, use "**Next**" and "**Previous**" buttons.
 Next information is available, when element's name clicked and window with its details presented:
-- **Name** - full name of the session element or its sub-operation. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/chain_call.md) will open related configuration graph instead of chain element.
+- **Name** - full name of the session element or its sub-operation. Click ![Link|20](img/link.svg) to open chain element and respective tab in the configuration graph. Reference to the [Chain Call](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/6__Chain_Call/readme.md) will open related configuration graph instead of chain element.
 - **Previous/Next** buttons - navigation buttons, that allow to open previous or next session element.
 - **Body** tab - contains before/after states of request body, participated in the processing.  Slider **"View diff"** highlights payloads differences.
 - **Headers** tab - contains the list of headers and their before/after values.
     > ℹ️ **Note:** For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
-- **Exchange properties** tab - contains list of exchange properties. There are specific properties, available for failed elements in sessions, please refer to the [Building Logic Around Failed Elements](../../00__Overview/6__Building_Logic_Around_Failed_Elements/failed_elements_logic.md) article for more details.
+- **Exchange properties** tab - contains list of exchange properties. There are specific properties, available for failed elements in sessions, please refer to the [Building Logic Around Failed Elements](../../00__Overview/6__Building_Logic_Around_Failed_Elements/readme.md) article for more details.
 - **Technical context** tab - contains the list of context headers, that has been received by the chain.
 
 There is also "**Only modified**" switch, available for "**Headers**", "**Exchange properties**" and "**Technical context**" tabs, that could be used to only show records that were modified during the processing.
