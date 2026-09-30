@@ -14,6 +14,6 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.plann
 @ApplicationScoped
 public interface DesignPlanCaptureAgent {
 
-  @dev.langchain4j.service.SystemMessage(fromResource = "prompts/design-process-skill-system.md")
+  @dev.langchain4j.service.SystemMessage(fromResource = "prompts/design-plan-capture-system.md")
   Result<String> chat(@MemoryId String conversationId, @UserMessage String userMessage);
 }
