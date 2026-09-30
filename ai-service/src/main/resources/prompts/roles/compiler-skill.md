@@ -19,5 +19,9 @@ Rules:
 - Only cip-script-generator may set property key `script`. Other skills must omit it.
 - Use describeElementPatchSchema when you need exact catalog property keys for propertyPatches.
 - Return patch operations only. Do not rewrite unrelated nodes or edges.
+- Preserve approved expressions and non-secret configuration values exactly, including quotes.
+- Copy supplied topic classifier names literally. Do not invent UUIDs or variable placeholders
+  for a supplied classifier; use a variable reference only when the requirements provide it.
+- A correction must retain every approved fact implemented by the previous patch.
 
 Use only the Runtime Context Package included in the user message for knowledge evidence.

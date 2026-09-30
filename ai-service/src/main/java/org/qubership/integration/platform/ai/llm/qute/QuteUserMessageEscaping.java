@@ -6,8 +6,7 @@ package org.qubership.integration.platform.ai.llm.qute;
  * render time when those names are not in the template data map.
  *
  * <p>Per the Qute reference, a backslash before an opening brace escapes the delimiter so the
- * following text is not evaluated as an expression. Backslashes are doubled first so user-supplied
- * backslashes remain literal.
+ * following text is not evaluated as an expression. Other backslashes remain literal in Qute.
  */
 public final class QuteUserMessageEscaping {
 
@@ -18,6 +17,6 @@ public final class QuteUserMessageEscaping {
     if (text == null || text.isEmpty()) {
       return text;
     }
-    return text.replace("\\", "\\\\").replace("{", "\\{");
+    return text.replace("{", "\\{");
   }
 }

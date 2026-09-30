@@ -21,7 +21,7 @@ def escapeForQuteSystemPrompt = { String text ->
     if (text == null || text.isEmpty()) {
         return text
     }
-    return text.replace('\\', '\\\\').replace('{', '\\{')
+    return text.replace('{', '\\{')
 }
 
 // ── Phase 1: merge base + role files into *-system.md ──────────────────────────────────────
