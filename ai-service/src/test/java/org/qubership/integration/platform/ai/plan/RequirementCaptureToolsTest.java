@@ -193,26 +193,26 @@ class RequirementCaptureToolsTest {
   }
 
   @Test
-  void explicitSourcePurposeRequiresAGoalFact() throws Exception {
-    Harness harness = harness();
-    harness.store().beginTurn(harness.conversationId(), "Purpose: Submit one task.");
+  void authorLanguageDoesNotChangeCaptureValidation() throws Exception {
     DraftInput ready = readyHttpDraft();
     FactInput behavior = new FactInput("forward-body", List.of("submit"), FactKind.BEHAVIOR,
         Polarity.POSITIVE, "Forward the request body unchanged.");
-    DraftInput missingGoal = new DraftInput(ready.flow(), List.of(behavior), ready.capabilities(),
+    DraftInput draft = new DraftInput(ready.flow(), List.of(behavior), ready.capabilities(),
         ready.openQuestions(), ready.settings());
-    try (ToolSession.Handle ignored = ToolSession.open(harness.conversationId())) {
-      RequirementCaptureResult rejected = harness.mapper().readValue(
-          harness.tools().captureRequirementDraft(missingGoal), RequirementCaptureResult.class);
-      assertFalse(rejected.accepted(), rejected.toString());
-      assertEquals("REQUIREMENT_COVERAGE_GAP", rejected.issues().getFirst().code());
-      DraftInput corrected = new DraftInput(ready.flow(), List.of(behavior, ready.facts().getFirst()),
-          ready.capabilities(), ready.openQuestions(), ready.settings());
-      RequirementCaptureResult repaired = harness.mapper().readValue(
-          harness.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
-      assertTrue(repaired.accepted(), repaired.toString());
-      assertEquals(RequirementCaptureResult.Readiness.READY, repaired.readiness());
-      assertEquals(corrected.facts(), repaired.draft().facts());
+    for (String authorText : List.of(
+        "Purpose: Forward the request body unchanged.",
+        "Objectif: Transmettre le corps de la requete sans modification.",
+        "Objetivo: Reenviar el cuerpo de la solicitud sin cambios.",
+        "Forward the request body unchanged.")) {
+      Harness harness = harness();
+      harness.store().beginTurn(harness.conversationId(), authorText);
+      try (ToolSession.Handle ignored = ToolSession.open(harness.conversationId())) {
+        RequirementCaptureResult captured = harness.mapper().readValue(
+            harness.tools().captureRequirementDraft(draft), RequirementCaptureResult.class);
+        assertTrue(captured.accepted(), captured.toString());
+        assertEquals(RequirementCaptureResult.Readiness.READY, captured.readiness());
+        assertEquals(draft, captured.draft());
+      }
     }
   }
 
