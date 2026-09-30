@@ -17,6 +17,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
@@ -99,6 +101,118 @@ class CaptureRepairRunnerTest {
     assertEquals(0, tokens.size());
     assertEquals(2, calls.get());
     assertTrue(captured.get());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void givesEachDistinctFailureItsOwnRepairBudget(boolean interruptsStream) {
+    AtomicInteger calls = new AtomicInteger();
+    AtomicBoolean captured = new AtomicBoolean(false);
+    List<String> failures = List.of(
+        "Operation node 'onTaskStart' reuses an interaction id.",
+        "Positive executable fact 'error-mapping' has no semantic node.");
+
+    runner
+        .runWithRepair(
+            message -> {
+              int attempt = calls.getAndIncrement();
+              if (attempt == failures.size()) {
+                captured.set(true);
+                return Multi.createFrom().empty();
+              }
+              String failure = failures.get(attempt);
+              feedbackStore.recordClassifiedPlanFailure(
+                  "conv-1", CaptureFailureKind.VALIDATION,
+                  CaptureFailureClass.CORRECTABLE, true, failure);
+              return interruptsStream
+                  ? Multi.createFrom().failure(new CaptureValidationException(failure))
+                  : Multi.createFrom().empty();
+            },
+            captured::get,
+            () -> feedbackStore.lastPlanFailure("conv-1"),
+            () -> {},
+            "captureChainStructure",
+            "initial")
+        .collect().asList().await().indefinitely();
+
+    assertEquals(3, calls.get());
+    assertTrue(captured.get());
+  }
+
+  @Test
+  void aReturningFailureKeepsItsSpentBudget() {
+    AtomicInteger calls = new AtomicInteger();
+    List<String> failures = List.of("missing entry point", "missing failure handler");
+
+    runner
+        .runWithRepair(
+            message -> {
+              String failure = failures.get(calls.getAndIncrement() % failures.size());
+              feedbackStore.recordClassifiedPlanFailure(
+                  "conv-1", CaptureFailureKind.VALIDATION,
+                  CaptureFailureClass.CORRECTABLE, true, failure);
+              return Multi.createFrom().empty();
+            },
+            () -> false,
+            () -> feedbackStore.lastPlanFailure("conv-1"),
+            () -> {},
+            "captureChainStructure",
+            "initial")
+        .collect().asList().await().indefinitely();
+
+    assertEquals(3, calls.get());
+  }
+
+  @Test
+  void distinctFailuresStillHaveAnAbsoluteRepairCeiling() {
+    AtomicInteger calls = new AtomicInteger();
+
+    runner
+        .runWithRepair(
+            message -> {
+              feedbackStore.recordClassifiedPlanFailure(
+                  "conv-1", CaptureFailureKind.VALIDATION,
+                  CaptureFailureClass.CORRECTABLE, true,
+                  "Missing executable fact 'fact-" + calls.getAndIncrement() + "'.");
+              return Multi.createFrom().empty();
+            },
+            () -> false,
+            () -> feedbackStore.lastPlanFailure("conv-1"),
+            () -> {},
+            "captureChainStructure",
+            "initial")
+        .collect().asList().await().indefinitely();
+
+    assertEquals(CaptureRepairRunner.MAX_TOTAL_REPAIR_ATTEMPTS + 1, calls.get());
+  }
+
+  @Test
+  void eachSubscriptionGetsItsOwnRepairBudget() {
+    AtomicInteger calls = new AtomicInteger();
+    AtomicBoolean captured = new AtomicBoolean(false);
+    Multi<String> stream = runner.runWithRepair(
+        message -> {
+          if (calls.incrementAndGet() % 2 == 0) {
+            captured.set(true);
+          } else {
+            feedbackStore.recordClassifiedPlanFailure(
+                "conv-1", CaptureFailureKind.VALIDATION,
+                CaptureFailureClass.CORRECTABLE, true, "missing failure handler");
+          }
+          return Multi.createFrom().empty();
+        },
+        captured::get,
+        () -> feedbackStore.lastPlanFailure("conv-1"),
+        () -> {},
+        "captureChainStructure",
+        "initial");
+
+    for (int subscription = 0; subscription < 2; subscription++) {
+      captured.set(false);
+      stream.collect().asList().await().indefinitely();
+      assertTrue(captured.get());
+    }
+    assertEquals(4, calls.get());
   }
 
   @Test
