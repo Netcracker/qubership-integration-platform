@@ -52,9 +52,9 @@ public class TruststoreConfiguration {
     private static final String JAVA_DEFAULT_TRUSTSTORE_PASSWORD = "changeit";
 
     @Autowired
-    public TruststoreConfiguration(@Value("${qip.local-truststore.store.path}") String storeFilePath,
-                                   @Value("${qip.local-truststore.store.password}") String storePassword,
-                                   @Value("${qip.local-truststore.certs.location}") String certsLocation) {
+    public TruststoreConfiguration(@Value("${cip.local-truststore.store.path}") String storeFilePath,
+                                   @Value("${cip.local-truststore.store.password}") String storePassword,
+                                   @Value("${cip.local-truststore.certs.location}") String certsLocation) {
         this.storeFilePath = storeFilePath;
         this.storePassword = storePassword;
         this.certsLocation = certsLocation;

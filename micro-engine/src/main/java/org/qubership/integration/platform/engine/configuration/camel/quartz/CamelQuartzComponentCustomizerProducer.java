@@ -37,7 +37,7 @@ public class CamelQuartzComponentCustomizerProducer {
     @Inject
     QuartzSchedulerService quartzSchedulerService;
 
-    @ConfigProperty(name = "qip.camel.component.quartz.thread-pool-count")
+    @ConfigProperty(name = "cip.camel.component.quartz.thread-pool-count")
     String threadPoolCount;
 
     @Produces

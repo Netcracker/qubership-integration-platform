@@ -41,7 +41,7 @@ public class CamelQuartzComponentCustomConfiguration {
 
     private final QuartzSchedulerService quartzSchedulerService;
 
-    @Value("${qip.camel.component.quartz.thread-pool-count}")
+    @Value("${cip.camel.component.quartz.thread-pool-count}")
     private String threadPoolCount;
 
     @Autowired

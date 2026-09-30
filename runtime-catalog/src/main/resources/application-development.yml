@@ -30,7 +30,7 @@ spring:
   jpa:
     show-sql: false
 
-qip:
+cip:
   gateway:
     egress:
       protocol: http

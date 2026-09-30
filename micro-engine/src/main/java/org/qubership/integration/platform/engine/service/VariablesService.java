@@ -76,7 +76,7 @@ public class VariablesService {
             @Named("commonVariablesUpdateGetter") UpdateGetterHelper<Map<String, String>> commonVariablesUpdateGetter,
             @ConfigProperty(name = "kubernetes.variables-secret.label") String kubeSecretsLabel,
             @ConfigProperty(name = "kubernetes.variables-secret.name") String kubeSecretV2Name,
-            @ConfigProperty(name = "qip.variables.default-secret.enabled", defaultValue = "false")
+            @ConfigProperty(name = "cip.variables.default-secret.enabled", defaultValue = "false")
             boolean defaultSecretEnabled,
             StartupErrorHandlingConfiguration startupErrorHandlingConfiguration
     ) {

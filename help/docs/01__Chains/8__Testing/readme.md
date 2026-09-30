@@ -300,8 +300,8 @@ The UI shows the **Testing** tab and the **Testing** group under [Admin Tools](.
 
 | Setting               | Environment variable      | Default                       | Description                                          |
 |-----------------------|---------------------------|-------------------------------|------------------------------------------------------|
-| `qip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false`                       | switches endpoint mocking on for the engine          |
-| `qip.testing.address` | `TESTING_SERVICE_ADDRESS` | `http://testing-service:8080` | address of the testing service the calls are sent to |
+| `cip.testing.enabled` | `TESTING_SERVICE_ENABLED` | `false`                       | switches endpoint mocking on for the engine          |
+| `cip.testing.address` | `TESTING_SERVICE_ADDRESS` | `http://testing-service:8080` | address of the testing service the calls are sent to |
 
 A change takes effect when the engine restarts. No chain has to be redeployed.
 

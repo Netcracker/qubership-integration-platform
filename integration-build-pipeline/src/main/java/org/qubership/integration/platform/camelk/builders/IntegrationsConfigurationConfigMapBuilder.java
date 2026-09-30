@@ -36,10 +36,10 @@ public class IntegrationsConfigurationConfigMapBuilder implements ResourceBuilde
     private final IntegrationsConfigurationBuilder integrationsConfigurationBuilder;
     private final K8sNameValidator k8sNameValidator;
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")

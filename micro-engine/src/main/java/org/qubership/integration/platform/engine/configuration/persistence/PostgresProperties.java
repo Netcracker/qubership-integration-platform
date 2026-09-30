@@ -2,7 +2,7 @@ package org.qubership.integration.platform.engine.configuration.persistence;
 
 import io.smallrye.config.ConfigMapping;
 
-@ConfigMapping(prefix = "qip.postgres")
+@ConfigMapping(prefix = "cip.postgres")
 public interface PostgresProperties {
     ConnectionProperties serviceDb();
 

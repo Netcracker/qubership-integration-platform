@@ -20,7 +20,7 @@ class TestingHttpComponentConfigurationTest {
 
     @Test
     void theCustomizerIsAbsentWhenTheFlagIsFalse() {
-        runner.withPropertyValues("qip.testing.enabled=false")
+        runner.withPropertyValues("cip.testing.enabled=false")
                 .run(context -> assertEquals(0, context.getBeanNamesForType(ComponentCustomizer.class).length));
     }
 
@@ -28,7 +28,7 @@ class TestingHttpComponentConfigurationTest {
     // tell a test case run from a live one.
     @Test
     void theCustomizerInstallsAnActivityListenerWhenMockingIsOn() {
-        runner.withPropertyValues("qip.testing.enabled=true").run(context -> {
+        runner.withPropertyValues("cip.testing.enabled=true").run(context -> {
             HttpComponent component = new HttpComponent();
             context.getBean(ComponentCustomizer.class).configure("http", component);
 

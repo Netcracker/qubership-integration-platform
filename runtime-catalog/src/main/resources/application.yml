@@ -80,7 +80,7 @@ db:
       locations: 'classpath:db/migration/postgresql/configs'
       ignoreMigrationPatterns: '*:future,*:missing'
       placeholders:
-        abacResourceType: ${qip.access-control.resource-type.chain}
+        abacResourceType: ${cip.access-control.resource-type.chain}
   hikari:
     datasources:
       datasource:
@@ -100,7 +100,7 @@ db:
 
 maas:
   local-dev:
-    enabled: ${qip.standalone}
+    enabled: ${cip.standalone}
   agent:
     url: ${MAAS_AGENT_URL:}
     username: ${MAAS_AGENT_USERNAME:client}
@@ -165,7 +165,7 @@ kubernetes:
     name: ${app.prefix}-secured-variables-v2
     label: ${app.prefix}-variable-type
 
-qip:
+cip:
   standalone: true
   variables:
     default-secret:
@@ -273,9 +273,9 @@ qip:
       check:
         enabled: true
   export:
-    legacy-format: ${QIP_EXPORT_LEGACY_FORMAT:false} # Deprecated since 25.3
-    legacy-resource-names: ${QIP_EXPORT_LEGACY_RESOURCE_NAMES:false}
-    remove-unused-specifications: ${QIP_EXPORT_REMOVE_UNUSED_SPECS:true}
+    legacy-format: ${CIP_EXPORT_LEGACY_FORMAT:false} # Deprecated since 25.3
+    legacy-resource-names: ${CIP_EXPORT_LEGACY_RESOURCE_NAMES:false}
+    remove-unused-specifications: ${CIP_EXPORT_REMOVE_UNUSED_SPECS:true}
   import:
     session-lifetime-minutes: ${IMPORT_LOG_LIFETIME_MINUTES:10080}
   internal-services:
@@ -286,7 +286,7 @@ qip:
     egress:
       name: egress-gateway
       protocol: http
-      url: ${QIP_EGRESS_GATEWAY_URL:egress-gateway:8080}
+      url: ${CIP_EGRESS_GATEWAY_URL:egress-gateway:8080}
     public:
       name: public-gateway
     private:
@@ -296,14 +296,14 @@ qip:
   engine:
     app-check-custom-label: qip_engine_app  # Need this label for domain resolution. Each new domain can have a fully custom deployment name
   istio:
-    enabled: ${QIP_ISTIO_ENABLED:true}
+    enabled: ${CIP_ISTIO_ENABLED:true}
     host-resources:
-      enabled: ${QIP_ISTIO_HOST_RESOURCES_ENABLED:true}
+      enabled: ${CIP_ISTIO_HOST_RESOURCES_ENABLED:true}
   control-plane:
     mesh-type: ${SERVICE_MESH_TYPE:Core}
     chain-routes-registration:
-      ingress-gateways: ${QIP_REGISTER_INGRESS_CHAIN_ROUTES:true} # public/private/internal gateway
-      egress-gateway: ${QIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
+      ingress-gateways: ${CIP_REGISTER_INGRESS_CHAIN_ROUTES:true} # public/private/internal gateway
+      egress-gateway: ${CIP_REGISTER_EGRESS_CHAIN_ROUTES:true}
     routes:
       public:
         v1-prefix: /api/v1/${app.prefix}/engine
@@ -347,6 +347,4 @@ listeners: # settings for spring @EventListener's
       delay: 5000
 
 springdoc:
-  swagger-ui:
-    tagsSorter: alpha
-    operationsSorter: alpha
+  writer-with-order-by-keys: true

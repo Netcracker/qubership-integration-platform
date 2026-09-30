@@ -38,8 +38,8 @@ import java.util.List;
  * differ) would only produce duplicate, conflicting HTTPRoute objects here.
  */
 @Component
-@ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
-@ConditionalOnProperty(name = "qip.istio.enabled", havingValue = "true")
+@ConditionalOnProperty(name = "cip.control-plane.mesh-type", havingValue = "Istio")
+@ConditionalOnProperty(name = "cip.istio.enabled", havingValue = "true")
 public class EngineRoutesResourceBuilder implements ResourceBuilder<List<Snapshot>> {
     private static final String TEMPLATE_NAME = "engine-routes";
 
@@ -61,22 +61,22 @@ public class EngineRoutesResourceBuilder implements ResourceBuilder<List<Snapsho
     // literal (and actually unreachable) to==from.
     private static final String LIVE_EXCHANGES_PATH = "/live-exchanges";
 
-    @Value("${qip.control-plane.routes.public.v1-prefix:/api/v1/qip/engine}")
+    @Value("${cip.control-plane.routes.public.v1-prefix:/api/v1/qip/engine}")
     String publicRoutePrefixV1;
 
-    @Value("${qip.gateway.public.name}")
+    @Value("${cip.gateway.public.name}")
     String publicGatewayName;
 
-    @Value("${qip.gateway.private.name}")
+    @Value("${cip.gateway.private.name}")
     String privateGatewayName;
 
-    @Value("${qip.gateway.internal.name}")
+    @Value("${cip.gateway.internal.name}")
     String internalGatewayName;
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")

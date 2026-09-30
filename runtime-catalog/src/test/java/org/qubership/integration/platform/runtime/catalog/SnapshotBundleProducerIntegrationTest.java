@@ -114,10 +114,10 @@ import static org.springframework.test.context.TestExecutionListeners.MergeMode.
 @SpringBootTest(webEnvironment = NONE, properties = {
         "NAMESPACE=local",
         "CONSUL_ADMIN_TOKEN=not-required",
-        "qip.standalone=true",
-        "qip.datasource.configuration.enabled=false",
-        "qip.deploy.classic.enabled=false",
-        "qip.deploy.micro.enabled=false",
+        "cip.standalone=true",
+        "cip.datasource.configuration.enabled=false",
+        "cip.deploy.classic.enabled=false",
+        "cip.deploy.micro.enabled=false",
         "kubernetes.devmode=true",
         "kubernetes.localdev=true",
         "db.hikari.datasources.configs-datasource.driver-class-name="

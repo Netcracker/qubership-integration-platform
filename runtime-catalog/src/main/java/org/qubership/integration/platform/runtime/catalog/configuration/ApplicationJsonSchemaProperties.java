@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 @Component
 @Getter
 @Setter
-@ConfigurationProperties(prefix = "qip.json.schemas")
+@ConfigurationProperties(prefix = "cip.json.schemas")
 public class ApplicationJsonSchemaProperties {
     private String chain = "http://qubership.org/schemas/product/qip/chain";
     private String service = "http://qubership.org/schemas/product/qip/service";

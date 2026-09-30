@@ -59,7 +59,7 @@ const (
 	legacySwaggerPath = "/swagger-ui/*"
 	apiVersionPath    = "/api-version"
 	// envPrefix selects the environment variables that override the file.
-	envPrefix = "QIP_TESTING_"
+	envPrefix = "CIP_TESTING_"
 	// productionModeEnv is the installation-wide flag every service of the
 	// platform reads, and the only source of the mode.
 	productionModeEnv = "PRODUCTION_MODE"
@@ -125,7 +125,7 @@ type appConfig struct {
 		Bind    string `koanf:"bind"`
 	} `koanf:"pprof"`
 	// Production is read from PRODUCTION_MODE alone, so neither the file nor a
-	// QIP_TESTING_ variable sets it. It is left unset when the variable is, and
+	// CIP_TESTING_ variable sets it. It is left unset when the variable is, and
 	// the library reads that as production.
 	Production *bool `koanf:"-"`
 }
@@ -163,7 +163,7 @@ func (cfg appConfig) serviceSettings() testingservice.Config {
 
 // loadConfig reads path and lets the environment override it. A missing file is
 // not an error: an installation may configure the service entirely through
-// QIP_TESTING_* variables.
+// CIP_TESTING_* variables.
 func loadConfig(path string) (appConfig, error) {
 	k := koanf.New(".")
 	if err := k.Load(koanffile.Provider(path), koanfyaml.Parser()); err != nil {
@@ -189,7 +189,7 @@ func loadConfig(path string) (appConfig, error) {
 	return cfg, nil
 }
 
-// envKey turns QIP_TESTING_POSTGRES_DSN into postgres.dsn.
+// envKey turns CIP_TESTING_POSTGRES_DSN into postgres.dsn.
 func envKey(name string) string {
 	return strings.ReplaceAll(strings.ToLower(strings.TrimPrefix(name, envPrefix)), "_", ".")
 }

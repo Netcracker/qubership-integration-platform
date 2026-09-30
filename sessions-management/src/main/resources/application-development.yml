@@ -16,7 +16,7 @@ spring:
           enabled: false
         acl-token: ${CONSUL_ADMIN_TOKEN}
 
-qip:
+cip:
   standalone: true
   internal-services:
     runtime-catalog: qip-runtime-catalog

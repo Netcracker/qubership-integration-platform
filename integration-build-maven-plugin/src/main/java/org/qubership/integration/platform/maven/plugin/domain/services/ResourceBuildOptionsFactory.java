@@ -20,7 +20,7 @@ public class ResourceBuildOptionsFactory {
 
     @Autowired
     public ResourceBuildOptionsFactory(
-        @Value("${qip.cr.build.container.image}")
+        @Value("${cip.cr.build.container.image}")
         String defaultContainerName
     ) {
         this.defaultContainerName = defaultContainerName;

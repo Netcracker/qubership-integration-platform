@@ -1,5 +1,5 @@
 ---
-description: VS Code extension: webpack build chain, architecture, and conventions.
+description: "VS Code extension: webpack build chain, architecture, and conventions."
 globs: "vscode-extension/**"
 ---
 
