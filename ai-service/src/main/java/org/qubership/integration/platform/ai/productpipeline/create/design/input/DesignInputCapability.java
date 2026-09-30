@@ -356,7 +356,10 @@ public class DesignInputCapability implements StageCapability {
          approved positive BEHAVIOR fact or an ErrorScope requires a script. Every positive\
          BEHAVIOR fact must appear in one semantic node's sourceFactIds. A constant response,\
          such as commandType=completeTask, or an assembled response is a behavior-owned script\
-         after the final external interaction, not a MappingIntent.\
+         after the producing call and before the outbound result delivery. For an inbound\
+         HTTP response with no delivery interaction, place it after the final call. INLINE_RESPONSE\
+         puts success and failure field facts on that response script; do not create an error scope\
+         or skip the producing call. Preserve retained input values before a call replaces the body.\
          External interaction anchors are server-owned.\
          Reference these node ids from edges. Do not list triggers or catalog service calls\
          under operations. Preserve\

@@ -73,8 +73,12 @@ public class RequirementCaptureTools {
       Save the initial requirements known so far. The server owns readiness and the readable review.
       A partial draft is valid. Call once for initialization; later edits use updateRequirementDraft.
       If initialization is rejected, correct only reported fields and preserve unaffected facts.
-      For each requested field adaptation, record a FIELD_MAPPING fact with fieldMapping source
-      and target interactions, exact field paths, and an expression when needed.
+      For a field adaptation across a direct transition, record one FIELD_MAPPING fact per target
+      field. Include both endpoints in interactionIds and exact field paths in fieldMapping.
+      Retain earlier event fields through BEHAVIOR naming their source and save-before-call timing.
+      Also map every result field on its adjacent delivery transition with sourcePath null and an
+      expression explicitly reading the saved original field. Do not copy it from the call response.
+      Named catalog outbound operations have no native capability entry; resolve them after capture.
       Never send complete, decision, assembledText, catalog bindings, or revision references.
       """)
   public String captureRequirementDraft(@P("Authored requirement snapshot") DraftInput draft) {

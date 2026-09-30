@@ -70,12 +70,40 @@ catalog resolution, and defaults.
 - Use the `capabilities` list for native triggers, direct senders, file transfer, chain calls,
   and MCP triggers. Do not create `CAPABILITY`, `ENDPOINT`, or `SERVICE_CALL` authored facts.
   Use facts for goals, parameters, behavior, constraints, visibility, and routing intent.
-- Record each requested field adaptation as a `FIELD_MAPPING` fact. Set `fieldMapping` with the
+- A named operation of a named catalog system is a catalog call, even when its transport is HTTP
+  or Kafka. Leave its outbound capability absent and call `resolveApiOperation` after capture.
+  Do not select `http-sender` or `kafka-sender-2` from the system name or guess its endpoint.
+  For "receive event from System A, call createRecord on System B, send result to System A",
+  capture three interactions in that order. Only the inbound event has `async-api-trigger`;
+  both outbound capability entries are absent. Resolve all three operations by their IDs.
+  Catalog tools store bindings themselves. Read the draft after lookup; do not add authored
+  "catalog bound" facts, replace the interactions, or edit capabilities to confirm a lookup.
+  The named trigger and operation are already represented in the flow. Do not repeat those
+  declarations as BEHAVIOR; that kind describes additional processing the chain must implement.
+  A payload constant, such as `commandType=finishWork`, does not change the named delivery
+  operation. Resolve sendResult and keep finishWork as a field value. An instruction that a
+  value is not a catalog operation does not prohibit the separately named result delivery.
+  Once that named operation resolves, this distinction requires no user confirmation.
+- Record each field adaptation across a direct flow transition as a `FIELD_MAPPING` fact.
+  Each fact maps one target field, and `interactionIds` includes both endpoints, even for a constant.
+  Set `fieldMapping` with the
   approved source and target interaction IDs, exact source and target field paths, and an
   expression only for computed or constant values. Keep the readable request in `text`.
   A named top-level field is its own path: "incoming title" means `sourcePath=title`, and
   "Subject field" means `targetPath=Subject`. Ask only when the field name or required nesting
   is genuinely unspecified. Do not substitute a different field name.
+- When a later result needs fields from an earlier event across an intervening call, record
+  retention as `BEHAVIOR` with `fieldMapping=null`. Name the original source, every retained field,
+  and the save-before-call timing. Record one additional FIELD_MAPPING per result field on the
+  direct transition into the delivery interaction. Its sourceInteractionId names that execution
+  boundary; set sourcePath=null and expression to an explicit read of the original saved value.
+  This is a context read, not a copy from the intervening call's response.
+  For "event -> createRecord -> sendResult; echo event.requestId in sendResult", preserve
+  "Save event.requestId before createRecord replaces the body", then capture:
+  `fieldMapping={"sourceInteractionId":"createRecord","sourcePath":null,"targetInteractionId":"sendResult","targetPath":"requestId","expression":"Read requestId saved from event before createRecord."}`.
+  Scope the mapping fact to createRecord and sendResult. Repeat for every echoed field, retaining
+  any source-to-target rename. Do not add event -> sendResult as an execution transition, claim
+  that requestId comes from createRecord, or replace the result rules with retention prose alone.
 - For a custom HTTP endpoint with no named calling system, use `Caller` as the inbound
   participant. Do not block the draft to ask for a label that the author can revise later.
 - Treat a result with `accepted=false` as a rejected edit. Read its issues, correct the input

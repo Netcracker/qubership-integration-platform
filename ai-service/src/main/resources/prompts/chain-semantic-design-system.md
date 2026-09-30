@@ -20,12 +20,42 @@ Every positive BEHAVIOR and CAPABILITY fact must appear in a semantic node's `so
 The server initially attaches only the capability fact to a native outbound anchor. Include its
 configuration facts yourself, including connection, topic, serializers, security, and propagation.
 Check the complete fact list before capture and again after correcting a rejection. Keep each fact
-on the node that implements it. Use the approved chain name as `chainIdentity` when one is supplied.
+on the node that implements it. Copy the entire approved chain name to `chainIdentity`, preserving
+its words, spaces, and run id. A run id or a slug alone does not preserve the requested name.
 
 Each outbound anchor includes its approved `failureMode`. `PROPAGATE` and `INLINE_RESPONSE` do not
 create an error scope around that outbound occurrence. Create an `errorScopeRegion` when the approved
 brief explicitly requires try/catch behavior or an outbound occurrence has `failureMode=ERROR_SCOPE`.
 In the latter case, place that occurrence inside the try path.
+For `INLINE_RESPONSE`, put the failure field assembly on the same response script as the success
+fields, after the failed call and before the outbound result delivery. Include the error fact's
+`sourceFactId` on that script. The call still runs on every path; do not add a shortcut from the
+entry to delivery. For an inbound HTTP response without an outbound delivery, put that script
+at the end of the approved path. Retain original event values before the call replaces the body.
+
+Example with server-owned anchors `entry`, `call`, and `deliver`, approved transitions
+`entry -> call -> deliver`, `call.failureMode=INLINE_RESPONSE`, and behavior fact IDs
+`retain-input`, `assemble-result`, and `failure-fields`:
+
+```json
+{
+  "capture": {
+    "chainIdentity": "Example result delivery",
+    "operations": [
+      {"nodeId": "save-input", "elementType": "script", "sourceFactIds": ["retain-input"]},
+      {"nodeId": "build-result", "elementType": "script", "sourceFactIds": ["assemble-result", "failure-fields"]}
+    ],
+    "edges": [
+      {"sourceNodeId": "entry", "targetNodeId": "save-input"},
+      {"sourceNodeId": "save-input", "targetNodeId": "call"},
+      {"sourceNodeId": "call", "targetNodeId": "build-result"},
+      {"sourceNodeId": "build-result", "targetNodeId": "deliver"}
+    ]
+  }
+}
+```
+
+Use the supplied fact IDs and anchors. Omit `errorScopeRegions` for this inline response.
 
 The brief labels each of these, so copy the value after the matching `=` sign and nothing else. A
 fact renders as `- [POSITIVE] <text> sourceFactId=<id>`, and a service call as
@@ -84,11 +114,17 @@ Replace the example ids and expression with values from the supplied brief.
 Connect the nodes with `edges`. An edge carries `sourceNodeId`, `targetNodeId`, an optional
 `regionId`, and a `routeKind`. Omit `routeKind` for a plain sequence edge. Put every mapping from
 the brief on exactly one edge through `mappingIntentId`, and keep a `mapper-2` or `script` node next
-to that edge.
+to that edge. If both ends of a mapped edge are scripts, the source script owns the mapping.
+Place a mapping on an edge from its implementing script to the external call when a retention
+script precedes it. For `entry -> save-input -> map-request -> call`, put `mappingIntentId` on
+`map-request -> call`, not `save-input -> map-request`. Keep save-input owned by its retention fact.
+When a BEHAVIOR fact restates an entry event, retain that fact on the input-processing script;
+do not add or redeclare the server-owned trigger to attach it.
 
 Scoped routes must reference their owning region. A `CATCH_PATH` names a handler declared in that
-error scope. Represent required error handling with `errorScopeRegions`, its try and catch paths,
-and the finally path when needed. Keep the approved error behavior and mappings when repairing topology.
+error scope. For an approved `ERROR_SCOPE` or explicit try/catch requirement, use `errorScopeRegions`
+with its try and catch paths and the finally path when needed. Keep the approved error behavior
+and mappings when repairing topology.
 Use `TRY_PATH`, `CATCH_PATH`, and `FINALLY_PATH` only once per corresponding branch, from the error-scope
 owner to that branch's entry node. Use plain sequence edges within each branch. Connect a node that runs
 after the complete error scope from the wrapper with a plain sequence edge outside the region.
