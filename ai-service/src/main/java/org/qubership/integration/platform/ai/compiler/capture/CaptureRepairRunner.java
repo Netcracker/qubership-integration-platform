@@ -4,6 +4,8 @@ import io.smallrye.mutiny.Context;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -15,11 +17,14 @@ import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 
-/** Runs agent chat streams with bounded capture repair turns. */
+/** Runs agent chat streams with a separate repair allowance for each rejection. */
 @ApplicationScoped
 public class CaptureRepairRunner {
 
   private static final Logger LOG = Logger.getLogger(CaptureRepairRunner.class);
+
+  // A stream of distinct rejections must not create an unbounded model-call loop.
+  static final int MAX_TOTAL_REPAIR_ATTEMPTS = 12;
 
   private final CaptureRepairMessageBuilder messageBuilder;
   private final int maxRepairAttempts;
@@ -143,18 +148,21 @@ public class CaptureRepairRunner {
             ToolInvocationSink.propagateBinding(
                 toolSinkContext,
                 ToolSession.propagateBinding(toolSessionContext, agentChat.apply(message)));
-    return runAttempt(
-        boundAgentChat,
-        captureAccepted,
-        lastFailure,
-        onToolArgumentsFailure,
-        captureToolName,
-        initialUserMessage,
-        0,
-        boundedBudget,
-        retryValidationFailures,
-        repairMessageFactory,
-        onBeforeRepairRetry);
+    return Multi.createFrom()
+        .deferred(
+            () -> runAttempt(
+                boundAgentChat,
+                captureAccepted,
+                lastFailure,
+                onToolArgumentsFailure,
+                captureToolName,
+                initialUserMessage,
+                0,
+                boundedBudget,
+                new HashMap<>(),
+                retryValidationFailures,
+                repairMessageFactory,
+                onBeforeRepairRetry));
   }
 
   private Multi<String> runAttempt(
@@ -166,6 +174,7 @@ public class CaptureRepairRunner {
       String userMessage,
       int repairIndex,
       int repairAttemptsBudget,
+      Map<String, Integer> repairsByFailure,
       boolean retryValidationFailures,
       Function<CaptureAttemptFeedback, String> repairMessageFactory,
       Runnable onBeforeRepairRetry) {
@@ -187,6 +196,7 @@ public class CaptureRepairRunner {
                   captureToolName,
                   repairIndex,
                   repairAttemptsBudget,
+                  repairsByFailure,
                   retryValidationFailures,
                   repairMessageFactory,
                   onBeforeRepairRetry);
@@ -205,6 +215,7 @@ public class CaptureRepairRunner {
                   captureToolName,
                   repairIndex,
                   repairAttemptsBudget,
+                  repairsByFailure,
                   retryValidationFailures,
                   repairMessageFactory,
                   onBeforeRepairRetry);
@@ -220,6 +231,7 @@ public class CaptureRepairRunner {
       String captureToolName,
       int repairIndex,
       int repairAttemptsBudget,
+      Map<String, Integer> repairsByFailure,
       boolean retryValidationFailures,
       Function<CaptureAttemptFeedback, String> repairMessageFactory,
       Runnable onBeforeRepairRetry) {
@@ -238,6 +250,7 @@ public class CaptureRepairRunner {
           captureToolName,
           repairIndex,
           repairAttemptsBudget,
+          repairsByFailure,
           retryValidationFailures,
           repairMessageFactory,
           onBeforeRepairRetry);
@@ -262,13 +275,11 @@ public class CaptureRepairRunner {
       String captureToolName,
       int repairIndex,
       int repairAttemptsBudget,
+      Map<String, Integer> repairsByFailure,
       boolean retryValidationFailures,
       Function<CaptureAttemptFeedback, String> repairMessageFactory,
       Runnable onBeforeRepairRetry) {
     if (captureAccepted.getAsBoolean()) {
-      return Multi.createFrom().empty();
-    }
-    if (repairIndex >= repairAttemptsBudget) {
       return Multi.createFrom().empty();
     }
     Optional<CaptureAttemptFeedback> failure = lastFailure.get();
@@ -292,6 +303,7 @@ public class CaptureRepairRunner {
         captureToolName,
         repairIndex,
         repairAttemptsBudget,
+        repairsByFailure,
         retryValidationFailures,
         repairMessageFactory,
         onBeforeRepairRetry);
@@ -305,10 +317,11 @@ public class CaptureRepairRunner {
       String captureToolName,
       int repairIndex,
       int repairAttemptsBudget,
+      Map<String, Integer> repairsByFailure,
       boolean retryValidationFailures,
       Function<CaptureAttemptFeedback, String> repairMessageFactory,
       Runnable onBeforeRepairRetry) {
-    if (repairIndex >= repairAttemptsBudget) {
+    if (repairIndex >= MAX_TOTAL_REPAIR_ATTEMPTS) {
       return Multi.createFrom().empty();
     }
     Optional<CaptureAttemptFeedback> failure = lastFailure.get();
@@ -318,14 +331,24 @@ public class CaptureRepairRunner {
     if (!outerAllowed(failure.get(), captureToolName)) {
       return Multi.createFrom().empty();
     }
+    String failureKey =
+        failure.get().kind().name() + '\u0000'
+            + (failure.get().summary() == null ? "" : failure.get().summary().strip());
+    int used = repairsByFailure.getOrDefault(failureKey, 0);
+    if (used >= repairAttemptsBudget) {
+      return Multi.createFrom().empty();
+    }
+    repairsByFailure.put(failureKey, used + 1);
     String repairMessage =
         repairMessageFactory != null
             ? repairMessageFactory.apply(failure.get())
             : messageBuilder.build(failure.get(), captureToolName);
     LOG.infof(
-        "Capture repair retry after validation failure on %s (repairIndex=%d, detail=%s)",
+        "Capture repair retry after validation failure on %s"
+            + " (repairIndex=%d, failureAttempt=%d, detail=%s)",
         captureToolName,
         repairIndex + 1,
+        used + 1,
         AiTraceLog.preview(failure.get().summary(), 500));
     onBeforeRepairRetry.run();
     return runAttempt(
@@ -337,6 +360,7 @@ public class CaptureRepairRunner {
         repairMessage,
         repairIndex + 1,
         repairAttemptsBudget,
+        repairsByFailure,
         retryValidationFailures,
         repairMessageFactory,
         onBeforeRepairRetry);
