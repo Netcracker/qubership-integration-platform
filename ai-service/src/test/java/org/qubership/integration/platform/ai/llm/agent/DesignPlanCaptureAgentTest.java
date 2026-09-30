@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import dev.langchain4j.service.SystemMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
@@ -23,13 +25,19 @@ class DesignPlanCaptureAgentTest {
   }
 
   @Test
-  void systemPromptAllowsTheTypedPlanCaptureTool() throws Exception {
+  void systemPromptRequiresTheTypedPlanCaptureTool() throws Exception {
+    SystemMessage message =
+        DesignPlanCaptureAgent.class
+            .getMethod("chat", String.class, String.class)
+            .getAnnotation(SystemMessage.class);
+    assertNotNull(message);
     try (var stream =
-        getClass().getResourceAsStream("/prompts/design-process-skill-system.md")) {
+        getClass().getResourceAsStream("/" + message.fromResource())) {
       assertNotNull(stream);
       String prompt = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
 
       assertFalse(prompt.contains("Do not call tools"));
+      assertTrue(prompt.contains("captureDesignPlan"));
     }
   }
 }

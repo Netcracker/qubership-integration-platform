@@ -9,9 +9,18 @@ the approved brief. After accepted capture, finish without further tool calls.
 
 Copy `sourceFactIds` and `mappingIntentId` from the approved brief. Do not mint occurrence ids.
 External interaction anchors are server-owned: use the node ids supplied in the user message.
-Do not author entry points, triggers, service-call nodes, or native outbound operations
-(direct senders and chain-call-2). The server projects those from capability facts. You may
-list a native outbound nodeId under operations only to attach extra sourceFactIds.
+The server projects entry points, triggers, service calls, and native outbound nodes from capability facts.
+Do not list triggers or catalog service calls under `operations`. For each native outbound node
+(direct sender or chain-call-2), list its exact anchor `nodeId` and `elementType` under `operations`
+when it needs additional `sourceFactIds`. This adds provenance to the existing node. It does not create
+another interaction. Attach sender configuration facts to that sender; attach a required local script's
+facts to a separate `script` node in the approved execution order.
+
+Every positive BEHAVIOR and CAPABILITY fact must appear in a semantic node's `sourceFactIds`.
+The server initially attaches only the capability fact to a native outbound anchor. Include its
+configuration facts yourself, including connection, topic, serializers, security, and propagation.
+Check the complete fact list before capture and again after correcting a rejection. Keep each fact
+on the node that implements it. Use the approved chain name as `chainIdentity` when one is supplied.
 
 Each outbound anchor includes its approved `failureMode`. `PROPAGATE` and `INLINE_RESPONSE` do not
 create an error scope around that outbound occurrence. Create an `errorScopeRegion` when the approved
@@ -31,7 +40,43 @@ Copy `elementType` from the allowed values in the user message. Region kind name
 
 List each control-flow region under the list that matches its kind: `sequenceRegions`,
 `conditionRegions`, `splitRegions`, `loopRegions`, `retryRegions`, or `errorScopeRegions`. Omit
-those lists when the chain is linear.
+those lists when the chain is linear. Omit optional fields you do not use; do not send `null`.
+For a condition whose branches finish independently, omit `reconvergenceNodeId`.
+
+Execution edges form a DAG, including loops. A loop region describes repetition; never draw an
+edge back to its owner, a previous node, or the trigger. For `loop-2`, supply `ownerNodeId`,
+`bodyEntryNodeId`, `bodyExitNodeIds`, `exitNodeId`, `loopMode`, `loopExpression`, and a positive
+`loopSafetyBound`. Copy the approved mode and expression exactly. `LOOP_BODY` connects the owner
+to the first body node; `LOOP_EXIT` connects the last body node to `exitNodeId`. Both edges name the
+loop's `regionId`. Use sequence edges between body nodes. Loop membership comes from `loopRegions`;
+do not add containment with `role=body`, which `loop-2` does not declare.
+
+Example for an approved do-while loop with bound 10, a body script, and a script after the loop.
+The anchor is `inbound`; the approved facts are `loop-policy`, `body-work`, and `after-work`.
+Replace the example ids, expression, and bound with values appropriate to the supplied brief.
+
+```json
+{
+  "capture": {
+    "chainIdentity": "Example loop",
+    "operations": [
+      {"nodeId": "repeat", "elementType": "loop-2", "sourceFactIds": ["loop-policy"]},
+      {"nodeId": "work", "elementType": "script", "sourceFactIds": ["body-work"]},
+      {"nodeId": "after", "elementType": "script", "sourceFactIds": ["after-work"]}
+    ],
+    "loopRegions": [{
+      "regionId": "repeat-region", "ownerNodeId": "repeat",
+      "bodyEntryNodeId": "work", "bodyExitNodeIds": ["work"], "exitNodeId": "after",
+      "loopMode": "DO_WHILE", "loopExpression": "${header.more} == \"true\"", "loopSafetyBound": 10
+    }],
+    "edges": [
+      {"sourceNodeId": "inbound", "targetNodeId": "repeat"},
+      {"sourceNodeId": "repeat", "targetNodeId": "work", "regionId": "repeat-region", "routeKind": "LOOP_BODY"},
+      {"sourceNodeId": "work", "targetNodeId": "after", "regionId": "repeat-region", "routeKind": "LOOP_EXIT"}
+    ]
+  }
+}
+```
 
 Connect the nodes with `edges`. An edge carries `sourceNodeId`, `targetNodeId`, an optional
 `regionId`, and a `routeKind`. Omit `routeKind` for a plain sequence edge. Put every mapping from

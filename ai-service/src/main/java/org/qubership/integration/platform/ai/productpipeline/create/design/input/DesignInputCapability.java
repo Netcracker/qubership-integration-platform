@@ -358,7 +358,8 @@ public class DesignInputCapability implements StageCapability {
          such as commandType=completeTask, or an assembled response is a behavior-owned script\
          after the final external interaction, not a MappingIntent.\
          External interaction anchors are server-owned.\
-         Reference these node ids from edges, but do not list them under operations. Preserve\
+         Reference these node ids from edges. Do not list triggers or catalog service calls\
+         under operations. Preserve\
          every approved business transition. You may insert internal processing nodes between\
          its source and target, but you may not reverse, omit, or add an external interaction\
          transition. Do not mint occurrence ids. The server derives the revision id, every edge\
@@ -372,7 +373,9 @@ public class DesignInputCapability implements StageCapability {
          Native outbound capabilities (direct senders and chain-call-2) are server-owned anchors\
          at nodeId equal to the capability sourceFactId. Reference those ids from edges. Do not\
          add another operation with the same elementType. You may list that nodeId under\
-         operations only to attach extra sourceFactIds; the server keeps one node. Do not invent\
+         operations to attach every applicable BEHAVIOR sourceFactId; the server keeps one node.\
+         The server initially attaches only the native capability fact. Keep local script facts\
+         on separate script nodes in the approved execution order. Do not invent\
          the chain-call trigger UUID; gathering already stored it on the capability path.""");
     if (repairSection != null && !repairSection.isBlank()) {
       prompt.append(repairSection);
