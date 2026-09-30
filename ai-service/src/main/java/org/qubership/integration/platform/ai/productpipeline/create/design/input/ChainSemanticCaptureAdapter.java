@@ -502,7 +502,7 @@ public class ChainSemanticCaptureAdapter {
               new LoopPolicy(
                   requireValue(region.loopMode(), "loopMode"),
                   requireText(region.loopExpression(), "loopExpression"),
-                  region.loopSafetyBound() == null ? 0 : region.loopSafetyBound())));
+                  region.loopSafetyBound())));
     }
     for (ChainSemanticCapture.CapturedRetryRegion region : capture.retryRegions()) {
       regions.add(
