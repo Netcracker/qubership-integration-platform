@@ -52,7 +52,7 @@ For example, enable **Created At** in **Column settings** and sort that column i
 at the top. **Reset** in **Column settings** restores the default columns and widths and clears sorting and filters.
 
 Each **chain** contains the following parameters in the table:
-- **Name** - chain name, which is clickable reference to the chain [graph](1__Graph/graph.md).
+- **Name** - chain name, which is clickable reference to the chain [graph](1__Graph/readme.md).
 - **Description** - user description of the chain.
 - **Status** - shows chain's deployment status. Possible values:
   - ⚫ **_Draft_** - default chain status, that indicates that chain is not deployed yet.
@@ -95,7 +95,7 @@ All chains configured using VS Code Extension appears under the "Chains" section
 ### Chain Details Side Panel
 **`⛔ Not available via VS Code extension`**
 
-More chain details are available in the **right side panel**. To open it, click anywhere in the chain row (except the chain name, which leads to the [graph](1__Graph/graph.md)). The following information about the chain is available (in read-only mode):
+More chain details are available in the **right side panel**. To open it, click anywhere in the chain row (except the chain name, which leads to the [graph](1__Graph/readme.md)). The following information about the chain is available (in read-only mode):
 
 - **ID** - chain identifier.
 - **Name** - chain name (same as in the table).

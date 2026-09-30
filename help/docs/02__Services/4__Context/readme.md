@@ -2,7 +2,7 @@
 ## Description
 
 ---
-Context Services are being used as a temporary storage of chain contexts. Chain context lifetime is limited and configurable, please check [Context Storage](../../01__Chains/1__Graph/1__Elements_Library/4__Services/1__Context_Storage/context_storage.md) to get more details.
+Context Services are being used as a temporary storage of chain contexts. Chain context lifetime is limited and configurable, please check [Context Storage](../../01__Chains/1__Graph/1__Elements_Library/4__Services/1__Context_Storage/readme.md) to get more details.
 
 > ⚠️ **Warning:** Context services **shall NOT be used** to store/manage sensitive data.
 
@@ -80,7 +80,7 @@ To create any service using VS Code Extension, follow the steps outlined below:
 
 To import the service(s), click the icon ![cloud-upload](img/cloud-upload.svg), drag and drop **.zip** file into import area or click **"browse"** link and select **single** file with respective format from the explorer menu. When appropriate file is added to the window, click **"Import"** button to start the import process. During the import, system follows next logic:
 - Verify Import Instructions, saved in the system. Proceed with the step below only if they exist:
-  - Fetch the list of service IDs with **ignore** action and skip import process for them. Find more details about Import Instructions in the respective article: [Import Instructions](../../03__Admin_Tools/4__Import_Instructions/import_instructions.md).
+  - Fetch the list of service IDs with **ignore** action and skip import process for them. Find more details about Import Instructions in the respective article: [Import Instructions](../../03__Admin_Tools/4__Import_Instructions/readme.md).
 - Find existing services by IDs from import archive:
   - If system already has entities with IDs, specified in import archive:
     - Merge data from archive, including **custom labels**, into existing entities.
@@ -117,4 +117,3 @@ System allows exporting service. There are two possible ways to export service(s
 ---
 
 Environment configuration steps are fully covered by Installation Notes.
-

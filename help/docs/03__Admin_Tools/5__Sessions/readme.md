@@ -11,7 +11,7 @@ In order to have a full picture of processed sessions, the Cloud Integration Pla
 
 ---
 
-Functionality is available by navigating to **Admin Tools → Sessions** window. Only logged session are going to be available for user. Please ensure that all [logging configuration steps](../../01__Chains/5__Logging/logging.md) are done, if it is expected to use this window.
+Functionality is available by navigating to **Admin Tools → Sessions** window. Only logged session are going to be available for user. Please ensure that all [logging configuration steps](../../01__Chains/5__Logging/readme.md) are done, if it is expected to use this window.
 
 ## User Interface
 
@@ -100,4 +100,3 @@ Please refer to [logging page] for more details regarding data storage.
 ---
 
 Session logs are being captured as per [logging settings](../../01__Chains/5__Logging/logging.md).
-

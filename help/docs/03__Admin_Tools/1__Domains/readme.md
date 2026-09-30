@@ -16,7 +16,7 @@ Engine domains are of two types:
 > ℹ️ **Note**: Availability of the **Classic** and **Micro** domain types is controlled independently via configuration of specific environment parameters (for the correct parameter names, contact your system administrator). If a domain type is disabled, no domains of that type are available for deployment.
 
 Cloud Integration Platform provides view-only window where domain's information could be seen:
-- Increasing the number of **Classic** engine domains is available **only via deployment descriptor during the deployment** (not in runtime). **Micro** domains, in contrast, are created directly from the deployment dialogs — see [Deployments](../../01__Chains/3__Deployments/deployments.md).
+- Increasing the number of **Classic** engine domains is available **only via deployment descriptor during the deployment** (not in runtime). **Micro** domains, in contrast, are created directly from the deployment dialogs — see [Deployments](../../01__Chains/3__Deployments/readme.md).
 - **Scaling** (increase/decrease count of engines) is available for each domain independently via configuration on K8S side before installation.
 
 > **Useful links:**
@@ -86,4 +86,3 @@ No specific information is being stored.
 ---
 
 The scaling is being settled during the CIP installation. No configuration option available in CIP UI.
-

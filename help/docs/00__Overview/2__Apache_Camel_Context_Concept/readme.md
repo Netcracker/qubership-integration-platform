@@ -172,12 +172,12 @@ Diagram below shows how context data is being managed by **Circuit Breaker** ele
 
 ---
 
-Mentioned concept works for every chain, please refer to [Chains](../../01__Chains/chains.md) article for more details.
+Mentioned concept works for every chain, please refer to [Chains](../../01__Chains/readme.md) article for more details.
 
 ## User Interface
 
 ---
-Concept is being supported by [set of elements](../../01__Chains/1__Graph/graph.md) and functionality that do have a user interface. User interface capabilities and specifics are covered by respective articles, introduced for each particular element.
+Concept is being supported by [set of elements](../../01__Chains/1__Graph/readme.md) and functionality that do have a user interface. User interface capabilities and specifics are covered by respective articles, introduced for each particular element.
 
 ## Data Storage
 
@@ -190,4 +190,3 @@ Please refer to  [CIP Architecture](../../05__Architecture/cip_architecture.md) 
 ---
 
 Configuration steps are fully covered by Installation Notes. Please read respective articles for each particular element or functionality, utilizing during chain set-up.
-

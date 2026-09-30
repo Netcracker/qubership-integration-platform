@@ -2,7 +2,7 @@
 ## Description
 
 ---
-**Implemented Services** tab provides capabilities to build a very specific http services with custom schemes, validations, operations, etc. Implemented service API specification could be only used at the start of the chain, hence it is only possible to use it with [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md).
+**Implemented Services** tab provides capabilities to build a very specific http services with custom schemes, validations, operations, etc. Implemented service API specification could be only used at the start of the chain, hence it is only possible to use it with [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md).
 
 There are 2 options to configure the Implemented Service:
 - Implement existing interfaces from **manually imported API specification**, allowing user to move a particular service functionality to the platform. In this case, validation scheme will be **predefined** in swagger file and **cannot** be customized in HTTP Trigger.
@@ -326,4 +326,3 @@ System allows to export service with all its API specifications, environments an
 ---
 
 Environment configuration steps are fully covered by Installation Notes.
-

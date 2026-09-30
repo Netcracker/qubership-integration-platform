@@ -296,7 +296,7 @@ Sample:
 
 #### Auto-Retry
 
-When [Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md) fails and there are retries configured for it, system attempt to make these retries accordingly. All attempts are properly logged, when logging is on.
+When [Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md) fails and there are retries configured for it, system attempt to make these retries accordingly. All attempts are properly logged, when logging is on.
 
 Sample:
 

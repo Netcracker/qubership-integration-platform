@@ -100,7 +100,7 @@ Holds the rules the response is checked against - see [Validation Rules and Requ
 
 The table lists the endpoint mocks of the chain. **Name**, **Description**, **Enabled** and the audit fields repeat the test case ones. Three more columns:
 
-- **Element** - the element whose outgoing call the mock answers, a clickable reference to the chain [graph](../1__Graph/graph.md). The test case table carries this column too, where it points at the trigger instead.
+- **Element** - the element whose outgoing call the mock answers, a clickable reference to the chain [graph](../1__Graph/readme.md). The test case table carries this column too, where it points at the trigger instead.
 - **Response Status** - the HTTP status code the mock returns.
 - **Response Delay** - how long, in milliseconds, the mock holds the answer back.
 
@@ -112,7 +112,7 @@ The control panel offers **Search**, **Filter**, **Column settings**, **Refresh*
 Click **Create an endpoint mock** and fill in the dialog:
 
 - **Name** - mandatory name of the mock.
-- **Endpoint** - the element to answer for. Only [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md) elements and [Service Call](../1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md) elements whose operation protocol is HTTP are offered, including elements nested in containers.
+- **Endpoint** - the element to answer for. Only [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/readme.md) elements and [Service Call](../1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md) elements whose operation protocol is HTTP are offered, including elements nested in containers.
 - **Description** - optional description.
 
 The new mock is created **Enabled**, with status code `200` and no delay. These defaults are the opposite of the test case ones: a mock starts working the moment it is saved, while a test case has to be enabled first.
@@ -270,8 +270,8 @@ When a call belongs to such a run, the HTTP client the engine built for the elem
 
 Calls that are intercepted:
 
-- [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md);
-- [Service Call](../1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md) over HTTP.
+- [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/readme.md);
+- [Service Call](../1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md) over HTTP.
 
 A Service Call over Kafka, AMQP or gRPC is never intercepted, and neither is an **HTTP Trigger**, which receives calls rather than making them.
 

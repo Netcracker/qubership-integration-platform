@@ -58,8 +58,8 @@ For incoming requests, process starts automatically, without additional manual u
 ## User Interface
 
 ---
-To enable sending **M2M token**, it is required to set option **"Enable M2M Security"** for [HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md) element
-or select **"M2M Token"** authorization option for [Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md) element.
+To enable sending **M2M token**, it is required to set option **"Enable M2M Security"** for [HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/readme.md) element
+or select **"M2M Token"** authorization option for [Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md) element.
 Please, refer to the respective articles for more details.
 
 ## Data Storage

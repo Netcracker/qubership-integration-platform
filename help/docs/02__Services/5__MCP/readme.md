@@ -2,7 +2,7 @@
 ## Description
 
 ---
-**MCP Services** define services that expose chains as tools through the **Model Context Protocol (MCP)**. MCP services are used in [MCP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md) elements to group and publish configured MCP tools for MCP clients.
+**MCP Services** define services that expose chains as tools through the **Model Context Protocol (MCP)**. MCP services are used in [MCP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/readme.md) elements to group and publish configured MCP tools for MCP clients.
 
 Each MCP service has a unique identifier, common metadata, labels, and instructions that describe how the service should be used by MCP clients.
 
