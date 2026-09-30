@@ -16,19 +16,57 @@ catalog resolution, and defaults.
   its result. State when the available knowledge does not verify the claim.
 - Capture only decisions the user accepts, replaces, removes, or delegates. Discussion, examples,
   and unselected recommendations do not change the draft.
-- Use `captureRequirementDraft` once to initialize known content, including a valid partial
-  request. Use `updateRequirementDraft` for every later edit. Read the accepted draft before an
+- Use `captureRequirementDraft` to initialize known content, including a valid partial request.
+  If initialization is rejected and no draft was saved, correct the full rejected input and repeat
+  `captureRequirementDraft`. Preserve all requirements while correcting invalid fields or IDs.
+  Change only the fields named by the issues and their dependent references. Keep unaffected fact
+  records unchanged, including their text and IDs; do not reformat or reclassify them on this retry.
+  After any accepted capture, use `updateRequirementDraft` for every later edit, including
+  completion of a partial draft. Read the accepted draft before an
   edit when its current entities are not in context. Submit complete records only for changed
   entities; omit unaffected entities from the update lists.
+- Preserve every explicit requirement, including chain name, folder or group, language version,
+  purpose, route visibility, access control, exact values, scripts, and branch conditions. Store
+  chain metadata as separate `PARAMETER` facts with `interactionIds=[]`; use `GOAL` for purpose.
+  Preserve external HTTP route visibility as a `VISIBILITY` fact on the inbound interaction and
+  access control as a separate fact. An external route does not select an external system:
+  keep `settings.preferredSystemType=null` unless the user explicitly chooses the system type.
+  Keep `settings.idsRequested=null` unless the user explicitly accepts or declines IDS.
+- Before finishing, compare each accepted user requirement against the complete saved draft.
+  Add omitted requirements through `addFacts`. Server `READY` confirms structural completeness;
+  it does not prove that every user requirement was captured.
+- During completion or automatic repair, preserve existing fact IDs, full text, polarity, and
+  mapping values. Correct the reported fields and their dependent references. Do not summarize
+  facts, drop conditions, rename facts, or remove unrelated content to make validation pass.
+  Reassign fact references when correcting topology. New author input can replace or remove
+  requirements; that is a user edit rather than an automatic repair.
 - If a business choice is unclear, save the known interactions and facts before asking the
   question. Keep the undecided capability absent and record the choice in `openQuestions`.
   Never end a create or design request with a clarification when no draft has been saved.
 - When the user names an entry event or HTTP request and a subsequent call, include those as
   separate interactions with a transition in the first capture. If the result reports missing
   entry or flow order that the user already supplied, correct the draft before asking the user.
+- `flow.interactions` contains only exchanges with another actor: an entry trigger or an external
+  call or send. A script, mapper, condition, header modification, loop, checkpoint, or
+  try/catch/finally block is local processing. Never add it to `flow.interactions` or
+  `capabilities`, even with null fields. An HTTP response or local error is not a new OUTBOUND
+  interaction. A checkpoint's internal retry route is configuration, not another interaction.
+- Preserve every requested local step in `BEHAVIOR`, `ROUTING`, or `FIELD_MAPPING` facts. Include
+  its name, configuration, order, and branch when specified. Scope steps before an external call
+  to that call; scope steps with no later call to the preceding entry interaction. A fact's
+  `sourceFactId` is not an `interactionId`. Do not drop mapping actions or branch behavior just
+  because they are local.
+- Examples: "HTTP trigger → condition with success and error scripts → response" has one
+  INBOUND interaction, no transition, and branch facts on it. "Kafka trigger → Enrich body
+  script → HTTP sender" has an INBOUND and an OUTBOUND interaction with one transition; attach
+  the script behavior to the HTTP sender.
+- Copy native `capabilityKey` values from the supported list in the addon. Never add or remove a
+  suffix by analogy: `http-trigger` and `http-sender` have no `-2`. Set `httpMode` only for
+  `http-trigger`.
 - Preserve stable interaction, fact, and question IDs. Give separate IDs to repeated calls.
-  Remove transitions, scoped facts, questions, and capability entries explicitly when deleting
-  an interaction. The server rejects dangling references atomically.
+  When correcting an incorrect interaction, reassign its facts to the proper interaction and
+  update transitions, questions, and capability entries. Remove facts only when the author removes
+  their requirements. The server rejects dangling references atomically.
 - Use the `capabilities` list for native triggers, direct senders, file transfer, chain calls,
   and MCP triggers. Do not create `CAPABILITY`, `ENDPOINT`, or `SERVICE_CALL` authored facts.
   Use facts for goals, parameters, behavior, constraints, visibility, and routing intent.
@@ -63,3 +101,22 @@ catalog resolution, and defaults.
   only when the author asks to proceed. A ready draft alone does not authorize continuation.
   Preparing a design for approval is a continuation request; use `CONTINUE` after capture.
 - Do not run the compiler spine, write files, or mutate catalog entities during discovery.
+
+## Coverage and repair example
+
+For "Create chain Events in folder Checks, language version 2026.1, with an external HTTP route
+and RBAC", include these facts in addition to the inbound interaction and HTTP capability:
+
+```json
+[
+  {"sourceFactId":"chain-name","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE","text":"Chain name: Events.","fieldMapping":null},
+  {"sourceFactId":"chain-folder","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE","text":"Folder: Checks.","fieldMapping":null},
+  {"sourceFactId":"language-version","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE","text":"Language version: 2026.1.","fieldMapping":null},
+  {"sourceFactId":"route-visibility","interactionIds":["entry"],"kind":"VISIBILITY","polarity":"POSITIVE","text":"External HTTP route.","fieldMapping":null},
+  {"sourceFactId":"access-control","interactionIds":["entry"],"kind":"CONSTRAINT","polarity":"POSITIVE","text":"Access control: RBAC.","fieldMapping":null}
+]
+```
+
+Keep both settings null. If the result says `entry` is missing `operation`, update only that
+interaction with the supplied method and path. Leave the five facts unchanged. If an incorrect
+`set-body` interaction is removed, retain its complete script fact and reassign it to the sender.

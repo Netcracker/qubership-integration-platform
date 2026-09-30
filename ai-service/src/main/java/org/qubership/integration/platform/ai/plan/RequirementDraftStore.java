@@ -36,6 +36,8 @@ public class RequirementDraftStore {
   private final ConcurrentHashMap<String, String> captureMutationScopes = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, Boolean> captureMutationRejected = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, String> currentAuthorText = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, List<RequirementCaptureInput.FactInput>> rejectedCaptureFacts =
+      new ConcurrentHashMap<>();
   private final CompilationArtifacts artifacts;
   private final CompilationSessions sessions;
 
@@ -164,6 +166,7 @@ public class RequirementDraftStore {
     captureMutationScopes.remove(conversationId);
     captureMutationRejected.remove(conversationId);
     currentAuthorText.remove(conversationId);
+    rejectedCaptureFacts.remove(conversationId);
   }
 
   /** Clears per-turn gather flags without starting a new compilation. */
@@ -174,6 +177,7 @@ public class RequirementDraftStore {
     captureMutationScopes.remove(conversationId);
     captureMutationRejected.remove(conversationId);
     currentAuthorText.remove(conversationId);
+    rejectedCaptureFacts.remove(conversationId);
   }
 
   /** Returns the active compilation identity used for subsequent artifact revisions. */
@@ -185,6 +189,22 @@ public class RequirementDraftStore {
   public void beginTurn(String conversationId) {
     capturedThisTurn.put(conversationId, false);
     turnDirectives.remove(conversationId);
+    rejectedCaptureFacts.remove(conversationId);
+  }
+
+  void rememberRejectedCaptureFacts(
+      String conversationId, List<RequirementCaptureInput.FactInput> facts) {
+    if (!facts.isEmpty()) {
+      rejectedCaptureFacts.putIfAbsent(conversationId, List.copyOf(facts));
+    }
+  }
+
+  List<RequirementCaptureInput.FactInput> rejectedCaptureFacts(String conversationId) {
+    return rejectedCaptureFacts.getOrDefault(conversationId, List.of());
+  }
+
+  void clearRejectedCaptureFacts(String conversationId) {
+    rejectedCaptureFacts.remove(conversationId);
   }
 
   public void beginTurn(String conversationId, String authorText) {

@@ -16,6 +16,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Capabi
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.QuestionInput;
@@ -159,6 +160,80 @@ public final class RequirementCaptureEditor {
         issues.isEmpty() ? candidate : accepted,
         sorted(issues),
         issues.isEmpty() && !candidate.equals(accepted));
+  }
+
+  static List<Issue> validateFactPreservation(DraftInput accepted, DraftInput candidate) {
+    return validateFactPreservation(accepted.facts(), candidate, true);
+  }
+
+  static List<FactInput> factsToPreserve(DraftInput input, List<Issue> issues) {
+    if (input == null || input.facts() == null) {
+      return List.of();
+    }
+    List<FactInput> facts = new ArrayList<>();
+    for (int i = 0; i < input.facts().size(); i++) {
+      FactInput fact = input.facts().get(i);
+      String prefix = "/draft/facts/" + i;
+      if (fact != null && fact.text() != null && !fact.text().isBlank()
+          && fact.kind() != null && fact.polarity() != null && fact.interactionIds() != null
+          && issues.stream().noneMatch(issue ->
+              (issue.path().equals(prefix) || issue.path().startsWith(prefix + "/"))
+                  && !issue.path().equals(prefix + "/sourceFactId"))) {
+        facts.add(fact);
+      }
+    }
+    return List.copyOf(facts);
+  }
+
+  static List<Issue> validateFactPreservation(
+      List<FactInput> originalFacts, DraftInput candidate, boolean saved) {
+    Set<String> interactions = new HashSet<>();
+    candidate.flow().interactions().forEach(interaction -> interactions.add(interaction.interactionId()));
+    Map<String, FactInput> facts = new HashMap<>();
+    candidate.facts().forEach(fact -> facts.put(fact.sourceFactId(), fact));
+    Map<String, Integer> counts = new HashMap<>();
+    originalFacts.forEach(fact -> counts.merge(fact.sourceFactId(), 1, Integer::sum));
+    List<Issue> issues = new ArrayList<>();
+    for (FactInput original : originalFacts) {
+      boolean stableId = original.sourceFactId() != null
+          && LOCAL_ID.matcher(original.sourceFactId()).matches()
+          && counts.get(original.sourceFactId()) == 1;
+      FactInput updated = stableId ? facts.get(original.sourceFactId())
+          : candidate.facts().stream()
+              .filter(fact -> Objects.equals(original.text(), fact.text())).findFirst().orElse(null);
+      // ponytail: Preserve accepted wording within a turn; semantic corrections start with new author input.
+      if (updated == null
+          || !Objects.equals(original.text(), updated.text())
+          || original.kind() != updated.kind()
+          || original.polarity() != updated.polarity()
+          || (!original.interactionIds().isEmpty() && updated.interactionIds().isEmpty())
+          || original.interactionIds().stream().anyMatch(id ->
+              interactions.contains(id) && !updated.interactionIds().contains(id))
+          || !sameMappingContent(original.fieldMapping(), updated.fieldMapping(), interactions)) {
+        add(issues, "REPAIR_FACT_LOSS", (saved ? "/changes" : "/draft")
+                + "/facts/" + original.sourceFactId(),
+            original.sourceFactId(),
+            "Preserve this fact's valid ID, kind, full text, polarity, and mapping values during repair."
+                + " Correct only reported fields; reassign references when removing an incorrect interaction."
+                + " Required fact text: " + original.text()
+                + (saved ? " The accepted draft was retained." : " No draft was saved."));
+      }
+    }
+    return sorted(issues);
+  }
+
+  private static boolean sameMappingContent(
+      FieldMappingInput original, FieldMappingInput updated, Set<String> interactions) {
+    if (original == null || updated == null) {
+      return original == updated;
+    }
+    return Objects.equals(original.sourcePath(), updated.sourcePath())
+        && Objects.equals(original.targetPath(), updated.targetPath())
+        && Objects.equals(original.expression(), updated.expression())
+        && (!interactions.contains(original.sourceInteractionId())
+            || Objects.equals(original.sourceInteractionId(), updated.sourceInteractionId()))
+        && (!interactions.contains(original.targetInteractionId())
+            || Objects.equals(original.targetInteractionId(), updated.targetInteractionId()));
   }
 
   private static <T> List<T> editEntities(

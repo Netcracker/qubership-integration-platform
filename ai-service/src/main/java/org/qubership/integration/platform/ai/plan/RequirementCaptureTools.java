@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -22,6 +23,8 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.EditR
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
@@ -31,6 +34,9 @@ import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 public class RequirementCaptureTools {
 
   private static final Logger LOG = Logger.getLogger(RequirementCaptureTools.class);
+  // ponytail: Check explicit purpose labels; arbitrary source coverage still needs semantic review.
+  private static final Pattern EXPLICIT_PURPOSE = Pattern.compile(
+      "(?iu)(?:\\bPurpose|(?<![\\p{L}])\u0426\u0435\u043b\u044c)\\s*(?:\\*\\*)?\\s*:\\s*(?:\\*\\*)?\\s*\\S");
   private final RequirementDraftStore store;
   private final RequirementDraftTool legacyBindingAdapter;
   private final ObjectMapper mapper;
@@ -71,6 +77,7 @@ public class RequirementCaptureTools {
   @Tool("""
       Save the initial requirements known so far. The server owns readiness and the readable review.
       A partial draft is valid. Call once for initialization; later edits use updateRequirementDraft.
+      If initialization is rejected, correct only reported fields and preserve unaffected facts.
       For each requested field adaptation, record a FIELD_MAPPING fact with fieldMapping source
       and target interactions, exact field paths, and an expression when needed.
       Never send complete, decision, assembledText, catalog bindings, or revision references.
@@ -92,7 +99,15 @@ public class RequirementCaptureTools {
         }
         EditResult edit = RequirementCaptureEditor.initialize(draft);
         if (!edit.accepted()) {
+          store.rememberRejectedCaptureFacts(conversationId,
+              RequirementCaptureEditor.factsToPreserve(draft, edit.issues()));
           return view(previous, false, false, edit.issues());
+        }
+        List<Issue> preservationIssues = RequirementCaptureEditor.validateFactPreservation(
+            store.rejectedCaptureFacts(conversationId), draft, false);
+        if (!preservationIssues.isEmpty()) {
+          return view(previous, false, false, withPreservedFacts(
+              preservationIssues, store.rejectedCaptureFacts(conversationId)));
         }
         return publish(conversationId, draft, previous);
       }
@@ -102,7 +117,10 @@ public class RequirementCaptureTools {
   @Tool("""
       Apply focused requirement changes atomically. Each updated entity is a complete small record.
       Empty lists leave their entity family unchanged. Remove references explicitly when deleting an
-      interaction. A rejected edit retains the accepted draft and bindings.
+      interaction. After a save in this author turn, preserve existing fact IDs, kind, full text, polarity,
+      and mapping values. Reassign fact references when fixing topology; add omitted requirements as
+      new facts. A new author turn can replace or remove requirements.
+      A rejected edit retains the accepted draft and bindings.
       """)
   public String updateRequirementDraft(@P("Focused edits to the accepted draft") DraftUpdate changes) {
     return traced("updateRequirementDraft", () -> {
@@ -113,6 +131,14 @@ public class RequirementCaptureTools {
             previous == null ? null : previous.authoredDraft(), changes);
         if (!edit.accepted()) {
           return view(previous, false, false, edit.issues());
+        }
+        if (store.wasCapturedThisTurn(conversationId)) {
+          List<Issue> preservationIssues = RequirementCaptureEditor.validateFactPreservation(
+              previous.authoredDraft(), edit.draft());
+          if (!preservationIssues.isEmpty()) {
+            return view(previous, false, false,
+                withPreservedFacts(preservationIssues, previous.authoredDraft().facts()));
+          }
         }
         if (!edit.changed()) {
           store.recordCaptureAttempt(conversationId, true);
@@ -177,16 +203,30 @@ public class RequirementCaptureTools {
 
   private RequirementCaptureResult publish(
       String conversationId, DraftInput input, RequirementDraft previous) {
-    List<Issue> preferenceIssues = RequirementPreferenceEvidence.validate(
+    List<Issue> authorIssues = new ArrayList<>(RequirementPreferenceEvidence.validate(
         input, previous, store.currentAuthorText(conversationId).orElse(null),
-        previous == null || previous.authoredDraft() == null ? "/draft" : "/changes");
-    if (!preferenceIssues.isEmpty()) {
-      return view(previous, false, false, preferenceIssues);
+        previous == null || previous.authoredDraft() == null ? "/draft" : "/changes"));
+    if (EXPLICIT_PURPOSE.matcher(store.currentAuthorText(conversationId).orElse("")).find()
+        && input.facts().stream().noneMatch(fact -> fact.kind() == FactKind.GOAL)) {
+      authorIssues.add(new Issue("REQUIREMENT_COVERAGE_GAP",
+          previous == null || previous.authoredDraft() == null ? "/draft/facts" : "/changes/facts", null,
+          "The source explicitly states a purpose. Record it as a GOAL fact and preserve other facts."));
+    }
+    if (!authorIssues.isEmpty()) {
+      if (previous == null || previous.authoredDraft() == null) {
+        store.rememberRejectedCaptureFacts(conversationId,
+            RequirementCaptureEditor.factsToPreserve(input, authorIssues));
+      }
+      return view(previous, false, false, authorIssues);
     }
     RequirementTargetResolver.Resolution targetResolution = targetResolver == null
         ? new RequirementTargetResolver.Resolution(Map.of(), List.of())
         : targetResolver.resolve(input);
     if (!targetResolution.issues().isEmpty()) {
+      if (previous == null || previous.authoredDraft() == null) {
+        store.rememberRejectedCaptureFacts(conversationId,
+            RequirementCaptureEditor.factsToPreserve(input, targetResolution.issues()));
+      }
       return view(previous, false, false, targetResolution.issues());
     }
     List<CatalogBindingHint> bindings =
@@ -196,11 +236,22 @@ public class RequirementCaptureTools {
         legacyBindingAdapter.sourceSkillVersion(conversationId),
         legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
     store.put(conversationId, draft);
+    store.clearRejectedCaptureFacts(conversationId);
     store.recordCaptureAttempt(conversationId, true);
     feedbackStore.clearRequirement(conversationId);
     store.markCaptured(conversationId);
     ProductCapabilityCaptureContext.offerDraft(draft);
     return view(draft, true, true, List.of());
+  }
+
+  private List<Issue> withPreservedFacts(List<Issue> issues, List<FactInput> facts) {
+    return issues.stream().map(issue -> new Issue(
+        issue.code(), issue.path(), issue.entityId(), issue.message()
+            + " Required fact records from the previous input: "
+            + mapper.valueToTree(facts.stream()
+                .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
+            + ". Copy these records unchanged except for an invalid ID or a required reference repair."))
+        .toList();
   }
 
   private RequirementCaptureResult view(
