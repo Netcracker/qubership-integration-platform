@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -23,7 +22,6 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.EditR
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
-import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
@@ -34,9 +32,6 @@ import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 public class RequirementCaptureTools {
 
   private static final Logger LOG = Logger.getLogger(RequirementCaptureTools.class);
-  // ponytail: Check explicit purpose labels; arbitrary source coverage still needs semantic review.
-  private static final Pattern EXPLICIT_PURPOSE = Pattern.compile(
-      "(?iu)(?:\\bPurpose|(?<![\\p{L}])\u0426\u0435\u043b\u044c)\\s*(?:\\*\\*)?\\s*:\\s*(?:\\*\\*)?\\s*\\S");
   private final RequirementDraftStore store;
   private final RequirementDraftTool legacyBindingAdapter;
   private final ObjectMapper mapper;
@@ -203,21 +198,15 @@ public class RequirementCaptureTools {
 
   private RequirementCaptureResult publish(
       String conversationId, DraftInput input, RequirementDraft previous) {
-    List<Issue> authorIssues = new ArrayList<>(RequirementPreferenceEvidence.validate(
+    List<Issue> preferenceIssues = RequirementPreferenceEvidence.validate(
         input, previous, store.currentAuthorText(conversationId).orElse(null),
-        previous == null || previous.authoredDraft() == null ? "/draft" : "/changes"));
-    if (EXPLICIT_PURPOSE.matcher(store.currentAuthorText(conversationId).orElse("")).find()
-        && input.facts().stream().noneMatch(fact -> fact.kind() == FactKind.GOAL)) {
-      authorIssues.add(new Issue("REQUIREMENT_COVERAGE_GAP",
-          previous == null || previous.authoredDraft() == null ? "/draft/facts" : "/changes/facts", null,
-          "The source explicitly states a purpose. Record it as a GOAL fact and preserve other facts."));
-    }
-    if (!authorIssues.isEmpty()) {
+        previous == null || previous.authoredDraft() == null ? "/draft" : "/changes");
+    if (!preferenceIssues.isEmpty()) {
       if (previous == null || previous.authoredDraft() == null) {
         store.rememberRejectedCaptureFacts(conversationId,
-            RequirementCaptureEditor.factsToPreserve(input, authorIssues));
+            RequirementCaptureEditor.factsToPreserve(input, preferenceIssues));
       }
-      return view(previous, false, false, authorIssues);
+      return view(previous, false, false, preferenceIssues);
     }
     RequirementTargetResolver.Resolution targetResolution = targetResolver == null
         ? new RequirementTargetResolver.Resolution(Map.of(), List.of())
