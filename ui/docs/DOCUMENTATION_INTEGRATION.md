@@ -67,15 +67,35 @@ Use `"none"` to skip documentation fetching and index generation entirely (e.g.,
 
 ### Config fields
 
-| Field         | Required              | Description                                |
-| ------------- | --------------------- | ------------------------------------------ |
-| `source`      | Yes                   | `"git"`, `"npm"`, `"local"`, or `"none"`   |
-| `repository`  | For Git               | Git repository URL                         |
-| `branch`      | For Git               | Branch name (default: `"master"`)          |
-| `package`     | For npm               | npm package name                           |
-| `version`     | For npm               | npm version range                          |
-| `path`        | Yes (except `"none"`) | Path to docs directory within the source   |
-| `destination` | No                    | Output directory (default: `"public/doc"`) |
+| Field         | Required              | Description                                                         |
+| ------------- | --------------------- | ------------------------------------------------------------------- |
+| `source`      | Yes                   | `"git"`, `"npm"`, `"local"`, or `"none"`                            |
+| `repository`  | For Git               | Git repository URL                                                  |
+| `branch`      | For Git               | Branch name (default: `"master"`)                                   |
+| `package`     | For npm               | npm package name                                                    |
+| `version`     | For npm               | npm version range                                                   |
+| `path`        | Yes (except `"none"`) | Path to docs directory within the source                            |
+| `destination` | No                    | Output directory (default: `"public/doc"`)                          |
+| `exclude`     | No                    | Glob patterns for files and directories to skip, relative to `path` |
+
+### Excluding files
+
+List glob patterns in `exclude` to keep files out of the destination directory, the table of contents, and the search
+index:
+
+```json
+{
+    "documentation": {
+        "source": "local",
+        "path": "../help/docs",
+        "exclude": ["**/drafts", "**/*.drawio"]
+    }
+}
+```
+
+Patterns match paths relative to `path` and use `/` as the separator on every OS. A pattern that matches a directory
+skips the whole directory: `**/drafts` removes every `drafts` directory, while `**/drafts/**` removes only the files
+inside them. Negation patterns (`!pattern`) are not supported. The field requires Node.js 22.5 or later.
 
 ## Step 2: Add build scripts
 
