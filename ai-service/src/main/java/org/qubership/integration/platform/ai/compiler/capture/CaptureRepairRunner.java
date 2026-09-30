@@ -15,6 +15,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 
 /** Runs agent chat streams with a separate repair allowance for each rejection. */
@@ -357,7 +358,7 @@ public class CaptureRepairRunner {
         lastFailure,
         onToolArgumentsFailure,
         captureToolName,
-        repairMessage,
+        QuteUserMessageEscaping.escapeForAiServiceUserMessage(repairMessage),
         repairIndex + 1,
         repairAttemptsBudget,
         repairsByFailure,

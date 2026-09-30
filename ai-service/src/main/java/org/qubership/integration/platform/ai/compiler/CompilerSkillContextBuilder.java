@@ -182,6 +182,7 @@ public class CompilerSkillContextBuilder {
     body.append("Compiler skill document (").append(document.sourcePath()).append("):\n");
     body.append(document.markdown());
     appendRuntimeContextPackage(body, conversationId, document, snapshot);
+    appendGeneratorConstraints(body, document, snapshot);
     appendFinalEditConstraint(body, document, snapshot);
 
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
@@ -616,7 +617,52 @@ public class CompilerSkillContextBuilder {
     body.append('\n');
     appendAddonSections(body, document);
     appendRuntimeContextPackage(body, conversationId, document, snapshot);
+    appendGeneratorConstraints(body, document, snapshot);
     return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body.toString());
+  }
+
+  private void appendGeneratorConstraints(
+      StringBuilder body, CompilerSkillDocument document, CompilerSkillInputSnapshot snapshot) {
+    if ("cip-naming-generator".equals(document.capabilityId())
+        && snapshot.chainPlanGraph() != null && snapshot.chainPlanGraph().chain() != null
+        && !nullToEmpty(snapshot.chainPlanGraph().chain().name()).isBlank()) {
+      body.append("Approved chain name: ").append(formatJson(snapshot.chainPlanGraph().chain().name()))
+          .append("\nCopy this full value unchanged to chainName. Keep its words, spaces, and run id. "
+              + "The approved name takes precedence over standalone corporate naming examples.\n\n");
+    }
+    if ("cip-script-generator".equals(document.capabilityId())) {
+      body.append("""
+
+          Script runtime contract:
+          Incoming JSON bodies can be strings or maps. Parse a string before reading event fields.
+          For an approved INLINE_RESPONSE HTTP call, errorThrowing=false means the failed response
+          can arrive without CamelExceptionCaught. Check the HTTP status and the actual body.
+          A successful response with errors=[] is success. A plain-text error must still reach the
+          requested result delivery. Preserve the error response text and all retained input fields.
+          Use this normalization pattern, then build only the approved output fields:
+
+          ```groovy
+          def raw = exchange.in.body
+          def parsed = raw
+          if (raw instanceof String) {
+              try { parsed = new groovy.json.JsonSlurper().parseText(raw) }
+              catch (Exception ignored) { parsed = null }
+          }
+          def response = parsed instanceof Map ? parsed : [:]
+          def errors = parsed instanceof Collection ? parsed : response.errors
+          def status = exchange.in.getHeader('CamelHttpResponseCode', Integer)
+          def failed = (status != null && status >= 400) || response.success == false ||
+              (errors instanceof Collection && !errors.isEmpty())
+          def errorText = raw instanceof String ? raw : groovy.json.JsonOutput.toJson(raw)
+          ```
+
+          In the response script, replace any eager parseText(raw) before this guarded parse.
+          Do not prepend a ternary JSON parse: it still throws before the error handler can run.
+          Normalize the response once through the guarded pattern above.
+          Apply failure assembly only to the approved response script. Keep the event retention
+          before body replacement. Use the approved error code; do not add a try/catch flow region.
+          """);
+    }
   }
 
   private void appendRuntimeContextPackage(

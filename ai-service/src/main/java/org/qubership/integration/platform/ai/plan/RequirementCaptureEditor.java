@@ -452,7 +452,12 @@ public final class RequirementCaptureEditor {
             || !draft.flow().transitions().contains(new TransitionInput(
                 mapping.sourceInteractionId(), mapping.targetInteractionId()))) {
           add(issues, "MAPPING_TRANSITION_REQUIRED", path + "/fieldMapping",
-              fact.sourceFactId(), "Use one approved flow transition for this field mapping.");
+              fact.sourceFactId(),
+              "Use one approved direct flow transition for this field mapping. For an earlier event"
+                  + " value retained across a call, keep the save-before-call BEHAVIOR and map each"
+                  + " result field on the delivery transition with sourcePath=null and an expression"
+                  + " reading the saved original field. Preserve its original source and destination."
+                  + " Do not copy from the call response or add a transition that bypasses the call.");
         }
         if (!fact.interactionIds().contains(mapping.sourceInteractionId())
             || !fact.interactionIds().contains(mapping.targetInteractionId())) {

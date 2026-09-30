@@ -104,6 +104,11 @@ public class GatherRequirementsPromptBuilder {
           In each capability record, set fields that do not belong to its capabilityKey to JSON
           null. An http-sender uses httpMethod and path for its direct URI; httpMode and
           targetReference stay null. A direct HTTP URI is not a catalog call.
+          Catalog lookup results update bindings themselves. Do not add "catalog bound" authored
+          facts or repeat the trigger and operation declarations as BEHAVIOR. BEHAVIOR describes
+          additional processing. If the request sends success and failure fields through the same
+          result delivery, set INLINE_RESPONSE on the producing call; null propagates and skips
+          that delivery on failure. Keep the delivery call's own failureMode null by default.
           Read the accepted view after lookups. searchCatalogSystems does not bind an
           interaction.%s Reply in the
           pinned response locale %s. This
@@ -156,7 +161,10 @@ public class GatherRequirementsPromptBuilder {
         + " or URI when applicable. Custom HTTP uses httpMode=CUSTOM with a path; no"
         + " catalog. Implemented service HTTP uses httpMode=CATALOG with participant set"
         + " and a null path, then resolveApiOperation. Catalog outbound calls do not invent a"
-        + " sender key; resolveApiOperation is that classification. Ambiguous HTTP or outbound"
+        + " sender key; resolveApiOperation is that classification. A named operation on a named"
+        + " catalog system leaves its outbound capability absent, including result delivery."
+        + " Resolve each such interaction; do not guess HTTP paths or replace lookup with a sender."
+        + " Ambiguous HTTP or outbound"
         + " needs one question; do not search. mcp-trigger skips catalog lookup; capture"
         + " participant and optional operation, and do not call resolveApiOperation for it."
         + " Do not search the catalog or API Hub for direct elements.";

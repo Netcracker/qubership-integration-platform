@@ -42,6 +42,33 @@ class MappingContractGateTest {
   }
 
   @Test
+  void retainedInputExpressionsSupplyRequiredResponseFields() {
+    MappingContract response = contractFrom("""
+        {"type":"object","properties":{"id":{"type":"string"}},"required":["id"]}
+        """);
+    MappingContract delivery = contractFrom("""
+        {"type":"object","properties":{"executionId":{"type":"string"},
+        "orderId":{"type":"string"}},"required":["executionId","orderId"]}
+        """);
+    MappingIntent missing = new MappingIntent("result", "create-record", MappingPort.RESPONSE,
+        "send-result", MappingPort.REQUEST, List.of());
+    assertTrue(MappingContractGate.evaluate(missing, response, delivery).blocked());
+
+    List<MappingIntentRule> rules = List.of(
+        new MappingIntentRule(null, "executionId", "Read executionId saved from entry before create-record."),
+        new MappingIntentRule(null, "orderId", "Read orderId saved from entry before create-record."));
+    MappingIntent retained = missing.withRules(rules);
+    MappingContractEvaluation evaluated = MappingContractGate.evaluate(retained, response, delivery);
+
+    assertFalse(evaluated.blocked(), evaluated.blockedMessage());
+    List<MappingIntentRule> accepted = evaluated.intent().orElseThrow().rules();
+    assertEquals(2, accepted.size());
+    assertTrue(accepted.stream().allMatch(rule -> rule.sourcePath().isBlank()));
+    assertTrue(accepted.stream().allMatch(rule -> rule.expression().contains("saved from entry")));
+    assertTrue(accepted.stream().allMatch(rule -> rule.status() != MappingRuleStatus.UNRESOLVED));
+  }
+
+  @Test
   void unresolvedRequiredTargetDoesNotStartGenerator() {
     MappingIntent intent =
         new MappingIntent(

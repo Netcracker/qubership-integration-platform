@@ -635,25 +635,23 @@ public class RequirementAnalysisCapability implements StageCapability {
     }
     java.util.function.Function<String, Multi<String>> agentChat =
         message -> {
-          // Quarkus LangChain4j treats @UserMessage as a PromptTemplate/Qute string. Escape each
-          // initial or repair message immediately before the agent call.
-          String safeMessage = QuteUserMessageEscaping.escapeForAiServiceUserMessage(message);
           if (analysisRunner != null) {
             return analysisRunner
-                .apply(context.conversationId(), safeMessage)
+                .apply(context.conversationId(), message)
                 .onItem()
                 .transform(RequirementAnalysisCapability::tokenText);
           }
           if (productDiscoveryAgent != null) {
-            return productDiscoveryAgent.chat(context.conversationId(), safeMessage);
+            return productDiscoveryAgent.chat(context.conversationId(), message);
           }
           if (discoveryAgent == null) {
             return Multi.createFrom().empty();
           }
-          return discoveryAgent.chat(context.conversationId(), safeMessage);
+          return discoveryAgent.chat(context.conversationId(), message);
         };
+    String safeMessage = QuteUserMessageEscaping.escapeForAiServiceUserMessage(userMessage);
     if (captureRepairRunner == null || captureSession == null || feedbackStore == null) {
-      return agentChat.apply(userMessage).onItem().transform(ChatEvent::token);
+      return agentChat.apply(safeMessage).onItem().transform(ChatEvent::token);
     }
     CaptureKey briefKey =
         CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, context.conversationId());
@@ -664,7 +662,7 @@ public class RequirementAnalysisCapability implements StageCapability {
             () -> feedbackStore.lastPlanFailure(context.conversationId()),
             () -> repairDanglingToolCalls(context.conversationId()),
             "captureRequirementBrief",
-            userMessage,
+            safeMessage,
             true,
             null,
             () -> repairDanglingToolCalls(context.conversationId()),
