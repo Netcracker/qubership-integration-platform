@@ -47,7 +47,9 @@ function copySourceToDest(sourceDir, dest, exclude = []) {
       const relativePath = path.relative(sourceDir, src).replaceAll("\\", "/");
       return (
         relativePath === "" ||
-        !exclude.some((pattern) => path.posix.matchesGlob(relativePath, pattern))
+        !exclude.some((pattern) =>
+          path.posix.matchesGlob(relativePath, pattern),
+        )
       );
     },
   });
