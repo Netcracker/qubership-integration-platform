@@ -39,7 +39,6 @@ import org.qubership.integration.platform.ai.llm.agent.DiscoveryAgent;
 import org.qubership.integration.platform.ai.llm.agent.HttpTriggerCaptureAgent;
 import org.qubership.integration.platform.ai.llm.agent.PatternSelectorAgent;
 import org.qubership.integration.platform.ai.llm.agent.ScriptBodyRepairAgent;
-import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.llm.agent.ValidationAgent;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
@@ -775,11 +774,8 @@ public class CompilerSkillRuntime {
       String conversationId,
       String memoryId,
       String capabilityId,
-      String rawUserMessage,
+      String userMessage,
       ChainPlanGraph inputGraph) {
-    // The prompt carries generated design text. A brace in it — a mermaid arrow, a JSON example —
-    // is content, not a Qute expression, and reaches the renderer as one unless escaped here.
-    String userMessage = QuteUserMessageEscaping.escapeForAiServiceUserMessage(rawUserMessage);
     if (!toolMatchesPhase(route.captureTool(), phase)) {
       return Multi.createFrom()
           .failure(
@@ -944,8 +940,7 @@ public class CompilerSkillRuntime {
   }
 
   private Multi<String> graphConstructionStream(
-      String conversationId, String memoryId, String rawUserMessage) {
-    String userMessage = QuteUserMessageEscaping.escapeForAiServiceUserMessage(rawUserMessage);
+      String conversationId, String memoryId, String userMessage) {
     return captureRepairRunner
         .runWithRepair(
             message -> createChainPlanAgent.chat(memoryId, message),
