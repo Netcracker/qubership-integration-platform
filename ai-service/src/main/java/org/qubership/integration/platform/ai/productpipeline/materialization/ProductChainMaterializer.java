@@ -66,24 +66,24 @@ public class ProductChainMaterializer {
 
     if (phase == null) {
       chainId = ensureChain(inputs, executionKey);
-      current = appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.CHAIN, map, null);
+      current = appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.CHAIN, owned, null);
       phase = current.completedPhase();
     }
 
     if (phase == MaterializationPhase.CHAIN
         || phase == MaterializationPhase.PROPERTIES
         || phase == MaterializationPhase.CONNECTIONS) {
-      appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.CHAIN, map, null);
+      appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.CHAIN, owned, null);
       owned = applyGraph(inputs, chainId, map);
       map = new LinkedHashMap<>(owned.nodeIdToElementId());
-      current = appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.ELEMENTS, map, null);
+      current = appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.ELEMENTS, owned, null);
       phase = current.completedPhase();
     }
 
     if (phase == MaterializationPhase.ELEMENTS) {
       factsService.load(chainId);
       current =
-          appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.READ_BACK, map, null);
+          appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.READ_BACK, owned, null);
       phase = current.completedPhase();
     }
 
@@ -105,7 +105,7 @@ public class ProductChainMaterializer {
         inputs.runId(),
         current.chainId(),
         MaterializationPhase.RECONCILE,
-        map,
+        owned,
         null);
     return new MaterializationResult(
         SCHEMA_VERSION,
@@ -121,7 +121,7 @@ public class ProductChainMaterializer {
     MaterializationMap owned = current.materializationMap();
     Map<String, String> map = owned == null ? Map.of() : owned.nodeIdToElementId();
     appendCheckpoint(
-        inputs, inputs.runId(), current.chainId(), MaterializationPhase.COMPLETE, map, null);
+        inputs, inputs.runId(), current.chainId(), MaterializationPhase.COMPLETE, owned, null);
     return new MaterializationResult(
         SCHEMA_VERSION,
         current.chainId(),
@@ -190,7 +190,7 @@ public class ProductChainMaterializer {
       String executionKey,
       String chainId,
       MaterializationPhase completedPhase,
-      Map<String, String> map,
+      MaterializationMap owned,
       String pendingNodeId) {
     Map<String, String> externalKeys =
         executionKey == null ? Map.of() : Map.of("chainPublicationExecutionKey", executionKey);
@@ -200,7 +200,7 @@ public class ProductChainMaterializer {
             executionKey,
             chainId,
             completedPhase,
-            new MaterializationMap(chainId, Map.copyOf(map), Map.of(), Map.of()),
+            copyOwned(chainId, owned, Map.of()),
             pendingNodeId,
             externalKeys);
     artifactStore.append(
