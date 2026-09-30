@@ -152,22 +152,25 @@ The documentation source must follow a specific directory naming convention for 
 ```text
 docs/
     00__Overview/
-        overview.md
+        readme.md
     01__Chains/
-        chains.md
+        readme.md
         1__Graph/
-            1__QIP_Elements_Library/
+            readme.md
+            1__Elements_Library/
                 1__Routing/
+                    5__Condition/
+                        readme.md
+                6__Triggers/
                     1__HTTP_Trigger/
-                        http_trigger.md
-                    2__Condition/
-                        condition.md
+                        readme.md
 ```
 
 ### Naming rules
 
 - **Directories** use the format `N__Title_Name` where `N` is the sort order and `Title_Name` becomes the display title (underscores become spaces)
-- **Files** use snake_case names: `http_trigger.md` maps to element type `http-trigger`
+- **Files** are named `readme.md`, one per directory. The page takes its title from the directory name
+- **Element pages** live under an `Elements_Library` directory, and the directory name sets the element type: `1__HTTP_Trigger` maps to `http-trigger`
 - Nesting depth is unlimited
 
 ### Generated output
@@ -177,9 +180,9 @@ After running the fetch script, the destination directory will contain Markdown 
 ```text
 public/doc/
     00__Overview/
-        overview.md
+        readme.md
     01__Chains/
-        chains.md
+        readme.md
         ...
     paths.json
     names.json
