@@ -11,11 +11,11 @@ According to Groovy, you can set a suitable kind of scripts, error handling, inp
 
 There is a list of modules where you can use Groovy:
 
-1. [Script](../../1__Script/script.md) - the most common module used for creating any scripts of data transformation or something else. For example:
+1. [Script](../../1__Script/readme.md) - the most common module used for creating any scripts of data transformation or something else. For example:
    1. Parsing of incoming messages
    2. Set/Get variable(s) in the Camel Context
    3. Error handling.
-2. [Service Call](../../../7__Senders/6__Service_Call/service_call.md) - embedded Scripting module, so the same functionality as for Script.
+2. [Service Call](../../../7__Senders/6__Service_Call/readme.md) - embedded Scripting module, so the same functionality as for Script.
 
 ### Common Cases
 #### 1. Library import
@@ -180,7 +180,7 @@ def query_parameter = exchange.getMessage().getHeader("query_parameter_name");
 
 #### 15. Get variable value
 
-> **ℹ️Note**: More detailed information about secured variables is available in [Variables](../../../../../../03__Admin_Tools/2__Variables/variables.md)
+> **ℹ️Note**: More detailed information about secured variables is available in [Variables](../../../../../../03__Admin_Tools/2__Variables/readme.md)
 
 ```groovy
 def someValue = #{secured_variable_name};

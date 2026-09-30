@@ -7,19 +7,19 @@
 ---
 The **Testing** tab collects everything needed to exercise a single chain without the systems around it. It holds three sections:
 
-- **Test Cases** - a test case calls one of the chain's [HTTP Trigger](../1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) elements with a prepared request and checks the response against a list of rules. Every rule that does not hold is recorded as a validation error.
+- **Test Cases** - a test case calls one of the chain's [HTTP Trigger](../1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) elements with a prepared request and checks the response against a list of rules. Every rule that does not hold is recorded as a validation error.
 - **Endpoint Mocks** - an endpoint mock answers on behalf of an outbound HTTP call the chain makes, so the chain can be exercised while the real endpoint is unavailable or would produce side effects.
 - **Test Case Runs** - the history of the chain's test case executions, with their statuses, timings, validation errors and the sessions they produced.
 
-Test cases and endpoint mocks are handled by a separate testing service, which reads the chain configuration from the runtime catalog and calls the deployed chain through the engine. The chain therefore has to be [deployed](../3__Deployments/deployments.md) before a test case can run, and the trigger a test case points at has to be an **HTTP Trigger** with a configured context path - no other trigger type can be activated.
+Test cases and endpoint mocks are handled by a separate testing service, which reads the chain configuration from the runtime catalog and calls the deployed chain through the engine. The chain therefore has to be [deployed](../3__Deployments/readme.md) before a test case can run, and the trigger a test case points at has to be an **HTTP Trigger** with a configured context path - no other trigger type can be activated.
 
 > ℹ️ **Note:** The **Testing** tab appears only where the testing service is deployed, reachable and reporting a non-production mode. Non-production mode is opt-in: a testing service that is not configured for it reports production, so a freshly deployed service leaves the tab hidden until an operator switches the mode, as described under [Testing Service Mode](#testing-service-mode).
-> On a production installation the tab is hidden, the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md) is hidden with it, and a direct link to a testing address lands on the "not found" page.
+> On a production installation the tab is hidden, the **Testing** group under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md) is hidden with it, and a direct link to a testing address lands on the "not found" page.
 
 ## User Interface
 
 ---
-Open a chain and click the **Testing** tab. A vertical menu on the left switches between **Test Cases**, **Endpoint Mocks** and **Test Case Runs**. Everything shown here is limited to the current chain. The same entities across all chains, together with the test runs that group them, are available under [Admin Tools](../../03__Admin_Tools/9__Testing/testing.md).
+Open a chain and click the **Testing** tab. A vertical menu on the left switches between **Test Cases**, **Endpoint Mocks** and **Test Case Runs**. Everything shown here is limited to the current chain. The same entities across all chains, together with the test runs that group them, are available under [Admin Tools](../../03__Admin_Tools/9__Testing/readme.md).
 
 ### Test Cases Table View
 
@@ -29,7 +29,7 @@ The table lists the test cases of the chain. The following columns are available
 
 - **Name** - test case name, a clickable reference to the test case editor.
 - **Description** - user description of the test case.
-- **Element** - the **HTTP Trigger** the test case calls, a clickable reference to the element in the chain [graph](../1__Graph/graph.md).
+- **Element** - the **HTTP Trigger** the test case calls, a clickable reference to the element in the chain [graph](../1__Graph/readme.md).
 - **Enabled** - **_Enabled_** or **_Disabled_**. A disabled test case is still queued when it is run, but its case run finishes with the status **_Skipped_** instead of calling the chain.
 - **Readiness** - **_Ready_** when the test case has a trigger, request settings and at least one enabled response validation rule, **_Incomplete_** otherwise. The column is computed in the browser for information only; an incomplete test case can still be run.
 - **Rules** - the number of response validation rules on the test case.

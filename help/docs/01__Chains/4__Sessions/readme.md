@@ -14,10 +14,10 @@ To deal with this challenge, Cloud Integration Platform links request and callba
 This also gives an ability to group up sessions with the same id on the table **"Sessions"**, available for each chain.
 
 Correlation id can be passed by the following chain modules:
-- [HTTP Trigger](../1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
-- [Service Call](../1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md)
-- [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md)
-- [GraphQL Sender](../1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/graphql_sender.md)
+- [HTTP Trigger](../1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md)
+- [Service Call](../1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md)
+- [HTTP Sender](../1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/readme.md)
+- [GraphQL Sender](../1__Graph/1__Elements_Library/7__Senders/7__GraphQL_Sender/readme.md)
 
 In case of asynchronous request during chain design time user has to configure correlation id source and its name (key).
 
@@ -110,4 +110,3 @@ Please refer to the main [logging article] for details about session logs storag
 ---
 
 Please refer to the main [logging article] for details about session logs configuration and retention settings.
-

@@ -26,15 +26,14 @@ The process starts from adding (or importing) of the chain via main page. Please
 ## User Interface
 
 ---
-Chain configuration is handled via multiple UI elements, separately described in respective articles: [Elements Library](../../01__Chains/1__Graph/graph.md)
+Chain configuration is handled via multiple UI elements, separately described in respective articles: [Elements Library](../../01__Chains/1__Graph/readme.md)
 
 ## Data Storage
 
 ---
-Please refer to  [CIP Architecture](../../05__Architecture/cip_architecture.md) for global data storage information.
+Please refer to  [CIP Architecture](../../05__Architecture/readme.md) for global data storage information.
 
 ## Configuration
 
 ---
 Environment configuration steps are fully covered by Installation Notes. Please read respective articles for each particular element or functionality, utilizing during chain set-up.
-

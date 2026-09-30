@@ -2,7 +2,7 @@
 ## Description
 
 ---
-**Circuit Breaker** element is intended to prevent the invocation of outbound service when service malfunction is detected, and failure threshold reached. This element is mainly used with [Service Call](../../7__Senders/6__Service_Call/service_call.md) or [HTTP Sender](../../7__Senders/4__HTTP_Sender/http_sender.md).
+**Circuit Breaker** element is intended to prevent the invocation of outbound service when service malfunction is detected, and failure threshold reached. This element is mainly used with [Service Call](../../7__Senders/6__Service_Call/readme.md) or [HTTP Sender](../../7__Senders/4__HTTP_Sender/readme.md).
 
 The Circuit Breaker switches between three states:
 

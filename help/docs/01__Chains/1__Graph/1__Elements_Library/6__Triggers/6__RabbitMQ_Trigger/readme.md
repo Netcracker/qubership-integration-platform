@@ -4,7 +4,7 @@
 ---
 **RabbitMQ Trigger** element allows to integrate the chain with RabbitMQ instance and setup messages consumption from specific queue and exchange.
 
-> ℹ️ **Note:** According to **Apache Camel** framework, when chain is triggered, system creates **Exchange Object**, that handles input data following the logic, described in respective article: [Apache Camel Context Concept](../../../../../00__Overview/2__Apache_Camel_Context_Concept/apache_camel_context_concept.md).
+> ℹ️ **Note:** According to **Apache Camel** framework, when chain is triggered, system creates **Exchange Object**, that handles input data following the logic, described in respective article: [Apache Camel Context Concept](../../../../../00__Overview/2__Apache_Camel_Context_Concept/readme.md).
 
 ## User Interface
 

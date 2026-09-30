@@ -20,7 +20,7 @@ Mentioned functionality is available on "**Deployments**" tab, that could be fou
 ### View Deployments Tab
 Under the chain it is possible to navigate on "**Deployments**" tab. The following information about deployments is available:
 - **Snapshot**: Displays the deployed version (e.g., _V1.2_ ).
-- **Domain**: Shows the domain hosting the deployed snapshot. Domains of **Micro** type (see [Domains](../../03__Admin_Tools/1__Domains/domains.md)) display a **`micro`** tag next to the name.
+- **Domain**: Shows the domain hosting the deployed snapshot. Domains of **Micro** type (see [Domains](../../03__Admin_Tools/1__Domains/readme.md)) display a **`micro`** tag next to the name.
 - **Status**: IP address indicating deployment success or failure via color-coded labels:
   - ![sync-blue](img/sync-blue.svg) **_Progressing_** - deployment is in progress. There are engines which haven't received finalized status yet.
   - ![check-circle-green](img/check-circle-green.svg) **_Deployed_** - chain data has been successfully deployed on all requested engines.
@@ -33,10 +33,10 @@ Under the chain it is possible to navigate on "**Deployments**" tab. The followi
 
 ### Create Deployment
 Click **"Create deployment"** button marked with ![plus](img/plus.svg). The window for setting deployment parameters will appear. Fill in the following deployment parameters and click **"Deploy"**:
-- **Domains** - choose one or more engine domains to deploy the snapshot on. Select from the list of existing domains, or type a name that does not exist yet to deploy on a new **Micro** domain (tagged with **`micro`**). Availability of each domain type depends on configuration — see [Domains](../../03__Admin_Tools/1__Domains/domains.md). Selecting several domains at once creates a separate deployment entry for each one.
+- **Domains** - choose one or more engine domains to deploy the snapshot on. Select from the list of existing domains, or type a name that does not exist yet to deploy on a new **Micro** domain (tagged with **`micro`**). Availability of each domain type depends on configuration — see [Domains](../../03__Admin_Tools/1__Domains/readme.md). Selecting several domains at once creates a separate deployment entry for each one.
 - **Snapshot** - version of chain you want to deploy.
 
-> ℹ️ **Note**: **After manual [snapshot](../2__Snapshots/snapshots.md) renaming, current parameter's value will not be changed automatically.** To change snapshot name on deployment, it is required to **redeploy** the chain.
+> ℹ️ **Note**: **After manual [snapshot](../2__Snapshots/readme.md) renaming, current parameter's value will not be changed automatically.** To change snapshot name on deployment, it is required to **redeploy** the chain.
 
 ### Delete Deployment
 If you want to **delete deployment**, click ![delete](img/delete.svg) on the right side of deployment.
@@ -57,4 +57,3 @@ As the result of the deployment, deployment data is going to be stored in CIP in
 ---
 
 In general, all configurations are being done via UI. For detailed information about logging configuration, please refer to the [Logging] article. Global configuration aspects and guides for Cloud Integration Platform are available in Installation Notes articles.
-

@@ -2,7 +2,7 @@
 ## Description
 
 ---
-Following the security practices and guidelines, Cloud Integration Platform has introduced an ability to integrate with **Access Control Microservice** in order to control the access to the endpoints, configured within [Chains](../../01__Chains/chains.md). When mentioned functionality is properly utilized, for each chain request Cloud Integration Platform performs a policy check and ensures, that calling system/user is actually allowed to trigger requested endpoint and start the logic, configured within related chain.
+Following the security practices and guidelines, Cloud Integration Platform has introduced an ability to integrate with **Access Control Microservice** in order to control the access to the endpoints, configured within [Chains](../../01__Chains/readme.md). When mentioned functionality is properly utilized, for each chain request Cloud Integration Platform performs a policy check and ensures, that calling system/user is actually allowed to trigger requested endpoint and start the logic, configured within related chain.
 
 Please refer to the diagram below, that visually represents the flow:
 
@@ -29,7 +29,7 @@ All sequentially added roles for each particular endpoint shall be specified man
 | Trigger Chain via Endpoint | /chain/checkData            | CIP-CHAIN                    | RETRIEVE                 | -                        | Deny    | Allow   |
 | Trigger Chain via Endpoint | /order/{orderId}/submit     | Order                        | SUBMIT                   | -                        | Allow   | Deny    |
 
-Where **Resource, Resource Type, Operation** are values, configured on [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) within a chain.
+Where **Resource, Resource Type, Operation** are values, configured on [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) within a chain.
 
 ## Process Initialization
 
@@ -40,7 +40,7 @@ When Cloud Integration Platform receives a request to start a particular chain, 
 ## User Interface
 
 ---
-To make **Cloud Integration Platform** validating called resource against policies, stored in **Access Control**, it is required to select **"ABAC"** option and populate corresponding fields that identifies the resource for [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) (Parameters tab). Policies shall be manually configured directly in Access Control.
+To make **Cloud Integration Platform** validating called resource against policies, stored in **Access Control**, it is required to select **"ABAC"** option and populate corresponding fields that identifies the resource for [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) (Parameters tab). Policies shall be manually configured directly in Access Control.
 
 ## Data Storage
 
@@ -53,4 +53,3 @@ Security policies are stored in Access Control database.Cloud Integration Platfo
 ---
 
 Access Control policies shall be manually configured if required. Fields such as 'Resource type', 'Operation', 'Resource data type' and 'Resource' identifier shall be specified by user for HTTP Trigger.
-

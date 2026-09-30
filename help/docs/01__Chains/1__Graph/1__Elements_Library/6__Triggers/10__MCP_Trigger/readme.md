@@ -4,7 +4,7 @@
 ---
 **MCP Trigger** allows to expose the Chain as an **MCP tool** for clients that use the **Model Context Protocol (MCP)**. The trigger is placed at the beginning of a chain and starts chain processing when an MCP client calls the configured tool.
 
-> **Note:** According to **Apache Camel** framework, when chain is triggered, system creates **Exchange Object**, that handles input data following the logic, described in respective article: [Apache Camel Context Concept](../../../../../00__Overview/2__Apache_Camel_Context_Concept/apache_camel_context_concept.md).
+> **Note:** According to **Apache Camel** framework, when chain is triggered, system creates **Exchange Object**, that handles input data following the logic, described in respective article: [Apache Camel Context Concept](../../../../../00__Overview/2__Apache_Camel_Context_Concept/readme.md).
 
 ## User Interface
 

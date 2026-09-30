@@ -3,7 +3,7 @@
 ## Description
 
 ---
-Context Storage provides an ability to manage context data through the chain using a [Context Services](../../../../../02__Services/4__Context/context.md).
+Context Storage provides an ability to manage context data through the chain using a [Context Services](../../../../../02__Services/4__Context/readme.md).
 
 > ⚠️ **Warning:** Context Storage **shall NOT** be used to store/manage sensitive data.
 

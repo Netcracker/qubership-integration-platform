@@ -4,7 +4,7 @@
 ---
 **HTTP Trigger** allows to expose the Chain via **HTTP** by unique **URI** and **method**. Depending on the configured settings, URI can be accessed via external, internal or public routes.
 
-> ℹ️ **Note:** According to **Apache Camel** framework, when chain is triggered, system creates **Exchange Object**, that handles input data following the logic, described in respective article: [Apache Camel Context Concept](../../../../../00__Overview/2__Apache_Camel_Context_Concept/apache_camel_context_concept.md).
+> ℹ️ **Note:** According to **Apache Camel** framework, when chain is triggered, system creates **Exchange Object**, that handles input data following the logic, described in respective article: [Apache Camel Context Concept](../../../../../00__Overview/2__Apache_Camel_Context_Concept/readme.md).
 
 
 ## User Interface

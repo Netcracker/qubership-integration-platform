@@ -24,9 +24,9 @@ Trigger might have set of roles configured for additional validation (where for 
 Service Call represents the element that is able to trigger the outbound call, if authorization option "**M2M Token**" is selected, then CIP Engine will put the M2M token to the **Authorization** header when calling Service B.
 
 > ℹ️ **Note:** Currently there are only three elements, that utilize mentioned security aspect, due to mechanism specifics:
-> <br>[HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md)
-> <br>[HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md)
-> <br>[Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md)
+> <br>[HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md)
+> <br>[HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/readme.md)
+> <br>[Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md)
 
 Please review the diagram below for detailed and sequential steps to understand how Cloud Integration Platform operates with the M2M token.
 
@@ -73,4 +73,3 @@ Please refer to [CIP Architecture](../../05__Architecture/cip_architecture.md) f
 ---
 
 Global configuration steps are fully covered by Installation Notes. For chain configuration or specific elements setup steps (including Role-based access control of endpoints for HTTP Trigger), please refer to the respective article.
-

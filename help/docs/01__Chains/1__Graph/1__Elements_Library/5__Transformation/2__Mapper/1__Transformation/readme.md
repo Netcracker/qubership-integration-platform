@@ -5,7 +5,7 @@
 There is an ability to alter input data from each available Mapper View:
 - **Graph View** - click connection circle for target attribute when it is connected with one or multiple source attributes with connection arrow(s).
 - **Table View** - click on "**Transformation**" field for target attribute when source attribute is specified in the table.
-- **Text View**  - manually enter transformation setting with custom syntax, described in [main Mapper article](../mapper.md).
+- **Text View**  - manually enter transformation setting with custom syntax, described in [main Mapper article](../readme.md).
 
 For **Graph** and **Table** views when transformation window is opened, it allows to:
 - Select transformation option from the predefined list.

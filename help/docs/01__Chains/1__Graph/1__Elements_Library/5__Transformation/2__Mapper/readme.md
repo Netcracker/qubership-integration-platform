@@ -21,7 +21,7 @@ Main Mapping Tab that allows to map source message structure to the target one v
 - **Properties** - Camel exchange property.
 - **Body** - body structure of the message.
 
-Variables are also available to use for "**Constants**" and "**Properties**" sections. Please refer to the [Variables article](../../../../../03__Admin_Tools/2__Variables/variables.md) for more details and syntax samples.
+Variables are also available to use for "**Constants**" and "**Properties**" sections. Please refer to the [Variables article](../../../../../03__Admin_Tools/2__Variables/readme.md) for more details and syntax samples.
 
 #### Graph View
 Default View for Mapper. The window is divided into two parts, where left part represents the source message structure, and the right part represents the target message structure. When attributes are mapped, there will be connection arrows presented between them.

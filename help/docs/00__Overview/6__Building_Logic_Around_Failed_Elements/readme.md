@@ -6,7 +6,7 @@ In order to determine failed elements in the chains and be able to utilize them 
 - failed-element-name
 - failed-element-id
 
-These properties are available in the sessions, when viewing **"Exchange properties"** tab for failed elements (both for [Graph](../../01__Chains/1__Graph/graph.md) and [Admin Tools](../../03__Admin_Tools/admin_tools.md) windows, under respective tab/section "Sessions"). This is only applicable for cases, when a chain is deployed with an option to produce logs, otherwise sessions won't be visible at all.
+These properties are available in the sessions, when viewing **"Exchange properties"** tab for failed elements (both for [Graph](../../01__Chains/1__Graph/readme.md) and [Admin Tools](../../03__Admin_Tools/readme.md) windows, under respective tab/section "Sessions"). This is only applicable for cases, when a chain is deployed with an option to produce logs, otherwise sessions won't be visible at all.
 
 ## Process Initialization
 
@@ -17,15 +17,15 @@ System will automatically create **failed-element-name** and **failed-element-id
 ## User Interface
 
 ---
-Routing elements, such as [Condition](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/5__Condition/condition.md) and [Try-Catch-Finally](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/9__Try-Catch-Finally/try-catch-finally.md) receive most of the benefits from having mentioned properties, as it is now possible to refer to failed elements when building an advanced logic (e.g. via [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/script.md)) in **"If"** and **"Catch"** sub-elements.
+Routing elements, such as [Condition](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/5__Condition/readme.md) and [Try-Catch-Finally](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/9__Try-Catch-Finally/readme.md) receive most of the benefits from having mentioned properties, as it is now possible to refer to failed elements when building an advanced logic (e.g. via [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/readme.md)) in **"If"** and **"Catch"** sub-elements.
 
-As an example, **"IF"** (sub-element for [Condition](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/5__Condition/condition.md)) with the code below could be placed inside **"Catch"** element to not only catch the error, but also build a logical "fork", based on the failed element id to differ the flows:
+As an example, **"IF"** (sub-element for [Condition](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/5__Condition/readme.md)) with the code below could be placed inside **"Catch"** element to not only catch the error, but also build a logical "fork", based on the failed element id to differ the flows:
 
 ```groovy
 ${exchangeProperty.failed-element-id} == 'b319372b-0003-4ba7-9e11-77bfa442f749'
 ```
 
-Another example, mentioned below, returns a custom error (that could be configured within [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/script.md), placed inside **"Catch"** sub-element) that contains failed element id:
+Another example, mentioned below, returns a custom error (that could be configured within [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/readme.md), placed inside **"Catch"** sub-element) that contains failed element id:
 
 ```groovy
 exchange.getMessage().setBody("Element with id " + exchange.getProperty("failed-element-id") + " failed")
@@ -42,4 +42,3 @@ Values for **failed-element-name** and **failed-element-id** properties are stor
 ---
 
 No specific configuration required to populate value for **failed-element-name** and **failed-element-id,** but to operate with such values, user would require building a specific logic within a chain with help of chain elements.
-

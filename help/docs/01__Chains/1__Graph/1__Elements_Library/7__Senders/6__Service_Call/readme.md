@@ -8,7 +8,7 @@
 
 ---
 ### "Endpoint" Tab
-The tab is responsible for choosing service, its API specification and operation which will be invoked. All services configured in [Services](../../../../../02__Services/services.md) are available for use.
+The tab is responsible for choosing service, its API specification and operation which will be invoked. All services configured in [Services](../../../../../02__Services/readme.md) are available for use.
 
 Service Call supports operations from **Swagger/WSDL/AsyncAPI/GraphQL/Protobuf** specifications.
 

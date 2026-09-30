@@ -24,13 +24,13 @@ To enable communication with MaaS in CIP, please follow simple steps mentioned b
 
 - When working with **Service Call** and **AsyncAPI Trigger**:
   - Go to your **service**, edit the environment and switch **Source type** to MaaS. Click "**Restore defaults**" button and save the changes to proceed with default settings or add additional properties for specific scenarios if required.
-  - For **Service Call** element make sure that you've selected correct service (already configured for MaaS via Environment page) and specify parameters according to [Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/service_call.md) page.
-  - For **AsyncAPI Trigger** element make sure that you've selected correct service (already configured for MaaS via Environment page) and specify parameters according to [AsyncAPI Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/asyncapi_trigger.md) page.
+  - For **Service Call** element make sure that you've selected correct service (already configured for MaaS via Environment page) and specify parameters according to [Service Call](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/6__Service_Call/readme.md) page.
+  - For **AsyncAPI Trigger** element make sure that you've selected correct service (already configured for MaaS via Environment page) and specify parameters according to [AsyncAPI Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/3__AsyncAPI_Trigger/readme.md) page.
 - When working with **Kafka** and **RabbitMQ**:
-  - For **Kafka Trigger** element switch Connection source type to "MaaS" and specify parameters according to [Kafka Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/8__Kafka_Trigger/kafka_trigger.md) page.
-  - For **RabbitMQ Trigger** element switch Connection source type to "MaaS" and specify parameters according to [RabbitMQ Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/6__RabbitMQ_Trigger/rabbitmq_trigger.md) page.
-  - For **Kafka Sender** element switch Connection source type to "MaaS" and specify parameters according to [Kafka Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/2__Kafka_Sender/kafka_sender.md) page.
-  - For **RabbitMQ Sender** element switch Connection source type to "MaaS" and specify parameters according to [RabbitMQ Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/1__RabbitMQ_Sender/rabbitmq_sender.md) page.
+  - For **Kafka Trigger** element switch Connection source type to "MaaS" and specify parameters according to [Kafka Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/8__Kafka_Trigger/readme.md) page.
+  - For **RabbitMQ Trigger** element switch Connection source type to "MaaS" and specify parameters according to [RabbitMQ Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/6__RabbitMQ_Trigger/readme.md) page.
+  - For **Kafka Sender** element switch Connection source type to "MaaS" and specify parameters according to [Kafka Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/2__Kafka_Sender/readme.md) page.
+  - For **RabbitMQ Sender** element switch Connection source type to "MaaS" and specify parameters according to [RabbitMQ Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/1__RabbitMQ_Sender/readme.md) page.
 
 >ℹ️**Note**: No entities are going to be automatically created when using Kafka/RabbitMQ triggers and senders. All queues, topics, etc. shall be pre-created via **MaaS** before respective element starts processing.
 
@@ -45,4 +45,3 @@ In case of MaaS, no specific connection setting data is being stored on Cloud In
 All configuration steps are done via UI components, please read "**User Interface**" section above. For detailed instructions about configuring connection settings in MaaS, please refer to specialized articles.
 
 Preparation of entities in **MaaS** (topics, queues, etc.) - TBD
-
