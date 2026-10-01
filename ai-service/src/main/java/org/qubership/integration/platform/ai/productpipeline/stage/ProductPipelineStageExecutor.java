@@ -517,7 +517,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               switch (skipAction.get()) {
                 case NO_OUTPUT -> executeNoOutputSkip(runId, stage);
                 case REQUIREMENT_DRAFT_PASSTHROUGH ->
-                    executeSkip(runId, stage, attributes);
+                    executeSkip(runId, stage, attributes, committed);
               });
     }
     DeclaredInputResolution inputResolution = resolveDeclaredInputs(profile, stage, committed);
@@ -683,12 +683,14 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   private StageExecutionResult executeSkip(
-      String runId, ProfileStage stage, Map<String, Object> attributes) {
+      String runId, ProfileStage stage, Map<String, Object> attributes, List<Reference> committed) {
     RequirementDraft draft =
         attributes.get("approvedDraft") instanceof RequirementDraft requirementDraft
             ? requirementDraft
             : null;
-    if (draft == null) {
+    List<Reference> inputs = committed.stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+        .reduce((first, second) -> second).map(List::of).orElse(List.of());
+    if (draft == null || inputs.isEmpty()) {
       return handleOutcome(
           runId,
           stage,
@@ -702,7 +704,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         stage,
         new StageOutcome(
             StageOutcomeClass.SUCCEEDED,
-            List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())),
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, inputs)),
             "stage skipped by profile skip policy",
             null),
         List.of());
