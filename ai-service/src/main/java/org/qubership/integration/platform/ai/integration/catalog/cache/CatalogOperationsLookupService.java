@@ -32,8 +32,7 @@ public class CatalogOperationsLookupService {
   }
 
   /**
-   * Lists operations for {@code conversationId}. Tools keep the two-argument form (MDC). Java
-   * callers pass the id they already hold so a worker retry still hits the same conversation cache.
+   * Lists operations for an explicit conversation identity across worker hops.
    */
   public List<CatalogRestClient.OperationDto> listOperations(
       String conversationId, String modelId, String systemId) {
@@ -60,17 +59,29 @@ public class CatalogOperationsLookupService {
   }
 
   public void rememberSystems(List<CatalogRestClient.SystemDto> systems) {
-    cache.rememberSystems(conversationIdFromMdc(), systems);
+    rememberSystems(conversationIdFromMdc(), systems);
+  }
+
+  public void rememberSystems(String conversationId, List<CatalogRestClient.SystemDto> systems) {
+    cache.rememberSystems(conversationId, systems);
   }
 
   public void rememberActiveSystemId(String systemId) {
-    cache.rememberActiveSystemId(conversationIdFromMdc(), systemId);
+    rememberActiveSystemId(conversationIdFromMdc(), systemId);
+  }
+
+  public void rememberActiveSystemId(String conversationId, String systemId) {
+    cache.rememberActiveSystemId(conversationId, systemId);
   }
 
   public void rememberSpecificationsForSystem(
       String systemId, List<CatalogRestClient.SpecificationDto> specifications) {
-    cache.rememberSpecificationsForSystem(
-        conversationIdFromMdc(), systemId, specifications);
+    rememberSpecificationsForSystem(conversationIdFromMdc(), systemId, specifications);
+  }
+
+  public void rememberSpecificationsForSystem(String conversationId,
+      String systemId, List<CatalogRestClient.SpecificationDto> specifications) {
+    cache.rememberSpecificationsForSystem(conversationId, systemId, specifications);
   }
 
   public Optional<CatalogToolResult.ErrorSpec> validateSystemIdForSpecifications(String systemId) {
@@ -80,12 +91,22 @@ public class CatalogOperationsLookupService {
 
   public Optional<CatalogToolResult.ErrorSpec> validateSpecificationIdForOperations(
       String specificationId) {
+    return validateSpecificationIdForOperations(conversationIdFromMdc(), specificationId);
+  }
+
+  public Optional<CatalogToolResult.ErrorSpec> validateSpecificationIdForOperations(
+      String conversationId, String specificationId) {
     return CatalogLookupArgsValidator.validateSpecificationIdForOperations(
-        CatalogSystemToolNames.OPS, specificationId, cache, conversationIdFromMdc());
+        CatalogSystemToolNames.OPS, specificationId, cache, conversationId);
   }
 
   public Optional<CatalogRestClient.OperationDto> findRememberedOperation(String operationId) {
-    return cache.findOperation(conversationIdFromMdc(), operationId);
+    return findRememberedOperation(conversationIdFromMdc(), operationId);
+  }
+
+  public Optional<CatalogRestClient.OperationDto> findRememberedOperation(
+      String conversationId, String operationId) {
+    return cache.findOperation(conversationId, operationId);
   }
 
   private static String conversationIdFromMdc() {

@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.integration.catalog.tool;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsLookupService;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
@@ -50,17 +51,28 @@ public class CatalogSystemReadTool {
    * reader would write.
    */
   public List<CatalogRestClient.SystemDto> searchCatalogSystems(String searchCondition) {
+    return searchCatalogSystems(ToolSession.resolveConversationId(), searchCondition);
+  }
+
+  public List<CatalogRestClient.SystemDto> searchCatalogSystems(String conversationId, String searchCondition) {
     String q = CatalogStrings.blankToNull(searchCondition);
     if (q == null) {
       return List.of();
     }
     List<CatalogRestClient.SystemDto> systems =
         catalogRestClient.searchSystems(new CatalogSystemSearchRequest(q));
-    operationsLookup.rememberSystems(systems);
+    operationsLookup.rememberSystems(conversationId, systems);
     return systems == null ? List.of() : List.copyOf(systems);
   }
 
   public String searchCatalogSystemsJson(String searchCondition) {
+    return searchCatalogSystemsJson(ToolSession.resolveConversationId(), searchCondition);
+  }
+
+  public String searchCatalogSystemsJson(String conversationId, String searchCondition) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return missingContext(CatalogSystemToolNames.SEARCH);
+    }
     String q = CatalogStrings.blankToNull(searchCondition);
     if (q == null) {
       return support.catalogToolError(
@@ -72,7 +84,7 @@ public class CatalogSystemReadTool {
     return support.catalogToolSuccess(
         CatalogSystemToolNames.SEARCH,
         LISTING_IS_NOT_A_BINDING,
-        searchCatalogSystems(searchCondition));
+        searchCatalogSystems(conversationId, searchCondition));
   }
 
   /**
@@ -97,24 +109,35 @@ public class CatalogSystemReadTool {
 
   /** Typed specifications lookup for catalog-first binding resolution. */
   public List<CatalogRestClient.SpecificationDto> getApiSpecifications(String systemId) {
+    return getApiSpecifications(ToolSession.resolveConversationId(), systemId);
+  }
+
+  public List<CatalogRestClient.SpecificationDto> getApiSpecifications(String conversationId, String systemId) {
     String sid = CatalogStrings.blankToNull(systemId);
     if (sid == null) {
       return List.of();
     }
-    operationsLookup.rememberActiveSystemId(sid);
+    operationsLookup.rememberActiveSystemId(conversationId, sid);
     List<CatalogRestClient.SpecificationDto> specs = catalogRestClient.getApiSpecifications(sid);
-    operationsLookup.rememberSpecificationsForSystem(sid, specs);
+    operationsLookup.rememberSpecificationsForSystem(conversationId, sid, specs);
     return specs == null ? List.of() : List.copyOf(specs);
   }
 
   public String getApiSpecificationsJson(String systemId) {
+    return getApiSpecificationsJson(ToolSession.resolveConversationId(), systemId);
+  }
+
+  public String getApiSpecificationsJson(String conversationId, String systemId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return missingContext(CatalogSystemToolNames.SPECS);
+    }
     Optional<CatalogToolResult.ErrorSpec> validationError =
         CatalogLookupArgsValidator.validateSystemIdForSpecifications(systemId);
     if (validationError.isPresent()) {
       return support.catalogToolError(CatalogSystemToolNames.SPECS, validationError.get());
     }
     String sid = CatalogStrings.blankToNull(systemId);
-    List<CatalogRestClient.SpecificationDto> specs = getApiSpecifications(sid);
+    List<CatalogRestClient.SpecificationDto> specs = getApiSpecifications(conversationId, sid);
     if (specs.isEmpty()) {
       Optional<String> hint = CatalogLookupArgsValidator.emptySpecificationsHint(sid);
       return hint.isPresent()
@@ -168,6 +191,13 @@ public class CatalogSystemReadTool {
    * guess at what the id belongs to.
    */
   public String describeBoundOperationJson(String operationId) {
+    return describeBoundOperationJson(ToolSession.resolveConversationId(), operationId);
+  }
+
+  public String describeBoundOperationJson(String conversationId, String operationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return missingContext(CatalogSystemToolNames.BOUND);
+    }
     String oid = CatalogStrings.percentDecode(operationId);
     if (oid == null) {
       return support.catalogToolError(
@@ -177,7 +207,7 @@ public class CatalogSystemReadTool {
           "Take it from the element's integrationOperationId property.");
     }
     CatalogRestClient.OperationDto operation =
-        operationsLookup.findRememberedOperation(oid).orElse(null);
+        operationsLookup.findRememberedOperation(conversationId, oid).orElse(null);
     if (operation == null) {
       try {
         operation = catalogRestClient.getOperation(oid);
@@ -209,14 +239,22 @@ public class CatalogSystemReadTool {
 
   public String listCatalogOperationsJson(
       String specificationId, String systemId, String searchFilter) {
+    return listCatalogOperationsJson(ToolSession.resolveConversationId(), specificationId, systemId, searchFilter);
+  }
+
+  public String listCatalogOperationsJson(
+      String conversationId, String specificationId, String systemId, String searchFilter) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return missingContext(CatalogSystemToolNames.OPS);
+    }
     Optional<CatalogToolResult.ErrorSpec> validationError =
-        operationsLookup.validateSpecificationIdForOperations(specificationId);
+        operationsLookup.validateSpecificationIdForOperations(conversationId, specificationId);
     if (validationError.isPresent()) {
       return support.catalogToolError(CatalogSystemToolNames.OPS, validationError.get());
     }
     String mid = CatalogStrings.blankToNull(specificationId);
     List<CatalogRestClient.OperationDto> ops =
-        listCatalogOperations(specificationId, systemId, searchFilter);
+        listCatalogOperations(conversationId, specificationId, systemId, searchFilter);
     if (ops.isEmpty()) {
       Optional<String> hint = CatalogLookupArgsValidator.emptyOperationsHint(mid);
       return hint.isPresent()
@@ -225,5 +263,11 @@ public class CatalogSystemReadTool {
     }
     return support.catalogToolSuccess(
         CatalogSystemToolNames.OPS, LISTING_IS_NOT_A_BINDING, ops);
+  }
+
+  private String missingContext(String tool) {
+    return support.catalogToolError(tool, "CONVERSATION_CONTEXT_REQUIRED",
+        "Catalog lookup has no conversation identity.",
+        "Restore the active conversation before calling this tool again.");
   }
 }

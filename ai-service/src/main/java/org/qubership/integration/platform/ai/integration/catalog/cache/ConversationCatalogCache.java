@@ -169,8 +169,11 @@ public class ConversationCatalogCache {
 
   public List<CatalogRestClient.OperationDto> getOrLoadOperations(
       String conversationId, String modelId, String systemId) {
+    if (blankConversation(conversationId)) {
+      throw new IllegalStateException("Catalog lookup requires a conversation identity.");
+    }
     String mid = CatalogStrings.blankToNull(modelId);
-    if (blankConversation(conversationId) || mid == null) {
+    if (mid == null) {
       return List.of();
     }
     ConversationState state = state(conversationId);
@@ -190,8 +193,11 @@ public class ConversationCatalogCache {
    */
   public List<CatalogRestClient.OperationDto> refreshOperations(
       String conversationId, String modelId, String systemId) {
+    if (blankConversation(conversationId)) {
+      throw new IllegalStateException("Catalog lookup requires a conversation identity.");
+    }
     String mid = CatalogStrings.blankToNull(modelId);
-    if (blankConversation(conversationId) || mid == null) {
+    if (mid == null) {
       return List.of();
     }
     ConversationState state = state(conversationId);

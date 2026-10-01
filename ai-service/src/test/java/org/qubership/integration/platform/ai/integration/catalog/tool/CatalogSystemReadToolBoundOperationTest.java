@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.lang.reflect.Field;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
+import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsLookupService;
 import org.qubership.integration.platform.ai.integration.catalog.cache.ConversationCatalogCache;
@@ -22,6 +24,7 @@ class CatalogSystemReadToolBoundOperationTest {
 
   @BeforeEach
   void setUp() throws Exception {
+    ToolSession.bind("bound-operation-chat");
     catalogRestClient = mock(CatalogRestClient.class);
     CatalogToolSupport support = new CatalogToolSupport();
     Field mapperField = CatalogToolSupport.class.getDeclaredField("objectMapper");
@@ -31,6 +34,11 @@ class CatalogSystemReadToolBoundOperationTest {
     readTool =
         new CatalogSystemReadTool(
             catalogRestClient, new CatalogOperationsLookupService(cache), support);
+  }
+
+  @AfterEach
+  void clearContext() {
+    ToolSession.clear();
   }
 
   @Test

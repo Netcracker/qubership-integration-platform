@@ -31,7 +31,7 @@ class CatalogSystemToolsDescriptionTest {
   void searchCatalogSystemsWaitsForStoredFlow() throws Exception {
     Tool annotation =
         CatalogSystemTools.class
-            .getDeclaredMethod("searchCatalogSystems", String.class)
+            .getDeclaredMethod("searchCatalogSystems", String.class, String.class)
             .getAnnotation(Tool.class);
     String description = String.join("\n", annotation.value());
     assertTrue(description.contains("Capture RequirementFlow first"), description);

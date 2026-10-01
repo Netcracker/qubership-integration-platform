@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.integration.catalog.cache;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 import org.jboss.logmanager.MDC;
@@ -26,9 +27,8 @@ class CatalogOperationsLookupServiceTest {
     CatalogOperationsLookupService lookup = new CatalogOperationsLookupService(cacheReturning());
     MDC.remove(ChatMdc.CONVERSATION_ID);
 
-    assertTrue(
-        lookup.listOperations(MODEL_ID, SYSTEM_ID).isEmpty(),
-        "MDC-only list must not invent a conversation id");
+    assertThrows(IllegalStateException.class,
+        () -> lookup.listOperations(MODEL_ID, SYSTEM_ID));
 
     List<CatalogRestClient.OperationDto> listed =
         lookup.listOperations(CONVERSATION, MODEL_ID, SYSTEM_ID);
