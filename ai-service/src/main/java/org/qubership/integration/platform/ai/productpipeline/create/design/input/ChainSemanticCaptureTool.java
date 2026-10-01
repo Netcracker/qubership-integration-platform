@@ -95,9 +95,11 @@ public class ChainSemanticCaptureTool {
       Do not pass conversationId. The server binds capture to the current design session.
       Copy sourceFactIds and mappingIntentId from the approved requirement brief. Do not mint
       occurrence ids. External interaction anchors are server-owned. Reference these node ids
-      from edges, but do not list them under operations except to attach extra sourceFactIds
-      to a native outbound node (direct sender or chain-call-2). Do not add another node with
-      that elementType. Preserve every approved business transition. You may insert internal
+      from edges. To attach extra sourceFactIds to an existing anchor, list its exact nodeId
+      and elementType under operations: the trigger capabilityKey, service-call for a catalog
+      call, or the native outbound capabilityKey. This only extends provenance; it never adds
+      or replaces an interaction. Keep parsing, retention, mappings, and response assembly on
+      their processing nodes. Preserve every approved business transition. You may insert internal
       processing nodes between its source and target, but you may not reverse, omit, or add
       an external interaction transition.
       The server owns every id it can derive: leave out revision ids, edge ids, schema versions,

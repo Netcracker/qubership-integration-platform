@@ -196,7 +196,7 @@ public class ChainSemanticCaptureAdapter {
 
   /**
    * Trigger and service-call nodes come from the approved brief. The server names each node after
-   * its interaction id. A captured operation that reuses an interaction id is rejected.
+   * its interaction id. Matching captured operations only extend an anchor's provenance.
    */
   private static List<SemanticNode> nodes(
       ChainSemanticCapture capture,
@@ -298,14 +298,14 @@ public class ChainSemanticCaptureAdapter {
           MappingMechanismSelector.canonicalTransformElementType(
               requireText(operation.elementType(), "elementType"));
       if (interactionIds.contains(nodeId)) {
-        if (matchesProjectedSender(nodes, nodeId, elementType)) {
-          mergeNativeOutboundProvenance(nodes, nodeId, operation.sourceFactIds(), factIds);
+        if (mergeAnchorProvenance(nodes, nodeId, elementType, operation.sourceFactIds(), factIds)) {
           continue;
         }
         throw new IllegalArgumentException(
             "Operation node '"
                 + nodeId
-                + "' reuses an interaction id. Do not list server-owned anchors under operations.");
+                + "' reuses an interaction id with a different elementType. Copy the anchor's"
+                + " exact nodeId and elementType to attach sourceFactIds; do not replace it.");
       }
       if (RequirementFlowValidator.isNativeOutboundCapabilityKey(elementType)) {
         throw nativeOutboundOwnedException(nodeId, elementType, nodes);
@@ -336,6 +336,7 @@ public class ChainSemanticCaptureAdapter {
     for (SemanticNode node : nodes) {
       coveredFactIds.addAll(node.provenance().sourceFactIds());
     }
+    List<String> missingFactIds = new ArrayList<>();
     for (RequirementFact fact : brief.facts()) {
       if (fact == null
           || fact.polarity() != RequirementFactPolarity.POSITIVE
@@ -344,11 +345,16 @@ public class ChainSemanticCaptureAdapter {
           || coveredFactIds.contains(fact.sourceFactId())) {
         continue;
       }
+      missingFactIds.add(fact.sourceFactId());
+    }
+    if (!missingFactIds.isEmpty()) {
       throw new IllegalArgumentException(
-          "Positive executable fact '"
-              + fact.sourceFactId()
-              + "' has no semantic node. Add the required element with this"
-              + " sourceFactId and place it in the execution edges.");
+          "Positive executable facts are missing from semantic node sourceFactIds: "
+              + String.join(", ", missingFactIds)
+              + ". Attach each fact to the node that implements it. For an existing external"
+              + " anchor, list its exact nodeId and elementType under operations with the extra"
+              + " sourceFactIds. This extends the existing node; it creates no interaction."
+              + " Add a processing node only when the behavior requires additional processing.");
     }
   }
 
@@ -1122,28 +1128,40 @@ public class ChainSemanticCaptureAdapter {
     return false;
   }
 
-  private static void mergeNativeOutboundProvenance(
-      List<SemanticNode> nodes, String nodeId, List<String> extraFactIds, Set<String> factIds) {
-    requireFacts(extraFactIds, factIds, "operation node '" + nodeId + "'");
+  private static boolean mergeAnchorProvenance(
+      List<SemanticNode> nodes, String nodeId, String elementType,
+      List<String> extraFactIds, Set<String> factIds) {
     for (int index = 0; index < nodes.size(); index++) {
       SemanticNode node = nodes.get(index);
-      if (!(node instanceof SemanticNode.Operation operation)
-          || !nodeId.equals(operation.nodeId())) {
+      if (!nodeId.equals(node.nodeId())) {
         continue;
       }
+      String expectedType = switch (node) {
+        case SemanticNode.Trigger trigger -> trigger.capabilityKey();
+        case SemanticNode.ServiceCall ignored -> "service-call";
+        case SemanticNode.Operation operation -> operation.elementType();
+      };
+      if (!elementType.equals(expectedType)) {
+        return false;
+      }
+      requireFacts(extraFactIds, factIds, "anchor node '" + nodeId + "'");
       LinkedHashSet<String> sourceFactIds =
-          new LinkedHashSet<>(operation.provenance().sourceFactIds());
+          new LinkedHashSet<>(node.provenance().sourceFactIds());
       if (extraFactIds != null) {
         sourceFactIds.addAll(extraFactIds);
       }
-      nodes.set(
-          index,
-          new SemanticNode.Operation(
-              operation.nodeId(),
-              operation.elementType(),
-              new SemanticProvenance(List.copyOf(sourceFactIds))));
-      return;
+      SemanticProvenance provenance = new SemanticProvenance(List.copyOf(sourceFactIds));
+      nodes.set(index, switch (node) {
+        case SemanticNode.Trigger trigger -> new SemanticNode.Trigger(
+            trigger.nodeId(), trigger.interactionId(), trigger.capabilityKey(), provenance);
+        case SemanticNode.ServiceCall call -> new SemanticNode.ServiceCall(
+            call.nodeId(), call.serviceCallId(), call.operation(), call.failureMode(), provenance);
+        case SemanticNode.Operation operation -> new SemanticNode.Operation(
+            operation.nodeId(), operation.elementType(), provenance);
+      });
+      return true;
     }
+    return false;
   }
 
   private static IllegalArgumentException nativeOutboundOwnedException(

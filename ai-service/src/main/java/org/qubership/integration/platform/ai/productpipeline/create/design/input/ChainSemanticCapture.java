@@ -14,8 +14,9 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
  * carries topology and references into the approved requirement brief; it is never persisted.
  *
  * <p>Server-owned state stays out of this contract: no {@code revisionId}, no {@code edgeId}, no
- * schema or compiler-contract version, no sealed domain type, no trigger node, no service-call
- * node, and no entry-point join. The server materializes one trigger and one service-call node per
+ * schema or compiler-contract version, no sealed domain type, no authored trigger or service-call
+ * node, and no entry-point join. Matching operation entries may extend anchor provenance.
+ * The server materializes one trigger and one service-call node per
  * approved interaction and names it after the interaction id. Captured edges may reference those
  * node ids. {@link ChainSemanticCaptureAdapter} projects a capture onto the canonical
  * {@code ChainSemanticRevision}.
@@ -26,7 +27,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 public record ChainSemanticCapture(
     @Description("Exact full approved chain name, including spaces and any run id; do not shorten or slug it")
         String chainIdentity,
-    @Description("Processing nodes such as script, mapper-2, checkpoint, condition, split, loop, or try-catch")
+    @Description("Processing nodes, plus exact existing anchor nodeId/elementType entries that only attach sourceFactIds")
         List<CapturedOperation> operations,
     @Description("Plain sequence regions; omit when there is no control-flow region")
         List<CapturedSequenceRegion> sequenceRegions,
@@ -114,11 +115,11 @@ public record ChainSemanticCapture(
     }
   }
 
-  /** Processing node. {@code elementType} must be a type the compiler contract declares. */
+  /** Processing node or provenance annotation for an existing external anchor. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedOperation(
-      @Description("Local node id used by edges in this capture, e.g. op-transform") String nodeId,
-      @Description("Compiler element type, e.g. script, mapper-2, condition, split, loop")
+      @Description("Local processing node id, or exact existing anchor nodeId for provenance only") String nodeId,
+      @Description("Compiler type for processing, or exact anchor type: trigger capabilityKey, service-call, or outbound capabilityKey")
           String elementType,
       @Description("sourceFactIds copied from the approved brief") List<String> sourceFactIds) {
 
