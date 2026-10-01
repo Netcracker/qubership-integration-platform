@@ -354,15 +354,25 @@ public class TemplateServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"customer<&>1", "${exchangeProperty.orderingKey}"})
-    void shouldLeavePubSubOrderingHeaderUnchangedWhenOrderingKeyIsConfigured(String orderingKey) throws IOException {
+    void shouldSetAndRemovePubSubOrderingHeaderWhenOrderingKeyIsConfigured(String orderingKey) throws IOException {
         Element element = readRootElement("/testData/input/builder/templates/pubsub_sender.yml");
         element.getProperties().put("messageOrderingEnabled", true);
         element.getProperties().put("orderingKey", orderingKey);
 
         String route = wrap(templateService.applyTemplate(element));
 
-        assertEquals("0", new JAXPXPathEngine().evaluate(
-                "count(//*[@name='CamelGooglePubsubOrderingKey'])",
+        JAXPXPathEngine xpath = new JAXPXPathEngine();
+        assertEquals("1", xpath.evaluate(
+                "count(//setHeader[@name='CamelGooglePubsubOrderingKey'])",
+                Input.fromString(route).build()));
+        assertEquals(orderingKey, xpath.evaluate(
+                "string(//setHeader[@name='CamelGooglePubsubOrderingKey'][following-sibling::toD]/simple)",
+                Input.fromString(route).build()));
+        assertEquals("1", xpath.evaluate(
+                "count(//removeHeader[@name='CamelGooglePubsubOrderingKey'])",
+                Input.fromString(route).build()));
+        assertEquals("1", xpath.evaluate(
+                "count(//doFinally/removeHeader[@name='CamelGooglePubsubOrderingKey'])",
                 Input.fromString(route).build()));
     }
 
@@ -371,7 +381,9 @@ public class TemplateServiceTest {
     void shouldLeavePubSubOrderingHeaderUnchangedWhenOrderingKeyIsNotConfigured(String orderingKey) throws IOException {
         Element element = readRootElement("/testData/input/builder/templates/pubsub_sender.yml");
         element.getProperties().put("messageOrderingEnabled", true);
-        if (orderingKey != null) {
+        if (orderingKey == null) {
+            element.getProperties().remove("orderingKey");
+        } else {
             element.getProperties().put("orderingKey", orderingKey);
         }
 

@@ -14,20 +14,20 @@ scenarios:
           Authorization: Bearer first-snapshot-token
           X-Request-Id: incoming-first
           X-Snapshot-Header: first-value
-          CamelGooglePubsubOrderingKey: order-101
+          CamelGooglePubsubOrderingKey: ignored-header-key
           CamelGooglePubsubAttributes:
             source: snapshot
             attempt: '1'
         properties:
           outboundRequestId: outgoing-first
-          orderingKey: ignored-configured-key
+          orderingKey: order-101
         expectedBody: Order received
         expectedHeaders:
           Authorization: Bearer first-snapshot-token
           X-Snapshot-Header: first-value
-          CamelGooglePubsubOrderingKey: order-101
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -54,17 +54,17 @@ scenarios:
           Authorization: Bearer second-snapshot-token
           X-Request-Id: incoming-second
           X-Snapshot-Header: second-value
-          CamelGooglePubsubOrderingKey: order-202
         properties:
           outboundRequestId: outgoing-second
+          orderingKey: order-202
         expectedBody: "Order received \u2014 caf\u00e9 \u2615"
         expectedHeaders:
           Authorization: Bearer second-snapshot-token
           X-Snapshot-Header: second-value
-          CamelGooglePubsubOrderingKey: order-202
         expectedAbsentHeaders:
           - X-Request-Id
           - CamelGooglePubsubAttributes
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -92,14 +92,13 @@ scenarios:
         body: Before token expiration
         headers:
           X-Request-Id: incoming-before-expiration
-          CamelGooglePubsubOrderingKey: token-refresh
         properties:
           outboundRequestId: outgoing-before-expiration
+          orderingKey: token-refresh
         expectedBody: Before token expiration
-        expectedHeaders:
-          CamelGooglePubsubOrderingKey: token-refresh
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -120,14 +119,13 @@ scenarios:
         body: After token expiration
         headers:
           X-Request-Id: incoming-after-expiration
-          CamelGooglePubsubOrderingKey: token-refresh
         properties:
           outboundRequestId: outgoing-after-expiration
+          orderingKey: token-refresh
         expectedBody: After token expiration
-        expectedHeaders:
-          CamelGooglePubsubOrderingKey: token-refresh
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -148,14 +146,13 @@ scenarios:
         body: Refreshed token remains cached
         headers:
           X-Request-Id: incoming-refreshed-cache
-          CamelGooglePubsubOrderingKey: token-refresh
         properties:
           outboundRequestId: outgoing-refreshed-cache
+          orderingKey: token-refresh
         expectedBody: Refreshed token remains cached
-        expectedHeaders:
-          CamelGooglePubsubOrderingKey: token-refresh
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -177,12 +174,10 @@ scenarios:
           X-Request-Id: incoming-unordered
         properties:
           outboundRequestId: outgoing-unordered
-          orderingKey: ignored-configured-key
         expectedBody: Unordered message
-        expectedHeaders:
-          CamelGooglePubsubOrderingKey: null
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -199,15 +194,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-empty
           X-Event-Type: heartbeat
-          CamelGooglePubsubOrderingKey: heartbeat
         properties:
           outboundRequestId: outgoing-empty
+          orderingKey: heartbeat
         expectedBody: ''
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: heartbeat
           X-Event-Type: heartbeat
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -230,19 +225,18 @@ scenarios:
             name: "Jos\u00e9"
         headers:
           X-Request-Id: incoming-object
-          CamelGooglePubsubOrderingKey: order-303
         properties:
           outboundRequestId: outgoing-object
+          orderingKey: order-303
         expectedBody:
           orderId: order-303
           quantity: 2
           active: true
           customer:
             name: "Jos\u00e9"
-        expectedHeaders:
-          CamelGooglePubsubOrderingKey: order-303
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -266,17 +260,17 @@ scenarios:
           Authorization: Bearer rejected-snapshot-token
           X-Request-Id: incoming-rejected
           X-Snapshot-Header: rejected-value
-          CamelGooglePubsubOrderingKey: order-rejected
         properties:
           outboundRequestId: outgoing-rejected
+          orderingKey: order-rejected
         expectedBody: Rejected message
         expectedHeaders:
           Authorization: Bearer rejected-snapshot-token
           X-Snapshot-Header: rejected-value
-          CamelGooglePubsubOrderingKey: order-rejected
         expectedAbsentHeaders:
           - X-Request-Id
           - CamelGooglePubsubMessageId
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -311,16 +305,16 @@ scenarios:
           Authorization: Bearer accepted-snapshot-token
           X-Request-Id: incoming-accepted
           X-Snapshot-Header: accepted-value
-          CamelGooglePubsubOrderingKey: order-accepted
         properties:
           outboundRequestId: outgoing-accepted
+          orderingKey: order-accepted
         expectedBody: Accepted message
         expectedHeaders:
           Authorization: Bearer accepted-snapshot-token
           X-Snapshot-Header: accepted-value
-          CamelGooglePubsubOrderingKey: order-accepted
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -340,15 +334,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-order-a-1
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: order-a
         properties:
           outboundRequestId: outgoing-order-a-1
+          orderingKey: order-a
         expectedBody: order-a:event-1
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: order-a
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -370,15 +364,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-order-b-1
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: order-b
         properties:
           outboundRequestId: outgoing-order-b-1
+          orderingKey: order-b
         expectedBody: order-b:event-1
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: order-b
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -400,15 +394,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-order-a-2
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: order-a
         properties:
           outboundRequestId: outgoing-order-a-2
+          orderingKey: order-a
         expectedBody: order-a:event-2
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: order-a
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -433,15 +427,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-order-b-2
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: order-b
         properties:
           outboundRequestId: outgoing-order-b-2
+          orderingKey: order-b
         expectedBody: order-b:event-2
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: order-b
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -466,15 +460,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-order-a-3
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: order-a
         properties:
           outboundRequestId: outgoing-order-a-3
+          orderingKey: order-a
         expectedBody: order-a:event-3
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: order-a
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -496,15 +490,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-order-b-3
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: order-b
         properties:
           outboundRequestId: outgoing-order-b-3
+          orderingKey: order-b
         expectedBody: order-b:event-3
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: order-b
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -526,15 +520,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-lost-response
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: order-retry
         properties:
           outboundRequestId: outgoing-lost-response
+          orderingKey: order-retry
         expectedBody: order-retry:event-1
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: order-retry
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -556,14 +550,13 @@ scenarios:
         body: order-retry:event-2
         headers:
           X-Request-Id: incoming-after-lost-response
-          CamelGooglePubsubOrderingKey: order-retry
         properties:
           outboundRequestId: outgoing-after-lost-response
+          orderingKey: order-retry
         expectedBody: order-retry:event-2
-        expectedHeaders:
-          CamelGooglePubsubOrderingKey: order-retry
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -585,15 +578,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-before-connection-reset
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: connection-recovery
         properties:
           outboundRequestId: outgoing-before-connection-reset
+          orderingKey: connection-recovery
         expectedBody: connection:event-1
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: connection-recovery
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -615,15 +608,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-during-connection-reset
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: connection-recovery
         properties:
           outboundRequestId: outgoing-during-connection-reset
+          orderingKey: connection-recovery
         expectedBody: connection:event-2
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: connection-recovery
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -646,15 +639,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-after-connection-reset
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: connection-recovery
         properties:
           outboundRequestId: outgoing-after-connection-reset
+          orderingKey: connection-recovery
         expectedBody: connection:event-3
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: connection-recovery
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -676,15 +669,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-before-topic-recreation
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: paused-key
         properties:
           outboundRequestId: outgoing-before-topic-recreation
+          orderingKey: paused-key
         expectedBody: recreation:event-1
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: paused-key
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -706,16 +699,16 @@ scenarios:
         headers:
           X-Request-Id: incoming-deletes-the-topic
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: paused-key
         properties:
           outboundRequestId: outgoing-deletes-the-topic
+          orderingKey: paused-key
         expectedBody: recreation:event-2
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: paused-key
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
           - CamelGooglePubsubMessageId
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         expectedFailure:
@@ -748,16 +741,16 @@ scenarios:
         headers:
           X-Request-Id: incoming-recreates-the-topic-with-the-same-key
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: paused-key
         properties:
           outboundRequestId: outgoing-recreates-the-topic-with-the-same-key
+          orderingKey: paused-key
         expectedBody: recreation:event-3
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: paused-key
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
           - CamelGooglePubsubMessageId
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         expectedFailure:
@@ -787,15 +780,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-publishes-with-another-key-after-recreation
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: healthy-key
         properties:
           outboundRequestId: outgoing-publishes-with-another-key-after-recreation
+          orderingKey: healthy-key
         expectedBody: recreation:event-4
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: healthy-key
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -817,15 +810,15 @@ scenarios:
         headers:
           X-Request-Id: incoming-before-topic-deletion
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: topic-deletion
         properties:
           outboundRequestId: outgoing-before-topic-deletion
+          orderingKey: topic-deletion
         expectedBody: deletion:event-1
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: topic-deletion
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         interactions:
@@ -847,16 +840,16 @@ scenarios:
         headers:
           X-Request-Id: incoming-after-topic-deletion
           Authorization: Bearer application-token
-          CamelGooglePubsubOrderingKey: topic-deletion
         properties:
           outboundRequestId: outgoing-after-topic-deletion
+          orderingKey: topic-deletion
         expectedBody: deletion:event-2
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: topic-deletion
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
           - CamelGooglePubsubMessageId
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         expectedFailure:
@@ -897,11 +890,11 @@ scenarios:
           outboundRequestId: outgoing-oauth-denied
         expectedBody: Message with a rejected OAuth grant
         expectedHeaders:
-          CamelGooglePubsubOrderingKey: null
           Authorization: Bearer application-token
         expectedAbsentHeaders:
           - X-Request-Id
           - CamelGooglePubsubMessageId
+          - CamelGooglePubsubOrderingKey
         expectedProperties:
           internalProperty_overrideContextParams: null
         expectedFailure:

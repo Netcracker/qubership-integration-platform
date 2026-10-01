@@ -603,9 +603,11 @@ Later invocations reuse the refreshed token. Topic recreation precedes the final
 deletion. The separate OAuth rejection scenario starts with an empty credentials cache
 to check `invalid_grant`. Each scenario starts its own emulator.
 
-Pub/Sub invocations supply ordering keys through the `CamelGooglePubsubOrderingKey`
-input header. The template does not evaluate the element's `orderingKey` setting.
-The scenarios check that this setting neither overrides an input header nor supplies a missing key.
+The exported Pub/Sub element sets `orderingKey` to `${exchangeProperty.orderingKey}`.
+Invocations supply that property; the generated route evaluates it before publication and
+removes `CamelGooglePubsubOrderingKey` in `finally`. The first invocation checks that the
+configured key replaces a different incoming header value. Other invocations check an
+omitted property, ordering across repeated keys, and header cleanup after success and failure.
 
 Pub/Sub fixtures check each invocation's Publish requests, including the topic, payload,
 attributes, and ordering key. `expectedRequest.key` specifies the ordering key; omitting
