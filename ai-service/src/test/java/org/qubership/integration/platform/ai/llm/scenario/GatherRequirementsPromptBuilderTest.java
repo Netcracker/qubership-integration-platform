@@ -47,6 +47,27 @@ class GatherRequirementsPromptBuilderTest {
   }
 
   @Test
+  void failedSkillLoadingKeepsTheDraftPendingSourcesAndQuestion() {
+    ConversationService conversations = new ConversationService();
+    conversations.addMessage("conv-1", org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.user(
+        "Receive work orders and do not log their bodies."));
+    conversations.addMessage("conv-1", org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.assistant(
+        "Use the existing operation? Options: existing, custom."));
+    conversations.addMessage("conv-1", org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.user("existing"));
+    draftStore.put("conv-1", RequirementFactFixtures.greetingsApprovedDraft());
+    when(skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID))
+        .thenThrow(new IllegalStateException("skill unavailable"));
+    builder = new GatherRequirementsPromptBuilder(skillDocumentService, addonRepository, draftStore, conversations);
+    String input = builder.wrap("conv-1", "existing", "en");
+    assertTrue(input.contains("Receive work orders and do not log their bodies."), input);
+    assertTrue(input.contains("Options: existing, custom."), input);
+    assertTrue(input.contains("No service calls"), input);
+    assertTrue(input.contains("Selected revision:"), input);
+    assertTrue(input.contains("authorApproved=false"), input);
+    assertFalse(input.contains("Current author message:"), input);
+  }
+
+  @Test
   void wrapIncludesProcessSkillAndAddonFactsContract() {
     String input = builder.wrap("conv-1", "Create chain named Greetings via script", "en");
 

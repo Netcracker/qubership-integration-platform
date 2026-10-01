@@ -179,7 +179,8 @@ public class ProductPipelineRuntimeProducers {
       RecoveryOutcomeTelemetry recoveryTelemetry,
       MappingTurnInterpreter mappingTurnInterpreter,
       MappingTurnTelemetry mappingTurnTelemetry,
-      MappingRepairCaptureValidator mappingRepairCaptureValidator) {
+      MappingRepairCaptureValidator mappingRepairCaptureValidator,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
     AppConfig.CreateConfig.FailureNarrativeConfig narrativeConfig =
         appConfig.create().failureNarrative();
     return new ProductPipelineRunSupport(
@@ -206,7 +207,7 @@ public class ProductPipelineRuntimeProducers {
             recoveryTelemetry,
             mappingTurnInterpreter,
             mappingTurnTelemetry,
-            mappingRepairCaptureValidator);
+            mappingRepairCaptureValidator).withConversations(conversations);
   }
 
   @Produces

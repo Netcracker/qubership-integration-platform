@@ -108,10 +108,16 @@ class ProductPipelineRefineReapproveTest {
     assertEquals("requirement-analysis", loadRun().run().currentStageId());
     assertEquals(1, analysisCalls.get());
 
-    Reference analysisSecond = acceptInput("add retry on http trigger").candidate();
+    Reference amendedDraft = acceptInput("add retry on http trigger").candidate();
+    assertEquals("requirement-discovery", loadRun().run().currentStageId());
+    assertEquals(3, discoveryCalls.get());
+    assertEquals("add retry on http trigger", lastDiscoveryText.get());
+    Reference analysisSecond = approveAndAwaitApproval(amendedDraft).candidate();
     assertNotEquals(analysisFirst, analysisSecond);
     assertEquals(2, analysisCalls.get());
-    assertEquals("add retry on http trigger", lastAnalysisText.get());
+    assertNull(lastAnalysisText.get());
+    assertTrue(artifactStore.payload(artifactStore.get(RUN_ID, analysisSecond).orElseThrow(), RequirementBrief.class)
+        .approvedDraftText().contains("add retry on http trigger"));
 
     Reference planningFirst = approveAndAwaitApproval(analysisSecond).candidate();
     assertEquals("planning", loadRun().run().currentStageId());
@@ -290,8 +296,13 @@ class ProductPipelineRefineReapproveTest {
         lastAnalysisText.set(userText);
         int call = analysisCalls.incrementAndGet();
         String goal = call == 1 ? "brief-v1" : "brief-v2:" + userText;
+        Reference selected = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+            .findFirst().orElseThrow();
+        RequirementDraft selectedDraft = artifactStore.payload(artifactStore.get(RUN_ID, selected).orElseThrow(),
+            RequirementDraft.class);
         RequirementBrief brief =
-            new RequirementBrief(goal, List.of("fact"), List.of(), List.of(), List.of(), goal);
+            new RequirementBrief(goal, List.of("fact"), List.of(), List.of(), List.of(), goal,
+                selected.artifactId(), selectedDraft.planningText(), List.of());
         return Multi.createFrom()
             .item(
                 new CapabilitySignal.Completed(

@@ -397,6 +397,16 @@ public final class FailureNarrative {
       answersByQuestion.put(key, result);
       return result;
     }
+    if ("REQUIREMENT_CHANGE".equalsIgnoreCase(verdict)) {
+      PauseQuestionResult result = PauseQuestionResult.requirementChange();
+      answersByQuestion.put(key, result);
+      return result;
+    }
+    if ("WORDING_CHANGE".equalsIgnoreCase(verdict)) {
+      PauseQuestionResult result = PauseQuestionResult.wordingChange();
+      answersByQuestion.put(key, result);
+      return result;
+    }
     if (CORRECTION_VERDICT.equalsIgnoreCase(verdict)) {
       PauseQuestionResult result = PauseQuestionResult.repairInstruction();
       answersByQuestion.put(key, result);

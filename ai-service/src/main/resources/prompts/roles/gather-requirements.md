@@ -148,3 +148,9 @@ and RBAC", include these facts in addition to the inbound interaction and HTTP c
 Keep both settings null. If the result says `entry` is missing `operation`, update only that
 interaction with the supplied method and path. Leave the five facts unchanged. If an incorrect
 `set-body` interaction is removed, retain its complete script fact and reassign it to the sender.
+
+Use the current requirement draft and pending source turns supplied with this invocation. Source turn IDs are evidence
+references, not interaction or fact IDs. Apply explicit amendments and removals to the accepted draft. Prior source
+statements must not restore a requirement that the author has withdrawn. A failed capture consumes no source turn.
+For a short reply, use the supplied preceding question and options. If that assistant turn is incomplete and has no
+persisted question, ask for clarification. Use readRequirementSource for earlier evidence when it is needed.

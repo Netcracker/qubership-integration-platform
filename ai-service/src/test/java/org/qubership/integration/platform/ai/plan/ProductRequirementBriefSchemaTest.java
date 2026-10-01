@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.invocation.InvocationContext;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import dev.langchain4j.model.chat.request.json.JsonReferenceSchema;
@@ -36,10 +38,12 @@ class ProductRequirementBriefSchemaTest {
   @Inject ProductRequirementBriefTool tool;
   @Inject QuarkusToolExecutorFactory executorFactory;
   @Inject CaptureSession captureSession;
+  @Inject org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedback;
 
   @AfterEach
   void clear() {
     ProductCapabilityCaptureContext.unbind(CONVERSATION);
+    feedback.clearPlan(CONVERSATION);
     captureSession.clear(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION));
   }
 
@@ -105,6 +109,55 @@ class ProductRequirementBriefSchemaTest {
         RequirementBrief.class).isEmpty());
   }
 
+  @Test
+  void rejectsMissingRequiredArrayBeforeRecordDefaultsHideIt() {
+    bind();
+    String result = execute("""
+        {"capture":{"goal":"Greetings","summary":"Return Hello", "inputs":["GET /greetings"],
+          "citations":[]}}
+        """);
+    assertTrue(result.contains("/capture/assumptions"), result);
+    assertTrue(ProductCapabilityCaptureContext.binding(CONVERSATION)
+        .orElseThrow().briefCandidate().get() == null);
+  }
+
+  @Test
+  void lateNativeCallsCannotChangeTheNewAttempt() {
+    bind();
+    var oldBinding = ProductCapabilityCaptureContext.binding(CONVERSATION).orElseThrow();
+    var oldParameters = ProductCapabilityCaptureContext.invocationParameters(oldBinding);
+    bind();
+    var current = ProductCapabilityCaptureContext.binding(CONVERSATION).orElseThrow();
+    feedback.recordPlanToolArgumentsFailure(CONVERSATION, "current attempt feedback");
+    var before = feedback.lastPlanFailure(CONVERSATION).orElseThrow();
+    String malformed = execute("{broken", oldParameters);
+    String valid = execute("""
+        {"capture":{"goal":"Obsolete","summary":"Obsolete","inputs":["GET"],
+          "assumptions":[],"citations":[]}}
+        """, oldParameters);
+    ProductCapabilityCaptureContext.unbind(oldBinding);
+    assertTrue(malformed.contains("inactive attempt"), malformed);
+    assertTrue(valid.contains("inactive attempt"), valid);
+    assertEquals(before, feedback.lastPlanFailure(CONVERSATION).orElseThrow());
+    assertEquals(current, ProductCapabilityCaptureContext.binding(CONVERSATION).orElseThrow());
+    assertTrue(current.briefCandidate().get() == null);
+    assertTrue(captureSession.get(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION),
+        RequirementBrief.class).isEmpty());
+  }
+
+  @Test
+  void publishedSchemaMakesMappingIntentsOptional() {
+    var root = ProductRequirementBriefTool.specification(info()).parameters();
+    var schema = root.properties().get("capture");
+    if (schema instanceof JsonReferenceSchema ref) {
+      schema = root.definitions().get(ref.reference());
+    }
+    var capture = (JsonObjectSchema) schema;
+    assertFalse(capture.required().contains("mappingIntents"), capture.toString());
+    assertTrue(capture.required().containsAll(List.of("goal", "summary", "inputs", "assumptions", "citations")),
+        capture.toString());
+  }
+
   private void bind() {
     ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION,
         RequirementFactFixtures.greetingsApprovedDraft(), payload -> {});
@@ -117,14 +170,25 @@ class ProductRequirementBriefSchemaTest {
   }
 
   private String execute(String arguments) {
+    return execute(arguments, ProductCapabilityCaptureContext.invocationParameters(
+        ProductCapabilityCaptureContext.binding(CONVERSATION).orElseThrow()));
+  }
+
+  private String execute(String arguments, dev.langchain4j.invocation.InvocationParameters parameters) {
     ToolMethodCreateInfo method = info();
     QuarkusToolExecutor executor = executorFactory.create(new QuarkusToolExecutor.Context(
         tool, method.invokerClassName(), method.methodName(),
         method.argumentMapperClassName(), method.executionModel(), method.returnBehavior(),
         false, method));
-    return executor.execute(ToolExecutionRequest.builder()
-        .id("call-1").name(method.toolSpecification().name()).arguments(arguments).build(),
-        CONVERSATION);
+    try {
+      return executor.executeWithContext(ToolExecutionRequest.builder()
+          .id("call-1").name(method.toolSpecification().name()).arguments(arguments).build(),
+          InvocationContext.builder().chatMemoryId(CONVERSATION)
+              .invocationParameters(parameters)
+              .build()).resultText();
+    } catch (CaptureValidationException end) {
+      return end.getMessage();
+    }
   }
 
   private static ToolMethodCreateInfo info() {

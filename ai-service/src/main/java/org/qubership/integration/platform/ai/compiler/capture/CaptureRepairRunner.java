@@ -158,6 +158,7 @@ public class CaptureRepairRunner {
                 onToolArgumentsFailure,
                 captureToolName,
                 initialUserMessage,
+                initialUserMessage,
                 0,
                 boundedBudget,
                 new HashMap<>(),
@@ -172,6 +173,7 @@ public class CaptureRepairRunner {
       Supplier<Optional<CaptureAttemptFeedback>> lastFailure,
       Runnable onToolArgumentsFailure,
       String captureToolName,
+      String initialUserMessage,
       String userMessage,
       int repairIndex,
       int repairAttemptsBudget,
@@ -195,6 +197,7 @@ public class CaptureRepairRunner {
                   lastFailure,
                   onToolArgumentsFailure,
                   captureToolName,
+                  initialUserMessage,
                   repairIndex,
                   repairAttemptsBudget,
                   repairsByFailure,
@@ -214,6 +217,7 @@ public class CaptureRepairRunner {
                   lastFailure,
                   onToolArgumentsFailure,
                   captureToolName,
+                  initialUserMessage,
                   repairIndex,
                   repairAttemptsBudget,
                   repairsByFailure,
@@ -230,6 +234,7 @@ public class CaptureRepairRunner {
       Supplier<Optional<CaptureAttemptFeedback>> lastFailure,
       Runnable onToolArgumentsFailure,
       String captureToolName,
+      String initialUserMessage,
       int repairIndex,
       int repairAttemptsBudget,
       Map<String, Integer> repairsByFailure,
@@ -249,6 +254,7 @@ public class CaptureRepairRunner {
           lastFailure,
           onToolArgumentsFailure,
           captureToolName,
+          initialUserMessage,
           repairIndex,
           repairAttemptsBudget,
           repairsByFailure,
@@ -274,6 +280,7 @@ public class CaptureRepairRunner {
       Supplier<Optional<CaptureAttemptFeedback>> lastFailure,
       Runnable onToolArgumentsFailure,
       String captureToolName,
+      String initialUserMessage,
       int repairIndex,
       int repairAttemptsBudget,
       Map<String, Integer> repairsByFailure,
@@ -302,6 +309,7 @@ public class CaptureRepairRunner {
         lastFailure,
         onToolArgumentsFailure,
         captureToolName,
+        initialUserMessage,
         repairIndex,
         repairAttemptsBudget,
         repairsByFailure,
@@ -316,6 +324,7 @@ public class CaptureRepairRunner {
       Supplier<Optional<CaptureAttemptFeedback>> lastFailure,
       Runnable onToolArgumentsFailure,
       String captureToolName,
+      String initialUserMessage,
       int repairIndex,
       int repairAttemptsBudget,
       Map<String, Integer> repairsByFailure,
@@ -342,8 +351,9 @@ public class CaptureRepairRunner {
     repairsByFailure.put(failureKey, used + 1);
     String repairMessage =
         repairMessageFactory != null
-            ? repairMessageFactory.apply(failure.get())
-            : messageBuilder.build(failure.get(), captureToolName);
+            ? QuteUserMessageEscaping.escapeForAiServiceUserMessage(repairMessageFactory.apply(failure.get()))
+            : initialUserMessage + "\n\n"
+                + QuteUserMessageEscaping.escapeForAiServiceUserMessage(messageBuilder.build(failure.get(), captureToolName));
     LOG.infof(
         "Capture repair retry after validation failure on %s"
             + " (repairIndex=%d, failureAttempt=%d, detail=%s)",
@@ -358,7 +368,8 @@ public class CaptureRepairRunner {
         lastFailure,
         onToolArgumentsFailure,
         captureToolName,
-        QuteUserMessageEscaping.escapeForAiServiceUserMessage(repairMessage),
+        initialUserMessage,
+        repairMessage,
         repairIndex + 1,
         repairAttemptsBudget,
         repairsByFailure,

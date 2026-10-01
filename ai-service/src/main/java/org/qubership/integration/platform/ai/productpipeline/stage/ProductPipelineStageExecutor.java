@@ -538,7 +538,25 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     List<Reference> inputs = inputResolution.inputs();
     verifyPinnedSemanticRevision(runId, stage, inputs);
     StageCapability capability = capabilities.require(stage.capabilityId());
+    if ("requirement-analysis".equals(stage.capabilityId())) {
+      var latest = doc.attempts().stream().filter(attempt -> stage.stageId().equals(attempt.stageId()))
+          .reduce((first, second) -> second);
+      if (latest.filter(attempt -> attempt.outcome() == StageStatus.RUNNING && attempt.finishedAt() == null).isPresent()) {
+        return Uni.createFrom().item(handleOutcome(runId, stage,
+            StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+                "The previous analysis attempt was interrupted. Resume against its selected draft."), List.of()));
+      }
+    }
     String attemptId = UUID.randomUUID().toString();
+    if ("requirement-analysis".equals(stage.capabilityId())) {
+      long revision = doc.run().runRevision();
+      runStore.commit(revision, new org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit(
+          runId, revision, RunStatus.RUNNING, stage.stageId(), doc.run().stages(),
+          new StageAttempt(attemptId, stage.stageId(), revision + 1, StageStatus.RUNNING,
+              clock.instant(), null, inputs, null),
+          new RunTransition(revision, revision + 1, RunStatus.RUNNING, RunStatus.RUNNING,
+              stage.stageId(), clock.instant(), "analysis attempt started")));
+    }
     StageExecutionContext context =
         new StageExecutionContext(
             runId,
@@ -564,7 +582,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                   "capability threw: runId=%s, stageId=%s",
                   runId,
                   stage.stageId());
-              recordNonRetryableEscapedFailure(doc, failure);
+              recordNonRetryableEscapedFailure(requireRun(runId), failure);
               return List.<CapabilitySignal>of(new CapabilitySignal.Completed(outcomeOf(failure)));
             })
         .map(signals -> handleCapabilitySignals(runId, stage, signals));
@@ -590,6 +608,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
    * better message instead of reaching here.
    */
   private static StageOutcome outcomeOf(Throwable failure) {
+    if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(failure)) {
+      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, failureMessage(failure));
+    }
     if (TransientFailures.isTransient(failure)) {
       return StageOutcome.of(
           StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, failureMessage(failure));

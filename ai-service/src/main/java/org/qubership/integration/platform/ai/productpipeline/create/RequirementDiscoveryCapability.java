@@ -212,6 +212,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
               new CapabilitySignal.Completed(
                   StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
     }
+    Object correction = context.attributes().get("requirementCorrectionDraft");
+    if (correction instanceof RequirementDraft prior && draftStore.get(conversationId).isEmpty()) {
+      draftStore.restoreAccepted(conversationId, prior);
+    }
     RequirementDraft current = draftStore.get(conversationId).orElse(null);
     if (current != null
         && current.readyForPlan()
@@ -235,14 +239,24 @@ public class RequirementDiscoveryCapability implements StageCapability {
     AtomicReference<RequirementDraft> captured = new AtomicReference<>();
     ToolSession.bind(conversationId);
     Context toolSessionContext = ToolSession.attachedContext();
-    ProductCapabilityCaptureContext.bindDiscovery(
+    java.util.function.Supplier<Context> startCapture = () -> {
+      Context installed = ProductCapabilityCaptureContext.bindDiscovery(
         context.runId(), conversationId, payload -> {
           if (payload instanceof RequirementDraft draft) {
             captured.set(draft);
           }
         });
-    draftStore.beginTurn(conversationId, userMessage);
-
+      draftStore.beginTurn(conversationId, userMessage);
+      return installed;
+    };
+    if (conversationService != null) {
+      conversationService.getOrCreate(conversationId);
+    }
+    var authority = conversationService == null ? null : conversationService.archive().read(conversationId);
+    Context captureContext = authority == null ? startCapture.get() : conversationService.archive()
+        .withAuthority(conversationId, authority.generation(),
+            org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority), startCapture);
+    ProductCapabilityCaptureContext.Binding binding = captureContext.get(ProductCapabilityCaptureContext.CONTEXT_KEY);
     String skillId = RequirementDraftTool.SOURCE_SKILL_ID;
     SkillActivitySupport.bindParents(skillId);
     Multi<ChatEvent> agentStream =
@@ -251,7 +265,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
             runGather(
                 conversationId,
                 userMessage,
-                context.runManifest() == null ? "en" : context.runManifest().responseLocale()));
+                context.runManifest() == null ? "en" : context.runManifest().responseLocale(), binding));
     return Multi.createBy()
         .concatenating()
         .streams(
@@ -264,13 +278,18 @@ public class RequirementDiscoveryCapability implements StageCapability {
                 .switchTo(
                     () -> {
                       try {
-                        return Multi.createFrom()
-                            .iterable(
-                                SkillActivitySupport.wrapTerminal(
-                                    skillId, List.of(completeDiscovery(context, captured))));
+                        java.util.function.Supplier<CapabilitySignal.Completed> finish = () ->
+                            ProductCapabilityCaptureContext.withBinding(conversationId,
+                                ProductCapabilityCaptureContext.invocationParameters(binding),
+                                ProductCapabilityCaptureContext.Mode.DISCOVERY,
+                                currentBinding -> completeDiscovery(context, captured));
+                        var completed = authority == null ? finish.get() : conversationService.archive()
+                            .withAuthority(conversationId, authority.generation(),
+                                org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority), finish);
+                        return Multi.createFrom().iterable(SkillActivitySupport.wrapTerminal(skillId, List.of(completed)));
                       } finally {
                         SkillActivitySupport.clearParents();
-                        ProductCapabilityCaptureContext.unbind(conversationId);
+                        ProductCapabilityCaptureContext.unbind(binding);
                         ToolSession.clear();
                       }
                     })
@@ -278,14 +297,15 @@ public class RequirementDiscoveryCapability implements StageCapability {
                 .recoverWithMulti(
                     error -> {
                       SkillActivitySupport.clearParents();
-                      ProductCapabilityCaptureContext.unbind(conversationId);
+                      ProductCapabilityCaptureContext.unbind(binding);
                       ToolSession.clear();
                       return Multi.createFrom()
                           .items(
                               SkillActivitySupport.error(skillId),
                               new CapabilitySignal.Completed(
                                   StageOutcome.of(
-                                      StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+                                      org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(error)
+                                          ? StageOutcomeClass.NEEDS_INPUT : StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
                                       error.getMessage() == null
                                           ? "requirement discovery failed"
                                           : error.getMessage())));
@@ -501,7 +521,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
   }
 
   private Multi<ChatEvent> runGather(
-      String conversationId, String userMessage, String responseLocale) {
+      String conversationId, String userMessage, String responseLocale,
+      ProductCapabilityCaptureContext.Binding binding) {
     if (gatherRunner != null) {
       return gatherRunner.apply(conversationId, userMessage);
     }
@@ -512,7 +533,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
         promptBuilder != null
             ? promptBuilder.wrap(conversationId, userMessage, responseLocale)
             : (userMessage == null ? "" : userMessage);
-    return GatherRequirementsAgentCall.run(gatherRequirementsAgent, conversationId, agentInput);
+    return GatherRequirementsAgentCall.run(gatherRequirementsAgent, conversationId, agentInput,
+        ProductCapabilityCaptureContext.invocationParameters(binding));
   }
 
   private static String tokenText(ChatEvent event) {

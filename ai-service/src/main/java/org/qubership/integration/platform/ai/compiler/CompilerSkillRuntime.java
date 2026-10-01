@@ -979,7 +979,7 @@ public class CompilerSkillRuntime {
         CaptureTool.CAPTURE_GRAPH_PATCH.toolName(),
         userMessage,
         true,
-        feedback -> repairMessageBuilder.build(feedback, CaptureTool.CAPTURE_GRAPH_PATCH.toolName()),
+        null,
         sanitizingBeforeRepairRetry(
             memoryId, () -> feedbackStore.lastPatchFailure(conversationId, capabilityId)));
   }

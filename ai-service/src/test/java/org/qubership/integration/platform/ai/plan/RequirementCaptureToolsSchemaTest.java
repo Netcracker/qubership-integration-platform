@@ -19,12 +19,12 @@ import org.junit.jupiter.api.Test;
 class RequirementCaptureToolsSchemaTest {
 
   @Test
-  void offersOnlyTheFourRequirementTools() {
+  void offersCaptureUpdateReadSourceAndFinishTools() {
     List<ToolMethodCreateInfo> tools = ToolsRecorder.getMetadata()
         .get(RequirementCaptureTools.class.getName());
     assertNotNull(tools);
     assertEquals(Set.of("captureRequirementDraft", "updateRequirementDraft",
-        "readRequirementDraft", "finishRequirementDiscoveryTurn"),
+        "readRequirementDraft", "readRequirementSource", "finishRequirementDiscoveryTurn"),
         tools.stream().map(ToolMethodCreateInfo::methodName).collect(java.util.stream.Collectors.toSet()));
     JsonObjectSchema capture = tools.stream()
         .filter(info -> "captureRequirementDraft".equals(info.methodName()))

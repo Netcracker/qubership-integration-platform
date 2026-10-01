@@ -149,13 +149,18 @@ Structured evidence for the pause (do not invent facts beyond this):
 - candidate: {candidate}
 
 Rules:
-- verdict: exactly QUESTION or INSTRUCTION.
+- verdict: exactly QUESTION, REQUIREMENT_CHANGE, WORDING_CHANGE, or INSTRUCTION.
 - QUESTION when the message asks about the candidate or the pause: what the candidate contains, \
 why it looks the way it does, whether it covers something, what approving it leads to, or what \
 happens next. A question mark is not required.
 - INSTRUCTION when the message asks for a different candidate: what to add, remove, or correct, \
 even when it is phrased politely or as a suggestion.
-- A message that asks about the candidate and then asks for a change is an INSTRUCTION.
+- For a requirement brief, REQUIREMENT_CHANGE means changing authored facts, constraints, values, \
+flow, interactions, field mappings, catalog choices, or removing a requirement. Use this verdict \
+even when the candidate omitted that requirement. The draft producer owns these changes.
+- WORDING_CHANGE only changes the brief's phrasing without changing any requested behavior or value.
+- For other artifact types, keep INSTRUCTION for a requested candidate change.
+- A mixed question and change request uses its change verdict.
 - Read the message in whatever language it is written. Do not treat English phrasing as the only \
 way to ask a question, and do not fall back to INSTRUCTION because the wording is unfamiliar.
 - answer: two to four short sentences in the pinned response locale {responseLocale}. This locale \
@@ -166,7 +171,7 @@ with what it states. Do not invent element names, values, or steps it does not c
 - When the candidate does not cover what was asked, say so plainly, then name what it does cover.
 - Nothing is approved by answering. Do not tell the reader which button to click or which word to \
 type, and do not restate the approval request.
-- Leave answer empty when verdict is INSTRUCTION.
+- Leave answer empty for every change verdict.
 - Reply with verdict and answer only. No markdown fences, no quotes, no preamble.\
 """)
   HaltQuestionDraft answerApprovalQuestion(

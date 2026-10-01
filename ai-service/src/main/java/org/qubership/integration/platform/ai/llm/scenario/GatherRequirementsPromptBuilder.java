@@ -28,7 +28,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 public class GatherRequirementsPromptBuilder {
 
   private static final Logger LOG = Logger.getLogger(GatherRequirementsPromptBuilder.class);
-  private static final ObjectMapper DRAFT_MAPPER = new ObjectMapper();
+  private static final ObjectMapper DRAFT_MAPPER = new ObjectMapper().findAndRegisterModules();
 
   private final CompilerSkillDocumentService skillDocumentService;
   private final CompilerSkillAddonRepository addonRepository;
@@ -60,11 +60,15 @@ public class GatherRequirementsPromptBuilder {
   }
 
   public String wrap(String conversationId, String userMessage, String responseLocale) {
-    if (skillDocumentService == null) {
-      return QuteUserMessageEscaping.escapeForAiServiceUserMessage(userMessage);
-    }
     Optional<RequirementDraft> draft =
         draftStore != null ? draftStore.get(conversationId) : Optional.empty();
+    String mandatory = currentDraftBlock(draft)
+        + lastCaptureRejectionBlock(conversationId, draft)
+        + sourceDialogueBlock(conversationId, userMessage)
+        + "\nPinned response locale: " + normalizedLocale(responseLocale) + "\n";
+    if (skillDocumentService == null) {
+      return QuteUserMessageEscaping.escapeForAiServiceUserMessage(mandatory);
+    }
     try {
       CompilerSkillDocument document =
           skillDocumentService.loadByCapabilityId(RequirementDraftTool.SOURCE_SKILL_ID);
@@ -117,10 +121,6 @@ public class GatherRequirementsPromptBuilder {
           </service-runtime-envelope>
           %s
           %s
-          %s
-          <user-message>
-          %s
-          </user-message>
           """
               .formatted(
                   document.sourceSkillId(),
@@ -130,17 +130,53 @@ public class GatherRequirementsPromptBuilder {
                   catalogFollowUpGuidance(conversationId),
                   normalizedLocale(responseLocale),
                   addonBlock(),
-                  currentDraftBlock(draft),
-                  lastCaptureRejectionBlock(conversationId, draft),
-                  userMessage != null ? userMessage : "");
+                  mandatory);
       return QuteUserMessageEscaping.escapeForAiServiceUserMessage(body);
     } catch (RuntimeException e) {
       LOG.warnf(
           e,
-          "Failed to load process skill %s; using raw gather input",
+          "Failed to load process skill %s; using the mandatory gather envelope",
           RequirementDraftTool.SOURCE_SKILL_ID);
-      return QuteUserMessageEscaping.escapeForAiServiceUserMessage(userMessage);
+      return QuteUserMessageEscaping.escapeForAiServiceUserMessage(mandatory);
     }
+  }
+
+  private String sourceDialogueBlock(String conversationId, String currentText) {
+    StringBuilder body = new StringBuilder("\n<requirement-source>\n");
+    body.append("Use the current draft as accepted state. Apply explicit author amendments; ")
+        .append("retain unrelated requirements. Prior sources are evidence, and superseded values ")
+        .append("do not override accepted changes. Read an earlier source by its turn id when needed.\n");
+    boolean currentIncluded = false;
+    if (conversationService != null) {
+      var archive = conversationService.archive();
+      var source = archive.read(conversationId);
+      body.append("Reset generation: ").append(source.generation()).append('\n');
+      if (draftStore != null) {
+        var revision = draftStore.latestRevision(conversationId).map(value -> value.reference());
+        body.append("Selected revision: ").append(revision.map(Object::toString).orElse("none"))
+            .append(" authorApproved=").append(revision.map(ref -> draftStore.isApproved(conversationId, ref))
+                .orElse(false)).append('\n');
+      }
+      for (var turn : archive.pendingInputs(conversationId)) {
+        body.append("Pending author source: ").append(DRAFT_MAPPER.valueToTree(turn).toString()).append('\n');
+        currentIncluded |= java.util.Objects.equals(turn.message().content(), currentText);
+      }
+      var assistants = source.activeTurns().stream().filter(turn -> turn.message().role()
+          == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.ASSISTANT).toList();
+      if (!assistants.isEmpty()) {
+        body.append("Previous assistant question or options (check completion status): ")
+            .append(DRAFT_MAPPER.valueToTree(assistants.getLast()).toString()).append('\n');
+      }
+      body.append("Earlier source references: ").append(source.activeTurns().stream()
+          .filter(turn -> turn.message().role()
+              == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+              && turn.consumedDraftReference() != null)
+          .map(turn -> turn.id() + " consumed by " + turn.consumedDraftReference()).toList()).append('\n');
+    }
+    if (!currentIncluded) {
+      body.append("Current author message:\n").append(currentText == null ? "" : currentText).append('\n');
+    }
+    return body.append("</requirement-source>\n").toString();
   }
 
   private static String normalizedLocale(String responseLocale) {

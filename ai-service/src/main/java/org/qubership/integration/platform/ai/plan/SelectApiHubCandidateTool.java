@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
  * offering the import decision.
  */
 @ApplicationScoped
+@io.quarkus.arc.Unremovable
 public class SelectApiHubCandidateTool {
 
   private static final Logger LOG = Logger.getLogger(SelectApiHubCandidateTool.class);

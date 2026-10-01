@@ -172,6 +172,11 @@ public class ChatExecutionService {
 
     MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
 
+    var sourceInput = conversationService.archive().beginInput(conversationId,
+        request.getMessage(), objectMapper.valueToTree(java.util.Map.of(
+            "attachment", request.getAttachment() == null ? "" : request.getAttachment(),
+            "attachmentObjectKeys", request.getAttachmentObjectKeys() == null ? java.util.List.of() : request.getAttachmentObjectKeys(),
+            "decision", request.getDecision() == null ? objectMapper.nullNode() : objectMapper.valueToTree(request.getDecision()))));
     conversationService.getOrCreate(conversationId);
     // Repair dangling tool_calls left by prior ToolArgumentsException / aborted tool turns so the
     // next OpenAI request is well-formed (invalid_request_error otherwise).
@@ -210,11 +215,12 @@ public class ChatExecutionService {
         AiTraceLog.previewOneLine(
             request.getEffectiveUserText(), AiTraceLog.DEFAULT_USER_PREVIEW_CHARS));
 
-    conversationService.addMessage(
-        conversationId, ConversationMessage.user(request.getEffectiveUserText()));
+    conversationService.archive().resolveInput(conversationId, sourceInput, request.getEffectiveUserText(),
+        request.getDecision() == null ? null : objectMapper.valueToTree(request.getDecision()));
 
     logAiTurnStart(conversationId);
 
+    String assistantTurnId = UUID.randomUUID().toString();
     StringBuilder responseBuffer = new StringBuilder();
     AtomicReference<LastAssistantTurn.Kind> lastTurnKind =
         new AtomicReference<>(LastAssistantTurn.Kind.OTHER);
@@ -259,6 +265,8 @@ public class ChatExecutionService {
               lastTurnKind.set(token.turnKind());
             }
           } else if (event instanceof ChatEvent.Decision decision) {
+            conversationService.archive().saveAssistant(conversationId, sourceInput.generation(),
+                assistantTurnId, decision.question(), objectMapper.valueToTree(decision), "DECISION", sourceInput.turnId());
             lastTurnKind.compareAndSet(
                 LastAssistantTurn.Kind.OTHER, LastAssistantTurn.Kind.DECISION);
             if (!responseBuffer.isEmpty()) {
@@ -285,11 +293,12 @@ public class ChatExecutionService {
         .onTermination()
         .invoke(
             (failure, cancelled) -> {
-              if (!responseBuffer.isEmpty()) {
+              {
                 logAssistantResultIfEnabled(finalConversationId, responseBuffer.toString());
-                conversationService.addMessage(
-                    finalConversationId, ConversationMessage.assistant(responseBuffer.toString()));
-                if (request.getOpenChainTurnContext() != null) {
+                boolean current = conversationService.archive().saveAssistant(finalConversationId,
+                    sourceInput.generation(), assistantTurnId, responseBuffer.toString(), null,
+                    failure != null ? "FAILED" : Boolean.TRUE.equals(cancelled) ? "CANCELLED" : "COMPLETE", sourceInput.turnId());
+                if (current && !responseBuffer.isEmpty() && request.getOpenChainTurnContext() != null) {
                   lastAssistantTurnStore.put(
                       finalConversationId,
                       request.getOpenChainTurnContext().chainId(),
