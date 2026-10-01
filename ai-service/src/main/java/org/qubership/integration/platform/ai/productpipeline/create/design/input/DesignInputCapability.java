@@ -250,7 +250,7 @@ public class DesignInputCapability implements StageCapability {
       stream = designRunner.apply(conversationId, safePrompt);
     } else if (designAgent != null) {
       // Capture returns directly so only the stage ledger can authorize another model attempt.
-      return designAgent.chat(conversationId, safePrompt).content();
+      return designAgent.chat(conversationId, safePrompt);
     } else {
       stream = Multi.createFrom().empty();
     }

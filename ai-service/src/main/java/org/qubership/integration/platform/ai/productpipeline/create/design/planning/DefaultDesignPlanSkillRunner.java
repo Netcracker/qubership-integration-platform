@@ -72,7 +72,7 @@ public class DefaultDesignPlanSkillRunner implements DesignPlanSkillRunner {
           agent.chat(
               conversationId,
               QuteUserMessageEscaping.escapeForAiServiceUserMessage(prompt));
-      raw = response == null || response.content() == null ? "" : response.content().trim();
+      raw = response == null ? "" : response.trim();
       return new Result(
           binding.candidate().get(),
           raw,

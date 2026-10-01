@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.llm.agent;
 
 import dev.langchain4j.service.MemoryId;
-import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -15,5 +14,5 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.plann
 public interface DesignPlanCaptureAgent {
 
   @dev.langchain4j.service.SystemMessage(fromResource = "prompts/design-plan-capture-system.md")
-  Result<String> chat(@MemoryId String conversationId, @UserMessage String userMessage);
+  String chat(@MemoryId String conversationId, @UserMessage String userMessage);
 }
