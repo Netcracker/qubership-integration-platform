@@ -208,9 +208,10 @@ DERIVATION_DEFECT may REGENERATE_ARTIFACT, ASK_USER, or PARK; TECHNICAL_FAILURE 
 or PARK; UNCLASSIFIED parks. faultArtifactRef is an artifact or operation, never a stage id. Cite \
 evidenceRefs from the context, including attachmentRef keys when findings are externalized. When \
 manifest is present, read every listed attachment from the attachments map before deciding. \
-userSummary has no stage ids; write it as a short admission in the author's words: what the \
-requirements got wrong and what has to change, so the author reads it above the request to approve \
-the rebuilt brief. ASK_USER question is one product decision. If you cannot cite \
+userSummary has no stage ids; state what failed and what must change in the artifact supported \
+by the evidence. Attribute a defect to the requirements only when the context establishes a missing \
+or contradictory requirement. A rejected output alone does not establish a brief defect. \
+ASK_USER question is one product decision. If you cannot cite \
 evidence, return UNCLASSIFIED and PARK. A design-planning CONTRACT_FAILURE such as a missing \
 mappingIntentId token or missing trigger step is a DERIVATION_DEFECT of DESIGN_PLAN_REPORT: \
 REGENERATE_ARTIFACT. Do not REVISE_BRIEF for a planner report format or coverage error.

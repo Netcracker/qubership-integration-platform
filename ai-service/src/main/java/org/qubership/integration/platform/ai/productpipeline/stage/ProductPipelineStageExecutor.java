@@ -1442,7 +1442,14 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     RecoveryContext context =
         new RecoveryContext(
             draftEvidence, approvedBrief, rejectedPayload, locale);
-    AcceptedRecovery acceptedRecovery = acceptedRecoveryDecision(runId, context);
+    // A rejected design capture belongs to its producer. Missing brief input has its own typed
+    // cause before capture; an output contract rejection cannot reopen an approved brief.
+    AcceptedRecovery acceptedRecovery =
+        "design-input".equals(stage.stageId())
+            ? new AcceptedRecovery(
+                captureRegenerateDecision(draftEvidence, findings.isBlank() ? evidenceText : findings),
+                draftEvidence)
+            : acceptedRecoveryDecision(runId, context);
     RecoveryEvidence recoveryEvidence = acceptedRecovery.evidence();
     RecoveryDecision accepted = acceptedRecovery.decision();
     if (accepted == null) {

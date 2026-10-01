@@ -11,12 +11,19 @@ Rules:
 - Do not set any property except script.
 - Preserve the existing graph structure.
 - Each script must be non-empty and executable Groovy for the described chain behavior.
+- The runtime uses Groovy 4 with JSON support, without groovy-dateutil. Use Java time APIs for dates;
+  for today's ISO date use java.time.LocalDate.now().toString(). Date.format() and Date.parse() are unavailable.
 - If several script nodes are missing, repair all of them in one call.
 - Encode the Groovy source once as a JSON string. After JSON decoding, `script` must contain
   real line breaks and the original quotes. Never double-escape a JSON string inside `script`.
 - Implement every approved behavior fact assigned to each target node, including error status,
   response body, and failure markers. Preserve facts when correcting a rejected capture.
-- To mark a QIP session and element as failed while returning a requested response, set both
+- For INLINE_RESPONSE, build the approved response envelope on both success and failure paths.
+  Preserve its constants and retained correlation fields. Add the requested error fields to that
+  envelope; never return an error-only body before assembling the required fields.
+- Mark the session or element as failed only when an approved behavior fact explicitly requires it.
+  A handled INLINE_RESPONSE error must continue to the approved delivery operation.
+  When the approved behavior requires failure markers, set both
   exchange properties `internalProperty_sessionFailed` and `internalProperty_elementFailed` to true.
   Do not invent failure property names or replace a requested response with an exception.
 - For catch/error JSON bodies prefer JsonOutput (no embedded JSON literals with quotes):
