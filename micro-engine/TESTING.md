@@ -191,6 +191,78 @@ HTTP Service Call fixtures accept `response.delayMillis` to delay a response thr
 WireMock. The value is a nonnegative integer in milliseconds; omitting it adds no delay.
 Keep delays below the HTTP and invocation timeouts when testing slow successful calls.
 
+The `graphql-sender.yml` manifest groups 58 invocations into 12 Short scenarios across
+10 exported chains. One scenario combines 24 request, response, variable, and internal
+routing checks through the same client. External routing and Authorization checks share
+an eight-invocation scenario; header correlation checks share a six-invocation scenario.
+The chain with literal `{}` variables also checks an omitted operation name.
+Connection reuse and connection closure with recovery have separate scenarios so their
+cumulative connection counts start with a fresh client and server.
+
+GraphQL HTTP fixtures accept `response.properties.expectedSendCount` to check how many
+times an invocation enters the sender step. The value is a nonnegative integer and
+defaults to `expectedRequest.count`, which counts HTTP requests received by the server.
+For invalid variables, set `expectedSendCount: 1` and `expectedRequest.count: 0` to check
+that parsing fails before an HTTP request is sent. `expectedRequest.properties` checks
+the exchange at each sender entry, including entries that fail before HTTP.
+Each invocation starts new counts; failure and recovery invocations share the client
+and server. The fixture retains the generated HTTP client configurer and GraphQL
+processors.
+
+GraphQL HTTP fixtures apply `response.delayMillis` as a WireMock response delay.
+`response.properties.transportFault` accepts `EMPTY_RESPONSE` or
+`CONNECTION_RESET_BY_PEER`. Both faults occur after the server receives the request,
+so `expectedRequest.count` still includes that request. A following invocation can
+return a normal response through the same client.
+`response.properties.expectedConnectionCount` checks the cumulative number of TCP
+connections accepted by that fixture's server across the scenario. Unlike request
+counts, this count does not reset between invocations. Use successive calls with
+exported `reuseEstablishedConnection: true` and `false` settings to check reuse.
+
+`expectedRequest.destination` checks the generated HTTP address and path
+before redirection to the fixture. Camel component options are excluded.
+`expectedRequest.path` checks what the server receives. External calls
+retain the generated gateway path prefix; the fixture controls the gateway address.
+These assertions cover generated routing, not a deployed egress gateway.
+The GraphQL routing scenarios use endpoint URLs without query parameters.
+
+GraphQL fixtures use production context propagation, restoration, and correlation
+processors. They initialize request context from invocation headers at route entry
+and register the production `XRequestIdContextProvider` when Maven disables provider
+discovery. `response.properties.expectedRestoredContext` checks context headers
+immediately after each production restore call, including the HTTP-error path.
+Fixtures restore the previous context providers and context during cleanup.
+Use outgoing header assertions and `expectedProperties.correlationId` to check
+correlation propagation and receipt. When the outgoing request and successful
+response both contain the correlation header, Camel appends the response value
+to the outgoing value. The header contains both values in order, and the correlation
+processor stores their list representation as a string. When an HTTP error response
+contains the header, the exception handler replaces its outgoing value. The correlation
+processor is skipped on HTTP errors, so the property keeps its outgoing value.
+
+GraphQL component scenarios check the element's request and response behavior.
+Payload logging and session logging belong to separate test scopes.
+
+Authorization scenarios use `m2m: false` and send a Basic header.
+`expectedRequest.headers.Authorization` checks the value sent to the external service;
+`expectedHeaders.Authorization: { $match: non-empty }` requires a nonblank value after
+success, HTTP errors, and recovery. These checks also cover responses that contain a
+different Authorization value. They allow replacement or merging with the response
+value; they do not require the original credential to remain unchanged.
+
+The baseline chain calls the unauthenticated sender, sets a Bearer header, and calls
+the authenticated sender in sequence. Its final body comes from the authenticated call.
+
+`GraphqlCustomEndpointHttpTest` checks HTTP proxy forwarding, a Basic authentication
+challenge, trusted HTTPS, and rejection of untrusted, expired, and mismatched certificates.
+It also checks a response timeout followed by a successful request through the same
+producer and HTTP client. These tests configure the endpoint directly and do not establish
+generated-chain support for those settings. Run them separately from snapshot targets:
+
+```bash
+./mvnw -pl micro-engine -Dtest=GraphqlCustomEndpointHttpTest -Dgpg.skip=true test
+```
+
 Kafka fixtures publish through the generated sender and its production client factory to
 a real Kafka container using the JVM image `apache/kafka:3.8.0`. The native image crashed
 during GraalVM startup with `SIGSEGV` and exit code 99.
@@ -658,6 +730,11 @@ Use `expectedExchangeHeaders` and `expectedAbsentExchangeHeaders` to inspect the
 Camel exchange. `expectedProperties` also describes that internal exchange. Each
 invocation can set its own HTTP method and path; the driver installs each route's bridge
 once. The component bridge sends the response body, status, and Content-Type.
+
+Map-value assertions, including `expectedHeaders`, accept `{ $match: non-empty }`.
+This matcher requires a nonblank string or a collection containing at least one
+nonblank string. Missing or null values, blank strings, and collections without a
+nonblank string fail the assertion. Literal expectations still use exact equality.
 
 The context and fixture resources are closed after each scenario.
 

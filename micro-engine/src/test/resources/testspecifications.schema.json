@@ -319,7 +319,7 @@
               "$ref": "#/definitions/valueMap"
             }
           ],
-          "description": "Result headers. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
+          "description": "Result headers. Values use exact equality or {\"$match\": \"non-empty\"} to require a nonblank string or a collection containing one. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
         },
         "expectedAbsentHeaders": {
           "allOf": [
@@ -583,7 +583,7 @@
               "$ref": "#/definitions/valueMap"
             }
           ],
-          "description": "Result headers. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
+          "description": "Result headers. Values use exact equality or {\"$match\": \"non-empty\"} to require a nonblank string or a collection containing one. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
         },
         "expectedAbsentHeaders": {
           "allOf": [
@@ -899,7 +899,7 @@
       "additionalProperties": false,
       "properties": {
         "delayMillis": {
-          "description": "Fixed HTTP response delay in milliseconds. Supported only by http-service-call fixtures.",
+          "description": "Fixed HTTP response delay in milliseconds. Supported by http-service-call and graphql-http fixtures.",
           "type": [
             "integer",
             "null"

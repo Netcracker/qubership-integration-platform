@@ -1,62 +1,2623 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
+subject: graphql-sender
+deployments:
+- id: graphql-sender
+  route: graphql-sender
+- id: graphql-sender-variables-absent
+  route: graphql-sender-variables-absent
+- id: graphql-sender-variables-empty
+  route: graphql-sender-variables-empty
+- id: graphql-sender-variables-object
+  route: graphql-sender-variables-object
+- id: graphql-sender-no-reuse
+  route: graphql-sender-no-reuse
+- id: graphql-sender-context
+  route: graphql-sender-context
+- id: graphql-sender-internal-routing
+  route: graphql-sender-internal-routing
+- id: graphql-sender-external-routing
+  route: graphql-sender-external-routing
+- id: graphql-sender-context-disabled
+  route: graphql-sender-context-disabled
+- id: graphql-sender-body-correlation
+  route: graphql-sender-body-correlation
 fixtures:
-  - id: "graphql-service-no-auth"
-    provider: "graphql-http"
-    sourceElementId: "28f2ed0d-ac14-4154-96ad-ac2adfdd7f21"
-  - id: "graphql-service-bearer"
-    provider: "graphql-http"
-    sourceElementId: "ed2f1f36-abee-4d88-bfce-757101d2bba5"
+- id: graphql-service-no-auth
+  provider: graphql-http
+  sourceElementId: 28f2ed0d-ac14-4154-96ad-ac2adfdd7f21
+  deployment: graphql-sender
+- id: graphql-service-bearer
+  provider: graphql-http
+  sourceElementId: ed2f1f36-abee-4d88-bfce-757101d2bba5
+  deployment: graphql-sender
+- id: graphql-sender-variables-absent-service
+  provider: graphql-http
+  sourceElementId: 72ec4948-f0e8-489e-b561-261bbce8e74c
+  deployment: graphql-sender-variables-absent
+- id: graphql-sender-variables-empty-service
+  provider: graphql-http
+  sourceElementId: 326f24d8-c684-46fb-8e90-d7b4d49320a7
+  deployment: graphql-sender-variables-empty
+- id: graphql-sender-variables-object-service
+  provider: graphql-http
+  sourceElementId: 6c071299-eb94-4a7f-9cf3-e47c36e35115
+  deployment: graphql-sender-variables-object
+- id: graphql-sender-no-reuse-service
+  provider: graphql-http
+  sourceElementId: 20f8a825-4a3e-453e-adfb-995bf73d6e53
+  deployment: graphql-sender-no-reuse
+- id: graphql-sender-context-service
+  provider: graphql-http
+  sourceElementId: c5d7ee87-daf4-4227-b507-0581255f4d63
+  deployment: graphql-sender-context
+- id: graphql-sender-internal-routing-service
+  provider: graphql-http
+  sourceElementId: a7d17c3d-e961-4b9b-908c-1a6803719156
+  deployment: graphql-sender-internal-routing
+- id: graphql-sender-external-routing-service
+  provider: graphql-http
+  sourceElementId: a6f01512-e7c4-48cf-bb66-b826d42b8e84
+  deployment: graphql-sender-external-routing
+- id: graphql-sender-context-disabled-service
+  provider: graphql-http
+  sourceElementId: baa912b0-ad5b-4b8a-90b1-915898c196c2
+  deployment: graphql-sender-context-disabled
+- id: graphql-sender-body-correlation-service
+  provider: graphql-http
+  sourceElementId: be3ca78d-670d-410a-bb7a-8ec64c403026
+  deployment: graphql-sender-body-correlation
 scenarios:
-  - id: "sends-requests-with-and-without-bearer-authentication"
-    scope: Short
-    endpointUri: "cip-chain:b855fa07-94b9-49e0-89e3-f0fffcd59f4c"
+- id: sends-requests-with-and-without-bearer-authentication
+  scope: Short
+  endpointUri: cip-chain:b855fa07-94b9-49e0-89e3-f0fffcd59f4c
+  expectedAbsentHeaders:
+  - CamelGraphQLQuery
+  - CamelGraphQLVariables
+  interactions:
+  - fixture: graphql-service-no-auth
+    response:
+      status: 200
+      headers:
+        Content-Type: application/json
+      body:
+        data:
+          greeting:
+            message: Hello without authentication, QIP!
+            recipient: QIP
+    expectedRequest:
+      count: 1
+      method: POST
+      path: /graphql
+      headers:
+        Accept: application/json
+        Authorization: null
+        Content-Type: application/json
+        CamelGraphQLQuery: null
+        CamelGraphQLVariables: null
+      body:
+        query: 'query GreetingNoAuth($name: String!) { greeting(name: $name) { message recipient } }'
+        operationName: GreetingNoAuth
+        variables:
+          name: QIP
+  - fixture: graphql-service-bearer
+    response:
+      status: 200
+      headers:
+        Content-Type: application/json
+      body:
+        data:
+          greeting:
+            message: Hello with authentication, QIP!
+            recipient: QIP
+    expectedRequest:
+      count: 1
+      method: POST
+      path: /graphql
+      headers:
+        Accept: application/json
+        Authorization: Bearer qip_test_only_graphql_19287b5cd73f5542995832195929ab7194c088c166195d79110c509ea4557ec4
+        Content-Type: application/json
+        CamelGraphQLQuery: null
+        CamelGraphQLVariables: null
+      body:
+        query: 'query Greeting($name: String!) { greeting(name: $name) { message recipient } }'
+        operationName: Greeting
+        variables:
+          name: QIP
+  deployment: graphql-sender
+  body: Input body is replaced by the GraphQL response.
+  headers:
+    Content-Type: text/plain
+  expectedBody:
+    data:
+      greeting:
+        message: Hello with authentication, QIP!
+        recipient: QIP
+  expectedHeaders:
+    CamelHttpResponseCode: 200
+    Content-Type: application/json
+- id: sends-internal-requests-and-recovers-from-errors
+  scope: Short
+  deployment: graphql-sender-internal-routing
+  endpointUri: cip-chain:fcf9aea8-e2f8-4501-a0ed-3439b89e6922
+  invocations:
+  - id: returns-data
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"data":{"greeting":{"message":"Hello, QIP!","recipient":"QIP"}}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: returns-data
     expectedAbsentHeaders:
-      - "CamelGraphQLQuery"
-      - "CamelGraphQLVariables"
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"QIP"}
     interactions:
-      - fixture: "graphql-service-no-auth"
-        response:
-          status: 200
-          headers:
-            Content-Type: "application/json"
-          body:
-            data:
-              greeting:
-                message: "Hello without authentication, QIP!"
-                recipient: "QIP"
-        expectedRequest:
-          count: 1
-          method: "POST"
-          path: "/graphql"
-          headers:
-            Accept: "application/json"
-            Authorization: null
-            Content-Type: "application/json"
-          body:
-            query: "query GreetingNoAuth($name: String!) { greeting(name: $name) { message recipient } }"
-            operationName: "GreetingNoAuth"
-            variables:
-              name: "QIP"
-      - fixture: "graphql-service-bearer"
-        response:
-          status: 200
-          headers:
-            Content-Type: "application/json"
-          body:
-            data:
-              greeting:
-                message: "Hello with authentication, QIP!"
-                recipient: "QIP"
-        expectedRequest:
-          count: 1
-          method: "POST"
-          path: "/graphql"
-          headers:
-            Accept: "application/json"
-            Authorization: "Bearer qip_test_only_graphql_19287b5cd73f5542995832195929ab7194c088c166195d79110c509ea4557ec4"
-            Content-Type: "application/json"
-          body:
-            query: "query Greeting($name: String!) { greeting(name: $name) { message recipient } }"
-            operationName: "Greeting"
-            variables:
-              name: "QIP"
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: returns-data
+        body: |-
+          {"data":{"greeting":{"message":"Hello, QIP!","recipient":"QIP"}}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}
+  - id: returns-errors
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"errors":[{"message":"Recipient is unavailable.","path":["greeting"],"extensions":{"code":"RECIPIENT_UNAVAILABLE"}}]}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: returns-errors
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"QIP"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: returns-errors
+        body: |-
+          {"errors":[{"message":"Recipient is unavailable.","path":["greeting"],"extensions":{"code":"RECIPIENT_UNAVAILABLE"}}]}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}
+  - id: returns-partial-data-and-errors
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"data":{"greeting":{"message":null,"recipient":"QIP"}},"errors":[{"message":"Greeting message is unavailable.","path":["greeting","message"]}]}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: returns-partial-data-and-errors
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"QIP"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: returns-partial-data-and-errors
+        body: |-
+          {"data":{"greeting":{"message":null,"recipient":"QIP"}},"errors":[{"message":"Greeting message is unavailable.","path":["greeting","message"]}]}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}
+  - id: fails-on-http-401
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"errors":[{"message":"HTTP request rejected.","extensions":{"status":401}}]}
+    expectedHeaders:
+      CamelHttpResponseCode: 401
+      Content-Type: application/json
+      X-GraphQL-Response: fails-on-http-401
+    properties:
+      graphqlVariables: |-
+        {"name":"QIP"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 401
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: fails-on-http-401
+        body: |-
+          {"errors":[{"message":"HTTP request rejected.","extensions":{"status":401}}]}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v2/graphql with statusCode: 401'
+      cause: null
+  - id: recovers-after-http-401
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"data":{"recoveredAfter":401}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: recovers-after-http-401
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"Recovered 401"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: recovers-after-http-401
+        body: |-
+          {"data":{"recoveredAfter":401}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered 401"}}
+  - id: fails-on-http-403
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"errors":[{"message":"HTTP request rejected.","extensions":{"status":403}}]}
+    expectedHeaders:
+      CamelHttpResponseCode: 403
+      Content-Type: application/json
+      X-GraphQL-Response: fails-on-http-403
+    properties:
+      graphqlVariables: |-
+        {"name":"QIP"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 403
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: fails-on-http-403
+        body: |-
+          {"errors":[{"message":"HTTP request rejected.","extensions":{"status":403}}]}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v2/graphql with statusCode: 403'
+      cause: null
+  - id: recovers-after-http-403
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"data":{"recoveredAfter":403}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: recovers-after-http-403
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"Recovered 403"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: recovers-after-http-403
+        body: |-
+          {"data":{"recoveredAfter":403}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered 403"}}
+  - id: fails-on-http-500
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"errors":[{"message":"HTTP request rejected.","extensions":{"status":500}}]}
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-GraphQL-Response: fails-on-http-500
+    properties:
+      graphqlVariables: |-
+        {"name":"QIP"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: fails-on-http-500
+        body: |-
+          {"errors":[{"message":"HTTP request rejected.","extensions":{"status":500}}]}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v2/graphql with statusCode: 500'
+      cause: null
+  - id: recovers-after-http-500
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"data":{"recoveredAfter":500}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: recovers-after-http-500
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"Recovered 500"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: recovers-after-http-500
+        body: |-
+          {"data":{"recoveredAfter":500}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered 500"}}
+  - id: sends-nested-variables
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($input: GreetingInput!, $limit: Int!) { greeting(input: $input, limit: $limit)
+        { message } }'
+      CamelGraphQLVariables:
+        stale: must be replaced
+    expectedBody: |-
+      {"data":{"revision":1}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: sends-nested-variables
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"input":{"name":"Sample customer","enabled":true,"count":7,"ratio":2.5,"optional":null,"tags":["first","second"],"items":[{"id":1,"active":false},{"id":2,"active":true}],"nested":{"emptyObject":{},"emptyArray":[]}},"limit":0}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: sends-nested-variables
+        body: |-
+          {"data":{"revision":1}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($input: GreetingInput!, $limit: Int!) { greeting(input: $input, limit: $limit) { message } }","operationName":"Request","variables":{"input":{"name":"Sample customer","enabled":true,"count":7,"ratio":2.5,"optional":null,"tags":["first","second"],"items":[{"id":1,"active":false},{"id":2,"active":true}],"nested":{"emptyObject":{},"emptyArray":[]}},"limit":0}}
+  - id: replaces-query-and-variables
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!, $enabled: Boolean!) { recipient(name: $name, enabled: $enabled)
+        { name } }'
+    expectedBody: |-
+      {"data":{"revision":2}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: replaces-query-and-variables
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"replacement","enabled":false,"count":-12,"ratio":0.125,"optional":null,"tags":[]}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: replaces-query-and-variables
+        body: |-
+          {"data":{"revision":2}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!, $enabled: Boolean!) { recipient(name: $name, enabled: $enabled) { name } }","operationName":"Request","variables":{"name":"replacement","enabled":false,"count":-12,"ratio":0.125,"optional":null,"tags":[]}}
+  - id: clears-variables-for-next-query
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    expectedBody: |-
+      {"data":{"health":{"ready":true}}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: clears-variables-for-next-query
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: clears-variables-for-next-query
+        body: |-
+          {"data":{"health":{"ready":true}}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request { health { ready } }","operationName":"Request","variables":{}}
+  - id: sends-mutation
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'mutation Request($name: String!) { updateGreeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"data":{"updateGreeting":{"message":"Updated","recipient":"Updated recipient"}}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: sends-mutation
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"Updated recipient"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: sends-mutation
+        body: |-
+          {"data":{"updateGreeting":{"message":"Updated","recipient":"Updated recipient"}}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"mutation Request($name: String!) { updateGreeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Updated recipient"}}
+  - id: selects-operation-from-document
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: |-
+        query Unused { ignored { value } }
+        query Request($name: String!) { greeting(name: $name) { message } }
+    expectedBody: |-
+      {"data":{"greeting":{"message":"Selected Request"}}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: selects-operation-from-document
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"QIP"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: selects-operation-from-document
+        body: |-
+          {"data":{"greeting":{"message":"Selected Request"}}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Unused { ignored { value } }\nquery Request($name: String!) { greeting(name: $name) { message } }","operationName":"Request","variables":{"name":"QIP"}}
+  - id: preserves-multiline-query-and-escaping
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: |-
+        query Request {
+          greeting(message: "Line one\nLine two: \"quoted\" \\ path") {
+            message
+            recipient
+          }
+        }
+    expectedBody: |-
+      {"data":{"greeting":{"message":"Line one\nLine two: \"quoted\" \\ path","recipient":"QIP"}}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: preserves-multiline-query-and-escaping
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: preserves-multiline-query-and-escaping
+        body: |-
+          {"data":{"greeting":{"message":"Line one\nLine two: \"quoted\" \\ path","recipient":"QIP"}}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request {\n  greeting(message: \"Line one\\nLine two: \\\"quoted\\\" \\\\ path\") {\n    message\n    recipient\n  }\n}","operationName":"Request","variables":{}}
+  - id: rejects-invalid-json
+    body: The request did not reach HTTP.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    properties:
+      graphqlVariables: '{invalid}'
+    expectedFailure:
+      type: com.fasterxml.jackson.core.JsonParseException
+      message: |-
+        Unexpected character ('i' (code 105)): was expecting double-quote to start field name
+         at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 2]
+      cause: null
+    expectedBody: The request did not reach HTTP.
+    expectedHeaders:
+      Content-Type: text/plain
+    expectedAbsentHeaders:
+    - CamelHttpResponseCode
+    - CamelGraphQLVariables
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        body: |-
+          {"data":{"unexpected":true}}
+        properties:
+          expectedSendCount: 1
+      expectedRequest:
+        count: 0
+        properties:
+          internalProperty_graphQLVariablesJSON: '{invalid}'
+  - id: recovers-after-invalid-json
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"data":{"recoveredAfter":"invalid-json"}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: recovers-after-invalid-json
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"Recovered invalid-json"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: recovers-after-invalid-json
+        body: |-
+          {"data":{"recoveredAfter":"invalid-json"}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered invalid-json"}}
+  - id: rejects-array-root
+    body: The request did not reach HTTP.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    properties:
+      graphqlVariables: '[1,2]'
+    expectedFailure:
+      type: com.fasterxml.jackson.databind.exc.MismatchedInputException
+      message: |-
+        Cannot deserialize value of type `org.apache.camel.util.json.JsonObject` from Array value (token `JsonToken.START_ARRAY`)
+         at [Source: REDACTED (`StreamReadFeature.INCLUDE_SOURCE_IN_LOCATION` disabled); line: 1, column: 1]
+      cause: null
+    expectedBody: The request did not reach HTTP.
+    expectedHeaders:
+      Content-Type: text/plain
+    expectedAbsentHeaders:
+    - CamelHttpResponseCode
+    - CamelGraphQLVariables
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        body: |-
+          {"data":{"unexpected":true}}
+        properties:
+          expectedSendCount: 1
+      expectedRequest:
+        count: 0
+        properties:
+          internalProperty_graphQLVariablesJSON: '[1,2]'
+  - id: recovers-after-array-root
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: |-
+      {"data":{"recoveredAfter":"array-root"}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: recovers-after-array-root
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: |-
+        {"name":"Recovered array-root"}
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: recovers-after-array-root
+        body: |-
+          {"data":{"recoveredAfter":"array-root"}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"Recovered array-root"}}
+  - id: returns-empty-body
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: ''
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: returns-empty-body
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: '{"name":"QIP"}'
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: returns-empty-body
+        body: ''
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: '{"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}'
+  - id: returns-plain-text
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: upstream response
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: text/plain
+      X-GraphQL-Response: returns-plain-text
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: '{"name":"QIP"}'
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: text/plain
+          X-GraphQL-Response: returns-plain-text
+        body: upstream response
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: '{"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}'
+  - id: fails-with-html-body
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: <html><body>Upstream unavailable</body></html>
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: text/html
+      X-GraphQL-Response: fails-with-html-body
+    properties:
+      graphqlVariables: '{"name":"QIP"}'
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 500
+        headers:
+          Content-Type: text/html
+          X-GraphQL-Response: fails-with-html-body
+        body: <html><body>Upstream unavailable</body></html>
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: '{"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}'
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/api/v2/graphql with statusCode: 500'
+      cause: null
+  - id: recovers-after-html-error
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: 'query Request($name: String!) { greeting(name: $name) { message recipient } }'
+    expectedBody: '{"data":{"greeting":{"message":"Recovered","recipient":"QIP"}}}'
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: recovers-after-html-error
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    properties:
+      graphqlVariables: '{"name":"QIP"}'
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: recovers-after-html-error
+        body: '{"data":{"greeting":{"message":"Recovered","recipient":"QIP"}}}'
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: '{"query":"query Request($name: String!) { greeting(name: $name) { message recipient } }","operationName":"Request","variables":{"name":"QIP"}}'
+  - id: sends-to-internal-address
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: sends-to-internal-address
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: sends-to-internal-address
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+        destination: http://graphql-internal:8087/api/v2/graphql
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+- id: sends-unnamed-operations-with-empty-variables
+  scope: Short
+  deployment: graphql-sender-variables-object
+  endpointUri: cip-chain:c102edd9-f109-410f-88e5-e6431cde17b5
+  invocations:
+  - id: sends-unnamed-query
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: '{ greeting { message recipient } }'
+    expectedBody: |-
+      {"data":{"greeting":{"message":"Unnamed operation","recipient":"QIP"}}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: sends-unnamed-query
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    interactions:
+    - fixture: graphql-sender-variables-object-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: sends-unnamed-query
+        body: |-
+          {"data":{"greeting":{"message":"Unnamed operation","recipient":"QIP"}}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"{ greeting { message recipient } }","operationName":null,"variables":{}}
+  - id: sends-empty-variables
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: '{ health { ready } }'
+    expectedBody: |-
+      {"data":{"health":{"ready":true}}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: sends-empty-variables
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    interactions:
+    - fixture: graphql-sender-variables-object-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: sends-empty-variables
+        body: |-
+          {"data":{"health":{"ready":true}}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"{ health { ready } }","operationName":null,"variables":{}}
+- id: sends-empty-variables-with-absent-setting
+  scope: Short
+  deployment: graphql-sender-variables-absent
+  endpointUri: cip-chain:f4f4912d-bfb2-4767-a8ae-57a0e3fa872a
+  invocations:
+  - id: sends-empty-variables
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: '{ health { ready } }'
+    expectedBody: |-
+      {"data":{"health":{"ready":true}}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: sends-empty-variables
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    interactions:
+    - fixture: graphql-sender-variables-absent-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: sends-empty-variables
+        body: |-
+          {"data":{"health":{"ready":true}}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"{ health { ready } }","operationName":null,"variables":{}}
+- id: sends-empty-variables-with-empty-setting
+  scope: Short
+  deployment: graphql-sender-variables-empty
+  endpointUri: cip-chain:7e4cc46f-8097-465c-b36b-8161353e7a0e
+  invocations:
+  - id: sends-empty-variables
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: '{ health { ready } }'
+    expectedBody: |-
+      {"data":{"health":{"ready":true}}}
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-GraphQL-Response: sends-empty-variables
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    interactions:
+    - fixture: graphql-sender-variables-empty-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-GraphQL-Response: sends-empty-variables
+        body: |-
+          {"data":{"health":{"ready":true}}}
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body: |-
+          {"query":"{ health { ready } }","operationName":null,"variables":{}}
+- id: recovers-after-connection-close
+  scope: Short
+  deployment: graphql-sender-internal-routing
+  endpointUri: cip-chain:fcf9aea8-e2f8-4501-a0ed-3439b89e6922
+  invocations:
+  - id: fails-when-server-closes-connection
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody: Input body is replaced by the GraphQL response.
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: fails-when-server-closes-connection
+        properties:
+          transportFault: EMPTY_RESPONSE
+          expectedSendCount: 1
+          expectedConnectionCount: 1
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelHttpResponseCode
+    expectedFailure:
+      type: org.apache.hc.core5.http.NoHttpResponseException
+      ignoreMessage: true
+      cause: null
+  - id: succeeds-after-connection-close
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: succeeds-after-connection-close
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: succeeds-after-connection-close
+        properties:
+          expectedSendCount: 1
+          expectedConnectionCount: 2
+        delayMillis: 40
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+- id: propagates-context-and-receives-correlation-headers
+  scope: Short
+  deployment: graphql-sender-context
+  endpointUri: cip-chain:68fb59ae-efb7-44ef-9850-ae64674a8b12
+  invocations:
+  - id: restores-context-after-success
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-restores-context-after-success
+      X-Correlation-Id: stale-correlation-id
+    properties:
+      graphqlVariables: '{}'
+      correlationId: outgoing-restores-context-after-success
+    expectedBody:
+      data:
+        invocation: restores-context-after-success
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Correlation-Id:
+      - outgoing-restores-context-after-success
+      - response-restores-context-after-success
+    interactions:
+    - fixture: graphql-sender-context-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Correlation-Id: response-restores-context-after-success
+        body:
+          data:
+            invocation: restores-context-after-success
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-restores-context-after-success
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: outgoing-restores-context-after-success
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    expectedProperties:
+      correlationId: '[outgoing-restores-context-after-success, response-restores-context-after-success]'
+  - id: restores-context-after-http-error
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-restores-context-after-http-error
+      X-Correlation-Id: stale-correlation-id
+    properties:
+      graphqlVariables: '{}'
+      correlationId: outgoing-restores-context-after-http-error
+    expectedBody:
+      data:
+        invocation: restores-context-after-http-error
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      X-Correlation-Id: response-restores-context-after-http-error
+    interactions:
+    - fixture: graphql-sender-context-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          X-Correlation-Id: response-restores-context-after-http-error
+        body:
+          data:
+            invocation: restores-context-after-http-error
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-restores-context-after-http-error
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: outgoing-restores-context-after-http-error
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/graphql with statusCode: 500'
+      cause: null
+    expectedProperties:
+      correlationId: outgoing-restores-context-after-http-error
+    expectedAbsentHeaders:
+    - X-Request-Id
+  - id: restores-context-after-recovery
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-restores-context-after-recovery
+      X-Correlation-Id: stale-correlation-id
+    properties:
+      graphqlVariables: '{}'
+      correlationId: outgoing-restores-context-after-recovery
+    expectedBody:
+      data:
+        invocation: restores-context-after-recovery
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Correlation-Id:
+      - outgoing-restores-context-after-recovery
+      - response-restores-context-after-recovery
+    interactions:
+    - fixture: graphql-sender-context-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Correlation-Id: response-restores-context-after-recovery
+        body:
+          data:
+            invocation: restores-context-after-recovery
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-restores-context-after-recovery
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: outgoing-restores-context-after-recovery
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    expectedProperties:
+      correlationId: '[outgoing-restores-context-after-recovery, response-restores-context-after-recovery]'
+  - id: receives-response-only
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-receives-response-only
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: receives-response-only
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Correlation-Id: response-only-id
+    interactions:
+    - fixture: graphql-sender-context-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          X-Correlation-Id: response-only-id
+        body:
+          data:
+            invocation: receives-response-only
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-receives-response-only
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    expectedProperties:
+      correlationId: response-only-id
+  - id: keeps-outgoing-without-response
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-keeps-outgoing-without-response
+    properties:
+      graphqlVariables: '{}'
+      correlationId: outgoing-only-id
+    expectedBody:
+      data:
+        invocation: keeps-outgoing-without-response
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      X-Correlation-Id: outgoing-only-id
+    interactions:
+    - fixture: graphql-sender-context-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: keeps-outgoing-without-response
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-keeps-outgoing-without-response
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: outgoing-only-id
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    expectedProperties:
+      correlationId: outgoing-only-id
+  - id: has-no-correlation-id
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-has-no-correlation-id
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: has-no-correlation-id
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-context-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: has-no-correlation-id
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-has-no-correlation-id
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    - X-Correlation-Id
+    expectedProperties:
+      correlationId: null
+- id: reuses-established-connection
+  scope: Short
+  deployment: graphql-sender-internal-routing
+  endpointUri: cip-chain:fcf9aea8-e2f8-4501-a0ed-3439b89e6922
+  invocations:
+  - id: sends-request-1
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: sends-request-1
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: sends-request-1
+        properties:
+          expectedConnectionCount: 1
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+  - id: sends-request-2
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: sends-request-2
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: sends-request-2
+        properties:
+          expectedConnectionCount: 1
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+  - id: sends-request-3
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: sends-request-3
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-internal-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: sends-request-3
+        properties:
+          expectedConnectionCount: 1
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+- id: opens-connection-for-each-request
+  scope: Short
+  deployment: graphql-sender-no-reuse
+  endpointUri: cip-chain:c483a0e2-35b5-42a5-a9d8-d8261e803196
+  invocations:
+  - id: sends-request-1
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: sends-request-1
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-no-reuse-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: sends-request-1
+        properties:
+          expectedConnectionCount: 1
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+  - id: sends-request-2
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: sends-request-2
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-no-reuse-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: sends-request-2
+        properties:
+          expectedConnectionCount: 2
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+  - id: sends-request-3
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: sends-request-3
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-no-reuse-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: sends-request-3
+        properties:
+          expectedConnectionCount: 3
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+- id: routes-external-requests-and-keeps-authorization-nonempty
+  scope: Short
+  deployment: graphql-sender-external-routing
+  endpointUri: cip-chain:33f4d9ee-78b8-4e35-b42a-252d12fe1703
+  invocations:
+  - id: sends-to-external-address
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: sends-to-external-address
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-external-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: sends-to-external-address
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+        destination: http://egress-gateway:8080/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+  - id: keeps-authorization-nonempty-after-success
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+      X-Request-Id: request-keeps-authorization-nonempty-after-success
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: keeps-authorization-nonempty-after-success
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      Authorization:
+        $match: non-empty
+    interactions:
+    - fixture: graphql-sender-external-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: keeps-authorization-nonempty-after-success
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: request-keeps-authorization-nonempty-after-success
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: request-keeps-authorization-nonempty-after-success
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+        destination: http://egress-gateway:8080/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+  - id: keeps-authorization-nonempty-after-http-error
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+      X-Request-Id: request-keeps-authorization-nonempty-after-http-error
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      errors:
+      - message: GraphQL request rejected.
+        extensions:
+          invocation: keeps-authorization-nonempty-after-http-error
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      Authorization:
+        $match: non-empty
+    interactions:
+    - fixture: graphql-sender-external-routing-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+        body:
+          errors:
+          - message: GraphQL request rejected.
+            extensions:
+              invocation: keeps-authorization-nonempty-after-http-error
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: request-keeps-authorization-nonempty-after-http-error
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: request-keeps-authorization-nonempty-after-http-error
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+        destination: http://egress-gateway:8080/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        with statusCode: 500'
+      cause: null
+  - id: keeps-authorization-nonempty-after-recovery
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+      X-Request-Id: request-keeps-authorization-nonempty-after-recovery
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: keeps-authorization-nonempty-after-recovery
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      Authorization:
+        $match: non-empty
+    interactions:
+    - fixture: graphql-sender-external-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: keeps-authorization-nonempty-after-recovery
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: request-keeps-authorization-nonempty-after-recovery
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: request-keeps-authorization-nonempty-after-recovery
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+        destination: http://egress-gateway:8080/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+  - id: keeps-authorization-nonempty-with-conflicting-success-header
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+      X-Request-Id: request-keeps-authorization-nonempty-with-conflicting-success-header
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: keeps-authorization-nonempty-with-conflicting-success-header
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      Authorization:
+        $match: non-empty
+    interactions:
+    - fixture: graphql-sender-external-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer response-token
+        body:
+          data:
+            invocation: keeps-authorization-nonempty-with-conflicting-success-header
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: request-keeps-authorization-nonempty-with-conflicting-success-header
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: request-keeps-authorization-nonempty-with-conflicting-success-header
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+        destination: http://egress-gateway:8080/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+  - id: recovers-after-conflicting-success-header
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+      X-Request-Id: request-recovers-after-conflicting-success-header
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: recovers-after-conflicting-success-header
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      Authorization:
+        $match: non-empty
+    interactions:
+    - fixture: graphql-sender-external-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: recovers-after-conflicting-success-header
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: request-recovers-after-conflicting-success-header
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: request-recovers-after-conflicting-success-header
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+        destination: http://egress-gateway:8080/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+  - id: keeps-authorization-nonempty-with-conflicting-error-header
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+      X-Request-Id: request-keeps-authorization-nonempty-with-conflicting-error-header
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      errors:
+      - message: GraphQL request rejected.
+        extensions:
+          invocation: keeps-authorization-nonempty-with-conflicting-error-header
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+      Authorization:
+        $match: non-empty
+    interactions:
+    - fixture: graphql-sender-external-routing-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+          Authorization: Bearer response-token
+        body:
+          errors:
+          - message: GraphQL request rejected.
+            extensions:
+              invocation: keeps-authorization-nonempty-with-conflicting-error-header
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: request-keeps-authorization-nonempty-with-conflicting-error-header
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: request-keeps-authorization-nonempty-with-conflicting-error-header
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+        destination: http://egress-gateway:8080/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        with statusCode: 500'
+      cause: null
+  - id: recovers-after-conflicting-error-header
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+      X-Request-Id: request-recovers-after-conflicting-error-header
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: recovers-after-conflicting-error-header
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+      Authorization:
+        $match: non-empty
+    interactions:
+    - fixture: graphql-sender-external-routing-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: recovers-after-conflicting-error-header
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: request-recovers-after-conflicting-error-header
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: Basic c25hcHNob3Q6cGFzc3dvcmQ=
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: request-recovers-after-conflicting-error-header
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+        destination: http://egress-gateway:8080/graphql-sender/a6f01512-e7c4-48cf-bb66-b826d42b8e84/8bced8000fae29fe9ef822a4a28f36d1b1a5ad14/api/v2/graphql
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+- id: skips-context-propagation-when-disabled
+  scope: Short
+  deployment: graphql-sender-context-disabled
+  endpointUri: cip-chain:21bd6abc-88d5-419a-b66d-72f45babff94
+  invocations:
+  - id: restores-context-after-success
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-restores-context-after-success
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: restores-context-after-success
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-context-disabled-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: restores-context-after-success
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-restores-context-after-success
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+  - id: restores-context-after-http-error
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-restores-context-after-http-error
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: restores-context-after-http-error
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-context-disabled-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: restores-context-after-http-error
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-restores-context-after-http-error
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/graphql with statusCode: 500'
+      cause: null
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedAbsentHeaders:
+    - X-Request-Id
+  - id: restores-context-after-recovery
+    body: Input body is replaced by the GraphQL response.
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-restores-context-after-recovery
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: restores-context-after-recovery
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-context-disabled-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: restores-context-after-recovery
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-restores-context-after-recovery
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+- id: receives-correlation-id-from-response-body
+  scope: Short
+  deployment: graphql-sender-body-correlation
+  endpointUri: cip-chain:2b447f64-9546-4302-9ef1-9c7c0fd6b777
+  invocations:
+  - id: receives-body-id-without-outgoing-id
+    body: '{"input":"original"}'
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-receives-body-id-without-outgoing-id
+    properties:
+      graphqlVariables: '{}'
+    expectedBody:
+      data:
+        invocation: receives-body-id-without-outgoing-id
+      requestId: response-body-id
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-body-correlation-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: receives-body-id-without-outgoing-id
+          requestId: response-body-id
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-receives-body-id-without-outgoing-id
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    - X-Correlation-Id
+    expectedProperties:
+      correlationId: response-body-id
+  - id: keeps-id-when-body-field-is-absent
+    body: '{"input":"original"}'
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-keeps-id-when-body-field-is-absent
+    properties:
+      graphqlVariables: '{}'
+      correlationId: outgoing-body-id
+    expectedBody:
+      data:
+        invocation: keeps-id-when-body-field-is-absent
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-body-correlation-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: keeps-id-when-body-field-is-absent
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-keeps-id-when-body-field-is-absent
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    - X-Correlation-Id
+    expectedProperties:
+      correlationId: outgoing-body-id
+  - id: keeps-id-after-http-error
+    body: '{"input":"original"}'
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-keeps-id-after-http-error
+    properties:
+      graphqlVariables: '{}'
+      correlationId: outgoing-before-error
+    expectedBody:
+      data:
+        invocation: keeps-id-after-http-error
+      requestId: ignored-error-id
+    expectedHeaders:
+      CamelHttpResponseCode: 500
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-body-correlation-service
+      response:
+        status: 500
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: keeps-id-after-http-error
+          requestId: ignored-error-id
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-keeps-id-after-http-error
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedFailure:
+      type: org.apache.camel.http.base.HttpOperationFailedException
+      message: 'HTTP operation failed invoking http://127.0.0.1:<loopback-port>/graphql with statusCode: 500'
+      cause: null
+    expectedProperties:
+      correlationId: outgoing-before-error
+    expectedAbsentHeaders:
+    - X-Request-Id
+    - X-Correlation-Id
+  - id: receives-body-id-after-recovery
+    body: '{"input":"original"}'
+    headers:
+      Content-Type: text/plain
+      CamelGraphQLQuery: query Request { health { ready } }
+      X-Request-Id: incoming-receives-body-id-after-recovery
+    properties:
+      graphqlVariables: '{}'
+      correlationId: outgoing-before-recovery
+    expectedBody:
+      data:
+        invocation: receives-body-id-after-recovery
+      requestId: recovered-body-id
+    expectedHeaders:
+      CamelHttpResponseCode: 200
+      Content-Type: application/json
+    interactions:
+    - fixture: graphql-sender-body-correlation-service
+      response:
+        status: 200
+        headers:
+          Content-Type: application/json
+        body:
+          data:
+            invocation: receives-body-id-after-recovery
+          requestId: recovered-body-id
+        properties:
+          expectedRestoredContext:
+            X-Request-Id: incoming-receives-body-id-after-recovery
+      expectedRequest:
+        count: 1
+        method: POST
+        path: /graphql
+        headers:
+          Accept: application/json
+          Content-Type: application/json
+          Authorization: null
+          CamelGraphQLQuery: null
+          CamelGraphQLVariables: null
+          X-Request-Id: graphql-overridden-request
+          X-Correlation-Id: null
+        body:
+          query: query Request { health { ready } }
+          operationName: Request
+          variables: {}
+    expectedAbsentHeaders:
+    - CamelGraphQLQuery
+    - CamelGraphQLVariables
+    - X-Request-Id
+    - X-Correlation-Id
+    expectedProperties:
+      correlationId: recovered-body-id
