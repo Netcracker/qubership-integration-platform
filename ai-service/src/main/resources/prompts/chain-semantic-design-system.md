@@ -100,7 +100,7 @@ Replace the example ids and expression with values from the supplied brief.
     "loopRegions": [{
       "regionId": "repeat-region", "ownerNodeId": "repeat",
       "bodyEntryNodeId": "work", "bodyExitNodeIds": ["work"], "exitNodeId": "after",
-      "loopMode": "DO_WHILE", "loopExpression": "${header.more} == \"true\""
+      "loopMode": "DO_WHILE", "loopExpression": "$\{header.more} == \"true\""
     }],
     "edges": [
       {"sourceNodeId": "inbound", "targetNodeId": "repeat"},
