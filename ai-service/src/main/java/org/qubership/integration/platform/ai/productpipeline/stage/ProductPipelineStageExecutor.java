@@ -1092,6 +1092,16 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                     Optional.empty(),
                     consumedBriefProducer))
             : new ProducerOwnedRecovery.Route(ProducerOwnedRecovery.Action.PARK, "");
+    Optional<Revision> mappingDraft = mappingDraftRevision(doc.run().runId(), cause);
+    if (producerRepairAllowed && mappingDraft.isPresent()) {
+      String owner = mappingDraftOwner(doc.run().runId(), profile, mappingDraft.get()).orElse("");
+      if (!owner.isBlank()) {
+        recovery = new ProducerOwnedRecovery.Route(
+            catalogHasBeenWritten(doc.run().runId()) ? ProducerOwnedRecovery.Action.PARK
+                : owner.equals(stage.stageId()) ? ProducerOwnedRecovery.Action.REPAIR_CURRENT
+                    : ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, owner);
+      }
+    }
     putRunAttribute(
         doc.run().runId(),
         ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
@@ -1854,6 +1864,67 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         .map(ArtifactProvenance::stageId);
   }
 
+  private Optional<Revision> mappingDraftRevision(String runId, RecoveryCause cause) {
+    if (cause == null || cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
+      return Optional.empty();
+    }
+    Reference briefRef = compiledBriefReference(cause);
+    if (briefRef == null) {
+      briefRef = mappingRepairEvidence(runId).map(RecoveryEvidence::approvedBriefRef).orElse(null);
+    }
+    if (briefRef == null) {
+      return Optional.empty();
+    }
+    RequirementBrief brief = artifactStore.get(runId, briefRef)
+        .map(revision -> artifactStore.payload(revision, RequirementBrief.class)).orElse(null);
+    if (brief == null) {
+      return Optional.empty();
+    }
+    return artifactStore.history(runId, Kind.REQUIREMENT_DRAFT).stream()
+        .filter(revision -> revision.artifactId().equals(brief.approvedDraftReference()))
+        .filter(revision -> revision.provenance() != null
+            && runId.equals(revision.provenance().runId()))
+        .filter(revision -> {
+          RequirementDraft draft = artifactStore.payload(revision, RequirementDraft.class);
+          return draft.authoredDraft() != null && draft.authoredDraft().facts().stream()
+              .anyMatch(fact -> fact.fieldMapping() != null);
+        }).findFirst();
+  }
+
+  private Optional<RecoveryEvidence> mappingRepairEvidence(String runId) {
+    Object hash = attributesByRun.getOrDefault(runId, Map.of())
+        .get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
+    return artifactStore.history(runId, Kind.RECOVERY_EVIDENCE).stream()
+        .filter(revision -> revision.contentHash().equals(hash))
+        .map(revision -> artifactStore.payload(revision, RecoveryEvidence.class))
+        .filter(evidence -> "MAPPING_CONTRACT".equals(evidence.observedCauseCode())).findFirst();
+  }
+
+  private Optional<String> mappingDraftOwner(String runId, ProductPipelineProfile profile, Revision selected) {
+    if (profile == null) {
+      return Optional.empty();
+    }
+    var pending = new java.util.ArrayDeque<Revision>();
+    var visited = new java.util.HashSet<String>();
+    pending.add(selected);
+    while (!pending.isEmpty()) {
+      Revision revision = pending.removeFirst();
+      if (!visited.add(revision.artifactId())) {
+        continue;
+      }
+      if (revision.provenance() != null && runId.equals(revision.provenance().runId())) {
+        String owner = revision.provenance().stageId();
+        if (profile.stages().stream().anyMatch(stage -> owner.equals(stage.stageId())
+            && "requirement-discovery".equals(stage.capabilityId()))) {
+          return Optional.of(owner);
+        }
+      }
+      revision.inputs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+          .forEach(ref -> artifactStore.get(runId, ref).ifPresent(pending::addLast));
+    }
+    return Optional.empty();
+  }
+
   private static Reference compiledBriefReference(RecoveryCause cause) {
     if (cause == null || cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
       return null;
@@ -2282,6 +2353,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return cause != null
         && succeededWithOutputs
         && (cause.isBindingIdentityMismatch()
+            || (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT
+                && mappingDraftRevision(doc.run().runId(), cause)
+                    .flatMap(revision -> mappingDraftOwner(doc.run().runId(),
+                        profilesByRun.get(doc.run().runId()), revision)).filter(owner::equals).isPresent())
             || (cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
                 && "materialization".equals(doc.run().currentStageId())
                 && "design-execution".equals(owner))
@@ -2558,6 +2633,27 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     putLatestRequirementBrief(runId, attributes);
     attributesByRun.put(runId, attributes);
+    if (isActiveMappingRepair(attributes)) {
+      mappingDraftRevision(runId, RecoveryCause.mappingContract(List.of())).ifPresent(revision -> {
+        RequirementDraft draft = artifactStore.payload(revision, RequirementDraft.class);
+        attributes.put("requirementCorrectionDraftReference", revision.reference());
+        attributes.put("requirementCorrectionDraft", draft);
+        java.util.Set<String> editable = new java.util.LinkedHashSet<>();
+        mappingRepairEvidence(runId).ifPresent(evidence -> evidence.findings().forEach(finding -> {
+          try {
+            var details = recoveryValidationDeps().objectMapper
+                .readValue(finding.rawValidatorJson(), PlanValidationFinding.class).mappingDetails();
+            draft.authoredDraft().facts().stream().filter(fact -> fact.fieldMapping() != null)
+                .filter(fact -> details.sourceRef().equals(fact.fieldMapping().sourceInteractionId())
+                    && details.targetRef().equals(fact.fieldMapping().targetInteractionId()))
+                .map(fact -> fact.sourceFactId()).forEach(editable::add);
+          } catch (Exception ignored) {
+            // Text-only evidence cannot authorize an automatic field correction.
+          }
+        }));
+        attributes.put("mappingRepairFactIds", java.util.Set.copyOf(editable));
+      });
+    }
     return attributes;
   }
 

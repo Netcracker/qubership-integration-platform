@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.catalog.binding.CompositionCatalogBinder;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
@@ -76,6 +77,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerNodeExecutionAdapterRegistry;
 import org.qubership.integration.platform.ai.productpipeline.create.CompilerValidationPipeline;
 import org.qubership.integration.platform.ai.productpipeline.create.DefaultCompilerDagExecutionEngine;
@@ -173,6 +175,7 @@ class MappingContractBriefProducerRecoveryTest {
   private AtomicInteger designInputCalls;
   private AtomicReference<RequirementBrief> repairedBrief;
   private RequirementBrief initialBrief;
+  private org.qubership.integration.platform.ai.plan.RequirementDraft authoredDraft;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -192,6 +195,52 @@ class MappingContractBriefProducerRecoveryTest {
     persistSide("call-1", MappingPort.REQUEST, targetSchema());
     persistSide("call-1", MappingPort.RESPONSE, serviceResponseSchema());
     persistSide("result-call", MappingPort.REQUEST, resultSchema());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void authoredMappingReopensItsExactDraftProducerAndRestoresRepairEvidence(boolean imported) throws Exception {
+    var stages = new java.util.ArrayList<ProfileStage>();
+    stages.add(new ProfileStage("requirement-discovery", "requirement-discovery", List.of(),
+        List.of(new ArtifactTypeRef("requirement-draft", 2)), null, null, new RetryPolicy(0, 1L)));
+    if (imported) {
+      stages.add(new ProfileStage("spec-import", "import-cap", List.of(new ArtifactTypeRef("requirement-draft", 2)),
+          List.of(new ArtifactTypeRef("requirement-draft", 2)), null, null, new RetryPolicy(0, 1L)));
+    }
+    stages.addAll(profile.stages());
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(),
+        profile.profileVersion(), profile.runInputs(), stages, profile.terminal(), profile.dependencyRoots());
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+        "subject-map", List.of("trigger-http", "call-1"),
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.FIELD_MAPPING,
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+        "Map the subject.", new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
+            "trigger-http", "subject", "call-1", "Task.Subject", null));
+    var tree = MAPPER.valueToTree(RequirementFactFixtures.greetingsApprovedDraft());
+    ((com.fasterxml.jackson.databind.node.ObjectNode) tree).set("authoredDraft", MAPPER.valueToTree(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+            null, List.of(fact), List.of(), List.of(), null)));
+    authoredDraft = MAPPER.treeToValue(tree, org.qubership.integration.platform.ai.plan.RequirementDraft.class);
+    var runtime = runtime(FakeFailureNarrativeAgent.narrates("unused"), injectedMappingExecution());
+    runtime.startOrResume(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
+        .collect().asList().await().indefinitely();
+    Reference draftRef = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_DRAFT).orElseThrow().reference();
+    haltAtMappingContract(runtime);
+
+    StageExecutionResult failed = execute(runtime, "design-execution");
+    assertEquals("requirement-discovery",
+        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision()).producerStageId());
+    applyLifecycle(runtime, failed);
+    assertEquals("requirement-discovery", run().run().currentStageId());
+
+    var restored = runtime(FakeFailureNarrativeAgent.narrates("unused"), injectedMappingExecution());
+    restoreCaches(restored);
+    restored.stageExecutor().execute(RUN_ID, "requirement-discovery").await().indefinitely();
+    var attrs = restored.support().runAttributes(RUN_ID);
+    assertEquals(draftRef, attrs.get("requirementCorrectionDraftReference"));
+    assertEquals(authoredDraft, attrs.get("requirementCorrectionDraft"));
+    assertEquals("true", attrs.get("mappingRepairAutomatic"));
+    assertEquals(Set.of("subject-map"), attrs.get("mappingRepairFactIds"));
   }
 
   @Test
@@ -806,7 +855,17 @@ class MappingContractBriefProducerRecoveryTest {
                 runStore,
                 artifactStore,
                 new StageCapabilityRegistry(
-                    List.of(analysisCapability(), designInputCapability(), execution)),
+                    List.of(analysisCapability(), designInputCapability(), execution,
+                        capability("requirement-discovery", context -> Multi.createFrom().item(
+                            new CapabilitySignal.Completed(StageRepairEvidence.isRepairTurn(context)
+                                ? StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "review repair")
+                                : new StageOutcome(StageOutcomeClass.SUCCEEDED,
+                                    List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, authoredDraft, List.of())),
+                                    "draft ready", null)))),
+                        capability("import-cap", context -> Multi.createFrom().item(
+                            new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+                                List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, authoredDraft, context.inputRefs())),
+                                "import skipped", null)))))),
                 Clock.fixed(FIXED, ZoneOffset.UTC))
             .failureNarrative(new FailureNarrative(agent))
             .mappingTurnAdapter((brief, text) -> RETURN_CORRECTION.equals(text)
@@ -832,7 +891,7 @@ class MappingContractBriefProducerRecoveryTest {
                                 new ArtifactCandidate(
                                     Kind.REQUIREMENT_BRIEF,
                                     analysisCalls.incrementAndGet() == 1
-                                        ? initialBrief
+                                        ? initialBrief(context)
                                         : repairedBrief.get() == null
                                             ? unknownTargetBrief()
                                             : repairedBrief.get(),
@@ -863,6 +922,16 @@ class MappingContractBriefProducerRecoveryTest {
                           "revision ready",
                           null)));
         });
+  }
+
+  private RequirementBrief initialBrief(StageExecutionContext context) {
+    if (authoredDraft == null) {
+      return initialBrief;
+    }
+    Reference draftRef = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_DRAFT).orElseThrow().reference();
+    return new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary",
+        draftRef.artifactId(), authoredDraft.planningText(), authoredDraft.facts())
+        .withMappingIntents(List.of(unknownTargetIntent()));
   }
 
   private StageCapability injectedMappingExecution() {
