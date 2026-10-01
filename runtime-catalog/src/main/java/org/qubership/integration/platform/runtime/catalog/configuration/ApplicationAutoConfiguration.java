@@ -56,7 +56,7 @@ public class ApplicationAutoConfiguration {
 
     private final ApplicationContext context;
 
-    @Value("${qip.gateway.egress.url}")
+    @Value("${cip.gateway.egress.url}")
     private String gatewayUrl;
 
     @Value("${spring.profiles.active}")

@@ -32,6 +32,6 @@ logging:
     org.springframework.cloud.consul: WARN
 
 # Turn-off Consul for tests processing
-qip:
+cip:
   consul:
     enabled: false

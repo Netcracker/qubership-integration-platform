@@ -12,7 +12,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 @ApplicationScoped
-@IfBuildProperty(name = "qip.sds.enabled", stringValue = "true")
+@IfBuildProperty(name = "cip.sds.enabled", stringValue = "true")
 public class SdsSchedulerJobsRegistrationHelper {
     // chain ID -> [element ID]
     private final Map<String, Set<String>> registeredJobs = new ConcurrentHashMap<>();

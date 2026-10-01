@@ -28,11 +28,11 @@ import org.qubership.integration.platform.engine.service.debugger.metrics.Sessio
 
 @ApplicationScoped
 public class SessionsMetricsServiceProducer {
-    @ConfigProperty(name = "qip.opensearch.index.elements.name")
+    @ConfigProperty(name = "cip.opensearch.index.elements.name")
     String indexName;
 
     @Produces
-    @LookupIfProperty(name = "qip.metrics.enabled", stringValue = "true")
+    @LookupIfProperty(name = "cip.metrics.enabled", stringValue = "true")
     public SessionsMetricsService getMetricsService(
             MetricsStore metricsStore,
             OpenSearchClientSupplier openSearchClientSupplier,

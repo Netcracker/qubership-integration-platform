@@ -10,6 +10,7 @@ elements:
       destinationName: "test_destination_name"
       lazyStartProducer: false
       messageOrderingEnabled: false
+      orderingKey: "test_ordering_key"
       projectId: "test_project_id"
       propagateContext: true
       serviceAccountKey: "test_service_account_name"

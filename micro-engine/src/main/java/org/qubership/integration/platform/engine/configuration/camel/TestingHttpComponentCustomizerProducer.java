@@ -26,7 +26,7 @@ public class TestingHttpComponentCustomizerProducer {
     private static final HttpActivityListener NOOP_LISTENER = new NoopActivityListener();
 
     @Produces
-    @LookupIfProperty(name = "qip.testing.enabled", stringValue = "true")
+    @LookupIfProperty(name = "cip.testing.enabled", stringValue = "true")
     public ComponentCustomizer testingHttpComponentCustomizer() {
         return ComponentCustomizer.builder(HttpComponent.class)
                 .build(component -> component.setHttpActivityListener(NOOP_LISTENER));

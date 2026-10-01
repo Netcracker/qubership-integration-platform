@@ -68,7 +68,7 @@ public class IdempotencyRecordService {
     }
 
     @Scheduled(
-            cron = "${qip.idempotency.expired-records-cleanup-cron:0 */5 * ? * *}",
+            cron = "${cip.idempotency.expired-records-cleanup-cron:0 */5 * ? * *}",
             executeWith = Scheduled.SIMPLE
     )
     @Transactional

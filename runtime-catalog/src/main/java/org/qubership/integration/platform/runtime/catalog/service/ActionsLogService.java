@@ -17,6 +17,7 @@
 package org.qubership.integration.platform.runtime.catalog.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
@@ -72,7 +73,8 @@ public class ActionsLogService {
 
         validateFilters(filters);
 
-        List<ActionLog> rows = actionLogRepository.findActionLogsByFilter(offset, limit, filters);
+        List<ActionLog> rows = actionLogRepository.findActionLogsByFilter(
+                offset, limit, filters, StringUtils.trimToNull(request.getSearchString()));
         return new ActionLogSearchResponse(offset + rows.size(), actionsLogMapper.asDTO(rows));
     }
 

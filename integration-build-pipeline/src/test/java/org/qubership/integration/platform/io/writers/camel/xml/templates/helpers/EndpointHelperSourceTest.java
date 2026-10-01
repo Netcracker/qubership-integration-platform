@@ -51,8 +51,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @ExtendWith(MockitoExtension.class)
 @ContextConfiguration(classes = {EndpointHelperSource.class, ServiceEnvironmentMapper.class})
 @TestPropertySource(properties = {
-        "qip.gateway.egress.protocol=http",
-        "qip.gateway.egress.url=egress-gateway:8080"
+        "cip.gateway.egress.protocol=http",
+        "cip.gateway.egress.url=egress-gateway:8080"
 })
 public class EndpointHelperSourceTest {
 

@@ -18,7 +18,7 @@ public class SourceMountPointGetter implements SourceLocationGetter {
             @Qualifier("sourceDslConfigMapNamingStrategy")
             NamingStrategy<ResourceBuildContext<Snapshot>> configMapNamingStrategy,
 
-            @Value("${qip.cr.build.mount.path:/etc/camel/sources/}")
+            @Value("${cip.cr.build.mount.path:/etc/camel/sources/}")
             String mountDir
     ) {
         this.configMapNamingStrategy = configMapNamingStrategy;

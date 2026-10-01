@@ -251,7 +251,7 @@ class RoutesConfigurerTest {
         Optional<String> configurationLocation
     ) {
         configProvider.when(ConfigProvider::getConfig).thenReturn(config);
-        when(config.getOptionalValue("qip.chains.configuration.location", String.class))
+        when(config.getOptionalValue("cip.chains.configuration.location", String.class))
             .thenReturn(configurationLocation);
     }
 

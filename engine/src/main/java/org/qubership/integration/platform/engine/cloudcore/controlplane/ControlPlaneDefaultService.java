@@ -40,10 +40,10 @@ import static org.qubership.integration.platform.engine.configuration.camel.Came
 
 @Slf4j
 @Component("controlPlaneService")
-@ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(value = "cip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnExpression(
-        "'${qip.control-plane.mesh-type:Core}'.equalsIgnoreCase('Core')"
-                + " or !'${qip.istio.enabled:false}'.equalsIgnoreCase('true')")
+        "'${cip.control-plane.mesh-type:Core}'.equalsIgnoreCase('Core')"
+                + " or !'${cip.istio.enabled:false}'.equalsIgnoreCase('true')")
 public class ControlPlaneDefaultService implements ControlPlaneService {
 
     private static final String CAMEL_ROUTES_REWRITE_PREFIX = CAMEL_ROUTES_LEGACY_PREFIX;
@@ -53,32 +53,32 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
     @Value("${cloud.microservice.namespace}")
     private String namespace;
 
-    @Value("${qip.control-plane.host}")
+    @Value("${cip.control-plane.host}")
     private String controlPlaneHost;
 
-    @Value("${qip.control-plane.egress.name}")
+    @Value("${cip.control-plane.egress.name}")
     private String egressGatewayName;
 
-    @Value("${qip.control-plane.routes.endpoints.v3.public-gateway-name}")
+    @Value("${cip.control-plane.routes.endpoints.v3.public-gateway-name}")
     private String publicGatewayName;
 
-    @Value("${qip.control-plane.routes.endpoints.v3.private-gateway-name}")
+    @Value("${cip.control-plane.routes.endpoints.v3.private-gateway-name}")
     private String privateGatewayName;
 
-    @Value("${qip.control-plane.egress.virtual-service}")
+    @Value("${cip.control-plane.egress.virtual-service}")
     private String virtualServiceName;
 
-    @Value("${qip.control-plane.egress.enable-insecure-tls}")
+    @Value("${cip.control-plane.egress.enable-insecure-tls}")
     private boolean enableInsecureTls;
 
-    @Value("${qip.chains.external-routes.base-path}")
+    @Value("${cip.chains.external-routes.base-path}")
     private String baseRoutePrefix;
-    @Value("${qip.control-plane.routes.endpoints.v1.get-routes}")
+    @Value("${cip.control-plane.routes.endpoints.v1.get-routes}")
     private String getRoutesEndpoint;
-    @Value("${qip.control-plane.routes.endpoints.v2.delete-routes-by-uuid}")
+    @Value("${cip.control-plane.routes.endpoints.v2.delete-routes-by-uuid}")
     private String deleteRoutesByUUID;
 
-    @Value("${qip.control-plane.routes.endpoints.v3.post-configuration}")
+    @Value("${cip.control-plane.routes.endpoints.v3.post-configuration}")
     private String postConfigurationEndpoint;
 
     private final RestTemplate restTemplateMS;

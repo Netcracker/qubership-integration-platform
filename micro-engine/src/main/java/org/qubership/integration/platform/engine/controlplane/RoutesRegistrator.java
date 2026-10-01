@@ -25,14 +25,14 @@ import static org.qubership.integration.platform.engine.rest.RestApiConstants.V1
 @Startup
 @Unremovable
 @ApplicationScoped
-@IfBuildProperty(name = "qip.control-plane.routes.registration.enabled", stringValue = "true", enableIfMissing = true)
+@IfBuildProperty(name = "cip.control-plane.routes.registration.enabled", stringValue = "true", enableIfMissing = true)
 public class RoutesRegistrator {
     private static final Logger LOG = LoggerFactory.getLogger(RoutesRegistrator.class);
 
     private final RoutesRestRegistrationProcessor routesRestRegistrationProcessor;
     private final EngineInfo engineInfo;
 
-    @ConfigProperty(name = "qip.control-plane.routes.public.v1-prefix")
+    @ConfigProperty(name = "cip.control-plane.routes.public.v1-prefix")
     String publicRoutePrefixV1;
 
     @Inject

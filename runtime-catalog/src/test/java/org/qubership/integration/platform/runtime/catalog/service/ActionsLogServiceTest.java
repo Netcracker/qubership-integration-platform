@@ -20,6 +20,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.BadRequestException;
@@ -74,7 +76,7 @@ class ActionsLogServiceTest {
         ActionLogDTO dto = ActionLogDTO.builder().id("log-1").build();
         List<ActionLog> logs = List.of(log);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList(), null))
                 .thenReturn(logs);
         when(actionsLogMapper.asDTO(logs)).thenReturn(List.of(dto));
 
@@ -91,7 +93,7 @@ class ActionsLogServiceTest {
         request.setOffset(-5);
         request.setLimit(50);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList(), null))
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
@@ -108,13 +110,13 @@ class ActionsLogServiceTest {
         request.setOffset(0);
         request.setLimit(0);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 100, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 100, Collections.emptyList(), null))
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
         ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
 
-        verify(actionLogRepository).findActionLogsByFilter(0, 100, Collections.emptyList());
+        verify(actionLogRepository).findActionLogsByFilter(0, 100, Collections.emptyList(), null);
         assertThat(response.getOffset()).isZero();
         assertThat(response.getActionLogs()).isEmpty();
     }
@@ -126,13 +128,13 @@ class ActionsLogServiceTest {
         request.setOffset(0);
         request.setLimit(5000);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 1000, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 1000, Collections.emptyList(), null))
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
         ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
 
-        verify(actionLogRepository).findActionLogsByFilter(0, 1000, Collections.emptyList());
+        verify(actionLogRepository).findActionLogsByFilter(0, 1000, Collections.emptyList(), null);
         assertThat(response.getOffset()).isZero();
         assertThat(response.getActionLogs()).isEmpty();
     }
@@ -145,13 +147,13 @@ class ActionsLogServiceTest {
         request.setLimit(50);
         request.setFilters(null);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList()))
+        when(actionLogRepository.findActionLogsByFilter(0, 50, Collections.emptyList(), null))
                 .thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
         ActionLogSearchResponse response = actionsLogService.findByPagedSearchRequest(request);
 
-        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList());
+        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList(), null);
         assertThat(response.getOffset()).isZero();
         assertThat(response.getActionLogs()).isEmpty();
     }
@@ -196,10 +198,23 @@ class ActionsLogServiceTest {
                 List.of(filter(ActionLogFilterColumn.ENTITY_NAME, FilterCondition.CONTAINS));
         request.setFilters(filters);
 
-        when(actionLogRepository.findActionLogsByFilter(0, 50, filters)).thenReturn(Collections.emptyList());
+        when(actionLogRepository.findActionLogsByFilter(0, 50, filters, null)).thenReturn(Collections.emptyList());
         when(actionsLogMapper.asDTO(Collections.emptyList())).thenReturn(Collections.emptyList());
 
         assertThat(actionsLogService.findByPagedSearchRequest(request).getActionLogs()).isEmpty();
+    }
+
+    @ParameterizedTest(name = "\"{0}\" is passed as {1}")
+    @CsvSource({"'  alice ', alice", "'   ',"})
+    @DisplayName("findByPagedSearchRequest trims the search string and ignores a blank one")
+    void findByPagedSearchRequestTrimsSearchString(String searchString, String expected) {
+        ActionLogSearchRequest request = new ActionLogSearchRequest();
+        request.setLimit(50);
+        request.setSearchString(searchString);
+
+        actionsLogService.findByPagedSearchRequest(request);
+
+        verify(actionLogRepository).findActionLogsByFilter(0, 50, Collections.emptyList(), expected);
     }
 
     private ActionLogFilterRequestDTO filter(ActionLogFilterColumn column, FilterCondition condition) {

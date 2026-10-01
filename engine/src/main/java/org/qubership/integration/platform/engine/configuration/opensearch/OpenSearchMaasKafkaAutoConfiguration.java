@@ -23,7 +23,7 @@ public class OpenSearchMaasKafkaAutoConfiguration {
     @Bean
     public OpenSearchKafkaProducer openSearchKafkaProducer(
             MaasKafkaClientFactory maasKafkaClientFactory,
-            @Value("${qip.opensearch.kafka-client.maas-producer-name:opensearch-kafka-producer}") String producerName
+            @Value("${cip.opensearch.kafka-client.maas-producer-name:opensearch-kafka-producer}") String producerName
     ) {
         MaasKafkaProducerCreationRequest producerCreationRequest = MaasKafkaProducerCreationRequest.builder()
                         .setProducerDefinition(maasKafkaClientFactory.getProducerDefinition(producerName))

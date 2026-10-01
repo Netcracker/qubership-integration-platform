@@ -40,9 +40,9 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @Service("controlPlaneService")
-@ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
-@ConditionalOnProperty(name = "qip.control-plane.mesh-type", havingValue = "Istio")
-@ConditionalOnProperty(name = "qip.istio.enabled", havingValue = "true")
+@ConditionalOnProperty(value = "cip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "cip.control-plane.mesh-type", havingValue = "Istio")
+@ConditionalOnProperty(name = "cip.istio.enabled", havingValue = "true")
 public class IstioRoutesRegistrationService implements ControlPlaneService {
 
     private static final String GATEWAY_API_GROUP = "gateway.networking.k8s.io";
@@ -69,11 +69,11 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
             KubeOperator kubeOperator,
             ObjectMapper objectMapper,
             @Value("${cloud.microservice.namespace}") String namespace,
-            @Value("${qip.chains.external-routes.base-path}") String baseRoutePrefix,
-            @Value("${qip.gateway.public.name}") String publicGatewayName,
-            @Value("${qip.gateway.private.name}") String privateGatewayName,
-            @Value("${qip.gateway.egress.name}") String egressGatewayName,
-            @Value("${qip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
+            @Value("${cip.chains.external-routes.base-path}") String baseRoutePrefix,
+            @Value("${cip.gateway.public.name}") String publicGatewayName,
+            @Value("${cip.gateway.private.name}") String privateGatewayName,
+            @Value("${cip.gateway.egress.name}") String egressGatewayName,
+            @Value("${cip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
     ) {
         this.kubeOperator = kubeOperator;
         this.objectMapper = objectMapper;

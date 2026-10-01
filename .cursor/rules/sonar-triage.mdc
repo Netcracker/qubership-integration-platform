@@ -1,5 +1,5 @@
 ---
-description: Trigger for the SonarCloud triage skill.
+description: "Trigger for the SonarCloud triage skill."
 globs: "**"
 ---
 

@@ -38,18 +38,16 @@ public class CompileGroovyScriptsAction implements EventProcessingAction<CamelEv
         }
     }
 
-    private void compileGroovyScripts(RouteDefinition routeDefinition) {
-        for (ProcessorDefinition<?> processor : routeDefinition.getOutputs()) {
-            if (!(processor instanceof ExpressionNode)) {
-                continue;
+    private void compileGroovyScripts(ProcessorDefinition<?> parent) {
+        for (ProcessorDefinition<?> processor : parent.getOutputs()) {
+            if (processor instanceof ExpressionNode) {
+                ExpressionDefinition expression = ((ExpressionNode) processor).getExpression();
+                if (expression.getLanguage().equals("groovy")) {
+                    log.debug("Compiling groovy script for processor {}", processor.getId());
+                    compileGroovyScript(expression);
+                }
             }
-            ExpressionDefinition expression = ((ExpressionNode) processor).getExpression();
-            if (!expression.getLanguage().equals("groovy")) {
-                continue;
-            }
-
-            log.debug("Compiling groovy script for processor {}", processor.getId());
-            compileGroovyScript(expression);
+            compileGroovyScripts(processor);
         }
     }
 

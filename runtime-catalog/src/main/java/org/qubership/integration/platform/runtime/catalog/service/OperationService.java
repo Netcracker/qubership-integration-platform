@@ -140,8 +140,8 @@ public class OperationService {
 
     public JsonNode getResponseSchema(String operationId, String contentType, String responseCode) {
         Operation operation = getOperation(operationId);
-        System.out.print(operation.getResponseSchemas().get(responseCode).path(contentType));
-        return operation.getResponseSchemas().get(responseCode).path(contentType);
+        JsonNode schemas = operation.getResponseSchemas().get(responseCode);
+        return schemas == null ? null : schemas.get(contentType);
     }
 
     private void enrichOperationWithChains(Operation operation) {
