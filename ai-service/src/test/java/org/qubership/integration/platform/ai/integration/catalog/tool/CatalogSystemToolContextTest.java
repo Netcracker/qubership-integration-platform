@@ -5,7 +5,6 @@ import static org.mockito.Mockito.*;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds;
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsLookupService;

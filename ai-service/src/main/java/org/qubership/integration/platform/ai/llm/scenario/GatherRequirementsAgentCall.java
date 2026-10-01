@@ -11,10 +11,11 @@ public final class GatherRequirementsAgentCall {
   private GatherRequirementsAgentCall() {}
 
   public static Multi<ChatEvent> run(
-      GatherRequirementsAgent gatherRequirementsAgent, String conversationId, String agentInput) {
+      GatherRequirementsAgent gatherRequirementsAgent, String conversationId, String agentInput,
+      dev.langchain4j.invocation.InvocationParameters parameters) {
     Objects.requireNonNull(gatherRequirementsAgent, "gatherRequirementsAgent");
     return gatherRequirementsAgent
-        .chat(conversationId, agentInput == null ? "" : agentInput)
+        .chat(conversationId, agentInput == null ? "" : agentInput, parameters)
         .onItem()
         .transform(ChatEvent::token);
   }

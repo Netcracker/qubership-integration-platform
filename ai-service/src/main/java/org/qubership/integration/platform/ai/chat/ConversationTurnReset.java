@@ -86,6 +86,7 @@ public class ConversationTurnReset {
 
   public void truncateAndReset(String conversationId, int afterMessageIndex) {
     conversationService.truncateAfter(conversationId, afterMessageIndex);
+    org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(conversationId);
     lastAssistantTurnStore.clearConversation(conversationId);
     if (afterMessageIndex < 0) {
       pinnedFailureStore.clearConversation(conversationId);
@@ -101,6 +102,7 @@ public class ConversationTurnReset {
 
   public void fullReset(String conversationId) {
     conversationService.clearMessages(conversationId);
+    org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind(conversationId);
     pinnedFailureStore.clearConversation(conversationId);
     lastAssistantTurnStore.clearConversation(conversationId);
     resetArtifactInventory(conversationId);

@@ -55,6 +55,14 @@ public final class StructuredCaptureArguments {
       if (!capture.isObject()) {
         return invalid("INVALID_TYPE", "/" + parameter, "This field must be an object.");
       }
+      if ("captureRequirementBrief".equals(method.methodName())
+          && method.toolSpecification().parameters().properties().containsKey("capture")) {
+        for (String field : java.util.List.of("goal", "summary", "inputs", "assumptions", "citations")) {
+          if (!capture.hasNonNull(field)) {
+            return invalid("MISSING_FIELD", "/capture/" + field, "Include this field.");
+          }
+        }
+      }
       return new Result(request.toBuilder().arguments(strict.writeValueAsString(input)).build(), null);
     } catch (IOException error) {
       String code = error instanceof JsonParseException

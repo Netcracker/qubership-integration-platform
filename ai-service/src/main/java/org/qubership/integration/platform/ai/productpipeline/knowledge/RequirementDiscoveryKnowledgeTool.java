@@ -13,6 +13,7 @@ import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 
 /** Bounded knowledge-package lookup for conversational requirement discovery. */
 @ApplicationScoped
+@io.quarkus.arc.Unremovable
 public class RequirementDiscoveryKnowledgeTool {
 
   private static final Logger LOG = Logger.getLogger(RequirementDiscoveryKnowledgeTool.class);

@@ -40,14 +40,21 @@ public class RequirementCaptureToolProvider implements ToolProvider {
 
   private final RequirementCaptureTools tools;
   private final ObjectMapper mapper;
+  private final org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
-  public RequirementCaptureToolProvider(RequirementCaptureTools tools, ObjectMapper mapper) {
+  public RequirementCaptureToolProvider(RequirementCaptureTools tools, ObjectMapper mapper,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+    this.conversations = conversations;
     this.tools = tools;
     this.mapper = mapper.copy()
         .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
         .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
         .disable(MapperFeature.ALLOW_COERCION_OF_SCALARS);
+  }
+
+  public RequirementCaptureToolProvider(RequirementCaptureTools tools, ObjectMapper mapper) {
+    this(tools, mapper, null);
   }
 
   @Override
@@ -57,29 +64,62 @@ public class RequirementCaptureToolProvider implements ToolProvider {
     JsonObjectSchema read = RequirementCaptureSchemas.emptyParameters();
     JsonObjectSchema finish =
         RequirementCaptureSchemas.parameters("directive", RequirementDiscoveryDirective.class);
-    return ToolProviderResult.builder()
+    String chatId = request == null || request.chatMemoryId() == null ? null : request.chatMemoryId().toString();
+    var authority = conversations == null || chatId == null ? null : conversations.archive().read(chatId);
+    var expected = request == null ? null : request.invocationParameters();
+    var result = ToolProviderResult.builder()
         .add(spec("captureRequirementDraft", DraftInput.class, capture),
-            (call, memoryId) -> inConversation(memoryId, () -> execute(
+            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
                 call.arguments(), "captureRequirementDraft", capture,
                 "draft", DraftInput.class, tools::captureRequirementDraft)))
         .add(spec("updateRequirementDraft", DraftUpdate.class, update),
-            (call, memoryId) -> inConversation(memoryId, () -> execute(
+            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
                 call.arguments(), "updateRequirementDraft", update,
                 "changes", DraftUpdate.class, tools::updateRequirementDraft)))
         .add(spec("readRequirementDraft", null, read),
-            (call, memoryId) -> inConversation(memoryId, () -> executeRead(call.arguments(), read)))
+            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> executeRead(call.arguments(), read)))
         .add(spec("finishRequirementDiscoveryTurn", RequirementDiscoveryDirective.class, finish),
-            (call, memoryId) -> inConversation(memoryId, () -> execute(
+            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(
                 call.arguments(), "finishRequirementDiscoveryTurn", finish,
                 "directive", RequirementDiscoveryDirective.class,
                 tools::finishRequirementDiscoveryTurn)))
-        .build();
+        .add(spec("readRequirementSource", RequirementCaptureTools.SourceRead.class,
+                RequirementCaptureSchemas.parameters("source", RequirementCaptureTools.SourceRead.class)),
+            (call, memoryId) -> inConversation(memoryId, authority, expected, () -> execute(call.arguments(),
+                "readRequirementSource", RequirementCaptureSchemas.parameters("source", RequirementCaptureTools.SourceRead.class),
+                "source", RequirementCaptureTools.SourceRead.class, tools::readRequirementSource)));
+    if (request != null) {
+      var factory = Arc.container().instance(io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutorFactory.class).get();
+      for (Class<?> type : List.of(SelectApiHubCandidateTool.class,
+          org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools.class,
+          CatalogFirstApiHubDiscoveryTool.class,
+          org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool.class)) {
+        for (var method : io.quarkiverse.langchain4j.runtime.ToolsRecorder.getMetadata().get(type.getName())) {
+          var executor = factory.create(new io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor.Context(
+              Arc.container().instance(type).get(), method.invokerClassName(), method.methodName(),
+              method.argumentMapperClassName(), method.executionModel(), method.returnBehavior(), false, method));
+          result.add(method.toolSpecification(), (call, memoryId) -> inConversation(memoryId, authority, expected,
+              () -> executor.executeWithContext(call, request.invocationContext()).resultText()));
+        }
+      }
+    }
+    return result.build();
   }
 
-  private static String inConversation(Object memoryId, Supplier<String> action) {
+  private String inConversation(Object memoryId,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Document authority,
+      dev.langchain4j.invocation.InvocationParameters parameters, Supplier<String> action) {
     String id = memoryId == null ? ToolSession.resolveConversationId() : memoryId.toString();
     try (ToolSession.Handle ignored = ToolSession.open(id)) {
-      return action.get();
+      Supplier<String> guarded = parameters != null && parameters.get(org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.CONTEXT_KEY) != null
+          ? () -> org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.withBinding(
+              id, parameters, org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.Mode.DISCOVERY,
+              binding -> action.get()) : action;
+      if (conversations != null && authority != null) {
+        return conversations.archive().withAuthority(id, authority.generation(),
+            org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority), guarded);
+      }
+      return guarded.get();
     }
   }
 

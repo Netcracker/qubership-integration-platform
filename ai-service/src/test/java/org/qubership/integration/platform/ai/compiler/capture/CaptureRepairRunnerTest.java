@@ -452,6 +452,9 @@ class CaptureRepairRunnerTest {
                 .addParserHook(new io.quarkiverse.langchain4j.QuarkusPromptTemplateFactory
                     .MustacheTemplateVariableStyleParserHook())
                 .build().parse(message).render();
+            if (!customFactory) {
+              assertTrue(rendered.contains("Selected artifact exact-ref; original {payload.field}"));
+            }
             assertTrue(rendered.contains("#{SERVICE_PASSWORD}"));
             assertTrue(rendered.contains("{\"type\":\"none\"}"));
             captured.set(true);
@@ -460,7 +463,9 @@ class CaptureRepairRunnerTest {
         },
         captured::get,
         () -> feedbackStore.lastPlanFailure("conv-1"),
-        () -> {}, "captureGraphPatch", "initial", true,
+        () -> {}, "captureGraphPatch",
+        org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping.escapeForAiServiceUserMessage(
+            "Selected artifact exact-ref; original {payload.field}"), true,
         customFactory ? feedback -> feedback.summary() : null)
         .collect().asList().await().indefinitely();
 

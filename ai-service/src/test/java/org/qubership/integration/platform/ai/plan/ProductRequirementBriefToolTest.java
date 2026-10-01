@@ -87,7 +87,7 @@ class ProductRequirementBriefToolTest {
         RequirementBrief.class).isEmpty());
 
     ProductRequirementBriefTool.Result accepted = tool.capture(
-        new RequirementAnalysisCapture("Greetings", List.of(), List.of(), "Hello world!",
+        new RequirementAnalysisCapture("Greetings", List.of("GET /greetings"), List.of(), "Hello world!",
             List.of(), List.of()), CONVERSATION);
     assertTrue(accepted.accepted());
     assertTrue(feedback.lastPlanFailure(CONVERSATION).isEmpty());
@@ -112,7 +112,7 @@ class ProductRequirementBriefToolTest {
     ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION,
         RequirementFactFixtures.greetingsApprovedDraft(), candidate::set);
     RequirementAnalysisCapture capture = new RequirementAnalysisCapture(
-        "Greetings", List.of(), List.of(), "Hello world!", List.of(), List.of());
+        "Greetings", List.of("GET /greetings"), List.of(), "Hello world!", List.of(), List.of());
 
     assertTrue(tool.capture(capture, CONVERSATION).accepted());
     ProductRequirementBriefTool.Result duplicate = tool.capture(capture, CONVERSATION);
@@ -139,7 +139,7 @@ class ProductRequirementBriefToolTest {
         "draft-artifact-1", candidate::set);
 
     ProductRequirementBriefTool.Result result = tool.capture(
-        new RequirementAnalysisCapture("Forward task", List.of(), List.of(),
+        new RequirementAnalysisCapture("Forward task", List.of("POST task input"), List.of(),
             "Rename name to title", List.of(), List.of(
                 new RequirementAnalysisCapture.Mapping("http-in", "http-out",
                     List.of(new RequirementAnalysisCapture.Rule("name", "title", null)), null))),
@@ -161,7 +161,7 @@ class ProductRequirementBriefToolTest {
         new E2eRecoveryFaultInjector("Create chain named", "requirement-analysis=CONTRACT_SHAPE:1"));
     ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approved, candidate::set);
     RequirementAnalysisCapture capture = new RequirementAnalysisCapture(
-        "Greetings", List.of(), List.of(), "Hello world!", List.of(), List.of());
+        "Greetings", List.of("GET /greetings"), List.of(), "Hello world!", List.of(), List.of());
 
     ProductRequirementBriefTool.Result first = tool.capture(capture, CONVERSATION);
     assertEquals("INJECTED_BRIEF_REJECTION", first.issues().getFirst().code());
@@ -180,7 +180,7 @@ class ProductRequirementBriefToolTest {
         RequirementFactFixtures.greetingsApprovedDraft(), candidate::set);
 
     ProductRequirementBriefTool.Result rejected = tool.capture(
-        new RequirementAnalysisCapture("Greetings", List.of(), List.of(), "Hello world!",
+        new RequirementAnalysisCapture("Greetings", List.of("GET /greetings"), List.of(), "Hello world!",
             List.of(), List.of(new RequirementAnalysisCapture.Mapping("greetings", "greetings",
                 List.of(new RequirementAnalysisCapture.Rule("name", "", null)), null))),
         CONVERSATION);
@@ -193,7 +193,7 @@ class ProductRequirementBriefToolTest {
   @Test
   void missingAnalysisSessionStopsAndRecordsTechnicalFailure() {
     ProductRequirementBriefTool.Result result = tool.capture(
-        new RequirementAnalysisCapture("Greetings", List.of(), List.of(), "Hello world!",
+        new RequirementAnalysisCapture("Greetings", List.of("GET /greetings"), List.of(), "Hello world!",
             List.of(), List.of()), CONVERSATION);
 
     assertEquals("ANALYSIS_SESSION_NOT_FOUND", result.issues().getFirst().code());
@@ -208,7 +208,7 @@ class ProductRequirementBriefToolTest {
     ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION, approved, candidate::set);
 
     ProductRequirementBriefTool.Result result = tool.capture(
-        new RequirementAnalysisCapture("Forward task", List.of(), List.of(),
+        new RequirementAnalysisCapture("Forward task", List.of("POST task input"), List.of(),
             "Copy title to Subject", List.of(), List.of(
                 new RequirementAnalysisCapture.Mapping("http-in", "http-out",
                     List.of(new RequirementAnalysisCapture.Rule("name", "Subject", null)), null))),
@@ -224,7 +224,7 @@ class ProductRequirementBriefToolTest {
         approvedWithTypedMapping(), candidate::set);
 
     ProductRequirementBriefTool.Result result = tool.capture(
-        new RequirementAnalysisCapture("Forward task", List.of(), List.of(),
+        new RequirementAnalysisCapture("Forward task", List.of("POST task input"), List.of(),
             "Copy title to Subject", List.of(), List.of()), CONVERSATION);
 
     assertTrue(result.accepted(), result.toString());

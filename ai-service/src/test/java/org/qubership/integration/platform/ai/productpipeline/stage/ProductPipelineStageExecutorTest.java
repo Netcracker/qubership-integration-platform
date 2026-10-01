@@ -655,6 +655,34 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void interruptedAnalysisUsesTheExistingRetryBudgetAndThenGetsANewAttempt() {
+    AtomicInteger calls = new AtomicInteger();
+    StageCapability analysis = capability("requirement-analysis", context -> {
+      calls.incrementAndGet();
+      assertNotEquals("interrupted", context.attemptId());
+      return Multi.createFrom().item(new CapabilitySignal.Completed(
+          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "review requirements")));
+    });
+    var profile = retryProfile("analysis", "requirement-analysis", new RetryPolicy(1, 1L));
+    var runtime = newRuntime(profile, analysis);
+    startAndRecordInput(runtime, profile);
+    var doc = requireRun();
+    long revision = doc.run().runRevision();
+    runStore.commit(revision, new org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit(
+        RUN_ID, revision, RunStatus.RUNNING, "analysis", doc.run().stages(),
+        new StageAttempt("interrupted", "analysis", revision + 1, StageStatus.RUNNING,
+            FIXED, null, List.of(), null),
+        new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(revision, revision + 1,
+            RunStatus.RUNNING, RunStatus.RUNNING, "analysis", FIXED, "analysis attempt started")));
+    var interrupted = execute(runtime, "analysis");
+    assertInstanceOf(StageDecision.Retry.class, interrupted.decision());
+    assertEquals(0, calls.get());
+    applyLifecycle(runtime, interrupted);
+    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "analysis").decision());
+    assertEquals(1, calls.get());
+  }
+
+  @Test
   void retryableFailureReturnsRetryWithoutSleepingOrReinvoking() {
     AtomicInteger attempts = new AtomicInteger();
     StageCapability flaky =

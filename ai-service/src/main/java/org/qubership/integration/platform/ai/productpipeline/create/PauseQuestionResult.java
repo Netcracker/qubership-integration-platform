@@ -11,6 +11,8 @@ public record PauseQuestionResult(Kind kind, String answer) {
     ANSWER,
     NOT_A_QUESTION,
     REPAIR_INSTRUCTION,
+    REQUIREMENT_CHANGE,
+    WORDING_CHANGE,
     UNANSWERABLE
   }
 
@@ -35,6 +37,20 @@ public record PauseQuestionResult(Kind kind, String answer) {
     return new PauseQuestionResult(Kind.REPAIR_INSTRUCTION, "");
   }
 
+  public static PauseQuestionResult wordingChange() {
+    return new PauseQuestionResult(Kind.WORDING_CHANGE, "");
+  }
+
+  public boolean isWordingChange() { return kind == Kind.WORDING_CHANGE; }
+
+  public static PauseQuestionResult requirementChange() {
+    return new PauseQuestionResult(Kind.REQUIREMENT_CHANGE, "");
+  }
+
+  public boolean isRequirementChange() {
+    return kind == Kind.REQUIREMENT_CHANGE;
+  }
+
   public static PauseQuestionResult unanswerable() {
     return new PauseQuestionResult(Kind.UNANSWERABLE, "");
   }
@@ -44,7 +60,7 @@ public record PauseQuestionResult(Kind kind, String answer) {
   }
 
   public boolean isNotAQuestion() {
-    return kind == Kind.NOT_A_QUESTION || kind == Kind.REPAIR_INSTRUCTION;
+    return kind == Kind.NOT_A_QUESTION || kind == Kind.REPAIR_INSTRUCTION || kind == Kind.REQUIREMENT_CHANGE || kind == Kind.WORDING_CHANGE;
   }
 
   public boolean isRepairInstruction() {

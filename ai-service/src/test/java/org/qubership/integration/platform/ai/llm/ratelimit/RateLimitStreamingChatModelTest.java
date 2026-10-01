@@ -39,6 +39,9 @@ class RateLimitStreamingChatModelTest {
     AppConfig.LlmConfig.RateLimitConfig rateLimit = mock(AppConfig.LlmConfig.RateLimitConfig.class);
     when(appConfig.llm()).thenReturn(llm);
     when(llm.rateLimit()).thenReturn(rateLimit);
+    AppConfig.LlmConfig.TransientRetryConfig transientRetry = mock(AppConfig.LlmConfig.TransientRetryConfig.class);
+    when(llm.transientRetry()).thenReturn(transientRetry);
+    when(transientRetry.backoffSeconds()).thenReturn("2,5,10");
     when(rateLimit.enabled()).thenReturn(false);
 
     return new RateLimitStreamingChatModel(

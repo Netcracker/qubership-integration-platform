@@ -78,7 +78,7 @@ final class RequirementCaptureSchemas {
     if (clazz == String.class) {
       return new JsonStringSchema();
     }
-    if (clazz == Integer.class) {
+    if (clazz == Integer.class || clazz == int.class) {
       return new JsonIntegerSchema();
     }
     if (clazz == Boolean.class) {

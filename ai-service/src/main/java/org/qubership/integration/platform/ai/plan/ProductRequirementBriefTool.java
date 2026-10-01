@@ -4,6 +4,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
 import dev.langchain4j.agent.tool.ToolMemoryId;
+import dev.langchain4j.invocation.InvocationParameters;
+import dev.langchain4j.service.tool.ToolProvider;
+import dev.langchain4j.service.tool.ToolProviderResult;
+import io.quarkus.arc.Arc;
+import io.quarkiverse.langchain4j.runtime.ToolsRecorder;
+import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor;
+import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutorFactory;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -13,6 +20,11 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeed
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.Binding;
 import org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.Mode;
@@ -23,9 +35,39 @@ import org.qubership.integration.platform.ai.llm.tool.StructuredCaptureArguments
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
 
-/** Captures a product brief while keeping approved requirements under server ownership. */
+/** Captures a product brief while keeping selected requirements under server ownership. */
 @ApplicationScoped
 public class ProductRequirementBriefTool {
+
+  /** Dynamic tool registration allows stateless tools on Quarkus LangChain4j 1.12.2. */
+  @ApplicationScoped
+  public static class ProviderSupplier implements java.util.function.Supplier<ToolProvider> {
+    @Override
+    public ToolProvider get() {
+      return request -> {
+        var tool = Arc.container().instance(ProductRequirementBriefTool.class).get();
+        var factory = Arc.container().instance(QuarkusToolExecutorFactory.class).get();
+        var method = ToolsRecorder.getMetadata().get(ProductRequirementBriefTool.class.getName())
+            .stream().filter(info -> "captureRequirementBrief".equals(info.methodName()))
+            .findFirst().orElseThrow();
+        var executor = factory.create(new QuarkusToolExecutor.Context(tool, method.invokerClassName(),
+            method.methodName(), method.argumentMapperClassName(), method.executionModel(),
+            method.returnBehavior(), false, method));
+        return ToolProviderResult.builder().add(specification(method), executor).build();
+      };
+    }
+  }
+
+  static dev.langchain4j.agent.tool.ToolSpecification specification(
+      io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo method) {
+    var original = method.toolSpecification();
+    var root = original.parameters();
+    var capture = (dev.langchain4j.model.chat.request.json.JsonObjectSchema) root.properties().get("capture");
+    var required = capture.toBuilder().required(List.of("goal", "summary", "inputs", "assumptions", "citations"))
+        .build();
+    return original.toBuilder().parameters(root.toBuilder().addProperty("capture", required)
+        .required(List.of("capture")).build()).build();
+  }
 
   public record Issue(String code, String path, String message) {}
 
@@ -37,15 +79,27 @@ public class ProductRequirementBriefTool {
   private final RequirementBriefCoverageValidator coverageValidator;
   private final ObjectMapper mapper;
   private final E2eRecoveryFaultInjector recoveryFaultInjector;
+  private final CaptureToolOutcomeGateway outcomeGateway;
+  private org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
   ProductRequirementBriefTool(
       CaptureSession captureSession,
       CaptureAttemptFeedbackStore feedbackStore,
       ObjectMapper mapper,
-      E2eRecoveryFaultInjector recoveryFaultInjector) {
+      E2eRecoveryFaultInjector recoveryFaultInjector,
+      CaptureToolOutcomeGateway outcomeGateway,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
     this(captureSession, feedbackStore, new RequirementBriefCoverageValidator(), mapper,
-        recoveryFaultInjector);
+        recoveryFaultInjector, outcomeGateway);
+    this.conversations = conversations;
+  }
+
+  ProductRequirementBriefTool(
+      CaptureSession captureSession, CaptureAttemptFeedbackStore feedbackStore,
+      ObjectMapper mapper, E2eRecoveryFaultInjector recoveryFaultInjector) {
+    this(captureSession, feedbackStore, new RequirementBriefCoverageValidator(), mapper, recoveryFaultInjector,
+        new CaptureToolOutcomeGateway(new ToolCallFingerprintStore(mapper), feedbackStore));
   }
 
   ProductRequirementBriefTool(
@@ -53,16 +107,18 @@ public class ProductRequirementBriefTool {
       CaptureAttemptFeedbackStore feedbackStore,
       RequirementBriefCoverageValidator coverageValidator,
       ObjectMapper mapper,
-      E2eRecoveryFaultInjector recoveryFaultInjector) {
+      E2eRecoveryFaultInjector recoveryFaultInjector,
+      CaptureToolOutcomeGateway outcomeGateway) {
     this.captureSession = captureSession;
     this.feedbackStore = feedbackStore;
     this.coverageValidator = coverageValidator;
     this.mapper = mapper;
     this.recoveryFaultInjector = recoveryFaultInjector;
+    this.outcomeGateway = outcomeGateway;
   }
 
   @Tool("""
-      Capture one requirement brief from the approved draft. The server owns its facts, flow,
+      Capture one requirement brief from the selected draft. The server owns its facts, flow,
       catalog bindings, constraints, and draft text. Supply a goal, readable summary, inputs,
       assumptions, and relevant knowledge citations. For authored FIELD_MAPPING facts, omit
       mappingIntents; the server projects those approved rules. For catalog imports without
@@ -70,8 +126,39 @@ public class ProductRequirementBriefTool {
       pass-through. The server assigns mapping ids and ports. After acceptance, finish this turn.
       """)
   public String captureRequirementBrief(
-      RequirementAnalysisCapture capture, @ToolMemoryId String conversationId) {
-    return encode(capture(capture, conversationId));
+      RequirementAnalysisCapture capture, @ToolMemoryId String conversationId,
+      InvocationParameters parameters) {
+    return withAuthority(conversationId, parameters, binding -> {
+          Result result = capture(capture, conversationId);
+          if (result.accepted()) {
+            outcomeGateway.onTerminalAccept(result.message());
+          }
+          if ("STOP".equals(result.nextAction())) {
+            outcomeGateway.onTerminalDuplicate(result.message());
+          }
+          outcomeGateway.endInvocation(encode(result));
+          return null;
+        });
+  }
+
+  public String rejectArguments(
+      String conversationId, InvocationParameters parameters, StructuredCaptureArguments.Issue issue) {
+    return withAuthority(conversationId, parameters, binding -> {
+          String message = issue.code() + " at " + issue.path() + ": " + issue.message();
+          failure(binding, CaptureFailureKind.TOOL_ARGUMENTS, message);
+          outcomeGateway.endInvocation(message);
+          return null;
+        });
+  }
+
+  private String withAuthority(String conversationId, InvocationParameters parameters,
+      java.util.function.Function<Binding, String> action) {
+    Binding expected = parameters == null ? null : parameters.get(org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.CONTEXT_KEY);
+    java.util.function.Supplier<String> capture = () -> ProductCapabilityCaptureContext.withBinding(
+        conversationId, parameters, Mode.ANALYSIS, action);
+    return conversations != null && expected != null && expected.resetGeneration() != null
+        ? conversations.archive().withAuthority(conversationId, expected.resetGeneration(),
+            expected.sourceTurnId(), capture) : capture.get();
   }
 
   /** Reports a schema rejection that occurred before Java argument binding. */
@@ -89,9 +176,8 @@ public class ProductRequirementBriefTool {
           RequirementBriefTool.DUPLICATE_CAPTURE_MESSAGE, true));
     }
     String message = issue.code() + " at " + issue.path() + ": " + issue.message();
-    boolean repeated = feedbackStore.recordPlanValidationFailure(
-        conversationId, message, message);
-    return encode(rejected(issue.code(), issue.path(), issue.message(), repeated));
+    failure(binding, CaptureFailureKind.TOOL_ARGUMENTS, message);
+    return encode(rejected(issue.code(), issue.path(), issue.message(), false));
   }
 
   Result capture(RequirementAnalysisCapture capture, String conversationId) {
@@ -105,7 +191,7 @@ public class ProductRequirementBriefTool {
     }
     RequirementDraft approved = binding.approvedDraft();
     if (approved == null || !approved.readyForPlan()) {
-      return rejected("APPROVED_DRAFT_REQUIRED", "/", "An approved draft is required.", true);
+      return rejected("SELECTED_DRAFT_REQUIRED", "/", "A selected draft is required.", true);
     }
     CaptureKey key = CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId);
     if (captureSession.isPresent(key) || binding.briefCandidate().get() != null) {
@@ -115,6 +201,16 @@ public class ProductRequirementBriefTool {
     if (capture == null || blank(capture.goal()) && blank(capture.summary())) {
       return repair(binding, capture, "MISSING_SUMMARY", "/goal",
           "Provide a goal or a summary.");
+    }
+    if (blank(capture.goal()) || blank(capture.summary())) {
+      return repair(binding, capture, "MISSING_SUMMARY", "/summary",
+          "Provide both a goal and a summary.");
+    }
+    if (capture.inputs().isEmpty() && approved.flow().interactions().stream()
+        .anyMatch(interaction -> interaction.direction()
+            == org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND)) {
+      return repair(binding, capture, "INPUT_REQUIRED", "/inputs",
+          "Describe each selected inbound interaction in inputs.");
     }
     for (int index = 0; index < capture.mappingIntents().size(); index++) {
       RequirementAnalysisCapture.Mapping mapping = capture.mappingIntents().get(index);
@@ -175,9 +271,14 @@ public class ProductRequirementBriefTool {
   private Result repair(
       Binding binding, RequirementAnalysisCapture capture, String code, String path,
       String message) {
-    boolean repeated = feedbackStore.recordPlanValidationFailure(
-        binding.conversationId(), message, capture);
-    return rejected(code, path, message, repeated);
+    failure(binding, CaptureFailureKind.VALIDATION, code + " at " + path + ": " + message);
+    return rejected(code, path, message, false);
+  }
+
+  private void failure(Binding binding, CaptureFailureKind kind, String message) {
+    outcomeGateway.onFailure(CaptureFeedbackChannel.PLAN, binding.conversationId(),
+        binding.runId() + ":" + binding.attemptId() + ":" + binding.approvedDraftReference(), kind,
+        CaptureFailureClass.CORRECTABLE, "captureRequirementBrief", null, message);
   }
 
   private static List<String> constraints(RequirementDraft approved) {

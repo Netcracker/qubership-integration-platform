@@ -32,6 +32,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
  * draft.
  */
 @ApplicationScoped
+@io.quarkus.arc.Unremovable
 public class CatalogFirstApiHubDiscoveryTool {
 
   private final CatalogOperationLookup catalogOperationLookup;

@@ -305,6 +305,15 @@ public interface AppConfig {
   }
 
   interface LlmConfig {
+    @WithDefault("131072")
+    int contextTokens();
+
+    @WithDefault("8192")
+    int contextHeadroomTokens();
+
+    @WithDefault("4096")
+    int analysisOutputTokens();
+
     @WithDefault("auto")
     String provider();
 

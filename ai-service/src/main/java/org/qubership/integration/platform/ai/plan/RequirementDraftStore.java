@@ -40,12 +40,22 @@ public class RequirementDraftStore {
       new ConcurrentHashMap<>();
   private final CompilationArtifacts artifacts;
   private final CompilationSessions sessions;
+  private final org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
+  private final ConcurrentHashMap<String, org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Document>
+      sourceInputs = new ConcurrentHashMap<>();
+
 
   @Inject
   public RequirementDraftStore(
-      CompilationArtifacts artifacts, CompilationSessions sessions) {
+      CompilationArtifacts artifacts, CompilationSessions sessions,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
     this.artifacts = artifacts;
     this.sessions = sessions;
+    this.conversations = conversations;
+  }
+
+  public RequirementDraftStore(CompilationArtifacts artifacts, CompilationSessions sessions) {
+    this(artifacts, sessions, null);
   }
 
   public RequirementDraftStore() {
@@ -64,7 +74,17 @@ public class RequirementDraftStore {
             .latest(compilationId, Kind.REQUIREMENT_DRAFT)
             .map(Revision::artifactId)
             .orElse(null);
-    artifacts.append(
+    var source = sourceInputs.get(conversationId);
+    List<Reference> inputs = source == null ? List.of() : source.activeTurns().stream()
+        .filter(turn -> turn.message().role()
+            == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+            && "READY".equals(turn.status()) && turn.consumedDraftReference() == null)
+        .map(turn -> artifacts.append(new AppendCommand(compilationId, Kind.USER_INPUT, "1",
+            "conversation-source", "1",
+            new org.qubership.integration.platform.ai.productpipeline.artifact.UserInput(turn.id(),
+                "conversation-source", turn.message().content(), turn.message().createdAt(), null, List.of(turn.id())),
+            List.of(), null)).reference()).toList();
+    Revision saved = artifacts.append(
         new AppendCommand(
             compilationId,
             Kind.REQUIREMENT_DRAFT,
@@ -72,8 +92,27 @@ public class RequirementDraftStore {
             draft.sourceSkillId() != null ? draft.sourceSkillId() : "requirement-draft-store",
             draft.sourceSkillVersion(),
             draft,
-            List.of(),
+            inputs,
             revisesArtifactId));
+    if (source != null && conversations != null) {
+      conversations.archive().consume(conversationId, source.generation(),
+          source.activeTurns().stream().map(turn -> turn.id()).toList(), saved.artifactId());
+    }
+  }
+
+  /** Restores producer state without treating the pending correction as captured. */
+  public void restoreAccepted(String conversationId, RequirementDraft draft) {
+    if (get(conversationId).filter(draft::equals).isPresent()) {
+      return;
+    }
+    var source = sourceInputs.remove(conversationId);
+    try {
+      put(conversationId, draft);
+    } finally {
+      if (source != null) {
+        sourceInputs.put(conversationId, source);
+      }
+    }
   }
 
   public Optional<Revision> latestRevision(String conversationId) {
@@ -171,6 +210,7 @@ public class RequirementDraftStore {
 
   /** Clears per-turn gather flags without starting a new compilation. */
   public void clearTurnFlags(String conversationId) {
+    sourceInputs.remove(conversationId);
     capturedThisTurn.remove(conversationId);
     turnDirectives.remove(conversationId);
     lastCaptureRejection.remove(conversationId);
@@ -187,6 +227,9 @@ public class RequirementDraftStore {
 
   /** Marks the start of a gather scenario turn before the agent runs. */
   public void beginTurn(String conversationId) {
+    if (conversations != null) {
+      sourceInputs.put(conversationId, conversations.archive().read(conversationId));
+    }
     capturedThisTurn.put(conversationId, false);
     turnDirectives.remove(conversationId);
     rejectedCaptureFacts.remove(conversationId);
@@ -214,6 +257,13 @@ public class RequirementDraftStore {
     } else {
       currentAuthorText.put(conversationId, authorText);
     }
+  }
+
+  public String readSourceTurn(String conversationId, String turnId, int offset, int maxChars) {
+    if (conversations == null) {
+      throw new IllegalStateException("Conversation source storage is unavailable.");
+    }
+    return conversations.archive().readSource(conversationId, turnId, offset, maxChars);
   }
 
   public Optional<String> currentAuthorText(String conversationId) {
