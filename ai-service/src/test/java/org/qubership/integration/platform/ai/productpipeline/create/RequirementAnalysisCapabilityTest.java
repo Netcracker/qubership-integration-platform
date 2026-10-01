@@ -514,6 +514,52 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
+  void amendedDraftDoesNotInheritMappingRulesFromThePriorBrief() {
+    RequirementDraft approved = RequirementFactFixtures.readyDraft("Create a task").withFlow(
+        new RequirementFlow(List.of(
+            new Interaction("http-in", Direction.INBOUND, "Caller", "GET /", ""),
+            new Interaction("create-task", Direction.OUTBOUND, "Salesforce", "createTask", "")),
+            List.of(new Transition("http-in", "create-task"))))
+        .withBoundInteraction("create-task", new CatalogBindingHint(
+            "3", "create-task", "create-task", "create-task", "system-1", "group-1", "spec-1",
+            "op-1", "http", "POST", "/create-task", "catalog", Instant.EPOCH, "test"));
+    MappingIntent amendedMapping = new MappingIntent(
+        "map-subject", "http-in", MappingPort.OUTPUT, "create-task", MappingPort.REQUEST,
+        List.of(new MappingIntentRule("", "$.Subject", "'Current task'")));
+    RequirementBrief fresh = coveringBrief(approved, "Task integration")
+        .withMappingIntents(List.of(amendedMapping));
+    RequirementBrief prior = new RequirementBrief(
+        fresh.goal(), fresh.inputs(), fresh.constraints(), fresh.assumptions(), fresh.citations(),
+        fresh.summary(), "prior-draft", fresh.approvedDraftText(), fresh.facts())
+        .withMappingIntents(List.of(amendedMapping.withRules(
+            List.of(new MappingIntentRule("", "$.Subject", "'Prior task'")))));
+    FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
+    AtomicInteger mappingTurns = new AtomicInteger();
+    RequirementAnalysisCapability capability = new RequirementAnalysisCapability(
+        knowledge, knowledge,
+        new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+        null, null, null, ctx -> fresh, null, null, null, null, null,
+        (brief, text) -> {
+          mappingTurns.incrementAndGet();
+          return MappingTurnResult.changes();
+        }, null);
+    StageExecutionContext context = new StageExecutionContext(
+        "run-amended", "conv-amended", "requirement-analysis", "exec-1", "attempt-1",
+        null, null, List.of(), Map.of("approvedDraft", approved, "requirementBrief", prior,
+            "userText", "continue-to-planning"));
+
+    CapabilitySignal.Completed completed = capability.execute(context).collect().asList()
+        .await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, completed.outcome().outcomeClass(),
+        completed.outcome().message());
+    RequirementBrief candidate = (RequirementBrief) completed.outcome().candidates().getFirst().payload();
+    assertEquals(List.of(amendedMapping), candidate.mappingIntents());
+    assertEquals(0, mappingTurns.get());
+  }
+
+  @Test
   void paraphrasedMappingUserTextDoesNotNeedEnglishControlPhrases() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     String userText = "Copy the greeting name onto the script body.";

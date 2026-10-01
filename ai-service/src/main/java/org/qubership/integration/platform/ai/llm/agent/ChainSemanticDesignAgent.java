@@ -1,7 +1,6 @@
 package org.qubership.integration.platform.ai.llm.agent;
 
 import dev.langchain4j.service.MemoryId;
-import dev.langchain4j.service.Result;
 import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -18,5 +17,5 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.input
 public interface ChainSemanticDesignAgent {
 
   @dev.langchain4j.service.SystemMessage(fromResource = "prompts/chain-semantic-design-system.md")
-  Result<String> chat(@MemoryId String conversationId, @UserMessage String userMessage);
+  String chat(@MemoryId String conversationId, @UserMessage String userMessage);
 }

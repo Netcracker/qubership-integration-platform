@@ -346,7 +346,8 @@ public class RequirementAnalysisCapability implements StageCapability {
       return brief;
     }
     RequirementBrief prior = priorBrief(context);
-    if (prior == null) {
+    if (prior == null
+        || !Objects.equals(prior.approvedDraftReference(), brief.approvedDraftReference())) {
       return brief;
     }
     RequirementBrief starting =
