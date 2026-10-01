@@ -1,20 +1,26 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCapture.CapturedOperation;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
@@ -55,6 +61,36 @@ class ChainSemanticMappingPlacementInvestigationTest {
   void correctlyPlacedMappingSitesAreAccepted() {
     assertDoesNotThrow(
         () -> adapter.adapt(capture(false), "run-correct-mappings", brief(), CONTRACT));
+  }
+
+  @Test
+  void retentionAndRequestMappingShareOneScriptWithoutLosingBehavior() {
+    RequirementBrief original = brief();
+    List<RequirementFact> facts = new ArrayList<>(original.facts());
+    facts.add(new RequirementFact(
+        "retain-input", RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", "Save the incoming orderId in an exchange property before replacing the body."));
+    RequirementBrief approved = original.withFacts(facts);
+    ChainSemanticCapture merged = ChainSemanticCaptureFixtures.rockyCapture(
+        List.of(
+            new CapturedOperation("map-start", "script", List.of("retain-input")),
+            new CapturedOperation("map-result", "script", List.of("fact-script"))),
+        capture(false).edges());
+
+    var revision = adapter.adapt(merged, "run-combined-retention", approved, CONTRACT);
+
+    assertDoesNotThrow(() ->
+        new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, approved));
+    assertEquals(5, revision.nodes().size());
+    assertEquals(4, revision.executionEdges().size());
+    assertEquals(List.of("retain-input"), revision.nodes().stream()
+        .filter(node -> node.nodeId().equals("map-start"))
+        .findFirst().orElseThrow().provenance().sourceFactIds());
+    assertEquals(List.of(START_MAP, RESULT_MAP), revision.mappingBodies(approved).stream()
+        .map(MappingIntent::mappingIntentId).toList());
+    IllegalArgumentException missingBehavior = assertThrows(IllegalArgumentException.class,
+        () -> adapter.adapt(capture(false), "run-lost-retention", approved, CONTRACT));
+    assertTrue(missingBehavior.getMessage().contains("retain-input"), missingBehavior.getMessage());
   }
 
   @Test
