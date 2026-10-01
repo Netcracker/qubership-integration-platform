@@ -1891,6 +1891,15 @@ public final class ProductPipelineRunSupport {
     if (!correction.applied()) {
       return stayAfterMappingTurn(doc, mappingStayMessage(correction));
     }
+    boolean authored = artifactStore.history(command.runId(), Kind.REQUIREMENT_DRAFT).stream()
+        .filter(revision -> revision.artifactId().equals(brief.approvedDraftReference()))
+        .map(revision -> artifactStore.payload(revision, org.qubership.integration.platform.ai.plan.RequirementDraft.class))
+        .anyMatch(draft -> draft.authoredDraft() != null);
+    if (authored) {
+      Reference selectedBrief = artifactStore.latest(command.runId(), Kind.REQUIREMENT_BRIEF)
+          .map(Revision::reference).orElse(null);
+      return reopenRequirementDraft(doc, command, selectedBrief);
+    }
     // A mapping amendment can reopen the brief; rephrasing a retry cannot.
     return applyDiagnosedOwner(doc, command);
   }
@@ -2416,6 +2425,11 @@ public final class ProductPipelineRunSupport {
 
   private Multi<PipelineSignal> reopenRequirementDraft(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    return reopenRequirementDraft(doc, command, approvalCandidate(doc));
+  }
+
+  private Multi<PipelineSignal> reopenRequirementDraft(
+      ProductPipelineRunDocument doc, AcceptInputCommand command, Reference candidate) {
     ProductPipelineProfile profile = profilesByRun.get(command.runId());
     String owner = profile == null ? null : profile.stages().stream()
         .filter(stage -> "requirement-discovery".equals(stage.capabilityId())
@@ -2424,7 +2438,6 @@ public final class ProductPipelineRunSupport {
     Reference published = doc.run().stages().stream().filter(stage -> java.util.Objects.equals(owner, stage.stageId()))
         .map(ProductPipelineRunSupport::resolveReopenApprovable).filter(java.util.Objects::nonNull)
         .filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT).findFirst().orElse(null);
-    Reference candidate = approvalCandidate(doc);
     if (published == null || candidate == null || candidate.kind() != Kind.REQUIREMENT_BRIEF) {
       return refuseWithGuard(doc, command, HaltRecoveryGuard.MISSING_PROFILE_OR_PRIOR_CANDIDATE);
     }
