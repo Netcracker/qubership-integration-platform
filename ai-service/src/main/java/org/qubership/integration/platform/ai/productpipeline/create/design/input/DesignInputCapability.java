@@ -294,6 +294,8 @@ public class DesignInputCapability implements StageCapability {
           .append("\n- nodeId=")
           .append(entryPoint.entryPointId())
           .append(" role=INBOUND capabilityKey=")
+          .append(entryPoint.capabilityKey())
+          .append(" elementType=")
           .append(entryPoint.capabilityKey());
     }
     for (RequirementFact fact : brief.facts()) {
@@ -312,6 +314,8 @@ public class DesignInputCapability implements StageCapability {
           .append("\n- nodeId=")
           .append(fact.sourceFactId())
           .append(" role=OUTBOUND capabilityKey=")
+          .append(outboundKey)
+          .append(" elementType=")
           .append(outboundKey);
     }
     Set<String> triggerFactIds = ChainSemanticCaptureAdapter.triggerFactIds(brief.entryPoints());
@@ -325,7 +329,7 @@ public class DesignInputCapability implements StageCapability {
       prompt
           .append("\n- nodeId=")
           .append(call.serviceCallId())
-          .append(" role=OUTBOUND operation=")
+          .append(" role=OUTBOUND elementType=service-call operation=")
           .append(call.operation())
           .append(" failureMode=")
           .append(call.failureMode())
@@ -368,8 +372,11 @@ public class DesignInputCapability implements StageCapability {
          separate nodes. Keep separate scripts only for explicitly requested separate steps or\
          when a service call, branch, loop, retry, or error-scope boundary separates the work.\
          External interaction anchors are server-owned.\
-         Reference these node ids from edges. Do not list triggers or catalog service calls\
-         under operations. Preserve\
+         Reference these node ids from edges. To attach extra sourceFactIds to an existing\
+         anchor, list its exact nodeId and elementType under operations. This only extends\
+         provenance; it never creates or replaces an interaction. Attach event and call behavior\
+         facts to their anchors. Keep parsing, retention, field mappings, response constants,\
+         and error payload assembly on their implementing processing nodes. Preserve\
          every approved business transition. You may insert internal processing nodes between\
          its source and target, but you may not reverse, omit, or add an external interaction\
          transition. Do not mint occurrence ids. The server derives the revision id, every edge\
@@ -384,7 +391,7 @@ public class DesignInputCapability implements StageCapability {
          at nodeId equal to the capability sourceFactId. Reference those ids from edges. Do not\
          add another operation with the same elementType. You may list that nodeId under\
          operations to attach every applicable BEHAVIOR sourceFactId; the server keeps one node.\
-         The server initially attaches only the native capability fact. Keep local script facts\
+         The server initially attaches each anchor's primary fact. Keep local script facts\
          on script nodes separate from external interaction anchors, combining consecutive\
          processing as described above. Do not invent\
          the chain-call trigger UUID; gathering already stored it on the capability path.""");

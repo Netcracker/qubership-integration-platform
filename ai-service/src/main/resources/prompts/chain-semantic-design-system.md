@@ -10,10 +10,11 @@ the approved brief. After accepted capture, finish without further tool calls.
 Copy `sourceFactIds` and `mappingIntentId` from the approved brief. Do not mint occurrence ids.
 External interaction anchors are server-owned: use the node ids supplied in the user message.
 The server projects entry points, triggers, service calls, and native outbound nodes from capability facts.
-Do not list triggers or catalog service calls under `operations`. For each native outbound node
-(direct sender or chain-call-2), list its exact anchor `nodeId` and `elementType` under `operations`
-when it needs additional `sourceFactIds`. This adds provenance to the existing node. It does not create
-another interaction. Attach sender configuration facts to that sender. Implement local script facts
+To attach additional `sourceFactIds` to an existing anchor, list its exact `nodeId` and `elementType`
+under `operations`. Use the supplied trigger type, `service-call` for a catalog call, or the native
+outbound type. This adds provenance to the existing node without creating or replacing an interaction.
+Attach event and call behavior facts to their anchors, and sender configuration facts to that sender.
+Implement local script facts
 on a `script` node in the approved execution order, separate from the external interaction anchor.
 
 Combine input parsing, context retention, and request mapping in one script when they run consecutively
@@ -25,7 +26,7 @@ branch, loop, retry, or error-scope boundary separates the work. Keep response a
 producing call; it cannot share the request script before that call.
 
 Every positive BEHAVIOR and CAPABILITY fact must appear in a semantic node's `sourceFactIds`.
-The server initially attaches only the capability fact to a native outbound anchor. Include its
+The server initially attaches each anchor's primary fact. Include its
 configuration facts yourself, including connection, topic, serializers, security, and propagation.
 Check the complete fact list before capture and again after correcting a rejection. Keep each fact
 on the node that implements it. Copy the entire approved chain name to `chainIdentity`, preserving
@@ -43,7 +44,7 @@ at the end of the approved path. Retain original event values before the call re
 
 Example with server-owned anchors `entry`, `call`, and `deliver`, approved transitions
 `entry -> call -> deliver`, `call.failureMode=INLINE_RESPONSE`, behavior fact IDs
-`retain-input`, `assemble-result`, and `failure-fields`, field-mapping fact IDs `request-fields`
+`receive-event`, `invoke-call`, `retain-input`, `assemble-result`, and `failure-fields`, field-mapping fact IDs `request-fields`
 and `response-fields`, and mapping intent IDs `entry-to-call-request` and `call-to-deliver-request`:
 
 ```json
@@ -51,6 +52,8 @@ and `response-fields`, and mapping intent IDs `entry-to-call-request` and `call-
   "capture": {
     "chainIdentity": "Example result delivery",
     "operations": [
+      {"nodeId": "entry", "elementType": "async-api-trigger", "sourceFactIds": ["receive-event"]},
+      {"nodeId": "call", "elementType": "service-call", "sourceFactIds": ["invoke-call"]},
       {"nodeId": "prepare-request", "elementType": "script", "sourceFactIds": ["retain-input", "request-fields"]},
       {"nodeId": "build-result", "elementType": "script", "sourceFactIds": ["assemble-result", "response-fields", "failure-fields"]}
     ],
@@ -64,7 +67,9 @@ and `response-fields`, and mapping intent IDs `entry-to-call-request` and `call-
 }
 ```
 
-Use the supplied fact IDs and anchors. Omit `errorScopeRegions` for this inline response.
+The example assumes `entry.elementType=async-api-trigger` and `call.elementType=service-call`.
+Copy the supplied fact IDs and anchor types. The two anchor entries only extend existing nodes.
+Keep response payload facts on `build-result`. Omit `errorScopeRegions` for this inline response.
 
 The brief labels each of these, so copy the value after the matching `=` sign and nothing else. A
 fact renders as `- [POSITIVE] <text> sourceFactId=<id>`, and a service call as
@@ -128,8 +133,8 @@ For combined retention and request mapping, use `entry -> prepare-request -> cal
 `mappingIntentId` on `prepare-request -> call`. Keep both retention and mapping facts on
 `prepare-request`. When an approved boundary requires separate scripts, put the mapping only on
 its implementing script's edge to the destination call; retain each script's behavior facts.
-When a BEHAVIOR fact restates an entry event, retain that fact on the input-processing script;
-do not add or redeclare the server-owned trigger to attach it.
+When a BEHAVIOR fact restates an entry event or external call, attach it to that existing anchor
+using its exact nodeId and elementType. This provenance annotation adds no execution node.
 
 Scoped routes must reference their owning region. A `CATCH_PATH` names a handler declared in that
 error scope. For an approved `ERROR_SCOPE` or explicit try/catch requirement, use `errorScopeRegions`

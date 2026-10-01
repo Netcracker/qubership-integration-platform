@@ -807,6 +807,58 @@ class ChainSemanticCaptureAdapterTest {
   }
 
   @Test
+  void mergesBehaviorReferencesIntoApprovedTriggerAndCatalogCallWithoutChangingBindings() {
+    RequirementBrief base = ChainSemanticCaptureFixtures.approvedBrief();
+    List<RequirementFact> facts = new ArrayList<>(base.facts());
+    facts.add(new RequirementFact("receive-event", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Receive the event"));
+    facts.add(new RequirementFact("invoke-api", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Call the approved API"));
+    RequirementBrief brief = base.withFacts(facts);
+    ChainSemanticCapture capture = withOperations(ChainSemanticCaptureFixtures.linearCapture(),
+        List.of(new CapturedOperation("http-in", "http-trigger", List.of("receive-event")),
+            new CapturedOperation("call-1", "service-call", List.of("invoke-api")),
+            new CapturedOperation("op-shared", "script", List.of("fact-script"))));
+
+    ChainSemanticRevision revision = adapt(capture, brief);
+
+    assertEquals(3, revision.nodes().size());
+    SemanticNode.Trigger trigger = node(revision, SemanticNode.Trigger.class);
+    assertEquals(List.of("trigger-1", "receive-event"), trigger.provenance().sourceFactIds());
+    assertEquals("http-in", trigger.interactionId());
+    assertEquals("http-trigger", trigger.capabilityKey());
+    SemanticNode.ServiceCall call = node(revision, SemanticNode.ServiceCall.class);
+    assertEquals(List.of("fact-call", "invoke-api"), call.provenance().sourceFactIds());
+    assertEquals("call-1", call.serviceCallId());
+    assertEquals(base.serviceCalls().getFirst().operation(), call.operation());
+    assertEquals(base.serviceCalls().getFirst().failureMode(), call.failureMode());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+
+    IllegalArgumentException unknown = assertThrows(IllegalArgumentException.class,
+        () -> adapt(withOperations(capture, List.of(
+            new CapturedOperation("http-in", "http-trigger", List.of("unknown-fact")))), brief));
+    assertTrue(unknown.getMessage().contains("unknown-fact"), unknown.getMessage());
+  }
+
+  @Test
+  void reportsAllMissingBehaviorReferencesWithoutRequestingAnotherInteraction() {
+    RequirementBrief base = ChainSemanticCaptureFixtures.approvedBrief();
+    List<RequirementFact> facts = new ArrayList<>(base.facts());
+    facts.add(new RequirementFact("receive-event", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Receive the event"));
+    facts.add(new RequirementFact("invoke-api", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Call the approved API"));
+
+    IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+        () -> adapt(ChainSemanticCaptureFixtures.linearCapture(), base.withFacts(facts)));
+
+    assertTrue(error.getMessage().contains("receive-event"), error.getMessage());
+    assertTrue(error.getMessage().contains("invoke-api"), error.getMessage());
+    assertTrue(error.getMessage().contains("sourceFactIds"), error.getMessage());
+    assertFalse(error.getMessage().contains("Add the required element"), error.getMessage());
+  }
+
+  @Test
   void rejectsAnOperationThatRestatesAServerOwnedServiceCallNode() {
     ChainSemanticCapture capture =
         withOperations(
@@ -814,7 +866,7 @@ class ChainSemanticCaptureAdapterTest {
             List.of(
                 new CapturedOperation("op-shared", "script", List.of()),
                 new CapturedOperation(
-                    ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "service-call", List.of())));
+                    ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "script", List.of())));
 
     assertTrue(failure(capture).contains("reuses an interaction id"), failure(capture));
   }

@@ -3413,6 +3413,40 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void captureContractFailuresKeepTheBriefAndGiveEachRejectionItsOwnRepairBudget() {
+    FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
+    AtomicInteger calls = new AtomicInteger();
+    ProductPipelineProfile profile = analysisThenDesignInputProfile();
+    StageCapability designInput = capability("design-input-cap", context -> {
+      String message = calls.incrementAndGet() == 1
+          ? "Missing sourceFactIds: receive-event"
+          : "Anchor onTaskStart has a mismatched elementType";
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE, message,
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", message, true)), ""))));
+    });
+    CreateChainTestOrchestrator runtime =
+        newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), designInput);
+    startAndRecordInput(runtime, profile);
+    approveCurrentStage(runtime, "requirement-analysis");
+    Reference brief = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().reference();
+    agent.recoverReviseBrief(brief, List.of(), "Change the trigger in the requirements.");
+
+    for (int attempt = 0; attempt < 2; attempt++) {
+      StageExecutionResult result = execute(runtime, "design-input");
+      StageDecision.Retry retry = assertInstanceOf(StageDecision.Retry.class, result.decision());
+      assertEquals("design-input", retry.stageId());
+      applyLifecycle(runtime, result);
+    }
+
+    assertEquals(2, calls.get());
+    assertNull(agent.lastRecoveryContextJson.get());
+    assertEquals(brief, artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow().reference());
+    assertEquals(1, artifactStore.history(RUN_ID, Kind.REQUIREMENT_BRIEF).size());
+  }
+
+  @Test
   void exhaustedBriefRecoverySummaryListsTypedMappingTargetPaths() {
     PlanValidationFinding finding =
         new PlanValidationFinding(

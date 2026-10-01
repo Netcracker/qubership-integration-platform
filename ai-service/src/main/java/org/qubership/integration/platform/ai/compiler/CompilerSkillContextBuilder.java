@@ -635,10 +635,18 @@ public class CompilerSkillContextBuilder {
 
           Script runtime contract:
           Incoming JSON bodies can be strings or maps. Parse a string before reading event fields.
+          Groovy 4 has no groovy-dateutil module in this runtime. Use Java time APIs for dates.
+          Today's ISO date is java.time.LocalDate.now().toString(); Date.format() and Date.parse()
+          are unavailable.
           For an approved INLINE_RESPONSE HTTP call, errorThrowing=false means the failed response
           can arrive without CamelExceptionCaught. Check the HTTP status and the actual body.
           A successful response with errors=[] is success. A plain-text error must still reach the
           requested result delivery. Preserve the error response text and all retained input fields.
+          Build the approved response envelope once with its constants and correlation fields on
+          both success and failure paths. Add the requested error fields to that envelope on failure.
+          Do not return an error-only body before assembling the approved fields. A handled inline
+          error does not require session or element failure markers unless an approved behavior
+          fact explicitly requests them; keep the downstream delivery reachable.
           Use this normalization pattern, then build only the approved output fields:
 
           ```groovy
