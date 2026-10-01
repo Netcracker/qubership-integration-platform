@@ -13,8 +13,16 @@ The server projects entry points, triggers, service calls, and native outbound n
 Do not list triggers or catalog service calls under `operations`. For each native outbound node
 (direct sender or chain-call-2), list its exact anchor `nodeId` and `elementType` under `operations`
 when it needs additional `sourceFactIds`. This adds provenance to the existing node. It does not create
-another interaction. Attach sender configuration facts to that sender; attach a required local script's
-facts to a separate `script` node in the approved execution order.
+another interaction. Attach sender configuration facts to that sender. Implement local script facts
+on a `script` node in the approved execution order, separate from the external interaction anchor.
+
+Combine input parsing, context retention, and request mapping in one script when they run consecutively
+on the same branch and in the same error scope. Save the required original values to exchange properties
+before replacing the body with the mapped request. Put every implemented behavior and field-mapping
+fact in that script's `sourceFactIds`; different fact kinds do not require different nodes.
+Keep separate scripts when the author explicitly requests separate steps or a service call,
+branch, loop, retry, or error-scope boundary separates the work. Keep response assembly after its
+producing call; it cannot share the request script before that call.
 
 Every positive BEHAVIOR and CAPABILITY fact must appear in a semantic node's `sourceFactIds`.
 The server initially attaches only the capability fact to a native outbound anchor. Include its
@@ -34,22 +42,23 @@ entry to delivery. For an inbound HTTP response without an outbound delivery, pu
 at the end of the approved path. Retain original event values before the call replaces the body.
 
 Example with server-owned anchors `entry`, `call`, and `deliver`, approved transitions
-`entry -> call -> deliver`, `call.failureMode=INLINE_RESPONSE`, and behavior fact IDs
-`retain-input`, `assemble-result`, and `failure-fields`:
+`entry -> call -> deliver`, `call.failureMode=INLINE_RESPONSE`, behavior fact IDs
+`retain-input`, `assemble-result`, and `failure-fields`, field-mapping fact IDs `request-fields`
+and `response-fields`, and mapping intent IDs `entry-to-call-request` and `call-to-deliver-request`:
 
 ```json
 {
   "capture": {
     "chainIdentity": "Example result delivery",
     "operations": [
-      {"nodeId": "save-input", "elementType": "script", "sourceFactIds": ["retain-input"]},
-      {"nodeId": "build-result", "elementType": "script", "sourceFactIds": ["assemble-result", "failure-fields"]}
+      {"nodeId": "prepare-request", "elementType": "script", "sourceFactIds": ["retain-input", "request-fields"]},
+      {"nodeId": "build-result", "elementType": "script", "sourceFactIds": ["assemble-result", "response-fields", "failure-fields"]}
     ],
     "edges": [
-      {"sourceNodeId": "entry", "targetNodeId": "save-input"},
-      {"sourceNodeId": "save-input", "targetNodeId": "call"},
+      {"sourceNodeId": "entry", "targetNodeId": "prepare-request"},
+      {"sourceNodeId": "prepare-request", "targetNodeId": "call", "mappingIntentId": "entry-to-call-request"},
       {"sourceNodeId": "call", "targetNodeId": "build-result"},
-      {"sourceNodeId": "build-result", "targetNodeId": "deliver"}
+      {"sourceNodeId": "build-result", "targetNodeId": "deliver", "mappingIntentId": "call-to-deliver-request"}
     ]
   }
 }
@@ -115,9 +124,10 @@ Connect the nodes with `edges`. An edge carries `sourceNodeId`, `targetNodeId`, 
 `regionId`, and a `routeKind`. Omit `routeKind` for a plain sequence edge. Put every mapping from
 the brief on exactly one edge through `mappingIntentId`, and keep a `mapper-2` or `script` node next
 to that edge. If both ends of a mapped edge are scripts, the source script owns the mapping.
-Place a mapping on an edge from its implementing script to the external call when a retention
-script precedes it. For `entry -> save-input -> map-request -> call`, put `mappingIntentId` on
-`map-request -> call`, not `save-input -> map-request`. Keep save-input owned by its retention fact.
+For combined retention and request mapping, use `entry -> prepare-request -> call` and put
+`mappingIntentId` on `prepare-request -> call`. Keep both retention and mapping facts on
+`prepare-request`. When an approved boundary requires separate scripts, put the mapping only on
+its implementing script's edge to the destination call; retain each script's behavior facts.
 When a BEHAVIOR fact restates an entry event, retain that fact on the input-processing script;
 do not add or redeclare the server-owned trigger to attach it.
 
