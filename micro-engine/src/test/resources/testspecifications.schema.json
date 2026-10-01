@@ -899,7 +899,7 @@
       "additionalProperties": false,
       "properties": {
         "delayMillis": {
-          "description": "Fixed HTTP response delay in milliseconds. Supported by http-service-call and graphql-http fixtures.",
+          "description": "Fixed HTTP response delay in milliseconds. Supported by http-service-call, http-sender-http, and graphql-http fixtures.",
           "type": [
             "integer",
             "null"

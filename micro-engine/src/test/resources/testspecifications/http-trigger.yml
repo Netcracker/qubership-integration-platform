@@ -35,3 +35,34 @@ scenarios:
     expectedProperties:
       internalProperty_sessionFailed: "true"
       internalProperty_elementFailed: "true"
+
+  - id: "handles-distinct-http-requests-in-one-scenario"
+    scope: Short
+    driver:
+      provider: "http-trigger"
+      parameters:
+        method: "GET"
+        path: "/routes/test?case=first"
+    invocations:
+      - id: "first-get"
+        expectedBody: "Http Trigger called successfully"
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedExchangeHeaders:
+          CamelHttpMethod: "GET"
+          CamelHttpQuery: "case=first"
+        expectedAbsentHeaders:
+          - "CamelHttpMethod"
+          - "CamelHttpQuery"
+      - id: "second-post"
+        driver:
+          provider: "http-trigger"
+          parameters:
+            method: "POST"
+            path: "/routes/test?case=second"
+        expectedBody: "Http Trigger called successfully"
+        expectedHeaders:
+          CamelHttpResponseCode: 200
+        expectedExchangeHeaders:
+          CamelHttpMethod: "POST"
+          CamelHttpQuery: "case=second"

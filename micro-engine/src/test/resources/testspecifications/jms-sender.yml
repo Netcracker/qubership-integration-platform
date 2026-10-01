@@ -1,17 +1,4708 @@
 # yaml-language-server: $schema=../testspecifications.schema.json
+subject: jms-sender
+deployments:
+- id: jms-sender
+  route: jms-sender
 fixtures:
-  - id: "jms-broker"
-    provider: "artemis-jms-container"
-    sourceElementId: "89e76247-1a97-4bbf-a418-b0d4104c96e3"
+- id: jms-broker
+  provider: artemis-jms-container
+  sourceElementId: 89e76247-1a97-4bbf-a418-b0d4104c96e3
+  deployment: jms-sender
+- id: jms-text-broker
+  provider: artemis-jms-container
+  sourceElementId: 95240508-df73-5c92-9d65-c38e8b5728f2
+  deployment: jms-sender
+- id: jms-map-broker
+  provider: artemis-jms-container
+  sourceElementId: 35d5f5e0-3566-519c-9e6e-588044ac78dd
+  deployment: jms-sender
+- id: jms-object-broker
+  provider: artemis-jms-container
+  sourceElementId: 656bf9b3-4af2-54c8-b3db-64b3dba84e6b
+  deployment: jms-sender
+- id: jms-stream-broker
+  provider: artemis-jms-container
+  sourceElementId: 1b3d9325-9e86-5608-9a23-2778a9c00f2e
+  deployment: jms-sender
+- id: jms-context-disabled-broker
+  provider: artemis-jms-container
+  sourceElementId: 239e6fac-e6ec-53d6-b50f-bbc3bc975077
+  deployment: jms-sender
+- id: jms-context-literal-broker
+  provider: artemis-jms-container
+  sourceElementId: a24a3070-1cc7-5c78-ac72-c15dbd09dca0
+  deployment: jms-sender
+- id: jms-context-dynamic-broker
+  provider: artemis-jms-container
+  sourceElementId: 69d86731-d9f8-50f3-9610-137f6b74140b
+  deployment: jms-sender
+- id: jms-topic-broker
+  provider: artemis-jms-container
+  sourceElementId: 220f153b-0573-5529-a2b6-a208bedfa43e
+  deployment: jms-sender
 scenarios:
-  - id: "publishes-message"
-    scope: Short
-    endpointUri: "cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334"
-    body: "JMS message"
-    expectedBody: "JMS message"
+- id: publishes-message-types-and-propagates-context
+  scope: Short
+  deployment: jms-sender
+  endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+  invocations:
+  - id: bytes-message
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: JMS message
+    headers:
+      X-Request-Id: incoming-bytes-message
+    expectedBody: JMS message
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
     interactions:
-      - fixture: "jms-broker"
-        expectedRequest:
-          count: 1
-          destination: "jms/BulkQuotationRequest/queue"
-          body: "JMS message"
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: JMS message
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-message
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-message
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+            JMSMessageID:
+              $match: non-empty
+            JMSRedelivered: false
+            JMSDeliveryMode: 2
+            JMSPriority: 4
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: text-unicode
+    endpointUri: cip-chain:bf382c5d-18fd-5378-a9d5-4d381b2e33eb
+    body: Order received — café ☕
+    headers:
+      X-Request-Id: incoming-text-unicode
+    expectedBody: Order received — café ☕
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/text
+        body: Order received — café ☕
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-text-unicode
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-text-unicode
+          expectedMessageType: Text
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: map-primitives
+    endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
+    body:
+      order: A-42
+      quantity: 7
+      accepted: true
+      price: 2.5
+      comment: null
+    headers:
+      X-Request-Id: incoming-map-primitives
+    expectedBody:
+      order: A-42
+      quantity: 7
+      accepted: true
+      price: 2.5
+      comment: null
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/map
+        body:
+          order: A-42
+          quantity: 7
+          accepted: true
+          price: 2.5
+          comment: null
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-map-primitives
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-map-primitives
+          expectedMessageType: Map
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: object-nested-value
+    endpointUri: cip-chain:0c6df2fa-a336-580b-a6cf-d16bc8076090
+    body:
+      order:
+        id: 42
+        tags:
+        - new
+        - café
+      accepted: true
+    headers:
+      X-Request-Id: incoming-object-nested-value
+    expectedBody:
+      order:
+        id: 42
+        tags:
+        - new
+        - café
+      accepted: true
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/object
+        body:
+          order:
+            id: 42
+            tags:
+            - new
+            - café
+          accepted: true
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-object-nested-value
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-object-nested-value
+          expectedMessageType: Object
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: stream-unicode
+    endpointUri: cip-chain:4159a27f-b3be-5c4c-8fb6-2e429b1e994e
+    body: Stream — café ☕
+    headers:
+      X-Request-Id: incoming-stream-unicode
+    expectedBody: Stream — café ☕
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/stream
+        body: Stream — café ☕
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-stream-unicode
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-stream-unicode
+          expectedMessageType: Stream
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: context-disabled
+    endpointUri: cip-chain:f8ee1b89-0131-5972-aa15-84e103f4cba1
+    body: Disabled context
+    headers:
+      X-Request-Id: incoming-context-disabled
+    expectedBody: Disabled context
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/context-disabled
+        body: Disabled context
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: null
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-disabled
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: literal-context
+    endpointUri: cip-chain:1e579bf5-30c6-59db-be95-922c228e9a66
+    body:
+      message: Literal context
+    headers:
+      X-Request-Id: incoming-literal-context
+    expectedBody:
+      message: Literal context
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/context-literal
+        body:
+          message: Literal context
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: literal-jms-request
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-literal-context
+          expectedMessageType: Map
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: dynamic-context
+    endpointUri: cip-chain:be235540-14f1-5fbb-9d32-92955f81a1e1
+    body: Dynamic context
+    headers:
+      X-Request-Id: incoming-dynamic-context
+      OverrideRequestId: dynamic-first
+    expectedBody: Dynamic context
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/context-dynamic
+        body: Dynamic context
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: dynamic-first
+          OverrideRequestId: dynamic-first
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-dynamic-context
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: topic-fanout
+    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
+    body: Each subscriber receives this message
+    headers:
+      X-Request-Id: incoming-topic-fanout
+    expectedBody: Each subscriber receives this message
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/topic
+        body: Each subscriber receives this message
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-topic-fanout
+      response:
+        properties:
+          expectedSendCount: 1
+          subscriberCount: 2
+          expectedRestoredContext:
+            X-Request-Id: incoming-topic-fanout
+          expectedMessageType: Text
+          expectedDestinationType: topic
+          expectedJmsHeaders:
+            JMSReplyTo: null
+- id: publishes-edge-values-and-recovers-from-conversion-failures
+  scope: Long
+  deployment: jms-sender
+  endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+  invocations:
+  - id: bytes-unicode
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Bytes — café ☕
+    headers:
+      X-Request-Id: incoming-bytes-unicode
+    expectedBody: Bytes — café ☕
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: Bytes — café ☕
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-unicode
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-unicode
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: bytes-empty-string
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: ''
+    headers:
+      X-Request-Id: incoming-bytes-empty-string
+    expectedBody: ''
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: ''
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-empty-string
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-empty-string
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: bytes-null
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: null
+    headers:
+      X-Request-Id: incoming-bytes-null
+    expectedBody: null
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: ''
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-null
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-null
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: bytes-all-byte-values
+    body: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+        bodyType: bytes
+    headers:
+      X-Request-Id: incoming-bytes-all-byte-values
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-all-byte-values
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-all-byte-values
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedBodyHex: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: bytes-empty-bytes
+    body: ''
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+        bodyType: bytes
+    headers:
+      X-Request-Id: incoming-bytes-empty-bytes
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-empty-bytes
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-empty-bytes
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedBodyHex: ''
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: stream-all-byte-values
+    body: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:4159a27f-b3be-5c4c-8fb6-2e429b1e994e
+        bodyType: bytes
+    headers:
+      X-Request-Id: incoming-stream-all-byte-values
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/stream
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-stream-all-byte-values
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-stream-all-byte-values
+          expectedMessageType: Stream
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedBodyHex: 000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: stream-empty-bytes
+    body: ''
+    driver:
+      provider: binaryInput
+      parameters:
+        endpointUri: cip-chain:4159a27f-b3be-5c4c-8fb6-2e429b1e994e
+        bodyType: bytes
+    headers:
+      X-Request-Id: incoming-stream-empty-bytes
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/stream
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-stream-empty-bytes
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-stream-empty-bytes
+          expectedMessageType: Stream
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedBodyHex: ''
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: text-empty
+    endpointUri: cip-chain:bf382c5d-18fd-5378-a9d5-4d381b2e33eb
+    body: ''
+    headers:
+      X-Request-Id: incoming-text-empty
+    expectedBody: ''
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/text
+        body: ''
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-text-empty
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-text-empty
+          expectedMessageType: Text
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: text-null
+    endpointUri: cip-chain:bf382c5d-18fd-5378-a9d5-4d381b2e33eb
+    body: null
+    headers:
+      X-Request-Id: incoming-text-null
+    expectedBody: null
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/text
+        body: null
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-text-null
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-text-null
+          expectedMessageType: Text
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: text-number
+    endpointUri: cip-chain:bf382c5d-18fd-5378-a9d5-4d381b2e33eb
+    body: 42
+    headers:
+      X-Request-Id: incoming-text-number
+    expectedBody: 42
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/text
+        body: '42'
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-text-number
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-text-number
+          expectedMessageType: Text
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: map-empty
+    endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
+    body: {}
+    headers:
+      X-Request-Id: incoming-map-empty
+    expectedBody: {}
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/map
+        body: {}
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-map-empty
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-map-empty
+          expectedMessageType: Map
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: map-null
+    endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
+    body: null
+    headers:
+      X-Request-Id: incoming-map-null
+    expectedBody: null
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/map
+        body: {}
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-map-null
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-map-null
+          expectedMessageType: Map
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: map-rejects-nested-map
+    endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
+    body:
+      nested:
+        value: unsupported
+    headers:
+      X-Request-Id: incoming-map-rejects-nested-map
+    expectedBody:
+      nested:
+        value: unsupported
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedFailure:
+      type: org.springframework.jms.MessageFormatException
+      message: 'Only objectified primitive objects and String types are allowed but was: {value=unsupported} type:
+        class java.util.LinkedHashMap'
+      cause:
+        type: jakarta.jms.MessageFormatException
+        message: 'Only objectified primitive objects and String types are allowed but was: {value=unsupported} type:
+          class java.util.LinkedHashMap'
+        cause: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-map-rejects-nested-map
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: map-recovers-after-nested-map
+    endpointUri: cip-chain:03f4ee97-652b-50fe-bedc-3a1f20db9efc
+    body:
+      message: Recovered
+      quantity: 2
+    headers:
+      X-Request-Id: incoming-map-recovers-after-nested-map
+    expectedBody:
+      message: Recovered
+      quantity: 2
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/map
+        body:
+          message: Recovered
+          quantity: 2
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-map-recovers-after-nested-map
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-map-recovers-after-nested-map
+          expectedMessageType: Map
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: context-literal-rejects-nested-map
+    endpointUri: cip-chain:1e579bf5-30c6-59db-be95-922c228e9a66
+    body:
+      nested:
+        value: unsupported
+    headers:
+      X-Request-Id: incoming-context-literal-rejects-nested-map
+    expectedBody:
+      nested:
+        value: unsupported
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedFailure:
+      type: org.springframework.jms.MessageFormatException
+      message: 'Only objectified primitive objects and String types are allowed but was: {value=unsupported} type:
+        class java.util.LinkedHashMap'
+      cause:
+        type: jakarta.jms.MessageFormatException
+        message: 'Only objectified primitive objects and String types are allowed but was: {value=unsupported} type:
+          class java.util.LinkedHashMap'
+        cause: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-literal-rejects-nested-map
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: context-literal-recovers-after-nested-map
+    endpointUri: cip-chain:1e579bf5-30c6-59db-be95-922c228e9a66
+    body:
+      message: Recovered
+      quantity: 2
+    headers:
+      X-Request-Id: incoming-context-literal-recovers-after-nested-map
+    expectedBody:
+      message: Recovered
+      quantity: 2
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/context-literal
+        body:
+          message: Recovered
+          quantity: 2
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: literal-jms-request
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-context-literal-recovers-after-nested-map
+          expectedMessageType: Map
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: object-list
+    endpointUri: cip-chain:0c6df2fa-a336-580b-a6cf-d16bc8076090
+    body:
+    - café
+    - 42
+    - true
+    - null
+    headers:
+      X-Request-Id: incoming-object-list
+    expectedBody:
+    - café
+    - 42
+    - true
+    - null
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/object
+        body:
+        - café
+        - 42
+        - true
+        - null
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-object-list
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-object-list
+          expectedMessageType: Object
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: object-empty-string
+    endpointUri: cip-chain:0c6df2fa-a336-580b-a6cf-d16bc8076090
+    body: ''
+    headers:
+      X-Request-Id: incoming-object-empty-string
+    expectedBody: ''
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/object
+        body: ''
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-object-empty-string
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-object-empty-string
+          expectedMessageType: Object
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: object-null
+    endpointUri: cip-chain:0c6df2fa-a336-580b-a6cf-d16bc8076090
+    body: null
+    headers:
+      X-Request-Id: incoming-object-null
+    expectedBody: null
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/object
+        body: null
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-object-null
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-object-null
+          expectedMessageType: Object
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: stream-null
+    endpointUri: cip-chain:4159a27f-b3be-5c4c-8fb6-2e429b1e994e
+    body: null
+    headers:
+      X-Request-Id: incoming-stream-null
+    expectedBody: null
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/stream
+        body: ''
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-stream-null
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-stream-null
+          expectedMessageType: Stream
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: message-properties
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Message properties
+    headers:
+      X-Request-Id: incoming-message-properties
+      StringProperty: café
+      BooleanProperty: true
+      IntegerProperty: 7
+      LongProperty: 9223372036854775806
+      DoubleProperty: 2.5
+      order.number: A-42
+      order-state: new
+      ObjectProperty:
+        ignored: value
+      ListProperty:
+      - ignored
+      CamelInternal: filtered
+      camelLowercase: filtered
+      JMSXAppID: filtered
+      JMSXUserID: filtered
+      JMSIgnored: filtered
+    expectedBody: Message properties
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: Message properties
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-message-properties
+          StringProperty: café
+          BooleanProperty: true
+          IntegerProperty: 7
+          LongProperty: 9223372036854775806
+          DoubleProperty: 2.5
+          order_DOT_number: A-42
+          order_HYPHEN_state: new
+          order.number: null
+          order-state: null
+          ObjectProperty: null
+          ListProperty: null
+          CamelInternal: null
+          camelLowercase: null
+          JMSXAppID: null
+          JMSXUserID: null
+          JMSIgnored: null
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-message-properties
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: jms-correlation-and-type
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: System headers
+    headers:
+      X-Request-Id: incoming-jms-correlation-and-type
+      JMSCorrelationID: ID:snapshot-correlation
+      JMSType: order.created
+    expectedBody: System headers
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: System headers
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-jms-correlation-and-type
+          JMSCorrelationID: null
+          JMSType: null
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-jms-correlation-and-type
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+            JMSCorrelationID: ID:snapshot-correlation
+            JMSType: order.created
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: ignores-jmsQueue-reply-to
+    body: Send without waiting for a reply
+    driver:
+      provider: typedHeaders
+      parameters:
+        endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+        headerTypes:
+          JMSReplyTo: jmsQueue
+    headers:
+      X-Request-Id: incoming-ignores-jmsQueue-reply-to
+      JMSReplyTo: snapshot-reply
+    expectedBody: Send without waiting for a reply
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: Send without waiting for a reply
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-ignores-jmsQueue-reply-to
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-ignores-jmsQueue-reply-to
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: ignores-jmsTopic-reply-to
+    body: Send without waiting for a reply
+    driver:
+      provider: typedHeaders
+      parameters:
+        endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+        headerTypes:
+          JMSReplyTo: jmsTopic
+    headers:
+      X-Request-Id: incoming-ignores-jmsTopic-reply-to
+      JMSReplyTo: snapshot-reply
+    expectedBody: Send without waiting for a reply
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: Send without waiting for a reply
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-ignores-jmsTopic-reply-to
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-ignores-jmsTopic-reply-to
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: bytes-missing-request-id
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Generated request ID
+    expectedBody: Generated request ID
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: Generated request ID
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id:
+            $match: non-empty
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id:
+              $match: non-empty
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: context-disabled-missing-request-id
+    endpointUri: cip-chain:f8ee1b89-0131-5972-aa15-84e103f4cba1
+    body: No propagated request ID
+    expectedBody: No propagated request ID
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/context-disabled
+        body: No propagated request ID
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: null
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id:
+              $match: non-empty
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: context-literal-missing-request-id
+    endpointUri: cip-chain:1e579bf5-30c6-59db-be95-922c228e9a66
+    body:
+      message: Override generated request ID
+    expectedBody:
+      message: Override generated request ID
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/context-literal
+        body:
+          message: Override generated request ID
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: literal-jms-request
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id:
+              $match: non-empty
+          expectedMessageType: Map
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: dynamic-context-next-value
+    endpointUri: cip-chain:be235540-14f1-5fbb-9d32-92955f81a1e1
+    body: Second override
+    headers:
+      X-Request-Id: incoming-dynamic-context-next-value
+      OverrideRequestId: dynamic-second
+    expectedBody: Second override
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/context-dynamic
+        body: Second override
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: dynamic-second
+          OverrideRequestId: dynamic-second
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-dynamic-context-next-value
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: dynamic-context-missing-request-id
+    endpointUri: cip-chain:be235540-14f1-5fbb-9d32-92955f81a1e1
+    body: Override generated request ID
+    headers:
+      OverrideRequestId: dynamic-missing
+    expectedBody: Override generated request ID
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/context-dynamic
+        body: Override generated request ID
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: dynamic-missing
+          OverrideRequestId: dynamic-missing
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id:
+              $match: non-empty
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: topic-repeated-fanout
+    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
+    body: Every send reaches both subscribers
+    headers:
+      X-Request-Id: incoming-topic-repeated-fanout
+    repeat: 3
+    expectedBody: Every send reaches both subscribers
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 3
+        destination: jms/snapshot/topic
+        body: Every send reaches both subscribers
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-topic-repeated-fanout
+      response:
+        properties:
+          expectedSendCount: 3
+          subscriberCount: 2
+          expectedRestoredContext:
+            X-Request-Id: incoming-topic-repeated-fanout
+          expectedMessageType: Text
+          expectedDestinationType: topic
+          expectedJmsHeaders:
+            JMSReplyTo: null
+  - id: topic-null-body
+    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
+    body: null
+    headers:
+      X-Request-Id: incoming-topic-null-body
+    expectedBody: null
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/topic
+        body: null
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-topic-null-body
+      response:
+        properties:
+          expectedSendCount: 1
+          subscriberCount: 2
+          expectedRestoredContext:
+            X-Request-Id: incoming-topic-null-body
+          expectedMessageType: Text
+          expectedDestinationType: topic
+          expectedJmsHeaders:
+            JMSReplyTo: null
+- id: resolves-jndi-destinations-and-recovers-from-type-mismatches
+  scope: Long
+  deployment: jms-sender
+  endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+  invocations:
+  - id: bytes-rejects-wrong-jndi-type
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Wrong destination type
+    headers:
+      X-Request-Id: incoming-bytes-rejects-wrong-jndi-type
+    expectedBody: Wrong destination type
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedFailure:
+      type: java.lang.RuntimeException
+      message: Destination [jms/BulkQuotationRequest/queue] is not of expected type [jakarta.jms.Queue]
+      cause: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/queue-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-rejects-wrong-jndi-type
+          jndiBinding:
+            type: Topic
+            destination: jms/snapshot/queue-alias
+          expectedJndiLookupCount: 1
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic-alias
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: bytes-recovers-with-jndi-alias
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Bound destination
+    headers:
+      X-Request-Id: incoming-bytes-recovers-with-jndi-alias
+    expectedBody: Bound destination
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/queue-alias
+        body: Bound destination
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-recovers-with-jndi-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-recovers-with-jndi-alias
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          jndiBinding:
+            type: Queue
+            destination: jms/snapshot/queue-alias
+          expectedJndiLookupCount: 2
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic-alias
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: bytes-retains-cached-jndi-alias
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Cached destination
+    headers:
+      X-Request-Id: incoming-bytes-retains-cached-jndi-alias
+    expectedBody: Cached destination
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/queue-alias
+        body: Cached destination
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-bytes-retains-cached-jndi-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-bytes-retains-cached-jndi-alias
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          jndiBinding: null
+          expectedJndiLookupCount: 2
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic-alias
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: topic-rejects-wrong-jndi-type
+    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
+    body: Wrong destination type
+    headers:
+      X-Request-Id: incoming-topic-rejects-wrong-jndi-type
+    expectedBody: Wrong destination type
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedFailure:
+      type: java.lang.RuntimeException
+      message: Destination [jms/snapshot/topic] is not of expected type [jakarta.jms.Topic]
+      cause: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/queue-alias
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          subscriberCount: 2
+          expectedRestoredContext:
+            X-Request-Id: incoming-topic-rejects-wrong-jndi-type
+          jndiBinding:
+            type: Queue
+            destination: jms/snapshot/topic-alias
+          expectedJndiLookupCount: 1
+  - id: topic-recovers-with-jndi-alias
+    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
+    body: Bound destination
+    headers:
+      X-Request-Id: incoming-topic-recovers-with-jndi-alias
+    expectedBody: Bound destination
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/queue-alias
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/topic-alias
+        body: Bound destination
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-topic-recovers-with-jndi-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          subscriberCount: 2
+          expectedRestoredContext:
+            X-Request-Id: incoming-topic-recovers-with-jndi-alias
+          expectedMessageType: Text
+          expectedDestinationType: topic
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          jndiBinding:
+            type: Topic
+            destination: jms/snapshot/topic-alias
+          expectedJndiLookupCount: 2
+  - id: topic-retains-cached-jndi-alias
+    endpointUri: cip-chain:c1924444-de72-5afe-b357-592cd928c1bf
+    body: Cached destination
+    headers:
+      X-Request-Id: incoming-topic-retains-cached-jndi-alias
+    expectedBody: Cached destination
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/queue-alias
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 1
+        destination: jms/snapshot/topic-alias
+        body: Cached destination
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-topic-retains-cached-jndi-alias
+      response:
+        properties:
+          expectedSendCount: 1
+          subscriberCount: 2
+          expectedRestoredContext:
+            X-Request-Id: incoming-topic-retains-cached-jndi-alias
+          expectedMessageType: Text
+          expectedDestinationType: topic
+          expectedJmsHeaders:
+            JMSReplyTo: null
+          jndiBinding: null
+          expectedJndiLookupCount: 2
+- id: recovers-from-broker-failures
+  scope: Long
+  deployment: jms-sender
+  endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+  invocations:
+  - id: before-broker-failures
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Before broker failures
+    headers:
+      X-Request-Id: incoming-before-broker-failures
+    expectedBody: Before broker failures
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: Before broker failures
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-before-broker-failures
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-before-broker-failures
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: rejects-authentication
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Rejected authentication
+    headers:
+      X-Request-Id: incoming-rejects-authentication
+    expectedBody: Rejected authentication
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedFailure:
+      type: org.springframework.jms.JmsSecurityException
+      message: 'Client failed to authenticate using SASL: PLAIN'
+      cause:
+        type: org.apache.qpid.jms.exceptions.JMSSecuritySaslException
+        message: 'Client failed to authenticate using SASL: PLAIN'
+        cause:
+          type: org.apache.qpid.jms.provider.exceptions.ProviderConnectionSecuritySaslException
+          message: 'Client failed to authenticate using SASL: PLAIN'
+          cause: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-rejects-authentication
+          brokerFault: AUTHENTICATION
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: recovers-after-authentication
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Recovered authentication
+    headers:
+      X-Request-Id: incoming-recovers-after-authentication
+    expectedBody: Recovered authentication
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: Recovered authentication
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-recovers-after-authentication
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-recovers-after-authentication
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: rejects-permission
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Rejected permission
+    headers:
+      X-Request-Id: incoming-rejects-permission
+    expectedBody: Rejected permission
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedFailure:
+      type: org.springframework.jms.JmsSecurityException
+      message: 'AMQ119017: not authorized to create producer, AMQ229032: User: snapshot-denied does not have permission=''SEND'' on address jms/BulkQuotationRequest/queue
+        [condition = amqp:unauthorized-access]'
+      cause:
+        type: jakarta.jms.JMSSecurityException
+        message: 'AMQ119017: not authorized to create producer, AMQ229032: User: snapshot-denied does not have permission=''SEND'' on address jms/BulkQuotationRequest/queue
+          [condition = amqp:unauthorized-access]'
+        cause:
+          type: org.apache.qpid.jms.provider.exceptions.ProviderSecurityException
+          message: 'AMQ119017: not authorized to create producer, AMQ229032: User: snapshot-denied does not have permission=''SEND'' on address jms/BulkQuotationRequest/queue
+            [condition = amqp:unauthorized-access]'
+          cause: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-rejects-permission
+          brokerFault: PERMISSION
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: recovers-after-permission
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Recovered permission
+    headers:
+      X-Request-Id: incoming-recovers-after-permission
+    expectedBody: Recovered permission
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: Recovered permission
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-recovers-after-permission
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-recovers-after-permission
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: rejects-connection-refused
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Rejected connection-refused
+    headers:
+      X-Request-Id: incoming-rejects-connection-refused
+    expectedBody: Rejected connection-refused
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    expectedFailure:
+      type: org.springframework.jms.UncategorizedJmsException
+      message: Uncategorized exception occurred during JMS processing
+      cause:
+        type: jakarta.jms.JMSException
+        ignoreMessage: true
+        cause:
+          type: org.apache.qpid.jms.provider.exceptions.ProviderIOException
+          ignoreMessage: true
+          cause:
+            type: io.netty.channel.AbstractChannel$AnnotatedConnectException
+            ignoreMessage: true
+            cause:
+              type: java.net.ConnectException
+              message: Connection refused
+              cause: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 0
+        destination: jms/BulkQuotationRequest/queue
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-rejects-connection-refused
+          brokerFault: CONNECTION_REFUSED
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2
+  - id: recovers-after-connection-refused
+    endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
+    body: Recovered connection-refused
+    headers:
+      X-Request-Id: incoming-recovers-after-connection-refused
+    expectedBody: Recovered connection-refused
+    expectedAbsentHeaders:
+    - X-Request-Id
+    expectedProperties:
+      internalProperty_overrideContextParams: null
+    interactions:
+    - fixture: jms-broker
+      expectedRequest:
+        count: 1
+        destination: jms/BulkQuotationRequest/queue
+        body: Recovered connection-refused
+        headers:
+          X_HYPHEN_Request_HYPHEN_Id: incoming-recovers-after-connection-refused
+      response:
+        properties:
+          expectedSendCount: 1
+          expectedRestoredContext:
+            X-Request-Id: incoming-recovers-after-connection-refused
+          expectedMessageType: Bytes
+          expectedDestinationType: queue
+          expectedJmsHeaders:
+            JMSReplyTo: null
+    - fixture: jms-text-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/text
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-map-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/map
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-object-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/object
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-stream-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/stream
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-disabled-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-disabled
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-literal-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-literal
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-context-dynamic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/context-dynamic
+      response:
+        properties:
+          expectedSendCount: 0
+    - fixture: jms-topic-broker
+      expectedRequest:
+        count: 0
+        destination: jms/snapshot/topic
+      response:
+        properties:
+          expectedSendCount: 0
+          subscriberCount: 2

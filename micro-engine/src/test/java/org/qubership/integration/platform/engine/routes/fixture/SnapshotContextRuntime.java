@@ -32,25 +32,32 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT;
 import static org.qubership.integration.platform.engine.routes.support.SnapshotCollections.immutableMap;
 
-final class GraphqlSnapshotRuntime implements AutoCloseable {
+final class SnapshotContextRuntime implements AutoCloseable {
     private final List<SnapshotFixtureBinding> bindings;
+    private final List<ContextProvider<?>> additionalContextProviders;
     private final Map<String, String> fixturesByExchangeId = new ConcurrentHashMap<>();
     private final Map<String, List<Map<String, Object>>> restoredContexts = new ConcurrentHashMap<>();
     private List<ContextProvider<?>> originalContextProviders;
     private Map<String, Object> originalContext;
     private CamelExchangeContextPropagation contextPropagation;
 
-    GraphqlSnapshotRuntime(List<SnapshotFixtureBinding> bindings) {
+    SnapshotContextRuntime(List<SnapshotFixtureBinding> bindings) {
+        this(bindings, List.of());
+    }
+
+    SnapshotContextRuntime(List<SnapshotFixtureBinding> bindings, List<ContextProvider<?>> additionalContextProviders) {
         this.bindings = List.copyOf(bindings);
+        this.additionalContextProviders = List.copyOf(additionalContextProviders);
     }
 
     void configure(CamelContext context, List<RouteDefinition> routes) throws Exception {
-        List<RouteDefinition> contextRoutes = routes.stream().filter(GraphqlSnapshotRuntime::usesContext).toList();
+        List<RouteDefinition> contextRoutes = routes.stream().filter(SnapshotContextRuntime::usesContext).toList();
         if (contextRoutes.isEmpty()) {
             return;
         }
         originalContext = ContextManager.createContextSnapshot();
         originalContextProviders = List.copyOf(ContextManager.getContextProviders());
+        ContextManager.register(additionalContextProviders);
         if (originalContextProviders.stream()
                 .noneMatch(provider -> XRequestIdContextProvider.X_REQUEST_ID_CONTEXT_NAME.equals(provider.contextName()))) {
             ContextManager.register(List.of(new XRequestIdContextProvider()));
@@ -63,7 +70,7 @@ final class GraphqlSnapshotRuntime implements AutoCloseable {
             restoredContexts.computeIfAbsent(fixtureId, ignored -> new CopyOnWriteArrayList<>())
                     .add(immutableMap(contextPropagation.getHeadersForCurrentContext()));
         };
-        SnapshotFixtureRouteScope.bind(context, contextRoutes, "graphql:" + bindings.getFirst().definition().getDeploymentId(),
+        SnapshotFixtureRouteScope.bind(context, contextRoutes, bindings.getFirst().definition().getProvider() + ":" + bindings.getFirst().definition().getDeploymentId(),
                 Map.of(
                         "contextPropagationProcessor", new ContextPropagationProcessor(contextPropagation),
                         "contextRestoreProcessor", observedRestore,
@@ -88,19 +95,22 @@ final class GraphqlSnapshotRuntime implements AutoCloseable {
     void verifyInvocation(SnapshotScenarioInvocation invocation) {
         for (SnapshotFixtureBinding binding : bindings) {
             var interaction = binding.interaction(invocation.getId());
+            if (interaction.getResponse() == null) {
+                continue;
+            }
             Object expected = interaction.getResponse().getProperties().get("expectedRestoredContext");
             if (expected instanceof Map<?, ?> expectedContext) {
                 String fixtureId = binding.definition().getId();
                 List<Map<String, Object>> observed = restoredContexts.getOrDefault(fixtureId, List.of());
                 Object expectedCount = interaction.getResponse().getProperties()
                         .getOrDefault("expectedSendCount", interaction.getExpectedRequest().getCount());
-                assertEquals(expectedCount, observed.size(), "GraphQL fixture '" + fixtureId
+                assertEquals(expectedCount, observed.size(), "Snapshot fixture '" + fixtureId
                         + "' did not restore context after each send in invocation '" + invocation.getId() + "'.");
                 for (Map<String, Object> actual : observed) {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> expectedHeaders = (Map<String, Object>) expectedContext;
                     SnapshotValueAssertions.assertMapValues(expectedHeaders, new CaseInsensitiveMap<>(actual),
-                            "GraphQL fixture '" + fixtureId + "' restored an unexpected context");
+                            "Snapshot fixture '" + fixtureId + "' restored an unexpected context");
                 }
             }
         }
@@ -120,7 +130,7 @@ final class GraphqlSnapshotRuntime implements AutoCloseable {
     private static boolean usesContext(ProcessorDefinition<?> node) {
         return node instanceof ProcessDefinition process
                 && ("contextPropagationProcessor".equals(process.getRef()) || "contextRestoreProcessor".equals(process.getRef()))
-                || node.getOutputs().stream().anyMatch(GraphqlSnapshotRuntime::usesContext);
+                || node.getOutputs().stream().anyMatch(SnapshotContextRuntime::usesContext);
     }
 
     @Override

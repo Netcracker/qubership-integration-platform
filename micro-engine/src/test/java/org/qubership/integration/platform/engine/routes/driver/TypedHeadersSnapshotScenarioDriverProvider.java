@@ -2,6 +2,8 @@ package org.qubership.integration.platform.engine.routes.driver;
 
 import org.apache.camel.Exchange;
 import org.apache.camel.ProducerTemplate;
+import org.apache.qpid.jms.JmsQueue;
+import org.apache.qpid.jms.JmsTopic;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotExecutionScenario;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioDriverDefinition;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotScenarioInvocation;
@@ -15,7 +17,7 @@ import java.util.Set;
 
 class TypedHeadersSnapshotScenarioDriverProvider implements SnapshotScenarioDriverProvider {
     private static final Set<String> PARAMETERS = Set.of("endpointUri", "headerTypes");
-    private static final Set<String> HEADER_TYPES = Set.of("bytes", "integer", "long", "double", "date");
+    private static final Set<String> HEADER_TYPES = Set.of("bytes", "integer", "long", "double", "date", "jmsQueue", "jmsTopic");
 
     @Override
     public String getId() {
@@ -47,7 +49,8 @@ class TypedHeadersSnapshotScenarioDriverProvider implements SnapshotScenarioDriv
             }
             if (!(value instanceof String type) || !HEADER_TYPES.contains(type)) {
                 throw new IllegalArgumentException(
-                        "Typed headers driver type for header '" + header + "' must be bytes, integer, long, double, or date."
+                        "Typed headers driver type for header '" + header
+                                + "' must be bytes, integer, long, double, date, jmsQueue, or jmsTopic."
                 );
             }
             headerTypes.put(header, type);
@@ -96,6 +99,8 @@ class TypedHeadersSnapshotScenarioDriverProvider implements SnapshotScenarioDriv
                     case "long" -> Long.valueOf(value.toString());
                     case "double" -> Double.valueOf(value.toString());
                     case "date" -> new Date(Long.parseLong(value.toString()));
+                    case "jmsQueue" -> new JmsQueue(value.toString());
+                    case "jmsTopic" -> new JmsTopic(value.toString());
                     default -> throw new IllegalArgumentException("Unsupported header type '" + type + "'.");
                 };
             } catch (NumberFormatException exception) {

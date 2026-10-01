@@ -1,0 +1,29 @@
+id: a0e7646a-bc48-55b8-891c-698149197314
+$schema: http://qubership.org/schemas/product/qip/chain
+name: http-sender-patch
+content:
+  labels: []
+  elements:
+  - id: 77417e82-2dd7-5721-8851-5b01b0a5947c
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 77417e82-2dd7-5721-8851-5b01b0a5947c
+  - id: 09b18c46-b173-5800-954c-993c9a0e0111
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: PATCH
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=patch
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+  dependencies:
+  - from: 77417e82-2dd7-5721-8851-5b01b0a5947c
+    to: 09b18c46-b173-5800-954c-993c9a0e0111
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

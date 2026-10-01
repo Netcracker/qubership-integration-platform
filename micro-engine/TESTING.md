@@ -34,9 +34,9 @@ when used in a sequential reactor build. With an existing bundle, run either pro
 Every scenario must declare `scope: Short` or `scope: Long`. Use `Short` for scenarios that
 normally take at most one second, or that cover an element's basic behavior. Use `Long` for
 the remaining scenarios. Classification is explicit in YAML; a run's timing does not change it.
-The short suite includes basic checks for all 24 elements, including broker-backed senders
-whose fixture startup takes longer than one second. It contains 56 scenarios;
-the remaining 38 are `Long`.
+The short suite includes scenarios from all 24 manifests, including broker-backed senders
+whose fixture startup takes longer than one second. It contains 83 scenarios;
+the remaining 42 are `Long`.
 
 ```yaml
 scenarios:
@@ -161,7 +161,54 @@ names, so CDI beans cannot override the driver's error and completion handling.
 Pub/Sub fixtures use separate component
 instances to keep publisher caches independent, even when deployments use the same topic.
 The JMS fixture selects the connection factory before each deployment's XML is loaded;
-the production destination resolver creates destinations through that factory's session.
+the production destination resolver uses controlled JNDI bindings or creates destinations
+through that factory's session.
+
+The `jms-sender.yml` manifest groups independent sender routes in one exported chain.
+Its four scenarios contain 55 calls: nine Short calls and 46 Long calls.
+Each scenario shares an Artemis broker and the generated components across its
+invocations. The functional routes cover Bytes, Text, Map, Object, and Stream messages,
+context settings, and a topic with two subscribers. Broker faults and JNDI lookup cases
+have separate scenarios so they start with fresh connections and destination caches.
+Every invocation checks inactive senders with zero send and delivery counts.
+
+JMS fixtures use `expectedRequest.count` for the number of messages received by each
+subscriber. `response.properties.expectedSendCount` checks entries into the producer
+endpoint and defaults to the delivery count. A rejected send can therefore assert one
+attempt and zero deliveries. Each invocation reads its messages and checks for extras;
+the generated component and connection factory remain in use for recovery calls.
+
+JMS response properties support these observations and controls:
+
+| Property | Meaning |
+| --- | --- |
+| `expectedMessageType` | Checks Bytes, Text, Map, Object, or Stream. The default is Bytes. |
+| `expectedDestinationType` | Checks `queue` or `topic`. The default is `queue`. |
+| `expectedBodyHex` | Checks the exact bytes of Bytes or Stream messages. |
+| `expectedJmsHeaders` | Checks JMS metadata such as `JMSCorrelationID`, `JMSType`, and `JMSReplyTo`. |
+| `expectedRestoredContext` | Checks context headers after the production restore processor runs. |
+| `subscriberCount` | Sets the number of topic subscribers, all opened before publication. It must stay constant across the scenario. |
+| `brokerFault` | Accepts `AUTHENTICATION`, `PERMISSION`, or `CONNECTION_REFUSED`. Omitting it restores the producer credentials for the next invocation. |
+| `jndiBinding` | Binds the generated destination name to `{type: Queue, destination: name}` or a Topic equivalent; `null` removes that binding. |
+| `expectedJndiLookupCount` | Checks cumulative lookups of the generated destination name. Removing a binding leaves the production resolver's cache intact. |
+
+`expectedRequest.destination` names the destination observed by the fixture. Each
+binding observes one destination throughout a scenario. `expectedRequest.headers`
+checks JMS user properties, including Camel's encoded names for dots and hyphens;
+`expectedRequest.properties` checks the Camel exchange before the producer call.
+Use `typedHeaders` with `jmsQueue` or `jmsTopic` for a real `JMSReplyTo` input.
+The generated sender disables reply-to; the scenarios assert its absence on the wire.
+
+Broker authentication faults change credentials on the connection factory returned
+by test JNDI. Permission faults use an Artemis user without publication rights.
+An independent observer connection retains working credentials to check delivery.
+Connection refusal stops and restarts the same container with a fixed host port; observers
+reconnect before verifying that the failed call delivered no messages. This tests broker
+unavailability and recovery through the same generated components, not interruption of
+an in-flight publication. The fixture bounds connection, request, and send waits at five
+seconds; these are test connection-factory settings, not exported element options.
+Artemis and controlled JNDI do not establish WebLogic authentication, transaction,
+or acknowledgment behavior.
 
 The shared execution support checks each invocation's body, headers, properties, and
 failure expectations, then verifies fixture interactions. After fixture completion, it
@@ -190,6 +237,71 @@ branch gates before stopping the context.
 HTTP Service Call fixtures accept `response.delayMillis` to delay a response through
 WireMock. The value is a nonnegative integer in milliseconds; omitting it adds no delay.
 Keep delays below the HTTP and invocation timeouts when testing slow successful calls.
+
+The `http-sender.yml` manifest runs 16 generated sender chains through the
+`http-sender-http` fixture. Its 16 Short scenarios and one Long scenario contain
+76 invocations. They cover GET, POST, PUT, PATCH, DELETE, HEAD, dynamic URIs,
+context overrides, correlation IDs, generated external addresses, connection reuse,
+and redirects. Failure and recovery invocations share a client, including HTTP
+400/401/403/404/500 responses, transport faults, and a response timeout. The timeout
+scenario delays a response beyond the exported timeout; it does not simulate a
+connection establishment timeout. The incoming GET/POST sequence belongs to
+`http-trigger.yml`.
+
+The POST scenario `sends-post-requests-and-recovers-from-failures` groups 23 invocations:
+six transport failure and recovery calls, 13 body and HTTP error calls, and four
+redirect calls. Connection refusal runs first, before the client has an established
+connection. Each HTTP error remains paired with its recovery call. Connection reuse
+has a separate scenario so its client and cumulative connection count start fresh.
+
+HTTP sender fixtures retain the generated client configurer and production sender,
+charset, context, and exception processors. Before the HTTP call, the fixture records
+the generated URI, then replaces its scheme and authority with the local server's
+address. The URI's raw path and query remain unchanged. Use
+`expectedRequest.destination` for the generated URI and `expectedRequest.path` and
+`query` for what the server receives.
+
+`expectedRequest.count` checks received HTTP requests. The optional
+`response.properties.expectedSendCount` checks entries into the sender step and
+defaults to the request count. `expectedRequest.properties` checks exchange properties
+at each sender entry. Request body assertions compare strings exactly or JSON
+structurally; `body: null` requires an empty request body. A null value in
+`expectedRequest.headers` requires that outgoing header to be absent.
+
+HTTP sender fixtures accept these response settings:
+
+| Setting | Behavior |
+| --- | --- |
+| `response.delayMillis` | Delays the response by the specified number of milliseconds. |
+| `response.properties.transportFault` | Accepts `EMPTY_RESPONSE`, `CONNECTION_RESET_BY_PEER`, or `CONNECTION_REFUSED`. The first two faults occur after receipt of a request. Refusal stops the server; the next normal invocation restarts it at the same address. |
+| `response.properties.expectedConnectionCount` | Checks the cumulative number of TCP connections accepted by the server during the scenario. |
+| `response.properties.redirects` | Lists redirect responses as `status` and `location` pairs. Locations must be paths on the same local server, optionally with a query. |
+| `response.properties.expectedRequests` | Checks the ordered request sequence, including the initial request and every redirect. Each entry requires `method`, `path`, and `body`; `query` and `headers` are optional. Its length must equal `expectedRequest.count`. |
+
+Run connection refusal before the first successful request when asserting
+`HttpHostConnectException`: stopping a server with an established pooled connection
+can instead fail the next request with `NoHttpResponseException`.
+
+When checking redirects, the top-level `expectedRequest` describes the initial
+request. `expectedSendCount` counts entries into the generated sender step, while
+`expectedRequest.count` includes every HTTP request in the redirect sequence.
+The scenarios check two redirects for each of 301, 302, 307, and 308, including
+method, body, and headers at every hop. The current HTTP client turns POST into
+GET for 301/302 and discards its body and custom headers. For 307/308 it retains
+the method, body, and custom headers.
+
+HTTP sender, GraphQL, and JMS fixtures share request-context initialization and production
+context processors. `response.properties.expectedRestoredContext` checks context
+headers after each restore call, including failed calls. The HTTP sender fixture
+registers a scoped test context provider backed by the production
+`AllowedHeadersContextObject` for `Authorization`. This allows generated overrides
+and incoming-header priority to run through the real context processors. It does
+not validate tokens or exercise M2M. Fixture cleanup restores the previous context
+and provider registrations.
+
+External-address scenarios assert the generated gateway prefix, path, and query
+before redirecting the request to the local server. Live gateway routing, TLS, and
+proxy configuration remain outside this fixture's boundary.
 
 The `graphql-sender.yml` manifest groups 58 invocations into 12 Short scenarios across
 10 exported chains. One scenario combines 24 request, response, variable, and internal

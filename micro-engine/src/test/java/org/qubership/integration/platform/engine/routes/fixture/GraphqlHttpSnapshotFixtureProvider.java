@@ -87,7 +87,7 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
         private final String deploymentId;
         private final List<SnapshotFixtureBinding> bindings;
         private final Map<String, GraphqlServiceStub> stubsByFixtureId = new LinkedHashMap<>();
-        private final GraphqlSnapshotRuntime runtime;
+        private final SnapshotContextRuntime runtime;
 
         private GraphqlHttpSnapshotFixture(
                 String deploymentId,
@@ -95,7 +95,7 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
         ) {
             this.deploymentId = deploymentId;
             this.bindings = List.copyOf(bindings);
-            this.runtime = new GraphqlSnapshotRuntime(this.bindings);
+            this.runtime = new SnapshotContextRuntime(this.bindings);
             for (SnapshotFixtureBinding binding : this.bindings) {
                 validateBinding(binding);
                 stubsByFixtureId.put(
