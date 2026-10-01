@@ -350,7 +350,9 @@ public class DesignInputCapability implements StageCapability {
 
         Call captureChainSemanticRevision once. Copy sourceFactIds from the brief, taking the\
          value after each matching `=` sign. Copy mappingIntentId the same way when Mapping\
-         intents include a mappingIntentId= token; otherwise omit it on every edge. Field-mapping\
+         intents include a mappingIntentId= token; otherwise omit it on every edge. Place each\
+         mappingIntentId on exactly one edge entering its target external interaction. Omit it\
+         on every earlier edge through internal processing nodes. Field-mapping\
          shells use elementType script. Do not mint a mapping id and do not reuse a\
          sourceFactId as mappingIntentId. A skipped mapping hop stays a direct edge unless an\
          approved positive BEHAVIOR fact or an ErrorScope requires a script. Every positive\
