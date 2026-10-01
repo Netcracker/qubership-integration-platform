@@ -2,6 +2,8 @@ package org.qubership.integration.platform.ai.integration.catalog.tool;
 
 import dev.langchain4j.agent.tool.P;
 import dev.langchain4j.agent.tool.Tool;
+import dev.langchain4j.agent.tool.ToolMemoryId;
+import org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.jboss.logging.Logger;
@@ -35,12 +37,13 @@ public class CatalogSystemTools {
       + " (searchApiOperations) when no suitable catalog service is found and APIHub is"
       + " available. Returns JSON: { ok, tool, message, data: SystemDto[] }.")
   public String searchCatalogSystems(
-      @P("Substring to match service name (catalog searchCondition)") String searchCondition) {
+      @P("Substring to match service name (catalog searchCondition)") String searchCondition,
+      @ToolMemoryId String memoryId) {
     long startMs = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(
         LOG, CatalogSystemToolNames.SEARCH, null, "searchCondition=" + searchCondition);
     try {
-      String out = readSupport.searchCatalogSystemsJson(searchCondition);
+      String out = readSupport.searchCatalogSystemsJson(CompilerSkillMemoryIds.conversationId(memoryId), searchCondition);
       support.logCatalogToolDone(CatalogSystemToolNames.SEARCH, out);
       ToolTraceLog.logToolComplete(
           LOG, CatalogSystemToolNames.SEARCH, null, System.currentTimeMillis() - startMs, out);
@@ -48,7 +51,7 @@ public class CatalogSystemTools {
     } catch (Exception e) {
       ToolTraceLog.logToolFailed(
           LOG, CatalogSystemToolNames.SEARCH, null, System.currentTimeMillis() - startMs, e);
-      throw e;
+      return support.catalogToolError(CatalogSystemToolNames.SEARCH, e);
     }
   }
 
@@ -59,12 +62,13 @@ public class CatalogSystemTools {
       + " Searching by the element's own name finds nothing -- that is a label, not a service."
       + " Returns JSON: { ok, tool, message, data: OperationDto }.")
   public String describeBoundOperation(
-      @P("Operation UUID from the element's integrationOperationId property") String operationId) {
+      @P("Operation UUID from the element's integrationOperationId property") String operationId,
+      @ToolMemoryId String memoryId) {
     long startMs = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(
         LOG, CatalogSystemToolNames.BOUND, null, "operationId=" + operationId);
     try {
-      String out = readSupport.describeBoundOperationJson(operationId);
+      String out = readSupport.describeBoundOperationJson(CompilerSkillMemoryIds.conversationId(memoryId), operationId);
       support.logCatalogToolDone(CatalogSystemToolNames.BOUND, out);
       ToolTraceLog.logToolComplete(
           LOG, CatalogSystemToolNames.BOUND, null, System.currentTimeMillis() - startMs, out);
@@ -72,7 +76,7 @@ public class CatalogSystemTools {
     } catch (Exception e) {
       ToolTraceLog.logToolFailed(
           LOG, CatalogSystemToolNames.BOUND, null, System.currentTimeMillis() - startMs, e);
-      throw e;
+      return support.catalogToolError(CatalogSystemToolNames.BOUND, e);
     }
   }
 
@@ -82,11 +86,12 @@ public class CatalogSystemTools {
       + " pick an operation. Returns JSON:"
       + " { ok, tool, message, data: SpecificationDto[] }.")
   public String getApiSpecifications(
-      @P("Catalog system UUID from searchCatalogSystems result") String systemId) {
+      @P("Catalog system UUID from searchCatalogSystems result") String systemId,
+      @ToolMemoryId String memoryId) {
     long startMs = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(LOG, CatalogSystemToolNames.SPECS, null, "systemId=" + systemId);
     try {
-      String out = readSupport.getApiSpecificationsJson(systemId);
+      String out = readSupport.getApiSpecificationsJson(CompilerSkillMemoryIds.conversationId(memoryId), systemId);
       support.logCatalogToolDone(CatalogSystemToolNames.SPECS, out);
       ToolTraceLog.logToolComplete(
           LOG, CatalogSystemToolNames.SPECS, null, System.currentTimeMillis() - startMs, out);
@@ -94,7 +99,7 @@ public class CatalogSystemTools {
     } catch (Exception e) {
       ToolTraceLog.logToolFailed(
           LOG, CatalogSystemToolNames.SPECS, null, System.currentTimeMillis() - startMs, e);
-      throw e;
+      return support.catalogToolError(CatalogSystemToolNames.SPECS, e);
     }
   }
 
@@ -106,7 +111,8 @@ public class CatalogSystemTools {
   public String listCatalogOperations(
       @P("Specification UUID from getApiSpecifications result") String specificationId,
       @P("Optional system UUID for context") String systemId,
-      @P("Optional name filter substring") String searchFilter) {
+      @P("Optional name filter substring") String searchFilter,
+      @ToolMemoryId String memoryId) {
     long startMs = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(
         LOG,
@@ -119,7 +125,8 @@ public class CatalogSystemTools {
             + " searchFilter="
             + searchFilter);
     try {
-      String out = readSupport.listCatalogOperationsJson(specificationId, systemId, searchFilter);
+      String out = readSupport.listCatalogOperationsJson(
+          CompilerSkillMemoryIds.conversationId(memoryId), specificationId, systemId, searchFilter);
       support.logCatalogToolDone(CatalogSystemToolNames.OPS, out);
       ToolTraceLog.logToolComplete(
           LOG, CatalogSystemToolNames.OPS, null, System.currentTimeMillis() - startMs, out);
@@ -127,7 +134,7 @@ public class CatalogSystemTools {
     } catch (Exception e) {
       ToolTraceLog.logToolFailed(
           LOG, CatalogSystemToolNames.OPS, null, System.currentTimeMillis() - startMs, e);
-      throw e;
+      return support.catalogToolError(CatalogSystemToolNames.OPS, e);
     }
   }
 }
