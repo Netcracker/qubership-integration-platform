@@ -1399,7 +1399,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         artifactStore.latest(runId, Kind.CHAIN_SEMANTIC_REVISION).orElse(null);
     Reference approvedSemanticRef =
         approvedSemanticRevision == null ? null : approvedSemanticRevision.reference();
-    List<Reference> rejectedRefs = rejectedArtifactRefs(runId, refs);
+    List<Reference> rejectedRefs = rejectedArtifactRefs(runId, stage.stageId(), refs);
     String failureId = UUID.randomUUID().toString();
     if (rejectedRefs.isEmpty() && "design-input".equals(stage.stageId())) {
       rejectedRefs =
@@ -1884,7 +1884,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     String runId = doc.run().runId();
     String failureId = UUID.randomUUID().toString();
     Reference approvedBriefRef = compiledBriefReference(cause);
-    List<Reference> rejectedRefs = rejectedArtifactRefs(runId, refs);
+    List<Reference> rejectedRefs = rejectedArtifactRefs(runId, stage.stageId(), refs);
     RecoveryEvidence evidence =
         new RecoveryEvidence(
             1,
@@ -2082,9 +2082,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         evidence.priorAttemptRefs());
   }
 
-  private List<Reference> rejectedArtifactRefs(String runId, List<Reference> refs) {
+  private List<Reference> rejectedArtifactRefs(String runId, String stageId, List<Reference> refs) {
     if (refs != null && !refs.isEmpty()) {
       return List.copyOf(refs);
+    }
+    if ("design-input".equals(stageId) || "design-planning".equals(stageId)) {
+      return List.of();
     }
     for (Kind kind : List.of(Kind.CHAIN_PLAN_GRAPH, Kind.IMPLEMENTATION_PLAN)) {
       Optional<Reference> latest = artifactStore.latest(runId, kind).map(Revision::reference);
