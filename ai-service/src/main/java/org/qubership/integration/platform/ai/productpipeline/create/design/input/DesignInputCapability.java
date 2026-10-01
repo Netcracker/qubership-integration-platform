@@ -361,7 +361,12 @@ public class DesignInputCapability implements StageCapability {
          after the producing call and before the outbound result delivery. For an inbound\
          HTTP response with no delivery interaction, place it after the final call. INLINE_RESPONSE\
          puts success and failure field facts on that response script; do not create an error scope\
-         or skip the producing call. Preserve retained input values before a call replaces the body.\
+         or skip the producing call. Combine consecutive input parsing, context retention, and\
+         request mapping in one script on the same branch and in the same error scope. Save original\
+         values to exchange properties before replacing the body with the request. Put all behavior\
+         and field-mapping sourceFactIds on that script. Different fact kinds do not require\
+         separate nodes. Keep separate scripts only for explicitly requested separate steps or\
+         when a service call, branch, loop, retry, or error-scope boundary separates the work.\
          External interaction anchors are server-owned.\
          Reference these node ids from edges. Do not list triggers or catalog service calls\
          under operations. Preserve\
@@ -380,7 +385,8 @@ public class DesignInputCapability implements StageCapability {
          add another operation with the same elementType. You may list that nodeId under\
          operations to attach every applicable BEHAVIOR sourceFactId; the server keeps one node.\
          The server initially attaches only the native capability fact. Keep local script facts\
-         on separate script nodes in the approved execution order. Do not invent\
+         on script nodes separate from external interaction anchors, combining consecutive\
+         processing as described above. Do not invent\
          the chain-call trigger UUID; gathering already stored it on the capability path.""");
     if (repairSection != null && !repairSection.isBlank()) {
       prompt.append(repairSection);
