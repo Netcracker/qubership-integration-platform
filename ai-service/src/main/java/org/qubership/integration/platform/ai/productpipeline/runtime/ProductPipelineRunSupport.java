@@ -2630,6 +2630,9 @@ public final class ProductPipelineRunSupport {
     attributesByRun
         .computeIfAbsent(runId, ignored -> new ConcurrentHashMap<>())
         .put(PRIOR_CANDIDATE_ATTR, prior.contentHash());
+    if (currentRecoveryCause(runId).causeCode() == RecoveryCauseCode.MAPPING_CONTRACT) {
+      attributesByRun.get(runId).put("mappingRepairAutomatic", Boolean.toString(command == null));
+    }
     Set<String> afterOwner = stageIdsAfter(profile, owner);
     List<StageSnapshot> updated = new ArrayList<>();
     for (StageSnapshot snapshot : doc.run().stages()) {
@@ -3798,6 +3801,7 @@ public final class ProductPipelineRunSupport {
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_REQUESTED_FACT_ATTR);
     copyHaltAttribute(attributes, evidence, DIAGNOSED_OWNER_STAGE_ATTR);
     copyHaltAttribute(attributes, evidence, RECOVERY_EVIDENCE_REF_ATTR);
+    copyHaltAttribute(attributes, evidence, "mappingRepairAutomatic");
     copyHaltAttribute(attributes, evidence, DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
     copyHaltAttribute(attributes, evidence, DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
     if (priorCandidate != null && !priorCandidate.isBlank()) {

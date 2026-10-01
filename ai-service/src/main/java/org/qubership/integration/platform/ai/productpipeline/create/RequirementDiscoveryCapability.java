@@ -22,6 +22,7 @@ import org.qubership.integration.platform.ai.plan.DraftDecision;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkDocumentState;
 import org.qubership.integration.platform.ai.plan.workdocument.WorkTaskScope;
 import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalFlow;
@@ -35,6 +36,10 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CatalogBindingMatcher;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
@@ -203,6 +208,26 @@ public class RequirementDiscoveryCapability implements StageCapability {
     String conversationId = context.conversationId();
     String userMessage =
         context.attributeAsString("userText") == null ? "" : context.attributeAsString("userText");
+    RequirementDraft mappingRepairDraft = mappingRepairDraft(context);
+    if (mappingRepairDraft != null) {
+      var repair = StageRepairEvidence.from(context);
+      userMessage = """
+          Repair the selected draft's field paths using the catalog contract findings below.
+          Read the accepted draft, then call updateRequirementDraft for the affected FIELD_MAPPING
+          facts. Preserve all fact IDs, text, expressions, source and target interactions, flow,
+          settings, and unrelated requirements. Change only the invalid field paths.
+          Paths are relative to the actual message body. An operation name, resource name, or schema
+          title is not a JSON wrapper. For example, a schema with root property Subject requires
+          targetPath Subject; use Task.Subject only if its properties actually contain Task.Subject.
+          Do not invent a field or remove its mapping to make validation pass. If the contract does
+          not determine the correction, ask for clarification. After saving, finish with CONTINUE
+          so analysis can present a new brief for approval.
+          Contract findings:
+          %s
+          %s
+          """.formatted(repair.findings(), repair.errorEvidence());
+      draftStore.restoreAccepted(conversationId, mappingRepairDraft);
+    }
     // startOrResume advances the first stage before acceptInput attaches userText. LangChain4j
     // rejects blank @UserMessage, so wait for input instead of calling the gather agent.
     if (userMessage.isBlank()) {
@@ -237,6 +262,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
       return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(decided)));
     }
     AtomicReference<RequirementDraft> captured = new AtomicReference<>();
+    String gatherMessage = userMessage;
     ToolSession.bind(conversationId);
     Context toolSessionContext = ToolSession.attachedContext();
     java.util.function.Supplier<Context> startCapture = () -> {
@@ -246,7 +272,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
             captured.set(draft);
           }
         });
-      draftStore.beginTurn(conversationId, userMessage);
+      draftStore.beginTurn(conversationId, gatherMessage);
       return installed;
     };
     if (conversationService != null) {
@@ -319,6 +345,13 @@ public class RequirementDiscoveryCapability implements StageCapability {
     RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
     RequirementDraft draft =
         captured.get() != null ? captured.get() : draftStore.get(conversationId).orElse(null);
+    RequirementDraft repairDraft = mappingRepairDraft(context);
+    if (repairDraft != null && !preservesMappingRepair(context, repairDraft, draft)) {
+      draftStore.restoreAccepted(conversationId, repairDraft);
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "REPAIR_FACT_LOSS: Change only the rejected mapping field paths. The selected draft was retained.",
+          RecoveryCause.mappingContract(List.of())));
+    }
     if (directive == RequirementDiscoveryDirective.STAY) {
       if (draft != null && draft.readyForPlan()) {
         return new CapabilitySignal.Completed(
@@ -535,6 +568,43 @@ public class RequirementDiscoveryCapability implements StageCapability {
             : (userMessage == null ? "" : userMessage);
     return GatherRequirementsAgentCall.run(gatherRequirementsAgent, conversationId, agentInput,
         ProductCapabilityCaptureContext.invocationParameters(binding));
+  }
+
+  private static RequirementDraft mappingRepairDraft(StageExecutionContext context) {
+    return StageRepairEvidence.isRepairTurn(context)
+        && "true".equals(context.attributeAsString("mappingRepairAutomatic"))
+        && RecoveryCauseCode.MAPPING_CONTRACT.name().equals(
+            context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR))
+        && context.attributes().get("requirementCorrectionDraft") instanceof RequirementDraft draft
+        && draft.authoredDraft() != null ? draft : null;
+  }
+
+  static boolean preservesMappingRepair(
+      StageExecutionContext context, RequirementDraft original, RequirementDraft candidate) {
+    if (candidate == null || candidate.authoredDraft() == null) {
+      return false;
+    }
+    var accepted = original.authoredDraft();
+    var proposed = candidate.authoredDraft();
+    var editable = context.attributes().get("mappingRepairFactIds") instanceof java.util.Set<?> ids
+        ? ids : java.util.Set.of();
+    var retained = new java.util.ArrayList<RequirementCaptureInput.FactInput>();
+    for (var fact : proposed.facts()) {
+      String factId = fact.sourceFactId();
+      var prior = accepted.facts().stream()
+          .filter(value -> value.sourceFactId().equals(factId)).findFirst().orElse(null);
+      if (prior != null && editable.contains(fact.sourceFactId())
+          && prior.fieldMapping() != null && fact.fieldMapping() != null) {
+        var mapping = fact.fieldMapping();
+        fact = new RequirementCaptureInput.FactInput(fact.sourceFactId(), fact.interactionIds(),
+            fact.kind(), fact.polarity(), fact.text(), new RequirementCaptureInput.FieldMappingInput(
+                mapping.sourceInteractionId(), prior.fieldMapping().sourcePath(), mapping.targetInteractionId(),
+                prior.fieldMapping().targetPath(), mapping.expression()));
+      }
+      retained.add(fact);
+    }
+    return accepted.equals(new RequirementCaptureInput.DraftInput(proposed.flow(), retained,
+        proposed.capabilities(), proposed.openQuestions(), proposed.settings()));
   }
 
   private static String tokenText(ChatEvent event) {

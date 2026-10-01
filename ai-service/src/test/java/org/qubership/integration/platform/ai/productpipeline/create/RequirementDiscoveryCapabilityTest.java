@@ -71,6 +71,79 @@ import org.qubership.integration.platform.ai.qipknowledge.skill.QipKnowledgeCapa
 
 class RequirementDiscoveryCapabilityTest {
 
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void automaticMappingRepairUsesEvidenceWhileManualChangesKeepAuthorText(boolean automatic) throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var tree = mapper.valueToTree(RequirementFactFixtures.greetingsApprovedDraft());
+    ((com.fasterxml.jackson.databind.node.ObjectNode) tree).set("authoredDraft", mapper.valueToTree(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+            null, List.of(), List.of(), List.of(), null)));
+    var original = mapper.treeToValue(tree, RequirementDraft.class);
+    var store = new RequirementDraftStore();
+    var seen = new AtomicReference<String>();
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      seen.set(text);
+      store.finishTurn(chat, RequirementDiscoveryDirective.CONTINUE);
+      return Multi.createFrom().empty();
+    });
+    var attrs = Map.<String, Object>of(
+        "userText", automatic ? "" : "Change the fallback to the newly requested value.",
+        "requirementCorrectionDraft", original,
+        "mappingRepairAutomatic", Boolean.toString(automatic),
+        "mappingRepairFactIds", java.util.Set.of(),
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+        "MAPPING_UNKNOWN_TARGET: $.Task.Subject is absent; $.Subject is required.",
+        org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR,
+        "MAPPING_CONTRACT");
+    capability.execute(new StageExecutionContext("run", "chat", "requirement-discovery", "exec", "attempt",
+        null, null, List.of(), attrs)).collect().asList().await().indefinitely();
+    if (automatic) {
+      assertTrue(seen.get().contains("$.Task.Subject"));
+      assertTrue(seen.get().contains("updateRequirementDraft"));
+    } else {
+      assertEquals(attrs.get("userText"), seen.get());
+    }
+  }
+
+  @Test
+  void catalogPathRepairPreservesFactsAndRejectsCollateralChanges() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var mapping = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+        "subject-map", List.of("start", "create-task"),
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.FIELD_MAPPING,
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+        "Use name, with the requested fallback.",
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
+            "start", "name", "create-task", "Task.Subject", "Use the original fallback."));
+    var behavior = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+        "retain-context", List.of("start", "create-task"),
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.BEHAVIOR,
+        org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+        "Save the original identifiers before the call.");
+    var tree = mapper.valueToTree(RequirementFactFixtures.greetingsApprovedDraft());
+    ((com.fasterxml.jackson.databind.node.ObjectNode) tree).set("authoredDraft", mapper.valueToTree(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+            null, List.of(mapping, behavior), List.of(), List.of(), null)));
+    var original = mapper.treeToValue(tree, RequirementDraft.class);
+    var context = new StageExecutionContext("run", "chat", "requirement-discovery", "exec", "attempt",
+        null, null, List.of(), Map.of("mappingRepairFactIds", java.util.Set.of("subject-map")));
+    var candidateTree = tree.deepCopy();
+    ((com.fasterxml.jackson.databind.node.ObjectNode) candidateTree.at("/authoredDraft/facts/0/fieldMapping"))
+        .put("targetPath", "Subject");
+    assertTrue(RequirementDiscoveryCapability.preservesMappingRepair(context, original,
+        mapper.treeToValue(candidateTree, RequirementDraft.class)));
+
+    var changedExpression = candidateTree.deepCopy();
+    ((com.fasterxml.jackson.databind.node.ObjectNode) changedExpression.at("/authoredDraft/facts/0/fieldMapping"))
+        .put("expression", "Invent a different fallback.");
+    assertFalse(RequirementDiscoveryCapability.preservesMappingRepair(context, original,
+        mapper.treeToValue(changedExpression, RequirementDraft.class)));
+    ((com.fasterxml.jackson.databind.node.ArrayNode) candidateTree.at("/authoredDraft/facts")).remove(1);
+    assertFalse(RequirementDiscoveryCapability.preservesMappingRepair(context, original,
+        mapper.treeToValue(candidateTree, RequirementDraft.class)));
+  }
+
   @Test
   void greetingsDraftPreservesThirteenNegativeFacts() {
     List<RequirementFact> negatives = RequirementFactFixtures.greetingsNegativeFacts();
