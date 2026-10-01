@@ -481,7 +481,7 @@ class RequirementDiscoveryCapabilityTest {
                     "skills/brainstorming.addon.md",
                     "Every READY_FOR_PLAN capture must include explicit `facts`."),
                 List.of()));
-    when(agent.chat(any(), any())).thenReturn(Multi.createFrom().empty());
+    when(agent.chat(any(), any(), any())).thenReturn(Multi.createFrom().empty());
 
     GatherRequirementsPromptBuilder promptBuilder =
         new GatherRequirementsPromptBuilder(skillDocumentService, addonRepository, store);
@@ -503,7 +503,7 @@ class RequirementDiscoveryCapabilityTest {
     capability.execute(context).subscribe().with(signal -> {});
 
     ArgumentCaptor<String> input = ArgumentCaptor.forClass(String.class);
-    verify(agent).chat(eq("conv-wrap"), input.capture());
+    verify(agent).chat(eq("conv-wrap"), input.capture(), any());
     assertTrue(input.getValue().contains("<compiler-process-skill id=\"brainstorming\""));
     assertTrue(input.getValue().contains("explicit `facts`"));
     assertTrue(input.getValue().contains(RequirementFactFixtures.GREETINGS_PROMPT));
@@ -568,7 +568,7 @@ class RequirementDiscoveryCapabilityTest {
     assertTrue(store.get("conv-dup").isEmpty());
 
     GatherRequirementsAgent agent = mock(GatherRequirementsAgent.class);
-    when(agent.chat(any(), any())).thenReturn(Multi.createFrom().empty());
+    when(agent.chat(any(), any(), any())).thenReturn(Multi.createFrom().empty());
     RequirementDiscoveryCapability capability =
         new RequirementDiscoveryCapability(agent, store, promptBuilder);
 
@@ -596,7 +596,7 @@ class RequirementDiscoveryCapabilityTest {
         RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE, completed.get().outcome().message());
 
     ArgumentCaptor<String> input = ArgumentCaptor.forClass(String.class);
-    verify(agent).chat(eq("conv-dup"), input.capture());
+    verify(agent).chat(eq("conv-dup"), input.capture(), any());
     assertTrue(input.getValue().contains("CAPABILITY sourceFactId=om-on-task-start"), input.getValue());
     assertTrue(input.getValue().contains("Call captureRequirementDraft again"), input.getValue());
 

@@ -3,6 +3,9 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import dev.langchain4j.invocation.InvocationParameters;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -77,6 +80,25 @@ class ProductCapabilityCaptureContextConversationScopeTest {
     } finally {
       worker.shutdownNow();
     }
+  }
+
+  @Test
+  void lateCallbackAndCleanupCannotUseTheReplacementBinding() {
+    var oldContext = ProductCapabilityCaptureContext.bindAnalysis(
+        "run", "conv-a", draft("old draft"), payload -> {});
+    ProductCapabilityCaptureContext.Binding oldBinding = oldContext.get(ProductCapabilityCaptureContext.CONTEXT_KEY);
+    InvocationParameters oldParameters = ProductCapabilityCaptureContext.invocationParameters(oldBinding);
+    var newContext = ProductCapabilityCaptureContext.bindAnalysis(
+        "run", "conv-a", draft("new draft"), payload -> {});
+    ProductCapabilityCaptureContext.Binding newBinding = newContext.get(ProductCapabilityCaptureContext.CONTEXT_KEY);
+
+    assertThrows(CaptureValidationException.class, () ->
+        ProductCapabilityCaptureContext.withBinding("conv-a", oldParameters,
+            ProductCapabilityCaptureContext.Mode.ANALYSIS, binding -> {
+              throw new AssertionError("A stale callback entered the current capture.");
+            }));
+    ProductCapabilityCaptureContext.unbind(oldBinding);
+    assertEquals(newBinding, ProductCapabilityCaptureContext.binding("conv-a").orElseThrow());
   }
 
   private static RequirementDraft draft(String text) {

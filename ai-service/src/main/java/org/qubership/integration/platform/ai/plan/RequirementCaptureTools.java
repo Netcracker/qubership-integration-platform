@@ -149,6 +149,13 @@ public class RequirementCaptureTools {
     });
   }
 
+  public record SourceRead(String turnId, int offset, int maxChars) {}
+
+  @Tool("Read source evidence from this chat by its supplied turn id. Use an offset and at most 16000 characters.")
+  public String readRequirementSource(SourceRead source) {
+    return store.readSourceTurn(ToolSession.resolveConversationId(), source.turnId(), source.offset(), source.maxChars());
+  }
+
   @Tool("Read the complete accepted requirements, resolution state, defaults, and remaining work.")
   public String readRequirementDraft() {
     return traced("readRequirementDraft", () -> {

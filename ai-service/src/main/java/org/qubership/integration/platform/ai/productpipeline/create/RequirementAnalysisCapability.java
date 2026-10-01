@@ -85,6 +85,7 @@ public class RequirementAnalysisCapability implements StageCapability {
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final DiscoveryAgent discoveryAgent;
   private ProductDiscoveryAgent productDiscoveryAgent;
+  private org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
   private final Function<StageExecutionContext, RequirementBrief> briefProducer;
   private final BiFunction<String, String, Multi<ChatEvent>> analysisRunner;
   private final EvidenceEmitter evidenceEmitter;
@@ -106,7 +107,8 @@ public class RequirementAnalysisCapability implements StageCapability {
       CaptureRepairRunner captureRepairRunner,
       ChatMemorySanitizer chatMemorySanitizer,
       MappingTurnInterpreter mappingTurnInterpreter,
-      MappingTurnTelemetry mappingTurnTelemetry) {
+      MappingTurnTelemetry mappingTurnTelemetry,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
     this(
         knowledgeClient,
         knowledgeContextProvider,
@@ -123,6 +125,7 @@ public class RequirementAnalysisCapability implements StageCapability {
         mappingTurnInterpreter,
         mappingTurnTelemetry);
     this.productDiscoveryAgent = productDiscoveryAgent;
+    this.conversations = conversations;
   }
 
   /** Test helper: knowledge-only construction without analyzer agent. */
@@ -299,7 +302,7 @@ public class RequirementAnalysisCapability implements StageCapability {
               new CapabilitySignal.Completed(
                   StageOutcome.of(
                       StageOutcomeClass.MISSING_MANDATORY_INPUT,
-                      "Approved requirement draft is required for analysis")));
+                      "A selected requirement draft is required for analysis")));
     }
     if (!approved.readyForPlan()) {
       return Multi.createFrom()
@@ -307,17 +310,21 @@ public class RequirementAnalysisCapability implements StageCapability {
               new CapabilitySignal.Completed(
                   StageOutcome.of(
                       StageOutcomeClass.MISSING_MANDATORY_INPUT,
-                      "Approved requirement draft is not ready for analysis: "
+                      "Selected requirement draft is not ready for analysis: "
                           + approved.readinessError().orElse("unknown readiness error"))));
     }
     RequirementDraft prepared = approved;
+    if (conversations != null) {
+      conversations.getOrCreate(context.conversationId());
+    }
+    var authority = conversations == null ? null : conversations.archive().read(context.conversationId());
 
     // Sidecar RestClient is blocking — must not run on the Vert.x event loop.
     return Uni.createFrom()
         .voidItem()
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
         .onItem()
-        .transformToMulti(ignored -> continueAfterKnowledge(context, prepared));
+        .transformToMulti(ignored -> continueAfterKnowledge(context, prepared, authority));
   }
 
   /**
@@ -353,17 +360,15 @@ public class RequirementAnalysisCapability implements StageCapability {
   }
 
   private Multi<CapabilitySignal> continueAfterKnowledge(
-      StageExecutionContext context, RequirementDraft approved) {
-    // Mirror CompilerSkillRuntime.clearCaptureState: re-runs after change-request must free the
-    // one-shot REQUIREMENT_BRIEF slot, or the second captureRequirementBrief kills the SSE stream.
-    clearAnalysisCaptureState(context.conversationId());
-
+      StageExecutionContext context, RequirementDraft approved,
+      org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.Document authority) {
     ToolSession.bind(context.conversationId());
     Context toolSessionContext = ToolSession.attachedContext();
 
     SkillWorkspace workspace = seedWorkspaceWithApprovedDraftOnly(approved);
     AtomicReference<RequirementBrief> captured = new AtomicReference<>();
-    ProductCapabilityCaptureContext.bindAnalysis(
+    java.util.function.Supplier<Context> startCapture = () -> {
+      Context installed = ProductCapabilityCaptureContext.bindAnalysis(
         context.runId(),
         context.conversationId(),
         approved,
@@ -371,11 +376,29 @@ public class RequirementAnalysisCapability implements StageCapability {
             .filter(ref -> ref.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT)
             .map(CompilationArtifacts.Reference::artifactId)
             .findFirst().orElse(null),
+        context.attemptId(),
+        authority == null ? null : authority.generation(),
+        authority == null ? null : org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority),
         payload -> {
           if (payload instanceof RequirementBrief brief) {
             captured.set(brief);
           }
         });
+
+      ProductCapabilityCaptureContext.Binding installedBinding = installed.get(ProductCapabilityCaptureContext.CONTEXT_KEY);
+      ProductCapabilityCaptureContext.withBinding(context.conversationId(),
+          ProductCapabilityCaptureContext.invocationParameters(installedBinding),
+          ProductCapabilityCaptureContext.Mode.ANALYSIS, current -> {
+            clearAnalysisCaptureState(context.conversationId());
+            return null;
+          });
+      return installed;
+    };
+    Context captureContext = authority == null ? startCapture.get() : conversations.archive()
+        .withAuthority(context.conversationId(), authority.generation(),
+            org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority), startCapture);
+    ProductCapabilityCaptureContext.Binding binding = captureContext.get(ProductCapabilityCaptureContext.CONTEXT_KEY);
+    var invocationParameters = ProductCapabilityCaptureContext.invocationParameters(binding);
 
     if (briefProducer != null) {
       try {
@@ -395,7 +418,7 @@ public class RequirementAnalysisCapability implements StageCapability {
                     SKILL_ID, SkillActivitySupport.wrapTerminal(SKILL_ID, List.copyOf(terminal))));
       } finally {
         SkillActivitySupport.clearParents();
-        ProductCapabilityCaptureContext.unbind(context.conversationId());
+        ProductCapabilityCaptureContext.unbind(binding);
         ToolSession.clear();
       }
     }
@@ -403,9 +426,9 @@ public class RequirementAnalysisCapability implements StageCapability {
     Multi<ChatEvent> agentStream;
     try {
       agentStream =
-          ToolSession.propagateBinding(toolSessionContext, runAnalyzer(context, approved));
+          ToolSession.propagateBinding(toolSessionContext, runAnalyzer(context, approved, binding));
     } catch (KnowledgeClientException e) {
-      ProductCapabilityCaptureContext.unbind(context.conversationId());
+      ProductCapabilityCaptureContext.unbind(binding);
       ToolSession.clear();
       StageOutcomeClass outcomeClass =
           e.kind() == KnowledgeFailureKind.KNOWLEDGE_NOT_FOUND
@@ -430,28 +453,22 @@ public class RequirementAnalysisCapability implements StageCapability {
                 .switchTo(
                     () -> {
                       try {
-                        RequirementBrief brief =
-                            captured.get() != null
-                                ? captured.get()
-                                : captureSession != null
-                                    ? captureSession
-                                        .get(
-                                            CaptureKey.conversation(
-                                                CaptureSlot.REQUIREMENT_BRIEF,
-                                                context.conversationId()),
-                                            RequirementBrief.class)
-                                        .orElse(null)
-                                    : null;
-                        return Multi.createFrom()
-                            .iterable(
-                                SkillActivitySupport.wrapTerminal(
-                                    SKILL_ID,
-                                    List.of(
-                                        completeWithBrief(
-                                            context, approved, workspace, brief))));
+                        java.util.function.Supplier<CapabilitySignal.Completed> finish = () ->
+                            ProductCapabilityCaptureContext.withBinding(context.conversationId(),
+                                invocationParameters, ProductCapabilityCaptureContext.Mode.ANALYSIS, current -> {
+                                  RequirementBrief brief = captured.get() != null ? captured.get()
+                                      : captureSession == null ? null : captureSession.get(CaptureKey.conversation(
+                                          CaptureSlot.REQUIREMENT_BRIEF, context.conversationId()), RequirementBrief.class)
+                                          .orElse(null);
+                                  return completeWithBrief(context, approved, workspace, brief);
+                                });
+                        var completed = authority == null ? finish.get() : conversations.archive()
+                            .withAuthority(context.conversationId(), authority.generation(),
+                                org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority), finish);
+                        return Multi.createFrom().iterable(SkillActivitySupport.wrapTerminal(SKILL_ID, List.of(completed)));
                       } finally {
                         SkillActivitySupport.clearParents();
-                        ProductCapabilityCaptureContext.unbind(context.conversationId());
+                        ProductCapabilityCaptureContext.unbind(binding);
                         ToolSession.clear();
                       }
                     })
@@ -459,14 +476,15 @@ public class RequirementAnalysisCapability implements StageCapability {
                 .recoverWithMulti(
                     error -> {
                       SkillActivitySupport.clearParents();
-                      ProductCapabilityCaptureContext.unbind(context.conversationId());
+                      ProductCapabilityCaptureContext.unbind(binding);
                       ToolSession.clear();
                       return Multi.createFrom()
                           .items(
                               SkillActivitySupport.error(SKILL_ID),
                               new CapabilitySignal.Completed(
                                   StageOutcome.of(
-                                      StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+                                      org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(error)
+                                          ? StageOutcomeClass.NEEDS_INPUT : StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
                                       error.getMessage() == null
                                           ? "requirement analysis failed"
                                           : error.getMessage())));
@@ -605,7 +623,9 @@ public class RequirementAnalysisCapability implements StageCapability {
     return workspace;
   }
 
-  private Multi<ChatEvent> runAnalyzer(StageExecutionContext context, RequirementDraft approved) {
+  private Multi<ChatEvent> runAnalyzer(
+      StageExecutionContext context, RequirementDraft approved,
+      ProductCapabilityCaptureContext.Binding binding) {
     KnowledgeContextPackage contextPackage =
         knowledgeClient.context(
             knowledgeContextProvider.forConversation(context.conversationId()),
@@ -622,8 +642,9 @@ public class RequirementAnalysisCapability implements StageCapability {
                 context.attributeAsString("userText"),
                 responseLocale(context),
                 repairEvidence(context))
-            + "\n\n"
-            + contextPackage.renderMarkdown();
+            + "\n\nSelected artifact references: " + context.inputRefs()
+            + "\nStage: " + context.stageId() + "\nAttempt: " + context.attemptId()
+            + "\n\n" + contextPackage.renderMarkdown();
     if (evidenceEmitter != null) {
       evidenceEmitter.knowledge(
           context.conversationId(),
@@ -635,6 +656,19 @@ public class RequirementAnalysisCapability implements StageCapability {
     }
     java.util.function.Function<String, Multi<String>> agentChat =
         message -> {
+          ProductCapabilityCaptureContext.withBinding(context.conversationId(),
+              ProductCapabilityCaptureContext.invocationParameters(binding),
+              ProductCapabilityCaptureContext.Mode.ANALYSIS, current -> null);
+          if (conversations != null) {
+            conversations.archive().withAuthority(context.conversationId(), binding.resetGeneration(),
+                binding.sourceTurnId(), () -> null);
+          }
+          if (conversations != null) {
+            String reference = conversations.archive().saveInvocation(context.conversationId(),
+                context.stageId(), context.attemptId(), context.inputRefs(), message);
+            org.jboss.logging.Logger.getLogger(RequirementAnalysisCapability.class).infof("Analysis input retained: stage=%s attempt=%s reference=%s", context.stageId(),
+                context.attemptId(), reference);
+          }
           if (analysisRunner != null) {
             return analysisRunner
                 .apply(context.conversationId(), message)
@@ -642,7 +676,8 @@ public class RequirementAnalysisCapability implements StageCapability {
                 .transform(RequirementAnalysisCapability::tokenText);
           }
           if (productDiscoveryAgent != null) {
-            return productDiscoveryAgent.chat(context.conversationId(), message);
+            return productDiscoveryAgent.chat(context.conversationId(), message,
+                ProductCapabilityCaptureContext.invocationParameters(binding));
           }
           if (discoveryAgent == null) {
             return Multi.createFrom().empty();
@@ -664,7 +699,7 @@ public class RequirementAnalysisCapability implements StageCapability {
             "captureRequirementBrief",
             safeMessage,
             true,
-            null,
+            failure -> userMessage + "\n\nRepair captureRequirementBrief:\n" + failure.summary(),
             () -> repairDanglingToolCalls(context.conversationId()),
             1)
         .onItem()
@@ -724,7 +759,7 @@ public class RequirementAnalysisCapability implements StageCapability {
               + "instruction.\n\n");
       appendRepairEvidence(sb, repair);
     } else {
-      sb.append("Analyze the approved requirement draft and call captureRequirementBrief now.\n\n");
+      sb.append("Analyze the selected requirement draft and call captureRequirementBrief now.\n\n");
       sb.append(
           "Response language rule: after capture, summarize in pinned response locale "
               + normalizedLocale(responseLocale)
@@ -735,15 +770,15 @@ public class RequirementAnalysisCapability implements StageCapability {
       sb.append(
           "The server projects FIELD_MAPPING facts into brief mapping intents. Leave "
               + "mappingIntents empty. Do not supply field names from examples or replace an "
-              + "approved source path. If a requested field adaptation has no structured "
-              + "FIELD_MAPPING fact, report that the approved draft needs correction.\n\n");
+              + "selected source path. If a requested field adaptation has no structured "
+              + "FIELD_MAPPING fact, report that the selected draft needs correction.\n\n");
       for (var fact : approved.authoredDraft().facts()) {
         if (fact.kind() != org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.FIELD_MAPPING
             || fact.fieldMapping() == null) {
           continue;
         }
         var mapping = fact.fieldMapping();
-        sb.append("Approved field mapping: ")
+        sb.append("Selected field mapping: ")
             .append(mapping.sourceInteractionId()).append('.')
             .append(mapping.sourcePath() == null ? "expression" : mapping.sourcePath())
             .append(" -> ").append(mapping.targetInteractionId()).append('.')
@@ -756,11 +791,11 @@ public class RequirementAnalysisCapability implements StageCapability {
               + "forward the payload. Pass-through is the absence of a mapping intent. When the "
               + "user requested field adaptation, capture mappingIntents. A computed rule "
               + "such as a priority bucket, a default, or JSON construction sets expression on "
-              + "that rule. One intent per approved flow transition. sourceRef and targetRef "
+              + "that rule. One intent per selected flow transition. sourceRef and targetRef "
               + "must match a listed transition. Put preserve or echo rules on the transition "
               + "that writes the target payload. Never invent identity "
               + "copies for fields the user did not mention. Do not set mapping ports or "
-              + "mappingIntentId; the server assigns both from the approved hop.\n\n");
+              + "mappingIntentId; the server assigns both from the selected hop.\n\n");
     } else {
       sb.append(
           "Leave mappingIntents empty. There are no projected outbound "
@@ -768,12 +803,12 @@ public class RequirementAnalysisCapability implements StageCapability {
     }
     sb.append(
         "Java projects INBOUND interactions to entry points and OUTBOUND interactions to "
-            + "service calls from the approved RequirementFlow. Do not author ENDPOINT or "
+            + "service calls from the selected RequirementFlow. Do not author ENDPOINT or "
             + "SERVICE_CALL topology facts. Keep facts as ordinary constraints and native-trigger "
             + "configuration.\n\n");
     RequirementFlow flow = approved.flow();
     if (!flow.interactions().isEmpty()) {
-      sb.append("Approved RequirementFlow:\n");
+      sb.append("Selected RequirementFlow:\n");
       for (var interaction : flow.interactions()) {
         sb.append("- interactionId=")
             .append(interaction.interactionId())

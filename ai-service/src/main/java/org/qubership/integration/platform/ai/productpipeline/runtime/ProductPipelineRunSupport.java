@@ -218,6 +218,14 @@ public final class ProductPipelineRunSupport {
   private final RecoveryOutcomeTelemetry recoveryTelemetry;
   private final MappingTurnAdapter mappingTurnAdapter;
   private final MappingTurnTelemetry mappingTurnTelemetry;
+  private org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
+
+  ProductPipelineRunSupport withConversations(
+      org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
+    this.conversations = conversations;
+    return this;
+  }
+
 
   /** Fluent builder for the optional collaborators; required ones are constructor args. */
   public static Builder builder(
@@ -1632,6 +1640,14 @@ public final class ProductPipelineRunSupport {
                     .onCompletion()
                     .switchTo(() -> reemitApprovalCard(doc));
               }
+              boolean authoredProducer = profilesByRun.get(command.runId()).stages().stream()
+                  .anyMatch(stage -> "requirement-discovery".equals(stage.capabilityId()));
+              Reference selectedCandidate = approvalCandidate(doc);
+              if (asked.isRequirementChange()
+                  || asked.isNotAQuestion() && !asked.isWordingChange() && authoredProducer
+                      && selectedCandidate != null && selectedCandidate.kind() == Kind.REQUIREMENT_BRIEF) {
+                return reopenRequirementDraft(doc, command);
+              }
               if (asked.isNotAQuestion()) {
                 return acceptTypedInput(doc, command);
               }
@@ -2361,7 +2377,8 @@ public final class ProductPipelineRunSupport {
     RecoveryCause cause = currentRecoveryCause(doc.run().runId());
     if (!isEarlierApprovedOwner(doc, owner)
         && !isCommittedIdentityMismatchOwner(doc, owner, cause)
-        && !isCommittedMaterializationContractOwner(doc, owner, cause)) {
+        && !isCommittedMaterializationContractOwner(doc, owner, cause)
+        && !isCommittedRequirementDraftOwner(doc, owner)) {
       return false;
     }
     if (catalogHasBeenWritten(doc.run().runId())) {
@@ -2375,6 +2392,88 @@ public final class ProductPipelineRunSupport {
         origin,
         initiator,
         causalReopenFailureSignature(doc.run().runId()));
+  }
+
+  private boolean isCommittedRequirementDraftOwner(ProductPipelineRunDocument doc, String owner) {
+    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+    if (profile == null || owner == null || owner.equals(doc.run().currentStageId())) {
+      return false;
+    }
+    boolean declared = profile.stages().stream().filter(stage -> owner.equals(stage.stageId()))
+        .anyMatch(stage -> "requirement-discovery".equals(stage.capabilityId())
+            && stage.produces().stream().anyMatch(type -> type.matches(Kind.REQUIREMENT_DRAFT)));
+    if (!declared || !stageIdsAfter(profile, owner).contains(doc.run().currentStageId())) {
+      return false;
+    }
+    return doc.run().stages().stream().filter(stage -> owner.equals(stage.stageId())
+            && stage.status() == StageStatus.SUCCEEDED)
+        .flatMap(stage -> stage.outputRefs().stream()).filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT)
+        .anyMatch(ref -> artifactStore.get(doc.run().runId(), ref)
+            .filter(revision -> revision.provenance() != null
+                && doc.run().runId().equals(revision.provenance().runId())
+                && owner.equals(revision.provenance().stageId())).isPresent());
+  }
+
+  private Multi<PipelineSignal> reopenRequirementDraft(
+      ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    ProductPipelineProfile profile = profilesByRun.get(command.runId());
+    String owner = profile == null ? null : profile.stages().stream()
+        .filter(stage -> "requirement-discovery".equals(stage.capabilityId())
+            && stage.produces().stream().anyMatch(type -> type.matches(Kind.REQUIREMENT_DRAFT)))
+        .map(ProfileStage::stageId).findFirst().orElse(null);
+    Reference published = doc.run().stages().stream().filter(stage -> java.util.Objects.equals(owner, stage.stageId()))
+        .map(ProductPipelineRunSupport::resolveReopenApprovable).filter(java.util.Objects::nonNull)
+        .filter(ref -> ref.kind() == Kind.REQUIREMENT_DRAFT).findFirst().orElse(null);
+    Reference candidate = approvalCandidate(doc);
+    if (published == null || candidate == null || candidate.kind() != Kind.REQUIREMENT_BRIEF) {
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.MISSING_PROFILE_OR_PRIOR_CANDIDATE);
+    }
+    var brief = artifactStore.get(command.runId(), candidate)
+        .map(revision -> artifactStore.payload(revision, RequirementBrief.class)).orElse(null);
+    Reference selected = brief == null ? null : artifactStore.history(command.runId(), Kind.REQUIREMENT_DRAFT)
+        .stream().filter(revision -> revision.artifactId().equals(brief.approvedDraftReference()))
+        .map(Revision::reference).findFirst().orElse(null);
+    if (selected == null || !draftDerivesFrom(command.runId(), selected, published)) {
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.MISSING_PROFILE_OR_PRIOR_CANDIDATE);
+    }
+    if (catalogHasBeenWritten(command.runId())) {
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN);
+    }
+    if (!shouldCausalReopen(doc, owner, command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR)) {
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.MAX_CAUSAL_REOPENS);
+    }
+    List<String> sourceIds = conversations == null ? List.of() : conversations.archive()
+        .pendingInputs(doc.run().conversationId()).stream().map(turn -> turn.id()).toList();
+    artifactStore.append(new AppendCommand(command.runId(), Kind.USER_INPUT, "1",
+        "product-pipeline-runtime", "1", new UserInput(userInputId(command), owner, command.text(),
+            clock.instant(), selected, sourceIds), List.of(selected), null,
+        provenance(command.runId(), owner, profile.stages().stream()
+            .filter(stage -> owner.equals(stage.stageId())).findFirst().orElseThrow().capabilityId())));
+    var attributes = attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
+    attributes.put("userText", command.text());
+    attributes.put("requirementCorrectionDraftReference", selected);
+    attributes.put("requirementCorrectionDraft", artifactStore.get(command.runId(), selected)
+        .map(revision -> artifactStore.payload(revision, org.qubership.integration.platform.ai.plan.RequirementDraft.class))
+        .orElseThrow());
+    attributes.put("requirementCorrectionSourceTurnIds", sourceIds);
+    return causalReopenOwner(doc, command, owner);
+  }
+
+  private boolean draftDerivesFrom(String runId, Reference selected, Reference published) {
+    var pending = new java.util.ArrayDeque<Reference>();
+    var visited = new java.util.HashSet<String>();
+    pending.add(selected);
+    while (!pending.isEmpty()) {
+      Reference ref = pending.removeFirst();
+      if (published.equals(ref)) {
+        return true;
+      }
+      if (visited.add(ref.artifactId())) {
+        artifactStore.get(runId, ref).ifPresent(revision -> revision.inputs().stream()
+            .filter(input -> input.kind() == Kind.REQUIREMENT_DRAFT).forEach(pending::addLast));
+      }
+    }
+    return false;
   }
 
   private boolean isCommittedIdentityMismatchOwner(
@@ -3497,6 +3596,11 @@ public final class ProductPipelineRunSupport {
     if (snapshot.approvableReference() != null) {
       return snapshot.approvableReference();
     }
+    for (Reference ref : snapshot.outputRefs()) {
+      if (ref.kind() == Kind.REQUIREMENT_DRAFT) {
+        return ref;
+      }
+    }
     if (!snapshot.candidateReferences().isEmpty()) {
       return snapshot.candidateReferences().get(snapshot.candidateReferences().size() - 1);
     }
@@ -3603,8 +3707,16 @@ public final class ProductPipelineRunSupport {
     List<UserInput> followUps =
         stageInputs.stream().filter(ProductPipelineRunSupport::isHaltFollowUpInput).toList();
     if (!requirementInputs.isEmpty()) {
-      attributes.put("userText", requirementInputs.get(requirementInputs.size() - 1).text());
+      UserInput latest = requirementInputs.get(requirementInputs.size() - 1);
+      attributes.put("userText", latest.text());
       attributes.put("discoveryUserText", requirementInputs.get(0).text());
+      if (latest.draftReference() != null) {
+        attributes.put("requirementCorrectionDraftReference", latest.draftReference());
+        attributes.put("requirementCorrectionDraft", artifactStore.get(runId, latest.draftReference())
+            .map(revision -> artifactStore.payload(revision, org.qubership.integration.platform.ai.plan.RequirementDraft.class))
+            .orElseThrow());
+        attributes.put("requirementCorrectionSourceTurnIds", latest.sourceTurnIds());
+      }
     }
     if (!followUps.isEmpty()) {
       attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, followUps.get(followUps.size() - 1).text());

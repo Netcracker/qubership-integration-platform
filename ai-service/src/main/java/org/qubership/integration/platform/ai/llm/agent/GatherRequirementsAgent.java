@@ -5,29 +5,19 @@ import dev.langchain4j.service.UserMessage;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import io.smallrye.mutiny.Multi;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemTools;
-import org.qubership.integration.platform.ai.plan.CatalogFirstApiHubDiscoveryTool;
-import org.qubership.integration.platform.ai.plan.RequirementCaptureTools;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureToolProvider;
-import org.qubership.integration.platform.ai.plan.SelectApiHubCandidateTool;
-import org.qubership.integration.platform.ai.productpipeline.knowledge.RequirementDiscoveryKnowledgeTool;
 
 /**
- * Agent for iterative requirement gathering before the compiler spine runs. Uses TOKEN_WINDOW chat
- * memory from {@code application.properties}, same as {@link DiscoveryAgent}.
+ * Gathers requirements from an explicit draft and source packet for each author turn.
  */
 @RegisterAiService(
     toolProviderSupplier = RequirementCaptureToolProvider.ProviderSupplier.class,
-    tools = {
-      SelectApiHubCandidateTool.class,
-      CatalogSystemTools.class,
-      CatalogFirstApiHubDiscoveryTool.class,
-      RequirementDiscoveryKnowledgeTool.class
-    },
+    chatMemoryProviderSupplier = RegisterAiService.NoChatMemoryProviderSupplier.class,
     maxSequentialToolInvocations = 10)
 @ApplicationScoped
 public interface GatherRequirementsAgent {
 
   @dev.langchain4j.service.SystemMessage(fromResource = "prompts/gather-requirements-system.md")
-  Multi<String> chat(@MemoryId String conversationId, @UserMessage String userMessage);
+  Multi<String> chat(@MemoryId String conversationId, @UserMessage String userMessage,
+      dev.langchain4j.invocation.InvocationParameters invocationParameters);
 }

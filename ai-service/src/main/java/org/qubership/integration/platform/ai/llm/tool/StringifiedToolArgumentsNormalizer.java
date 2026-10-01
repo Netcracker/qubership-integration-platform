@@ -88,7 +88,8 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
         Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
         String conversationId = memoryId == null
             ? ToolSession.resolveConversationId() : memoryId.toString();
-        String result = productBriefTool.rejectArguments(conversationId, inspected.issue());
+        String result = productBriefTool.rejectArguments(conversationId,
+            invocationContext == null ? null : invocationContext.invocationParameters(), inspected.issue());
         return ToolExecutionResult.builder().result(result).resultText(result).build();
       }
       return next.apply(inspected.request(), invocationContext);

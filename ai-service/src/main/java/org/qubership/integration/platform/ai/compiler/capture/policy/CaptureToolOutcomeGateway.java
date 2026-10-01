@@ -196,6 +196,11 @@ public class CaptureToolOutcomeGateway {
     throw new CaptureValidationException(decision.message());
   }
 
+  /** Ends a stateless invocation after its feedback has already been recorded. */
+  public void endInvocation(String message) {
+    throw new CaptureValidationException(message);
+  }
+
   private void recordFeedback(
       CaptureFeedbackChannel channel,
       String conversationId,

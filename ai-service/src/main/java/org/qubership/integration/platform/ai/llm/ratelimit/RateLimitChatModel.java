@@ -25,6 +25,7 @@ public class RateLimitChatModel implements ChatModel {
 
   private final ChatModel delegate;
   private final AppConfig appConfig;
+  private final LlmRequestBudget requestBudget;
   private final RateLimitBackoffSleeper sleeper;
   private final RateLimitErrorClassifier classifier;
   private final TransientErrorClassifier transientClassifier;
@@ -57,6 +58,7 @@ public class RateLimitChatModel implements ChatModel {
       TransientWaitPolicy transientPolicy) {
     this.delegate = Objects.requireNonNull(delegate, "delegate");
     this.appConfig = Objects.requireNonNull(appConfig, "appConfig");
+    this.requestBudget = new LlmRequestBudget(appConfig);
     this.sleeper = Objects.requireNonNull(sleeper, "sleeper");
     this.classifier = Objects.requireNonNull(classifier, "classifier");
     this.transientClassifier = Objects.requireNonNull(transientClassifier, "transientClassifier");
@@ -71,6 +73,9 @@ public class RateLimitChatModel implements ChatModel {
 
   @Override
   public ChatResponse chat(ChatRequest chatRequest) {
+    ChatRequest guarded = requestBudget.prepare(chatRequest.toBuilder()
+        .parameters(delegate.defaultRequestParameters().overrideWith(chatRequest.parameters()))
+        .build());
     boolean rateLimitEnabled = appConfig.llm().rateLimit().enabled();
     int rateLimitMaxAttempts = appConfig.llm().rateLimit().maxAttempts();
     boolean transientEnabled = appConfig.llm().transientRetry().enabled();
@@ -91,7 +96,7 @@ public class RateLimitChatModel implements ChatModel {
             transientEnabled,
             transientMaxAttempts,
             onBackoff);
-    ChatResponse response = rateLimited.chat(chatRequest);
+    ChatResponse response = rateLimited.chat(guarded);
     RateLimitSinkSupport.completeIfBackoffOccurred(backoffInCall);
     return response;
   }

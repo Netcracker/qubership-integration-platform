@@ -6,14 +6,14 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
 
-/** Model-authored interpretation of an approved requirement draft. */
+/** Model-authored interpretation of a selected requirement draft. */
 public record RequirementAnalysisCapture(
-    @Description("Concise goal for the approved requirements") String goal,
-    @Description("Input descriptions for the approved inbound interactions") List<String> inputs,
-    @Description("Assumptions needed to interpret the approved requirements") List<String> assumptions,
+    @Description("Concise goal for the selected requirements") String goal,
+    @Description("Input descriptions for the selected inbound interactions") List<String> inputs,
+    @Description("Assumptions needed to interpret the selected requirements") List<String> assumptions,
     @Description("Readable summary for review") String summary,
     @Description("Knowledge references used during analysis") List<QipKnowledgeCitation> citations,
-    @Description("Field adaptations on approved flow transitions; omit for pass-through")
+    @Description("Field adaptations on selected flow transitions; omit for pass-through")
         List<Mapping> mappingIntents) {
 
   public RequirementAnalysisCapture {
@@ -24,8 +24,8 @@ public record RequirementAnalysisCapture(
   }
 
   public record Mapping(
-      @Description("Approved source interaction id") String sourceRef,
-      @Description("Approved target interaction id") String targetRef,
+      @Description("Selected source interaction id") String sourceRef,
+      @Description("Selected target interaction id") String targetRef,
       @Description("Field rules for this transition") List<Rule> rules,
       @Description("Optional implementation preference") String implementationPreference) {
 

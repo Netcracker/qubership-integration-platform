@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class ConversationServiceIdleTest {
 
   @Test
-  void idleTimeoutEvictsTheConversationEntry() {
+  void idleTimeoutEvictsOnlyTheCachedView() {
     FakeTicker ticker = new FakeTicker();
     ConversationService svc = new ConversationService(Duration.ofHours(1), ticker);
     svc.addMessage("c1", ConversationMessage.user("hello"));
@@ -19,7 +19,7 @@ class ConversationServiceIdleTest {
     ticker.advance(Duration.ofHours(2));
     svc.cleanUp();
 
-    assertTrue(svc.getMessages("c1").isEmpty());
+    assertEquals("hello", svc.getMessages("c1").getFirst().content());
   }
 
   @Test

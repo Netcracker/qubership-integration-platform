@@ -1,11 +1,14 @@
 package org.qubership.integration.platform.ai.productpipeline.create;
 
 import io.smallrye.mutiny.Context;
+import dev.langchain4j.invocation.InvocationParameters;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -16,7 +19,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
  */
 public final class ProductCapabilityCaptureContext {
 
-  static final String CONTEXT_KEY = "product-capability-capture-context";
+  public static final String CONTEXT_KEY = "product-capability-capture-context";
 
   private static final ThreadLocal<Binding> THREAD_BINDING = new ThreadLocal<>();
   private static final ThreadLocal<Context> THREAD_CONTEXT = new ThreadLocal<>();
@@ -40,6 +43,9 @@ public final class ProductCapabilityCaptureContext {
       Mode mode,
       String runId,
       String conversationId,
+      String attemptId,
+      String resetGeneration,
+      String sourceTurnId,
       RequirementDraft approvedDraft,
       String approvedDraftReference,
       RequirementBrief approvedBrief,
@@ -57,6 +63,9 @@ public final class ProductCapabilityCaptureContext {
             Mode.DISCOVERY,
             runId,
             conversationId,
+            java.util.UUID.randomUUID().toString(),
+            null,
+            null,
             null,
             null,
             null,
@@ -85,11 +94,29 @@ public final class ProductCapabilityCaptureContext {
       RequirementDraft approvedDraft,
       String approvedDraftReference,
       Consumer<Object> onCandidate) {
+    return bindAnalysis(runId, conversationId, approvedDraft, approvedDraftReference,
+        java.util.UUID.randomUUID().toString(), onCandidate);
+  }
+
+  public static Context bindAnalysis(
+      String runId, String conversationId, RequirementDraft approvedDraft,
+      String approvedDraftReference, String attemptId, Consumer<Object> onCandidate) {
+    return bindAnalysis(runId, conversationId, approvedDraft, approvedDraftReference, attemptId,
+        null, null, onCandidate);
+  }
+
+  public static Context bindAnalysis(
+      String runId, String conversationId, RequirementDraft approvedDraft,
+      String approvedDraftReference, String attemptId, String resetGeneration, String sourceTurnId,
+      Consumer<Object> onCandidate) {
     Binding binding =
         new Binding(
             Mode.ANALYSIS,
             runId,
             conversationId,
+            attemptId,
+            resetGeneration,
+            sourceTurnId,
             approvedDraft,
             approvedDraftReference,
             null,
@@ -114,6 +141,9 @@ public final class ProductCapabilityCaptureContext {
             Mode.DESIGN,
             runId,
             conversationId,
+            java.util.UUID.randomUUID().toString(),
+            null,
+            null,
             null,
             null,
             approvedBrief,
@@ -130,11 +160,46 @@ public final class ProductCapabilityCaptureContext {
 
   public static void unbind() {
     Binding binding = THREAD_BINDING.get();
-    if (binding != null && binding.conversationId() != null) {
-      BY_CONVERSATION.remove(binding.conversationId(), binding);
-    }
+    unbind(binding);
     THREAD_BINDING.remove();
     THREAD_CONTEXT.remove();
+  }
+
+  /** Releases only the attempt that installed this binding. */
+  public static void unbind(Binding expected) {
+    if (expected == null) {
+      return;
+    }
+    if (expected.conversationId() != null) {
+      BY_CONVERSATION.remove(expected.conversationId(), expected);
+    }
+    if (THREAD_BINDING.get() == expected) {
+      THREAD_BINDING.remove();
+      THREAD_CONTEXT.remove();
+    }
+  }
+
+  public static InvocationParameters invocationParameters(Binding binding) {
+    return InvocationParameters.from(CONTEXT_KEY, binding);
+  }
+
+  /** Validates and applies a tool call before a replacement attempt can install its binding. */
+  public static <T> T withBinding(
+      String conversationId, InvocationParameters parameters, Mode mode,
+      Function<Binding, T> action) {
+    Binding expected = parameters == null ? null : parameters.get(CONTEXT_KEY);
+    if (conversationId == null || conversationId.isBlank() || expected == null) {
+      throw new CaptureValidationException("Capture has no trusted invocation binding.");
+    }
+    AtomicReference<T> result = new AtomicReference<>();
+    BY_CONVERSATION.compute(conversationId, (id, current) -> {
+      if (current != expected || current.mode() != mode) {
+        throw new CaptureValidationException("Capture belongs to an inactive attempt.");
+      }
+      result.set(action.apply(current));
+      return current;
+    });
+    return result.get();
   }
 
   /**
