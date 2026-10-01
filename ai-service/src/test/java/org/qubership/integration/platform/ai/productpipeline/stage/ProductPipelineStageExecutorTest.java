@@ -3358,8 +3358,9 @@ class ProductPipelineStageExecutorTest {
     assertFalse(seenError.get().isBlank());
   }
 
-  @Test
-  void missingRecoveryDecisionOnCaptureContractShapeOffersManualRebuild() {
+  @ParameterizedTest
+  @ValueSource(strings = {"CHAIN_PLAN_GRAPH", "IMPLEMENTATION_PLAN"})
+  void missingRecoveryDecisionOnCaptureContractShapeOffersManualRebuild(String historicalKind) {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger captureCalls = new AtomicInteger();
     ProductPipelineProfile profile = analysisThenDesignInputProfile();
@@ -3388,6 +3389,12 @@ class ProductPipelineStageExecutorTest {
     CreateChainTestOrchestrator runtime =
         newRuntime(new FailureNarrative(agent), profile, analysisCandidate(), designInput);
     startAndRecordInput(runtime, profile);
+    artifactStore.append(new CompilationArtifacts.AppendCommand(
+        RUN_ID, Kind.valueOf(historicalKind), "1", "historical-producer", "1",
+        Map.of("historical", true), List.of(), null,
+        new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+            RUN_ID, "design-planning", profile.profileId(), profile.profileVersion(), "sha",
+            "historical-producer", "1", "sha")));
     approveCurrentStage(runtime, "requirement-analysis");
 
     StageDecision.WaitForInput wait = waitAfterOptionalSemanticRepair(runtime, "design-input");
