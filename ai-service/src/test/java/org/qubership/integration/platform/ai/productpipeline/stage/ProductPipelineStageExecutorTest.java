@@ -588,6 +588,7 @@ class ProductPipelineStageExecutorTest {
     startAndRecordInput(runtime, profile);
     runtime.executeStage(RUN_ID, "route").collect().asList().await().indefinitely();
     assertEquals("skipped", requireRun().run().currentStageId());
+    Reference sourceDraft = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_DRAFT).orElseThrow().reference();
 
     StageExecutionResult result = execute(runtime, "skipped");
 
@@ -597,6 +598,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals(0, doneCalls.get());
     assertEquals("skipped", requireRun().run().currentStageId());
     assertEquals(StageStatus.SUCCEEDED, stageStatus(requireRun(), "skipped"));
+    assertEquals(List.of(sourceDraft), artifactStore.latest(RUN_ID, Kind.REQUIREMENT_DRAFT).orElseThrow().inputs());
   }
 
   @Test
