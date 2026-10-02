@@ -775,7 +775,8 @@ public class GraphPatchApplier {
         maskingEnabled,
         maskedFieldNames,
         chain.semanticRevisionId(),
-        chain.compilerContractVersion());
+        chain.compilerContractVersion(),
+        chain.folderPath());
   }
 
   private static Boolean parseBoolean(String rawValue) {

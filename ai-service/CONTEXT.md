@@ -229,6 +229,32 @@ Snapshot when the user wanted the current graph. Auto-repair via `COMPARE_AND_PA
 stage, not this scenario.
 _Avoid_: folding deploy into ASK_CHAIN, silent deploy of a stale Snapshot after a failed build
 
+**Target folder** (`DraftSettings.targetFolderPath`):
+The catalog folder an author asks a new chain to be created in. Requirement capture keeps it as
+written and also as a `PARAMETER` fact; it travels on the approved `RequirementBrief` and
+`ChainSection.folderPath` and is resolved only when the chain is created, missing levels included.
+A chain found by its publication-attempt label stays where it is. A bare name that several folders
+share is rejected at capture (`AMBIGUOUS_TARGET_FOLDER`) so the author is asked, never guessed for.
+_Avoid_: creating the folder during discovery, before the Create chain card
+
+**Folder reference**:
+How a person names a folder, read by `CatalogFolders.resolve`. A bare name (`Salesforce`) matches
+that name anywhere in the tree; a path (`Integrations/Salesforce`) or a leading slash
+(`/Salesforce`) reads from the root; `/` is the root. Names compare without case. The catalog has
+no whole-tree listing and its name search is case-sensitive, so the tree is read one folder level
+at a time.
+
+**MANAGE_CHAIN_LIST**:
+The chat scenario for the chains page: find chains by table columns, move them between folders, and
+create, rename, move, or delete folders. `ChainListIntentAgent` returns a typed `ChainListCommand`;
+Java resolves every name. Columns the catalog filters on (name, id, description, labels, status)
+go to `POST /v1/folders/filter`; author and date columns are applied to its rows. It never reads
+inside a chain. One chain named by the author moves at once; a move of several chains, of chains
+picked by a condition or a folder, and every folder delete wait for a Decision card that lists them.
+Deleting a folder cascades in the catalog to its chains and their deployments. Not an open-chain
+scenario: an unfinished CREATE run keeps the turn.
+_Avoid_: a confirmation per single rename or move, guessing between folders that share a name
+
 **Catalog Snapshot**:
 The runtime-catalog versioned XML cut of a chain that deployment requires. Distinct from in-memory
 run/task "snapshots" elsewhere in this service. Catalog `POST /v1/catalog/chains/{chainId}/snapshots`

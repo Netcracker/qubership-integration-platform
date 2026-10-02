@@ -14,7 +14,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
@@ -30,6 +34,44 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Transi
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+
+  @Test
+  void asksWhichFolderWhenTheNameMatchesSeveral() throws Exception {
+    RequirementDraftStore store = new RequirementDraftStore();
+    RequirementDraftTool bindingAdapter = mock(RequirementDraftTool.class);
+    when(bindingAdapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString()))
+        .thenReturn(List.of());
+    CatalogFolders folders = mock(CatalogFolders.class);
+    when(folders.tree())
+        .thenReturn(List.of(
+            new CatalogFolders.Folder("f1", "A", null, "A"),
+            new CatalogFolders.Folder("f2", "Salesforce", "f1", "A/Salesforce"),
+            new CatalogFolders.Folder("f3", "Salesforce", null, "Salesforce")));
+    CaptureAttemptFeedbackStore feedback =
+        new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore());
+    ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+    RequirementCaptureTools tools = new RequirementCaptureTools(store, bindingAdapter, mapper,
+        new CaptureToolOutcomeGateway(feedback.fingerprintStore(), feedback), feedback, null,
+        folders);
+    List<FactInput> facts = List.of(new FactInput("goal", List.of(), FactKind.GOAL,
+        Polarity.POSITIVE, "Create a task."));
+
+    try (ToolSession.Handle ignored = ToolSession.open("capture-folder-" + UUID.randomUUID())) {
+      RequirementCaptureResult ambiguous = mapper.readValue(
+          tools.captureRequirementDraft(new DraftInput(new FlowInput(List.of(), List.of()), facts,
+              List.of(), List.of(), new DraftSettings(null, null, "salesforce"))),
+          RequirementCaptureResult.class);
+      assertFalse(ambiguous.accepted());
+      assertEquals("AMBIGUOUS_TARGET_FOLDER", ambiguous.issues().getFirst().code());
+      assertTrue(ambiguous.issues().getFirst().message().contains("A/Salesforce, Salesforce"));
+
+      RequirementCaptureResult exact = mapper.readValue(
+          tools.captureRequirementDraft(new DraftInput(new FlowInput(List.of(), List.of()), facts,
+              List.of(), List.of(), new DraftSettings(null, null, "A/Salesforce"))),
+          RequirementCaptureResult.class);
+      assertTrue(exact.accepted());
+    }
+  }
 
   @Test
   void savesPartialDraftAndAppliesOneFocusedUpdate() throws Exception {

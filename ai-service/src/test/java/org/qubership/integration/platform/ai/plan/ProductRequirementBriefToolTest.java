@@ -236,7 +236,28 @@ class ProductRequirementBriefToolTest {
     assertEquals(MappingPort.REQUEST, brief.mappingIntents().getFirst().targetPort());
   }
 
+  @Test
+  void pinsTheTargetFolderTheAuthorApproved() {
+    ProductCapabilityCaptureContext.bindAnalysis("run", CONVERSATION,
+        approvedWithTypedMapping(
+            new RequirementCaptureInput.DraftSettings(null, null, "Integrations/Salesforce")),
+        candidate::set);
+
+    ProductRequirementBriefTool.Result result = tool.capture(
+        new RequirementAnalysisCapture("Forward task", List.of("POST task input"), List.of(),
+            "Copy title to Subject", List.of(), List.of()), CONVERSATION);
+
+    assertTrue(result.accepted(), result.toString());
+    assertEquals("Integrations/Salesforce",
+        ((RequirementBrief) candidate.get()).targetFolderPath());
+  }
+
   private static RequirementDraft approvedWithTypedMapping() {
+    return approvedWithTypedMapping(new RequirementCaptureInput.DraftSettings(null, null));
+  }
+
+  private static RequirementDraft approvedWithTypedMapping(
+      RequirementCaptureInput.DraftSettings settings) {
     RequirementCaptureInput.DraftInput input = new RequirementCaptureInput.DraftInput(
         new RequirementCaptureInput.FlowInput(
             List.of(new RequirementCaptureInput.InteractionInput("http-in", Direction.INBOUND,
@@ -260,7 +281,7 @@ class ProductRequirementBriefToolTest {
             new RequirementCaptureInput.CapabilityInput("http-out", "http-sender", null,
                 RequirementCaptureInput.HttpMethod.POST, "https://example.com/tasks", null,
                 null, null)),
-        List.of(), new RequirementCaptureInput.DraftSettings(null, null));
+        List.of(), settings);
     return RequirementCaptureProjection.toDraft(input, null, List.of(), "1", null);
   }
 }

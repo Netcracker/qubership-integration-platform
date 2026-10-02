@@ -307,7 +307,7 @@ class CreateChainProductPipelineRestartIT {
             .outcome()
             .outcomeClass());
 
-    verify(catalog, never()).resolveOrCreateChain(anyString(), anyString(), any());
+    verify(catalog, never()).resolveOrCreateChain(anyString(), anyString(), any(), any());
     verify(catalog, never()).applyGraph(any(), any(), any());
     assertEquals(0, chainCreates.get());
     assertEquals(0, elementCreates.get());
@@ -411,7 +411,7 @@ class CreateChainProductPipelineRestartIT {
   }
 
   private void stubCatalogHappyPath() {
-    when(catalog.resolveOrCreateChain(anyString(), anyString(), any()))
+    when(catalog.resolveOrCreateChain(anyString(), anyString(), any(), any()))
         .thenAnswer(
             invocation -> {
               chainCreates.incrementAndGet();

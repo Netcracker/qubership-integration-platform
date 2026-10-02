@@ -24,7 +24,8 @@ public record RequirementBrief(
     List<MappingIntent> mappingIntents,
     RequirementFlow flow,
     List<CatalogBindingHint> catalogBindings,
-    List<Transition> skippedTransitions) {
+    List<Transition> skippedTransitions,
+    String targetFolderPath) {
 
   public RequirementBrief {
     inputs = inputs == null ? List.of() : List.copyOf(inputs);
@@ -46,6 +47,46 @@ public record RequirementBrief(
             ? null
             : approvedDraftReference.trim();
     approvedDraftText = approvedDraftText == null ? "" : approvedDraftText;
+    targetFolderPath =
+        targetFolderPath == null || targetFolderPath.isBlank() ? null : targetFolderPath.strip();
+  }
+
+  /** Previous full constructor before the author's target folder was pinned on the brief. */
+  public RequirementBrief(
+      String goal,
+      List<String> inputs,
+      List<String> constraints,
+      List<String> assumptions,
+      List<QipKnowledgeCitation> citations,
+      String summary,
+      String approvedDraftReference,
+      String approvedDraftText,
+      List<RequirementFact> facts,
+      List<RequirementEntryPoint> entryPoints,
+      List<RequirementServiceCall> serviceCalls,
+      List<RequirementFact> requirements,
+      List<MappingIntent> mappingIntents,
+      RequirementFlow flow,
+      List<CatalogBindingHint> catalogBindings,
+      List<Transition> skippedTransitions) {
+    this(
+        goal,
+        inputs,
+        constraints,
+        assumptions,
+        citations,
+        summary,
+        approvedDraftReference,
+        approvedDraftText,
+        facts,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents,
+        flow,
+        catalogBindings,
+        skippedTransitions,
+        null);
   }
 
   /** Previous full constructor before skip records were pinned on the brief. */
@@ -209,7 +250,8 @@ public record RequirementBrief(
         mappingIntents,
         flow,
         catalogBindings,
-        skippedTransitions);
+        skippedTransitions,
+        targetFolderPath);
   }
 
   public RequirementBrief withServiceCalls(List<RequirementServiceCall> serviceCalls) {
@@ -297,6 +339,29 @@ public record RequirementBrief(
         mappingIntents,
         flow,
         catalogBindings,
-        skippedTransitions);
+        skippedTransitions,
+        targetFolderPath);
+  }
+
+  /** Same brief with the catalog folder the author asked to create the chain in. */
+  public RequirementBrief withTargetFolderPath(String targetFolderPath) {
+    return new RequirementBrief(
+        goal,
+        inputs,
+        constraints,
+        assumptions,
+        citations,
+        summary,
+        approvedDraftReference,
+        approvedDraftText,
+        facts,
+        entryPoints,
+        serviceCalls,
+        requirements,
+        mappingIntents,
+        flow,
+        catalogBindings,
+        skippedTransitions,
+        targetFolderPath);
   }
 }

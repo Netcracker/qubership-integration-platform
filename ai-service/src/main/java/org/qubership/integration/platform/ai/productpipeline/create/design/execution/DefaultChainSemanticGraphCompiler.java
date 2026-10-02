@@ -137,7 +137,8 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
                 null,
                 null,
                 revision.revisionId(),
-                revision.compilerContractVersion()),
+                revision.compilerContractVersion(),
+                brief == null ? null : brief.targetFolderPath()),
             List.copyOf(planNodes),
             List.copyOf(planEdges));
     for (ResolvedServiceCallBinding binding : bindings) {

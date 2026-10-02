@@ -109,7 +109,7 @@ class CatalogGraphMaterializerTest {
   void createPathCallsTheSameApplyAsEdit() {
     CatalogGraphMaterializer spyMaterializer = spy(materializer);
     CatalogChainPublicationService publicationService = mock(CatalogChainPublicationService.class);
-    when(publicationService.resolveOrCreate(any(), any(), any())).thenReturn(CHAIN_ID);
+    when(publicationService.resolveOrCreate(any(), any(), any(), any())).thenReturn(CHAIN_ID);
     CatalogMutationGateway gateway =
         new CatalogMutationGateway(
             spyMaterializer,

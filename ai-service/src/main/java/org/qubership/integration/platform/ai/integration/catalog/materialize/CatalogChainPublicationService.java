@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainLabel;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainSearchRequest;
@@ -23,13 +24,28 @@ public class CatalogChainPublicationService {
   private static final String CHAIN_ITEM_TYPE = "CHAIN";
 
   private final CatalogRestClient catalogRestClient;
+  private final CatalogFolders folders;
 
   @Inject
   public CatalogChainPublicationService(@RestClient CatalogRestClient catalogRestClient) {
     this.catalogRestClient = catalogRestClient;
+    this.folders = new CatalogFolders(catalogRestClient);
   }
 
   public String resolveOrCreate(String pipelineId, String chainName, String chainDescription) {
+    return resolveOrCreate(pipelineId, chainName, chainDescription, null);
+  }
+
+  /**
+   * Returns the chain this pipeline already published, or creates it in {@code folderPath}.
+   *
+   * <p>The folder is resolved, and created level by level, only when the chain is created: a chain
+   * found by its attempt label stays where it is. A bare folder name that several folders share
+   * fails with {@link org.qubership.integration.platform.ai.chain.folder.AmbiguousFolderException}
+   * rather than guessing.
+   */
+  public String resolveOrCreate(
+      String pipelineId, String chainName, String chainDescription, String folderPath) {
     if (pipelineId == null || pipelineId.isBlank()) {
       throw new IllegalArgumentException("pipelineId is required");
     }
@@ -54,11 +70,13 @@ public class CatalogChainPublicationService {
       throw new AmbiguousPublicationAttemptException(attemptLabel, existing);
     }
 
+    String parentId =
+        folderPath == null || folderPath.isBlank() ? null : folders.resolveOrCreateId(folderPath);
     try {
       CatalogRestClient.ChainDto created =
           catalogRestClient.createChain(
               CatalogCreateChainRequest.forPublicationAttempt(
-                  chainName, chainDescription, attemptLabel));
+                  chainName, chainDescription, attemptLabel, parentId));
       String chainId = requireChainId(created);
       LOG.infof(
           "Catalog chain created for attempt: pipelineId=%s attemptLabel=%s chainId=%s",

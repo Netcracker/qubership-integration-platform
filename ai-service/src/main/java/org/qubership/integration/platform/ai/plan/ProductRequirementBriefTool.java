@@ -241,7 +241,8 @@ public class ProductRequirementBriefTool {
           approved.facts())
           .withMappingIntents(approvedMappings(approved, capture))
           .withFlow(approved.flow())
-          .withCatalogBindings(approved.catalogBindings());
+          .withCatalogBindings(approved.catalogBindings())
+          .withTargetFolderPath(targetFolderPath(approved));
       brief = RequirementBriefProjector.project(brief);
       String coverageError = coverageValidator.validate(approved, brief).orElse(null);
       if (coverageError != null) {
@@ -266,6 +267,11 @@ public class ProductRequirementBriefTool {
     feedbackStore.clearPlan(conversationId);
     ProductCapabilityCaptureContext.offerBrief(binding, brief);
     return new Result(true, true, "HANDOFF", List.of(), message);
+  }
+
+  private static String targetFolderPath(RequirementDraft approved) {
+    return approved.authoredDraft() == null
+        ? null : approved.authoredDraft().settings().targetFolderPath();
   }
 
   private Result repair(

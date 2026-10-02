@@ -130,6 +130,12 @@ public sealed interface ChatEvent {
   /** Leaves the chain and MaaS topics unchanged. */
   String DISMISS_MAAS_KAFKA_TOPICS_ACTION = "dismiss-maas-kafka-topics";
 
+  /** Runs a confirmed bulk move or folder delete on the chains page. */
+  String APPLY_CHAIN_LIST_CHANGE_ACTION = "apply-chain-list-change";
+
+  /** Leaves the chains and folders as they are. */
+  String CANCEL_CHAIN_LIST_CHANGE_ACTION = "cancel-chain-list-change";
+
   /** Session logging Off, chosen on the card that runs before createDeployment. */
   String SESSION_LOGGING_OFF_ACTION = "session-logging-off";
 
@@ -170,6 +176,9 @@ public sealed interface ChatEvent {
 
   /** Artifact type a missing Kafka MaaS topics card binds to. */
   String MAAS_KAFKA_TOPICS_ARTIFACT = "MAAS_KAFKA_TOPICS";
+
+  /** Artifact type a chains-page change card binds to. */
+  String CHAIN_LIST_CHANGE_ARTIFACT = "CHAIN_LIST_CHANGE";
 
   /** Wire actions for the IDS path-choice gate; the interface renders them as Yes / No. */
   List<String> IDS_PATH_CHOICE_ACTIONS = List.of("yes", "no");
@@ -494,6 +503,26 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         List.of(UNDEPLOY_ACTION, CANCEL_UNDEPLOY_ACTION));
+  }
+
+  /**
+   * A pending bulk move or folder delete on the chains page, offered as its own decision.
+   *
+   * <p>Bound to the pending operation it lists, so an answer to a card the conversation has moved
+   * past cannot move or delete chains the reader never saw.
+   */
+  static ChatEvent chainListChangeDecision(String operationId, String question) {
+    Objects.requireNonNull(operationId, "operationId");
+    return new Decision(
+        "chain-list-change:" + operationId,
+        APPROVE_ACTION,
+        question == null ? "" : question.strip(),
+        CHAIN_LIST_CHANGE_ARTIFACT,
+        operationId,
+        0L,
+        null,
+        List.of(),
+        List.of(APPLY_CHAIN_LIST_CHANGE_ACTION, CANCEL_CHAIN_LIST_CHANGE_ACTION));
   }
 
   static ChatEvent deploymentProcessingDecision(String deploymentId, String question) {
