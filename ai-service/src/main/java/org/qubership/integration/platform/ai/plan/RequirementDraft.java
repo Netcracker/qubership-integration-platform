@@ -422,7 +422,8 @@ public record RequirementDraft(
             authoredDraft.flow(), authoredDraft.facts(), authoredDraft.capabilities(),
             authoredDraft.openQuestions(), new RequirementCaptureInput.DraftSettings(
                 authoredDraft.settings().idsRequested(),
-                normalized == null ? null : RequirementCaptureInput.SystemType.valueOf(normalized))));
+                normalized == null ? null : RequirementCaptureInput.SystemType.valueOf(normalized),
+                authoredDraft.settings().targetFolderPath())));
   }
 
   public boolean readyForPlan() {
@@ -502,7 +503,8 @@ public record RequirementDraft(
         authoredDraft == null ? null : new RequirementCaptureInput.DraftInput(
             authoredDraft.flow(), authoredDraft.facts(), authoredDraft.capabilities(),
             authoredDraft.openQuestions(), new RequirementCaptureInput.DraftSettings(
-                requested, authoredDraft.settings().preferredSystemType())));
+                requested, authoredDraft.settings().preferredSystemType(),
+                authoredDraft.settings().targetFolderPath())));
   }
 
   /** Same draft with a captured business interaction graph. */

@@ -118,7 +118,9 @@ public class ChatExecutionService {
         || ChatEvent.DISMISS_DEPLOYMENT_FAILURE_ACTION.equals(action)
         || ChatEvent.CREATE_MAAS_KAFKA_TOPICS_ACTION.equals(action)
         || ChatEvent.DISMISS_MAAS_KAFKA_TOPICS_ACTION.equals(action)
-        || ChatEvent.SESSION_LOGGING_ACTIONS.contains(action);
+        || ChatEvent.SESSION_LOGGING_ACTIONS.contains(action)
+        || ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION.equals(action)
+        || ChatEvent.CANCEL_CHAIN_LIST_CHANGE_ACTION.equals(action);
   }
 
   /** The click names the scenario, so the router does not guess it from transcript wording. */
@@ -134,6 +136,11 @@ public class ChatExecutionService {
     }
     if (ChatEvent.PROPOSE_DEPLOYMENT_FIX_ACTION.equals(action)) {
       request.setScenarioHint(ScenarioType.COMPARE_AND_PATCH);
+      return;
+    }
+    if (ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION.equals(action)
+        || ChatEvent.CANCEL_CHAIN_LIST_CHANGE_ACTION.equals(action)) {
+      request.setScenarioHint(ScenarioType.MANAGE_CHAIN_LIST);
       return;
     }
     if (ChatEvent.REDEPLOY_ACTION.equals(action)

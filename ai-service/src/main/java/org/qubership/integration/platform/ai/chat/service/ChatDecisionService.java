@@ -343,6 +343,9 @@ public class ChatDecisionService {
               "Create the missing Kafka MaaS topics";
           case ChatEvent.DISMISS_MAAS_KAFKA_TOPICS_ACTION ->
               "Leave the chain and MaaS topics unchanged";
+          case ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION -> "Apply the change to chains and folders";
+          case ChatEvent.CANCEL_CHAIN_LIST_CHANGE_ACTION ->
+              "Leave the chains and folders as they are";
           default -> "Answered " + command.getAction();
         };
     String comment = command.getComment() == null ? "" : command.getComment().strip();

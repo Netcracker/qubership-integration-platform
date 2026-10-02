@@ -69,6 +69,48 @@ class CatalogChainPublicationServiceTest {
   }
 
   @Test
+  void createsChainInTheRequestedFolderAddingMissingLevels() {
+    when(catalogRestClient.searchFolderItems(new CatalogChainSearchRequest(ATTEMPT_LABEL)))
+        .thenReturn(List.of());
+    when(catalogRestClient.listFolder(CatalogRestClient.ListFolderRequest.of(null)))
+        .thenReturn(
+            List.of(new CatalogRestClient.FolderItemDto("f1", "Integrations", null, "FOLDER", null)));
+    when(catalogRestClient.listFolder(CatalogRestClient.ListFolderRequest.of("f1")))
+        .thenReturn(List.of());
+    when(catalogRestClient.createFolder(
+            new CatalogRestClient.FolderWriteRequest("f1", "Salesforce", null)))
+        .thenReturn(new CatalogRestClient.FolderItemDto("f2", "Salesforce", null, "FOLDER", null));
+    CatalogCreateChainRequest expected =
+        CatalogCreateChainRequest.forPublicationAttempt("demo-chain", "Demo", ATTEMPT_LABEL, "f2");
+    when(catalogRestClient.createChain(expected))
+        .thenReturn(new CatalogRestClient.ChainDto("chain-new", "demo-chain", "Demo"));
+
+    String chainId =
+        service.resolveOrCreate(PIPELINE_ID, "demo-chain", "Demo", "integrations/Salesforce");
+
+    assertEquals("chain-new", chainId);
+    verify(catalogRestClient).createChain(expected);
+  }
+
+  @Test
+  void reusedChainLeavesFoldersAlone() {
+    when(catalogRestClient.searchFolderItems(new CatalogChainSearchRequest(ATTEMPT_LABEL)))
+        .thenReturn(
+            List.of(
+                new CatalogRestClient.FolderItemDto(
+                    "chain-1",
+                    "demo-chain",
+                    "Demo",
+                    "CHAIN",
+                    List.of(new CatalogChainLabel(ATTEMPT_LABEL, true)))));
+
+    assertEquals(
+        "chain-1", service.resolveOrCreate(PIPELINE_ID, "demo-chain", "Demo", "Integrations"));
+    verify(catalogRestClient, never()).listFolder(any());
+    verify(catalogRestClient, never()).createFolder(any());
+  }
+
+  @Test
   void throwsAmbiguousWhenMultipleMatchesOnSearch() {
     when(catalogRestClient.searchFolderItems(new CatalogChainSearchRequest(ATTEMPT_LABEL)))
         .thenReturn(

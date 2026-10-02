@@ -298,6 +298,10 @@ public final class RequirementCaptureProjection {
       text.append("- Catalog operation for ").append(labels.get(binding.interactionId()))
           .append(": ").append(binding.operationQuery()).append(".\n");
     }
+    if (!blank(input.settings().targetFolderPath())) {
+      text.append("- Catalog folder for the new chain: ")
+          .append(input.settings().targetFolderPath().strip()).append(".\n");
+    }
     for (QuestionInput question : input.openQuestions()) {
       text.append("- Open question: ").append(question.text()).append('\n');
     }

@@ -102,6 +102,41 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public List<FolderItemDto> filterFolderItems(List<FilterDto> filters) {
+    throw new UnsupportedOperationException("filterFolderItems");
+  }
+
+  @Override
+  public ChainDto moveChain(String chainId, String targetFolderId) {
+    throw new UnsupportedOperationException("moveChain");
+  }
+
+  @Override
+  public FolderItemDto createFolder(FolderWriteRequest body) {
+    throw new UnsupportedOperationException("createFolder");
+  }
+
+  @Override
+  public FolderItemDto updateFolder(String folderId, FolderWriteRequest body) {
+    throw new UnsupportedOperationException("updateFolder");
+  }
+
+  @Override
+  public void deleteFolder(String folderId) {
+    throw new UnsupportedOperationException("deleteFolder");
+  }
+
+  @Override
+  public FolderItemDto moveFolder(MoveFolderRequest body) {
+    throw new UnsupportedOperationException("moveFolder");
+  }
+
+  @Override
+  public List<FolderItemDto> listFolder(ListFolderRequest body) {
+    throw new UnsupportedOperationException("listFolder");
+  }
+
+  @Override
   public SnapshotDto createSnapshot(String chainId) {
     ChainState chain = requireChain(chainId);
     String name = "V" + (chain.snapshots.size() + 1);

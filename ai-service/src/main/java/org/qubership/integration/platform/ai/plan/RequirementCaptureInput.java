@@ -111,7 +111,17 @@ public final class RequirementCaptureInput {
 
   public record DraftSettings(
       @NullableCaptureValue Boolean idsRequested,
-      @NullableCaptureValue SystemType preferredSystemType) {}
+      @NullableCaptureValue SystemType preferredSystemType,
+      @NullableCaptureValue(description = "Catalog folder the user asked to put the new chain in,"
+          + " as written: a folder name, or a path from the root such as Integrations/Salesforce."
+          + " Missing folders are created with the chain. Null when the user named no folder.")
+          String targetFolderPath) {
+
+    /** Keeps existing test and call sites on the two-field constructor. */
+    public DraftSettings(Boolean idsRequested, SystemType preferredSystemType) {
+      this(idsRequested, preferredSystemType, null);
+    }
+  }
 
   public enum SystemType {
     INTERNAL,

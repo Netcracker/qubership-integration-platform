@@ -49,7 +49,8 @@ public final class RequirementBriefProjector {
         requirementsFrom(facts, entryPoints, serviceCalls),
         mappingIntentsFor(brief),
         brief.flow(),
-        brief.catalogBindings());
+        brief.catalogBindings())
+        .withTargetFolderPath(brief.targetFolderPath());
   }
 
   /**

@@ -275,6 +275,41 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public List<FolderItemDto> filterFolderItems(List<FilterDto> filters) {
+    throw unsupported("filterFolderItems");
+  }
+
+  @Override
+  public ChainDto moveChain(String chainId, String targetFolderId) {
+    throw unsupported("moveChain");
+  }
+
+  @Override
+  public FolderItemDto createFolder(FolderWriteRequest body) {
+    throw unsupported("createFolder");
+  }
+
+  @Override
+  public FolderItemDto updateFolder(String folderId, FolderWriteRequest body) {
+    throw unsupported("updateFolder");
+  }
+
+  @Override
+  public void deleteFolder(String folderId) {
+    throw unsupported("deleteFolder");
+  }
+
+  @Override
+  public FolderItemDto moveFolder(MoveFolderRequest body) {
+    throw unsupported("moveFolder");
+  }
+
+  @Override
+  public List<FolderItemDto> listFolder(ListFolderRequest body) {
+    throw unsupported("listFolder");
+  }
+
+  @Override
   public SnapshotDto createSnapshot(String chainId) {
     throw unsupported("createSnapshot");
   }
