@@ -352,11 +352,19 @@ class CompilerDerivedPlanningSpineTest {
     when(adapter.execute(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
         .thenReturn(new CompilerNodeExecutionResult(List.of(), List.of()));
 
+    workspaceStore.putArtifact(conversationId, SkillArtifact.of(
+        SkillArtifactType.NAMING_MANIFEST, "cip-naming-generator",
+        new SkillArtifactPayload.NamingManifestPayload(
+            new org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest(
+                1, "sales", Map.of("trigger", "Receive sales request"), List.of(), List.of()))));
     spine.execute(request(conversationId)).await().indefinitely();
 
     SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
     assertTrue(workspace.get(SkillArtifactType.GRAPH_ASSEMBLY_RESULT).isPresent());
     assertTrue(workspace.get(SkillArtifactType.COMPILER_VALIDATION_BUNDLE).isPresent());
+    GraphAssemblyResult assembly = ((SkillArtifactPayload.GraphAssemblyResultPayload)
+        workspace.get(SkillArtifactType.GRAPH_ASSEMBLY_RESULT).orElseThrow().payload()).result();
+    assertEquals("Receive sales request", assembly.graph().nodes().get(0).label());
   }
 
   @Test

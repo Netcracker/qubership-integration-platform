@@ -584,6 +584,26 @@ class GraphPatchOwnershipValidatorTest {
     assertSame(before, result.graph());
   }
 
+  @Test
+  void preservesResolvedChainCallAddressUntilAnExplicitTargetEdit() {
+    ChainPlanGraph graph = new ChainPlanGraph("1.0", new ChainSection("demo", null),
+        List.of(new ChainPlanNode("call", "chain-call-2", "Call", null, null,
+            List.of(new PlanProperty("elementId", "target-trigger-id")))), List.of());
+    GraphPatchOwnershipPolicy policy = ownership(false, false, Set.of("chain-call-2"),
+        Set.of(), Map.of("chain-call-2", Set.of("elementId")));
+    GraphPatch wrong = patchOwnedBy("cip-composition-generator", property("call", "elementId", "target-chain-id"));
+    assertFalse(applier.apply(context(graph, policy), wrong).validationResult().valid());
+    assertTrue(applier.apply(context(graph, policy), patchOwnedBy("cip-composition-generator",
+        property("call", "elementId", "target-trigger-id"))).validationResult().valid());
+    assertTrue(applier.apply(context(graph, policy, List.of("call")), wrong).validationResult().valid());
+    GraphPatch nodeUpdate = new GraphPatch("replace-call", "cip-composition-generator",
+        List.of(new NodePatch(GraphPatchOperation.UPDATE,
+            new ChainPlanNode("call", "chain-call-2", "Call", null, null,
+                List.of(new PlanProperty("elementId", "target-chain-id"))), "call")),
+        List.of(), List.of(), List.of(), List.of(), "Update call");
+    assertFalse(applier.apply(context(graph, policy), nodeUpdate).validationResult().valid());
+  }
+
   private static GraphPatch patchOwnedBy(String owner, PropertyPatch propertyPatch) {
     return new GraphPatch(
         "patch-foreign-property",

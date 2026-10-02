@@ -645,6 +645,13 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     claimOwner(split.regionId(), split.ownerNodeId(), index, ownerToRegion, errors);
     requireNode(split.reconvergenceNodeId(), "Split reconvergence", index, errors);
     String topologyKey = split.mode() == SplitMode.ASYNC ? "split-async-2" : "split-2";
+    SemanticNode owner = index.nodes.get(split.ownerNodeId());
+    if (owner != null && !topologyKey.equals(elementType(owner))) {
+      errors.add(
+          "Split '" + split.regionId() + "' mode " + split.mode()
+              + " does not match owner element '" + elementType(owner)
+              + "'; expected '" + topologyKey + "'");
+    }
     TopologyContract topology = contract.topology().get(topologyKey);
     if (topology != null && !topology.supported()) {
       errors.add("Unsupported topology: " + topologyKey);
@@ -655,6 +662,15 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
             : minRole(contract.elements().get(topologyKey), splitRole(split.mode()), 1);
     if (split.branches().size() < minimumBranches) {
       errors.add(topologyKey + " requires at least " + minimumBranches + " branch");
+    }
+    if (split.mainBranchId() != null) {
+      if (split.mode() == SplitMode.ASYNC) {
+        errors.add("Async split '" + split.regionId() + "' cannot declare a main branch");
+      } else if (split.branches().stream()
+          .noneMatch(branch -> branch.branchId().equals(split.mainBranchId()))) {
+        errors.add("Split '" + split.regionId() + "' references an unknown main branch '"
+            + split.mainBranchId() + "'");
+      }
     }
     Set<String> branchIds = new HashSet<>();
     for (SemanticBranch.Split branch : split.branches()) {

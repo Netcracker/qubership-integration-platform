@@ -14,6 +14,7 @@ import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonCo
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
@@ -62,7 +63,7 @@ public class GatherRequirementsPromptBuilder {
   public String wrap(String conversationId, String userMessage, String responseLocale) {
     Optional<RequirementDraft> draft =
         draftStore != null ? draftStore.get(conversationId) : Optional.empty();
-    String mandatory = currentDraftBlock(draft)
+    String mandatory = currentDraftBlock(draft) + incompleteDraftBlock(draft)
         + lastCaptureRejectionBlock(conversationId, draft)
         + sourceDialogueBlock(conversationId, userMessage)
         + "\nPinned response locale: " + normalizedLocale(responseLocale) + "\n";
@@ -85,6 +86,19 @@ public class GatherRequirementsPromptBuilder {
           invoke implementation skills, or run the compiler spine. Answer the user's current
           question before asking for more requirements. Capture accepted requirement changes only;
           do not capture explanations, recommendations, or unselected alternatives.
+          When an explicit requirement conflicts with a company recommendation, explain the
+          requested value, the recommended value, and the consequence. Persist an open question
+          and ask the user which value to use. Do not silently replace the requested value or
+          treat the initial request as an informed exception. After the user answers, preserve
+          the selected requirement and the acknowledged policy conflict in the accepted draft.
+          Record each conflict as one positive CONSTRAINT fact scoped to the affected interaction,
+          with policyConflict containing policyId, propertyKey, requestedValue, recommendedValue,
+          questionId, and decision=null. Add the matching scoped open question. For external HTTP
+          accessControlType=NONE, use policyId=CORPORATE_CIP_STANDARDS:12.4 and recommend RBAC.
+          After a later user reply, update that same fact with decision=KEEP_REQUESTED or
+          USE_RECOMMENDED and remove its question. Keep both original values and the policy ID.
+          Do not ask again unless that requirement or recommendation changes. Technical schema
+          errors are not optional recommendations; explain unavailable choices and offer valid ones.
           Before making a QIP-specific capability, element, constraint, or pattern claim, call
           searchRequirementKnowledge with the user's question and ground a concise synthesis in the
           result. Do not show source names or identifiers in the answer and do not reproduce long
@@ -94,9 +108,10 @@ public class GatherRequirementsPromptBuilder {
           required capture and before the final answer. Complete all tool calls before writing
           user-visible prose. After that tool returns, write exactly one final answer; do not repeat
           or revise it. Use STAY for questions, advice, comparisons, or continued discussion. Use
-          CONTINUE only when the user asked to proceed with design or chain creation.
-          A request to prepare a design for approval is a request to proceed: use CONTINUE
-          after saving the known requirements. The later approval gate still applies.
+          CONTINUE only when the user asked to proceed and the saved draft has no missing fields.
+          If capture reports readiness PARTIAL or nextAction COMPLETE_DRAFT, call
+          updateRequirementDraft to complete the saved draft. Do not tell the user the draft is ready, and do not use
+          CONTINUE.
           Capture known requirements before catalog lookup or a clarifying question. When a
           business choice is unresolved, save the known interactions and facts as a partial
           draft with an open question. Do not end a create or design request without saving
@@ -253,6 +268,33 @@ public class GatherRequirementsPromptBuilder {
       }
     }
     return body.toString();
+  }
+
+  private static String incompleteDraftBlock(Optional<RequirementDraft> draft) {
+    if (draft.isEmpty()) {
+      return "";
+    }
+    RequirementDraft current = draft.get();
+    List<RequirementCaptureProjection.PendingWork> pending = current.authoredDraft() == null
+        ? List.of()
+        : RequirementCaptureProjection.pending(
+            current.authoredDraft(),
+            current.catalogBindings(),
+            RequirementCaptureProjection.resolvedTargets(current));
+    if (pending.isEmpty() && current.readyForPlan()) {
+      return "";
+    }
+    String gaps = pending.isEmpty()
+        ? current.readinessError().orElse("The saved draft is still partial.")
+        : pending.stream()
+            .map(work -> "- " + work.message())
+            .reduce("", (left, right) -> left + right + "\n");
+    return """
+
+        <incomplete-requirement-draft>
+        The saved draft is still partial. Call captureRequirementDraft again and fill the missing fields before CONTINUE. Do not tell the user the draft is ready.
+        %s</incomplete-requirement-draft>
+        """.formatted(gaps);
   }
 
   private String lastCaptureRejectionBlock(

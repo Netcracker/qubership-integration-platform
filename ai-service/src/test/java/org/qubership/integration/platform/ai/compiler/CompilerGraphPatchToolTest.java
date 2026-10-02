@@ -815,7 +815,7 @@ class CompilerGraphPatchToolTest {
   }
 
   @Test
-  void objectKeysBecomeHeaderModificationRemoveList() {
+  void rejectsObjectForHeaderModificationRemoveList() {
     bindHeaderModificationContext();
     GraphPatchCapture patch =
         new GraphPatchCapture(
@@ -833,18 +833,13 @@ class CompilerGraphPatchToolTest {
             List.of(),
             "Remove list sent as an object map");
 
-    CaptureValidationException terminal =
-        assertThrows(CaptureValidationException.class, () -> tool.captureGraphPatch(patch));
+    String result = tool.captureGraphPatch(patch);
 
-    assertTrue(terminal.getMessage().contains("Graph patch captured"));
-    GraphPatch stored =
-        captureSession
-            .get(
-                CaptureKey.capability(
-                    CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID),
-                GraphPatch.class)
-            .orElseThrow();
-    assertEquals("[\"test-removing\"]", stored.propertyPatches().get(0).property().value());
+    assertTrue(result.contains("Invalid property value"), result);
+    assertTrue(result.contains("arrayValue"), result);
+    assertTrue(captureSession.get(CaptureKey.capability(
+        CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, TRANSFORMATION_CAPABILITY_ID), GraphPatch.class)
+        .isEmpty());
   }
 
   @Test

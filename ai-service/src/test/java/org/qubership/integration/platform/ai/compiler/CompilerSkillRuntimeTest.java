@@ -64,6 +64,7 @@ import org.qubership.integration.platform.ai.qipknowledge.pack.FilesystemQipKnow
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackBuildGenerator;
 import org.qubership.integration.platform.ai.qipknowledge.pack.QipKnowledgePackTestSupport;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.PlanGraphValidationInput;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
@@ -1008,6 +1009,26 @@ class CompilerSkillRuntimeTest {
                         && artifact.payload()
                             instanceof SkillArtifactPayload.PlanCaptureOutcomePayload payload
                         && payload.captured()));
+  }
+
+  @Test
+  void requiresLabelsForEveryGraphNodeBeforeAcceptingNaming() {
+    CaptureKey key = CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID);
+    ChainPlanGraph graph = greetingsGraph();
+    NamingManifest partial = new NamingManifest(1, graph.chain().name(),
+        Map.of(graph.nodes().getFirst().nodeId(), "Receive request"), List.of(), List.of());
+    captureSession.accept(key, partial, "captured", "duplicate");
+
+    assertFalse(runtime.acceptCapturedNaming(CONVERSATION_ID, graph));
+    assertFalse(captureSession.isPresent(key));
+    assertTrue(feedbackStore.lastPlanFailure(CONVERSATION_ID).isPresent());
+
+    Map<String, String> labels = graph.nodes().stream().collect(java.util.stream.Collectors.toMap(
+        ChainPlanNode::nodeId, ChainPlanNode::label));
+    captureSession.accept(key, new NamingManifest(1, graph.chain().name(), labels, List.of(), List.of()),
+        "captured", "duplicate");
+    assertTrue(runtime.acceptCapturedNaming(CONVERSATION_ID, graph));
+    assertTrue(feedbackStore.lastPlanFailure(CONVERSATION_ID).isEmpty());
   }
 
   private static ChainPlanGraph graphWithMissingScriptBody() {

@@ -3209,7 +3209,7 @@ class ProductPipelineStageExecutorTest {
     AtomicReference<String> seenError = new AtomicReference<>();
     AtomicReference<String> seenFollowUp = new AtomicReference<>();
     StageCapability planning = planningRepairCandidate(seenError, seenFollowUp);
-    StageCapability execution = executionRbacValidationFailure(executionCalls);
+    StageCapability execution = executionMissingBriefFactsValidationFailure(executionCalls);
     ProductPipelineProfile profile = planningThenExecutionProfile();
     CreateChainTestOrchestrator runtime =
         newRuntime(new FailureNarrative(agent), profile, planning, execution);
@@ -3603,7 +3603,7 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void rbacValidationOnExecutionHaltsWithReviseOwnedByPlanningNotSelf() {
+  void rbacValidationOnExecutionAsksForTheMissingValue() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
     AtomicInteger executionCalls = new AtomicInteger();
@@ -3618,20 +3618,19 @@ class ProductPipelineStageExecutorTest {
     approveCurrentStage(runtime, "design-planning");
 
     StageExecutionResult failed = execute(runtime, "design-execution");
-    StageDecision.ReopenProducer reopen =
-        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
-    assertEquals("design-planning", reopen.producerStageId());
-    assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+    assertMissingValueQuestion(
+        failed.decision(), "External route requires accessControlType=RBAC");
+    assertEquals("design-execution", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
     assertEquals(1, executionCalls.get());
     applyLifecycle(runtime, failed);
 
-    assertEquals("design-planning", requireRun().run().currentStageId());
-    assertNotEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals(1, executionCalls.get());
   }
 
   @Test
-  void policyValidationOnExecutionHaltsWithReviseOwnedByPlanningWhenBriefIsInSet() {
+  void policyValidationOnExecutionAsksWhenTheBriefIsAlreadyApproved() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
     AtomicInteger executionCalls = new AtomicInteger();
@@ -3648,24 +3647,20 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "design-planning");
 
     StageExecutionResult failed = execute(runtime, "design-execution");
-    StageDecision.ReopenProducer reopen =
-        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
-    assertEquals("design-planning", reopen.producerStageId());
-    assertEquals("design-planning", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
+    assertMissingValueQuestion(
+        failed.decision(), "External route requires accessControlType=RBAC");
+    assertEquals("design-execution", runtime.support().diagnosedOwnerStageId(RUN_ID).orElseThrow());
     assertEquals(1, executionCalls.get());
     applyLifecycle(runtime, failed);
 
-    StageExecutionResult planning = execute(runtime, "design-planning");
-    applyLifecycle(runtime, planning);
-
-    assertEquals("design-planning", requireRun().run().currentStageId());
-    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
     assertEquals(1, executionCalls.get());
   }
 
   @Test
-  void planFillValidationOnExecutionHaltsWithReviseOwnedByPlanningWhenBriefIsInSet() {
+  void planFillValidationOnExecutionAsksForTheMissingProperty() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
     AtomicInteger executionCalls = new AtomicInteger();
@@ -3682,13 +3677,12 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "design-planning");
 
     StageExecutionResult failed = execute(runtime, "design-execution");
-    StageDecision.ReopenProducer reopen =
-        assertInstanceOf(StageDecision.ReopenProducer.class, failed.decision());
-    assertEquals("design-planning", reopen.producerStageId());
+    assertMissingValueQuestion(
+        failed.decision(), "Missing required property on http-trigger");
     applyLifecycle(runtime, failed);
 
-    assertEquals("design-planning", requireRun().run().currentStageId());
-    assertNotEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals(1, executionCalls.get());
   }
 
@@ -3718,11 +3712,15 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "design-planning");
 
     StageExecutionResult secondFailure = execute(runtime, "design-execution");
-    StageDecision.ReopenProducer secondReopen =
-        assertInstanceOf(StageDecision.ReopenProducer.class, secondFailure.decision());
-    assertEquals("design-planning", secondReopen.producerStageId());
+    assertMissingValueQuestion(
+        secondFailure.decision(), "Missing required property on http-trigger");
     applyLifecycle(runtime, secondFailure);
-    approveStage(runtime, "design-planning");
+    runtime
+        .recordInput(new AcceptInputCommand(RUN_ID, "retryDelay=1000"))
+        .collect()
+        .asList()
+        .await()
+        .indefinitely();
 
     StageDecision.Complete complete =
         assertInstanceOf(
@@ -3732,7 +3730,7 @@ class ProductPipelineStageExecutorTest {
     assertEquals(RunStatus.PLAN_APPROVED, requireRun().run().status());
     assertEquals(3, executionCalls.get());
     assertEquals(
-        2,
+        1,
         requireRun().transitions().stream()
             .filter(transition -> RecoveryAttemptLedger.isReopenReason(transition.reason()))
             .count());
@@ -3743,17 +3741,9 @@ class ProductPipelineStageExecutorTest {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("Design execution could not complete.", "design-execution");
     AtomicInteger executionCalls = new AtomicInteger();
-    AtomicReference<String> seenError = new AtomicReference<>();
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
     StageCapability analysis = analysisCandidate();
-    StageCapability planning =
-        capability(
-            "planning-cap",
-            context -> {
-              seenError.set(
-                  context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
-              return planningAlwaysCandidate().execute(context);
-            });
+    StageCapability planning = planningAlwaysCandidate();
     StageCapability execution = executionPlanFillValidationFailure(executionCalls);
     CreateChainTestOrchestrator first =
         newRuntime(new FailureNarrative(agent), profile, analysis, planning, execution);
@@ -3761,11 +3751,11 @@ class ProductPipelineStageExecutorTest {
     approveStage(first, "requirement-analysis");
     approveStage(first, "design-planning");
     String approvedBriefId = snapshot(requireRun(), "requirement-analysis").approvedArtifactId();
+    String approvedPlanId = snapshot(requireRun(), "design-planning").approvedArtifactId();
 
     StageExecutionResult failure = execute(first, "design-execution");
-    assertEquals(
-        "design-planning",
-        assertInstanceOf(StageDecision.ReopenProducer.class, failure.decision()).producerStageId());
+    assertMissingValueQuestion(
+        failure.decision(), "Missing required property on http-trigger");
     applyLifecycle(first, failure);
 
     CreateChainTestOrchestrator restarted =
@@ -3777,29 +3767,13 @@ class ProductPipelineStageExecutorTest {
         .await()
         .indefinitely();
 
-    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
-    assertEquals("design-planning", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals("design-execution", requireRun().run().currentStageId());
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-analysis").status());
     assertEquals(
         approvedBriefId, snapshot(requireRun(), "requirement-analysis").approvedArtifactId());
-    assertEquals(
-        StageStatus.WAITING_FOR_APPROVAL, snapshot(requireRun(), "design-planning").status());
-    assertNull(snapshot(requireRun(), "design-planning").approvedArtifactId());
-    Reference repairedPlan = snapshot(requireRun(), "design-planning").approvableReference();
-    assertNotNull(repairedPlan);
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
-    assertNull(snapshot(requireRun(), "design-execution").approvedArtifactId());
-    assertTrue(snapshot(requireRun(), "design-execution").outputRefs().isEmpty());
-    restarted
-        .recordApprove(new ApproveCommand(RUN_ID, repairedPlan, requireRun().run().runRevision()))
-        .collect()
-        .asList()
-        .await()
-        .indefinitely();
-
-    assertEquals("design-execution", requireRun().run().currentStageId());
-    assertNotNull(seenError.get());
-    assertFalse(seenError.get().isBlank());
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
+    assertEquals(approvedPlanId, snapshot(requireRun(), "design-planning").approvedArtifactId());
     assertEquals(1, executionCalls.get());
   }
 
@@ -4362,79 +4336,42 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "design-planning");
 
     StageExecutionResult failed = execute(runtime, "design-execution");
+    assertMissingValueQuestion(
+        failed.decision(), "External route requires accessControlType=RBAC");
     applyLifecycle(runtime, failed);
 
-    assertEquals("design-planning", requireRun().run().currentStageId());
-    assertNotEquals("design-execution", requireRun().run().currentStageId());
-    assertNotEquals("requirement-analysis", requireRun().run().currentStageId());
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertNotEquals("design-planning", requireRun().run().currentStageId());
     assertEquals(1, executionCalls.get());
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
   }
 
   @Test
-  void rbacHaltReopensPlanningWithHaltEvidenceAndWaitsForPlanApproval() {
+  void rbacHaltAsksForTheMissingValueOnExecution() {
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner(
             "Design execution could not complete.", "design-execution");
     AtomicInteger executionCalls = new AtomicInteger();
-    AtomicReference<String> seenError = new AtomicReference<>();
-    AtomicReference<String> seenOutcome = new AtomicReference<>();
-    AtomicReference<String> seenFailedStage = new AtomicReference<>();
-    AtomicReference<String> seenFindings = new AtomicReference<>();
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
-    StageCapability planning =
-        capability(
-            "planning-cap",
-            context -> {
-              seenError.set(
-                  context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
-              seenOutcome.set(
-                  context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR));
-              seenFailedStage.set(
-                  context.attributeAsString(
-                      ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR));
-              seenFindings.set(
-                  context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR));
-              String error =
-                  context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR);
-              boolean repairing = error != null && !error.isBlank();
-              Map<String, String> payload =
-                  repairing ? Map.of("plan", "rbac on http-trigger") : Map.of("plan", "ok");
-              return Multi.createFrom()
-                  .item(
-                      new CapabilitySignal.Completed(
-                          new StageOutcome(
-                              StageOutcomeClass.CANDIDATE,
-                              List.of(
-                                  new ArtifactCandidate(
-                                      Kind.IMPLEMENTATION_PLAN, payload, List.of())),
-                              "plan ready",
-                              null)));
-            });
     CreateChainTestOrchestrator runtime =
         newRuntime(
             new FailureNarrative(agent),
             profile,
             analysisCandidate(),
-            planning,
+            planningAlwaysCandidate(),
             executionRbacValidationFailure(executionCalls));
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
     StageExecutionResult failed = execute(runtime, "design-execution");
+    assertMissingValueQuestion(
+        failed.decision(), "External route requires accessControlType=RBAC");
     applyLifecycle(runtime, failed);
-    StageExecutionResult planningResult = execute(runtime, "design-planning");
-    applyLifecycle(runtime, planningResult);
 
-    assertEquals("design-planning", requireRun().run().currentStageId());
-    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
-    assertNotEquals("design-execution", requireRun().run().currentStageId());
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
-    assertNotNull(seenError.get());
-    assertTrue(seenError.get().toLowerCase(Locale.ROOT).contains("rbac"), seenError.get());
-    assertEquals("VALIDATION_FAILURE", seenOutcome.get());
-    assertEquals("design-execution", seenFailedStage.get());
-    assertTrue(seenFindings.get().toLowerCase(Locale.ROOT).contains("rbac"), seenFindings.get());
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
     assertEquals(1, executionCalls.get());
   }
 
@@ -4503,15 +4440,14 @@ class ProductPipelineStageExecutorTest {
     approveStage(runtime, "design-planning");
 
     StageExecutionResult failed = execute(runtime, "design-execution");
+    assertMissingValueQuestion(
+        failed.decision(), "External route requires accessControlType=RBAC");
     applyLifecycle(runtime, failed);
-    StageExecutionResult planningResult = execute(runtime, "design-planning");
-    applyLifecycle(runtime, planningResult);
 
-    assertEquals("design-planning", requireRun().run().currentStageId());
-    assertNotEquals("design-execution", requireRun().run().currentStageId());
-    assertEquals(RunStatus.WAITING_FOR_APPROVAL, requireRun().run().status());
+    assertEquals("design-execution", requireRun().run().currentStageId());
+    assertEquals(RunStatus.WAITING_FOR_INPUT, requireRun().run().status());
     assertEquals(1, executionCalls.get());
-    assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
+    assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
   }
 
   @Test
@@ -5210,6 +5146,13 @@ class ProductPipelineStageExecutorTest {
                           "plan ready",
                           null)));
         });
+  }
+
+  private static void assertMissingValueQuestion(StageDecision decision, String findingText) {
+    StageDecision.WaitForInput wait = assertInstanceOf(StageDecision.WaitForInput.class, decision);
+    assertEquals(
+        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+    assertTrue(wait.prompt().contains(findingText), wait.prompt());
   }
 
   private StageCapability executionMissingBriefFactsValidationFailure(

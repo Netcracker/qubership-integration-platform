@@ -134,6 +134,28 @@ class DefaultChainSemanticRevisionValidatorTest {
   }
 
   @Test
+  void treatsBlankOptionalAsyncNodeIdsAsAbsent() {
+    ChainSemanticRevision base = asyncSplitOneBranchRevision();
+    SemanticRegion.Split split = (SemanticRegion.Split) base.regions().getFirst();
+    for (String blank : List.of("", " ")) {
+      ChainSemanticRevision candidate = copy(
+          base, base.entryPoints(), base.nodes(),
+          List.of(new SemanticRegion.Split(
+              split.regionId(), split.ownerNodeId(), split.mode(), split.branches(),
+              blank, blank)),
+          base.executionEdges(), base.containment(), base.mappingIntents());
+      assertDoesNotThrow(() -> validate(candidate));
+    }
+    ChainSemanticRevision declaredMain = copy(
+        base, base.entryPoints(), base.nodes(),
+        List.of(new SemanticRegion.Split(
+            split.regionId(), split.ownerNodeId(), split.mode(), split.branches(),
+            split.reconvergenceNodeId(), split.branches().getFirst().branchId())),
+        base.executionEdges(), base.containment(), base.mappingIntents());
+    assertThrows(IllegalArgumentException.class, () -> validate(declaredMain));
+  }
+
+  @Test
   void acceptsQuartzSchedulerTriggerDeclaredByTheCompilerContract() {
     ChainSemanticRevision linear = linearRevision();
     List<SemanticNode> nodes = new ArrayList<>(linear.nodes());
@@ -158,6 +180,29 @@ class DefaultChainSemanticRevisionValidatorTest {
   void acceptsTypedReconvergenceAndSyncSplit() {
     assertDoesNotThrow(() -> validate(typedReconvergeRevision()));
     assertDoesNotThrow(() -> validate(syncSplitRevision()));
+  }
+
+  @Test
+  void rejectsSplitModeThatDoesNotMatchItsOwnerElement() {
+    for (ChainSemanticRevision base : List.of(syncSplitRevision(), asyncSplitOneBranchRevision())) {
+      SemanticRegion.Split split = (SemanticRegion.Split) base.regions().getFirst();
+      SplitMode wrongMode = split.mode() == SplitMode.SYNC ? SplitMode.ASYNC : SplitMode.SYNC;
+      ChainSemanticRevision rejected =
+          copy(
+              base,
+              base.entryPoints(),
+              base.nodes(),
+              List.of(new SemanticRegion.Split(
+                  split.regionId(), split.ownerNodeId(), wrongMode, split.branches(),
+                  split.reconvergenceNodeId())),
+              base.executionEdges(),
+              base.containment(),
+              base.mappingIntents());
+
+      IllegalArgumentException error =
+          assertThrows(IllegalArgumentException.class, () -> validate(rejected));
+      assertTrue(error.getMessage().contains("does not match owner element"), error.getMessage());
+    }
   }
 
   @Test

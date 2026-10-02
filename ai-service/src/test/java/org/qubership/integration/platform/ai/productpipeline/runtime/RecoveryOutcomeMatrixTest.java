@@ -19,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
@@ -39,6 +40,8 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageOut
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.FakeFailureNarrativeAgent;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
@@ -51,6 +54,9 @@ import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryOu
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
@@ -424,6 +430,55 @@ class RecoveryOutcomeMatrixTest {
   }
 
   private CreateChainTestOrchestrator lastRuntime;
+
+  @ParameterizedTest
+  @EnumSource(value = StageOutcomeClass.class, names = {"VALIDATION_FAILURE", "CONTRACT_FAILURE"})
+  void executionStructureFailureReopensCommittedDesignWithoutAnApprovalGate(StageOutcomeClass outcomeClass) {
+    ArtifactTypeRef semantic = new ArtifactTypeRef("chain-semantic-revision", 1);
+    ProductPipelineProfile profile = new ProductPipelineProfile(
+        1, "structure-reopen", "1", List.of(),
+        List.of(
+            new ProfileStage("design-input", "design-input-cap", List.of(), List.of(semantic),
+                null, null, new RetryPolicy(0, 1L)),
+            new ProfileStage("design-execution", "execution-cap", List.of(semantic), List.of(),
+                null, null, new RetryPolicy(0, 1L))),
+        new TerminalPolicy("design-execution", "PLAN_APPROVED"),
+        List.of("design-input-cap", "execution-cap"));
+    StageCapability failedExecution = capability("execution-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(StageOutcome.of(
+            outcomeClass,
+            "split-2 has no split-element-2 child",
+            RecoveryCause.of(RecoveryCauseCode.GRAPH_STRUCTURE)))));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, failedExecution);
+    var manifestRef = artifactStore.append(new CompilationArtifacts.AppendCommand(
+        RUN_ID, Kind.RUN_MANIFEST, "1", "test", "1", manifest(profile), List.of(), null,
+        new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+            RUN_ID, "bootstrap", profile.profileId(), "1", "profile-sha", "test", "1", "closure-sha")))
+        .reference();
+    var revisionRef = artifactStore.append(new CompilationArtifacts.AppendCommand(
+        RUN_ID, Kind.CHAIN_SEMANTIC_REVISION, ChainSemanticRevision.CURRENT_SCHEMA_VERSION, "design-input-cap", "1",
+        SemanticFixtures.linearOrders(), List.of(), null,
+        new org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance(
+            RUN_ID, "design-input", profile.profileId(), "1", "profile-sha", "design-input-cap", "1", "closure-sha")))
+        .reference();
+    runStore.create(new RunSnapshot(
+        RUN_ID, CONVERSATION, 1L, RunStatus.RUNNING, "design-execution",
+        List.of(
+            new StageSnapshot("design-input", StageStatus.SUCCEEDED, List.of(revisionRef), null),
+            new StageSnapshot("design-execution", StageStatus.RUNNING, List.of(), null)),
+        manifestRef));
+    runtime.support().bootstrap(
+        new StartOrResumeCommand(CONVERSATION, RUN_ID, profile, manifest(profile)), "test-flow");
+
+    var result = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.ReopenProducer.class, result.decision());
+    runtime.support().applyStageLifecycle(RUN_ID, result).collect().asList().await().indefinitely();
+
+    var after = runStore.load(RUN_ID).orElseThrow();
+    assertEquals("design-input", after.run().currentStageId());
+    assertTrue(after.run().runRevision() > 1L);
+    assertEquals(StageStatus.PENDING, after.run().stages().get(1).status());
+  }
 
   private void haltSingleStage(
       StageOutcomeClass outcomeClass, String evidence, RetryPolicy retry) {

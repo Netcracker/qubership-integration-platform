@@ -143,6 +143,11 @@ public final class ProducerOwnedRecovery {
       }
       return new Route(Action.ASK_CLARIFICATION, failed, cause.requestedFact());
     }
+    if (!request.catalogWritten()
+        && asksForMissingValue(cause)
+        && request.semanticRepairsUsed() < Math.max(request.maxSemanticRepairs(), 0)) {
+      return new Route(Action.ASK_CLARIFICATION, failed, missingValueFact(cause));
+    }
     FindingOwnerCategory category = HaltProducerCauseTable.ownerCategory(cause.causeCode());
     String diagnosed = request.diagnosedOwner().orElse("");
     Optional<String> selectedProducer =
@@ -172,6 +177,21 @@ public final class ProducerOwnedRecovery {
       return new Route(Action.PARK, failed);
     }
     return new Route(action, producer.isBlank() ? failed : producer);
+  }
+
+  /**
+   * A required value the author has not supplied. The clarification uses the finding text, which
+   * already names the property.
+   */
+  private static boolean asksForMissingValue(final RecoveryCause cause) {
+    RecoveryCauseCode code = cause.causeCode();
+    return code == RecoveryCauseCode.SECURITY_POLICY
+        || code == RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
+  }
+
+  private static String missingValueFact(final RecoveryCause cause) {
+    String findings = cause.formattedFindings();
+    return findings.isBlank() ? "missing required value" : findings;
   }
 
   private static Action actionFor(

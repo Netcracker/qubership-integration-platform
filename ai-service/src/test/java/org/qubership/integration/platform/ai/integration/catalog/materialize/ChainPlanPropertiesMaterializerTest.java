@@ -60,6 +60,22 @@ class ChainPlanPropertiesMaterializerTest {
   }
 
   @Test
+  void bindsChainTriggerToItsMaterializedElementId() throws Exception {
+    when(schemaService.allowedPatchPropertyKeys("chain-trigger-2")).thenReturn(Set.of("elementId"));
+    when(schemaService.validateElementPatch(eq("chain-trigger-2"), anyString()))
+        .thenReturn("{\"valid\":true}");
+    ChainPlanGraph graph = new ChainPlanGraph("1.0", new ChainSection("demo", null),
+        List.of(new ChainPlanNode("entry", "chain-trigger-2", "Trigger", null, null,
+            List.of(new PlanProperty("elementId", "Calling chain")))), List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("entry", "trigger-id"), Map.of(), Map.of());
+
+    assertEquals(1, materializer.apply(graph, map).patchedCount());
+    ArgumentCaptor<Map<String, Object>> patch = ArgumentCaptor.forClass(Map.class);
+    verify(catalogRestClient).updateElement(eq("chain-1"), eq("trigger-id"), patch.capture());
+    assertEquals("trigger-id", ((Map<?, ?>) patch.getValue().get("properties")).get("elementId"));
+  }
+
+  @Test
   void patchesNameForPropertyLessShellNodes() throws Exception {
     when(schemaService.allowedPatchPropertyKeys("condition")).thenReturn(Set.of());
     when(schemaService.validateElementPatch(eq("condition"), anyString()))

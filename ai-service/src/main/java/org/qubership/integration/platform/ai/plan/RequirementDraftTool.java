@@ -699,11 +699,11 @@ public class RequirementDraftTool {
         }
       }
 
-      if (decision == DraftDecision.READY_FOR_PLAN
+      if ((decision == DraftDecision.READY_FOR_PLAN || decision == DraftDecision.NEEDS_INPUT)
           && !boundFlow.interactions().isEmpty()) {
         List<CatalogRestClient.OperationDto> missingOperations =
             missingExplicitCatalogOperations(
-                conversationId, capture.assembledText(), facts, boundFlow, catalogBindings);
+                conversationId, capture.assembledText(), facts, boundFlow);
         if (!missingOperations.isEmpty()) {
           List<String> missingDescriptions = new ArrayList<>();
           for (CatalogRestClient.OperationDto operation : missingOperations) {
@@ -1687,8 +1687,7 @@ public class RequirementDraftTool {
       String conversationId,
       String assembledText,
       List<RequirementFact> facts,
-      RequirementFlow flow,
-      List<CatalogBindingHint> catalogBindings) {
+      RequirementFlow flow) {
     if (catalogCache == null) {
       return List.of();
     }
@@ -1704,13 +1703,8 @@ public class RequirementDraftTool {
           flow.interactions().stream()
               .filter(interaction -> operationOccurrences(interaction.operation(), operation, remembered) > 0)
               .count();
-      long requiredOccurrences = Math.max(flowOccurrences, Math.max(textOccurrences, factPresence));
-      long boundOccurrences =
-          catalogBindings.stream()
-              .filter(Objects::nonNull)
-              .filter(binding -> operation.id().equals(binding.integrationOperationId()))
-              .count();
-      if (requiredOccurrences > boundOccurrences) {
+      long requiredMentions = Math.max(textOccurrences, factPresence);
+      if (requiredMentions > flowOccurrences) {
         missing.add(operation);
       }
     }
@@ -1733,8 +1727,10 @@ public class RequirementDraftTool {
       if (fact == null || fact.polarity() != RequirementFactPolarity.POSITIVE) {
         continue;
       }
-      if (operationOccurrences(fact.text(), operation, remembered) > 0
-          || structuredOperationMatches(fact.operation(), operation)) {
+      if (structuredOperationMatches(fact.operation(), operation)
+          || operationOccurrences(
+                  withoutRequestResponseReferences(fact.text(), operation), operation, remembered)
+              > 0) {
         return 1;
       }
     }
@@ -2084,34 +2080,101 @@ public class RequirementDraftTool {
         .toList();
   }
 
-  /** A cached API Hub candidate is stale when its flow interaction already has a catalog bind. */
+  /**
+   * A cached API Hub candidate is stale once every catalog-required interaction is bound. An
+   * unclassified outbound step is a sender question, not a pending import.
+   */
   private static boolean candidateSatisfiedByCatalog(
       ApiHubRequirementRefs candidate,
       RequirementFlow flow,
       List<RequirementFact> facts,
       List<CatalogBindingHint> catalogBindings) {
     String operationId = CatalogStrings.blankToNull(candidate.operationId());
-    if (flow == null || catalogBindings == null) {
+    if (flow == null || catalogBindings == null || flow.interactions().isEmpty()) {
       return false;
     }
     if (operationId == null) {
-      return !catalogBindings.isEmpty()
-          && RequirementFlowValidator.validateBindings(flow, facts, catalogBindings).isEmpty();
+      return catalogRequiredInteractionsBound(flow, facts, catalogBindings);
     }
-    List<String> matchingInteractions =
+    List<RequirementFlow.Interaction> matchingInteractions =
         flow.interactions().stream()
             .filter(
                 interaction ->
                     operationId.equalsIgnoreCase(
                         CatalogStrings.blankToNull(interaction.operation())))
-            .map(RequirementFlow.Interaction::interactionId)
             .toList();
     if (matchingInteractions.size() != 1) {
       return false;
     }
-    String interactionId = matchingInteractions.getFirst();
+    RequirementFlow.Interaction interaction = matchingInteractions.getFirst();
+    if (hasBinding(catalogBindings, interaction.interactionId())) {
+      return true;
+    }
+    return !RequirementFlowValidator.requiresCatalogBinding(interaction, facts);
+  }
+
+  private static boolean catalogRequiredInteractionsBound(
+      RequirementFlow flow,
+      List<RequirementFact> facts,
+      List<CatalogBindingHint> catalogBindings) {
+    boolean required = false;
+    for (RequirementFlow.Interaction interaction : flow.interactions()) {
+      if (!RequirementFlowValidator.requiresCatalogBinding(interaction, facts)) {
+        continue;
+      }
+      required = true;
+      if (!hasBinding(catalogBindings, interaction.interactionId())) {
+        return false;
+      }
+    }
+    return required;
+  }
+
+  private static boolean hasBinding(List<CatalogBindingHint> catalogBindings, String interactionId) {
     return catalogBindings.stream()
         .anyMatch(binding -> interactionId.equals(binding.interactionId()));
+  }
+
+  /**
+   * "Map the createTask request" names the payload of a call. It is not another call. A fact that
+   * names the operation anywhere else still requires that step in the flow.
+   */
+  private static String withoutRequestResponseReferences(
+      String text, CatalogRestClient.OperationDto operation) {
+    String stripped = stripRequestResponseReference(text, operation.name());
+    return stripRequestResponseReference(stripped, operation.id());
+  }
+
+  private static String stripRequestResponseReference(String text, String identifier) {
+    if (text == null || identifier == null || identifier.isBlank()) {
+      return text;
+    }
+    String lower = text.toLowerCase(Locale.ROOT);
+    String token = identifier.toLowerCase(Locale.ROOT);
+    StringBuilder kept = new StringBuilder();
+    int index = 0;
+    while (index < text.length()) {
+      int at = lower.indexOf(token, index);
+      if (at < 0) {
+        kept.append(text, index, text.length());
+        break;
+      }
+      int end = at + token.length();
+      boolean boundary =
+          (at == 0 || !isIdentifierCharacter(lower.charAt(at - 1)))
+              && (end >= lower.length() || !isIdentifierCharacter(lower.charAt(end)));
+      String tail = lower.substring(Math.min(end, lower.length()));
+      boolean reference =
+          boundary && (tail.startsWith(" request") || tail.startsWith(" response"));
+      if (!reference) {
+        kept.append(text, index, Math.min(end, text.length()));
+        index = end;
+        continue;
+      }
+      kept.append(text, index, at);
+      index = end + (tail.startsWith(" request") ? " request".length() : " response".length());
+    }
+    return kept.toString();
   }
 
   private static String validateFactText(List<RequirementFact> facts) {
