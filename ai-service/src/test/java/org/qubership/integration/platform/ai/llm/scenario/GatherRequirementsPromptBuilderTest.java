@@ -15,6 +15,18 @@ import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonCo
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonDocument;
 import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMethod;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMode;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.RequirementDraftTool;
@@ -201,6 +213,48 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("resolved=false"), input);
     assertTrue(input.contains("reuse interactionId"), input);
     assertFalse(input.contains("sys-"), input);
+  }
+
+  @Test
+  void wrapNamesMissingInteractionFieldsWhenTheSavedDraftIsPartial() {
+    draftStore.put(
+        "conv-1",
+        RequirementCaptureProjection.toDraft(partialKafkaSenderDraft(), null, List.of(), "1", "hash"));
+
+    String input = builder.wrap("conv-1", "yes", "en");
+
+    assertTrue(input.contains("<incomplete-requirement-draft>"), input);
+    assertTrue(input.contains("http-trigger is missing operation"), input);
+    assertTrue(input.contains("script-set-body is missing direction and participant"), input);
+    assertTrue(input.contains("kafka-sender is missing operation"), input);
+    assertTrue(input.contains("Call captureRequirementDraft again"), input);
+    assertTrue(input.contains("Do not tell the user the draft is ready"), input);
+  }
+
+  private static DraftInput partialKafkaSenderDraft() {
+    return new DraftInput(
+        new FlowInput(
+            List.of(
+                new InteractionInput(
+                    "http-trigger", Direction.INBOUND, "Caller", null, null, null, null),
+                new InteractionInput(
+                    "script-set-body", null, null, "Set body", null, null, null),
+                new InteractionInput(
+                    "kafka-sender", Direction.OUTBOUND, "Kafka", null, null, null, null)),
+            List.of(
+                new TransitionInput("http-trigger", "script-set-body"),
+                new TransitionInput("script-set-body", "kafka-sender"))),
+        List.of(new FactInput(
+            "goal", List.of(), FactKind.GOAL, Polarity.POSITIVE, "Send a Kafka message.")),
+        List.of(
+            new CapabilityInput(
+                "http-trigger", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+                "/auto-tests/kafka-sender", null, null, null),
+            new CapabilityInput(
+                "kafka-sender", "kafka-sender-2", null, null, null,
+                "cip-auto-tests-topic1", null, null)),
+        List.of(),
+        new DraftSettings(null, null));
   }
 
   private static CompilerSkillAddonContext brainstormingAddon() {

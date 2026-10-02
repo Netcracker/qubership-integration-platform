@@ -82,6 +82,11 @@ public final class RequirementBriefCoverageValidator {
     for (String id : draftById.keySet()) {
       RequirementFact draftFact = draftById.get(id);
       RequirementFact briefFact = briefById.get(id);
+      if (!Objects.equals(draftFact.policyConflict(), briefFact.policyConflict())
+          || draftFact.policyConflict() != null
+              && !draftFact.interactionIds().equals(briefFact.interactionIds())) {
+        return Optional.of("requirement brief changed the approved policy decision for sourceFactId=" + id);
+      }
       if (draftFact.polarity() != briefFact.polarity()) {
         polarityMismatches.add(id);
       }

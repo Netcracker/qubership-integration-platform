@@ -146,7 +146,7 @@ public record ChainSemanticCapture(
       @Description("nodeId of the condition node that owns this region") String ownerNodeId,
       @Description("One entry per branch; exactly one branch has role ELSE")
           List<CapturedConditionBranch> branches,
-      @Description("nodeId where the branches reconverge; omit when they do not")
+      @Description("Existing nodeId of approved work after all branches; omit or use an empty string when branches end independently. Never invent a join node.")
           String reconvergenceNodeId) {
 
     CapturedConditionRegion {
@@ -176,11 +176,19 @@ public record ChainSemanticCapture(
       @Description("nodeId of the split node that owns this region") String ownerNodeId,
       @Description("SYNC for split-2, ASYNC for split-async-2") SplitMode mode,
       @Description("One entry per parallel branch") List<CapturedSplitBranch> branches,
-      @Description("nodeId where the branches reconverge; omit when they do not")
-          String reconvergenceNodeId) {
+      @Description("Existing nodeId after SYNC branches; omit or use an empty string for ASYNC or independently ending branches.")
+          String reconvergenceNodeId,
+      @Description("Main branchId for SYNC; omit to use the first ordered branch. Omit for ASYNC.")
+          String mainBranchId) {
 
     CapturedSplitRegion {
       branches = copy(branches);
+    }
+
+    CapturedSplitRegion(
+        String regionId, String ownerNodeId, SplitMode mode,
+        List<CapturedSplitBranch> branches, String reconvergenceNodeId) {
+      this(regionId, ownerNodeId, mode, branches, reconvergenceNodeId, null);
     }
   }
 
@@ -207,11 +215,12 @@ public record ChainSemanticCapture(
       @Description("nodeId reached when the loop finishes") String exitNodeId,
       @Description("COPY or DO_WHILE") LoopMode loopMode,
       @Description("Loop expression, e.g. the collection to iterate") String loopExpression,
-      @Description("Positive iteration cap explicitly requested in the approved brief; otherwise omit")
+      @Description("Positive iteration cap explicitly requested in the approved brief; otherwise omit or use 0 for the schema default. Do not infer a cap from the expression.")
           Integer loopSafetyBound) {
 
     CapturedLoopRegion {
       bodyExitNodeIds = copy(bodyExitNodeIds);
+      loopSafetyBound = Integer.valueOf(0).equals(loopSafetyBound) ? null : loopSafetyBound;
     }
   }
 

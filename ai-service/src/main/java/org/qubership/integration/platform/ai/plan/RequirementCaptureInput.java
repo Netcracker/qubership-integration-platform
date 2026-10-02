@@ -43,12 +43,21 @@ public final class RequirementCaptureInput {
       Polarity polarity,
       String text,
       @NullableCaptureValue(description = "Required for FIELD_MAPPING; exact approved source and target fields.")
-          FieldMappingInput fieldMapping) {
+          FieldMappingInput fieldMapping,
+      @NullableCaptureValue(description = "Only for a CONSTRAINT tied to one interaction: company policy,"
+          + " requested and recommended property values, persisted question ID, and the user's decision.")
+          RequirementPolicyConflict policyConflict) {
+
+    public FactInput(
+        String sourceFactId, List<String> interactionIds, FactKind kind, Polarity polarity,
+        String text, FieldMappingInput fieldMapping) {
+      this(sourceFactId, interactionIds, kind, polarity, text, fieldMapping, null);
+    }
 
     public FactInput(
         String sourceFactId, List<String> interactionIds, FactKind kind, Polarity polarity,
         String text) {
-      this(sourceFactId, interactionIds, kind, polarity, text, null);
+      this(sourceFactId, interactionIds, kind, polarity, text, null, null);
     }
   }
 

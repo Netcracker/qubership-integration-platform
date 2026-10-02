@@ -46,7 +46,17 @@ public record RequirementFact(
     @Description(
             "Stable SERVICE_CALL occurrence id, or catalog Kafka consume id when capabilityKey is async-api-trigger")
         String serviceCallId,
-        List<String> interactionIds) {
+        List<String> interactionIds,
+    @Description("Copy the approved policy conflict and user decision unchanged; null for ordinary facts.")
+        RequirementPolicyConflict policyConflict) {
+
+  public RequirementFact(
+      String sourceFactId, RequirementFactPolarity polarity, RequirementFactKind kind,
+      String capabilityKey, String text, String participant, String operation, String topic,
+      String httpMethod, String path, String serviceCallId, List<String> interactionIds) {
+    this(sourceFactId, polarity, kind, capabilityKey, text, participant, operation, topic,
+        httpMethod, path, serviceCallId, interactionIds, null);
+  }
 
   public RequirementFact {
     // LLM tool JSON omits fields; throwing here becomes ToolArgumentsException before the tool runs.
@@ -185,7 +195,8 @@ public record RequirementFact(
         httpMethod,
         path,
         serviceCallId,
-        interactionIds);
+        interactionIds,
+        policyConflict);
   }
 
   public static String deriveSourceFactId(RequirementFactPolarity polarity, String text) {

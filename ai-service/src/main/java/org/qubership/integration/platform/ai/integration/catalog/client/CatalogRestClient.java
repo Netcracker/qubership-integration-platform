@@ -444,7 +444,11 @@ public interface CatalogRestClient {
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record SpecificationDto(
-      String id, String name, String specificationGroupId, String systemId) {}
+      String id, String name, String specificationGroupId, String systemId, String version) {
+    public SpecificationDto(String id, String name, String specificationGroupId, String systemId) {
+      this(id, name, specificationGroupId, systemId, null);
+    }
+  }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record OperationDto(

@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.exec
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -356,11 +357,15 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
           }
         }
         case SemanticRegion.Split split -> {
-          String shellType =
-              split.mode() == SplitMode.ASYNC
-                  ? "async-split-element-2"
-                  : "split-element-2";
+          String mainBranchId = split.mainBranchId() != null ? split.mainBranchId()
+              : split.branches().stream()
+                  .min(Comparator.comparingInt(SemanticBranch.Split::order)
+                      .thenComparing(SemanticBranch.Split::branchId))
+                  .map(SemanticBranch.Split::branchId).orElse(null);
           for (SemanticBranch.Split branch : split.branches()) {
+            String shellType = split.mode() == SplitMode.ASYNC ? "async-split-element-2"
+                : branch.branchId().equals(mainBranchId) ? "main-split-element-2"
+                : "split-element-2";
             String shellNodeId =
                 hasType(branch.entryNodeId(), shellType, nodesById)
                     ? branch.entryNodeId()
