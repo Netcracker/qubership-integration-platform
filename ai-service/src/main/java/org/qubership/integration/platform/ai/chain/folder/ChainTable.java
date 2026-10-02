@@ -8,18 +8,22 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.ai.chain.folder.ChainFilter.Condition;
 import org.qubership.integration.platform.ai.chain.folder.ChainFilter.Field;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.FilterDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.FolderItemDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.UserDto;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainLabel;
 
 /**
  * The chains page as data: every chain with its folder path, narrowed by table-column filters.
@@ -46,6 +50,11 @@ public class ChainTable {
   private static final Set<Condition> AUTHOR_CONDITIONS =
       Set.of(Condition.IS, Condition.IS_NOT, Condition.CONTAINS, Condition.DOES_NOT_CONTAIN);
 
+  private static final Comparator<Row> BY_NAME =
+      Comparator.comparing(Row::name, String.CASE_INSENSITIVE_ORDER)
+          .thenComparing(Row::folderPath)
+          .thenComparing(Row::id);
+
   private final CatalogRestClient catalog;
 
   @Inject
@@ -53,7 +62,11 @@ public class ChainTable {
     this.catalog = catalog;
   }
 
-  /** One chain as the page lists it; {@code folderPath} is empty for a chain at the root. */
+  /**
+   * One chain as the page lists it. {@code folderPath} is empty for a chain at the root, {@code
+   * labels} holds only the labels people set, and {@code statuses} has one entry per distinct
+   * deployment state, DRAFT for a chain with no deployments.
+   */
   public record Row(
       String id,
       String name,
@@ -61,7 +74,26 @@ public class ChainTable {
       Long createdWhen,
       String createdBy,
       Long modifiedWhen,
-      String modifiedBy) {
+      String modifiedBy,
+      List<String> labels,
+      List<String> statuses) {
+
+    public Row {
+      labels = labels == null ? List.of() : List.copyOf(labels);
+      statuses = statuses == null ? List.of() : List.copyOf(statuses);
+    }
+
+    /** Keeps existing test call sites on the seven-field constructor. */
+    public Row(
+        String id,
+        String name,
+        String folderPath,
+        Long createdWhen,
+        String createdBy,
+        Long modifiedWhen,
+        String modifiedBy) {
+      this(id, name, folderPath, createdWhen, createdBy, modifiedWhen, modifiedBy, null, null);
+    }
 
     public String display() {
       return folderPath.isEmpty() ? name : name + " (" + folderPath + ")";
@@ -69,7 +101,7 @@ public class ChainTable {
   }
 
   /**
-   * Chains that meet every filter.
+   * Chains that meet every filter, sorted by name.
    *
    * @throws IllegalArgumentException with a reason a person can act on, for a filter the catalog
    *     would reject
@@ -88,6 +120,7 @@ public class ChainTable {
     }
     return rows(catalog.filterFolderItems(catalogFilters)).stream()
         .filter(row -> localFilters.stream().allMatch(filter -> matches(row, filter)))
+        .sorted(BY_NAME)
         .toList();
   }
 
@@ -124,7 +157,14 @@ public class ChainTable {
               item.createdWhen(),
               username(item.createdBy()),
               item.modifiedWhen(),
-              username(item.modifiedBy())));
+              username(item.modifiedBy()),
+              item.labels() == null
+                  ? List.of()
+                  : item.labels().stream()
+                      .filter(label -> !label.technical())
+                      .map(CatalogChainLabel::name)
+                      .toList(),
+              deploymentStatuses(item.deployments())));
     }
     return List.copyOf(rows);
   }
@@ -138,6 +178,27 @@ public class ChainTable {
       names.add(0, folder.name());
     }
     return String.join("/", names);
+  }
+
+  /**
+   * The states the chains page shows for a chain. A deployment the engines have not reported on
+   * yet counts as PROCESSING, as it does in the catalog's status filter.
+   */
+  private static List<String> deploymentStatuses(List<DeploymentDto> deployments) {
+    if (deployments == null || deployments.isEmpty()) {
+      return List.of("DRAFT");
+    }
+    return deployments.stream()
+        .flatMap(
+            deployment ->
+                deployment.runtime() == null
+                        || deployment.runtime().states() == null
+                        || deployment.runtime().states().isEmpty()
+                    ? Stream.of("PROCESSING")
+                    : deployment.runtime().states().values().stream()
+                        .map(state -> state.status() == null ? "PROCESSING" : state.status()))
+        .distinct()
+        .toList();
   }
 
   private static String username(UserDto user) {

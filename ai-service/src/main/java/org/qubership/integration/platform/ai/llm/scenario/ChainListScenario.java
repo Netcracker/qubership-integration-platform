@@ -1,10 +1,17 @@
 package org.qubership.integration.platform.ai.llm.scenario;
 
+import static java.util.stream.Stream.concat;
+
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -16,7 +23,9 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
 import org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder;
 import org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Resolution;
+import org.qubership.integration.platform.ai.chain.folder.ChainListAction;
 import org.qubership.integration.platform.ai.chain.folder.ChainListCommand;
+import org.qubership.integration.platform.ai.chain.folder.ChainListCommand.Grouping;
 import org.qubership.integration.platform.ai.chain.folder.ChainTable;
 import org.qubership.integration.platform.ai.chain.folder.ChainTable.Row;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
@@ -63,6 +72,14 @@ public class ChainListScenario implements ScenarioHandler {
 
   /** ponytail: in memory like the deploy cards; a restart drops unanswered cards. */
   private final Map<String, Pending> pending = new ConcurrentHashMap<>();
+
+  /**
+   * Chain ids of the last list each chat showed, in the order shown. Only a search replaces it,
+   * so the author can act on part of a list and then pick from the same numbers again.
+   *
+   * <p>ponytail: in memory like the cards; after a restart the author searches again.
+   */
+  private final Map<String, List<String>> listed = new ConcurrentHashMap<>();
 
   @Inject
   public ChainListScenario(
@@ -128,20 +145,21 @@ public class ChainListScenario implements ScenarioHandler {
     String userText = request == null ? "" : request.getEffectiveUserText();
     ChainListCommand command =
         agent.resolve(
+            LocalDate.now(ZoneOffset.UTC).toString(),
             chainContext.resolveChainId(request, conversationId).orElse(""),
             TranscriptWindow.format(conversations.getMessages(conversationId)),
             userText);
     LOG.infof("MANAGE_CHAIN_LIST conversationId=%s action=%s", conversationId, command.action());
     try {
       return switch (command.action()) {
-        case FIND_CHAINS -> findChains(command);
+        case FIND_CHAINS -> findChains(conversationId, command);
         case MOVE_CHAINS -> moveChains(conversationId, command);
         case COPY_CHAINS -> copyChains(conversationId, command);
-        case RENAME_CHAIN -> renameChain(command);
+        case RENAME_CHAIN -> renameChain(conversationId, command);
         case SET_DESCRIPTION -> describeChains(conversationId, command);
         case EDIT_LABELS -> labelChains(conversationId, command);
         case DELETE_CHAINS -> deleteChains(conversationId, command);
-        case EXPORT_CHAINS -> exportChains(command);
+        case EXPORT_CHAINS -> exportChains(conversationId, command);
         case CREATE_FOLDER -> createFolder(command);
         case RENAME_FOLDER -> renameFolder(command);
         case MOVE_FOLDER -> moveFolder(command);
@@ -158,25 +176,35 @@ public class ChainListScenario implements ScenarioHandler {
       return ChatEvent.token(invalid.getMessage());
     } catch (RuntimeException failure) {
       LOG.warnf(failure, "MANAGE_CHAIN_LIST catalog call failed conversationId=%s", conversationId);
-      return ChatEvent.token("The catalog did not accept the change: " + failure.getMessage());
+      return ChatEvent.token("The catalog request failed: " + failure.getMessage());
     }
   }
 
   // ── Chains ────────────────────────────────────────────────────────────
 
-  private ChatEvent findChains(ChainListCommand command) {
-    Selection selection = select(command, sourceTree(command));
-    if (selection.rows().isEmpty()) {
+  /**
+   * Answers with a numbered list, or with counts per group, and keeps the chains as this chat's
+   * list for the next request to pick from.
+   */
+  private ChatEvent findChains(String conversationId, ChainListCommand command) {
+    Selection selection = select(conversationId, command, sourceTree(command));
+    List<Row> rows = selection.rows();
+    if (rows.isEmpty()) {
       return ChatEvent.token("No chains match." + notFound(selection));
     }
+    listed.put(conversationId, rows.stream().map(Row::id).toList());
+    String found = count(rows.size(), "chain") + " match";
     return ChatEvent.token(
-        count(selection.rows().size(), "chain") + " match:\n" + list(selection.rows())
+        (command.groupBy() == null
+                ? found + ":\n" + numbered(rows)
+                : found + ". By " + groupName(command.groupBy()) + ":\n"
+                    + groups(rows, command.groupBy()))
             + notFound(selection));
   }
 
   private ChatEvent moveChains(String conversationId, ChainListCommand command) {
     List<Folder> tree = folders.tree();
-    Selection selection = select(command, tree);
+    Selection selection = select(conversationId, command, tree);
     Target target = destination(command.targetFolder(), tree);
     List<Row> moving =
         selection.rows().stream().filter(row -> !row.folderPath().equals(target.path())).toList();
@@ -198,7 +226,7 @@ public class ChainListScenario implements ScenarioHandler {
 
   private ChatEvent copyChains(String conversationId, ChainListCommand command) {
     List<Folder> tree = folders.tree();
-    Selection selection = requireChains(select(command, tree));
+    Selection selection = requireChains(select(conversationId, command, tree));
     if (command.targetFolder() == null) {
       return runOrOffer(
           conversationId,
@@ -218,8 +246,8 @@ public class ChainListScenario implements ScenarioHandler {
         target);
   }
 
-  private ChatEvent renameChain(ChainListCommand command) {
-    Selection selection = requireChains(select(command, sourceTree(command)));
+  private ChatEvent renameChain(String conversationId, ChainListCommand command) {
+    Selection selection = requireChains(select(conversationId, command, sourceTree(command)));
     if (selection.rows().size() > 1) {
       throw new Answer(
           "Several chains match:\n" + list(selection.rows()) + "\nWhich one should be renamed?");
@@ -236,7 +264,7 @@ public class ChainListScenario implements ScenarioHandler {
     if (command.description() == null) {
       throw new Answer("What should the description say?");
     }
-    Selection selection = requireChains(select(command, sourceTree(command)));
+    Selection selection = requireChains(select(conversationId, command, sourceTree(command)));
     return runOrOffer(
         conversationId,
         command,
@@ -254,7 +282,7 @@ public class ChainListScenario implements ScenarioHandler {
     if (command.addLabels().isEmpty() && command.removeLabels().isEmpty()) {
       throw new Answer("Which labels should be added or removed?");
     }
-    Selection selection = requireChains(select(command, sourceTree(command)));
+    Selection selection = requireChains(select(conversationId, command, sourceTree(command)));
     List<String> edits = new ArrayList<>();
     if (!command.addLabels().isEmpty()) {
       edits.add("add " + String.join(", ", command.addLabels()));
@@ -272,7 +300,7 @@ public class ChainListScenario implements ScenarioHandler {
   }
 
   private ChatEvent deleteChains(String conversationId, ChainListCommand command) {
-    Selection selection = requireChains(select(command, sourceTree(command)));
+    Selection selection = requireChains(select(conversationId, command, sourceTree(command)));
     String question =
         "Delete "
             + count(selection.rows().size(), "chain")
@@ -286,8 +314,8 @@ public class ChainListScenario implements ScenarioHandler {
    * Offers the chains for download. Nothing changes in the catalog, so there is nothing to confirm
    * here: the card's button opens the chains page export dialog in the browser.
    */
-  private ChatEvent exportChains(ChainListCommand command) {
-    Selection selection = requireChains(select(command, sourceTree(command)));
+  private ChatEvent exportChains(String conversationId, ChainListCommand command) {
+    Selection selection = requireChains(select(conversationId, command, sourceTree(command)));
     return ChatEvent.chainExportDecision(
         UUID.randomUUID().toString(),
         "Export " + count(selection.rows().size(), "chain") + "?\n" + list(selection.rows())
@@ -327,15 +355,23 @@ public class ChainListScenario implements ScenarioHandler {
     }
   }
 
-  /** {@code tree} is read only when the command limits the chains to a folder. */
-  private Selection select(ChainListCommand command, List<Folder> tree) {
-    if (command.chainIds().isEmpty()
+  /**
+   * The chains the command points at. A search with no selectors takes every chain; a change
+   * needs at least one. {@code tree} is read only when the command limits the chains to a folder.
+   */
+  private Selection select(String conversationId, ChainListCommand command, List<Folder> tree) {
+    if (command.action() != ChainListAction.FIND_CHAINS
+        && !command.fromList()
+        && command.chainIds().isEmpty()
         && command.chainNames().isEmpty()
         && command.filters().isEmpty()
         && command.folder() == null) {
       throw new Answer("Which chains do you mean? Name them, or describe them by a column.");
     }
     List<Row> rows = table.find(command.filters());
+    if (command.fromList()) {
+      rows = fromList(conversationId, command, rows);
+    }
     if (command.folder() != null) {
       rows = ChainTable.inFolder(rows, existingFolder(command.folder(), tree).path());
     }
@@ -348,6 +384,39 @@ public class ChainListScenario implements ScenarioHandler {
             .filter(name -> found.stream().noneMatch(row -> row.name().equalsIgnoreCase(name)))
             .toList();
     return new Selection(rows, missing);
+  }
+
+  /**
+   * The chains of this chat's last list that the command picks by number, in list order, among
+   * {@code rows}. A chain deleted since the list was shown drops out.
+   */
+  private List<Row> fromList(String conversationId, ChainListCommand command, List<Row> rows) {
+    List<String> ids = listed.get(conversationId);
+    if (ids == null) {
+      throw new Answer(
+          "This chat has no chain list to pick from. Which chains do you mean? Name them, or"
+              + " describe them by a column.");
+    }
+    for (int position :
+        concat(command.positions().stream(), command.excludePositions().stream()).toList()) {
+      if (position < 1 || position > ids.size()) {
+        throw new Answer(
+            "The last list has " + count(ids.size(), "chain") + ", so there is no number "
+                + position + ".");
+      }
+    }
+    Map<String, Row> current = new HashMap<>();
+    rows.forEach(row -> current.put(row.id(), row));
+    List<Row> picked = new ArrayList<>();
+    for (int position = 1; position <= ids.size(); position++) {
+      Row row = current.get(ids.get(position - 1));
+      if (row != null
+          && (command.positions().isEmpty() || command.positions().contains(position))
+          && !command.excludePositions().contains(position)) {
+        picked.add(row);
+      }
+    }
+    return picked;
   }
 
   private List<Folder> sourceTree(ChainListCommand command) {
@@ -610,6 +679,117 @@ public class ChainListScenario implements ScenarioHandler {
       text.append("- and ").append(rows.size() - LISTED_CHAINS).append(" more\n");
     }
     return text.toString().stripTrailing();
+  }
+
+  /** A search answer: numbered so the next request can pick chains by number. */
+  private static String numbered(List<Row> rows) {
+    StringBuilder text = new StringBuilder();
+    for (int i = 0; i < Math.min(rows.size(), LISTED_CHAINS); i++) {
+      text.append(i + 1).append(". ").append(details(rows.get(i))).append('\n');
+    }
+    if (rows.size() > LISTED_CHAINS) {
+      text.append("And ")
+          .append(rows.size() - LISTED_CHAINS)
+          .append(" more. Narrow the search to see them.\n");
+    }
+    return text.toString().stripTrailing();
+  }
+
+  private static String details(Row row) {
+    List<String> parts = new ArrayList<>(List.of(row.display()));
+    if (row.createdWhen() != null) {
+      parts.add("created " + day(row.createdWhen()) + by(row.createdBy()));
+    }
+    if (row.modifiedWhen() != null
+        && (row.createdWhen() == null
+            || !day(row.modifiedWhen()).equals(day(row.createdWhen()))
+            || !Objects.equals(row.modifiedBy(), row.createdBy()))) {
+      parts.add("changed " + day(row.modifiedWhen()) + by(row.modifiedBy()));
+    }
+    if (!row.labels().isEmpty()) {
+      parts.add("labels " + String.join(", ", row.labels()));
+    }
+    if (!row.statuses().isEmpty() && !row.statuses().equals(List.of("DRAFT"))) {
+      parts.add(String.join(", ", row.statuses()));
+    }
+    return String.join("; ", parts);
+  }
+
+  /**
+   * Counts per group, largest first, or in date order for a date grouping. A chain with several
+   * labels or deployment states counts once under each.
+   */
+  private static String groups(List<Row> rows, Grouping grouping) {
+    Map<String, Integer> counts = new HashMap<>();
+    rows.forEach(row -> groupKeys(row, grouping).forEach(key -> counts.merge(key, 1, Integer::sum)));
+    boolean dated = grouping.name().endsWith("_DAY") || grouping.name().endsWith("_MONTH");
+    Comparator<Map.Entry<String, Integer>> order =
+        dated
+            ? Map.Entry.comparingByKey()
+            : Map.Entry.<String, Integer>comparingByValue()
+                .reversed()
+                .thenComparing(Map.Entry.comparingByKey());
+    List<String> lines =
+        counts.entrySet().stream()
+            .sorted(order)
+            .map(group -> "- " + group.getKey() + ": " + group.getValue())
+            .toList();
+    StringBuilder text = new StringBuilder();
+    lines.stream().limit(LISTED_CHAINS).forEach(line -> text.append(line).append('\n'));
+    if (lines.size() > LISTED_CHAINS) {
+      text.append("- and ").append(lines.size() - LISTED_CHAINS).append(" more groups\n");
+    }
+    if (counts.values().stream().mapToInt(Integer::intValue).sum() > rows.size()) {
+      text.append("A chain can count under more than one ")
+          .append(groupName(grouping))
+          .append(".\n");
+    }
+    return text.toString().stripTrailing();
+  }
+
+  private static List<String> groupKeys(Row row, Grouping grouping) {
+    return switch (grouping) {
+      case FOLDER -> List.of(display(row.folderPath()));
+      case LABEL -> row.labels().isEmpty() ? List.of("no labels") : row.labels();
+      case STATUS -> row.statuses().isEmpty() ? List.of("unknown") : row.statuses();
+      case CREATED_BY -> List.of(orUnknown(row.createdBy()));
+      case MODIFIED_BY -> List.of(orUnknown(row.modifiedBy()));
+      case CREATED_DAY -> List.of(dateOr(row.createdWhen(), 10));
+      case CREATED_MONTH -> List.of(dateOr(row.createdWhen(), 7));
+      case MODIFIED_DAY -> List.of(dateOr(row.modifiedWhen(), 10));
+      case MODIFIED_MONTH -> List.of(dateOr(row.modifiedWhen(), 7));
+    };
+  }
+
+  private static String groupName(Grouping grouping) {
+    return switch (grouping) {
+      case FOLDER -> "folder";
+      case LABEL -> "label";
+      case STATUS -> "deployment status";
+      case CREATED_BY -> "author";
+      case MODIFIED_BY -> "last editor";
+      case CREATED_DAY -> "creation day";
+      case CREATED_MONTH -> "creation month";
+      case MODIFIED_DAY -> "day of the last change";
+      case MODIFIED_MONTH -> "month of the last change";
+    };
+  }
+
+  /** The UTC day, or month for {@code length} 7, of a catalog timestamp. */
+  private static String dateOr(Long when, int length) {
+    return when == null ? "unknown" : day(when).substring(0, length);
+  }
+
+  private static String day(long when) {
+    return LocalDate.ofInstant(Instant.ofEpochMilli(when), ZoneOffset.UTC).toString();
+  }
+
+  private static String orUnknown(String author) {
+    return author == null || author.isEmpty() ? "unknown" : author;
+  }
+
+  private static String by(String author) {
+    return author == null || author.isEmpty() ? "" : " by " + author;
   }
 
   private static String notFound(Selection selection) {

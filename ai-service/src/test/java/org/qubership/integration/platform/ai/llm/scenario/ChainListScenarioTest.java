@@ -177,7 +177,8 @@ class ChainListScenarioTest {
   @Test
   void labelEditKeepsOtherAndTechnicalLabels() {
     answer(new ChainListCommand(ChainListAction.EDIT_LABELS, null, null, null, List.of(),
-        List.of("Orders sync"), List.of(), null, null, List.of("crm"), List.of("OLD")));
+        List.of("Orders sync"), List.of(), null, null, List.of("crm"), List.of("OLD"), null, null,
+        null, null));
     when(table.find(List.of())).thenReturn(List.of(ORDERS));
     when(catalog.getChain("c1"))
         .thenReturn(new ChainDto("c1", "Orders sync", null, null, false, List.of(
@@ -241,8 +242,75 @@ class ChainListScenarioTest {
     verifyNoInteractions(catalog);
   }
 
+  @Test
+  void picksChainsByNumberFromTheLastListAndKeepsTheNumbersAfterAChange() {
+    long sept17 = java.time.Instant.parse("2026-09-17T10:00:00Z").toEpochMilli();
+    Row orders =
+        new Row(
+            "c1", "Orders sync", "", sept17, "alice", sept17, "alice", List.of("crm"),
+            List.of("DEPLOYED"));
+    List<ChainFilter> sync =
+        List.of(new ChainFilter(ChainFilter.Field.NAME, ChainFilter.Condition.CONTAINS, "s"));
+    answer(command(ChainListAction.FIND_CHAINS, null, null, List.of(), sync));
+    when(table.find(sync)).thenReturn(List.of(orders, SF_ACCOUNTS, SF_CONTACTS));
+
+    assertEquals(
+        "3 chains match:\n"
+            + "1. Orders sync; created 2026-09-17 by alice; labels crm; DEPLOYED\n"
+            + "2. SF accounts (Legacy)\n"
+            + "3. SF contacts",
+        text(scenario.dispatch(message(), CONVERSATION)));
+
+    answer(fromList(ChainListAction.MOVE_CHAINS, "Archive", List.of(1, 3)));
+    when(table.find(List.of())).thenReturn(List.of(orders, SF_ACCOUNTS, SF_CONTACTS));
+    ChatEvent.Decision card =
+        assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
+    assertTrue(
+        card.question().startsWith("Move 2 chains to Archive?\n- Orders sync\n- SF contacts\n"),
+        card.question());
+
+    answer(fromList(ChainListAction.MOVE_CHAINS, "Archive", List.of(2)));
+    when(folders.resolveOrCreateId("/Archive")).thenReturn("f9");
+    assertEquals(
+        "Created folder Archive. Moved 1 chain to Archive.",
+        text(scenario.dispatch(message(), CONVERSATION)));
+    verify(catalog).moveChain("c2", "f9");
+
+    answer(fromList(ChainListAction.MOVE_CHAINS, "Archive", List.of(4)));
+    assertEquals(
+        "The last list has 3 chains, so there is no number 4.",
+        text(scenario.dispatch(message(), CONVERSATION)));
+  }
+
+  @Test
+  void asksWhichChainsWhenTheChatHasNoListYet() {
+    answer(fromList(ChainListAction.DELETE_CHAINS, null, List.of()));
+    when(table.find(List.of())).thenReturn(List.of(ORDERS));
+
+    assertTrue(
+        text(scenario.dispatch(message(), CONVERSATION))
+            .startsWith("This chat has no chain list to pick from."));
+    verifyNoInteractions(catalog);
+  }
+
+  @Test
+  void countsEveryChainByLabelWithoutListingThem() {
+    answer(new ChainListCommand(ChainListAction.FIND_CHAINS, null, null, null, null, null, null,
+        null, null, null, null, null, null, null, ChainListCommand.Grouping.LABEL));
+    when(table.find(List.of()))
+        .thenReturn(
+            List.of(
+                labeled("c1", "crm", "sync"), labeled("c2", "crm"), labeled("c3", "sync"),
+                labeled("c4"), labeled("c5", "crm")));
+
+    assertEquals(
+        "5 chains match. By label:\n- crm: 3\n- sync: 2\n- no labels: 1\n"
+            + "A chain can count under more than one label.",
+        text(scenario.dispatch(message(), CONVERSATION)));
+  }
+
   private void answer(ChainListCommand command) {
-    when(agent.resolve(any(), any(), any())).thenReturn(command);
+    when(agent.resolve(any(), any(), any(), any())).thenReturn(command);
   }
 
   private static ChainListCommand command(
@@ -252,6 +320,16 @@ class ChainListScenarioTest {
       List<String> names,
       List<ChainFilter> filters) {
     return new ChainListCommand(action, folder, null, target, List.of(), names, filters, null);
+  }
+
+  private static ChainListCommand fromList(
+      ChainListAction action, String target, List<Integer> positions) {
+    return new ChainListCommand(action, null, null, target, null, null, null, null, null, null,
+        null, true, positions, null, null);
+  }
+
+  private static Row labeled(String id, String... labels) {
+    return new Row(id, id, "", null, "", null, "", List.of(labels), List.of("DRAFT"));
   }
 
   private static Row row(String id, String name, String folderPath) {
