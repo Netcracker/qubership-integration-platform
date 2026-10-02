@@ -43,10 +43,13 @@ public class CatalogMutationGateway {
     this.uploadedSpecAutoImporter = uploadedSpecAutoImporter;
   }
 
+  /** {@code folderPath} is the folder the author asked for; null creates the chain at the root. */
   public Uni<String> resolveOrCreateChain(
-      String pipelineId, String chainName, String chainDescription) {
+      String pipelineId, String chainName, String chainDescription, String folderPath) {
     return onWorker(
-        () -> chainPublicationService.resolveOrCreate(pipelineId, chainName, chainDescription));
+        () ->
+            chainPublicationService.resolveOrCreate(
+                pipelineId, chainName, chainDescription, folderPath));
   }
 
   public Uni<CatalogGraphMaterializeResult> applyGraph(

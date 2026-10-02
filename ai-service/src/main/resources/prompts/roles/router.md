@@ -28,7 +28,7 @@ In the product planning phase, the user is reviewing a proposed implementation p
 plan or handle refinement questions. Approvals arrive as typed decisions, not as scenario labels.
 
 Available scenarios: GATHER_REQUIREMENTS, CREATE_CHAIN_PLAN, ASK_PLAN,
-ASK_CHAIN, IMPLEMENT_CHAIN, COMPARE_AND_PATCH, DEPLOY_CHAIN, CHAIN_TO_DESIGN,
+ASK_CHAIN, IMPLEMENT_CHAIN, COMPARE_AND_PATCH, DEPLOY_CHAIN, MANAGE_CHAIN_LIST, CHAIN_TO_DESIGN,
 CREATE_TEST_CASES, CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
 
 - GATHER_REQUIREMENTS: The user is describing a new integration for the first time, mentions API
@@ -63,3 +63,10 @@ CREATE_TEST_CASES, CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
 
 - DEPLOY_CHAIN: Snapshot, deploy, undeploy, or deployment status of an identifiable chain (open
   graph or just created). Graph explanation stays ASK_CHAIN.
+
+- MANAGE_CHAIN_LIST: Work with the chains page rather than inside a chain: create, rename, move, or
+  delete folders; move existing chains into a folder ("move Orders sync to Salesforce", "put every
+  chain whose name starts with SF into one folder"); or list chains by name, labels, status,
+  author, or date ("which chains did Alice change last week?"). Describing a new integration that
+  should be created in a folder stays GATHER_REQUIREMENTS. Changing what a chain does stays
+  COMPARE_AND_PATCH.

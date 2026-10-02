@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.integration.catalog.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -81,6 +82,50 @@ public interface CatalogRestClient {
   @POST
   @Path("/v1/folders/search")
   List<FolderItemDto> searchFolderItems(CatalogChainSearchRequest request);
+
+  /**
+   * Chains that match every filter anywhere in the tree, plus each folder on their paths. The list
+   * is flat; {@code parentId} links it into a tree. No filters returns every chain.
+   */
+  @POST
+  @Path("/v1/folders/filter")
+  List<FolderItemDto> filterFolderItems(List<FilterDto> filters);
+
+  @POST
+  @Path("/v1/chains/{chainId}/move")
+  ChainDto moveChain(
+      @PathParam("chainId") String chainId, @QueryParam("targetFolderId") String targetFolderId);
+
+  // ── Folders ──────────────────────────────────────────────────────────────
+
+  /** Not retried: a create that timed out may have landed, and a retry would add a twin. */
+  @POST
+  @Path("/v2/folders")
+  @Retry(maxRetries = 0)
+  FolderItemDto createFolder(FolderWriteRequest body);
+
+  /** Renames a folder. A null {@code parentId} keeps the folder where it is. */
+  @PUT
+  @Path("/v2/folders/{folderId}")
+  FolderItemDto updateFolder(@PathParam("folderId") String folderId, FolderWriteRequest body);
+
+  /**
+   * Deletes the folder and everything inside it. The catalog cascades to nested folders and chains
+   * and removes the deployments of those chains.
+   */
+  @DELETE
+  @Path("/v2/folders/{folderId}")
+  void deleteFolder(@PathParam("folderId") String folderId);
+
+  /** Moves a folder under {@code targetId}, or to the root when it is null. */
+  @POST
+  @Path("/v2/folders/move")
+  FolderItemDto moveFolder(MoveFolderRequest body);
+
+  /** Folders and chains directly inside one folder, or at the root when the id is null. */
+  @POST
+  @Path("/v2/folders/list")
+  List<FolderItemDto> listFolder(ListFolderRequest body);
 
   // ── Snapshots ────────────────────────────────────────────────────────────
 
@@ -343,7 +388,45 @@ public interface CatalogRestClient {
       String name,
       String description,
       String itemType,
-      List<CatalogChainLabel> labels) {}
+      List<CatalogChainLabel> labels,
+      String parentId,
+      Long createdWhen,
+      UserDto createdBy,
+      Long modifiedWhen,
+      UserDto modifiedBy) {
+
+    /** Keeps existing test and call sites on the five-field constructor. */
+    public FolderItemDto(
+        String id,
+        String name,
+        String description,
+        String itemType,
+        List<CatalogChainLabel> labels) {
+      this(id, name, description, itemType, labels, null, null, null, null, null);
+    }
+  }
+
+  @JsonIgnoreProperties(ignoreUnknown = true)
+  record UserDto(String id, String username) {}
+
+  /** One row of the chain filter on the chains page, in the catalog's own vocabulary. */
+  record FilterDto(String feature, String condition, String value) {}
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  record FolderWriteRequest(String parentId, String name, String description) {}
+
+  record MoveFolderRequest(String id, String targetId) {}
+
+  /**
+   * Always sends {@code filters}: the catalog reads it unguarded, and an absent list can reach it
+   * as null.
+   */
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  record ListFolderRequest(String folderId, List<FilterDto> filters) {
+    public static ListFolderRequest of(String folderId) {
+      return new ListFolderRequest(folderId, List.of());
+    }
+  }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record ElementSummaryDto(

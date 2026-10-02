@@ -64,7 +64,7 @@ class ProductChainMaterializerTest {
         new MaterializationMap(
             "catalog-chain-1",
             Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of());
-    when(catalog.resolveOrCreateChain(RUN_ID, "demo-chain", "Demo"))
+    when(catalog.resolveOrCreateChain(RUN_ID, "demo-chain", "Demo", null))
         .thenReturn(io.smallrye.mutiny.Uni.createFrom().item("catalog-chain-1"));
     when(catalog.applyGraph(
             eq(CatalogGraphMaterializer.emptyCurrent(inputs.graph())),
@@ -149,7 +149,7 @@ class ProductChainMaterializerTest {
             Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"),
             Map.of("edge-1", "catalog-trigger-1"),
             Map.of());
-    when(catalog.resolveOrCreateChain(RUN_ID, "demo-chain", "Demo"))
+    when(catalog.resolveOrCreateChain(RUN_ID, "demo-chain", "Demo", null))
         .thenReturn(io.smallrye.mutiny.Uni.createFrom().item("catalog-chain-1"));
     when(catalog.applyGraph(any(), eq(inputs.graph()), any()))
         .thenReturn(
@@ -237,7 +237,7 @@ class ProductChainMaterializerTest {
   @Test
   void failsClosedWhenApplyGraphFails() {
     ProductChainMaterializer.Inputs inputs = inputs();
-    when(catalog.resolveOrCreateChain(RUN_ID, "demo-chain", "Demo"))
+    when(catalog.resolveOrCreateChain(RUN_ID, "demo-chain", "Demo", null))
         .thenReturn(io.smallrye.mutiny.Uni.createFrom().item("catalog-chain-1"));
     when(factsService.load("catalog-chain-1"))
         .thenReturn(
@@ -318,7 +318,7 @@ class ProductChainMaterializerTest {
     Map<String, String> seededMap = mapCaptor.getValue().nodeIdToElementId();
     assertEquals("catalog-condition-1", seededMap.get("condition-1"));
     assertEquals("catalog-if-1", seededMap.get("if-1"));
-    verify(catalog, never()).resolveOrCreateChain(any(), any(), any());
+    verify(catalog, never()).resolveOrCreateChain(any(), any(), any(), any());
   }
 
   @Test

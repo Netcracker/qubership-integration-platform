@@ -423,7 +423,7 @@ class CanonicalSemanticCreateChainIT {
     org.mockito.Mockito.doAnswer(compile)
         .when(approvedCompilerExecutionRunner)
         .execute(any(), any(), anyList(), any(), any(), any(), any(), any());
-    when(catalog.resolveOrCreateChain(anyString(), anyString(), any()))
+    when(catalog.resolveOrCreateChain(anyString(), anyString(), any(), any()))
         .thenReturn(Uni.createFrom().item("catalog-chain-1"));
     when(catalog.applyGraph(any(), any(), any()))
         .thenAnswer(

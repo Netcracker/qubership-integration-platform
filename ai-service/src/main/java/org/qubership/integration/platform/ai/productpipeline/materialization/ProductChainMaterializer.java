@@ -137,7 +137,10 @@ public class ProductChainMaterializer {
   private String ensureChain(Inputs inputs, String executionKey) {
     return catalog
         .resolveOrCreateChain(
-            executionKey, inputs.graph().chain().name(), inputs.graph().chain().description())
+            executionKey,
+            inputs.graph().chain().name(),
+            inputs.graph().chain().description(),
+            inputs.graph().chain().folderPath())
         .await()
         .indefinitely();
   }

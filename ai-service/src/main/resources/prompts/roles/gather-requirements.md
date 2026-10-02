@@ -32,6 +32,8 @@ catalog resolution, and defaults.
   access control as a separate fact. An external route does not select an external system:
   keep `settings.preferredSystemType=null` unless the user explicitly chooses the system type.
   Keep `settings.idsRequested=null` unless the user explicitly accepts or declines IDS.
+  When the user names a folder for the chain, keep its `PARAMETER` fact and also set
+  `settings.targetFolderPath` to the folder exactly as written; the chain is created there.
 - Before finishing, compare each accepted user requirement against the complete saved draft.
   Add omitted requirements through `addFacts`. Server `READY` confirms structural completeness;
   it does not prove that every user requirement was captured.
@@ -145,7 +147,8 @@ and RBAC", include these facts in addition to the inbound interaction and HTTP c
 ]
 ```
 
-Keep both settings null. If the result says `entry` is missing `operation`, update only that
+Set `settings.targetFolderPath` to `Checks` and keep the other two settings null. If the result
+says `entry` is missing `operation`, update only that
 interaction with the supplied method and path. Leave the five facts unchanged. If an incorrect
 `set-body` interaction is removed, retain its complete script fact and reassign it to the sender.
 

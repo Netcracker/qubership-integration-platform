@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import org.jboss.logging.Logger;
+import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
@@ -38,18 +39,27 @@ public class RequirementCaptureTools {
   private final CaptureToolOutcomeGateway outcomeGateway;
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final RequirementTargetResolver targetResolver;
+  private final CatalogFolders catalogFolders;
 
   @Inject
   public RequirementCaptureTools(
       RequirementDraftStore store, RequirementDraftTool legacyBindingAdapter, ObjectMapper mapper,
       CaptureToolOutcomeGateway outcomeGateway, CaptureAttemptFeedbackStore feedbackStore,
-      RequirementTargetResolver targetResolver) {
+      RequirementTargetResolver targetResolver, CatalogFolders catalogFolders) {
     this.store = store;
     this.legacyBindingAdapter = legacyBindingAdapter;
     this.mapper = mapper;
     this.outcomeGateway = outcomeGateway;
     this.feedbackStore = feedbackStore;
     this.targetResolver = targetResolver;
+    this.catalogFolders = catalogFolders;
+  }
+
+  public RequirementCaptureTools(
+      RequirementDraftStore store, RequirementDraftTool legacyBindingAdapter, ObjectMapper mapper,
+      CaptureToolOutcomeGateway outcomeGateway, CaptureAttemptFeedbackStore feedbackStore,
+      RequirementTargetResolver targetResolver) {
+    this(store, legacyBindingAdapter, mapper, outcomeGateway, feedbackStore, targetResolver, null);
   }
 
   public RequirementCaptureTools(
@@ -108,6 +118,10 @@ public class RequirementCaptureTools {
           return view(previous, false, false, withPreservedFacts(
               preservationIssues, store.rejectedCaptureFacts(conversationId)));
         }
+        Issue folderIssue = ambiguousFolder(draft, previous, "/draft/settings/targetFolderPath");
+        if (folderIssue != null) {
+          return view(previous, false, false, List.of(folderIssue));
+        }
         return publish(conversationId, draft, previous);
       }
     });
@@ -144,9 +158,44 @@ public class RequirementCaptureTools {
           feedbackStore.clearRequirement(conversationId);
           return view(previous, true, false, List.of());
         }
+        Issue folderIssue =
+            ambiguousFolder(edit.draft(), previous, "/changes/settings/targetFolderPath");
+        if (folderIssue != null) {
+          return view(previous, false, false, List.of(folderIssue));
+        }
         return publish(conversationId, edit.draft(), previous);
       }
     });
+  }
+
+  /**
+   * Rejects a folder name that several catalog folders share, so the author is asked instead of the
+   * chain landing in a folder chosen for them.
+   *
+   * <p>Checked only when the folder changed. A catalog that cannot be read does not block capture:
+   * creation resolves the folder again and fails there if the name is still ambiguous.
+   */
+  private Issue ambiguousFolder(DraftInput draft, RequirementDraft previous, String path) {
+    String folder = draft.settings() == null ? null : draft.settings().targetFolderPath();
+    String before = previous == null || previous.authoredDraft() == null
+        ? null : previous.authoredDraft().settings().targetFolderPath();
+    if (catalogFolders == null || folder == null || folder.isBlank()
+        || Objects.equals(folder, before)) {
+      return null;
+    }
+    try {
+      if (CatalogFolders.resolve(folder, catalogFolders.tree())
+          instanceof CatalogFolders.Resolution.Ambiguous ambiguous) {
+        return new Issue("AMBIGUOUS_TARGET_FOLDER", path, null,
+            "Folder name '" + folder.strip() + "' matches several catalog folders: "
+                + String.join(", ", CatalogFolders.paths(ambiguous.candidates()))
+                + ". Set targetFolderPath to null and add an open question asking the user which"
+                + " of these folders they mean.");
+      }
+    } catch (RuntimeException catalogUnavailable) {
+      LOG.warnf(catalogUnavailable, "Could not check target folder '%s' against the catalog", folder);
+    }
+    return null;
   }
 
   public record SourceRead(String turnId, int offset, int maxChars) {}
