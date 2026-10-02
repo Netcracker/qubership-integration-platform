@@ -245,15 +245,19 @@ no whole-tree listing and its name search is case-sensitive, so the tree is read
 at a time.
 
 **MANAGE_CHAIN_LIST**:
-The chat scenario for the chains page: find chains by table columns, move them between folders, and
-create, rename, move, or delete folders. `ChainListIntentAgent` returns a typed `ChainListCommand`;
-Java resolves every name. Columns the catalog filters on (name, id, description, labels, status)
-go to `POST /v1/folders/filter`; author and date columns are applied to its rows. It never reads
-inside a chain. One chain named by the author moves at once; a move of several chains, of chains
-picked by a condition or a folder, and every folder delete wait for a Decision card that lists them.
-Deleting a folder cascades in the catalog to its chains and their deployments. Not an open-chain
-scenario: an unfinished CREATE run keeps the turn.
-_Avoid_: a confirmation per single rename or move, guessing between folders that share a name
+The chat scenario for the chains page: find chains by table columns; move, copy, rename, describe,
+label, or delete whole chains; and create, rename, move, or delete folders. `ChainListIntentAgent`
+returns a typed `ChainListCommand`; Java resolves every name. Columns the catalog filters on (name,
+id, description, labels, status) go to `POST /v1/folders/filter`; author and date columns are
+applied to its rows. It never reads inside a chain. A change to one chain the author named runs at
+once. A change to several chains or to chains picked by a condition or a folder, every chain
+delete, and every folder delete wait for a Decision card that lists them. Deleting a folder
+cascades in the catalog to its chains and their deployments. Chains are deleted one call each,
+because the catalog's bulk delete reports success when some chains failed. A label edit is applied
+to the chain's labels as read when it runs, because the catalog replaces the ordinary label set
+(technical labels survive). Not an open-chain scenario: an unfinished CREATE run keeps the turn.
+_Avoid_: a confirmation per single rename or move, guessing between folders or chains that share a
+name, `POST /v1/chains/bulk-delete`
 
 **Catalog Snapshot**:
 The runtime-catalog versioned XML cut of a chain that deployment requires. Distinct from in-memory

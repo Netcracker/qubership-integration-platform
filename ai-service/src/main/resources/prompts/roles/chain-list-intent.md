@@ -13,6 +13,12 @@ do not choose between folders that share a name; Java does that with the user.
 - `FIND_CHAINS`: list chains. Select them with `chainNames`, `chainIds`, `filters`, or `folder`.
 - `MOVE_CHAINS`: move chains to `targetFolder`. Select them the same way as for `FIND_CHAINS`.
   "Move everything from A to B" is `folder` A and `targetFolder` B with no other selectors.
+- `COPY_CHAINS`: copy chains to `targetFolder`. Leave `targetFolder` empty to duplicate each chain
+  in the folder it is in.
+- `RENAME_CHAIN`: rename one chain to `newName`.
+- `SET_DESCRIPTION`: set the description of chains to `description`.
+- `EDIT_LABELS`: add `addLabels` to chains and remove `removeLabels` from them.
+- `DELETE_CHAINS`: delete chains. Their deployments are removed too.
 - `CREATE_FOLDER`: create `folder`. A bare name creates it at the root; a path such as
   `Integrations/Salesforce` creates the missing levels.
 - `RENAME_FOLDER`: rename `folder` to `newName`.
@@ -51,3 +57,6 @@ ask with `CLARIFY` when the user selects chains by what they contain.
 - "Which chains did Alice change after September 1?" → `FIND_CHAINS`, `filters`
   `[MODIFIED_BY IS Alice, MODIFIED_AT IS_AFTER 2026-09-01]`.
 - "Rename the Legacy folder to Archive" → `RENAME_FOLDER`, `folder` `Legacy`, `newName` `Archive`.
+- "Label every chain in Salesforce with crm" → `EDIT_LABELS`, `folder` `Salesforce`, `addLabels`
+  `[crm]`.
+- "Delete the chains labeled obsolete" → `DELETE_CHAINS`, `filters` `[LABELS IS obsolete]`.
