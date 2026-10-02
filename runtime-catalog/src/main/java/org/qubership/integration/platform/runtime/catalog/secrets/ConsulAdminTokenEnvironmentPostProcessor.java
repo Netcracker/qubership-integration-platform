@@ -55,8 +55,7 @@ public class ConsulAdminTokenEnvironmentPostProcessor implements EnvironmentPost
             if (token == null) {
                 return;
             }
-            LOGGER.warn("Consul admin token is resolved from the deprecated {} environment variable. Mount the"
-                    + " token as a file instead; the variable is removed in release 27.3.", TOKEN_VARIABLE);
+            LOGGER.warn("Consul admin token is resolved from the deprecated {} environment variable", TOKEN_VARIABLE);
         }
         Map<String, Object> properties = new HashMap<>();
         properties.put(CONSUL_TOKEN_PROPERTY, token);
