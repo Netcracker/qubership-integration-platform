@@ -572,6 +572,7 @@ public class ChainImportService {
             .collect(groupingBy(Pair::getLeft, mapping(Pair::getRight, toList())));
 
         Map<String, List<ImportChainResult>> resultByChainId = chainsResult.stream()
+            .filter(chainResult -> nonNull(chainResult.getId()))
             .collect(groupingBy(ImportChainResult::getId));
 
         // Deploying snapshots
