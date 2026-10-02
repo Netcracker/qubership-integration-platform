@@ -36,7 +36,7 @@ import org.qubership.integration.platform.ai.model.ScenarioType;
 
 /**
  * The chains page from chat: find chains by table columns; move, copy, rename, describe, label,
- * or delete them; and create, rename, move, or delete folders.
+ * export, or delete them; and create, rename, move, or delete folders.
  *
  * <p>The agent only reads the request. Every folder and chain it names is resolved here, and a
  * name that several folders or chains share is put back to the author as a question. A change to
@@ -141,6 +141,7 @@ public class ChainListScenario implements ScenarioHandler {
         case SET_DESCRIPTION -> describeChains(conversationId, command);
         case EDIT_LABELS -> labelChains(conversationId, command);
         case DELETE_CHAINS -> deleteChains(conversationId, command);
+        case EXPORT_CHAINS -> exportChains(command);
         case CREATE_FOLDER -> createFolder(command);
         case RENAME_FOLDER -> renameFolder(command);
         case MOVE_FOLDER -> moveFolder(command);
@@ -279,6 +280,19 @@ public class ChainListScenario implements ScenarioHandler {
             + list(selection.rows())
             + notFound(selection);
     return offer(conversationId, new Change.DeleteChains(selection.rows()), question);
+  }
+
+  /**
+   * Offers the chains for download. Nothing changes in the catalog, so there is nothing to confirm
+   * here: the card's button opens the chains page export dialog in the browser.
+   */
+  private ChatEvent exportChains(ChainListCommand command) {
+    Selection selection = requireChains(select(command, sourceTree(command)));
+    return ChatEvent.chainExportDecision(
+        UUID.randomUUID().toString(),
+        "Export " + count(selection.rows().size(), "chain") + "?\n" + list(selection.rows())
+            + notFound(selection),
+        selection.rows().stream().map(Row::id).toList());
   }
 
   /**

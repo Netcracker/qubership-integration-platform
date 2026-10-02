@@ -136,6 +136,12 @@ public sealed interface ChatEvent {
   /** Leaves the chains and folders as they are. */
   String CANCEL_CHAIN_LIST_CHANGE_ACTION = "cancel-chain-list-change";
 
+  /**
+   * Downloads the chains a card lists, in the browser. The interface handles it on its own, with
+   * the same export options as the chains page; it never reaches the server.
+   */
+  String EXPORT_CHAINS_ACTION = "export-chains";
+
   /** Session logging Off, chosen on the card that runs before createDeployment. */
   String SESSION_LOGGING_OFF_ACTION = "session-logging-off";
 
@@ -179,6 +185,9 @@ public sealed interface ChatEvent {
 
   /** Artifact type a chains-page change card binds to. */
   String CHAIN_LIST_CHANGE_ARTIFACT = "CHAIN_LIST_CHANGE";
+
+  /** Artifact type a chain export card binds to. */
+  String CHAIN_EXPORT_ARTIFACT = "CHAIN_EXPORT";
 
   /** Wire actions for the IDS path-choice gate; the interface renders them as Yes / No. */
   List<String> IDS_PATH_CHOICE_ACTIONS = List.of("yes", "no");
@@ -235,8 +244,37 @@ public sealed interface ChatEvent {
       List<String> missingEvidence,
       List<String> actions,
       RecoveryPresentation recovery,
-      @JsonInclude(JsonInclude.Include.NON_EMPTY) List<UploadedSpecItem> specs)
+      @JsonInclude(JsonInclude.Include.NON_EMPTY) List<UploadedSpecItem> specs,
+      @JsonInclude(JsonInclude.Include.NON_EMPTY) List<String> chainIds)
       implements ChatEvent {
+
+    /** Every gate except the chain export card, which alone carries chain ids. */
+    public Decision(
+        String id,
+        String kind,
+        String question,
+        String artifactType,
+        String artifactHash,
+        long revision,
+        String reason,
+        List<String> missingEvidence,
+        List<String> actions,
+        RecoveryPresentation recovery,
+        List<UploadedSpecItem> specs) {
+      this(
+          id,
+          kind,
+          question,
+          artifactType,
+          artifactHash,
+          revision,
+          reason,
+          missingEvidence,
+          actions,
+          recovery,
+          specs,
+          List.of());
+    }
 
     public Decision(
         String id,
@@ -291,6 +329,7 @@ public sealed interface ChatEvent {
       missingEvidence = missingEvidence == null ? List.of() : List.copyOf(missingEvidence);
       actions = actions == null ? List.of() : List.copyOf(actions);
       specs = specs == null ? List.of() : List.copyOf(specs);
+      chainIds = chainIds == null ? List.of() : List.copyOf(chainIds);
     }
   }
 
@@ -523,6 +562,24 @@ public sealed interface ChatEvent {
         null,
         List.of(),
         List.of(APPLY_CHAIN_LIST_CHANGE_ACTION, CANCEL_CHAIN_LIST_CHANGE_ACTION));
+  }
+
+  /** Offers the listed chains for download. The browser exports them; the server keeps no state. */
+  static ChatEvent chainExportDecision(String exportId, String question, List<String> chainIds) {
+    Objects.requireNonNull(exportId, "exportId");
+    return new Decision(
+        "chain-export:" + exportId,
+        APPROVE_ACTION,
+        question == null ? "" : question.strip(),
+        CHAIN_EXPORT_ARTIFACT,
+        exportId,
+        0L,
+        null,
+        List.of(),
+        List.of(EXPORT_CHAINS_ACTION),
+        null,
+        List.of(),
+        chainIds);
   }
 
   static ChatEvent deploymentProcessingDecision(String deploymentId, String question) {

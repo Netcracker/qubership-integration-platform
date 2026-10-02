@@ -235,6 +235,16 @@ describe("parseCipSseBlock", () => {
     expect(decision?.actions).toEqual(["import-specification", "clarify"]);
   });
 
+  it("parses the chain ids an export card offers", () => {
+    const payload =
+      '{"id":"chain-export:e1","kind":"approve","question":"Export 2 chains?",' +
+      '"artifactType":"CHAIN_EXPORT","artifactHash":"e1","revision":0,' +
+      '"actions":["export-chains"],"chainIds":["c1","",7,"c2"]}';
+    const decision = parseDecisionPayload(payload);
+    expect(decision?.chainIds).toEqual(["c1", "c2"]);
+    expect(decision?.actions).toEqual(["export-chains"]);
+  });
+
   it("drops a decision when the kind is unknown", () => {
     expect(
       parseCipSseBlock('event: decision\ndata: {"id":"x","kind":"vote"}\n'),
