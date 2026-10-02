@@ -283,7 +283,10 @@ public class DesignInputCapability implements StageCapability {
         .append("\nSemantic schema version: ")
         .append(contract.semanticSchemaVersion())
         .append("\nAllowed operation elementType values: ")
-        .append(String.join(", ", contract.elements().keySet().stream().sorted().toList()))
+        .append(String.join(", ", contract.elements().keySet().stream()
+            .filter(type -> !"split-element-2".equals(type)
+                && !"main-split-element-2".equals(type) && !"async-split-element-2".equals(type))
+            .sorted().toList()))
         .append(
             "\n\nExternal interaction anchors are server-owned. Reference these node ids from"
                 + " edges:");

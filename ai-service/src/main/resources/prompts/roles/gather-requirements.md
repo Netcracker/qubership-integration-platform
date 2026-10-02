@@ -54,10 +54,15 @@ catalog resolution, and defaults.
   `capabilities`, even with null fields. An HTTP response or local error is not a new OUTBOUND
   interaction. A checkpoint's internal retry route is configuration, not another interaction.
 - Preserve every requested local step in `BEHAVIOR`, `ROUTING`, or `FIELD_MAPPING` facts. Include
-  its name, configuration, order, and branch when specified. Scope steps before an external call
+  its exact display name, configuration, order, and branch when specified. Keep a language or
+  element-type annotation outside the name: `Script named "Check value", language Groovy` has
+  display name `Check value`. Do not write `Check value (Groovy)`. Scope steps before an external call
   to that call; scope steps with no later call to the preceding entry interaction. A fact's
   `sourceFactId` is not an `interactionId`. Do not drop mapping actions or branch behavior just
   because they are local.
+- Preserve an explicitly requested service-call `before` or `after` Script as an inline hook
+  in a BEHAVIOR fact scoped to that call, including its full body and hook position.
+  A hook is not a standalone Script step or another interaction.
 - Examples: "HTTP trigger → condition with success and error scripts → response" has one
   INBOUND interaction, no transition, and branch facts on it. "Kafka trigger → Enrich body
   script → HTTP sender" has an INBOUND and an OUTBOUND interaction with one transition; attach
@@ -65,13 +70,33 @@ catalog resolution, and defaults.
 - Copy native `capabilityKey` values from the supported list in the addon. Never add or remove a
   suffix by analogy: `http-trigger` and `http-sender` have no `-2`. Set `httpMode` only for
   `http-trigger`.
+- A corporate policy question must be linked to its CONSTRAINT fact before asking the user.
+  For an external trigger with NONE, capture this metadata on the access-control fact:
+  `{"policyId":"CORPORATE_CIP_STANDARDS:12.4","propertyKey":"accessControlType",`
+  `"requestedValue":"NONE","recommendedValue":"RBAC","questionId":"access-policy","decision":null}`.
+  Add an open question with that questionId and the same interactionIds. Do not leave
+  policyConflict null on that fact. After the reply, update the same fact and remove its question.
 - Preserve stable interaction, fact, and question IDs. Give separate IDs to repeated calls.
+  Calls on different branches remain separate occurrences even when they use the same target
+  and method. For three branches with HTTP Senders, capture three OUTBOUND interactions and
+  three `http-sender` capabilities; scope each branch's parameters to its own interaction.
+  For parallel branches, capture entry -> branchA, entry -> branchB, and entry -> branchC.
+  Never capture branchA -> branchB -> branchC unless the author requests sequential execution.
+  Preserve the Split, aggregation, and post-aggregation steps as scoped facts.
+  An HTTP Sender invoking a helper chain's HTTP route remains `http-sender`. Use `chain-call-2`
+  only for an explicitly requested Chain Call element.
   When correcting an incorrect interaction, reassign its facts to the proper interaction and
   update transitions, questions, and capability entries. Remove facts only when the author removes
   their requirements. The server rejects dangling references atomically.
 - Use the `capabilities` list for native triggers, direct senders, file transfer, chain calls,
   and MCP triggers. Do not create `CAPABILITY`, `ENDPOINT`, or `SERVICE_CALL` authored facts.
   Use facts for goals, parameters, behavior, constraints, visibility, and routing intent.
+- An explicitly requested HTTP Sender calling a raw URI, custom route, or helper chain's HTTP
+  endpoint is a native `http-sender`. Capture that capability for each occurrence immediately.
+  Do not resolveApiOperation or search the API catalog for those calls. Naming a helper chain
+  and its HTTP route does not make the call a catalog Service Call.
+  If the helper route's full URI is absent, ask for its runtime HTTP endpoint. A catalog chain
+  UUID identifies the chain, not a network host. Preserve the known helper name and context path.
 - A named operation of a named catalog system is a catalog call, even when its transport is HTTP
   or Kafka. Leave its outbound capability absent and call `resolveApiOperation` after capture.
   Do not select `http-sender` or `kafka-sender-2` from the system name or guess its endpoint.
@@ -128,8 +153,10 @@ catalog resolution, and defaults.
   path when an operation is absent from the catalog.
 - Call `finishRequirementDiscoveryTurn` exactly once as the final tool call. Use `STAY` for
   explanation or continued discussion, including a turn that edited the draft. Use `CONTINUE`
-  only when the author asks to proceed. A ready draft alone does not authorize continuation.
-  Preparing a design for approval is a continuation request; use `CONTINUE` after capture.
+  only when the author asks to proceed and the saved draft has no missing fields. A partial
+  draft refuses `CONTINUE`. Use `updateRequirementDraft` to fill the missing fields and preserve
+  all saved facts.
+  Do not tell the user the draft is ready.
 - Do not run the compiler spine, write files, or mutate catalog entities during discovery.
 
 ## Coverage and repair example

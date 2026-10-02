@@ -36,6 +36,8 @@ public class RequirementDraftStore {
   private final ConcurrentHashMap<String, String> captureMutationScopes = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, Boolean> captureMutationRejected = new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, String> currentAuthorText = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, RequirementCaptureInput.DraftInput> policyQuestionsAtTurnStart =
+      new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, List<RequirementCaptureInput.FactInput>> rejectedCaptureFacts =
       new ConcurrentHashMap<>();
   private final CompilationArtifacts artifacts;
@@ -205,6 +207,7 @@ public class RequirementDraftStore {
     captureMutationScopes.remove(conversationId);
     captureMutationRejected.remove(conversationId);
     currentAuthorText.remove(conversationId);
+    policyQuestionsAtTurnStart.remove(conversationId);
     rejectedCaptureFacts.remove(conversationId);
   }
 
@@ -217,6 +220,7 @@ public class RequirementDraftStore {
     captureMutationScopes.remove(conversationId);
     captureMutationRejected.remove(conversationId);
     currentAuthorText.remove(conversationId);
+    policyQuestionsAtTurnStart.remove(conversationId);
     rejectedCaptureFacts.remove(conversationId);
   }
 
@@ -227,12 +231,31 @@ public class RequirementDraftStore {
 
   /** Marks the start of a gather scenario turn before the agent runs. */
   public void beginTurn(String conversationId) {
+    currentAuthorText.remove(conversationId);
+    policyQuestionsAtTurnStart.remove(conversationId);
+    get(conversationId).map(RequirementDraft::authoredDraft)
+        .ifPresent(draft -> policyQuestionsAtTurnStart.put(conversationId, draft));
     if (conversations != null) {
       sourceInputs.put(conversationId, conversations.archive().read(conversationId));
     }
     capturedThisTurn.put(conversationId, false);
     turnDirectives.remove(conversationId);
     rejectedCaptureFacts.remove(conversationId);
+  }
+
+  boolean canResolvePolicyChoice(String conversationId, RequirementCaptureInput.FactInput candidate) {
+    if (conversations != null) {
+      var source = sourceInputs.get(conversationId);
+      if (source == null || source.activeTurns().stream().noneMatch(turn ->
+          turn.message().role() == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+              && "READY".equals(turn.status()) && turn.consumedDraftReference() == null)) {
+        return false;
+      }
+    } else if (currentAuthorText.getOrDefault(conversationId, "").isBlank()) {
+      return false;
+    }
+    return RequirementCaptureEditor.wasPolicyQuestionAsked(
+        policyQuestionsAtTurnStart.get(conversationId), candidate);
   }
 
   void rememberRejectedCaptureFacts(

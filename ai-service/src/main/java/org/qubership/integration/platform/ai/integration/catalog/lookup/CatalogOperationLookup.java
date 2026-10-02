@@ -104,7 +104,8 @@ public class CatalogOperationLookup {
                   operation.method(),
                   operation.path(),
                   operation.name(),
-                  "catalog-read:" + system.id() + "/" + spec.id() + "/" + operation.id());
+                  "catalog-read:" + system.id() + "/" + spec.id() + "/" + operation.id(),
+                  spec.version());
           known.add(match);
           int score = CatalogRanker.score(query, system, operation);
           if (score < CatalogRanker.THRESHOLD) {

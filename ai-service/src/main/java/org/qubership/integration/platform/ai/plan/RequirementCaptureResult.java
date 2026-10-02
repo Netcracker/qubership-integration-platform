@@ -79,14 +79,26 @@ public record RequirementCaptureResult(
         RequirementCaptureProjection.pending(draft, acceptedDraft.catalogBindings(),
             RequirementCaptureProjection.resolvedTargets(acceptedDraft));
     Readiness readiness = acceptedDraft.readyForPlan() ? Readiness.READY : Readiness.PARTIAL;
-    NextAction action = issues.isEmpty()
-        ? continuationAction(pending, readiness, draft, directive)
-        : issueAction(issues);
+    NextAction action = nextAction(issues, pending, readiness, draft, directive);
     return new RequirementCaptureResult(
         accepted, changed, revision, readiness, action, issues, pending, draft,
         resolutions(draft, acceptedDraft.catalogBindings(),
             RequirementCaptureProjection.resolvedTargets(acceptedDraft)),
         RequirementCaptureProjection.defaults(draft));
+  }
+
+  private static NextAction nextAction(
+      List<CaptureIssue> issues,
+      List<RequirementCaptureProjection.PendingWork> pending,
+      Readiness readiness,
+      DraftInput draft,
+      RequirementDiscoveryDirective directive) {
+    if (issues.stream().anyMatch(issue -> "CONTINUATION_NOT_AUTHORIZED".equals(issue.code()))) {
+      return pending.isEmpty() ? NextAction.COMPLETE_DRAFT : pendingAction(pending);
+    }
+    return issues.isEmpty()
+        ? continuationAction(pending, readiness, draft, directive)
+        : issueAction(issues);
   }
 
   private static NextAction issueAction(List<CaptureIssue> issues) {
@@ -103,7 +115,7 @@ public record RequirementCaptureResult(
     }
     if (issues.stream().anyMatch(issue ->
         "CONTINUATION_NOT_AUTHORIZED".equals(issue.code()))) {
-      return NextAction.DISCUSS;
+      return NextAction.COMPLETE_DRAFT;
     }
     return NextAction.REPAIR_CAPTURE;
   }

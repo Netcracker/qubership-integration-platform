@@ -80,7 +80,7 @@ public class ChainPlanPropertiesMaterializer {
   }
 
   private static boolean hasPatchableContent(ChainPlanNode node) {
-    return hasProperties(node) || hasLabel(node);
+    return hasProperties(node) || hasLabel(node) || "chain-trigger-2".equals(node.type());
   }
 
   private static boolean hasProperties(ChainPlanNode node) {
@@ -252,15 +252,19 @@ public class ChainPlanPropertiesMaterializer {
         }
       }
     }
-    remapReuseElementId(node, properties, map);
+    remapCatalogElementIds(node, properties, map);
     if (!properties.isEmpty()) {
       body.put("properties", properties);
     }
     return body;
   }
 
-  private static void remapReuseElementId(
+  private static void remapCatalogElementIds(
       ChainPlanNode node, Map<String, Object> properties, MaterializationMap map) {
+    if ("chain-trigger-2".equals(node.type())) {
+      properties.put("elementId", map.nodeIdToElementId().get(node.nodeId()));
+      return;
+    }
     if (!"reuse-reference".equals(node.type())) {
       return;
     }

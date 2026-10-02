@@ -159,6 +159,32 @@ class DesignPlanContractValidatorTest {
   }
 
   @Test
+  void wrongCompositionKindNamesTheExpectedElementNodeAndOwner() {
+    Fixture fixture = completeFixture();
+    List<Step> steps = new ArrayList<>(fixture.contract().steps());
+    steps.add(step("wrong-kind", "cip-script-generator", TargetKind.BEHAVIOR_NODE, "reuse-block"));
+
+    List<DesignPlanContractFinding> findings =
+        validator.findings(
+            contract(fixture.revision(), steps),
+            fixture.revision(),
+            fixture.brief(),
+            fixture.pin());
+
+    DesignPlanContractFinding mismatch =
+        findings.stream()
+            .filter(finding -> finding.code() == DesignPlanContractFinding.Code.TARGET_KIND_MISMATCH)
+            .filter(finding -> "reuse-block".equals(finding.targetId()))
+            .findFirst()
+            .orElseThrow();
+    assertEquals(TargetKind.BEHAVIOR_NODE, mismatch.targetKind());
+    assertTrue(mismatch.blocking());
+    assertTrue(
+        mismatch.message().contains("targetKind=ELEMENT_NODE producer=cip-composition-generator"),
+        mismatch.message());
+  }
+
+  @Test
   void validatesUnknownSelfCyclicAndPinnedDependencies() {
     ChainSemanticRevision revision = DesignPlanTestFixtures.revision();
     RequirementBrief brief = DesignPlanTestFixtures.brief();

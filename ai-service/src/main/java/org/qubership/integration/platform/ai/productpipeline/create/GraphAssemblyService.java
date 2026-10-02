@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssemblyResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphPatchArtifact;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PatchApplicability;
@@ -15,6 +16,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.PatchRejec
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphOwnershipFact;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchApplier;
 import org.qubership.integration.platform.ai.schema.QipSchemaYamlParser;
@@ -77,6 +79,12 @@ public class GraphAssemblyService implements CompilerNodeExecutionAdapter {
 
   public GraphAssemblyResult assemble(
       ChainStructure structure, List<GraphPatchArtifact> acceptedPatchArtifacts) {
+    return assemble(structure, acceptedPatchArtifacts, null);
+  }
+
+  public GraphAssemblyResult assemble(
+      ChainStructure structure, List<GraphPatchArtifact> acceptedPatchArtifacts,
+      NamingManifest namingManifest) {
     Objects.requireNonNull(structure, "structure");
     ChainPlanGraph graph = structure.graph();
     if (graph == null) {
@@ -112,7 +120,7 @@ public class GraphAssemblyService implements CompilerNodeExecutionAdapter {
       }
       graph = applyResult.graph();
     }
-    return assembled(graph, orderedPatchReferences, rejected);
+    return assembled(applyNames(graph, namingManifest), orderedPatchReferences, rejected);
   }
 
   /**
@@ -127,12 +135,33 @@ public class GraphAssemblyService implements CompilerNodeExecutionAdapter {
       ChainPlanGraph graph,
       List<CompilationArtifacts.Reference> orderedPatchReferences,
       List<GraphOwnershipFact> ownershipFacts) {
+    return assembleFromGraph(graph, orderedPatchReferences, ownershipFacts, null);
+  }
+
+  public GraphAssemblyResult assembleFromGraph(
+      ChainPlanGraph graph,
+      List<CompilationArtifacts.Reference> orderedPatchReferences,
+      List<GraphOwnershipFact> ownershipFacts,
+      NamingManifest namingManifest) {
     Objects.requireNonNull(graph, "graph");
     return assembled(
-        graph,
+        applyNames(graph, namingManifest),
         orderedPatchReferences == null ? List.of() : orderedPatchReferences,
         ownershipFacts == null ? List.of() : ownershipFacts,
         List.of());
+  }
+
+  private static ChainPlanGraph applyNames(ChainPlanGraph graph, NamingManifest namingManifest) {
+    if (namingManifest != null && !namingManifest.labelsByRoleId().isEmpty()) {
+      List<ChainPlanNode> namedNodes = graph.nodes().stream().map(node -> {
+        String label = namingManifest.labelsByRoleId().get(node.nodeId());
+        return label == null || label.isBlank() ? node
+            : new ChainPlanNode(node.nodeId(), node.type(), label, node.parentNodeId(),
+                node.order(), node.properties());
+      }).toList();
+      graph = new ChainPlanGraph(graph.schemaVersion(), graph.chain(), namedNodes, graph.edges());
+    }
+    return graph;
   }
 
   private GraphAssemblyResult assembled(
