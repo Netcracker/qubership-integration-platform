@@ -495,7 +495,8 @@ public class ChainSemanticCaptureAdapter {
               requireText(region.ownerNodeId(), "ownerNodeId"),
               requireValue(region.mode(), "split mode"),
               branches,
-              region.reconvergenceNodeId()));
+              region.reconvergenceNodeId(),
+              region.mainBranchId()));
     }
     for (ChainSemanticCapture.CapturedLoopRegion region : capture.loopRegions()) {
       regions.add(

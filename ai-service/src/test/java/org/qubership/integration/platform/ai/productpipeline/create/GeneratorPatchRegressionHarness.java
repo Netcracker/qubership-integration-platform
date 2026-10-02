@@ -558,6 +558,7 @@ public final class GeneratorPatchRegressionHarness {
                         "isExternalCall",
                         "m2m",
                         "propagateContext",
+                        "overrideContextParams",
                         "reuseEstablishedConnection")),
                 entry(
                     "kafka-sender-2",

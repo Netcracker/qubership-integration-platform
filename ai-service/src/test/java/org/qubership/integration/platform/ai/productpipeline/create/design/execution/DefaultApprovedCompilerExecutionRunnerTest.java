@@ -522,6 +522,8 @@ class DefaultApprovedCompilerExecutionRunnerTest {
                 generationNode("cip-trigger-generator", List.of("cip-naming-generator")),
                 generationNode("cip-security-generator", List.of("cip-naming-generator")),
                 generationNode("cip-transformation-generator", List.of("cip-naming-generator")),
+                generationNode("cip-auth-generator", List.of("cip-service-call-generator")),
+                generationNode("cip-service-call-generator", List.of("cip-naming-generator")),
                 generationNode("cip-quartz-scheduler-generator", List.of("cip-naming-generator")),
                 terminalNode(
                     "cip-chain-assembler",
@@ -530,6 +532,7 @@ class DefaultApprovedCompilerExecutionRunnerTest {
                         "cip-trigger-generator",
                         "cip-security-generator",
                         "cip-transformation-generator",
+                        "cip-auth-generator",
                         "cip-quartz-scheduler-generator")),
                 terminalNode(
                     "cip-structural-validator",
@@ -539,10 +542,13 @@ class DefaultApprovedCompilerExecutionRunnerTest {
                 edge("cip-naming-generator", "cip-trigger-generator"),
                 edge("cip-naming-generator", "cip-security-generator"),
                 edge("cip-naming-generator", "cip-transformation-generator"),
+                edge("cip-naming-generator", "cip-service-call-generator"),
+                edge("cip-service-call-generator", "cip-auth-generator"),
                 edge("cip-naming-generator", "cip-quartz-scheduler-generator"),
                 edge("cip-trigger-generator", "cip-chain-assembler"),
                 edge("cip-security-generator", "cip-chain-assembler"),
                 edge("cip-transformation-generator", "cip-chain-assembler"),
+                edge("cip-auth-generator", "cip-chain-assembler"),
                 edge("cip-quartz-scheduler-generator", "cip-chain-assembler"),
                 edge("cip-chain-assembler", "cip-structural-validator")),
             "full-dag");
@@ -561,6 +567,8 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             "cip-trigger-generator",
             "cip-security-generator",
             "cip-transformation-generator",
+            "cip-service-call-generator",
+            "cip-auth-generator",
             "cip-chain-assembler",
             "cip-structural-validator"),
         skillIds);
@@ -569,8 +577,11 @@ class DefaultApprovedCompilerExecutionRunnerTest {
         List.of(
             "cip-trigger-generator",
             "cip-security-generator",
-            "cip-transformation-generator"),
+            "cip-transformation-generator",
+            "cip-auth-generator"),
         node(scoped, "cip-chain-assembler").dependsOn());
+    assertEquals(
+        List.of("cip-service-call-generator"), node(scoped, "cip-auth-generator").dependsOn());
   }
 
   private static ResolvedCompilerNode generationNode(String skillId, List<String> dependsOn) {

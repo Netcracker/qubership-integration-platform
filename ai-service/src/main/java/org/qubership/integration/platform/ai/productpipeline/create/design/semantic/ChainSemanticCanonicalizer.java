@@ -136,7 +136,8 @@ public class ChainSemanticCanonicalizer {
               split.ownerNodeId(),
               split.mode(),
               sortSplitBranches(split.branches()),
-              split.reconvergenceNodeId());
+              split.reconvergenceNodeId(),
+              split.mainBranchId());
       case SemanticRegion.Loop loop ->
           new SemanticRegion.Loop(
               loop.regionId(),

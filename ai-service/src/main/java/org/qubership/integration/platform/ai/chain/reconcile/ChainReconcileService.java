@@ -150,7 +150,10 @@ public class ChainReconcileService {
         continue;
       }
       Object catalogValue = catalogProperties.get(property.key());
-      Object planValue = remappedPlanValue(property.key(), property.value(), nodeMap);
+      Object planValue =
+          "chain-trigger-2".equals(node.type()) && "elementId".equals(property.key())
+              ? nodeMap.get(node.nodeId())
+              : remappedPlanValue(property.key(), property.value(), nodeMap);
       if (!canonicalEquals(property.key(), planValue, catalogValue)) {
         propertyMismatches.add(node.nodeId() + "." + property.key());
       }

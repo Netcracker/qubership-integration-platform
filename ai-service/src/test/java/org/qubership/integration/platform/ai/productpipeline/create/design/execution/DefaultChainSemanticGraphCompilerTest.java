@@ -414,7 +414,7 @@ class DefaultChainSemanticGraphCompilerTest {
     ChainSemanticRevision revision = syncSplitOneBranchRevision();
     ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
 
-    assertEquals("split-element-2", node(graph, "split-1-branch-work").type());
+    assertEquals("main-split-element-2", node(graph, "split-1-branch-work").type());
     assertEquals("split-1", node(graph, "split-1-branch-work").parentNodeId());
     assertEquals("split-1-branch-work", node(graph, "work-script").parentNodeId());
     assertEquals(0, node(graph, "split-1-branch-work").order());
@@ -433,6 +433,34 @@ class DefaultChainSemanticGraphCompilerTest {
 
       assertTrue(errors.isEmpty(), mode + ": " + String.join("; ", errors));
     }
+  }
+
+  @Test
+  void projectsExactlyOneMainBranchForSynchronousSplit() {
+    ChainPlanGraph graph =
+        compiler.compile(splitTwoBranchRevision(SplitMode.SYNC), CONTRACT, List.of());
+
+    assertEquals("main-split-element-2", node(graph, "split-1-branch-audit").type());
+    assertEquals("split-element-2", node(graph, "split-1-branch-fulfillment").type());
+    assertEquals(
+        1, graph.nodes().stream().filter(n -> "main-split-element-2".equals(n.type())).count());
+  }
+
+  @Test
+  void keepsAnExplicitMainBranchIndependentOfItsOrder() {
+    ChainSemanticRevision base = splitTwoBranchRevision(SplitMode.SYNC);
+    SemanticRegion.Split split = (SemanticRegion.Split) base.regions().get(0);
+    ChainSemanticRevision revision = revision(
+        base.entryPoints(), base.nodes(),
+        List.of(new SemanticRegion.Split(split.regionId(), split.ownerNodeId(), split.mode(),
+            split.branches(), split.reconvergenceNodeId(), "fulfillment")),
+        base.executionEdges(), base.containment(), base.mappingIntents());
+
+    ChainPlanGraph graph = compiler.compile(revision, CONTRACT, List.of());
+
+    assertEquals("split-element-2", node(graph, "split-1-branch-audit").type());
+    assertEquals("main-split-element-2", node(graph, "split-1-branch-fulfillment").type());
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, revision);
   }
 
   @Test

@@ -7,18 +7,18 @@ import java.util.List;
 import java.util.Map;
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
 
-/** LLM-facing property patch with a structured JSON value (not JSON-in-string). */
+/** LLM-facing property patch with schema-coerced values. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 record PropertyPatchCapture(
     @Description("ADD, UPDATE, or REMOVE") GraphPatchOperation operation,
     @Description("Existing plan node id") String targetNodeId,
     @Description("Catalog property key from describeElementPatchSchema") String key,
     @Description("Unused placeholder when mapEntries or arrayValue is set; send {}") JsonNode value,
-    @Description("String, number, or boolean; the server uses this when value is {}")
+    @Description("String, number, boolean, or serialized JSON object/array; schema-coerced when value is {}")
         String scalarValue,
     @Description("String list such as headerModificationToRemove; send value={}")
         List<String> arrayValue,
-    @Description("Add/keep headers as name=value strings, e.g. [\"X-Trace=1\", \"X-Keep=\"]")
+    @Description("Flat string object as name=value pairs, e.g. [\"type=m2m\"] or [\"X-Trace=1\"]")
         List<String> mapEntries,
     @Description("String map such as headerModificationToAdd; send value={}")
         Map<String, String> mapValue) {

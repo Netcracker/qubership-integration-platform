@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -14,6 +15,7 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssemblyResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphOwnershipFact;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.ChainStructure;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
 
 class GraphAssemblyServiceTest {
@@ -50,6 +52,21 @@ class GraphAssemblyServiceTest {
     assertEquals(digest.sha256(result.graph()), result.graphDigest());
     assertEquals(List.of(ref), result.orderedPatchReferences());
     assertEquals(List.of(fact), result.ownershipFacts());
+  }
+
+  @Test
+  void appliesNamesWithoutChangingPropertiesOrUnspecifiedLabels() {
+    var assembler = new GraphAssemblyService(new CanonicalGraphDigest(new ObjectMapper()));
+    var original = assembler.assembleFromGraph(graph()).graph();
+    var naming = new NamingManifest(1, "ignored-name", Map.of("script", "Set body"), List.of(), List.of());
+
+    var result = assembler.assembleFromGraph(original, List.of(), List.of(), naming).graph();
+
+    assertEquals(original.chain(), result.chain());
+    assertEquals(original.edges(), result.edges());
+    assertEquals(original.nodes().getFirst(), result.nodes().getFirst());
+    assertEquals("Set body", result.nodes().get(1).label());
+    assertEquals(original.nodes().get(1).properties(), result.nodes().get(1).properties());
   }
 
   private static ChainPlanGraph graph() {

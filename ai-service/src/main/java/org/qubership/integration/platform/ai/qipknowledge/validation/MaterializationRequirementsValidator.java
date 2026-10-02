@@ -1,5 +1,8 @@
 package org.qubership.integration.platform.ai.qipknowledge.validation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -24,6 +27,7 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 @ApplicationScoped
 public class MaterializationRequirementsValidator {
 
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   private final MaterializationRequirementsLoader loader;
   private final CompilerContractRepository contractRepository;
 
@@ -57,6 +61,15 @@ public class MaterializationRequirementsValidator {
         continue;
       }
       ElementRequirement overlayRequirement = overlay.elementRequirements().get(elementType);
+      if ("service-call".equals(elementType) && node.properties() != null) {
+        for (PlanProperty property : node.properties()) {
+          if (("before".equals(property.key()) || "after".equals(property.key()))
+              && hasMissingHookBody(property.value())) {
+            issues.add(materializationBlocker(issueCounter++, node, elementType,
+                property.key() + ".script", overlayRequirement));
+          }
+        }
+      }
       for (String propertyKey : element.requiredProperties()) {
         if (hasNonBlankProperty(node, propertyKey)) {
           continue;
@@ -71,6 +84,24 @@ public class MaterializationRequirementsValidator {
       }
     }
     return List.copyOf(issues);
+  }
+
+  private static boolean hasMissingHookBody(String value) {
+    try {
+      JsonNode hooks = MAPPER.readTree(value);
+      if (hooks == null) {
+        return false;
+      }
+      for (JsonNode hook : hooks.isArray() ? hooks : List.of(hooks)) {
+        if ("script".equals(hook.path("type").asText())
+            && !ScriptBodyPromptRedaction.isPresentScriptBody(hook.path("script").asText(null))) {
+          return true;
+        }
+      }
+      return false;
+    } catch (JsonProcessingException | IllegalArgumentException error) {
+      return true;
+    }
   }
 
   private static boolean hasNonBlankProperty(ChainPlanNode node, String propertyKey) {
@@ -98,7 +129,9 @@ public class MaterializationRequirementsValidator {
       String propertyKey,
       ElementRequirement overlayRequirement) {
     String owner =
-        overlayRequirement != null
+        "before.script".equals(propertyKey) || "after.script".equals(propertyKey)
+            ? "cip-service-call-generator"
+            : overlayRequirement != null
                 && overlayRequirement.ownerGenerator() != null
                 && !overlayRequirement.ownerGenerator().isBlank()
             ? overlayRequirement.ownerGenerator()
@@ -114,7 +147,9 @@ public class MaterializationRequirementsValidator {
             + propertyKey
             + "'";
     String suggestedFix =
-        example != null && !example.isBlank()
+        "before.script".equals(propertyKey) || "after.script".equals(propertyKey)
+            ? "Include the complete Groovy script body inside the native before/after hook through " + owner
+            : example != null && !example.isBlank()
             ? "Add "
                 + propertyKey
                 + " through "

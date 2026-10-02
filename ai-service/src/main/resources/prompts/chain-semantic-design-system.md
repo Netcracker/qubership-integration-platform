@@ -14,8 +14,28 @@ To attach additional `sourceFactIds` to an existing anchor, list its exact `node
 under `operations`. Use the supplied trigger type, `service-call` for a catalog call, or the native
 outbound type. This adds provenance to the existing node without creating or replacing an interaction.
 Attach event and call behavior facts to their anchors, and sender configuration facts to that sender.
-Implement local script facts
-on a `script` node in the approved execution order, separate from the external interaction anchor.
+Implement standalone local script facts on a `script` node in the approved execution order.
+An explicitly requested service-call `before` or `after` Script is an inline hook on that call.
+Attach its fact IDs to the existing `service-call` anchor under `operations`; do not create a
+separate Script operation for that hook. The service-call generator supplies the hook body.
+
+For example, when the supplied anchors are `entry` and `call`, and `prepare-body` requests
+an inline before-call script, capture the call's provenance and a direct execution edge:
+
+```json
+{
+  "capture": {
+    "chainIdentity": "Example inline hook",
+    "operations": [
+      {"nodeId": "call", "elementType": "service-call", "sourceFactIds": ["prepare-body"]}
+    ],
+    "edges": [{"sourceNodeId": "entry", "targetNodeId": "call"}]
+  }
+}
+```
+
+The hook runs inside `call`; its fact does not own a standalone processing node.
+Copy the actual anchor IDs and all other applicable fact IDs from the approved brief.
 
 Combine input parsing, context retention, and request mapping in one script when they run consecutively
 on the same branch and in the same error scope. Save the required original values to exchange properties
@@ -24,6 +44,8 @@ fact in that script's `sourceFactIds`; different fact kinds do not require diffe
 Keep separate scripts when the author explicitly requests separate steps or a service call,
 branch, loop, retry, or error-scope boundary separates the work. Keep response assembly after its
 producing call; it cannot share the request script before that call.
+Preserve an explicitly requested Script as an operation with `elementType=script`.
+A conditional check inside its Groovy body does not require a condition region or if/else containers.
 
 Every positive BEHAVIOR and CAPABILITY fact must appear in a semantic node's `sourceFactIds`.
 The server initially attaches each anchor's primary fact. Include its
@@ -86,12 +108,122 @@ List each control-flow region under the list that matches its kind: `sequenceReg
 `conditionRegions`, `splitRegions`, `loopRegions`, `retryRegions`, or `errorScopeRegions`. Omit
 those lists when the chain is linear. Omit optional fields you do not use; do not send `null`.
 For a condition whose branches finish independently, omit `reconvergenceNodeId`.
+Keep those branches terminal. Do not invent a shared no-op Script to join them or fill a
+reconvergence field. Include an empty Script only when the approved brief explicitly requests it.
+An empty optional node ID also means absent. Do not replace it with an invented node.
 
-Execution edges form a DAG, including loops. A loop region describes repetition; never draw an
-edge back to its owner, a previous node, or the trigger. For `loop-2`, supply `ownerNodeId`,
+Example for terminal condition branches: the supplied anchors are `inbound` and `call`,
+and the Else branch contains a requested error-response Script. Both branches end independently.
+
+```json
+{
+  "capture": {
+    "chainIdentity": "Example terminal condition",
+    "operations": [
+      {"nodeId": "choose", "elementType": "condition", "sourceFactIds": ["condition-policy"]},
+      {"nodeId": "reject", "elementType": "script", "sourceFactIds": ["error-response"]}
+    ],
+    "conditionRegions": [{
+      "regionId": "choice", "ownerNodeId": "choose",
+      "branches": [
+        {"branchId": "valid", "role": "IF", "predicate": "$\{header.valid} == \"true\"", "priority": 0, "entryNodeId": "call", "exitNodeIds": ["call"]},
+        {"branchId": "invalid", "role": "ELSE", "priority": 1, "entryNodeId": "reject", "exitNodeIds": ["reject"]}
+      ]
+    }],
+    "edges": [
+      {"sourceNodeId": "inbound", "targetNodeId": "choose"},
+      {"sourceNodeId": "choose", "targetNodeId": "call", "regionId": "choice", "routeKind": "CONDITION_BRANCH", "branchId": "valid"},
+      {"sourceNodeId": "choose", "targetNodeId": "reject", "regionId": "choice", "routeKind": "CONDITION_BRANCH", "branchId": "invalid"}
+    ]
+  }
+}
+```
+
+There is no reconvergence node, no `RECONVERGE` edge, and no Script after the condition.
+Use the actual anchor IDs, predicate, and facts from the approved brief.
+
+For `split-2`, use a split region with `mode=SYNC`. Its parallel branches finish before the
+following node processes their aggregated result. Use `mode=ASYNC` only with `split-async-2`
+when the approved brief requests an asynchronous split. Parallel processing alone does not
+select ASYNC. The region mode must match its owner's element type.
+Copy each requested branch name exactly into `branchId`; the server uses it as `splitName`.
+For SYNC, set `mainBranchId` to the branch explicitly requested as Main. When no Main branch is
+specified, the server uses the first ordered branch. ASYNC has no Main branch; omit `mainBranchId`.
+List branch work as operations. The server projects `main-split-element-2`, `split-element-2`, and
+`async-split-element-2` containers; do not list those containers as operations.
+Connect the owner to each branch's entry with `SPLIT_BRANCH`. For SYNC, connect each branch's exit
+to the following node with `RECONVERGE`, naming that branch in `branchIds`. Setting
+`reconvergenceNodeId` does not create those edges. For ASYNC, connect the owner directly to the
+main flow's next node with a plain sequence edge. The asynchronous branch ends independently;
+omit `reconvergenceNodeId`, `mainBranchId`, and branch-to-continuation edges. Use `splitRegions`
+to declare branch membership; do not add containment for branch work. All edges follow execution order.
+
+Example for an asynchronous split with one outbound call and a requested main-flow Script.
+The supplied anchors are `inbound` and `call`; replace IDs and facts with the approved values.
+
+```json
+{
+  "capture": {
+    "chainIdentity": "Example asynchronous split",
+    "operations": [
+      {"nodeId": "split", "elementType": "split-async-2", "sourceFactIds": ["async-policy"]},
+      {"nodeId": "continue", "elementType": "script", "sourceFactIds": ["main-continuation"]}
+    ],
+    "splitRegions": [{
+      "regionId": "async-region", "ownerNodeId": "split", "mode": "ASYNC",
+      "branches": [{"branchId": "background", "order": 0, "entryNodeId": "call", "exitNodeIds": ["call"]}]
+    }],
+    "edges": [
+      {"sourceNodeId": "inbound", "targetNodeId": "split"},
+      {"sourceNodeId": "split", "targetNodeId": "call", "regionId": "async-region", "routeKind": "SPLIT_BRANCH", "branchId": "background"},
+      {"sourceNodeId": "split", "targetNodeId": "continue"}
+    ]
+  }
+}
+```
+
+Example for a synchronous split with two script branches and a script after aggregation.
+The anchor is `inbound`; replace the names and fact IDs with those from the approved brief.
+When a branch consists of one outbound call, use its existing anchor as both branch entry and exit.
+Do not add a no-op Script to create a branch entry; the server creates the branch container.
+
+```json
+{
+  "capture": {
+    "chainIdentity": "Example split",
+    "operations": [
+      {"nodeId": "split", "elementType": "split-2", "sourceFactIds": ["split-policy"]},
+      {"nodeId": "left-work", "elementType": "script", "sourceFactIds": ["left-body"]},
+      {"nodeId": "right-work", "elementType": "script", "sourceFactIds": ["right-body"]},
+      {"nodeId": "check-result", "elementType": "script", "sourceFactIds": ["check-aggregation"]}
+    ],
+    "splitRegions": [{
+      "regionId": "split-region", "ownerNodeId": "split", "mode": "SYNC", "mainBranchId": "left-branch",
+      "branches": [
+        {"branchId": "left-branch", "order": 0, "entryNodeId": "left-work", "exitNodeIds": ["left-work"]},
+        {"branchId": "right-branch", "order": 1, "entryNodeId": "right-work", "exitNodeIds": ["right-work"]}
+      ],
+      "reconvergenceNodeId": "check-result"
+    }],
+    "edges": [
+      {"sourceNodeId": "inbound", "targetNodeId": "split"},
+      {"sourceNodeId": "split", "targetNodeId": "left-work", "regionId": "split-region", "routeKind": "SPLIT_BRANCH", "branchId": "left-branch"},
+      {"sourceNodeId": "split", "targetNodeId": "right-work", "regionId": "split-region", "routeKind": "SPLIT_BRANCH", "branchId": "right-branch"},
+      {"sourceNodeId": "left-work", "targetNodeId": "check-result", "regionId": "split-region", "routeKind": "RECONVERGE", "branchIds": ["left-branch"]},
+      {"sourceNodeId": "right-work", "targetNodeId": "check-result", "regionId": "split-region", "routeKind": "RECONVERGE", "branchIds": ["right-branch"]}
+    ]
+  }
+}
+```
+
+Execution edges form a DAG, including loops. Never draw an edge back to a previous node or trigger.
+An inbound HTTP response uses the current exchange. Setting its response body, status, or failure
+state does not require an edge back to the HTTP trigger or a new outbound interaction.
+The final response script is terminal unless the approved brief specifies a following step.
+A loop region describes repetition; never draw an edge back to its owner. For `loop-2`, supply `ownerNodeId`,
 `bodyEntryNodeId`, `bodyExitNodeIds`, `exitNodeId`, `loopMode`, and `loopExpression`.
 Copy the approved mode and expression exactly. Include a positive `loopSafetyBound` only when
-the approved brief explicitly requests an iteration cap. Otherwise omit it; the server applies
+the approved brief explicitly requests an iteration cap. Otherwise omit it or use `0`; the server applies
 the element schema default. Do not infer a cap from the loop expression or choose a sample value.
 `LOOP_BODY` connects the owner
 to the first body node; `LOOP_EXIT` connects the last body node to `exitNodeId`. Both edges name the
@@ -143,6 +275,9 @@ and mappings when repairing topology.
 Use `TRY_PATH`, `CATCH_PATH`, and `FINALLY_PATH` only once per corresponding branch, from the error-scope
 owner to that branch's entry node. Use plain sequence edges within each branch. Connect a node that runs
 after the complete error scope from the wrapper with a plain sequence edge outside the region.
+The finally path ends at its last explicitly requested finally operation. A following verification script
+is not a finally member: exclude it from the region's `exitNodeIds` and connect the wrapper directly to it.
+For example, a Finally script that sets a property and a later Check values script remain separate.
 Do not merge ordinary paths by giving a node multiple incoming edges: supported branch reconvergence
 uses `RECONVERGE` with the owning region and branch ids. Plain sequence edges outside a region need no region id.
 

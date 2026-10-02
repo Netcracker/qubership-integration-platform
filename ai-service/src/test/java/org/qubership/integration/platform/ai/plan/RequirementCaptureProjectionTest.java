@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
@@ -18,6 +21,8 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Intera
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.RetryInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureProjectionTest {
@@ -56,5 +61,157 @@ class RequirementCaptureProjectionTest {
         RequirementCaptureProjection.facts(draft).stream()
             .filter(fact -> "first-secret-id-retry".equals(fact.sourceFactId()))
             .findFirst().orElseThrow().polarity());
+  }
+
+  @Test
+  void derivedRetryFactKeepsRetryCountZeroWhenItsPreferredIdIsAlreadyAuthored() {
+    DraftInput draft = kafkaDraft(List.of(
+        new FactInput("publish-kafka-retry", List.of("publish-kafka"),
+            FactKind.BEHAVIOR, Polarity.NEGATIVE, "Publish with retry count 0.")));
+
+    List<RequirementFact> facts = RequirementCaptureProjection.facts(draft);
+    RequirementFact authored = facts.stream()
+        .filter(fact -> "publish-kafka-retry".equals(fact.sourceFactId()))
+        .findFirst().orElseThrow();
+    RequirementFact derived = facts.stream()
+        .filter(fact -> fact.kind() == RequirementFactKind.BEHAVIOR)
+        .filter(fact -> fact.text().equals("Do not retry this call."))
+        .findFirst().orElseThrow();
+
+    assertEquals(facts.size(), facts.stream().map(RequirementFact::sourceFactId).distinct().count());
+    assertEquals("Publish with retry count 0.", authored.text());
+    assertEquals(RequirementFactPolarity.NEGATIVE, derived.polarity());
+    assertEquals(List.of("publish-kafka"), derived.interactionIds());
+    assertEquals("publish-kafka", capabilityId(facts, "kafka-sender-2"));
+    assertEquals("http-entry", capabilityId(facts, "http-trigger"));
+  }
+
+  @Test
+  void derivedRetryIdAvoidsAnotherInteractionIdAndATakenSuffix() {
+    DraftInput draft = new DraftInput(
+        new FlowInput(List.of(
+            new InteractionInput("step", Direction.OUTBOUND, "Kafka", "publish",
+                null, null, new RetryInput(0, null)),
+            new InteractionInput("step-retry", Direction.OUTBOUND, "Kafka", "publish-other",
+                null, null, new RetryInput(1, 1000))),
+            List.of()),
+        List.of(
+            new FactInput("step-retry-2", List.of("step"), FactKind.CONSTRAINT, Polarity.NEGATIVE,
+                "Do not change the topic.")),
+        List.of(
+            new CapabilityInput("step", "kafka-sender-2", null, null, null, "orders", null, null),
+            new CapabilityInput("step-retry", "kafka-sender-2", null, null, null, "receipts", null, null)),
+        List.of(), new DraftSettings(null, null));
+
+    List<RequirementFact> facts = RequirementCaptureProjection.facts(draft);
+
+    assertEquals(facts.size(), facts.stream().map(RequirementFact::sourceFactId).distinct().count());
+    assertEquals("step", capabilityId(facts, "orders"));
+    assertEquals("step-retry", capabilityId(facts, "receipts"));
+    assertTrue(facts.stream().anyMatch(fact ->
+        "step-retry-3".equals(fact.sourceFactId())
+            && fact.polarity() == RequirementFactPolarity.NEGATIVE
+            && fact.text().equals("Do not retry this call.")));
+    assertTrue(facts.stream().anyMatch(fact ->
+        "step-retry-retry".equals(fact.sourceFactId())
+            && fact.polarity() == RequirementFactPolarity.POSITIVE
+            && fact.text().contains("1 times")));
+  }
+
+  @Test
+  void chainCallTargetLookupKeepsTheInteractionIdWhenRetryAllocationMoves() {
+    DraftInput draft = new DraftInput(
+        new FlowInput(List.of(
+            new InteractionInput("http-entry", Direction.INBOUND, "Client", "GET /call",
+                null, null, null),
+            new InteractionInput("call-chain", Direction.OUTBOUND, "Header chain", "start",
+                null, null, new RetryInput(0, null))),
+            List.of(new TransitionInput("http-entry", "call-chain"))),
+        List.of(new FactInput("call-chain-retry", List.of("call-chain"),
+            FactKind.BEHAVIOR, Polarity.NEGATIVE, "Call once.")),
+        List.of(
+            new CapabilityInput("http-entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
+                "/call", null, null, null),
+            new CapabilityInput("call-chain", "chain-call-2", null, null, null, null, null, null)),
+        List.of(), new DraftSettings(null, null));
+    Map<String, String> targets = Map.of("call-chain", "trig-header");
+
+    List<RequirementFact> facts = RequirementCaptureProjection.facts(draft, targets);
+    RequirementDraft projected = RequirementCaptureProjection.toDraft(
+        draft, null, List.of(), "1", "hash", targets);
+    RequirementDraft refreshed = RequirementCaptureProjection.toDraft(
+        draft, projected, List.of(), "1", "hash", targets);
+
+    assertEquals(facts.size(), facts.stream().map(RequirementFact::sourceFactId).distinct().count());
+    assertEquals("call-chain", capabilityId(facts, "chain-call-2"));
+    assertEquals("trig-header", facts.stream()
+        .filter(fact -> "chain-call-2".equals(fact.capabilityKey()))
+        .findFirst().orElseThrow().path());
+    assertEquals(Map.of("call-chain", "trig-header"),
+        RequirementCaptureProjection.resolvedTargets(projected));
+    assertEquals(Map.of("call-chain", "trig-header"),
+        RequirementCaptureProjection.resolvedTargets(refreshed));
+    assertEquals(
+        projected.facts().stream().map(RequirementFact::sourceFactId).collect(Collectors.toList()),
+        refreshed.facts().stream().map(RequirementFact::sourceFactId).collect(Collectors.toList()));
+  }
+
+  @Test
+  void collidingKafkaDraftSurvivesBriefCoverageAfterRefresh() {
+    DraftInput input = kafkaDraft(List.of(
+        new FactInput("publish-kafka-retry", List.of("publish-kafka"),
+            FactKind.BEHAVIOR, Polarity.NEGATIVE, "Publish with retry count 0."),
+        new FactInput("deliver-event", List.of(), FactKind.GOAL, Polarity.POSITIVE,
+            "Deliver the event.")));
+    RequirementDraft projected = RequirementCaptureProjection.toDraft(
+        input, null, List.of(), "1", "hash");
+    RequirementDraft refreshed = RequirementCaptureProjection.toDraft(
+        input, projected, List.of(), "1", "hash");
+    RequirementBrief brief = new RequirementBrief(
+        "Deliver the event",
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        "summary",
+        "ref",
+        refreshed.planningText(),
+        refreshed.facts(),
+        List.of(new RequirementEntryPoint(
+            "http-entry", "http-entry", "http-trigger", "", "POST", "/events", "POST /events")),
+        List.of(),
+        List.of(),
+        List.of(),
+        refreshed.flow(),
+        List.of(),
+        List.of());
+
+    assertEquals(Optional.empty(), new RequirementBriefCoverageValidator().validate(refreshed, brief));
+  }
+
+  private static String capabilityId(List<RequirementFact> facts, String marker) {
+    return facts.stream()
+        .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
+        .filter(fact -> marker.equals(fact.capabilityKey()) || marker.equals(fact.topic()))
+        .map(RequirementFact::sourceFactId)
+        .findFirst()
+        .orElseThrow();
+  }
+
+  private static DraftInput kafkaDraft(List<FactInput> facts) {
+    return new DraftInput(
+        new FlowInput(List.of(
+            new InteractionInput("http-entry", Direction.INBOUND, "Client", "POST /events",
+                null, null, null),
+            new InteractionInput("publish-kafka", Direction.OUTBOUND, "Orders", "publish",
+                null, null, new RetryInput(0, null))),
+            List.of(new TransitionInput("http-entry", "publish-kafka"))),
+        facts,
+        List.of(
+            new CapabilityInput("http-entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+                "/events", null, null, null),
+            new CapabilityInput("publish-kafka", "kafka-sender-2", null, null, null,
+                "orders", null, null)),
+        List.of(), new DraftSettings(null, null));
   }
 }

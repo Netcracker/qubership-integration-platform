@@ -96,6 +96,18 @@ spec:
                   key: QIP_AI_A2A_PUBLIC_BASE_URL
             - name: LLM_API_KEY
               value: {{ .Values.global.qip.ai.llmApiKey | default "placeholder" | quote }}
+            - name: LLM_BASE_URL
+              value: {{ .Values.global.qip.ai.llmBaseUrl | quote }}
+            - name: LLM_CHAT_MODEL
+              value: {{ .Values.global.qip.ai.llmChatModel | quote }}
+            - name: LLM_REASONING_EFFORT
+              value: {{ .Values.global.qip.ai.llmReasoningEffort | quote }}
+            - name: LLM_TEMPERATURE
+              value: {{ .Values.global.qip.ai.llmTemperature | quote }}
+            - name: LLM_MAX_TOKENS
+              value: {{ .Values.global.qip.ai.llmMaxTokens | quote }}
+            - name: LLM_TIMEOUT
+              value: {{ .Values.global.qip.ai.llmTimeout | quote }}
             - name: QIP_KNOWLEDGE_SIDECAR_URL
               value: http://127.0.0.1:8095
           livenessProbe:

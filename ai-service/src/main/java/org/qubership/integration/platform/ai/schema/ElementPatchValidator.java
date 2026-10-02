@@ -626,7 +626,7 @@ public final class ElementPatchValidator {
       String documentUri,
       Deque<String> refStack,
       int depth) {
-    if (schema == null || schema.isNull() || schema.isMissingNode()) {
+    if (schema == null || schema.isNull() || schema.isMissingNode() || depth > 10) {
       return true;
     }
     JsonNode s = schema;
@@ -659,7 +659,7 @@ public final class ElementPatchValidator {
     }
     if (s.has("type") && s.get("type").isTextual()) {
       String t = s.get("type").asText();
-      return switch (t) {
+      boolean typeMatches = switch (t) {
         case "string" -> value.isTextual() || value.isNull();
         case "integer" -> value.isIntegralNumber() || value.isTextual();
         case "number" -> value.isNumber() || value.isTextual();
@@ -672,9 +672,31 @@ public final class ElementPatchValidator {
         case "object" -> value.isObject() || value.isNull();
         default -> true;
       };
+      if (!typeMatches) {
+        return false;
+      }
     }
-    if (s.has("properties") && s.get("properties").isObject() && value.isObject()) {
-      return true;
+    if (value.isObject()) {
+      for (JsonNode required : s.path("required")) {
+        if (!value.has(required.asText()) || value.get(required.asText()).isNull()) {
+          return false;
+        }
+      }
+      for (Map.Entry<String, JsonNode> property : s.path("properties").properties()) {
+        if (value.has(property.getKey()) && !valueMatchesSchema(
+            value.get(property.getKey()), property.getValue(), resolver,
+            documentRoot, documentUri, refStack, depth + 1)) {
+          return false;
+        }
+      }
+    }
+    if (value.isArray() && s.has("items") && s.get("items").isObject()) {
+      for (JsonNode item : value) {
+        if (!valueMatchesSchema(item, s.get("items"), resolver,
+            documentRoot, documentUri, refStack, depth + 1)) {
+          return false;
+        }
+      }
     }
     return true;
   }

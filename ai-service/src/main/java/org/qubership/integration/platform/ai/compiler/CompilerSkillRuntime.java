@@ -828,9 +828,7 @@ public class CompilerSkillRuntime {
         chatMemorySanitizer.repairDanglingToolCalls(memoryId);
         yield captureRepairRunner.runWithRepair(
             message -> generatorAgent.chat(memoryId, message),
-            () ->
-                captureSession.isPresent(
-                    CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, conversationId)),
+            () -> acceptCapturedNaming(conversationId, inputGraph),
             () -> feedbackStore.lastPlanFailure(conversationId),
             sanitizingOnToolArgs(
                 memoryId,
@@ -1092,6 +1090,26 @@ public class CompilerSkillRuntime {
         List.of(),
         List.of(),
         "No script bodies missing; skipped.");
+  }
+
+  boolean acceptCapturedNaming(String conversationId, ChainPlanGraph inputGraph) {
+    CaptureKey key = CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, conversationId);
+    NamingManifest naming = captureSession.get(key, NamingManifest.class).orElse(null);
+    if (naming == null) {
+      return false;
+    }
+    List<String> missing = inputGraph == null ? List.of() : inputGraph.nodes().stream()
+        .map(ChainPlanNode::nodeId)
+        .filter(id -> naming.labelsByRoleId().getOrDefault(id, "").isBlank())
+        .toList();
+    if (!missing.isEmpty()) {
+      captureSession.clearIfSame(key, naming);
+      feedbackStore.recordPlanValidationFailure(
+          conversationId, "labelsByRoleId is missing display names for: " + String.join(", ", missing));
+      return false;
+    }
+    feedbackStore.clearPlan(conversationId);
+    return true;
   }
 
   private boolean acceptCapturedGraphPatch(

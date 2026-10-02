@@ -8,16 +8,23 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.plan.RequirementPolicyConflict;
 
 /** Deterministic security validator for compiler graph candidates. */
 @ApplicationScoped
 public class CompilerSecurityValidator {
 
   private static final String OWNER = "cip-security-validator";
+  public static final String EXTERNAL_RBAC_POLICY = "CORPORATE_CIP_STANDARDS:12.4";
   private static final Set<String> CREDENTIAL_KEYS =
       Set.of("password", "secret", "token", "apiKey", "connectionString", "saslJaasConfig");
 
   public ValidationResult validate(ChainPlanGraph graph) {
+    return validate(graph, null);
+  }
+
+  public ValidationResult validate(ChainPlanGraph graph, RequirementBrief brief) {
     List<ValidationIssue> issues = new ArrayList<>();
     int counter = 1;
     if (graph == null || graph.nodes() == null) {
@@ -28,7 +35,7 @@ public class CompilerSecurityValidator {
         continue;
       }
       if ("http-trigger".equals(trim(node.type()))) {
-        counter = validateExternalRouteRbac(node, issues, counter);
+        counter = validateExternalRouteRbac(node, brief, issues, counter);
       }
       counter = validateCredentialLiterals(node, issues, counter);
     }
@@ -44,17 +51,37 @@ public class CompilerSecurityValidator {
   }
 
   private static int validateExternalRouteRbac(
-      ChainPlanNode node, List<ValidationIssue> issues, int counter) {
+      ChainPlanNode node, RequirementBrief brief, List<ValidationIssue> issues, int counter) {
     if (!"true".equalsIgnoreCase(propertyValue(node, "externalRoute"))) {
       return counter;
     }
+    if (brief != null && brief.facts().stream().anyMatch(fact -> {
+      var conflict = fact.policyConflict();
+      return conflict != null && conflict.decision() != null
+          && EXTERNAL_RBAC_POLICY.equals(conflict.policyId())
+          && "accessControlType".equals(conflict.propertyKey())
+          && fact.interactionIds().equals(List.of(node.nodeId()))
+          && !conflict.selectedValue().equals(propertyValue(node, "accessControlType"));
+    })) {
+      issues.add(blocker(counter++, node.nodeId(),
+          "External route access control differs from the confirmed user choice",
+          "Apply the confirmed accessControlType from the approved policy fact"));
+      return counter;
+    }
     if (!"RBAC".equalsIgnoreCase(propertyValue(node, "accessControlType"))) {
+      if (hasConfirmedAccessControlChoice(node, brief)) {
+        issues.add(new ValidationIssue("security-" + counter++, ValidationSeverity.WARNING,
+            "The user confirmed " + propertyValue(node, "accessControlType")
+                + " for this external route after reviewing the corporate RBAC recommendation",
+            OWNER, List.of(node.nodeId()), List.of(), "Retain the confirmed choice; RBAC remains recommended"));
+        return counter;
+      }
       issues.add(
           blocker(
               counter++,
               node.nodeId(),
-              "External route requires accessControlType=RBAC",
-              "Set accessControlType to RBAC and provide explicit roles"));
+              "External route requires accessControlType=RBAC or a confirmed user choice",
+              "Explain the corporate RBAC recommendation and ask whether to retain the requested value or use RBAC"));
       return counter;
     }
     String rolesValue = propertyValue(node, "roles");
@@ -76,6 +103,22 @@ public class CompilerSecurityValidator {
               "Replace wildcard with explicit roles"));
     }
     return counter;
+  }
+
+  private static boolean hasConfirmedAccessControlChoice(ChainPlanNode node, RequirementBrief brief) {
+    if (brief == null || node.nodeId() == null) {
+      return false;
+    }
+    return brief.facts().stream().anyMatch(fact -> {
+      var conflict = fact.policyConflict();
+      return conflict != null && EXTERNAL_RBAC_POLICY.equals(conflict.policyId())
+          && "accessControlType".equals(conflict.propertyKey())
+          && "RBAC".equals(conflict.recommendedValue())
+          && ("NONE".equals(conflict.requestedValue()) || "ABAC".equals(conflict.requestedValue()))
+          && conflict.decision() == RequirementPolicyConflict.Decision.KEEP_REQUESTED
+          && fact.interactionIds().equals(List.of(node.nodeId()))
+          && conflict.selectedValue().equals(propertyValue(node, "accessControlType"));
+    });
   }
 
   private static int validateCredentialLiterals(

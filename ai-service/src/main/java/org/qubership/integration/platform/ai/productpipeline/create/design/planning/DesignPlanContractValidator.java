@@ -121,8 +121,8 @@ public final class DesignPlanContractValidator {
                   code == DesignPlanContractFinding.Code.TARGET_KIND_MISMATCH
                       ? "Target id "
                           + key.id()
-                          + " belongs to "
-                          + expectedKindsById.get(key.id())
+                          + " requires "
+                          + expectedTargetText(expectedOwners, expectedKindsById.get(key.id()), key.id())
                           + ", not "
                           + key.kind()
                       : "Unknown " + key));
@@ -143,7 +143,13 @@ public final class DesignPlanContractValidator {
       List<String> owners = producers.getOrDefault(key, List.of());
       if (owners.isEmpty()) {
         findings.add(finding(DesignPlanContractFinding.Code.MISSING_TARGET_PRODUCER,
-            key.kind(), key.id(), "", "Missing producer for " + key));
+            key.kind(), key.id(), "",
+            "Missing producer for targetKind="
+                + key.kind()
+                + " targetId="
+                + key.id()
+                + " producer="
+                + expectedOwners.get(key)));
       } else if (owners.size() > 1) {
         findings.add(finding(DesignPlanContractFinding.Code.DUPLICATE_TARGET_PRODUCER,
             key.kind(), key.id(), String.join(",", owners), "More than one producer for " + key));
@@ -257,6 +263,18 @@ public final class DesignPlanContractValidator {
           DesignPlanProjector.SCRIPT_GENERATOR_SKILL_ID);
     }
     return owners;
+  }
+
+  private static String expectedTargetText(
+      Map<TargetKey, String> expectedOwners, Set<TargetKind> kinds, String targetId) {
+    return kinds.stream()
+        .map(kind -> {
+          String owner = expectedOwners.get(new TargetKey(kind, targetId));
+          return owner == null
+              ? "targetKind=" + kind
+              : "targetKind=" + kind + " producer=" + owner;
+        })
+        .collect(java.util.stream.Collectors.joining("; "));
   }
 
   private static Map<String, Set<TargetKind>> expectedKindsById(Set<TargetKey> targets) {

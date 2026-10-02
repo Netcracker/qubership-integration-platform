@@ -444,6 +444,81 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
+  void aMissingRequiredValueAsksUsingTheFindingText() {
+    PlanValidationFinding roles =
+        new PlanValidationFinding(
+            "security-2", "External route RBAC requires a non-empty roles list", true);
+    PlanValidationFinding retry =
+        new PlanValidationFinding(
+            RecoveryCauseCode.MISSING_REQUIRED_PROPERTY.name(),
+            "Missing required property retryDelay on http-sender",
+            true);
+
+    ProducerOwnedRecovery.Route security =
+        route(
+            "design-execution",
+            RecoveryCause.fromFindings(List.of(roles), StageOutcomeClass.VALIDATION_FAILURE),
+            EXECUTION_CANDIDATES,
+            false,
+            0,
+            Optional.empty());
+    ProducerOwnedRecovery.Route property =
+        route(
+            "design-execution",
+            RecoveryCause.fromFindings(List.of(retry), StageOutcomeClass.VALIDATION_FAILURE),
+            EXECUTION_CANDIDATES,
+            false,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.ASK_CLARIFICATION, security.action());
+    assertEquals("design-execution", security.producerStageId());
+    assertTrue(security.requestedFact().contains(roles.message()));
+    assertEquals(ProducerOwnedRecovery.Action.ASK_CLARIFICATION, property.action());
+    assertTrue(property.requestedFact().contains(retry.message()));
+  }
+
+  @Test
+  void aMissingRequiredValueStopsAskingAfterTheRepairBudget() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.fromFindings(
+                List.of(
+                    new PlanValidationFinding(
+                        "security-1",
+                        "External route requires accessControlType=RBAC or a confirmed user choice",
+                        true)),
+                StageOutcomeClass.VALIDATION_FAILURE),
+            EXECUTION_CANDIDATES,
+            false,
+            1,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.PARK, route.action());
+  }
+
+  @Test
+  void aMissingRequiredValueDoesNotAskAfterTheCatalogIsWritten() {
+    ProducerOwnedRecovery.Route route =
+        route(
+            "design-execution",
+            RecoveryCause.fromFindings(
+                List.of(
+                    new PlanValidationFinding(
+                        RecoveryCauseCode.MISSING_REQUIRED_PROPERTY.name(),
+                        "Missing required property retryCount on http-sender",
+                        true)),
+                StageOutcomeClass.VALIDATION_FAILURE),
+            EXECUTION_CANDIDATES,
+            true,
+            0,
+            Optional.empty());
+
+    assertEquals(ProducerOwnedRecovery.Action.REPAIR_CURRENT, route.action());
+  }
+
+  @Test
   void aMalformedDiagnosisDoesNotBlockCurrentProducerRepair() {
     ProducerOwnedRecovery.Route route =
         route(

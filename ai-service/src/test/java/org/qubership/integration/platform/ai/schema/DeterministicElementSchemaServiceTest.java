@@ -32,6 +32,22 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void validatesServiceCallAuthorizationAndResponseHandlerContents() throws Exception {
+    assertTrue(service.validateCapturePropertyValue(
+        "service-call", "authorizationConfiguration", objectMapper.readTree("{}"))
+        .isPresent());
+    assertTrue(service.validateCapturePropertyValue(
+        "service-call", "authorizationConfiguration", objectMapper.readTree("{\"type\":\"m2m\"}"))
+        .isEmpty());
+    assertTrue(service.validateCapturePropertyValue(
+        "service-call", "after", objectMapper.readTree("[\"200\"]"))
+        .isPresent());
+    assertTrue(service.validateCapturePropertyValue(
+        "service-call", "after", objectMapper.readTree("[{\"type\":\"none\",\"code\":\"200\"}]"))
+        .isEmpty());
+  }
+
+  @Test
   void describeElementPatchSchemaExposesHttpTriggerRootOneOfRequired() throws Exception {
     // Prove describeElementPatchSchema tells the truth for http-trigger Endpoint oneOf:
     // unconditional required stays on accessControlType; branch required lives in alternatives.
