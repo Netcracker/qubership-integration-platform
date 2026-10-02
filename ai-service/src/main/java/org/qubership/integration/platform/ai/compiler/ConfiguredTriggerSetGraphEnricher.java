@@ -10,7 +10,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTri
 /**
  * Copies captured {@link ConfiguredTriggerSet} endpoint properties onto matching plan nodes.
  *
- * <p>Does not invent values — only copies already-captured trigger properties onto blank keys.
+ * <p>Copies captured properties onto blank keys and replaces default async configuration.
  */
 final class ConfiguredTriggerSetGraphEnricher {
 
@@ -42,7 +42,9 @@ final class ConfiguredTriggerSetGraphEnricher {
         if ("serviceCallId".equals(property.key()) && !"service-call".equals(nodeType)) {
           continue;
         }
-        if (hasNonBlankProperty(merged, nodeId, property.key())) {
+        if (hasNonBlankProperty(merged, nodeId, property.key())
+            && !("async-api-trigger".equals(nodeType)
+                && "integrationOperationAsyncProperties".equals(property.key()))) {
           continue;
         }
         merged = merged.withNodeProperty(nodeId, property.key(), property.value());

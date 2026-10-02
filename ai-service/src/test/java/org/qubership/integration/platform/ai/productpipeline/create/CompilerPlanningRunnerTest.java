@@ -170,7 +170,41 @@ class CompilerPlanningRunnerTest {
                 finding ->
                     "security-1".equals(finding.code())
                         && finding.blocker()
-                        && finding.message().contains("RBAC")));
+                        && finding.message().contains("RBAC")
+                        && finding.message().contains("affectedNodes=http-trigger-1")
+                        && finding.message().contains("owner=cip-security-validator")
+                        && finding.message().contains(
+                            "suggestedFix=Configure one or more explicit RBAC roles")));
+  }
+
+  @Test
+  void buildValidationResultKeepsHookRepairEvidence() {
+    var issue =
+        new org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue(
+            "materialization-1",
+            org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity
+                .BLOCKER,
+            "Node 'call-sf' (service-call) is missing required materialization property 'after.script'",
+            "cip-service-call-generator",
+            List.of("call-sf"),
+            List.of(),
+            "Include the complete Groovy script body inside the native before/after hook"
+                + " through cip-service-call-generator");
+    var result =
+        CompilerPlanningRunner.buildValidationResult(
+            new ValidationResult(false, List.of(issue), "materialization failed"), List.of());
+
+    assertTrue(
+        result.findings().stream()
+            .anyMatch(
+                finding ->
+                    finding.blocker()
+                        && finding.message().contains("after.script")
+                        && finding.message().contains("affectedNodes=call-sf")
+                        && finding.message().contains("owner=cip-service-call-generator")
+                        && finding.message().contains(
+                            "suggestedFix=Include the complete Groovy script body")),
+        result.findings().toString());
   }
 
   @Test

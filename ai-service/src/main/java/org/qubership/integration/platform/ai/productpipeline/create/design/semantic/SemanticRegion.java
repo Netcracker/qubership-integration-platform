@@ -65,7 +65,7 @@ public sealed interface SemanticRegion
       }
       ownerNodeId = DesignArtifacts.requireText(ownerNodeId, "ownerNodeId");
       branches = DesignArtifacts.copyList(branches);
-      reconvergenceNodeId = DesignArtifacts.nullableTrimmed(reconvergenceNodeId);
+      reconvergenceNodeId = DesignArtifacts.optionalText(reconvergenceNodeId);
     }
 
     public Condition(
@@ -83,7 +83,8 @@ public sealed interface SemanticRegion
       String ownerNodeId,
       SplitMode mode,
       List<SemanticBranch.Split> branches,
-      String reconvergenceNodeId)
+      String reconvergenceNodeId,
+      String mainBranchId)
       implements SemanticRegion {
 
     public Split {
@@ -94,7 +95,8 @@ public sealed interface SemanticRegion
       ownerNodeId = DesignArtifacts.requireText(ownerNodeId, "ownerNodeId");
       mode = DesignArtifacts.requireNonNull(mode, "mode");
       branches = DesignArtifacts.copyList(branches);
-      reconvergenceNodeId = DesignArtifacts.nullableTrimmed(reconvergenceNodeId);
+      reconvergenceNodeId = DesignArtifacts.optionalText(reconvergenceNodeId);
+      mainBranchId = DesignArtifacts.optionalText(mainBranchId);
     }
 
     public Split(
@@ -103,7 +105,18 @@ public sealed interface SemanticRegion
         SplitMode mode,
         List<SemanticBranch.Split> branches,
         String reconvergenceNodeId) {
-      this(regionId, SemanticRegionKind.SPLIT, ownerNodeId, mode, branches, reconvergenceNodeId);
+      this(regionId, SemanticRegionKind.SPLIT, ownerNodeId, mode, branches, reconvergenceNodeId, null);
+    }
+
+    public Split(
+        String regionId,
+        String ownerNodeId,
+        SplitMode mode,
+        List<SemanticBranch.Split> branches,
+        String reconvergenceNodeId,
+        String mainBranchId) {
+      this(regionId, SemanticRegionKind.SPLIT, ownerNodeId, mode, branches, reconvergenceNodeId,
+          mainBranchId);
     }
   }
 

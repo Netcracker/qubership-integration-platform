@@ -2860,7 +2860,7 @@ class RequirementDraftToolTest {
     captureTool.captureRequirementDraft(
         new RequirementDraftCapture(
             true,
-            "OM onTaskStart calls Salesforce createTask; do not call onTaskResult.",
+            "OM onTaskStart consumes the task start event; do not call onTaskResult.",
             DraftDecision.READY_FOR_PLAN,
             List.of(),
             null,

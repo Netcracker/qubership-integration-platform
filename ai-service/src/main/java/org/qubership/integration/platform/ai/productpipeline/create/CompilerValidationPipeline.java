@@ -17,6 +17,7 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationBundle;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationPass;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
@@ -97,11 +98,17 @@ public class CompilerValidationPipeline {
 
   public ValidationResult validatePass(
       String validatorSkillId, NamingManifest namingManifest, ChainPlanGraph graph) {
+    return validatePass(validatorSkillId, namingManifest, graph, null);
+  }
+
+  public ValidationResult validatePass(
+      String validatorSkillId, NamingManifest namingManifest, ChainPlanGraph graph, RequirementBrief brief) {
     return switch (validatorSkillId) {
       case ELEMENT -> elementValidator.apply(graph);
       case STRUCTURAL -> structuralValidator.apply(graph);
       case CONFIGURATION -> configurationValidator.apply(graph);
-      case SECURITY -> compilerSecurityValidator.validate(graph);
+      case SECURITY -> brief == null ? compilerSecurityValidator.validate(graph)
+          : compilerSecurityValidator.validate(graph, brief);
       case QUALITY -> compilerQualityValidator.validate(namingManifest, graph);
       default -> throw new IllegalArgumentException("Unsupported validator skill id: " + validatorSkillId);
     };

@@ -629,6 +629,10 @@ public class CompilerSkillContextBuilder {
       body.append("Approved chain name: ").append(formatJson(snapshot.chainPlanGraph().chain().name()))
           .append("\nCopy this full value unchanged to chainName. Keep its words, spaces, and run id. "
               + "The approved name takes precedence over standalone corporate naming examples.\n\n");
+      body.append("Populate labels with {roleId, label} entries for every existing graph nodeId. "
+          + "Use exact element names from the approved brief, including spaces and capitalization. "
+          + "Generate descriptive labels only for roles without a requested name. "
+          + "A roleId is a technical identifier, not its display label.\n\n");
     }
     if ("cip-script-generator".equals(document.capabilityId())) {
       body.append("""
@@ -724,6 +728,13 @@ public class CompilerSkillContextBuilder {
     body.append(
         "Follow the compiler skill addon for this-turn capture steps and skill-specific rules."
             + " Upstream SKILL.md below owns domain behavior.\n");
+
+    if (captureTool == CaptureTool.CAPTURE_NAMING_MANIFEST) {
+      body.append("Call captureNamingManifest with a naming capture containing chainName and "
+          + "labels: [{roleId, label}]. The server converts the list to labelsByRoleId. "
+          + "Use existing graph nodeIds as roleIds. Do not emit GraphPatch operations.\n");
+      return;
+    }
 
     switch (document.phase()) {
       case DISCOVERY -> {

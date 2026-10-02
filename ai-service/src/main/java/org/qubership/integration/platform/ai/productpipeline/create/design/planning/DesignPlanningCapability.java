@@ -7,6 +7,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
@@ -491,6 +492,9 @@ public class DesignPlanningCapability implements StageCapability {
   }
 
   private static String describeRevision(ChainSemanticRevision revision, RequirementBrief brief) {
+    Map<DesignPlanContractValidator.TargetKey, String> expectedOwners =
+        DesignPlanContractValidator.expectedOwners(
+            revision, brief, DesignPlanContractValidator.BindingPolicy.CATALOG_ONLY);
     StringBuilder text = new StringBuilder();
     text.append(
         "Chain semantic revision. Copy targetKind and targetId values exactly into typed claims.\n\n");
@@ -554,6 +558,19 @@ public class DesignPlanningCapability implements StageCapability {
             .append(DesignPlanContractValidator.ownerForDirectOperation(operation.elementType()))
             .append(" elementType=")
             .append(operation.elementType());
+      } else if (node instanceof SemanticNode.Operation operation) {
+        String owner =
+            expectedOwners.get(
+                new DesignPlanContractValidator.TargetKey(
+                    DesignPlanContract.TargetKind.ELEMENT_NODE, operation.nodeId()));
+        if (owner != null) {
+          text.append(" targetKind=ELEMENT_NODE targetId=")
+              .append(operation.nodeId())
+              .append(" producer=")
+              .append(owner)
+              .append(" elementType=")
+              .append(operation.elementType());
+        }
       }
       text.append('\n');
     }

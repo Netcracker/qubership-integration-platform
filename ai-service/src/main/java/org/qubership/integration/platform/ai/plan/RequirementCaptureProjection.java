@@ -47,11 +47,15 @@ public final class RequirementCaptureProjection {
 
   public static List<RequirementFact> facts(DraftInput input, Map<String, String> targets) {
     List<RequirementFact> projected = new ArrayList<>();
+    Set<String> usedIds = new HashSet<>();
     for (FactInput fact : input.facts()) {
       projected.add(new RequirementFact(
           fact.sourceFactId(), RequirementFactPolarity.valueOf(fact.polarity().name()),
           RequirementFactKind.valueOf(fact.kind().name()), "", fact.text(), "", "", "", "", "",
-          "", fact.interactionIds()));
+          "", fact.interactionIds(), fact.policyConflict()));
+      if (!blank(fact.sourceFactId())) {
+        usedIds.add(fact.sourceFactId());
+      }
     }
     Map<String, InteractionInput> interactions = new HashMap<>();
     for (InteractionInput interaction : input.flow().interactions()) {
@@ -71,6 +75,9 @@ public final class RequirementCaptureProjection {
           owner.participant(), operation,
           capability.topic(), capability.httpMethod() == null ? null : capability.httpMethod().name(),
           path, "", List.of(capability.interactionId())));
+      if (!blank(capability.interactionId())) {
+        usedIds.add(capability.interactionId());
+      }
     }
     for (InteractionInput interaction : input.flow().interactions()) {
       if (interaction.retryPolicy() == null || interaction.retryPolicy().retryCount() == null) {
@@ -80,7 +87,7 @@ public final class RequirementCaptureProjection {
       int delay = interaction.retryPolicy().retryDelayMs() == null
           ? 5000 : interaction.retryPolicy().retryDelayMs();
       projected.add(new RequirementFact(
-          interaction.interactionId() + "-retry", count == 0
+          uniqueDerivedId(usedIds, interaction.interactionId() + "-retry"), count == 0
               ? RequirementFactPolarity.NEGATIVE : RequirementFactPolarity.POSITIVE,
           RequirementFactKind.BEHAVIOR, "",
           count == 0 ? "Do not retry this call."
@@ -88,6 +95,20 @@ public final class RequirementCaptureProjection {
           "", "", "", "", "", "", List.of(interaction.interactionId())));
     }
     return List.copyOf(projected);
+  }
+
+  /**
+   * Capability facts keep {@code interactionId} as {@code sourceFactId} because target lookup and
+   * flow validation match on that equality. Retry facts are the only derived ids that can move.
+   */
+  private static String uniqueDerivedId(Set<String> usedIds, String preferred) {
+    String candidate = preferred;
+    int suffix = 2;
+    while (!usedIds.add(candidate)) {
+      candidate = preferred + "-" + suffix;
+      suffix++;
+    }
+    return candidate;
   }
 
   public static List<PendingWork> pending(
@@ -118,8 +139,8 @@ public final class RequirementCaptureProjection {
       }
       if (interaction.direction() == null || blank(interaction.participant())
           || blank(interaction.operation())) {
-        pending.add(new PendingWork("INTERACTION_FIELD_REQUIRED", id, null,
-            "Describe the interaction's direction, participant, and operation."));
+        pending.add(new PendingWork(
+            "INTERACTION_FIELD_REQUIRED", id, null, missingInteractionFields(interaction)));
       }
       CapabilityInput capability = capabilities.get(id);
       if (interaction.direction() == Direction.OUTBOUND && capability == null
@@ -293,6 +314,15 @@ public final class RequirementCaptureProjection {
             .map(labels::get).reduce((left, right) -> left + ", " + right).orElse("")).append(")");
       }
       text.append('\n');
+      if (fact.policyConflict() != null) {
+        var conflict = fact.policyConflict();
+        text.append("- Company policy ").append(conflict.policyId()).append(": ")
+            .append(conflict.propertyKey()).append(" requested=").append(conflict.requestedValue())
+            .append(", recommended=").append(conflict.recommendedValue())
+            .append(", user choice=").append(conflict.decision() == null ? "PENDING" : conflict.decision())
+            .append(", selected=").append(conflict.selectedValue()).append(" (for ")
+            .append(fact.interactionIds().getFirst()).append(").\n");
+      }
     }
     for (CatalogBindingHint binding : bindings) {
       text.append("- Catalog operation for ").append(labels.get(binding.interactionId()))
@@ -429,6 +459,31 @@ public final class RequirementCaptureProjection {
     return input.flow().interactions().stream()
         .noneMatch(interaction -> interaction.direction() == Direction.OUTBOUND
             && !visited.contains(interaction.interactionId()));
+  }
+
+  private static String missingInteractionFields(InteractionInput interaction) {
+    List<String> missing = new ArrayList<>();
+    if (interaction.direction() == null) {
+      missing.add("direction");
+    }
+    if (blank(interaction.participant())) {
+      missing.add("participant");
+    }
+    if (blank(interaction.operation())) {
+      missing.add("operation");
+    }
+    return interaction.interactionId() + " is missing " + joinLabels(missing) + ".";
+  }
+
+  private static String joinLabels(List<String> labels) {
+    if (labels.size() == 1) {
+      return labels.getFirst();
+    }
+    if (labels.size() == 2) {
+      return labels.get(0) + " and " + labels.get(1);
+    }
+    return String.join(", ", labels.subList(0, labels.size() - 1))
+        + ", and " + labels.getLast();
   }
 
   private static String display(String value) {

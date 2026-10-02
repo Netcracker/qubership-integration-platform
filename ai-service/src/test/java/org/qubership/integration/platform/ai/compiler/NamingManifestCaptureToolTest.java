@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
@@ -15,6 +16,8 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
+import org.qubership.integration.platform.ai.compiler.NamingManifestCaptureTool.NamingCapture;
+import org.qubership.integration.platform.ai.compiler.NamingManifestCaptureTool.RoleLabel;
 
 class NamingManifestCaptureToolTest {
 
@@ -42,12 +45,15 @@ class NamingManifestCaptureToolTest {
             .get(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID), NamingManifest.class)
             .orElseThrow()
             .chainName());
+    assertEquals("HTTP Trigger", session
+        .get(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID), NamingManifest.class)
+        .orElseThrow().labelsByRoleId().get("entry"));
   }
 
   @Test
   void rejectsManifestWithoutChainName() {
     String result =
-        tool.captureNamingManifest(new NamingManifest(1, " ", java.util.Map.of("entry", "HTTP Trigger"), java.util.List.of(), java.util.List.of()));
+        tool.captureNamingManifest(new NamingCapture(1, " ", List.of(new RoleLabel("entry", "HTTP Trigger")), List.of(), List.of()));
 
     assertTrue(result.contains("chainName"));
     assertFalse(session.isPresent(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID)));
@@ -55,15 +61,15 @@ class NamingManifestCaptureToolTest {
 
   @Test
   void duplicateCapturePreservesFirstManifest() {
-    NamingManifest first = validManifest();
+    NamingCapture first = validManifest();
     assertThrows(CaptureValidationException.class, () -> tool.captureNamingManifest(first));
 
-    assertThrows(CaptureValidationException.class, () -> tool.captureNamingManifest(new NamingManifest(1, "other", java.util.Map.of("entry", "Other"), java.util.List.of(), java.util.List.of())));
+    assertThrows(CaptureValidationException.class, () -> tool.captureNamingManifest(new NamingCapture(1, "other", List.of(new RoleLabel("entry", "Other")), List.of(), List.of())));
     assertEquals(
-        first,
+        first.chainName(),
         session
             .get(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID), NamingManifest.class)
-            .orElseThrow());
+            .orElseThrow().chainName());
   }
 
   @Test
@@ -81,11 +87,21 @@ class NamingManifestCaptureToolTest {
     assertTrue(thrown.getMessage().contains("does not match slot"));
   }
 
-  private static NamingManifest validManifest() {
-    return new NamingManifest(
+  @Test
+  void rejectsDuplicateRoleIds() {
+    String result = tool.captureNamingManifest(new NamingCapture(1, "Example",
+        List.of(new RoleLabel("entry", "First"), new RoleLabel("entry", "Second")),
+        List.of(), List.of()));
+
+    assertTrue(result.contains("unique roleId"));
+    assertFalse(session.isPresent(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID)));
+  }
+
+  private static NamingCapture validManifest() {
+    return new NamingCapture(
         1,
         "customer-events-chain",
-        java.util.Map.of("entry", "HTTP Trigger"),
+        List.of(new RoleLabel("entry", "HTTP Trigger")),
         java.util.List.of("fact-1"),
         java.util.List.of());
   }

@@ -665,6 +665,53 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
+  void plannerInputAssignsCompositionOperationsToTheCompositionGenerator() {
+    ChainSemanticRevision base = sampleRevision();
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(
+        new SemanticNode.Operation(
+            "call-chain", "chain-call-2", new SemanticProvenance(List.of("fact-call"))));
+    nodes.add(new SemanticNode.Operation("reuse-block", "reuse", new SemanticProvenance(List.of())));
+    nodes.add(
+        new SemanticNode.Operation(
+            "reuse-ref", "reuse-reference", new SemanticProvenance(List.of())));
+    ChainSemanticRevision revision =
+        new ChainSemanticRevision(
+            base.schemaVersion(),
+            base.revisionId(),
+            base.chainIdentity(),
+            base.compilerContractVersion(),
+            base.entryPoints(),
+            nodes,
+            base.regions(),
+            base.executionEdges(),
+            base.containment(),
+            base.mappingIntents(),
+            base.constraints(),
+            base.assumptions(),
+            base.citations());
+
+    String input =
+        DesignPlanningCapability.buildPlannerInput(sampleIds(), revision, "2024.4", sampleBrief());
+
+    assertTrue(
+        input.contains(
+            "targetKind=ELEMENT_NODE targetId=call-chain"
+                + " producer=cip-composition-generator elementType=chain-call-2"),
+        input);
+    assertTrue(
+        input.contains(
+            "targetKind=ELEMENT_NODE targetId=reuse-block"
+                + " producer=cip-composition-generator elementType=reuse"),
+        input);
+    assertTrue(
+        input.contains(
+            "targetKind=ELEMENT_NODE targetId=reuse-ref"
+                + " producer=cip-composition-generator elementType=reuse-reference"),
+        input);
+  }
+
+  @Test
   void plannerInputListsBriefMappingsWhenRevisionStoresSitesOnly() {
     ChainSemanticRevision revision =
         SemanticFixtures.withoutMappingBodies(SemanticFixtures.linearOrdersWithMapping());

@@ -22,6 +22,12 @@ global:
       knowledgeSidecarImage: ghcr.io/netcracker/qubership-integration-knowledge-sidecar:main
       knowledgeVolume: null
       llmApiKey: placeholder
+      llmBaseUrl: https://api.openai.com/v1
+      llmChatModel: gpt-4o-mini
+      llmReasoningEffort: none
+      llmTemperature: "0.2"
+      llmMaxTokens: "4096"
+      llmTimeout: 180s
       # Runtime A2A rollout flag (default off). Does not delete Task data when flipped.
       a2aEnabled: "false"
       # Public base URL for the Agent Card. Set before enabling A2A (for example https://ai.example.com).

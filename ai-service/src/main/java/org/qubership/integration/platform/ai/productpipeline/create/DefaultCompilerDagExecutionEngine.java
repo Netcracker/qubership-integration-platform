@@ -699,7 +699,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
               .orElse(null);
       ValidationResult passResult =
           compilerValidationPipeline.validatePass(
-              node.skillId(), namingManifest, assemblyResult.graph());
+              node.skillId(), namingManifest, assemblyResult.graph(),
+              workspace.get(SkillArtifactType.REQUIREMENT_BRIEF)
+                  .map(a -> ((SkillArtifactPayload.RequirementBriefPayload) a.payload()).brief())
+                  .orElse(null));
       validatorPasses.put(node.skillId(), passResult);
       outputs.add(
           SkillArtifact.of(
@@ -737,7 +740,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             workspace == null ? "" : workspace.conversationId());
       }
       return graphAssemblyService.assembleFromGraph(
-          secured, patchLedger.orderedReferences(), patchLedger.ownershipFacts());
+          secured, patchLedger.orderedReferences(), patchLedger.ownershipFacts(),
+          workspace.get(SkillArtifactType.NAMING_MANIFEST)
+              .map(a -> ((SkillArtifactPayload.NamingManifestPayload) a.payload()).manifest())
+              .orElse(null));
     }
     ChainStructure structure =
         workspace
@@ -756,7 +762,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
                         ((SkillArtifactPayload.GraphPatchArtifactPayload) artifact.payload())
                             .artifact()))
             .orElse(List.of());
-    return graphAssemblyService.assemble(structure, acceptedPatchArtifacts);
+    return graphAssemblyService.assemble(structure, acceptedPatchArtifacts,
+        workspace.get(SkillArtifactType.NAMING_MANIFEST)
+            .map(a -> ((SkillArtifactPayload.NamingManifestPayload) a.payload()).manifest())
+            .orElse(null));
   }
 
   private GraphAssemblyResult resolveGraphAssemblyResult(SkillWorkspace workspace) {

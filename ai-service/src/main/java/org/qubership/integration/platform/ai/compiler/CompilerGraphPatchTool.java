@@ -170,12 +170,14 @@ public class CompilerGraphPatchTool {
       node.properties must be an array of {key,value} objects. Prefer properties:[] when only changing labels.
       Never send a bare Groovy string or string array as properties.
       Only cip-script-generator may set property key "script" (bodies). Other skills must omit it.
-      Property patches use scalarValue for strings, numbers, and booleans. Use mapEntries for
-      add/keep header pairs as name=value strings. Use arrayValue for string lists such as
+      Property patches use scalarValue for strings, numbers, booleans, or serialized JSON
+      objects and arrays. The server converts scalarValue using the property schema.
+      Use mapEntries for flat string objects as name=value strings, including type=m2m
+      and header overrides. Use arrayValue for string lists such as
       headerModificationToRemove. When the tool schema requires value beside those fields, send
       value={} and the server uses scalarValue, mapEntries, or arrayValue. Chain patches use key
       plus structured value.
-      Do not put JSON arrays or objects inside string values.""")
+      Use value={} beside those fields; do not rely on free-form object fields in value.""")
   public String captureGraphPatch(GraphPatchCapture patch) {
 
     String conversationId = resolveConversationId();
@@ -598,18 +600,6 @@ public class CompilerGraphPatchTool {
         && schemaService.isStringProperty(elementType, propertyPatch.key())) {
       return TextNode.valueOf(value.toString());
     }
-    if (value != null
-        && value.isObject()
-        && !value.isEmpty()
-        && schemaService.isArrayProperty(elementType, propertyPatch.key())) {
-      ArrayNode names = objectMapper.createArrayNode();
-      value.fieldNames().forEachRemaining(name -> {
-        if (name != null && !name.isBlank()) {
-          names.add(name);
-        }
-      });
-      return names;
-    }
     return value;
   }
 
@@ -677,8 +667,8 @@ public class CompilerGraphPatchTool {
     if (capturedValue != null
         && capturedValue.isObject()
         && schemaService.isArrayProperty(elementType, key)) {
-      return ". Put string names in arrayValue (for example [\"X-Internal-Debug\"]) and keep"
-          + " value={}";
+      return ". Use scalarValue with a JSON array matching the item schema. For string arrays,"
+          + " use arrayValue (for example [\"X-Internal-Debug\"]). Keep value={}";
     }
     return "";
   }

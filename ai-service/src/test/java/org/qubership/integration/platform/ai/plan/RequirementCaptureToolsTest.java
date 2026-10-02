@@ -27,6 +27,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.HttpMo
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextAction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
@@ -74,6 +75,60 @@ class RequirementCaptureToolsTest {
           .facts().getFirst());
       assertEquals(updated.revision(), mapper.readValue(
           tools.readRequirementDraft(), RequirementCaptureResult.class).revision());
+    }
+  }
+
+  @Test
+  void continueIsRefusedWhileInteractionFieldsAreBlank() throws Exception {
+    Harness harness = harness();
+    try (ToolSession.Handle ignored = ToolSession.open(harness.conversationId())) {
+      harness.tools().captureRequirementDraft(partialKafkaSenderDraft());
+
+      RequirementCaptureResult finished = harness.mapper().readValue(
+          harness.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+
+      assertFalse(finished.accepted());
+      assertEquals(NextAction.COMPLETE_DRAFT, finished.nextAction());
+      assertEquals(
+          RequirementDiscoveryDirective.STAY, harness.store().turnDirective(harness.conversationId()));
+      String message = finished.issues().getFirst().message();
+      assertTrue(message.contains("http-trigger is missing operation"), message);
+      assertTrue(message.contains("script-set-body is missing direction and participant"), message);
+      assertTrue(message.contains("kafka-sender is missing operation"), message);
+      assertTrue(message.contains("Use updateRequirementDraft"), message);
+      assertTrue(message.contains("Do not tell the user the draft is ready"), message);
+      assertNotNull(harness.store().get(harness.conversationId()).orElseThrow().authoredDraft());
+
+      RequirementCaptureResult repeated = harness.mapper().readValue(
+          harness.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+      String repeatedMessage = repeated.issues().getFirst().message();
+      assertFalse(repeated.accepted());
+      assertEquals(NextAction.COMPLETE_DRAFT, repeated.nextAction());
+      assertEquals(1, repeated.issues().size(), repeated.issues().toString());
+      assertTrue(repeatedMessage.contains("http-trigger is missing operation"), repeatedMessage);
+      assertFalse(repeatedMessage.toLowerCase().contains("repeated rejection"), repeatedMessage);
+    }
+  }
+
+  @Test
+  void continueIsAcceptedWhenTheSavedDraftIsReady() throws Exception {
+    Harness harness = harness();
+    try (ToolSession.Handle ignored = ToolSession.open(harness.conversationId())) {
+      RequirementCaptureResult captured = harness.mapper().readValue(
+          harness.tools().captureRequirementDraft(readyHttpDraft()), RequirementCaptureResult.class);
+      assertEquals(RequirementCaptureResult.Readiness.READY, captured.readiness(), captured.toString());
+
+      RequirementCaptureResult finished = harness.mapper().readValue(
+          harness.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+
+      assertTrue(finished.accepted(), finished.toString());
+      assertTrue(finished.issues().isEmpty(), finished.issues().toString());
+      assertEquals(
+          RequirementDiscoveryDirective.CONTINUE,
+          harness.store().turnDirective(harness.conversationId()));
     }
   }
 

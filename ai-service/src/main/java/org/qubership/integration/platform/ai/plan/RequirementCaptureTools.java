@@ -10,7 +10,9 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -131,6 +133,11 @@ public class RequirementCaptureTools {
         if (!edit.accepted()) {
           return view(previous, false, false, edit.issues());
         }
+        List<Issue> policyIssues = RequirementCaptureEditor.validatePolicyResponses(
+            previous.authoredDraft(), edit.draft(), fact -> store.canResolvePolicyChoice(conversationId, fact));
+        if (!policyIssues.isEmpty()) {
+          return view(previous, false, false, policyIssues);
+        }
         if (store.wasCapturedThisTurn(conversationId)) {
           List<Issue> preservationIssues = RequirementCaptureEditor.validateFactPreservation(
               previous.authoredDraft(), edit.draft());
@@ -181,8 +188,9 @@ public class RequirementCaptureTools {
 
   @Tool("""
       Finish the requirement-discovery turn once, after captures and lookups. Use STAY for discussion
-      and CONTINUE only when the author requested design or chain creation. This does not mutate or
-      approve the accepted draft.
+      and CONTINUE only when the author asked to proceed and the saved draft has no missing fields.
+      CONTINUE is refused while the draft is partial. Do not tell the user the draft is ready until
+      CONTINUE is accepted. This does not mutate or approve the accepted draft.
       """)
   public String finishRequirementDiscoveryTurn(
       @P("STAY for discussion; CONTINUE for an authorized next step")
@@ -202,9 +210,45 @@ public class RequirementCaptureTools {
             List.of(new Issue("INVALID_ENUM", "/directive", null,
                 "Use STAY or CONTINUE.")));
       }
+      RequirementDraft current = store.get(conversationId).orElse(null);
+      if (directive == RequirementDiscoveryDirective.CONTINUE) {
+        Optional<String> refusal = continueRefusal(current);
+        if (refusal.isPresent()) {
+          store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
+          return view(current, false, false, List.of(new Issue(
+              "CONTINUATION_NOT_AUTHORIZED", "/directive", null, refusal.get())), false);
+        }
+      }
       store.finishTurn(conversationId, directive);
-      return view(store.get(conversationId).orElse(null), true, false, List.of());
+      return view(current, true, false, List.of());
     });
+  }
+
+  private static Optional<String> continueRefusal(RequirementDraft draft) {
+    if (draft == null) {
+      return Optional.of(
+          "CONTINUE refused. No requirement draft is saved. Call captureRequirementDraft with the"
+              + " known flow. Do not tell the user the draft is ready.");
+    }
+    List<RequirementCaptureProjection.PendingWork> pending = draft.authoredDraft() == null
+        ? List.of()
+        : RequirementCaptureProjection.pending(
+            draft.authoredDraft(),
+            draft.catalogBindings(),
+            RequirementCaptureProjection.resolvedTargets(draft));
+    if (draft.readyForPlan() && pending.isEmpty()) {
+      return Optional.empty();
+    }
+    String gaps = pending.stream()
+        .map(RequirementCaptureProjection.PendingWork::message)
+        .collect(Collectors.joining(" "));
+    String reason = gaps.isBlank()
+        ? draft.readinessError().orElse("The saved draft is still partial.")
+        : gaps;
+    return Optional.of(
+        "CONTINUE refused. The saved draft is still partial. Use updateRequirementDraft"
+            + " and fill the missing fields. Do not tell the user the draft is ready. "
+            + reason);
   }
 
   private RequirementCaptureResult publish(
@@ -244,6 +288,11 @@ public class RequirementCaptureTools {
     return view(draft, true, true, List.of());
   }
 
+  private RequirementCaptureResult view(
+      RequirementDraft draft, boolean accepted, boolean changed, List<Issue> issues) {
+    return view(draft, accepted, changed, issues, true);
+  }
+
   private List<Issue> withPreservedFacts(List<Issue> issues, List<FactInput> facts) {
     return issues.stream().map(issue -> new Issue(
         issue.code(), issue.path(), issue.entityId(), issue.message()
@@ -255,9 +304,10 @@ public class RequirementCaptureTools {
   }
 
   private RequirementCaptureResult view(
-      RequirementDraft draft, boolean accepted, boolean changed, List<Issue> issues) {
+      RequirementDraft draft, boolean accepted, boolean changed, List<Issue> issues,
+      boolean recordRejection) {
     String conversationId = ToolSession.resolveConversationId();
-    if (!accepted) {
+    if (!accepted && recordRejection) {
       store.recordCaptureAttempt(conversationId, false);
       String scope = store.captureMutationScope(conversationId);
       boolean repeated = outcomeGateway.repeatedRequirementIssue(

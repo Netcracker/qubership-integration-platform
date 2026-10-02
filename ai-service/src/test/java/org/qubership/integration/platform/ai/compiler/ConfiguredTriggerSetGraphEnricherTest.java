@@ -16,6 +16,25 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ConfiguredTri
 class ConfiguredTriggerSetGraphEnricherTest {
 
   @Test
+  void capturedAsyncConfigurationOverridesCatalogDefaults() {
+    ChainPlanGraph graph = new ChainPlanGraph(
+        "1.0", new ChainSection("async", null),
+        List.of(new ChainPlanNode("async-entry", "async-api-trigger", "Receive", null, null,
+            List.of(new PlanProperty("integrationOperationId", "catalog-operation"),
+                new PlanProperty("integrationOperationAsyncProperties", "{\"groupId\":\"qip\"}")))),
+        List.of());
+    ConfiguredTriggerSet triggers = new ConfiguredTriggerSet(1,
+        List.of(new ConfiguredTrigger("async-entry", "async-entry", "async-api-trigger", "Receive",
+            List.of(new PlanProperty("integrationOperationAsyncProperties", "{\"groupId\":\"CIP\"}")))),
+        List.of(), List.of());
+
+    ChainPlanNode trigger = ConfiguredTriggerSetGraphEnricher.enrich(graph, triggers).nodes().get(0);
+
+    assertEquals("{\"groupId\":\"CIP\"}", property(trigger, "integrationOperationAsyncProperties"));
+    assertEquals("catalog-operation", property(trigger, "integrationOperationId"));
+  }
+
+  @Test
   void copiesBlankTriggerEndpointPropertiesOntoMatchingNode() {
     ChainPlanGraph graph =
         new ChainPlanGraph(
