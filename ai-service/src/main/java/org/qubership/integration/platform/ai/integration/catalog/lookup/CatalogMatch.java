@@ -13,4 +13,20 @@ public record CatalogMatch(
     String method,
     String path,
     String operationName,
-    String evidenceRef) {}
+    String evidenceRef,
+    String version) {
+  public CatalogMatch(
+      String systemId,
+      String specificationGroupId,
+      String specificationId,
+      String integrationOperationId,
+      String systemName,
+      String protocol,
+      String method,
+      String path,
+      String operationName,
+      String evidenceRef) {
+    this(systemId, specificationGroupId, specificationId, integrationOperationId, systemName,
+        protocol, method, path, operationName, evidenceRef, null);
+  }
+}
