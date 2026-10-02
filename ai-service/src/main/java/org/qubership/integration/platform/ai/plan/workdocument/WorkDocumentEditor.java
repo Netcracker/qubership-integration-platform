@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import org.qubership.integration.platform.ai.plan.mapping.TypedMappingCompiler;
 
 /** Applies complete small records inside a server-owned scope. */
 final class WorkDocumentEditor {
@@ -1389,7 +1388,8 @@ final class WorkDocumentEditor {
       return new FieldReference(FieldReferenceKind.RETAINED, "", null, "", retained);
     }
     String stepId = resolve(reference.stepId(), aliases, ids(draft.steps, LogicalStep::id), true);
-    if (!TypedMappingCompiler.validPath(reference.fieldPath())) {
+    if (reference.fieldPath() == null
+        || !reference.fieldPath().matches("\\$\\.[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*")) {
       throw reject(
           "MALFORMED_REFERENCE",
           "Field path " + reference.fieldPath() + " is not a canonical payload path. Use a $.field path.");
