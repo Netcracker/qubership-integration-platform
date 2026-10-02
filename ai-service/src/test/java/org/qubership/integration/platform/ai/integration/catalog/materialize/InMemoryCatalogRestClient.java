@@ -107,6 +107,21 @@ final class InMemoryCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public ChainDto updateChain(String chainId, ChainUpdateRequest body) {
+    throw new UnsupportedOperationException("updateChain");
+  }
+
+  @Override
+  public ChainDto copyChain(String chainId, String targetFolderId) {
+    throw new UnsupportedOperationException("copyChain");
+  }
+
+  @Override
+  public ChainDto duplicateChain(String chainId) {
+    throw new UnsupportedOperationException("duplicateChain");
+  }
+
+  @Override
   public ChainDto moveChain(String chainId, String targetFolderId) {
     throw new UnsupportedOperationException("moveChain");
   }

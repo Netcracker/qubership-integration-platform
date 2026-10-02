@@ -79,6 +79,27 @@ public interface CatalogRestClient {
   @Path("/v1/chains/{chainId}")
   void deleteChain(@PathParam("chainId") String chainId);
 
+  /**
+   * Updates a chain's name, description, or labels. The catalog keeps every field sent as null.
+   * Labels sent replace the chain's ordinary labels; technical labels are never touched.
+   */
+  @PUT
+  @Path("/v1/chains/{chainId}")
+  ChainDto updateChain(@PathParam("chainId") String chainId, ChainUpdateRequest body);
+
+  /** Copies a chain into a folder, or to the root when the id is null. Not retried. */
+  @POST
+  @Path("/v1/chains/{chainId}/copy")
+  @Retry(maxRetries = 0)
+  ChainDto copyChain(
+      @PathParam("chainId") String chainId, @QueryParam("targetFolderId") String targetFolderId);
+
+  /** Copies a chain into the folder it is in. Not retried. */
+  @POST
+  @Path("/v1/chains/{chainId}/duplicate")
+  @Retry(maxRetries = 0)
+  ChainDto duplicateChain(@PathParam("chainId") String chainId);
+
   @POST
   @Path("/v1/folders/search")
   List<FolderItemDto> searchFolderItems(CatalogChainSearchRequest request);
@@ -374,13 +395,27 @@ public interface CatalogRestClient {
       String name,
       String description,
       CurrentSnapshotDto currentSnapshot,
-      boolean unsavedChanges) {
+      boolean unsavedChanges,
+      List<CatalogChainLabel> labels) {
 
     /** Keeps existing test and call sites on the three-field constructor. */
     public ChainDto(String id, String name, String description) {
       this(id, name, description, null, false);
     }
+
+    /** Keeps existing test and call sites on the five-field constructor. */
+    public ChainDto(
+        String id,
+        String name,
+        String description,
+        CurrentSnapshotDto currentSnapshot,
+        boolean unsavedChanges) {
+      this(id, name, description, currentSnapshot, unsavedChanges, null);
+    }
   }
+
+  @JsonInclude(JsonInclude.Include.NON_NULL)
+  record ChainUpdateRequest(String name, String description, List<CatalogChainLabel> labels) {}
 
   @JsonIgnoreProperties(ignoreUnknown = true)
   record FolderItemDto(

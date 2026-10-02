@@ -17,13 +17,15 @@ public record ChainListCommand(
     @Description(
             "Folder the action is about, as the user wrote it: a name, or a path from the root"
                 + " such as Integrations/Salesforce. For CREATE_FOLDER, RENAME_FOLDER, MOVE_FOLDER,"
-                + " and DELETE_FOLDER, the folder itself. For FIND_CHAINS and MOVE_CHAINS, the"
-                + " folder whose chains to take; empty when the user did not limit them to one.")
+                + " and DELETE_FOLDER, the folder itself. For the chain actions, the folder whose"
+                + " chains to take; empty when the user did not limit them to one.")
         String folder,
-    @Description("New name for RENAME_FOLDER. A name, not a path.") String newName,
+    @Description("New name for RENAME_FOLDER or RENAME_CHAIN. A name, not a path.")
+        String newName,
     @Description(
-            "Destination of MOVE_CHAINS and MOVE_FOLDER: a folder name or a path from the root."
-                + " Use / for the root.")
+            "Destination of MOVE_CHAINS, COPY_CHAINS, and MOVE_FOLDER: a folder name or a path"
+                + " from the root. Use / for the root. Empty for COPY_CHAINS copies each chain"
+                + " into the folder it is in.")
         String targetFolder,
     @Description("Ids of chains the user named, including the open chain when they mean it.")
         List<String> chainIds,
@@ -31,7 +33,25 @@ public record ChainListCommand(
     @Description("Conditions on chains table columns; a chain must meet all of them.")
         List<ChainFilter> filters,
     @Description("For CLARIFY: the question to ask the user, in the language they wrote in.")
-        String question) {
+        String question,
+    @Description("New description for SET_DESCRIPTION.") String description,
+    @Description("Labels EDIT_LABELS adds to each chain.") List<String> addLabels,
+    @Description("Labels EDIT_LABELS removes from each chain.") List<String> removeLabels) {
+
+  /** Folder and move commands, which carry no description or labels. */
+  public ChainListCommand(
+      ChainListAction action,
+      String folder,
+      String newName,
+      String targetFolder,
+      List<String> chainIds,
+      List<String> chainNames,
+      List<ChainFilter> filters,
+      String question) {
+    this(
+        action, folder, newName, targetFolder, chainIds, chainNames, filters, question, null, null,
+        null);
+  }
 
   public ChainListCommand {
     action = action == null ? ChainListAction.CLARIFY : action;
@@ -42,6 +62,9 @@ public record ChainListCommand(
     chainNames = chainNames == null ? List.of() : List.copyOf(chainNames);
     filters = filters == null ? List.of() : List.copyOf(filters);
     question = blankToNull(question);
+    description = blankToNull(description);
+    addLabels = addLabels == null ? List.of() : List.copyOf(addLabels);
+    removeLabels = removeLabels == null ? List.of() : List.copyOf(removeLabels);
   }
 
   /** True when the user pointed at chains one by one rather than by a condition or a folder. */

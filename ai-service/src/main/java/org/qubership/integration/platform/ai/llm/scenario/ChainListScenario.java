@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
@@ -25,19 +26,23 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainUpdateRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.FolderWriteRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.MoveFolderRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainLabel;
 import org.qubership.integration.platform.ai.llm.agent.ChainListIntentAgent;
 import org.qubership.integration.platform.ai.model.ScenarioType;
 
 /**
- * Folders and chain placement on the chains page: find chains by table columns, move them, and
- * create, rename, move, or delete folders.
+ * The chains page from chat: find chains by table columns; move, copy, rename, describe, label,
+ * or delete them; and create, rename, move, or delete folders.
  *
  * <p>The agent only reads the request. Every folder and chain it names is resolved here, and a
- * name that several folders share is put back to the author as a question. A single named chain
- * moves at once; a move of chains picked by a condition or a folder, any move of more than one
- * chain, and every folder delete wait for a Decision card that lists exactly what changes.
+ * name that several folders or chains share is put back to the author as a question. A change to
+ * one chain the author named runs at once. A change to several chains, or to chains picked by a
+ * condition or a folder, every chain delete, and every folder delete wait for a Decision card that
+ * lists exactly what changes.
  */
 @ApplicationScoped
 @ForScenario(ScenarioType.MANAGE_CHAIN_LIST)
@@ -77,9 +82,21 @@ public class ChainListScenario implements ScenarioHandler {
 
   private record Pending(String operationId, Change change) {}
 
-  /** A change that waits for its card. Targets are full paths, resolved again when applied. */
+  /**
+   * A catalog change, run at once or after its card. Target folders are full paths, resolved again
+   * when the change runs; a null copy target copies each chain into its own folder.
+   */
   private sealed interface Change {
     record MoveChains(List<Row> chains, String targetPath) implements Change {}
+
+    record CopyChains(List<Row> chains, String targetPath) implements Change {}
+
+    record DescribeChains(List<Row> chains, String description) implements Change {}
+
+    record LabelChains(List<Row> chains, List<String> add, List<String> remove)
+        implements Change {}
+
+    record DeleteChains(List<Row> chains) implements Change {}
 
     record DeleteFolder(Folder folder, List<Row> chains) implements Change {}
   }
@@ -119,6 +136,11 @@ public class ChainListScenario implements ScenarioHandler {
       return switch (command.action()) {
         case FIND_CHAINS -> findChains(command);
         case MOVE_CHAINS -> moveChains(conversationId, command);
+        case COPY_CHAINS -> copyChains(conversationId, command);
+        case RENAME_CHAIN -> renameChain(command);
+        case SET_DESCRIPTION -> describeChains(conversationId, command);
+        case EDIT_LABELS -> labelChains(conversationId, command);
+        case DELETE_CHAINS -> deleteChains(conversationId, command);
         case CREATE_FOLDER -> createFolder(command);
         case RENAME_FOLDER -> renameFolder(command);
         case MOVE_FOLDER -> moveFolder(command);
@@ -142,7 +164,7 @@ public class ChainListScenario implements ScenarioHandler {
   // ── Chains ────────────────────────────────────────────────────────────
 
   private ChatEvent findChains(ChainListCommand command) {
-    Selection selection = select(command, command.folder() == null ? List.of() : folders.tree());
+    Selection selection = select(command, sourceTree(command));
     if (selection.rows().isEmpty()) {
       return ChatEvent.token("No chains match." + notFound(selection));
     }
@@ -164,40 +186,132 @@ public class ChainListScenario implements ScenarioHandler {
                   : "Those chains are already in " + display(target.path()) + ".")
               + notFound(selection));
     }
-    if (command.namesChainsExplicitly() && moving.size() == 1) {
-      String created = target.exists() ? "" : "Created folder " + target.path() + ". ";
-      return ChatEvent.token(created + move(moving, target.path()) + notFound(selection));
+    return runOrOffer(
+        conversationId,
+        command,
+        selection.withRows(moving),
+        new Change.MoveChains(moving, target.path()),
+        "Move " + count(moving.size(), "chain") + " to " + display(target.path()) + "?",
+        target);
+  }
+
+  private ChatEvent copyChains(String conversationId, ChainListCommand command) {
+    List<Folder> tree = folders.tree();
+    Selection selection = requireChains(select(command, tree));
+    if (command.targetFolder() == null) {
+      return runOrOffer(
+          conversationId,
+          command,
+          selection,
+          new Change.CopyChains(selection.rows(), null),
+          "Duplicate " + count(selection.rows().size(), "chain") + " in their folders?",
+          null);
     }
+    Target target = destination(command.targetFolder(), tree);
+    return runOrOffer(
+        conversationId,
+        command,
+        selection,
+        new Change.CopyChains(selection.rows(), target.path()),
+        "Copy " + count(selection.rows().size(), "chain") + " to " + display(target.path()) + "?",
+        target);
+  }
+
+  private ChatEvent renameChain(ChainListCommand command) {
+    Selection selection = requireChains(select(command, sourceTree(command)));
+    if (selection.rows().size() > 1) {
+      throw new Answer(
+          "Several chains match:\n" + list(selection.rows()) + "\nWhich one should be renamed?");
+    }
+    if (command.newName() == null) {
+      throw new Answer("What should the chain be called?");
+    }
+    Row chain = selection.rows().get(0);
+    catalog.updateChain(chain.id(), new ChainUpdateRequest(command.newName(), null, null));
+    return ChatEvent.token("Renamed chain " + chain.display() + " to " + command.newName() + ".");
+  }
+
+  private ChatEvent describeChains(String conversationId, ChainListCommand command) {
+    if (command.description() == null) {
+      throw new Answer("What should the description say?");
+    }
+    Selection selection = requireChains(select(command, sourceTree(command)));
+    return runOrOffer(
+        conversationId,
+        command,
+        selection,
+        new Change.DescribeChains(selection.rows(), command.description()),
+        "Set the description of "
+            + count(selection.rows().size(), "chain")
+            + " to \""
+            + command.description()
+            + "\"?",
+        null);
+  }
+
+  private ChatEvent labelChains(String conversationId, ChainListCommand command) {
+    if (command.addLabels().isEmpty() && command.removeLabels().isEmpty()) {
+      throw new Answer("Which labels should be added or removed?");
+    }
+    Selection selection = requireChains(select(command, sourceTree(command)));
+    List<String> edits = new ArrayList<>();
+    if (!command.addLabels().isEmpty()) {
+      edits.add("add " + String.join(", ", command.addLabels()));
+    }
+    if (!command.removeLabels().isEmpty()) {
+      edits.add("remove " + String.join(", ", command.removeLabels()));
+    }
+    return runOrOffer(
+        conversationId,
+        command,
+        selection,
+        new Change.LabelChains(selection.rows(), command.addLabels(), command.removeLabels()),
+        "On " + count(selection.rows().size(), "chain") + ", " + String.join(" and ", edits) + "?",
+        null);
+  }
+
+  private ChatEvent deleteChains(String conversationId, ChainListCommand command) {
+    Selection selection = requireChains(select(command, sourceTree(command)));
     String question =
-        "Move "
-            + count(moving.size(), "chain")
-            + " to "
-            + display(target.path())
-            + "?\n"
-            + list(moving)
-            + (target.exists()
-                ? ""
-                : "\nFolder " + target.path() + " does not exist yet and will be created.")
+        "Delete "
+            + count(selection.rows().size(), "chain")
+            + "? Their deployments are removed too, and this cannot be undone.\n"
+            + list(selection.rows())
             + notFound(selection);
-    return offer(conversationId, new Change.MoveChains(moving, target.path()), question);
+    return offer(conversationId, new Change.DeleteChains(selection.rows()), question);
   }
 
-  private String move(List<Row> chains, String targetPath) {
-    String targetId = targetPath.isEmpty() ? null : folders.resolveOrCreateId("/" + targetPath);
-    List<String> failed = new ArrayList<>();
-    for (Row chain : chains) {
-      try {
-        catalog.moveChain(chain.id(), targetId);
-      } catch (RuntimeException e) {
-        failed.add(chain.display() + ": " + e.getMessage());
-      }
+  /**
+   * Runs a change to one chain the author named, and puts anything wider on a card.
+   *
+   * <p>"Wider" means more than one chain, or chains picked by a condition or a folder: the author
+   * has not seen that list yet, so the card is the first time they do.
+   */
+  private ChatEvent runOrOffer(
+      String conversationId,
+      ChainListCommand command,
+      Selection selection,
+      Change change,
+      String question,
+      Target target) {
+    boolean creates = target != null && !target.exists();
+    if (command.namesChainsExplicitly() && selection.rows().size() == 1) {
+      String created = creates ? "Created folder " + target.path() + ". " : "";
+      return ChatEvent.token(created + run(change) + notFound(selection));
     }
-    int moved = chains.size() - failed.size();
-    String summary = "Moved " + count(moved, "chain") + " to " + display(targetPath) + ".";
-    return failed.isEmpty() ? summary : summary + "\nNot moved:\n- " + String.join("\n- ", failed);
+    String note =
+        creates ? "\nFolder " + target.path() + " does not exist yet and will be created." : "";
+    return offer(
+        conversationId,
+        change,
+        question + "\n" + list(selection.rows()) + note + notFound(selection));
   }
 
-  private record Selection(List<Row> rows, List<String> missingNames) {}
+  private record Selection(List<Row> rows, List<String> missingNames) {
+    Selection withRows(List<Row> narrowed) {
+      return new Selection(narrowed, missingNames);
+    }
+  }
 
   /** {@code tree} is read only when the command limits the chains to a folder. */
   private Selection select(ChainListCommand command, List<Folder> tree) {
@@ -220,6 +334,17 @@ public class ChainListScenario implements ScenarioHandler {
             .filter(name -> found.stream().noneMatch(row -> row.name().equalsIgnoreCase(name)))
             .toList();
     return new Selection(rows, missing);
+  }
+
+  private List<Folder> sourceTree(ChainListCommand command) {
+    return command.folder() == null ? List.of() : folders.tree();
+  }
+
+  private static Selection requireChains(Selection selection) {
+    if (selection.rows().isEmpty()) {
+      throw new Answer("No chains match." + notFound(selection));
+    }
+    return selection;
   }
 
   private static boolean named(ChainListCommand command, Row row) {
@@ -276,8 +401,7 @@ public class ChainListScenario implements ScenarioHandler {
     if (target.equals(folder.path()) || target.startsWith(folder.path() + "/")) {
       throw new Answer("Folder " + folder.path() + " cannot move into itself.");
     }
-    String targetId = target.isEmpty() ? null : folders.resolveOrCreateId("/" + target);
-    catalog.moveFolder(new MoveFolderRequest(folder.id(), targetId));
+    catalog.moveFolder(new MoveFolderRequest(folder.id(), targetId(target)));
     return ChatEvent.token("Moved folder " + folder.path() + " to " + display(target) + ".");
   }
 
@@ -309,7 +433,7 @@ public class ChainListScenario implements ScenarioHandler {
     };
   }
 
-  /** Where a move lands: a full path, empty for the top level, that may not exist yet. */
+  /** Where a move or copy lands: a full path, empty for the top level, that may not exist yet. */
   private record Target(String path, boolean exists) {}
 
   private static Target destination(String reference, List<Folder> tree) {
@@ -322,6 +446,99 @@ public class ChainListScenario implements ScenarioHandler {
       case Resolution.Missing missing -> new Target(missing.path(), false);
       case Resolution.Ambiguous ambiguous -> throw new Answer(ambiguous(reference, ambiguous));
     };
+  }
+
+  /** The folder id for a full path, creating it when it is missing; null for the top level. */
+  private String targetId(String path) {
+    return path.isEmpty() ? null : folders.resolveOrCreateId("/" + path);
+  }
+
+  // ── Running changes ───────────────────────────────────────────────────
+
+  private String run(Change change) {
+    return switch (change) {
+      case Change.MoveChains move -> {
+        String targetId = targetId(move.targetPath());
+        yield eachChain(
+            move.chains(),
+            chain -> catalog.moveChain(chain.id(), targetId),
+            "Moved %s to " + display(move.targetPath()) + ".");
+      }
+      case Change.CopyChains copy when copy.targetPath() == null ->
+          eachChain(
+              copy.chains(),
+              chain -> catalog.duplicateChain(chain.id()),
+              "Duplicated %s in their folders.");
+      case Change.CopyChains copy -> {
+        String targetId = targetId(copy.targetPath());
+        yield eachChain(
+            copy.chains(),
+            chain -> catalog.copyChain(chain.id(), targetId),
+            "Copied %s to " + display(copy.targetPath()) + ".");
+      }
+      case Change.DescribeChains describe ->
+          eachChain(
+              describe.chains(),
+              chain ->
+                  catalog.updateChain(
+                      chain.id(), new ChainUpdateRequest(null, describe.description(), null)),
+              "Updated the description of %s.");
+      case Change.LabelChains label ->
+          eachChain(label.chains(), chain -> relabel(chain, label), "Updated the labels of %s.");
+      case Change.DeleteChains delete ->
+          eachChain(delete.chains(), chain -> catalog.deleteChain(chain.id()), "Deleted %s.");
+      case Change.DeleteFolder delete -> {
+        catalog.deleteFolder(delete.folder().id());
+        yield "Deleted folder "
+            + delete.folder().path()
+            + (delete.chains().isEmpty()
+                ? "."
+                : " and " + count(delete.chains().size(), "chain") + ".");
+      }
+    };
+  }
+
+  /**
+   * Applies the label edit to the chain's labels as they are now, not as they were when the card
+   * was shown: the catalog replaces the whole set, and someone may have changed it since.
+   */
+  private void relabel(Row chain, Change.LabelChains edit) {
+    ChainDto current = catalog.getChain(chain.id());
+    List<String> names = new ArrayList<>();
+    if (current.labels() != null) {
+      current.labels().stream()
+          .filter(label -> !label.technical())
+          .forEach(label -> names.add(label.name()));
+    }
+    List<String> before = List.copyOf(names);
+    names.removeIf(name -> edit.remove().stream().anyMatch(name::equalsIgnoreCase));
+    for (String added : edit.add()) {
+      if (names.stream().noneMatch(added::equalsIgnoreCase)) {
+        names.add(added);
+      }
+    }
+    if (!names.equals(before)) {
+      List<CatalogChainLabel> labels =
+          names.stream().map(name -> new CatalogChainLabel(name, false)).toList();
+      catalog.updateChain(chain.id(), new ChainUpdateRequest(null, null, labels));
+    }
+  }
+
+  /**
+   * Runs {@code action} on each chain and reports what landed. One chain failing does not stop
+   * the rest, because each catalog call is its own transaction and the earlier ones have landed.
+   */
+  private static String eachChain(List<Row> chains, Consumer<Row> action, String summary) {
+    List<String> failed = new ArrayList<>();
+    for (Row chain : chains) {
+      try {
+        action.accept(chain);
+      } catch (RuntimeException e) {
+        failed.add(chain.display() + ": " + e.getMessage());
+      }
+    }
+    String done = summary.formatted(count(chains.size() - failed.size(), "chain"));
+    return failed.isEmpty() ? done : done + "\nFailed:\n- " + String.join("\n- ", failed);
   }
 
   // ── Cards ─────────────────────────────────────────────────────────────
@@ -338,18 +555,7 @@ public class ChainListScenario implements ScenarioHandler {
       return ChatEvent.token(CARD_GONE_MESSAGE);
     }
     try {
-      return switch (answered.change()) {
-        case Change.MoveChains move -> ChatEvent.token(move(move.chains(), move.targetPath()));
-        case Change.DeleteFolder delete -> {
-          catalog.deleteFolder(delete.folder().id());
-          yield ChatEvent.token(
-              "Deleted folder "
-                  + delete.folder().path()
-                  + (delete.chains().isEmpty()
-                      ? "."
-                      : " and " + count(delete.chains().size(), "chain") + "."));
-        }
-      };
+      return ChatEvent.token(run(answered.change()));
     } catch (RuntimeException failure) {
       LOG.warnf(failure, "MANAGE_CHAIN_LIST apply failed conversationId=%s", conversationId);
       return ChatEvent.token("The catalog did not accept the change: " + failure.getMessage());

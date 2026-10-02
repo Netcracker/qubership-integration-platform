@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -27,7 +28,10 @@ import org.qubership.integration.platform.ai.chat.conversation.ConversationServi
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.ChainUpdateRequest;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.FolderWriteRequest;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainLabel;
 import org.qubership.integration.platform.ai.llm.agent.ChainListIntentAgent;
 
 class ChainListScenarioTest {
@@ -143,6 +147,83 @@ class ChainListScenarioTest {
     when(folders.create("CRM", List.of(LEGACY, LEGACY_CRM))).thenReturn(CRM);
 
     assertEquals("Created folder CRM.", text(scenario.dispatch(message(), CONVERSATION)));
+  }
+
+  @Test
+  void renamesOneNamedChainAtOnce() {
+    answer(new ChainListCommand(ChainListAction.RENAME_CHAIN, null, "Orders import", null,
+        List.of(), List.of("Orders sync"), List.of(), null));
+    when(table.find(List.of())).thenReturn(List.of(ORDERS, SF_CONTACTS));
+
+    assertEquals(
+        "Renamed chain Orders sync to Orders import.",
+        text(scenario.dispatch(message(), CONVERSATION)));
+    verify(catalog).updateChain("c1", new ChainUpdateRequest("Orders import", null, null));
+  }
+
+  @Test
+  void renameAsksWhichChainWhenSeveralMatch() {
+    List<ChainFilter> startsWithSf =
+        List.of(new ChainFilter(ChainFilter.Field.NAME, ChainFilter.Condition.STARTS_WITH, "SF"));
+    answer(new ChainListCommand(ChainListAction.RENAME_CHAIN, null, "SF", null, List.of(),
+        List.of(), startsWithSf, null));
+    when(table.find(startsWithSf)).thenReturn(List.of(SF_ACCOUNTS, SF_CONTACTS));
+
+    assertTrue(text(scenario.dispatch(message(), CONVERSATION)).startsWith("Several chains match"));
+    verify(catalog, never()).updateChain(anyString(), any());
+  }
+
+  @Test
+  void labelEditKeepsOtherAndTechnicalLabels() {
+    answer(new ChainListCommand(ChainListAction.EDIT_LABELS, null, null, null, List.of(),
+        List.of("Orders sync"), List.of(), null, null, List.of("crm"), List.of("OLD")));
+    when(table.find(List.of())).thenReturn(List.of(ORDERS));
+    when(catalog.getChain("c1"))
+        .thenReturn(new ChainDto("c1", "Orders sync", null, null, false, List.of(
+            new CatalogChainLabel("old", false),
+            new CatalogChainLabel("keep", false),
+            new CatalogChainLabel("qip-ai-publication-attempt:run", true))));
+
+    assertEquals(
+        "Updated the labels of 1 chain.", text(scenario.dispatch(message(), CONVERSATION)));
+    verify(catalog).updateChain("c1", new ChainUpdateRequest(null, null, List.of(
+        new CatalogChainLabel("keep", false), new CatalogChainLabel("crm", false))));
+  }
+
+  @Test
+  void deletesEvenOneNamedChainOnlyAfterTheCardAndReportsEachFailure() {
+    answer(command(
+        ChainListAction.DELETE_CHAINS, null, null, List.of("Orders sync", "SF accounts"),
+        List.of()));
+    when(table.find(List.of())).thenReturn(List.of(ORDERS, SF_ACCOUNTS));
+    doThrow(new IllegalStateException("chain is locked")).when(catalog).deleteChain("c2");
+
+    ChatEvent.Decision card =
+        assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
+    verify(catalog, never()).deleteChain(anyString());
+
+    assertEquals(
+        "Deleted 1 chain.\nFailed:\n- SF accounts (Legacy): chain is locked",
+        text(scenario.dispatch(card(ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION, card), CONVERSATION)));
+    verify(catalog).deleteChain("c1");
+  }
+
+  @Test
+  void duplicatesChainsPickedByAConditionAfterTheCard() {
+    List<ChainFilter> startsWithSf =
+        List.of(new ChainFilter(ChainFilter.Field.NAME, ChainFilter.Condition.STARTS_WITH, "SF"));
+    answer(command(ChainListAction.COPY_CHAINS, null, null, List.of(), startsWithSf));
+    when(table.find(startsWithSf)).thenReturn(List.of(SF_ACCOUNTS, SF_CONTACTS));
+
+    ChatEvent.Decision card =
+        assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
+    assertTrue(card.question().startsWith("Duplicate 2 chains in their folders?"));
+
+    assertEquals(
+        "Duplicated 2 chains in their folders.",
+        text(scenario.dispatch(card(ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION, card), CONVERSATION)));
+    verify(catalog).duplicateChain("c2");
+    verify(catalog).duplicateChain("c3");
   }
 
   private void answer(ChainListCommand command) {
