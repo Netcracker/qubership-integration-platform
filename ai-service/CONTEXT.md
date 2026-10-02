@@ -257,9 +257,13 @@ because the catalog's bulk delete reports success when some chains failed. A lab
 to the chain's labels as read when it runs, because the catalog replaces the ordinary label set
 (technical labels survive). Export never passes through the server: its card carries the chain
 ids, and the browser runs the chains page export dialog and download. Not an open-chain scenario:
-an unfinished CREATE run keeps the turn.
+an unfinished CREATE run keeps the turn. Java writes no prose for the author: each turn ends in
+English facts that `ChainListReplyAgent` words in the author's language, and Java puts the data
+(numbered list, counts, the chains a card changes) under that text unchanged. When the reply agent
+fails, the facts go out as they are.
 _Avoid_: a confirmation per single rename or move, guessing between folders or chains that share a
-name, `POST /v1/chains/bulk-delete`
+name, `POST /v1/chains/bulk-delete`, reply templates in Java, letting the model retell lists or
+counts
 
 **Chat chain list**:
 The numbered chains of the last `FIND_CHAINS` answer in a conversation, kept in memory by

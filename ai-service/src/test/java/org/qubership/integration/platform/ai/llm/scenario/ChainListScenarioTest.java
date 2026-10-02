@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -16,6 +17,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.ai.chain.folder.CatalogFolders;
 import org.qubership.integration.platform.ai.chain.folder.CatalogFolders.Folder;
 import org.qubership.integration.platform.ai.chain.folder.ChainFilter;
@@ -34,6 +36,7 @@ import org.qubership.integration.platform.ai.integration.catalog.client.CatalogR
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.FolderWriteRequest;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainLabel;
 import org.qubership.integration.platform.ai.llm.agent.ChainListIntentAgent;
+import org.qubership.integration.platform.ai.llm.agent.ChainListReplyAgent;
 
 class ChainListScenarioTest {
 
@@ -46,6 +49,8 @@ class ChainListScenarioTest {
   private static final Row SF_CONTACTS = row("c3", "SF contacts", "");
 
   private ChainListIntentAgent agent;
+  /** Answers null unless a test says otherwise, so replies carry Java's facts as they are. */
+  private ChainListReplyAgent replies;
   private CatalogFolders folders;
   private ChainTable table;
   private CatalogRestClient catalog;
@@ -54,6 +59,7 @@ class ChainListScenarioTest {
   @BeforeEach
   void setUp() {
     agent = mock(ChainListIntentAgent.class);
+    replies = mock(ChainListReplyAgent.class);
     folders = mock(CatalogFolders.class);
     table = mock(ChainTable.class);
     catalog = mock(CatalogRestClient.class);
@@ -61,7 +67,8 @@ class ChainListScenarioTest {
     when(chainContext.resolveChainId(any(), anyString())).thenReturn(Optional.empty());
     scenario =
         new ChainListScenario(
-            agent, folders, table, catalog, mock(ConversationService.class), chainContext);
+            agent, replies, folders, table, catalog, mock(ConversationService.class),
+            chainContext);
     when(folders.tree()).thenReturn(List.of(CRM, LEGACY));
   }
 
@@ -85,7 +92,8 @@ class ChainListScenarioTest {
     ChatEvent.Decision card =
         assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
 
-    assertTrue(card.question().startsWith("Move 2 chains to Salesforce?"), card.question());
+    assertTrue(
+        card.question().startsWith("Confirm: move 2 chains to Salesforce."), card.question());
     assertTrue(card.question().contains("- SF accounts (Legacy)"), card.question());
     assertTrue(card.question().contains("does not exist yet and will be created"));
     verify(catalog, never()).moveChain(anyString(), any());
@@ -97,7 +105,7 @@ class ChainListScenarioTest {
     verify(catalog).moveChain("c2", "f9");
     verify(catalog).moveChain("c3", "f9");
     assertEquals(
-        ChainListScenario.CARD_GONE_MESSAGE,
+        ChainListScenario.CARD_GONE_FACTS,
         text(scenario.dispatch(card(ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION, card), CONVERSATION)));
   }
 
@@ -108,8 +116,8 @@ class ChainListScenarioTest {
     when(table.find(List.of())).thenReturn(List.of(ORDERS));
 
     assertEquals(
-        "Several folders are named crm: CRM, Legacy/CRM. Which one do you mean? Reply with its full"
-            + " path.",
+        "Several folders are named crm: CRM, Legacy/CRM. Ask which one; the user replies with its"
+            + " full path.",
         text(scenario.dispatch(message(), CONVERSATION)));
     verify(catalog, never()).moveChain(anyString(), any());
   }
@@ -123,10 +131,11 @@ class ChainListScenarioTest {
         assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
 
     assertEquals(
-        "Delete folder Legacy? This also deletes and undeploys 1 chain:\n- SF accounts (Legacy)",
+        "Confirm: delete folder Legacy. This also deletes and undeploys 1 chain, and cannot be"
+            + " undone.\n- SF accounts (Legacy)",
         card.question());
     assertEquals(
-        "Nothing changed.",
+        "The user cancelled the change. Nothing changed.",
         text(scenario.dispatch(card(ChatEvent.CANCEL_CHAIN_LIST_CHANGE_ACTION, card), CONVERSATION)));
     verify(catalog, never()).deleteFolder(anyString());
   }
@@ -219,7 +228,9 @@ class ChainListScenarioTest {
 
     ChatEvent.Decision card =
         assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
-    assertTrue(card.question().startsWith("Duplicate 2 chains in their folders?"));
+    assertTrue(
+        card.question().startsWith("Confirm: duplicate 2 chains, each in its folder."),
+        card.question());
 
     assertEquals(
         "Duplicated 2 chains in their folders.",
@@ -236,7 +247,10 @@ class ChainListScenarioTest {
     ChatEvent.Decision card =
         assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
 
-    assertEquals("Export 1 chain?\n- SF accounts (Legacy)", card.question());
+    assertEquals(
+        "Offer 1 chain for download. The card's button opens the export dialog in the browser.\n"
+            + "- SF accounts (Legacy)",
+        card.question());
     assertEquals(List.of("c2"), card.chainIds());
     assertEquals(List.of(ChatEvent.EXPORT_CHAINS_ACTION), card.actions());
     verifyNoInteractions(catalog);
@@ -255,8 +269,8 @@ class ChainListScenarioTest {
     when(table.find(sync)).thenReturn(List.of(orders, SF_ACCOUNTS, SF_CONTACTS));
 
     assertEquals(
-        "3 chains match:\n"
-            + "1. Orders sync; created 2026-09-17 by alice; labels crm; DEPLOYED\n"
+        "Found 3 chains.\n"
+            + "1. Orders sync · 2026-09-17 · alice · crm · DEPLOYED\n"
             + "2. SF accounts (Legacy)\n"
             + "3. SF contacts",
         text(scenario.dispatch(message(), CONVERSATION)));
@@ -266,7 +280,9 @@ class ChainListScenarioTest {
     ChatEvent.Decision card =
         assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
     assertTrue(
-        card.question().startsWith("Move 2 chains to Archive?\n- Orders sync\n- SF contacts\n"),
+        card.question()
+            .endsWith("Folder Archive does not exist yet and will be created.\n"
+                + "- Orders sync\n- SF contacts"),
         card.question());
 
     answer(fromList(ChainListAction.MOVE_CHAINS, "Archive", List.of(2)));
@@ -289,7 +305,7 @@ class ChainListScenarioTest {
 
     assertTrue(
         text(scenario.dispatch(message(), CONVERSATION))
-            .startsWith("This chat has no chain list to pick from."));
+            .startsWith("This chat has no chain list to pick from yet."));
     verifyNoInteractions(catalog);
   }
 
@@ -304,9 +320,29 @@ class ChainListScenarioTest {
                 labeled("c4"), labeled("c5", "crm")));
 
     assertEquals(
-        "5 chains match. By label:\n- crm: 3\n- sync: 2\n- no labels: 1\n"
-            + "A chain can count under more than one label.",
+        "Found 5 chains. Counted by label; a chain can count under more than one label.\n"
+            + "- crm: 3\n- sync: 2\n- —: 1",
         text(scenario.dispatch(message(), CONVERSATION)));
+  }
+
+  @Test
+  void theReplyAgentWordsTheAnswerAndJavaKeepsTheList() {
+    answer(command(ChainListAction.FIND_CHAINS, null, null, List.of(), List.of()));
+    when(table.find(List.of())).thenReturn(List.of(ORDERS, SF_ACCOUNTS));
+    when(replies.reply(any(), eq("which chains?"), anyString())).thenReturn("2 Ketten gefunden.");
+
+    assertEquals(
+        "2 Ketten gefunden.\n1. Orders sync\n2. SF accounts (Legacy)",
+        text(scenario.dispatch(message("which chains?"), CONVERSATION)));
+
+    ArgumentCaptor<String> outcome = ArgumentCaptor.forClass(String.class);
+    verify(replies).reply(any(), any(), outcome.capture());
+    assertTrue(
+        outcome.getValue().startsWith("{\"facts\":\"Found 2 chains.\""), outcome.getValue());
+    assertTrue(
+        outcome.getValue()
+            .contains("{\"number\":2,\"name\":\"SF accounts\",\"folder\":\"Legacy\""),
+        outcome.getValue());
   }
 
   private void answer(ChainListCommand command) {
@@ -341,8 +377,12 @@ class ChainListScenarioTest {
   }
 
   private static ChatRequest message() {
+    return message("request");
+  }
+
+  private static ChatRequest message(String text) {
     ChatRequest request = new ChatRequest();
-    request.setMessage("request");
+    request.setMessage(text);
     return request;
   }
 
