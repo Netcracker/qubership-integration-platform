@@ -45,6 +45,8 @@ export interface ChatDecision {
   actions: string[];
   /** Uploaded specifications for the import card. Absent on older servers. */
   specs?: ChatDecisionSpec[];
+  /** Chains the export card offers for download in the browser. */
+  chainIds?: string[];
   /** Contextual create-chain recovery authored and routed by the server. */
   recovery?: {
     category:

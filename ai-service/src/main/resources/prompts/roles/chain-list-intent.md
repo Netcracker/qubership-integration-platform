@@ -19,6 +19,7 @@ do not choose between folders that share a name; Java does that with the user.
 - `SET_DESCRIPTION`: set the description of chains to `description`.
 - `EDIT_LABELS`: add `addLabels` to chains and remove `removeLabels` from them.
 - `DELETE_CHAINS`: delete chains. Their deployments are removed too.
+- `EXPORT_CHAINS`: download chains as an archive, the way the chains page exports them.
 - `CREATE_FOLDER`: create `folder`. A bare name creates it at the root; a path such as
   `Integrations/Salesforce` creates the missing levels.
 - `RENAME_FOLDER`: rename `folder` to `newName`.

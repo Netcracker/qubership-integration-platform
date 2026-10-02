@@ -255,7 +255,9 @@ delete, and every folder delete wait for a Decision card that lists them. Deleti
 cascades in the catalog to its chains and their deployments. Chains are deleted one call each,
 because the catalog's bulk delete reports success when some chains failed. A label edit is applied
 to the chain's labels as read when it runs, because the catalog replaces the ordinary label set
-(technical labels survive). Not an open-chain scenario: an unfinished CREATE run keeps the turn.
+(technical labels survive). Export never passes through the server: its card carries the chain
+ids, and the browser runs the chains page export dialog and download. Not an open-chain scenario:
+an unfinished CREATE run keeps the turn.
 _Avoid_: a confirmation per single rename or move, guessing between folders or chains that share a
 name, `POST /v1/chains/bulk-delete`
 

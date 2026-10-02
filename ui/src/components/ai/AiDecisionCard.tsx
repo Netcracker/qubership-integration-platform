@@ -57,6 +57,7 @@ const ACTION_LABELS: Record<string, string> = {
   "dismiss-maas-kafka-topics": "Not now",
   "apply-chain-list-change": "Apply",
   "cancel-chain-list-change": "Cancel",
+  "export-chains": "Export",
   "session-logging-off": "Off",
   "session-logging-error": "Error",
   "session-logging-info": "Info",
@@ -136,6 +137,7 @@ const PRIMARY_ACTIONS = new Set([
   "propose-deployment-fix",
   "create-maas-kafka-topics",
   "apply-chain-list-change",
+  "export-chains",
   "yes",
   "pass_through",
   "retry",
@@ -366,6 +368,11 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
 
   const handleClick = (action: string) => {
     if (disabled || clickedRef.current) return;
+    if (action === "export-chains") {
+      // Opens a dialog the reader may close; the card must stay clickable until they export.
+      onAnswer(action, "");
+      return;
+    }
     if (action === "describe_mappings") {
       const trimmed = text.trim();
       if (!trimmed) return;

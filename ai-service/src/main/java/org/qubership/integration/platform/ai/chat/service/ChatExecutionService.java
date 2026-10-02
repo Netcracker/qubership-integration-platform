@@ -500,6 +500,9 @@ public class ChatExecutionService {
     if (!decision.specs().isEmpty()) {
       payload.put("specs", decision.specs());
     }
+    if (!decision.chainIds().isEmpty()) {
+      payload.put("chainIds", decision.chainIds());
+    }
     return payload;
   }
 

@@ -98,6 +98,14 @@ export function parseDecisionPayload(payload: string): ChatDecision | null {
         (item): item is string => typeof item === "string",
       );
     }
+    if (Array.isArray(parsed.chainIds)) {
+      const chainIds = parsed.chainIds.filter(
+        (item): item is string => typeof item === "string" && item.length > 0,
+      );
+      if (chainIds.length > 0) {
+        decision.chainIds = chainIds;
+      }
+    }
     if (isRecoveryPayload(parsed.recovery)) {
       decision.recovery = normalizeRecovery(parsed.recovery);
     }
