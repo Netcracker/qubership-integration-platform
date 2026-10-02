@@ -2,8 +2,7 @@ package org.qubership.integration.platform.engine.configuration;
 
 import com.netcracker.cloud.bluegreen.api.service.BlueGreenStatePublisher;
 import com.netcracker.cloud.bluegreen.impl.service.ConsulBlueGreenStatePublisher;
-import org.qubership.integration.platform.engine.consul.ConsulClient;
-import org.qubership.integration.platform.engine.secrets.PodSecrets;
+import org.qubership.integration.platform.engine.secrets.ConsulAdminTokenEnvironmentPostProcessor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,7 +32,7 @@ public class BlueGreenStatePublisherConfiguration {
     }
 
     private String getConsulToken() {
-        String token = PodSecrets.read(ConsulClient.CONSUL_TOKEN_SECRET_PROPERTY);
+        String token = ConsulAdminTokenEnvironmentPostProcessor.readToken();
         return token == null ? consulToken : token;
     }
 }

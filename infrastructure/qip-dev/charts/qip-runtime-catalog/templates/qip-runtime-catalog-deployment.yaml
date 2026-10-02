@@ -29,11 +29,8 @@ spec:
             - -jar
             - /app/qip-runtime-catalog.jar
           env:
-            - name: CONSUL_ADMIN_TOKEN
-              valueFrom:
-                configMapKeyRef:
-                  key: CONSUL_ADMIN_TOKEN
-                  name: {{ .Release.Name }}-env
+            - name: CONSUL_ADMIN_TOKEN_FILE
+              value: /etc/secrets/pod-secrets/consul_admin_token
             - name: CONSUL_URL
               valueFrom:
                 configMapKeyRef:
