@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.integration.catalog.client;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -444,8 +445,12 @@ public interface CatalogRestClient {
   @JsonIgnoreProperties(ignoreUnknown = true)
   record UserDto(String id, String username) {}
 
-  /** One row of the chain filter on the chains page, in the catalog's own vocabulary. */
-  record FilterDto(String feature, String condition, String value) {}
+  /**
+   * One row of the chain filter on the chains page, in the catalog's own vocabulary. The catalog
+   * reads the feature from {@code column}; under any other name it arrives as null and the whole
+   * filter request fails with HTTP 500.
+   */
+  record FilterDto(@JsonProperty("column") String feature, String condition, String value) {}
 
   @JsonInclude(JsonInclude.Include.NON_NULL)
   record FolderWriteRequest(String parentId, String name, String description) {}

@@ -8,6 +8,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -91,6 +92,13 @@ class ChainTableTest {
         IllegalArgumentException.class,
         () -> table.find(List.of(new ChainFilter(Field.CREATED_AT, Condition.IS_AFTER, "soon"))));
     verify(catalog, never()).filterFolderItems(any());
+  }
+
+  @Test
+  void namesTheFilterColumnTheWayTheCatalogReadsIt() throws Exception {
+    assertEquals(
+        "{\"column\":\"NAME\",\"condition\":\"STARTS_WITH\",\"value\":\"SF\"}",
+        new ObjectMapper().writeValueAsString(new FilterDto("NAME", "STARTS_WITH", "SF")));
   }
 
   @Test
