@@ -141,6 +141,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     React.Key[]
   >([]);
   const [domains, setDomains] = useState<EngineDomain[]>([]);
+  const [domainsLoaded, setDomainsLoaded] = useState<boolean>(false);
   const microDomainsEnabled = useDomainTypes().domainTypes.includes(
     DomainType.MICRO,
   );
@@ -183,7 +184,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
   const getDomains = useCallback(async () => {
     setLoading(true);
     try {
-      return api.getDomains();
+      return await api.getDomains();
     } catch (error) {
       notificationService.requestFailed("Failed to get domains", error);
       return [];
@@ -198,12 +199,16 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
       setSelectedVariableRowKeys(
         importPreview?.variables?.map((i) => i.name) ?? [],
       );
-      void getDomains().then(setDomains);
+      void getDomains().then((loadedDomains) => {
+        setDomains(loadedDomains);
+        setDomainsLoaded(true);
+      });
     }
   }, [getDomains, importPreview, previewServices]);
 
   useEffect(() => {
-    if (importPreview) {
+    // Before the domains arrive, every archive domain looks unlisted and would show as a micro-domain.
+    if (importPreview && domainsLoaded) {
       setPreviewImportChainTableItems(
         importPreview.chains?.map((i, index) => ({
           ...i,
@@ -216,7 +221,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
         })) ?? [],
       );
     }
-  }, [importPreview, domains, microDomainsEnabled]);
+  }, [importPreview, domains, domainsLoaded, microDomainsEnabled]);
 
   useEffect(() => {
     setResultImportInstructionTableItems([
