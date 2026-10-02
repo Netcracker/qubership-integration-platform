@@ -592,8 +592,12 @@ public class ChainImportService {
                 String chainId = deployResult.getChainId();
                 if (BulkDeploymentStatus.FAILED_DEPLOY.equals(deployResult.getStatus())) {
                     resultByChainId.getOrDefault(chainId, Collections.emptyList()).forEach(result -> {
+                        // One failed domain marks the whole chain ERROR, even when its other domains deployed.
                         result.setStatus(ImportEntityStatus.ERROR);
-                        result.setErrorMessage(deployResult.getErrorMessage());
+                        // When a chain fails on several domains, only the last message survives.
+                        String message = SAVED_WITHOUT_DEPLOYMENT_ERROR_MESSAGE
+                            + String.format("domain %s: %s", deployResult.getDomain().getName(), deployResult.getErrorMessage());
+                        result.setErrorMessage(message);
                     });
                 }
             });
