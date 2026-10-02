@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Select, Space, Tag } from "antd";
+import { Select } from "antd";
 import { useDomains } from "../hooks/useDomains.tsx";
 import type { LabelRenderProps, OptionRenderProps } from "../types/antd.ts";
 import { DomainType, EngineDomain } from "../api/apiTypes.ts";
 import { getConfig, onConfigChange } from "../appConfig.ts";
+import { EngineDomainItem } from "./EngineDomainItem.tsx";
 
 export type Domain = {
   name: string;
@@ -15,9 +16,25 @@ export type SelectDomainsProperties = {
   onChange?: (value: Domain[]) => void;
 };
 
-function getDomainType(domainId: string, domains: EngineDomain[]): DomainType {
+export function getDomainType(
+  domainId: string,
+  domains: EngineDomain[],
+): DomainType {
   return (
     domains.find((domain) => domainId === domain.id)?.type ?? DomainType.MICRO
+  );
+}
+
+export function getDomainOptionNode(
+  props: LabelRenderProps | OptionRenderProps,
+  domains: EngineDomain[],
+) {
+  const domainType = getDomainType(props.value?.toString() ?? "", domains);
+  return (
+    <EngineDomainItem
+      type={domainType}
+      name={domainType === DomainType.MICRO ? props.value : props.label}
+    />
   );
 }
 
@@ -38,15 +55,7 @@ export const SelectDomains: React.FC<SelectDomainsProperties> = ({
 
   const renderOption = useCallback(
     (props: LabelRenderProps | OptionRenderProps) => {
-      const domainType = getDomainType(props.value?.toString() ?? "", domains);
-      return domainType === DomainType.MICRO ? (
-        <Space size={"small"}>
-          <Tag>micro</Tag>
-          <span>{props.value}</span>
-        </Space>
-      ) : (
-        props.label
-      );
+      return getDomainOptionNode(props, domains);
     },
     [domains],
   );

@@ -44,6 +44,8 @@ import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { ChainDiffPopup } from "../chains/diff/ChainDiffPopup.tsx";
 import { useModalsContext } from "../../Modals.tsx";
+import { EngineDomainItem } from "../EngineDomainItem.tsx";
+import { getDomainOptionNode, getDomainType } from "../SelectDomains.tsx";
 
 /** rc-table selection column when `rowSelection` is set; not in `columns`. */
 const IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH = 48;
@@ -424,12 +426,24 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                     label: i.name,
                     value: i.id,
                   }))}
+                  selectProps={{
+                    mode: "multiple",
+                    labelRender: (props) => getDomainOptionNode(props, domains),
+                    optionRender: (props) =>
+                      getDomainOptionNode(props, domains),
+                  }}
                 />
               }
               viewer={
                 <Flex gap="4px 4px" wrap>
                   {item.domains.map((i) => (
-                    <Tag key={i.id}>{i.name}</Tag>
+                    <Tag key={i.id}>
+                      <EngineDomainItem
+                        variant={"outlined"}
+                        name={i.name}
+                        type={getDomainType(i.id, domains)}
+                      />
+                    </Tag>
                   ))}
                 </Flex>
               }
