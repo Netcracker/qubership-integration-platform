@@ -25,6 +25,27 @@ export function getDomainType(
   );
 }
 
+/**
+ * Resolves domain IDs against the domains the catalog lists. An ID it doesn't list is a
+ * micro-domain that a deploy creates, so it is kept as one while micro-domains are enabled and
+ * dropped otherwise.
+ */
+export function resolveDomains(
+  ids: string[],
+  domains: EngineDomain[],
+  microDomainsEnabled: boolean,
+): EngineDomain[] {
+  return ids.flatMap((id) => {
+    const known = domains.find((domain) => domain.id === id);
+    if (known) {
+      return [known];
+    }
+    return microDomainsEnabled
+      ? [{ id, name: id, type: DomainType.MICRO, replicas: 0, namespace: "" }]
+      : [];
+  });
+}
+
 export function getDomainOptionNode(
   props: LabelRenderProps | OptionRenderProps,
   domains: EngineDomain[],
@@ -38,20 +59,32 @@ export function getDomainOptionNode(
   );
 }
 
-export const SelectDomains: React.FC<SelectDomainsProperties> = ({
-  value,
-  onChange,
-}) => {
-  const { isLoading: isDomainsLoading, domains } = useDomains();
+/** The domain types the app config enables, kept current when the config changes. */
+export function useDomainTypes(): {
+  loaded: boolean;
+  domainTypes: DomainType[];
+} {
+  const [loaded, setLoaded] = useState<boolean>(false);
   const [domainTypes, setDomainTypes] = useState<DomainType[]>([]);
 
   useEffect(() => {
     const updateDomainTypes = (cfg: ReturnType<typeof getConfig>) => {
       setDomainTypes(cfg.domainTypes ?? [DomainType.CLASSIC, DomainType.MICRO]);
+      setLoaded(true);
     };
     updateDomainTypes(getConfig());
     return onConfigChange((config) => updateDomainTypes(config));
   }, []);
+
+  return { loaded, domainTypes };
+}
+
+export const SelectDomains: React.FC<SelectDomainsProperties> = ({
+  value,
+  onChange,
+}) => {
+  const { isLoading: isDomainsLoading, domains } = useDomains();
+  const { loaded: domainTypesLoaded, domainTypes } = useDomainTypes();
 
   const renderOption = useCallback(
     (props: LabelRenderProps | OptionRenderProps) => {
@@ -63,7 +96,7 @@ export const SelectDomains: React.FC<SelectDomainsProperties> = ({
   return (
     <Select
       value={value?.map((domain) => domain.name)}
-      loading={isDomainsLoading}
+      loading={!domainTypesLoaded || isDomainsLoading}
       mode={domainTypes.includes(DomainType.MICRO) ? "tags" : "multiple"}
       allowClear
       labelRender={renderOption}

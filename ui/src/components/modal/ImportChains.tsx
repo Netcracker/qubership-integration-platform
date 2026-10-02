@@ -2,6 +2,7 @@ import {
   ChainCommitRequestAction,
   ChainImportInstructions,
   ChainImportPreview,
+  DomainType,
   EngineDomain,
   ImportChainResult,
   ImportEntityStatus,
@@ -45,7 +46,12 @@ import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { ChainDiffPopup } from "../chains/diff/ChainDiffPopup.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 import { EngineDomainItem } from "../EngineDomainItem.tsx";
-import { getDomainOptionNode, getDomainType } from "../SelectDomains.tsx";
+import {
+  getDomainOptionNode,
+  getDomainType,
+  resolveDomains,
+  useDomainTypes,
+} from "../SelectDomains.tsx";
 
 /** rc-table selection column when `rowSelection` is set; not in `columns`. */
 const IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH = 48;
@@ -135,6 +141,9 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     React.Key[]
   >([]);
   const [domains, setDomains] = useState<EngineDomain[]>([]);
+  const microDomainsEnabled = useDomainTypes().domainTypes.includes(
+    DomainType.MICRO,
+  );
   const [validateByHashChecked, setValidateByHashChecked] =
     useState<boolean>(false);
   const [, setPreviewImportInstructionTableItems] = useState<
@@ -199,13 +208,15 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
         importPreview.chains?.map((i, index) => ({
           ...i,
           id: i.id ?? index,
-          domains: domains?.filter((domain) =>
-            i.deployments?.some((d) => d.domain === domain.id),
+          domains: resolveDomains(
+            i.deployments?.map((d) => d.domain) ?? [],
+            domains,
+            microDomainsEnabled,
           ),
         })) ?? [],
       );
     }
-  }, [importPreview, domains]);
+  }, [importPreview, domains, microDomainsEnabled]);
 
   useEffect(() => {
     setResultImportInstructionTableItems([
@@ -427,7 +438,8 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                     value: i.id,
                   }))}
                   selectProps={{
-                    mode: "multiple",
+                    // Tags mode turns a typed name into a value on Enter, as SelectDomains does.
+                    mode: microDomainsEnabled ? "tags" : "multiple",
                     labelRender: (props) => getDomainOptionNode(props, domains),
                     optionRender: (props) =>
                       getDomainOptionNode(props, domains),
@@ -453,8 +465,10 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                     i.id === item.id
                       ? {
                           ...i,
-                          domains: domains.filter((d) =>
-                            values.domains.includes(d.id),
+                          domains: resolveDomains(
+                            values.domains,
+                            domains,
+                            microDomainsEnabled,
                           ),
                         }
                       : i,
@@ -526,7 +540,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
           ),
         },
       ],
-      [domains, previewImportChainTableItems],
+      [domains, microDomainsEnabled, previewImportChainTableItems],
     );
 
   const resultChainTableColumns: TableProps<ImportChainResult>["columns"] =
