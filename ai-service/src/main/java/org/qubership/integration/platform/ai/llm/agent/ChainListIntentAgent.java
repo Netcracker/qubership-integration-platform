@@ -20,6 +20,9 @@ public interface ChainListIntentAgent {
   @SystemMessage(fromResource = "prompts/roles/chain-list-intent.md")
   @UserMessage(
       """
+Today (UTC):
+{today}
+
 Open chain id (may be empty):
 {openChainId}
 
@@ -29,5 +32,6 @@ Recent transcript:
 User request:
 {userRequest}\
 """)
-  ChainListCommand resolve(String openChainId, String transcriptWindow, String userRequest);
+  ChainListCommand resolve(
+      String today, String openChainId, String transcriptWindow, String userRequest);
 }

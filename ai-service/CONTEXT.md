@@ -261,6 +261,15 @@ an unfinished CREATE run keeps the turn.
 _Avoid_: a confirmation per single rename or move, guessing between folders or chains that share a
 name, `POST /v1/chains/bulk-delete`
 
+**Chat chain list**:
+The numbered chains of the last `FIND_CHAINS` answer in a conversation, kept in memory by
+`ChainListScenario`. A later request picks from it with `fromList`, `positions`, and
+`excludePositions`, and any filter, folder, or name narrows it further. Only a search replaces the
+list, so the author can move part of it and then pick other numbers from the same list. Counts per
+folder, label, status, author, day, or month (`groupBy`) are computed in Java from the same rows;
+the model never counts. A chain with several labels or deployment states counts under each.
+_Avoid_: having the model copy chain names out of the transcript, which clips long lists
+
 **Catalog Snapshot**:
 The runtime-catalog versioned XML cut of a chain that deployment requires. Distinct from in-memory
 run/task "snapshots" elsewhere in this service. Catalog `POST /v1/catalog/chains/{chainId}/snapshots`

@@ -11,14 +11,19 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chain.folder.ChainFilter.Condition;
 import org.qubership.integration.platform.ai.chain.folder.ChainFilter.Field;
 import org.qubership.integration.platform.ai.chain.folder.ChainTable.Row;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.DeploymentRuntimeDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.FilterDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.FolderItemDto;
+import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.RuntimeStateDto;
 import org.qubership.integration.platform.ai.integration.catalog.client.CatalogRestClient.UserDto;
+import org.qubership.integration.platform.ai.integration.catalog.model.CatalogChainLabel;
 
 class ChainTableTest {
 
@@ -50,9 +55,34 @@ class ChainTableTest {
     assertEquals(
         List.of(
             new Row(
-                "c1", "Orders sync", "Integrations/Salesforce", SEPT_29, "alice", SEPT_29, "alice"),
-            new Row("c2", "Users sync", "", OCT_01, "bob", OCT_01, "bob")),
+                "c1", "Orders sync", "Integrations/Salesforce", SEPT_29, "alice", SEPT_29, "alice",
+                List.of(), List.of("DRAFT")),
+            new Row(
+                "c2", "Users sync", "", OCT_01, "bob", OCT_01, "bob", List.of(), List.of("DRAFT"))),
         rows);
+  }
+
+  @Test
+  void readsPeoplesLabelsAndDeploymentStatesAndSortsByName() {
+    DeploymentDto deployed = deployment(new RuntimeStateDto("DEPLOYED", null));
+    DeploymentDto failed = deployment(new RuntimeStateDto("FAILED", "broker is unavailable"));
+    DeploymentDto unreported = new DeploymentDto("d3", "c1", "s1", "V1", "default", null);
+    List<CatalogChainLabel> labels =
+        List.of(new CatalogChainLabel("crm", false), new CatalogChainLabel("qip-ai-x", true));
+    when(catalog.filterFolderItems(List.of()))
+        .thenReturn(
+            List.of(
+                new FolderItemDto(
+                    "c1", "users", null, "CHAIN", labels, null, null, null, null, null,
+                    List.of(deployed, failed, unreported)),
+                new FolderItemDto("c2", "Orders", null, "CHAIN", null)));
+
+    List<Row> rows = table.find(List.of());
+
+    assertEquals(List.of("c2", "c1"), ids(rows));
+    assertEquals(List.of("DRAFT"), rows.get(0).statuses());
+    assertEquals(List.of("crm"), rows.get(1).labels());
+    assertEquals(List.of("DEPLOYED", "FAILED", "PROCESSING"), rows.get(1).statuses());
   }
 
   @Test
@@ -114,6 +144,12 @@ class ChainTableTest {
 
   private static List<String> ids(List<Row> rows) {
     return rows.stream().map(Row::id).toList();
+  }
+
+  private static DeploymentDto deployment(RuntimeStateDto state) {
+    return new DeploymentDto(
+        "d-" + state.status(), "c1", "s1", "V1", "default",
+        new DeploymentRuntimeDto(Map.of("10.0.0.1", state)));
   }
 
   private static FolderItemDto folder(String id, String name, String parentId) {
