@@ -429,7 +429,25 @@ public interface CatalogRestClient {
       Long createdWhen,
       UserDto createdBy,
       Long modifiedWhen,
-      UserDto modifiedBy) {
+      UserDto modifiedBy,
+      List<DeploymentDto> deployments) {
+
+    /** Keeps existing test and call sites on the ten-field constructor. */
+    public FolderItemDto(
+        String id,
+        String name,
+        String description,
+        String itemType,
+        List<CatalogChainLabel> labels,
+        String parentId,
+        Long createdWhen,
+        UserDto createdBy,
+        Long modifiedWhen,
+        UserDto modifiedBy) {
+      this(
+          id, name, description, itemType, labels, parentId, createdWhen, createdBy, modifiedWhen,
+          modifiedBy, null);
+    }
 
     /** Keeps existing test and call sites on the five-field constructor. */
     public FolderItemDto(
@@ -438,7 +456,7 @@ public interface CatalogRestClient {
         String description,
         String itemType,
         List<CatalogChainLabel> labels) {
-      this(id, name, description, itemType, labels, null, null, null, null, null);
+      this(id, name, description, itemType, labels, null, null, null, null, null, null);
     }
   }
 

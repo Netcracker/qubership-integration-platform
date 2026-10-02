@@ -36,7 +36,35 @@ public record ChainListCommand(
         String question,
     @Description("New description for SET_DESCRIPTION.") String description,
     @Description("Labels EDIT_LABELS adds to each chain.") List<String> addLabels,
-    @Description("Labels EDIT_LABELS removes from each chain.") List<String> removeLabels) {
+    @Description("Labels EDIT_LABELS removes from each chain.") List<String> removeLabels,
+    @Description(
+            "True when the user means chains from the last chain list in this chat: these, them,"
+                + " of those, number 3. The other selectors then narrow that list.")
+        Boolean fromList,
+    @Description(
+            "Numbers of the chains the user picked from the last list, starting at 1, with ranges"
+                + " written out: 2-4 is [2, 3, 4]. Empty for the whole list.")
+        List<Integer> positions,
+    @Description("Numbers of the chains the user left out of the last list, as in all but 2.")
+        List<Integer> excludePositions,
+    @Description(
+            "For FIND_CHAINS when the user asks how many chains each group has; empty for a"
+                + " plain list.")
+        Grouping groupBy) {
+
+  /** A column FIND_CHAINS counts the chains by. Dates are UTC days. */
+  public enum Grouping {
+    FOLDER,
+    LABEL,
+    /** Deployment status: DEPLOYED, FAILED, PROCESSING, or DRAFT. */
+    STATUS,
+    CREATED_BY,
+    MODIFIED_BY,
+    CREATED_DAY,
+    CREATED_MONTH,
+    MODIFIED_DAY,
+    MODIFIED_MONTH
+  }
 
   /** Folder and move commands, which carry no description or labels. */
   public ChainListCommand(
@@ -50,7 +78,7 @@ public record ChainListCommand(
       String question) {
     this(
         action, folder, newName, targetFolder, chainIds, chainNames, filters, question, null, null,
-        null);
+        null, null, null, null, null);
   }
 
   public ChainListCommand {
@@ -65,11 +93,19 @@ public record ChainListCommand(
     description = blankToNull(description);
     addLabels = addLabels == null ? List.of() : List.copyOf(addLabels);
     removeLabels = removeLabels == null ? List.of() : List.copyOf(removeLabels);
+    positions = positions == null ? List.of() : List.copyOf(positions);
+    excludePositions = excludePositions == null ? List.of() : List.copyOf(excludePositions);
+    fromList = Boolean.TRUE.equals(fromList) || !positions.isEmpty() || !excludePositions.isEmpty();
   }
 
-  /** True when the user pointed at chains one by one rather than by a condition or a folder. */
+  /**
+   * True when the user pointed at chains one by one, or at a list they have seen, rather than by a
+   * condition or a folder.
+   */
   public boolean namesChainsExplicitly() {
-    return (!chainIds.isEmpty() || !chainNames.isEmpty()) && filters.isEmpty() && folder == null;
+    return (!chainIds.isEmpty() || !chainNames.isEmpty() || fromList)
+        && filters.isEmpty()
+        && folder == null;
   }
 
   private static String blankToNull(String value) {
