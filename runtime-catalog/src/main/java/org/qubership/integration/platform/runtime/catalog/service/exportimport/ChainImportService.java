@@ -519,7 +519,7 @@ public class ChainImportService {
         return chainFiles[0];
     }
 
-    private void makeDeployActions(List<ImportChainResult> chainsResult, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
+    void makeDeployActions(List<ImportChainResult> chainsResult, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
         int totalChains = chainsResult.size();
         Map<String, List<Snapshot>> snapshotsByDomain = IntStream.range(0, totalChains)
             // Updating action progress
