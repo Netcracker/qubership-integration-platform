@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import java.util.LinkedHashMap;
+import java.util.List;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
@@ -13,10 +15,20 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.logging.ToolTraceLog;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifest;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
 
 /** Captures typed {@link NamingManifest} output for planning flow. */
 @ApplicationScoped
 public class NamingManifestCaptureTool {
+
+  public record RoleLabel(String roleId, String label) {}
+
+  public record NamingCapture(
+      int schemaVersion,
+      String chainName,
+      List<RoleLabel> labels,
+      List<String> sourceRequirementFactIds,
+      List<QipKnowledgeCitation> knowledgeCitations) {}
 
   public static final String CAPTURE_REQUIRED_MESSAGE =
       "Naming generation did not capture a naming manifest. The agent must call"
@@ -45,8 +57,9 @@ public class NamingManifestCaptureTool {
   @Tool("""
       Capture the naming manifest in the same turn after naming generation is complete.
       Do not pass conversationId — the server binds this capture to the current chat session.
-      chainName must be non-blank.""")
-  public String captureNamingManifest(NamingManifest capture) {
+      chainName must be non-blank. Supply labels as an array of {roleId, label} objects
+      for every existing role ID. Preserve explicitly requested display names.""")
+  public String captureNamingManifest(NamingCapture capture) {
     String conversationId = CompilerGraphPatchTool.resolveConversationId();
     long startMs = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(
@@ -69,11 +82,23 @@ public class NamingManifestCaptureTool {
         }
         return finish(conversationId, startMs, message);
       }
+      var labels = new LinkedHashMap<String, String>();
+      for (RoleLabel entry : capture.labels() == null ? List.<RoleLabel>of() : capture.labels()) {
+        if (entry == null || entry.roleId() == null || entry.roleId().isBlank()
+            || entry.label() == null || entry.label().isBlank()
+            || labels.putIfAbsent(entry.roleId(), entry.label()) != null) {
+          String message = "Each label requires a unique roleId and a non-blank display name.";
+          if (feedbackStore.recordPlanValidationFailure(conversationId, message)) {
+            throw new CaptureValidationException(message);
+          }
+          return finish(conversationId, startMs, message);
+        }
+      }
       NamingManifest normalized =
           new NamingManifest(
               capture.schemaVersion(),
               capture.chainName().trim(),
-              capture.labelsByRoleId(),
+              labels,
               capture.sourceRequirementFactIds(),
               capture.knowledgeCitations());
       String accepted =

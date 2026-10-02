@@ -247,6 +247,12 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("Do not mint a mapping id"), prompt);
     assertTrue(prompt.contains("reuse container is a standalone subtree"), prompt);
     assertTrue(prompt.contains("role=body"), prompt);
+    String allowed = prompt.lines()
+        .filter(line -> line.startsWith("Allowed operation elementType values:"))
+        .findFirst().orElseThrow();
+    assertFalse(allowed.contains("split-element-2"), allowed);
+    assertTrue(allowed.contains("split-2"), allowed);
+    assertTrue(allowed.contains("split-async-2"), allowed);
   }
 
   @Test

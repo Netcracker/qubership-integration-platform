@@ -278,7 +278,8 @@ public class CompilerPlanningRunner {
                   : issue.message() == null || issue.message().isBlank()
                       ? "compiler validation blocker"
                       : issue.message();
-          findings.add(new PlanValidationFinding(code, message, true));
+          findings.add(
+              new PlanValidationFinding(code, withCorrectiveEvidence(message, issue), true));
         }
       }
       if (!compilerValidation.valid()
@@ -307,6 +308,20 @@ public class CompilerPlanningRunner {
       }
     }
     return new PlanValidationResult(findings);
+  }
+
+  private static String withCorrectiveEvidence(String message, ValidationIssue issue) {
+    StringBuilder text = new StringBuilder(message == null ? "" : message);
+    if (issue.affectedNodeIds() != null && !issue.affectedNodeIds().isEmpty()) {
+      text.append(" affectedNodes=").append(String.join(",", issue.affectedNodeIds()));
+    }
+    if (issue.ownerCapabilityId() != null && !issue.ownerCapabilityId().isBlank()) {
+      text.append(" owner=").append(issue.ownerCapabilityId().trim());
+    }
+    if (issue.suggestedFix() != null && !issue.suggestedFix().isBlank()) {
+      text.append(" suggestedFix=").append(issue.suggestedFix().trim());
+    }
+    return text.toString();
   }
 
   /**

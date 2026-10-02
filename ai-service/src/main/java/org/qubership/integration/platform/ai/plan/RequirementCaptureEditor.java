@@ -11,11 +11,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.CapabilityInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
@@ -29,15 +32,6 @@ import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 public final class RequirementCaptureEditor {
 
   private static final Pattern LOCAL_ID = Pattern.compile("[A-Za-z][A-Za-z0-9_-]{0,63}");
-  // ponytail: Catch explicit wording conflicts here; semantic source coverage needs an evaluated model check.
-  private static final Pattern EXPLICIT_PROHIBITION = Pattern.compile(
-      "(?iu)(?:\\b(?:do not|don't|never|must not|should not)\\b|"
-          + "(?<![\\p{L}])(?:\u043d\u0435\u043b\u044c\u0437\u044f\\s+|\u0437\u0430\u043f\u0440\u0435\u0449\u0435\u043d\u043e\\s+|"
-          + "\u043d\u0435\\s+(?:\u043b\u043e\u0433\u0438\u0440\u043e\u0432\u0430\u0442\u044c|\u0432\u044b\u0437\u044b\u0432\u0430\u0442\u044c|\u0443\u0434\u0430\u043b\u044f\u0442\u044c|\u0441\u043e\u0445\u0440\u0430\u043d\u044f\u0442\u044c|\u043e\u0442\u043f\u0440\u0430\u0432\u043b\u044f\u0442\u044c)\\b))");
-  private static final Pattern PROHIBITION_WORDING = Pattern.compile(
-      "(?iu)(?:\\b(?:no|not|never|without|avoid|exclude|disable|forbid|forbidden|"
-          + "prohibit|prohibited|don't)\\b|"
-          + "(?<![\\p{L}])(?:\u043d\u0435|\u043d\u0435\u043b\u044c\u0437\u044f|\u0431\u0435\u0437|\u0437\u0430\u043f\u0440\u0435\u0449\u0435\u043d\u043e|\u0438\u0441\u043a\u043b\u044e\u0447\u0438\u0442\u044c|\u0438\u0437\u0431\u0435\u0433\u0430\u0442\u044c)(?![\\p{L}]))");
 
   public record Issue(String code, String path, String entityId, String message) {}
 
@@ -50,7 +44,15 @@ public final class RequirementCaptureEditor {
   private RequirementCaptureEditor() {}
 
   public static EditResult initialize(DraftInput draft) {
-    List<Issue> issues = validate(draft);
+    List<Issue> issues = new ArrayList<>(validate(draft));
+    if (draft != null && draft.facts() != null) {
+      for (FactInput fact : draft.facts()) {
+        if (fact != null && fact.policyConflict() != null && fact.policyConflict().decision() != null) {
+          add(issues, "POLICY_RESPONSE_REQUIRED", "/draft/facts", fact.sourceFactId(),
+              "Persist the policy question first. An initial request is not an informed response.");
+        }
+      }
+    }
     if (issues.isEmpty()
         && draft.flow().interactions().isEmpty()
         && draft.facts().isEmpty()
@@ -156,10 +158,49 @@ public final class RequirementCaptureEditor {
             questions,
             update.settings() == null ? accepted.settings() : update.settings());
     issues.addAll(validate(candidate));
+    issues.addAll(validatePolicyResponses(accepted, candidate, fact -> true));
     return new EditResult(
         issues.isEmpty() ? candidate : accepted,
         sorted(issues),
         issues.isEmpty() && !candidate.equals(accepted));
+  }
+
+  static List<Issue> validatePolicyResponses(
+      DraftInput previous, DraftInput candidate, Predicate<FactInput> responseAllowed) {
+    List<Issue> issues = new ArrayList<>();
+    for (FactInput fact : candidate.facts()) {
+      var conflict = fact.policyConflict();
+      if (conflict == null || conflict.decision() == null) {
+        continue;
+      }
+      FactInput old = previous.facts().stream()
+          .filter(f -> f.sourceFactId().equals(fact.sourceFactId())).findFirst().orElse(null);
+      var prior = old == null ? null : old.policyConflict();
+      if (Objects.equals(prior, conflict) && Objects.equals(old.interactionIds(), fact.interactionIds())) {
+        continue;
+      }
+      boolean asked = wasPolicyQuestionAsked(previous, fact);
+      if (!responseAllowed.test(fact) || !asked) {
+        add(issues, "POLICY_RESPONSE_REQUIRED", "/changes/facts", fact.sourceFactId(),
+            "Resolve a previously persisted policy question only after a new user reply."
+                + " Changed values or scope require a new question.");
+      }
+    }
+    return issues;
+  }
+
+  static boolean wasPolicyQuestionAsked(DraftInput previous, FactInput fact) {
+    if (previous == null || fact.policyConflict() == null) {
+      return false;
+    }
+    FactInput old = previous.facts().stream()
+        .filter(f -> f.sourceFactId().equals(fact.sourceFactId())).findFirst().orElse(null);
+    return old != null && old.kind() == FactKind.CONSTRAINT && old.polarity() == Polarity.POSITIVE
+        && old.interactionIds().equals(fact.interactionIds())
+        && (old.policyConflict() == null || old.policyConflict().equals(fact.policyConflict().unresolved()))
+        && previous.openQuestions().stream().anyMatch(q ->
+            q.questionId().equals(fact.policyConflict().questionId())
+                && q.interactionIds().equals(fact.interactionIds()));
   }
 
   static List<Issue> validateFactPreservation(DraftInput accepted, DraftInput candidate) {
@@ -209,7 +250,9 @@ public final class RequirementCaptureEditor {
           || (!original.interactionIds().isEmpty() && updated.interactionIds().isEmpty())
           || original.interactionIds().stream().anyMatch(id ->
               interactions.contains(id) && !updated.interactionIds().contains(id))
-          || !sameMappingContent(original.fieldMapping(), updated.fieldMapping(), interactions)) {
+          || !sameMappingContent(original.fieldMapping(), updated.fieldMapping(), interactions)
+          || !Objects.equals(original.policyConflict() == null ? null : original.policyConflict().unresolved(),
+              updated.policyConflict() == null ? null : updated.policyConflict().unresolved())) {
         add(issues, "REPAIR_FACT_LOSS", (saved ? "/changes" : "/draft")
                 + "/facts/" + original.sourceFactId(),
             original.sourceFactId(),
@@ -429,16 +472,29 @@ public final class RequirementCaptureEditor {
       if (fact.kind() == null || fact.polarity() == null || blank(fact.text())) {
         add(issues, "MISSING_FIELD", path, fact.sourceFactId(),
             "Fact needs kind, polarity, and nonblank text.");
-      } else if (fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE
-          && EXPLICIT_PROHIBITION.matcher(fact.text()).find()) {
-        add(issues, "REQUIREMENT_COVERAGE_GAP", path + "/polarity", fact.sourceFactId(),
-            "An explicit prohibition needs NEGATIVE polarity. Split mixed requirements into separate facts.");
-      } else if (fact.polarity() == RequirementCaptureInput.Polarity.NEGATIVE
-          && !PROHIBITION_WORDING.matcher(fact.text()).find()) {
-        add(issues, "REQUIREMENT_COVERAGE_GAP", path + "/text", fact.sourceFactId(),
-            "State a negative fact as a clear prohibition, such as 'Do not log the input body.'");
       }
       checkTargets(issues, fact.interactionIds(), ids, path + "/interactionIds", fact.sourceFactId());
+      var conflict = fact.policyConflict();
+      if (conflict != null) {
+        if (fact.kind() != RequirementCaptureInput.FactKind.CONSTRAINT
+            || fact.polarity() != RequirementCaptureInput.Polarity.POSITIVE
+            || fact.interactionIds() == null || fact.interactionIds().size() != 1
+            || blank(conflict.policyId()) || blank(conflict.propertyKey())
+            || blank(conflict.requestedValue()) || blank(conflict.recommendedValue())
+            || blank(conflict.questionId())
+            || Objects.equals(conflict.requestedValue(), conflict.recommendedValue())) {
+          add(issues, "INVALID_POLICY_CONFLICT", path + "/policyConflict", fact.sourceFactId(),
+              "Use one positive CONSTRAINT tied to one interaction, distinct values, a policy ID,"
+                  + " a property key, and a question ID.");
+        }
+        boolean questionPresent = draft.openQuestions().stream()
+            .anyMatch(q -> q != null && Objects.equals(q.questionId(), conflict.questionId())
+                && Objects.equals(q.interactionIds(), fact.interactionIds()));
+        if ((conflict.decision() == null) != questionPresent) {
+          add(issues, "POLICY_QUESTION_REQUIRED", path + "/policyConflict", fact.sourceFactId(),
+              "Keep the scoped question open until the user answers; remove it when recording the response.");
+        }
+      }
       if (fact.kind() == RequirementCaptureInput.FactKind.FIELD_MAPPING) {
         var mapping = fact.fieldMapping();
         if (mapping == null) {

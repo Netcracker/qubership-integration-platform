@@ -2386,7 +2386,7 @@ public final class ProductPipelineRunSupport {
     RecoveryCause cause = currentRecoveryCause(doc.run().runId());
     if (!isEarlierApprovedOwner(doc, owner)
         && !isCommittedIdentityMismatchOwner(doc, owner, cause)
-        && !isCommittedMaterializationContractOwner(doc, owner, cause)
+        && !isCommittedRejectedInputOwner(doc, owner, cause)
         && !isCommittedRequirementDraftOwner(doc, owner)) {
       return false;
     }
@@ -2508,12 +2508,15 @@ public final class ProductPipelineRunSupport {
         .orElse(false);
   }
 
-  private boolean isCommittedMaterializationContractOwner(
+  private boolean isCommittedRejectedInputOwner(
       ProductPipelineRunDocument doc, String owner, RecoveryCause cause) {
     if (cause == null
-        || cause.causeCode() != RecoveryCauseCode.CONTRACT_SHAPE
-        || !"materialization".equals(doc.run().currentStageId())
-        || !"design-execution".equals(owner)) {
+        || !((cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
+                && "materialization".equals(doc.run().currentStageId())
+                && "design-execution".equals(owner))
+            || (cause.causeCode() == RecoveryCauseCode.GRAPH_STRUCTURE
+                && "design-execution".equals(doc.run().currentStageId())
+                && "design-input".equals(owner)))) {
       return false;
     }
     return doc.run().stages().stream()

@@ -12,7 +12,7 @@ requirementBrief:
   approvedDraftText: >
     Direct GET to http://cloud-integration-platform-catalog:8080/v1/common-variables.
     Internal call (isExternalCall = false), m2m = true, propagateContext = true,
-    reuseEstablishedConnection = true.
+    reuseEstablishedConnection = true. Override X-Request-Id with override-request-id.
   facts:
     - sourceFactId: send-http
       polarity: POSITIVE
@@ -76,6 +76,11 @@ capturedPatch:
       property:
         key: reuseEstablishedConnection
         value: "true"
+    - operation: ADD
+      targetNodeId: send-http
+      property:
+        key: overrideContextParams
+        value: '{"X-Request-Id":"override-request-id"}'
   chainPatches: []
   usedKnowledgeRefs: []
   rationale: Configure the existing http-sender with httpMethod, uri, and brief runtime options.
@@ -105,4 +110,6 @@ expectedGraph:
           value: "true"
         - key: reuseEstablishedConnection
           value: "true"
+        - key: overrideContextParams
+          value: '{"X-Request-Id":"override-request-id"}'
   edges: []

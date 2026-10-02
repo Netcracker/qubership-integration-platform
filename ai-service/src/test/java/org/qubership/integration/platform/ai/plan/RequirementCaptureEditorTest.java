@@ -107,40 +107,23 @@ class RequirementCaptureEditorTest {
   }
 
   @Test
-  void explicitProhibitionCannotBeSavedAsPositiveFact() {
+  void observationAndNonEnglishConstraintPreserveAuthoredPolarity() {
     DraftInput accepted = initial();
+    FactInput observation = new FactInput("context-check", List.of("start"),
+        FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Set X-Request-Id to prove that headers set in script do not leak into the context.");
     FactInput prohibition = new FactInput("no-logs", List.of("start"),
-        FactKind.CONSTRAINT, Polarity.POSITIVE, "Do not log the input body.");
-    var rejected = RequirementCaptureEditor.apply(accepted,
+        FactKind.CONSTRAINT, Polarity.NEGATIVE, "Interdire la journalisation du corps entrant.");
+    var result = RequirementCaptureEditor.apply(accepted,
         new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(prohibition), List.of(), List.of(), List.of(), List.of(),
+            List.of(observation, prohibition), List.of(), List.of(), List.of(), List.of(),
             List.of(), List.of(), List.of(), null));
 
-    assertFalse(rejected.accepted());
-    assertEquals(accepted, rejected.draft());
-    assertTrue(rejected.issues().stream().anyMatch(issue ->
-        "REQUIREMENT_COVERAGE_GAP".equals(issue.code())
-            && "/draft/facts/2/polarity".equals(issue.path())));
-
-    FactInput corrected = new FactInput("no-logs", List.of("start"),
-        FactKind.CONSTRAINT, Polarity.NEGATIVE, prohibition.text());
-    var repair = RequirementCaptureEditor.apply(accepted,
-        new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(corrected), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), null));
-    assertTrue(repair.accepted());
-    assertEquals(corrected, repair.draft().facts().get(2));
-
-    FactInput unclear = new FactInput("no-logs", List.of("start"),
-        FactKind.CONSTRAINT, Polarity.NEGATIVE, "Log the input body.");
-    var unclearResult = RequirementCaptureEditor.apply(accepted,
-        new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(),
-            List.of(unclear), List.of(), List.of(), List.of(), List.of(),
-            List.of(), List.of(), List.of(), null));
-    assertFalse(unclearResult.accepted());
-    assertTrue(unclearResult.issues().stream().anyMatch(issue ->
-        "REQUIREMENT_COVERAGE_GAP".equals(issue.code())
-            && "/draft/facts/2/text".equals(issue.path())));
+    assertTrue(result.accepted(), result.issues().toString());
+    assertEquals(accepted.flow(), result.draft().flow());
+    assertEquals(4, result.draft().facts().size());
+    assertTrue(result.draft().facts().containsAll(accepted.facts()));
+    assertTrue(result.draft().facts().containsAll(List.of(observation, prohibition)));
   }
 
   @Test

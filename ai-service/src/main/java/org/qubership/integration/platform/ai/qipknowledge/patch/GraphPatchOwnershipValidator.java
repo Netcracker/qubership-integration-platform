@@ -57,11 +57,44 @@ public class GraphPatchOwnershipValidator {
         findings);
     validatePropertyOwnership(ownership, patch, nodeTypeByNodeId, findings);
     validateChainOwnership(ownership, patch, findings);
+    for (PropertyPatch propertyPatch : patch.propertyPatches() == null ? List.<PropertyPatch>of() : patch.propertyPatches()) {
+      if (propertyPatch != null && propertyPatch.property() != null
+          && "elementId".equals(propertyPatch.property().key())) {
+        validateBoundChainCallId(
+            existingNodesById.get(propertyPatch.targetNodeId()),
+            propertyPatch.operation() == GraphPatchOperation.REMOVE
+                ? null : propertyPatch.property().value(),
+            context.editTargetNodeIds(), findings);
+      }
+    }
+    for (NodePatch nodePatch : patch.nodePatches() == null ? List.<NodePatch>of() : patch.nodePatches()) {
+      if (nodePatch != null && nodePatch.operation() == GraphPatchOperation.UPDATE
+          && nodePatch.node() != null) {
+        Map<String, Object> values = propertyValuesByKey(nodePatch.node().properties());
+        if (values.containsKey("elementId")) {
+          validateBoundChainCallId(existingNodesById.get(nodePatch.targetNodeId()),
+              values.get("elementId"), context.editTargetNodeIds(), findings);
+        }
+      }
+    }
 
     if (findings.isEmpty()) {
       return new ValidationResult(true, List.of(), "Ownership validation passed");
     }
     return invalid(String.join("; ", findings));
+  }
+
+  private static void validateBoundChainCallId(
+      ChainPlanNode node, Object incoming, List<String> editTargets, List<String> findings) {
+    if (node == null || !"chain-call-2".equals(node.type())
+        || editTargets.contains(node.nodeId())) {
+      return;
+    }
+    Object bound = propertyValuesByKey(node.properties()).get("elementId");
+    if (bound instanceof String id && !id.isBlank() && !Objects.equals(bound, incoming)) {
+      findings.add("Preserve server-resolved chain-call-2.elementId on node '" + node.nodeId()
+          + "': it identifies the target Chain Trigger, not the target chain.");
+    }
   }
 
   private static void validateNodeOwnership(

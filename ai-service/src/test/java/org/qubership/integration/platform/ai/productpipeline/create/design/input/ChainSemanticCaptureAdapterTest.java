@@ -17,6 +17,7 @@ import java.util.Set;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
@@ -37,6 +38,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.input
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticCanonicalizer;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ConditionBranchRole;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.LoopMode;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.DefaultChainSemanticRevisionValidator;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticNode;
@@ -742,13 +744,16 @@ class ChainSemanticCaptureAdapterTest {
         brief.mappingIntents());
   }
 
-  @Test
-  void buildsControlFlowRegionsFromTheirOwnCaptureLists() {
+  @ParameterizedTest
+  @NullAndEmptySource
+  @ValueSource(strings = "  ")
+  void buildsTerminalConditionBranchesWithoutAReconvergenceNode(String reconvergenceNodeId) {
     ChainSemanticRevision revision =
-        adapt(conditionCapture(), ChainSemanticCaptureFixtures.approvedBrief());
+        adapt(conditionCapture(reconvergenceNodeId), ChainSemanticCaptureFixtures.approvedBrief());
 
     assertEquals(
         SemanticRegionKind.CONDITION, revision.regions().getFirst().kind());
+    assertNull(((SemanticRegion.Condition) revision.regions().getFirst()).reconvergenceNodeId());
     assertEquals(
         List.of(
             SemanticRouteKind.SEQUENCE,
@@ -758,6 +763,38 @@ class ChainSemanticCaptureAdapterTest {
             .map(edge -> edge.route().kind())
             .sorted()
             .toList());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
+  }
+
+  @ParameterizedTest
+  @ValueSource(ints = {0, 7, -1})
+  void preservesExplicitLoopCapsAndTreatsZeroAsTheSchemaDefault(int cap) {
+    ChainSemanticCapture linear = ChainSemanticCaptureFixtures.linearCapture();
+    ChainSemanticCapture capture = new ChainSemanticCapture(
+        linear.chainIdentity(),
+        List.of(new CapturedOperation("repeat", "loop-2", List.of()),
+            new CapturedOperation("work", "script", List.of("fact-script"))),
+        List.of(), List.of(), List.of(),
+        List.of(new ChainSemanticCapture.CapturedLoopRegion(
+            "repeat-region", "repeat", "work", List.of("work"),
+            ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
+            LoopMode.DO_WHILE, "${header.more} == true", cap)),
+        List.of(), List.of(),
+        List.of(
+            new CapturedEdge("http-in", "repeat", null, null, null, null, null, null),
+            new CapturedEdge("repeat", "work", "repeat-region", SemanticRouteKind.LOOP_BODY,
+                null, null, null, null),
+            new CapturedEdge("work", ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID,
+                "repeat-region", SemanticRouteKind.LOOP_EXIT, null, null, null, null)),
+        List.of());
+    if (cap < 0) {
+      assertThrows(IllegalArgumentException.class, () -> adapt(capture));
+      return;
+    }
+    ChainSemanticRevision revision = adapt(capture);
+    SemanticRegion.Loop loop = (SemanticRegion.Loop) revision.regions().getFirst();
+    assertEquals(cap == 0 ? null : Integer.valueOf(cap), loop.policy().safetyBound());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT);
   }
 
   @Test
@@ -1317,7 +1354,7 @@ class ChainSemanticCaptureAdapterTest {
     return contracted;
   }
 
-  private static ChainSemanticCapture conditionCapture() {
+  private static ChainSemanticCapture conditionCapture(String reconvergenceNodeId) {
     return new ChainSemanticCapture(
         "chain-orders",
         List.of(
@@ -1347,7 +1384,7 @@ class ChainSemanticCaptureAdapterTest {
                         1,
                         "op-else",
                         List.of("op-else"))),
-                null)),
+                reconvergenceNodeId)),
         List.of(),
         List.of(),
         List.of(),

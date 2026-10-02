@@ -29,6 +29,22 @@ class ChainReconcileServiceTest {
   }
 
   @Test
+  void comparesChainTriggerAddressWithItsCatalogIdentity() {
+    ChainPlanGraph plan = new ChainPlanGraph("1.0", new ChainSection("demo", null),
+        List.of(new ChainPlanNode("entry", "chain-trigger-2", "Trigger", null, null,
+            List.of(new PlanProperty("elementId", "Calling chain")))), List.of());
+    MaterializationMap map = new MaterializationMap("chain-1", Map.of("entry", "trigger-id"), Map.of(), Map.of());
+    ChainCatalogFacts correct = new ChainCatalogFacts("chain-1", "demo", "", 1, 0, "",
+        List.of(new ChainCatalogElement("trigger-id", "chain-trigger-2", "Trigger", null,
+            Map.of("elementId", "trigger-id"))), List.of(), "built_in_catalog");
+    ChainCatalogFacts wrong = new ChainCatalogFacts("chain-1", "demo", "", 1, 0, "",
+        List.of(new ChainCatalogElement("trigger-id", "chain-trigger-2", "Trigger", null,
+            Map.of("elementId", "Calling chain"))), List.of(), "built_in_catalog");
+    assertTrue(service.compare(plan, map, correct).matches());
+    assertEquals(List.of("entry.elementId"), service.compare(plan, map, wrong).propertyMismatches());
+  }
+
+  @Test
   void reportsApprovedPropertyMismatch() {
     ChainPlanGraph plan = graphWithProperty("script-1", "script", "return 200");
     MaterializationMap map =

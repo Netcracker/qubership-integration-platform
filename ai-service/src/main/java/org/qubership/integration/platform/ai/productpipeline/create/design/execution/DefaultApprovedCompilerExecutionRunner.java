@@ -51,6 +51,9 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
    */
   static final String TRANSFORMATION_GENERATOR_SKILL_ID = "cip-transformation-generator";
 
+  /** Authentication properties have no separate target in the typed design plan. */
+  static final String AUTH_GENERATOR_SKILL_ID = "cip-auth-generator";
+
   private final CompilerDagExecutionEngine engine;
   private final ProductPipelineRunStore runStore;
   private final ProductPipelineArtifactStore artifactStore;
@@ -245,6 +248,9 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
    * Header-modification add/remove maps are properties, not topology. The planner often assigns
    * that work to structure, which would leave {@code headerModificationToAdd} and
    * {@code headerModificationToRemove} empty.
+   *
+   * <p>{@code cip-auth-generator} is always seeded when it exists in the pin. It owns
+   * authentication properties and emits an empty patch when authentication is not requested.
    */
   static Set<String> skillClosureIds(
       DesignExecutionPlan plan, ResolvedCompilerDag fullDag) {
@@ -310,6 +316,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       LinkedHashMap<String, ResolvedCompilerNode> byId, ArrayDeque<String> queue) {
     enqueueIfPresent(byId, queue, SECURITY_GENERATOR_SKILL_ID);
     enqueueIfPresent(byId, queue, TRANSFORMATION_GENERATOR_SKILL_ID);
+    enqueueIfPresent(byId, queue, AUTH_GENERATOR_SKILL_ID);
   }
 
   private static void enqueueIfPresent(
