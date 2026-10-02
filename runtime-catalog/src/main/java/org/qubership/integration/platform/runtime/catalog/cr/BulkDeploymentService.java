@@ -136,30 +136,11 @@ public class BulkDeploymentService {
                         .mode(mode)
                         .snapshotIds(snapshots.stream().map(Snapshot::getId).toList())
                         .build());
-                    return snapshots.stream()
-                        .map(snapshot -> BulkDeploymentResponse.builder()
-                            .chainId(snapshot.getChain().getId())
-                            .chainName(snapshot.getChain().getName())
-                            .status(BulkDeploymentStatus.CREATED)
-                            .domain(EngineDomain.builder()
-                                .name(name)
-                                .type(DomainType.MICRO)
-                                .build())
-                            .build())
-                        .toList();
+                    return buildResponseForSnapshots(snapshots, name, DomainType.MICRO,
+                        BulkDeploymentStatus.CREATED, null);
                 } catch (Exception e) {
-                    return snapshots.stream()
-                        .map(snapshot -> BulkDeploymentResponse.builder()
-                            .chainId(snapshot.getChain().getId())
-                            .chainName(snapshot.getChain().getName())
-                            .status(BulkDeploymentStatus.FAILED_DEPLOY)
-                            .errorMessage(e.getMessage())
-                            .domain(EngineDomain.builder()
-                                .name(name)
-                                .type(DomainType.MICRO)
-                                .build())
-                            .build())
-                        .toList();
+                    return buildResponseForSnapshots(snapshots, name, DomainType.MICRO,
+                        BulkDeploymentStatus.FAILED_DEPLOY, e.getMessage());
                 }
             }).forEach(result::addAll);
 
@@ -240,5 +221,27 @@ public class BulkDeploymentService {
         }
 
         return action.apply(classicDomainNames, microDomainNames);
+    }
+
+    public List<BulkDeploymentResponse> buildResponseForSnapshots(
+        Collection<Snapshot> snapshots,
+        String domainName,
+        DomainType domainType,
+        BulkDeploymentStatus status,
+        String errorMessage
+    ) {
+        EngineDomain domain = EngineDomain.builder()
+            .name(domainName)
+            .type(domainType)
+            .build();
+        return snapshots.stream()
+            .map(snapshot -> BulkDeploymentResponse.builder()
+                .chainId(snapshot.getChain().getId())
+                .chainName(snapshot.getChain().getName())
+                .status(status)
+                .errorMessage(errorMessage)
+                .domain(domain)
+                .build())
+            .toList();
     }
 }

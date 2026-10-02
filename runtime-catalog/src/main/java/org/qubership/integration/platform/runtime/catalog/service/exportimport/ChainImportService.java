@@ -36,10 +36,8 @@ import org.qubership.integration.platform.io.readers.migrations.chain.ChainImpor
 import org.qubership.integration.platform.io.readers.migrations.common.GroupPathUtils;
 import org.qubership.integration.platform.runtime.catalog.cr.BulkDeploymentService;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceClientException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainDifferenceException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ChainImportException;
-import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ComparisonEntityNotFoundException;
+import org.qubership.integration.platform.runtime.catalog.exception.exceptions.*;
+import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainsIgnoreOverrideResult;
@@ -537,7 +535,7 @@ public class ChainImportService {
                 ChainCommitRequestAction action = item.getLeft().getDeployAction();
                 return isNull(action) || !ChainCommitRequestAction.NONE.equals(action);
             })
-            // Creating a snapshots
+            // Creating snapshots
             .<Pair<Snapshot, Collection<String>>>map(item -> {
                 ChainCommitRequest request = item.getLeft();
                 ImportChainResult chainResult = item.getRight();
@@ -578,9 +576,16 @@ public class ChainImportService {
         // Deploying snapshots
         snapshotsByDomain.entrySet().stream()
             .map(entry -> {
+                String domain = entry.getKey();
                 Collection<Snapshot> snapshots = entry.getValue();
-                Collection<String> domains = Collections.singletonList(entry.getKey());
-                return bulkDeploymentService.deploySnapshots(snapshots, domains, DeployMode.APPEND);
+                Collection<String> domains = Collections.singletonList(domain);
+                try {
+                    return bulkDeploymentService.deploySnapshots(snapshots, domains, DeployMode.APPEND);
+                } catch (Exception e) {
+                    DomainType domainType = e instanceof DomainTypeDisabledException ex ? ex.getDomainType() : null;
+                    return bulkDeploymentService.buildResponseForSnapshots(snapshots, domain, domainType,
+                        BulkDeploymentStatus.FAILED_DEPLOY, e.getMessage());
+                }
             })
             .flatMap(Collection::stream)
             .forEach(deployResult -> {
