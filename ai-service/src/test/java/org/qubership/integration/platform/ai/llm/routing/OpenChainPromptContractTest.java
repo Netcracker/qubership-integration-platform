@@ -38,7 +38,7 @@ class OpenChainPromptContractTest {
     String system = resource("/prompts/router-system.md");
 
     assertTrue(role.contains("architecture, pattern, or platform-behavior advice"), role);
-    assertTrue(role.contains("Как лучше организовать интеграцию через QIP?"), role);
+    assertTrue(role.contains("How should I organize an integration through QIP?"), role);
     assertTrue(system.contains("architecture, pattern, or platform-behavior advice"), system);
     assertTrue(system.contains("existing deployed catalog chain"), system);
   }

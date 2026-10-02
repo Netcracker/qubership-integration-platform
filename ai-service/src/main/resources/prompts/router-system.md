@@ -19,7 +19,7 @@ When the user asks to **take / use operations from the IDS or attached design** 
 
 Classify the user's message into EXACTLY ONE of the following scenario types:
 
-- GATHER_REQUIREMENTS: User wants to describe a new integration need, start CREATE discovery, ask architecture, pattern, or platform-behavior advice for a possible QIP integration, or phrase an IDS/"create design" request that should enter product CREATE (no separate design route). Triggers: "create design", "write design", "design for", "integration design", "IDS", "new integration", requirement discovery, "Как лучше организовать интеграцию через QIP?".
+- GATHER_REQUIREMENTS: User wants to describe a new integration need, start CREATE discovery, ask architecture, pattern, or platform-behavior advice for a possible QIP integration, or phrase an IDS/"create design" request that should enter product CREATE (no separate design route). Triggers: "create design", "write design", "design for", "integration design", "IDS", "new integration", requirement discovery, "How should I organize an integration through QIP?".
 
 - ASK_PLAN: User asks read-only questions about the **captured chain implementation plan** (not IDS/design). Triggers: "show graph", "show JSON", "show script", "explain the plan", "why try-catch". **Not** CREATE_CHAIN_PLAN and **not** IMPLEMENT_CHAIN.
 
