@@ -24,7 +24,13 @@ globalThis.ResizeObserver = class ResizeObserver {
 
 import React from "react";
 import { describe, it, expect, beforeEach, afterEach } from "@jest/globals";
-import { render, fireEvent, waitFor, screen } from "@testing-library/react";
+import {
+  render,
+  fireEvent,
+  waitFor,
+  screen,
+  act,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { IntegrationSystemType } from "../../src/api/apiTypes";
 import type { IntegrationSystem } from "../../src/api/apiTypes";
@@ -33,11 +39,22 @@ import type { EntityFilterModel } from "../../src/components/table/filter/filter
 const mockGetServices = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockFilterSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
 const mockSearchSystems = jest.fn<Promise<IntegrationSystem[]>, unknown[]>();
+const mockGetApiSpecifications = jest.fn();
+const mockRequestFailed = jest.fn();
+const mockNotificationService = {
+  requestFailed: mockRequestFailed,
+  info: jest.fn(),
+  warning: jest.fn(),
+  errorWithDetails: jest.fn(),
+};
 const mockIsAutodiscoveryInProgress = jest.fn<Promise<number>, unknown[]>();
 const mockGetAutodiscoveryResult = jest.fn();
 const mockRunServiceDiscovery = jest.fn();
 const mockShowModal = jest.fn();
 const mockNavigate = jest.fn();
+let mockCapturedEnsureLoaded:
+  | ((record: unknown) => Promise<React.Key[]>)
+  | undefined;
 
 let mockFilters: EntityFilterModel[] = [];
 
@@ -46,7 +63,8 @@ jest.mock("../../src/api/api", () => ({
     getServices: (...args: unknown[]) => mockGetServices(...args),
     filterServices: (...args: unknown[]) => mockFilterSystems(...args),
     searchServices: (...args: unknown[]) => mockSearchSystems(...args),
-    getApiSpecifications: jest.fn().mockResolvedValue([]),
+    getApiSpecifications: (...args: unknown[]) =>
+      mockGetApiSpecifications(...args),
     exportServices: jest.fn().mockResolvedValue(new File([], "test")),
     exportContextServices: jest.fn().mockResolvedValue(new File([], "test")),
     updateService: jest.fn(),
@@ -73,12 +91,7 @@ jest.mock("react-router-dom", () => ({
 }));
 
 jest.mock("../../src/hooks/useNotificationService", () => ({
-  useNotificationService: () => ({
-    requestFailed: jest.fn(),
-    info: jest.fn(),
-    warning: jest.fn(),
-    errorWithDetails: jest.fn(),
-  }),
+  useNotificationService: () => mockNotificationService,
 }));
 
 jest.mock("../../src/hooks/useServiceFilter", () => ({
@@ -101,6 +114,22 @@ jest.mock("../../src/components/services/Services.module.css", () => ({}), {
 });
 
 // Mock components that import CSS
+jest.mock("../../src/components/table/useTableRowExpandCollapse", () => {
+  const actual = jest.requireActual(
+    "../../src/components/table/useTableRowExpandCollapse",
+  );
+  return {
+    ...actual,
+    useTableRowExpandCollapse: (opts: {
+      getSubtreeIds: (record: unknown) => React.Key[];
+      ensureLoaded?: (record: unknown) => Promise<React.Key[]>;
+    }) => {
+      mockCapturedEnsureLoaded = opts.ensureLoaded;
+      return actual.useTableRowExpandCollapse(opts);
+    },
+  };
+});
+
 jest.mock("../../src/components/services/ServicesTreeTable", () => ({
   useServicesTreeTable: () => ({
     tableElement: <table data-testid="services-table" />,
@@ -111,8 +140,17 @@ jest.mock("../../src/components/services/ServicesTreeTable", () => ({
   allServicesTreeTableColumns: [{ key: "name" }, { key: "protocol" }],
   getActionsColumn: () => ({ key: "actions" }),
   getServiceActions: () => [],
-  isSpecification: () => false,
-  isSpecificationGroup: () => false,
+  isSpecification: (r: unknown) =>
+    !!(
+      (r as { specificationGroupId?: string })?.specificationGroupId &&
+      "version" in (r as object) &&
+      "source" in (r as object)
+    ),
+  isSpecificationGroup: (r: unknown) =>
+    !!(
+      (r as { systemId?: string })?.systemId &&
+      "synchronization" in (r as object)
+    ),
   isIntegrationSystem: (r: unknown) =>
     !!(r as { type?: string })?.type &&
     (r as { type: string }).type !== "CONTEXT",
@@ -161,7 +199,7 @@ jest.mock("../../src/permissions/ProtectedButton.tsx", () => ({
       <button
         type="button"
         data-testid={`svc-action-${String(tooltipProps.title).replace(/\s+/g, "-").toLowerCase()}`}
-        {...(rest)}
+        {...rest}
       />
     );
   },
@@ -189,6 +227,8 @@ describe("ServicesListPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     jest.useFakeTimers();
+    mockCapturedEnsureLoaded = undefined;
+    mockGetApiSpecifications.mockResolvedValue([]);
     messageInfoSpy = jest
       .spyOn(message, "info")
       .mockImplementation((() => {}) as never);
@@ -335,5 +375,168 @@ describe("ServicesListPage", () => {
       screen.getByTestId("svc-action-download-selected-services"),
     );
     expect(messageInfoSpy).toHaveBeenCalledWith("No services selected");
+  });
+
+  describe("ensureServiceSubtreeLoaded", () => {
+    const makeSpec = (id: string, groupId: string) =>
+      ({
+        id,
+        name: `spec-${id}`,
+        specificationGroupId: groupId,
+        version: "v1",
+        source: "openapi",
+        systemId: "svc-1",
+      }) as unknown as import("../../src/api/apiTypes").Specification;
+
+    const makeGroup = (
+      id: string,
+      systemId: string,
+      specifications: import("../../src/api/apiTypes").Specification[] = [],
+    ) =>
+      ({
+        id,
+        name: `group-${id}`,
+        systemId,
+        synchronization: false,
+        specifications,
+      }) as unknown as import("../../src/api/apiTypes").SpecificationGroup;
+
+    const renderAndCaptureEnsureLoaded = async () => {
+      jest.useRealTimers();
+      render(<ServicesList tab="external" />);
+      await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
+      await waitFor(() => expect(mockCapturedEnsureLoaded).toBeDefined());
+      return mockCapturedEnsureLoaded!;
+    };
+
+    it("should return empty array when record is neither a system nor a group", async () => {
+      const ensureLoaded = await renderAndCaptureEnsureLoaded();
+      const spec = makeSpec("spec-1", "group-1");
+      await expect(ensureLoaded(spec)).resolves.toEqual([]);
+      expect(mockGetApiSpecifications).not.toHaveBeenCalled();
+    });
+
+    it("should fetch groups for an uncached service and return service, group and spec ids", async () => {
+      const specA = makeSpec("spec-a", "group-a");
+      const specB = makeSpec("spec-b", "group-b");
+      const groupA = makeGroup("group-a", "svc-1", [specA]);
+      const groupB = makeGroup("group-b", "svc-1", [specB]);
+      mockGetApiSpecifications.mockResolvedValue([groupA, groupB]);
+
+      const ensureLoaded = await renderAndCaptureEnsureLoaded();
+      const service = makeService(
+        "svc-1",
+        "Service 1",
+        IntegrationSystemType.EXTERNAL,
+      );
+
+      await expect(ensureLoaded(service)).resolves.toEqual([
+        "svc-1",
+        "group-a",
+        "group-b",
+        "spec-a",
+        "spec-b",
+      ]);
+      expect(mockGetApiSpecifications).toHaveBeenCalledWith("svc-1");
+    });
+
+    it("should not refetch groups when the service subtree is already loaded", async () => {
+      const specA = makeSpec("spec-a", "group-a");
+      const groupA = makeGroup("group-a", "svc-1", [specA]);
+      mockGetApiSpecifications.mockResolvedValue([groupA]);
+
+      const ensureLoaded = await renderAndCaptureEnsureLoaded();
+      const service = makeService(
+        "svc-1",
+        "Service 1",
+        IntegrationSystemType.EXTERNAL,
+      );
+
+      let firstResult: React.Key[] | undefined;
+      await act(async () => {
+        firstResult = await ensureLoaded(service);
+      });
+      expect(firstResult).toEqual(["svc-1", "group-a", "spec-a"]);
+      expect(mockGetApiSpecifications).toHaveBeenCalledTimes(1);
+
+      // The component re-renders with the fetched groups cached; the fresh
+      // callback must reuse them without another API call.
+      await waitFor(() =>
+        expect(mockCapturedEnsureLoaded).not.toBe(ensureLoaded),
+      );
+      const freshEnsureLoaded = mockCapturedEnsureLoaded!;
+      let secondResult: React.Key[] | undefined;
+      await act(async () => {
+        secondResult = await freshEnsureLoaded(service);
+      });
+      expect(secondResult).toEqual(["svc-1", "group-a", "spec-a"]);
+      expect(mockGetApiSpecifications).toHaveBeenCalledTimes(1);
+    });
+
+    it("should notify and return empty array when loading groups fails", async () => {
+      mockGetApiSpecifications.mockRejectedValue(new Error("boom"));
+      const ensureLoaded = await renderAndCaptureEnsureLoaded();
+      const service = makeService(
+        "svc-1",
+        "Service 1",
+        IntegrationSystemType.EXTERNAL,
+      );
+
+      await expect(ensureLoaded(service)).resolves.toEqual([]);
+      expect(mockRequestFailed).toHaveBeenCalledWith(
+        "Error loading specifications groups",
+        expect.any(Error),
+      );
+    });
+
+    it("should cache specs from the group record and return group and spec ids", async () => {
+      const ensureLoaded = await renderAndCaptureEnsureLoaded();
+      const specA = makeSpec("spec-a", "group-a");
+      const specC = makeSpec("spec-c", "group-a");
+      const group = makeGroup("group-a", "svc-1", [specA, specC]);
+
+      let firstResult: React.Key[] | undefined;
+      await act(async () => {
+        firstResult = await ensureLoaded(group);
+      });
+      expect(firstResult).toEqual(["group-a", "spec-a", "spec-c"]);
+      expect(mockGetApiSpecifications).not.toHaveBeenCalled();
+
+      // The specs cached from the record are reused on the next call.
+      await waitFor(() =>
+        expect(mockCapturedEnsureLoaded).not.toBe(ensureLoaded),
+      );
+      const groupWithoutSpecs = makeGroup("group-a", "svc-1", []);
+      let secondResult: React.Key[] | undefined;
+      await act(async () => {
+        secondResult = await mockCapturedEnsureLoaded!(groupWithoutSpecs);
+      });
+      expect(secondResult).toEqual(["group-a", "spec-a", "spec-c"]);
+    });
+
+    it("should return cached group subtree without touching the record specs", async () => {
+      const ensureLoaded = await renderAndCaptureEnsureLoaded();
+      const specA = makeSpec("spec-a", "group-a");
+      const group = makeGroup("group-a", "svc-1", [specA]);
+
+      let firstResult: React.Key[] | undefined;
+      await act(async () => {
+        firstResult = await ensureLoaded(group);
+      });
+      expect(firstResult).toEqual(["group-a", "spec-a"]);
+
+      await waitFor(() =>
+        expect(mockCapturedEnsureLoaded).not.toBe(ensureLoaded),
+      );
+      // Even when the record carries different specs, the cached ones win.
+      const staleGroup = makeGroup("group-a", "svc-1", [
+        makeSpec("spec-other", "group-a"),
+      ]);
+      let secondResult: React.Key[] | undefined;
+      await act(async () => {
+        secondResult = await mockCapturedEnsureLoaded!(staleGroup);
+      });
+      expect(secondResult).toEqual(["group-a", "spec-a"]);
+    });
   });
 });
