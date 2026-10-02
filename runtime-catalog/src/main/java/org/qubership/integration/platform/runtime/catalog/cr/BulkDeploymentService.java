@@ -12,6 +12,7 @@ import org.qubership.integration.platform.runtime.catalog.exception.exceptions.k
 import org.qubership.integration.platform.runtime.catalog.model.domains.DomainType;
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ChainRepository;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Objects.nonNull;
@@ -69,8 +71,32 @@ public class BulkDeploymentService {
     public void deployChains(DeployWithSnapshotCreationRequest request, Consumer<BulkDeploymentResponse> resultConsumer) {
         forClassicAndMicroDomains(request.getDomains(), (classicDomainNames, microDomainNames) -> {
             Collection<Snapshot> snapshots = getSnapshots(request.getChainIds(), request.getSnapshotAction(), resultConsumer);
-            deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(), resultConsumer);
+            List<Deployment> replacedDeployments = findReplacedDeployments(classicDomainNames.stream()
+                .collect(Collectors.toMap(Function.identity(), domain -> snapshots, (first, second) -> first)));
+            deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(),
+                replacedDeployments, resultConsumer);
         });
+    }
+
+    /**
+     * Returns the existing deployments that a deploy of {@code snapshotsByDomain} replaces: the
+     * deployment of each snapshot's chain on each domain that snapshot goes to. The trigger check skips
+     * them, so a batch that moves an HTTP path or an SDS job from one chain to another is not rejected
+     * against the old deployment of the chain that gives the path up.
+     *
+     * <p>Call it once, before the first deploy of the batch. A later call also returns the deployments
+     * the batch has just created, and two chains in the batch that claim the same path would then both
+     * pass the check. A chain's deployments on domains the batch doesn't deploy it to are not returned,
+     * because they stay live, so the check still compares against them.
+     */
+    public List<Deployment> findReplacedDeployments(Map<String, ? extends Collection<Snapshot>> snapshotsByDomain) {
+        Map<String, Set<String>> domainsByChainId = new HashMap<>();
+        snapshotsByDomain.forEach((domain, snapshots) -> snapshots.forEach(snapshot ->
+            domainsByChainId.computeIfAbsent(snapshot.getChain().getId(), chainId -> new HashSet<>()).add(domain)));
+        return domainsByChainId.entrySet().stream()
+            .flatMap(entry -> deploymentService.findAllByChainId(entry.getKey()).stream()
+                .filter(deployment -> entry.getValue().contains(deployment.getDomain())))
+            .toList();
     }
 
     private Collection<Snapshot> getSnapshots(
@@ -113,11 +139,12 @@ public class BulkDeploymentService {
         Collection<String> classicDomainNames,
         Collection<String> microDomainNames,
         DeployMode mode,
+        List<Deployment> excludeDeployments,
         Consumer<BulkDeploymentResponse> resultConsumer
     ) {
         snapshots.stream()
             .map(snapshot -> deploymentService.deploySnapshot(
-                snapshot, classicDomainNames))
+                snapshot, classicDomainNames, excludeDeployments))
             .flatMap(Collection::stream)
             .forEach(resultConsumer);
 
@@ -144,10 +171,11 @@ public class BulkDeploymentService {
         Collection<Snapshot> snapshots,
         Collection<String> domains,
         DeployMode mode,
+        List<Deployment> excludeDeployments,
         Consumer<BulkDeploymentResponse> resultConsumer
     ) {
         forClassicAndMicroDomains(domains, (classicDomainNames, microDomainNames) ->
-            deploySnapshots(snapshots, classicDomainNames, microDomainNames, mode, resultConsumer));
+            deploySnapshots(snapshots, classicDomainNames, microDomainNames, mode, excludeDeployments, resultConsumer));
     }
 
     /**

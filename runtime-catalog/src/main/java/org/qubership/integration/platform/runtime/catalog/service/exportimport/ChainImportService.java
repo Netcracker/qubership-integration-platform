@@ -596,11 +596,15 @@ public class ChainImportService {
             }
         };
 
+        // Read once for the whole import, before the first domain is deployed
+        List<Deployment> replacedDeployments = bulkDeploymentService.findReplacedDeployments(snapshotsByDomain);
+
         // Deploying snapshots
         snapshotsByDomain.forEach((domain, snapshots) -> {
             Collection<String> domains = Collections.singletonList(domain);
             try {
-                bulkDeploymentService.deploySnapshots(snapshots, domains, DeployMode.APPEND, resultConsumer);
+                bulkDeploymentService.deploySnapshots(snapshots, domains, DeployMode.APPEND, replacedDeployments,
+                    resultConsumer);
             } catch (Exception e) {
                 DomainType domainType = e instanceof DomainTypeDisabledException ex ? ex.getDomainType() : null;
                 bulkDeploymentService.buildResponseForSnapshots(snapshots, domain, domainType,
