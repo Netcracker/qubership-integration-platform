@@ -9,6 +9,8 @@ global:
   blueGreenVersion: v1
   postgres:
     database: postgres
+  consul:
+    adminToken: 556339d5-f6a3-ff3b-ce1d-98e5b70d4a13
   qip:
     controlPlane:
       enabled: true

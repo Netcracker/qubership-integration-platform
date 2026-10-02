@@ -108,7 +108,7 @@ maas:
 
 consul:
   url: ${CONSUL_URL:http://consul:8500}
-  token: ${CONSUL_ADMIN_TOKEN}
+  token: ${CONSUL_ADMIN_TOKEN:}
   keys:
     prefix: /config/${NAMESPACE}
     engine-config-root: /qip-engine-configurations

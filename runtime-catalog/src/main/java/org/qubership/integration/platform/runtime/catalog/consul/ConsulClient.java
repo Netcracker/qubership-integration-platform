@@ -29,6 +29,7 @@ import org.qubership.integration.platform.runtime.catalog.model.consul.txn.reque
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.request.TxnRequest;
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.request.TxnVerb;
 import org.qubership.integration.platform.runtime.catalog.model.consul.txn.response.TxnResponse;
+import org.qubership.integration.platform.runtime.catalog.secrets.ConsulAdminTokenEnvironmentPostProcessor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -232,7 +233,12 @@ public class ConsulClient {
     private HttpHeaders buildCommonHeaders() {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.set(CONSUL_TOKEN_HEADER, consulToken);
+        headers.set(CONSUL_TOKEN_HEADER, resolveConsulToken());
         return headers;
+    }
+
+    private String resolveConsulToken() {
+        String token = ConsulAdminTokenEnvironmentPostProcessor.readToken();
+        return token == null ? consulToken : token;
     }
 }
