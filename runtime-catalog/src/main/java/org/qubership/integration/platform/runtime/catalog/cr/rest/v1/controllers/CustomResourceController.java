@@ -66,7 +66,8 @@ public class CustomResourceController {
     public ResponseEntity<List<BulkDeploymentResponse>> deployChains(
             @Valid @RequestBody DeployWithSnapshotCreationRequest request
     ) {
-        List<BulkDeploymentResponse> result = bulkDeploymentService.deployChains(request);
+        List<BulkDeploymentResponse> result = new ArrayList<>();
+        bulkDeploymentService.deployChains(request, result::add);
         return ResponseEntity.ok(result);
     }
 

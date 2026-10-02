@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
-import java.util.function.BiFunction;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -66,16 +66,11 @@ public class BulkDeploymentService {
     }
 
     @Transactional
-    public List<BulkDeploymentResponse> deployChains(
-        DeployWithSnapshotCreationRequest request
-    ) {
-        return forClassicAndMicroDomains(request.getDomains(), (classicDomainNames, microDomainNames) -> {
-            List<BulkDeploymentResponse> result = new ArrayList<>();
-            Collection<Snapshot> snapshots = getSnapshots(request.getChainIds(), request.getSnapshotAction(), result::add);
-            result.addAll(deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode()));
-            return result;
+    public void deployChains(DeployWithSnapshotCreationRequest request, Consumer<BulkDeploymentResponse> resultConsumer) {
+        forClassicAndMicroDomains(request.getDomains(), (classicDomainNames, microDomainNames) -> {
+            Collection<Snapshot> snapshots = getSnapshots(request.getChainIds(), request.getSnapshotAction(), resultConsumer);
+            deploySnapshots(snapshots, classicDomainNames, microDomainNames, request.getMode(), resultConsumer);
         });
-
     }
 
     private Collection<Snapshot> getSnapshots(
@@ -113,20 +108,18 @@ public class BulkDeploymentService {
             .values();
     }
 
-    @Transactional
-    public List<BulkDeploymentResponse> deploySnapshots(
+    private void deploySnapshots(
         Collection<Snapshot> snapshots,
         Collection<String> classicDomainNames,
         Collection<String> microDomainNames,
-        DeployMode mode
+        DeployMode mode,
+        Consumer<BulkDeploymentResponse> resultConsumer
     ) {
-        List<BulkDeploymentResponse> result = new ArrayList<>();
-
         snapshots.stream()
             .map(snapshot -> deploymentService.deploySnapshot(
                 snapshot, classicDomainNames))
             .flatMap(Collection::stream)
-            .forEach(result::add);
+            .forEach(resultConsumer);
 
         microDomainNames.stream()
             .map(name -> {
@@ -142,19 +135,19 @@ public class BulkDeploymentService {
                     return buildResponseForSnapshots(snapshots, name, DomainType.MICRO,
                         BulkDeploymentStatus.FAILED_DEPLOY, e.getMessage());
                 }
-            }).forEach(result::addAll);
-
-        return result;
+            })
+            .flatMap(Collection::stream)
+            .forEach(resultConsumer);
     }
 
-    @Transactional
-    public List<BulkDeploymentResponse> deploySnapshots(
+    public void deploySnapshots(
         Collection<Snapshot> snapshots,
         Collection<String> domains,
-        DeployMode mode
+        DeployMode mode,
+        Consumer<BulkDeploymentResponse> resultConsumer
     ) {
-        return forClassicAndMicroDomains(domains, (classicDomainNames, microDomainNames) ->
-            deploySnapshots(snapshots, classicDomainNames, microDomainNames, mode));
+        forClassicAndMicroDomains(domains, (classicDomainNames, microDomainNames) ->
+            deploySnapshots(snapshots, classicDomainNames, microDomainNames, mode, resultConsumer));
     }
 
     /**
@@ -204,9 +197,9 @@ public class BulkDeploymentService {
                 name -> domainTypeMap.getOrDefault(name, DomainType.MICRO)));
     }
 
-    public <T> T forClassicAndMicroDomains(
+    public void forClassicAndMicroDomains(
         Collection<String> domainNames,
-        BiFunction<Collection<String>, Collection<String>, T> action
+        BiConsumer<Collection<String>, Collection<String>> consumer
     ) {
         Map<DomainType, List<String>> domainByType = groupDomainsByType(domainNames);
 
@@ -220,7 +213,7 @@ public class BulkDeploymentService {
             throw new DomainTypeDisabledException(DomainType.MICRO);
         }
 
-        return action.apply(classicDomainNames, microDomainNames);
+        consumer.accept(classicDomainNames, microDomainNames);
     }
 
     public List<BulkDeploymentResponse> buildResponseForSnapshots(

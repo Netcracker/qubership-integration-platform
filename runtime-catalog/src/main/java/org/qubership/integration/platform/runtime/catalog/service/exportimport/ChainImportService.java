@@ -46,6 +46,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.EntityType;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.actionlog.LogOperation;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
@@ -68,6 +69,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -517,11 +520,11 @@ public class ChainImportService {
     }
 
     private void makeDeployActions(List<ImportChainResult> chainsResult, List<ChainCommitRequest> commitRequests, String importId, Set<String> technicalLabels) {
-        int total = chainsResult.size();
-        Map<String, List<Snapshot>> snapshotsByDomain = IntStream.range(0, total)
+        int totalChains = chainsResult.size();
+        Map<String, List<Snapshot>> snapshotsByDomain = IntStream.range(0, totalChains)
             // Updating action progress
             .peek(i -> importProgressService.calculateImportStatus(
-                    importId, total, i, ImportSessionService.CHAIN_IMPORT_PERCENTAGE_THRESHOLD,
+                    importId, totalChains, i, ImportSessionService.CHAIN_IMPORT_PERCENTAGE_THRESHOLD,
                     ImportSessionService.SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD))
             .mapToObj(chainsResult::get)
             // Filtering out chains that are in error state or should be skipped or ignored
@@ -573,37 +576,37 @@ public class ChainImportService {
             .filter(chainResult -> nonNull(chainResult.getId()))
             .collect(groupingBy(ImportChainResult::getId));
 
-        // Deploying snapshots
-        snapshotsByDomain.entrySet().stream()
-            .map(entry -> {
-                String domain = entry.getKey();
-                Collection<Snapshot> snapshots = entry.getValue();
-                Collection<String> domains = Collections.singletonList(domain);
-                try {
-                    return bulkDeploymentService.deploySnapshots(snapshots, domains, DeployMode.APPEND);
-                } catch (Exception e) {
-                    DomainType domainType = e instanceof DomainTypeDisabledException ex ? ex.getDomainType() : null;
-                    return bulkDeploymentService.buildResponseForSnapshots(snapshots, domain, domainType,
-                        BulkDeploymentStatus.FAILED_DEPLOY, e.getMessage());
-                }
-            })
-            .flatMap(Collection::stream)
-            .forEach(deployResult -> {
-                String chainId = deployResult.getChainId();
-                if (BulkDeploymentStatus.FAILED_DEPLOY.equals(deployResult.getStatus())) {
-                    resultByChainId.getOrDefault(chainId, Collections.emptyList()).forEach(result -> {
-                        // One failed domain marks the whole chain ERROR, even when its other domains deployed.
-                        result.setStatus(ImportEntityStatus.ERROR);
-                        // When a chain fails on several domains, only the last message survives.
-                        String message = SAVED_WITHOUT_DEPLOYMENT_ERROR_MESSAGE
-                            + String.format("domain %s: %s", deployResult.getDomain().getName(), deployResult.getErrorMessage());
-                        result.setErrorMessage(message);
-                    });
-                }
-            });
+        int totalSnapshots = snapshotsByDomain.values().stream().mapToInt(Collection::size).sum();
+        AtomicInteger counter = new AtomicInteger(0);
 
-        // FIXME update on every deployment
-        importProgressService.calculateImportStatus(importId, 100, 100, ImportSessionService.SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD, 100);
+        Consumer<BulkDeploymentResponse> resultConsumer = deployResult -> {
+            importProgressService.calculateImportStatus(importId, totalSnapshots, counter.getAndIncrement(),
+                ImportSessionService.SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD, 100);
+
+            String chainId = deployResult.getChainId();
+            if (BulkDeploymentStatus.FAILED_DEPLOY.equals(deployResult.getStatus())) {
+                resultByChainId.getOrDefault(chainId, Collections.emptyList()).forEach(result -> {
+                    // One failed domain marks the whole chain ERROR, even when its other domains deployed.
+                    result.setStatus(ImportEntityStatus.ERROR);
+                    // When a chain fails on several domains, only the last message survives.
+                    String message = SAVED_WITHOUT_DEPLOYMENT_ERROR_MESSAGE
+                        + String.format("domain %s: %s", deployResult.getDomain().getName(), deployResult.getErrorMessage());
+                    result.setErrorMessage(message);
+                });
+            }
+        };
+
+        // Deploying snapshots
+        snapshotsByDomain.forEach((domain, snapshots) -> {
+            Collection<String> domains = Collections.singletonList(domain);
+            try {
+                bulkDeploymentService.deploySnapshots(snapshots, domains, DeployMode.APPEND, resultConsumer);
+            } catch (Exception e) {
+                DomainType domainType = e instanceof DomainTypeDisabledException ex ? ex.getDomainType() : null;
+                bulkDeploymentService.buildResponseForSnapshots(snapshots, domain, domainType,
+                    BulkDeploymentStatus.FAILED_DEPLOY, e.getMessage()).forEach(resultConsumer);
+            }
+        });
     }
 
     private ChainCommitRequest getChainCommitRequest(List<ChainCommitRequest> chainCommitRequests, String id) {

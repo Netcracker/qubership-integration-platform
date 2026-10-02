@@ -41,10 +41,14 @@ import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -119,21 +123,30 @@ class CustomResourceControllerTest {
     }
 
     @Test
-    void deployChainsReturnsTheResultOfTheBulkDeployment() {
+    void deployChainsReturnsEveryResponseTheBulkDeploymentReports() {
         DeployWithSnapshotCreationRequest request = DeployWithSnapshotCreationRequest.builder()
                 .domains(List.of("orders"))
-                .chainIds(List.of("chain-1"))
+                .chainIds(List.of("chain-1", "chain-2"))
                 .build();
-        List<BulkDeploymentResponse> result = List.of(BulkDeploymentResponse.builder()
+        BulkDeploymentResponse created = BulkDeploymentResponse.builder()
                 .chainId("chain-1")
                 .status(BulkDeploymentStatus.CREATED)
-                .build());
-        when(bulkDeploymentService.deployChains(request)).thenReturn(result);
+                .build();
+        BulkDeploymentResponse ignored = BulkDeploymentResponse.builder()
+                .chainId("chain-2")
+                .status(BulkDeploymentStatus.IGNORED)
+                .build();
+        doAnswer(invocation -> {
+            Consumer<BulkDeploymentResponse> resultConsumer = invocation.getArgument(1);
+            resultConsumer.accept(created);
+            resultConsumer.accept(ignored);
+            return null;
+        }).when(bulkDeploymentService).deployChains(eq(request), any());
 
         ResponseEntity<List<BulkDeploymentResponse>> response = controller.deployChains(request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(response.getBody()).isEqualTo(result);
+        assertThat(response.getBody()).containsExactly(created, ignored);
     }
 
     @Test
