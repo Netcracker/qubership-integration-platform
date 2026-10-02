@@ -456,11 +456,13 @@ class ChainEditCompilerTest {
                                 new ValidationIssue(
                                     "security-1",
                                     ValidationSeverity.BLOCKER,
-                                    "External route requires accessControlType=RBAC",
+                                    "External route requires accessControlType=RBAC or a"
+                                        + " confirmed user choice",
                                     CompilerValidationPipeline.SECURITY,
                                     List.of("http-a"),
                                     List.of(),
-                                    "Set accessControlType to RBAC and provide explicit roles")),
+                                    "Explain the corporate RBAC recommendation and ask whether"
+                                        + " to retain the requested value or use RBAC")),
                             "security validation failed with 1 blocker(s)"))))));
 
     ChainEditOutcome.Proposal proposal =
