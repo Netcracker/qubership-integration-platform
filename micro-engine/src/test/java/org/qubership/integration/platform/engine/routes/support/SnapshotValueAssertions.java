@@ -15,6 +15,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -57,11 +58,40 @@ public final class SnapshotValueAssertions {
             Function<String, ?> actualValue,
             String description
     ) {
-        expected.forEach((name, expectedValue) -> assertEquals(
-                expectedValue,
-                actualValue.apply(name),
-                () -> description + " '" + name + "'."
-        ));
+        expected.forEach((name, expectedValue) -> {
+            Object actual = actualValue.apply(name);
+            if (expectedValue instanceof Map<?, ?> matcher && matcher.containsKey(MATCH_FIELD)) {
+                assertMapValueMatcher(matcher, actual, name, description);
+            } else {
+                assertEquals(expectedValue, actual, () -> description + " '" + name + "'.");
+            }
+        });
+    }
+
+    private static void assertMapValueMatcher(
+            Map<?, ?> matcher,
+            Object actual,
+            String name,
+            String description
+    ) {
+        String pointer = childPointer("", name);
+        Object configuredName = matcher.get(MATCH_FIELD);
+        if (!(configuredName instanceof String matcherName) || matcherName.isBlank()) {
+            throw invalidMatcher(pointer, "'" + MATCH_FIELD + "' must be a nonblank string");
+        }
+        if (!"non-empty".equals(matcherName)) {
+            throw invalidMatcher(pointer, "unsupported matcher '" + matcherName + "'");
+        }
+        if (!matcher.keySet().equals(Set.of(MATCH_FIELD))) {
+            throw invalidMatcher(pointer, "matcher 'non-empty' supports only the '" + MATCH_FIELD + "' field");
+        }
+        boolean nonEmpty = actual instanceof String value && !value.isBlank()
+                || actual instanceof Collection<?> values
+                && values.stream().anyMatch(entry -> entry instanceof String text && !text.isBlank());
+        assertTrue(
+                nonEmpty,
+                () -> description + " '" + name + "' must contain a nonblank string, but was " + actual + "."
+        );
     }
 
     private static void assertNode(

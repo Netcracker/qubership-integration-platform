@@ -13,6 +13,8 @@ import static org.qubership.integration.platform.engine.routes.support.SnapshotC
 
 public class SnapshotExecutionScenario {
     private final String id;
+    private final SnapshotScenarioScope scope;
+    private final String deploymentId;
     private final String endpointUri;
     private final SnapshotScenarioDriverDefinition driver;
     private final Object body;
@@ -43,9 +45,16 @@ public class SnapshotExecutionScenario {
             @JsonProperty("interactions") List<SnapshotFixtureInteraction> interactions,
             @JsonProperty("invocations") List<SnapshotScenarioInvocation> invocations,
             @JsonProperty("expectedExchangeHeaders") Map<String, Object> expectedExchangeHeaders,
-            @JsonProperty("expectedAbsentExchangeHeaders") List<String> expectedAbsentExchangeHeaders
+            @JsonProperty("expectedAbsentExchangeHeaders") List<String> expectedAbsentExchangeHeaders,
+            @JsonProperty("deployment") String deploymentId,
+            @JsonProperty(value = "scope", required = true) SnapshotScenarioScope scope
     ) {
         this.id = requireNonBlank(id, "id");
+        if (scope == null) {
+            throw new IllegalArgumentException("Snapshot scenario '" + this.id + "' scope is missing.");
+        }
+        this.scope = scope;
+        this.deploymentId = optionalNonBlank(deploymentId, "deployment");
         this.endpointUri = optionalNonBlank(endpointUri, "endpointUri");
         this.driver = driver;
         validateInvocation(this.id, this.endpointUri, this.driver);
@@ -70,6 +79,14 @@ public class SnapshotExecutionScenario {
 
     public String getId() {
         return id;
+    }
+
+    public SnapshotScenarioScope getScope() {
+        return scope;
+    }
+
+    public String getDeploymentId() {
+        return deploymentId;
     }
 
     public String getEndpointUri() {

@@ -757,5 +757,31 @@
         </plugins>
       </build>
     </profile>
+    <profile>
+      <id>snapshotTestsShort</id>
+      <properties>
+        <snapshot.bundle.directory>
+          ${maven.multiModuleProjectDirectory}/runtime-catalog/target/snapshotbundle
+        </snapshot.bundle.directory>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <configuration>
+              <groups>component</groups>
+              <includes combine.self="override">
+                <include>**/SnapshotBundleProducerIntegrationTest.java</include>
+              </includes>
+              <systemPropertyVariables>
+                <snapshot.bundle.generate>true</snapshot.bundle.generate>
+                <snapshot.bundle.output>${snapshot.bundle.directory}</snapshot.bundle.output>
+              </systemPropertyVariables>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
 </project>

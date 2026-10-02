@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
+import com.github.tomakehurst.wiremock.http.Fault;
+import com.github.tomakehurst.wiremock.http.trafficlistener.DoNothingWiremockNetworkTrafficListener;
 import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import org.apache.camel.CamelContext;
 import org.apache.camel.Exchange;
@@ -15,6 +17,7 @@ import org.apache.camel.model.RouteDefinition;
 import org.apache.camel.model.ToDynamicDefinition;
 import org.apache.camel.spi.Registry;
 import org.qubership.integration.platform.engine.camel.components.graphql.GraphqlCustomComponent;
+import org.qubership.integration.platform.engine.camel.components.graphql.GraphqlCustomEndpoint;
 import org.qubership.integration.platform.engine.camel.processors.GraphQLVariablesProcessor;
 import org.qubership.integration.platform.engine.camel.processors.SetCaughtHttpExceptionContextProcessor;
 import org.qubership.integration.platform.engine.camel.processors.ThrowCaughtExceptionProcessor;
@@ -30,13 +33,16 @@ import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePr
 import org.qubership.integration.platform.engine.testutils.ObjectMappers;
 
 import java.io.IOException;
+import java.net.Socket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.github.tomakehurst.wiremock.client.WireMock.aResponse;
 import static com.github.tomakehurst.wiremock.client.WireMock.any;
@@ -55,10 +61,21 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
     private static final String LOOPBACK_HOST = "127.0.0.1";
     private static final String QUERY_HEADER = "CamelGraphQLQuery";
     private static final String VARIABLES_HEADER = "CamelGraphQLVariables";
+    private static final String EXPECTED_SEND_COUNT = "expectedSendCount";
+    private static final String EXPECTED_CONNECTION_COUNT = "expectedConnectionCount";
+    private static final String TRANSPORT_FAULT = "transportFault";
+    private static final String EXPECTED_RESTORED_CONTEXT = "expectedRestoredContext";
+    private static final Set<String> RESPONSE_PROPERTIES = Set.of(
+            EXPECTED_SEND_COUNT, EXPECTED_CONNECTION_COUNT, TRANSPORT_FAULT, EXPECTED_RESTORED_CONTEXT);
 
     @Override
     public String getId() {
         return PROVIDER_ID;
+    }
+
+    @Override
+    public boolean supportsResponseDelay() {
+        return true;
     }
 
     @Override
@@ -70,6 +87,7 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
         private final String deploymentId;
         private final List<SnapshotFixtureBinding> bindings;
         private final Map<String, GraphqlServiceStub> stubsByFixtureId = new LinkedHashMap<>();
+        private final SnapshotContextRuntime runtime;
 
         private GraphqlHttpSnapshotFixture(
                 String deploymentId,
@@ -77,6 +95,7 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
         ) {
             this.deploymentId = deploymentId;
             this.bindings = List.copyOf(bindings);
+            this.runtime = new SnapshotContextRuntime(this.bindings);
             for (SnapshotFixtureBinding binding : this.bindings) {
                 validateBinding(binding);
                 stubsByFixtureId.put(
@@ -116,6 +135,7 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                         producerNode.endpoint().getUri(),
                         definition
                 );
+                stub.endpointUri = endpointUri;
                 producerNode.endpoint().setUri(endpointUri.redirectTo(stub.baseUrl()));
 
                 if (camelContext.getRegistry().lookupByNameAndType(
@@ -130,6 +150,7 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                         .add(binding);
             }
 
+            runtime.configure(camelContext, List.copyOf(bindingsByRoute.keySet()));
             for (Map.Entry<RouteDefinition, List<SnapshotFixtureBinding>> entry : bindingsByRoute.entrySet()) {
                 AdviceWith.adviceWith(camelContext, entry.getKey(), false, advice -> {
                     for (SnapshotFixtureBinding binding : entry.getValue()) {
@@ -143,6 +164,7 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
 
         @Override
         public void beforeInvocation(SnapshotScenarioInvocation invocation) throws IOException {
+            runtime.beforeInvocation();
             for (SnapshotFixtureBinding binding : bindings) {
                 GraphqlServiceStub stub = stubsByFixtureId.get(binding.definition().getId());
                 stub.beforeInvocation(binding.interaction(invocation.getId()), invocation.getId());
@@ -155,6 +177,7 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 GraphqlServiceStub stub = stubsByFixtureId.get(binding.definition().getId());
                 stub.verify(binding.interaction(invocation.getId()), invocation.getId());
             }
+            runtime.verifyInvocation(invocation);
         }
 
         @Override
@@ -163,9 +186,13 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
 
         @Override
         public void close() {
-            List<GraphqlServiceStub> stubs = new ArrayList<>(stubsByFixtureId.values());
-            for (int index = stubs.size() - 1; index >= 0; index--) {
-                stubs.get(index).close();
+            try {
+                List<GraphqlServiceStub> stubs = new ArrayList<>(stubsByFixtureId.values());
+                for (int index = stubs.size() - 1; index >= 0; index--) {
+                    stubs.get(index).close();
+                }
+            } finally {
+                runtime.close();
             }
         }
 
@@ -173,9 +200,16 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 SnapshotFixtureBinding binding,
                 Exchange exchange
         ) {
-            stubsByFixtureId.get(binding.definition().getId()).addPreparedRequest(
-                    new PreparedRequest(immutableMap(exchange.getProperties()))
-            );
+            runtime.senderEntered(binding, exchange);
+            GraphqlServiceStub stub = stubsByFixtureId.get(binding.definition().getId());
+            String destination = null;
+            if (binding.interactionsByInvocationId().values().stream()
+                    .anyMatch(interaction -> interaction.getExpectedRequest().getDestination() != null)) {
+                String uri = exchange.getContext().resolveLanguage("simple")
+                        .createExpression(stub.endpointUri.original()).evaluate(exchange, String.class);
+                destination = exchange.getContext().getEndpoint(uri, GraphqlCustomEndpoint.class).getHttpUri().toString();
+            }
+            stub.addPreparedRequest(new PreparedRequest(immutableMap(exchange.getProperties()), destination));
         }
     }
 
@@ -183,7 +217,9 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
         private final SnapshotFixtureBinding binding;
         private final ObjectMapper objectMapper = ObjectMappers.getObjectMapper();
         private final List<PreparedRequest> preparedRequests = new CopyOnWriteArrayList<>();
+        private final AtomicInteger connectionCount = new AtomicInteger();
         private WireMockServer server;
+        private GraphqlEndpointUri endpointUri;
         private int httpRequestBaseline;
         private int preparedRequestBaseline;
 
@@ -194,7 +230,13 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
         private void start() {
             server = new WireMockServer(options()
                     .dynamicPort()
-                    .bindAddress(LOOPBACK_HOST));
+                    .bindAddress(LOOPBACK_HOST)
+                    .networkTrafficListener(new DoNothingWiremockNetworkTrafficListener() {
+                        @Override
+                        public void opened(Socket socket) {
+                            connectionCount.incrementAndGet();
+                        }
+                    }));
             server.start();
         }
 
@@ -225,6 +267,12 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
             ResponseDefinitionBuilder responseDefinition = aResponse()
                     .withStatus(response.getStatus())
                     .withBody(responseBody(response));
+            if (response.getDelayMillis() != null) {
+                responseDefinition.withFixedDelay(response.getDelayMillis());
+            }
+            if (response.getProperties().containsKey(TRANSPORT_FAULT)) {
+                responseDefinition.withFault(Fault.valueOf((String) response.getProperties().get(TRANSPORT_FAULT)));
+            }
             if (!containsHeader(response.getHeaders(), "Content-Type")) {
                 responseDefinition.withHeader("Content-Type", "application/json");
             }
@@ -266,19 +314,39 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                             + "' received an unexpected number of requests."
             );
             assertEquals(
-                    invocationRequests.size(),
+                    interaction.getResponse().getProperties().getOrDefault(EXPECTED_SEND_COUNT, expectation.getCount()),
                     invocationPreparedRequests.size(),
                     () -> "GraphQL HTTP fixture '" + fixtureId + "' invocation '" + invocationId
-                            + "' prepared a request that did not reach the stub server."
+                            + "' entered the sender an unexpected number of times."
             );
+            if (interaction.getResponse().getProperties().containsKey(EXPECTED_CONNECTION_COUNT)) {
+                assertEquals(
+                        interaction.getResponse().getProperties().get(EXPECTED_CONNECTION_COUNT),
+                        connectionCount.get(),
+                        () -> "GraphQL HTTP fixture '" + fixtureId + "' invocation '" + invocationId
+                                + "' opened an unexpected cumulative number of TCP connections."
+                );
+            }
 
+            for (int index = 0; index < invocationPreparedRequests.size(); index++) {
+                if (expectation.getDestination() != null) {
+                    assertEquals(expectation.getDestination(), invocationPreparedRequests.get(index).destination(),
+                            "GraphQL HTTP fixture '" + fixtureId + "' sender entry " + (index + 1)
+                                    + " has an unexpected generated destination.");
+                }
+                SnapshotValueAssertions.assertMapValues(
+                        expectation.getProperties(),
+                        invocationPreparedRequests.get(index).properties(),
+                        "GraphQL HTTP fixture '" + fixtureId + "' sender entry " + (index + 1)
+                                + " has an unexpected property"
+                );
+            }
             for (int index = 0; index < invocationRequests.size(); index++) {
                 verifyRequest(
                         fixtureId,
                         index + 1,
                         expectation,
-                        invocationRequests.get(index),
-                        invocationPreparedRequests.get(index)
+                        invocationRequests.get(index)
                 );
             }
         }
@@ -287,8 +355,7 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 String fixtureId,
                 int requestNumber,
                 SnapshotFixtureRequestExpectation expectation,
-                LoggedRequest request,
-                PreparedRequest preparedRequest
+                LoggedRequest request
         ) throws IOException {
             if (expectation.getMethod() != null) {
                 assertEquals(
@@ -326,12 +393,6 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                     "GraphQL HTTP fixture '" + fixtureId + "' request " + requestNumber
                             + " has an unexpected header"
             );
-            SnapshotValueAssertions.assertMapValues(
-                    expectation.getProperties(),
-                    preparedRequest.properties(),
-                    "GraphQL HTTP fixture '" + fixtureId + "' request " + requestNumber
-                            + " has an unexpected property"
-            );
         }
 
         private JsonNode expectedJson(Object value) throws IOException {
@@ -359,10 +420,36 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                                 + "' must define a response."
                 );
             }
-            if (!interaction.getResponse().getProperties().isEmpty()) {
+            Map<String, Object> responseProperties = interaction.getResponse().getProperties();
+            if (!RESPONSE_PROPERTIES.containsAll(responseProperties.keySet())) {
                 throw new IllegalArgumentException(
                         "GraphQL HTTP fixture '" + fixtureId + "' invocation '" + invocationId
-                                + "' does not support response properties."
+                                + "' has an unsupported response property. Supported properties: " + RESPONSE_PROPERTIES + "."
+                );
+            }
+            for (String countProperty : List.of(EXPECTED_SEND_COUNT, EXPECTED_CONNECTION_COUNT)) {
+                if (responseProperties.containsKey(countProperty)
+                        && (!(responseProperties.get(countProperty) instanceof Integer count) || count < 0)) {
+                    throw new IllegalArgumentException(
+                            "GraphQL HTTP fixture '" + fixtureId + "' invocation '" + invocationId
+                                    + "' " + countProperty + " must be a nonnegative integer."
+                    );
+                }
+            }
+            if (responseProperties.containsKey(TRANSPORT_FAULT)
+                    && !(Fault.EMPTY_RESPONSE.name().equals(responseProperties.get(TRANSPORT_FAULT))
+                    || Fault.CONNECTION_RESET_BY_PEER.name().equals(responseProperties.get(TRANSPORT_FAULT)))) {
+                throw new IllegalArgumentException(
+                        "GraphQL HTTP fixture '" + fixtureId + "' invocation '" + invocationId
+                                + "' transportFault must be EMPTY_RESPONSE or CONNECTION_RESET_BY_PEER."
+                );
+            }
+            if (responseProperties.containsKey(EXPECTED_RESTORED_CONTEXT)
+                    && (!(responseProperties.get(EXPECTED_RESTORED_CONTEXT) instanceof Map<?, ?> context)
+                    || context.keySet().stream().anyMatch(key -> !(key instanceof String)))) {
+                throw new IllegalArgumentException(
+                        "GraphQL HTTP fixture '" + fixtureId + "' invocation '" + invocationId
+                                + "' expectedRestoredContext must be a map with string keys."
                 );
             }
 
@@ -371,12 +458,6 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 throw new IllegalArgumentException(
                         "GraphQL HTTP fixture '" + fixtureId + "' invocation '" + invocationId
                                 + "' must define an expected request."
-                );
-            }
-            if (expectation.getDestination() != null) {
-                throw new IllegalArgumentException(
-                        "GraphQL HTTP fixture '" + fixtureId + "' invocation '" + invocationId
-                                + "' does not support a destination expectation."
                 );
             }
             if (expectation.getKey() != null) {
@@ -390,9 +471,6 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
 
     private static void registerRuntimeBeans(CamelContext camelContext) {
         Registry registry = camelContext.getRegistry();
-        Processor noOpProcessor = exchange -> {
-        };
-
         bindProcessor(
                 registry,
                 "graphQLSessionLoggingProcessor",
@@ -403,8 +481,6 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
                 "graphQLVariablesProcessor",
                 new GraphQLVariablesProcessor(ObjectMappers.getObjectMapper())
         );
-        bindProcessor(registry, "contextPropagationProcessor", noOpProcessor);
-        bindProcessor(registry, "contextRestoreProcessor", noOpProcessor);
         bindProcessor(
                 registry,
                 "setCaughtHttpExceptionContextProcessor",
@@ -459,11 +535,13 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
     }
 
     private record PreparedRequest(
-            Map<String, Object> properties
+            Map<String, Object> properties,
+            String destination
     ) {
     }
 
     private record GraphqlEndpointUri(
+            String original,
             String path,
             String query
     ) {
@@ -507,21 +585,13 @@ class GraphqlHttpSnapshotFixtureProvider implements SnapshotFixtureProvider {
             );
 
             return new GraphqlEndpointUri(
+                    uri,
                     extractPath(target, fixtureId),
                     query
             );
         }
 
         private static String extractPath(String target, String fixtureId) {
-            int routeVariableStart = target.indexOf("%%{");
-            if (routeVariableStart >= 0) {
-                int routeVariableEnd = target.indexOf('}', routeVariableStart);
-                if (routeVariableEnd < 0) {
-                    throw invalidEndpoint(fixtureId, "contains an incomplete route variable");
-                }
-                return requirePath(target.substring(routeVariableEnd + 1), fixtureId);
-            }
-
             try {
                 String path = URI.create(target).getRawPath();
                 return requirePath(path, fixtureId);
