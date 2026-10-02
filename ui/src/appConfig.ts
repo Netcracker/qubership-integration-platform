@@ -177,6 +177,14 @@ export function configure(config: Partial<AppConfig>): void {
     );
   }
 
+  if (config.domainTypes !== undefined) {
+    const oldValue = appConfigValue.domainTypes;
+    appConfigValue.domainTypes = config.domainTypes;
+    overrides.push(
+      `domainTypes: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.domainTypes)}`,
+    );
+  }
+
   if (config.userInfo !== undefined) {
     const previous = appConfigValue.userInfo || {};
     const next = { ...previous, ...config.userInfo };

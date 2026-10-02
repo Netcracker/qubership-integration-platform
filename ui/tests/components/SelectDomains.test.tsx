@@ -7,7 +7,7 @@ import {
   useDomainTypes,
 } from "../../src/components/SelectDomains";
 import { DomainType, EngineDomain } from "../../src/api/apiTypes";
-import * as appConfig from "../../src/appConfig";
+import { configure } from "../../src/appConfig";
 
 const classicDomain: EngineDomain = {
   id: "default",
@@ -43,9 +43,8 @@ describe("resolveDomains", () => {
   });
 });
 
+// configure() can't unset domainTypes, so the default-config case runs first.
 describe("useDomainTypes", () => {
-  afterEach(() => jest.restoreAllMocks());
-
   it("should report both domain types as loaded when the config sets none", () => {
     const { result } = renderHook(() => useDomainTypes());
 
@@ -55,23 +54,10 @@ describe("useDomainTypes", () => {
     });
   });
 
-  // configure() doesn't apply domainTypes, so the config is driven through the module's functions.
   it("should follow the config when its domain types change", () => {
-    let notifyChange: appConfig.ConfigChangeListener = () => {};
-    jest.spyOn(appConfig, "getConfig").mockReturnValue({
-      domainTypes: [DomainType.CLASSIC, DomainType.MICRO],
-    });
-    jest.spyOn(appConfig, "onConfigChange").mockImplementation((listener) => {
-      notifyChange = listener;
-      return () => {};
-    });
     const { result } = renderHook(() => useDomainTypes());
 
-    act(() =>
-      notifyChange({
-        domainTypes: [DomainType.CLASSIC],
-      }),
-    );
+    act(() => configure({ domainTypes: [DomainType.CLASSIC] }));
 
     expect(result.current).toEqual({
       loaded: true,
