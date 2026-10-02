@@ -20,7 +20,7 @@ import static com.netcracker.cloud.dbaas.client.DbaasConst.LOGICAL_DB_NAME;
 import static com.netcracker.cloud.dbaas.client.opensearch.config.DbaasOpensearchConfiguration.TENANT_NATIVE_OPENSEARCH_CLIENT;
 
 @AutoConfiguration
-@ConditionalOnProperty(name = "qip.standalone", havingValue = "false")
+@ConditionalOnProperty(name = "cip.standalone", havingValue = "false")
 @EnableTenantDbaasOpensearch
 public class OpenSearchDbaasAutoConfiguration {
 

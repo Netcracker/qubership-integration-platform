@@ -2,26 +2,33 @@ package org.qubership.integration.platform.engine.routes.entrypoint.execution;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
 public final class SnapshotFailureExpectation {
-    private static final List<String> REQUIRED_FIELDS = List.of("type", "message", "cause");
-    private static final Set<String> SUPPORTED_FIELDS = Set.copyOf(REQUIRED_FIELDS);
+    private static final List<String> REQUIRED_FIELDS = List.of("type", "cause");
+    private static final Set<String> SUPPORTED_FIELDS = Set.of("type", "message", "ignoreMessage", "cause");
 
     private final String type;
     private final String message;
     private final SnapshotFailureExpectation cause;
+    private final boolean messageIgnored;
+    private final List<SnapshotFailureExpectation> alternatives;
 
     private SnapshotFailureExpectation(
             String type,
             String message,
-            SnapshotFailureExpectation cause
+            SnapshotFailureExpectation cause,
+            boolean messageIgnored,
+            List<SnapshotFailureExpectation> alternatives
     ) {
         this.type = type;
         this.message = message;
         this.cause = cause;
+        this.messageIgnored = messageIgnored;
+        this.alternatives = List.copyOf(alternatives);
     }
 
     static SnapshotFailureExpectation fromManifestValue(JsonNode value, String invocationId) {
@@ -43,9 +50,20 @@ public final class SnapshotFailureExpectation {
         return cause;
     }
 
+    public boolean isMessageIgnored() {
+        return messageIgnored;
+    }
+
+    public List<SnapshotFailureExpectation> getAlternatives() {
+        return alternatives;
+    }
+
     static SnapshotFailureExpectation parse(JsonNode value, String path) {
         if (!value.isObject()) {
-            throw invalid(path, "must be an object with required fields type, message, and cause");
+            throw invalid(path, "must be a failure object or an object containing only anyOf");
+        }
+        if (value.has("anyOf")) {
+            return parseAlternatives(value, path);
         }
 
         Set<String> configuredFields = new LinkedHashSet<>();
@@ -66,8 +84,15 @@ public final class SnapshotFailureExpectation {
             throw invalid(path + ".type", "must be a nonblank string");
         }
 
+        if (value.has("message") == value.has("ignoreMessage")) {
+            throw invalid(path, "must define exactly one of message or ignoreMessage");
+        }
+        boolean messageIgnored = value.has("ignoreMessage");
+        if (messageIgnored && (!value.get("ignoreMessage").isBoolean() || !value.get("ignoreMessage").booleanValue())) {
+            throw invalid(path + ".ignoreMessage", "must be true");
+        }
         JsonNode messageNode = value.get("message");
-        if (!messageNode.isNull() && !messageNode.isTextual()) {
+        if (messageNode != null && !messageNode.isNull() && !messageNode.isTextual()) {
             throw invalid(path + ".message", "must be a string or null");
         }
 
@@ -77,9 +102,26 @@ public final class SnapshotFailureExpectation {
                 : parse(causeNode, path + ".cause");
         return new SnapshotFailureExpectation(
                 typeNode.textValue(),
-                messageNode.isNull() ? null : messageNode.textValue(),
-                cause
+                messageNode == null || messageNode.isNull() ? null : messageNode.textValue(),
+                cause,
+                messageIgnored,
+                List.of()
         );
+    }
+
+    private static SnapshotFailureExpectation parseAlternatives(JsonNode value, String path) {
+        if (value.size() != 1) {
+            throw invalid(path, "must not combine anyOf with other fields");
+        }
+        JsonNode alternativesNode = value.get("anyOf");
+        if (!alternativesNode.isArray() || alternativesNode.isEmpty()) {
+            throw invalid(path + ".anyOf", "must be a nonempty array of failure objects");
+        }
+        List<SnapshotFailureExpectation> alternatives = new ArrayList<>();
+        for (int index = 0; index < alternativesNode.size(); index++) {
+            alternatives.add(parse(alternativesNode.get(index), path + ".anyOf[" + index + "]"));
+        }
+        return new SnapshotFailureExpectation(null, null, null, false, alternatives);
     }
 
     private static IllegalArgumentException invalid(String path, String reason) {

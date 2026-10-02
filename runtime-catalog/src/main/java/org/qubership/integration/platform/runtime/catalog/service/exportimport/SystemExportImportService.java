@@ -108,7 +108,7 @@ public class SystemExportImportService {
     private final ChainService chainService;
     private final SpecificationGroupService specificationGroupService;
 
-    @Value("${qip.export.remove-unused-specifications}")
+    @Value("${cip.export.remove-unused-specifications}")
     private boolean removeUnusedSpecs;
 
     @Autowired

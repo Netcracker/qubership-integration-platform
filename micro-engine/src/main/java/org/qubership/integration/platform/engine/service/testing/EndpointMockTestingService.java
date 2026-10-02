@@ -23,7 +23,7 @@ import java.net.URI;
 // The lookup is programmatic, so @LookupIfProperty alone is not enough: ArC removes a bean nothing injects.
 @Slf4j
 @ApplicationScoped
-@LookupIfProperty(name = "qip.testing.enabled", stringValue = "true")
+@LookupIfProperty(name = "cip.testing.enabled", stringValue = "true")
 @Unremovable
 public class EndpointMockTestingService implements TestingService {
 
@@ -43,7 +43,7 @@ public class EndpointMockTestingService implements TestingService {
     private final HttpRoute mockRoute;
 
     @Inject
-    public EndpointMockTestingService(@ConfigProperty(name = "qip.testing.address") String address) {
+    public EndpointMockTestingService(@ConfigProperty(name = "cip.testing.address") String address) {
         URI uri = parseAddress(address);
         this.testingServiceHost = resolveHost(uri);
         this.mockCallPath = basePath(uri) + MOCK_CALL_PATH;

@@ -137,7 +137,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
                 (CircuitBreakerDefinition) definition));
     }
 
-    @Value("${qip.camel.stream-caching.enabled}")
+    @Value("${cip.camel.stream-caching.enabled}")
     private boolean enableStreamCaching;
 
     private final int streamCachingBufferSize;
@@ -156,7 +156,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         EngineStateReporter engineStateReporter,
         @Qualifier("deploymentExecutor") Executor deploymentExecutor,
         CamelDebuggerPropertiesService propertiesService,
-        @Value("${qip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
+        @Value("${cip.camel.stream-caching.buffer.size-kb}") int streamCachingBufferSizeKb,
         Predicate<FilteringEntity> camelMessageHistoryFilter,
         DeploymentReadinessService deploymentReadinessService,
         DeploymentProcessingService deploymentProcessingService,
@@ -660,18 +660,20 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
     private void compileGroovyScripts(RoutesDefinition routesDefinition) {
         for (RouteDefinition route : routesDefinition.getRoutes()) {
-            for (ProcessorDefinition<?> processor : route.getOutputs()) {
-                if (!(processor instanceof ExpressionNode)) {
-                    continue;
-                }
-                ExpressionDefinition expression = ((ExpressionNode) processor).getExpression();
-                if (!expression.getLanguage().equals("groovy")) {
-                    continue;
-                }
+            compileGroovyScripts(route);
+        }
+    }
 
-                log.debug("Compiling groovy script for processor {}", processor.getId());
-                compileGroovyScript(expression);
+    private void compileGroovyScripts(ProcessorDefinition<?> parent) {
+        for (ProcessorDefinition<?> processor : parent.getOutputs()) {
+            if (processor instanceof ExpressionNode expressionNode) {
+                ExpressionDefinition expression = expressionNode.getExpression();
+                if (expression.getLanguage().equals("groovy")) {
+                    log.debug("Compiling groovy script for processor {}", processor.getId());
+                    compileGroovyScript(expression);
+                }
             }
+            compileGroovyScripts(processor);
         }
     }
 

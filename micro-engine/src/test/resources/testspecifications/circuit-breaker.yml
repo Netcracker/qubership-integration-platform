@@ -22,6 +22,7 @@ fixtures:
     deployment: "circuit-breaker-timing"
 scenarios:
   - id: "waits-for-minimum-call-count"
+    scope: Long
     endpointUri: "cip-chain:0453266a-e2e6-4722-af8b-bf563754984c"
     invocations:
       - id: "keeps-closed-before-hundredth-failure"
@@ -79,6 +80,7 @@ scenarios:
             expectedState: "CLOSED"
 
   - id: "evicts-old-successes-from-sliding-window"
+    scope: Long
     endpointUri: "cip-chain:0453266a-e2e6-4722-af8b-bf563754984c"
     invocations:
       - id: "fills-window-with-successes"
@@ -165,6 +167,7 @@ scenarios:
             expectedState: "CLOSED"
 
   - id: "opens-and-recovers"
+    scope: Short
     endpointUri: "cip-chain:0453266a-e2e6-4722-af8b-bf563754984c"
     invocations:
       - id: "records-successes-while-closed"
@@ -533,6 +536,7 @@ scenarios:
             expectedState: "CLOSED"
 
   - id: automatically-transitions-from-open-to-half-open
+    scope: Long
     endpointUri: cip-chain:1a76f830-1b79-47d0-ac8f-3811a556572c
     invocations:
       - id: records-failures-before-minimum-call-count
@@ -694,6 +698,7 @@ scenarios:
           - fixture: timed-breaker
             expectedState: CLOSED
   - id: opens-when-half-of-successful-calls-are-slow
+    scope: Long
     endpointUri: cip-chain:1a76f830-1b79-47d0-ac8f-3811a556572c
     invocations:
       - id: records-two-fast-successful-calls

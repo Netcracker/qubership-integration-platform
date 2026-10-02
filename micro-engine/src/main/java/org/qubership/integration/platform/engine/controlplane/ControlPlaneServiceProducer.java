@@ -26,7 +26,7 @@ public class ControlPlaneServiceProducer {
     @Inject
     BlueGreenStateService blueGreenStateService;
 
-    @ConfigProperty(name = "qip.camel.routes.legacy-prefix")
+    @ConfigProperty(name = "cip.camel.routes.legacy-prefix")
     String camelRoutesPrefix;
 
     @Produces

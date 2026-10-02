@@ -19,12 +19,12 @@ import java.util.List;
 import static java.util.Objects.isNull;
 
 @Component
-@ConditionalOnProperty(prefix = "qip.deploy.classic", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "cip.deploy.classic", name = "enabled", havingValue = "true")
 @Profile("!development")
 public class ClassicDomainSource implements EngineDomainSource {
     private static final String ENGINE_NAME_LABEL = "name";
 
-    @Value("${qip.engine.app-check-custom-label}")
+    @Value("${cip.engine.app-check-custom-label}")
     private String engineAppCheckLabel;
 
     private final KubeOperator operator;

@@ -44,7 +44,7 @@ import java.util.concurrent.ExecutionException;
 @Slf4j
 @Component
 @ConditionalOnProperty(
-    name = "qip.camel.component.kafka.predeploy-check-enabled",
+    name = "cip.camel.component.kafka.predeploy-check-enabled",
     havingValue = "true",
     matchIfMissing = true
 )

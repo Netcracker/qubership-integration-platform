@@ -64,7 +64,7 @@ public class PersistenceStandaloneAutoConfiguration {
 
     @Primary
     @Bean("configsDataSource")
-    @ConditionalOnProperty(value = "qip.standalone", havingValue = "true")
+    @ConditionalOnProperty(value = "cip.standalone", havingValue = "true")
     public DataSource configsDataSource() {
         return new HikariDataSource(properties.getDatasource("configs-datasource"));
     }

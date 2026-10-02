@@ -30,7 +30,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class SessionsMetricsServiceConfiguration {
 
     @Bean
-    @ConditionalOnProperty(value = "qip.metrics.enabled", havingValue = "true")
+    @ConditionalOnProperty(value = "cip.metrics.enabled", havingValue = "true")
     public SessionsMetricsService getMetricsService(MetricsStore metricsStore,
                                                     DbaasOpensearchClient dbaasOpenSearchClient,
                                                     CheckpointRepository checkpointRepository) {

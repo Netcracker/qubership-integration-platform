@@ -1,5 +1,5 @@
 ---
-description: API layer and utility usage patterns for QIP UI.
+description: "API layer and utility usage patterns for QIP UI."
 globs: "ui/src/{api,misc,hooks,pages}/**/*.{ts,tsx}"
 ---
 

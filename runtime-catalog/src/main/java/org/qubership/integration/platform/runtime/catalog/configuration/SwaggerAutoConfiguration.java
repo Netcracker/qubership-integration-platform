@@ -23,17 +23,31 @@ import io.swagger.v3.oas.models.security.SecurityRequirement;
 import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.extern.slf4j.Slf4j;
+import org.springdoc.core.customizers.OpenApiCustomizer;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 
+import java.util.Comparator;
 import java.util.Map;
 
 @Slf4j
 @AutoConfiguration
 public class SwaggerAutoConfiguration {
 
-    private static final String O_AUTH_2_ACCESS_TOKEN = "BearerAuth";
+    private static final String BEARER_AUTH = "BearerAuth";
+
+    @Bean
+    public OpenApiCustomizer sortTagsAlphabetically() {
+        return openApi -> {
+            if (openApi.getTags() != null) {
+                openApi.setTags(openApi.getTags()
+                    .stream()
+                    .sorted(Comparator.comparing(tag -> tag.getName().toLowerCase()))
+                    .toList());
+            }
+        };
+    }
 
     @Bean
     @ConditionalOnMissingBean
@@ -41,8 +55,8 @@ public class SwaggerAutoConfiguration {
         return new OpenAPI()
             .addServersItem(new Server().url("/"))
             .info(getInfo())
-            .schemaRequirement(O_AUTH_2_ACCESS_TOKEN, securityScheme())
-            .addSecurityItem(new SecurityRequirement().addList(O_AUTH_2_ACCESS_TOKEN));
+            .schemaRequirement(BEARER_AUTH, securityScheme())
+            .addSecurityItem(new SecurityRequirement().addList(BEARER_AUTH));
     }
 
     private Info getInfo() {

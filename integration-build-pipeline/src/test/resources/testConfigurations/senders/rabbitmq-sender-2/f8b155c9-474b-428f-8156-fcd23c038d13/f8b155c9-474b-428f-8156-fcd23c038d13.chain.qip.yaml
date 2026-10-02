@@ -1,0 +1,30 @@
+---
+id: "f8b155c9-474b-428f-8156-fcd23c038d13"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "rabbitmq-sender-broker"
+content:
+  labels: []
+  elements:
+  - id: "68ef6d16-3fe7-4cfc-b9a9-5248b34f56fb"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "68ef6d16-3fe7-4cfc-b9a9-5248b34f56fb"
+  - id: "6a17468d-7cfc-42a2-b322-2f4f4c312044"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      addresses: "test:12345"
+      connectionSourceType: "manual"
+      exchange: "test"
+      exchangePattern: "InOnly"
+      username: "snapshot-sender"
+      password: "snapshot"
+      vhost: "/snapshot-sender"
+      propagateContext: true
+      vhostClassifierName: "public"
+  dependencies:
+  - from: "68ef6d16-3fe7-4cfc-b9a9-5248b34f56fb"
+    to: "6a17468d-7cfc-42a2-b322-2f4f4c312044"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

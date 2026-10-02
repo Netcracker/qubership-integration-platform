@@ -39,7 +39,7 @@ public class SnapshotExecutionTarget {
         this.resources = validateResources(this.id, resources);
         this.fixtures = validateFixtures(this.id, this.subjectDeploymentId, this.deployments, fixtures);
         this.scenarios = List.copyOf(requireNonNull(scenarios, "scenarios"));
-        validateFixtureInteractions(this.id, this.fixtures, this.scenarios);
+        validateFixtureInteractions();
     }
 
     public String getId() {
@@ -68,6 +68,54 @@ public class SnapshotExecutionTarget {
 
     public List<SnapshotExecutionScenario> getScenarios() {
         return scenarios;
+    }
+
+    public SnapshotExecutionTarget forScenario(SnapshotExecutionScenario scenario) {
+        if (scenario.getDeploymentId() == null) {
+            return this;
+        }
+        List<SnapshotDeployment> selectedDeployments = selectDeployments(scenario);
+        return new SnapshotExecutionTarget(
+                id,
+                scenario.getDeploymentId(),
+                selectedDeployments,
+                resources,
+                selectFixtures(selectedDeployments),
+                List.of(scenario)
+        );
+    }
+
+    private List<SnapshotDeployment> selectDeployments(SnapshotExecutionScenario scenario) {
+        String selectedDeploymentId = scenario.getDeploymentId();
+        if (selectedDeploymentId == null) {
+            return deployments;
+        }
+        if (deployments.stream().noneMatch(deployment -> deployment.getId().equals(selectedDeploymentId))) {
+            throw new IllegalArgumentException(
+                    "Snapshot scenario '" + scenario.getId() + "' references unknown deployment '"
+                            + selectedDeploymentId + "' in target '" + id + "'."
+            );
+        }
+        Set<String> selectedDeploymentIds = new HashSet<>();
+        selectedDeploymentIds.add(selectedDeploymentId);
+        // Dependencies precede their dependents, so one reverse pass includes the full dependency closure.
+        for (int index = deployments.size() - 1; index >= 0; index--) {
+            SnapshotDeployment deployment = deployments.get(index);
+            if (selectedDeploymentIds.contains(deployment.getId())) {
+                selectedDeploymentIds.addAll(deployment.getDependencyIds());
+            }
+        }
+        return deployments.stream()
+                .filter(deployment -> selectedDeploymentIds.contains(deployment.getId()))
+                .toList();
+    }
+
+    private List<SnapshotFixtureDefinition> selectFixtures(List<SnapshotDeployment> selectedDeployments) {
+        Set<String> selectedDeploymentIds = new HashSet<>();
+        selectedDeployments.forEach(deployment -> selectedDeploymentIds.add(deployment.getId()));
+        return fixtures.stream()
+                .filter(fixture -> selectedDeploymentIds.contains(fixture.getDeploymentId()))
+                .toList();
     }
 
     private static List<SnapshotResourceDefinition> validateResources(
@@ -144,19 +192,17 @@ public class SnapshotExecutionTarget {
         return List.copyOf(resolvedFixtures);
     }
 
-    private static void validateFixtureInteractions(
-            String targetId,
-            List<SnapshotFixtureDefinition> fixtures,
-            List<SnapshotExecutionScenario> scenarios
-    ) {
+    private void validateFixtureInteractions() {
         Set<String> fixtureIds = new HashSet<>();
         fixtures.forEach(fixture -> fixtureIds.add(fixture.getId()));
         for (SnapshotExecutionScenario scenario : scenarios) {
             if (scenario == null) {
                 throw new IllegalArgumentException(
-                        "Snapshot execution target '" + targetId + "' contains a null scenario."
+                        "Snapshot execution target '" + id + "' contains a null scenario."
                 );
             }
+            Set<String> selectedFixtureIds = new HashSet<>();
+            selectFixtures(selectDeployments(scenario)).forEach(fixture -> selectedFixtureIds.add(fixture.getId()));
             for (SnapshotScenarioInvocation invocation : scenario.getInvocations()) {
                 Set<String> interactionFixtureIds = new HashSet<>();
                 for (SnapshotFixtureInteraction interaction : invocation.getInteractions()) {
@@ -172,6 +218,14 @@ public class SnapshotExecutionTarget {
                                         + "' references unknown fixture '" + interaction.getFixtureId() + "'."
                         );
                     }
+                    if (!selectedFixtureIds.contains(interaction.getFixtureId())) {
+                        throw new IllegalArgumentException(
+                                "Snapshot scenario '" + scenario.getId() + "' invocation '" + invocation.getId()
+                                        + "' references fixture '" + interaction.getFixtureId()
+                                        + "' outside selected deployment '" + scenario.getDeploymentId()
+                                        + "' and its dependencies."
+                        );
+                    }
                     if (!interactionFixtureIds.add(interaction.getFixtureId())) {
                         throw new IllegalArgumentException(
                                 "Snapshot scenario '" + scenario.getId() + "' invocation '" + invocation.getId()
@@ -180,7 +234,7 @@ public class SnapshotExecutionTarget {
                         );
                     }
                 }
-                for (String fixtureId : fixtureIds) {
+                for (String fixtureId : selectedFixtureIds) {
                     if (!interactionFixtureIds.contains(fixtureId)) {
                         throw new IllegalArgumentException(
                                 "Snapshot scenario '" + scenario.getId() + "' invocation '" + invocation.getId()

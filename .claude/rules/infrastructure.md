@@ -27,7 +27,7 @@ docker compose -f infrastructure/docker-compose.yml down
 
 The live check for the per-type service file names (#553), against a running stack. Creates one service of each of the
 five kinds, exports and re-imports through the three v1 endpoint families, then repeats with
-`QIP_EXPORT_LEGACY_FORMAT=true`. **The legacy hop restores exactly three** — nothing scans for
+`CIP_EXPORT_LEGACY_FORMAT=true`. **The legacy hop restores exactly three** — nothing scans for
 `context-service-<id>.yaml` or `mcp-service-<id>.yaml`, in this version or any older one, so those two are written and
 discovered by nothing, and the import answers 204.
 

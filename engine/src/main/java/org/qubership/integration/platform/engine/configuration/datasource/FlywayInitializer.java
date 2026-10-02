@@ -29,7 +29,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import javax.sql.DataSource;
 
 @AutoConfiguration
-@ConditionalOnProperty(name = "qip.flyway-initializer.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(name = "cip.flyway-initializer.enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnBean({PersistenceCheckpointAutoConfiguration.class, PersistenceQuartzAutoConfiguration.class})
 @EnableConfigurationProperties(FlywayConfigProperties.class)
 public class FlywayInitializer {

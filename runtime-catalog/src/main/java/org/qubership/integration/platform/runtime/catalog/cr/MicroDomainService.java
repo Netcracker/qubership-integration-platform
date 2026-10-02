@@ -119,13 +119,13 @@ public class MicroDomainService {
 
     private final IntegrationServiceCatalog integrationServiceCatalog;
 
-    @Value("${qip.chains.external-routes.base-path}")
+    @Value("${cip.chains.external-routes.base-path}")
     String baseRoutePrefix;
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")
@@ -141,7 +141,7 @@ public class MicroDomainService {
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
             GenericCustomResources genericCustomResources,
             IntegrationServiceCatalog integrationServiceCatalog,
-            @Value("${qip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled,
+            @Value("${cip.cr.build.monitoring.enabled:false}") boolean monitoringEnabled,
             RoutesGetterService routesGetterService,
             SnapshotRepository snapshotRepository,
             @Qualifier("httpRoutePublicNamingStrategy")
@@ -203,7 +203,13 @@ public class MicroDomainService {
 
     public void deploy(BuiltResources built) throws MicroDomainDeployError {
         try {
-            List<Object> resources = Yaml.loadAll(built.yaml());
+            List<Object> resources = new ArrayList<>(Yaml.loadAll(built.yaml()));
+            // With mount hot reload, the Camel-K operator resets the Integration's status whenever a
+            // ConfigMap labeled with the Integration's name changes. That status write moves the
+            // Integration's resourceVersion past the one Phase 1 observed, so writing the ConfigMaps
+            // first makes this deploy fail its own precondition with a 409. The sort is stable, so the
+            // other documents keep their build order.
+            resources.sort(Comparator.comparing(resource -> !(resource instanceof CamelKIntegration)));
             for (Object resource : resources) {
                 boolean observedAbsent = applyObservation(resource, built.observations());
                 kubeOperator.createOrUpdateResource(resource, observedAbsent);

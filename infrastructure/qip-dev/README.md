@@ -22,7 +22,7 @@ Egress routes use `backendRefs` with `kind: Hostname`, which `istiod` only honor
 `PILOT_ENABLE_ALPHA_GATEWAY_API` is set. Without it the egress `HTTPRoute` is accepted but never
 programmed, and outgoing calls fail with no route.
 
-`QIP_ISTIO_HOST_RESOURCES_ENABLED` (default `true`) controls whether `runtime-catalog` and
+`CIP_ISTIO_HOST_RESOURCES_ENABLED` (default `true`) controls whether `runtime-catalog` and
 `engine` generate the `ServiceEntry` and `DestinationRule` those routes depend on. Turn it off
 only when something else supplies them. The `HTTPRoute` still names its target with
 `kind: Hostname`, which Istio resolves through a `ServiceEntry`, so without one every egress call
@@ -38,10 +38,10 @@ The chart's gateways listen on these ports:
 | `internal-gateway` | `internal-gateway-service` | 8080 |
 | `egress-gateway` | `egress-gateway` | 8080 |
 
-`internal-gateway`'s Service name must stay in step with `qip.gateway.internal.name`, and
-`egress-gateway`'s port with the port in `qip.gateway.egress.url` — both in `runtime-catalog`'s
+`internal-gateway`'s Service name must stay in step with `cip.gateway.internal.name`, and
+`egress-gateway`'s port with the port in `cip.gateway.egress.url` — both in `runtime-catalog`'s
 `application.yml`. Change one side and change the other, or override the egress URL with
-`QIP_EGRESS_GATEWAY_URL`. `EndpointHelperSource` reads that URL at build time and bakes it into the
+`CIP_EGRESS_GATEWAY_URL`. `EndpointHelperSource` reads that URL at build time and bakes it into the
 generated Camel source in the snapshot ConfigMap, so setting it saves a rebuild but takes effect
 only once you redeploy every chain.
 

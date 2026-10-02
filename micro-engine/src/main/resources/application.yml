@@ -64,8 +64,8 @@ camel:
     quartz:
       autowired-enabled: false
     kafka: # new parameters will not be automatically set to 'kafka-custom' element, need to change KafkaCustomComponentConfiguration
-      ssl-truststore-location: ${qip.local-truststore.store.path}
-      ssl-truststore-password: ${qip.local-truststore.store.password}
+      ssl-truststore-location: ${cip.local-truststore.store.path}
+      ssl-truststore-password: ${cip.local-truststore.store.password}
       ssl-truststore-type: JKS
     servlet:
       http-registry: '#gatewayHttpRegistry'
@@ -76,7 +76,7 @@ camel:
     request-filter-header:
       name: 'requestFilterHeaderAllowlist'
 
-qip:
+cip:
   variables:
     default-secret:
       enabled: ${DEFAULT_SECRET_ENABLED:false}
@@ -102,11 +102,11 @@ qip:
         v1-prefix: /api/v1/${application.prefix}/engine
   chains:
     configuration:
-      location: ${QIP_CHAINS_CONFIGURATION_URL:}
+      location: ${CIP_CHAINS_CONFIGURATION_URL:}
   libraries:
-    path: ${QIP_LIBRARIES_PATH:/tmp/libraries}
+    path: ${CIP_LIBRARIES_PATH:/tmp/libraries}
   engine:
-    domain: ${QIP_ENGINE_DOMAIN:default}
+    domain: ${CIP_ENGINE_DOMAIN:default}
   camel:
     startup:
       error-handling:
@@ -153,7 +153,7 @@ qip:
           maximum: 300000
     index:
       elements:
-        name: qip-elements-${application.namespace}
+        name: ${application.prefix}-elements-${application.namespace}
         shards: ${OPENSEARCH_INDEX_SHARDS:3}
     rollover:
       min_index_age: 1d
@@ -181,7 +181,7 @@ qip:
       capacity: 10000
     bulk-request:
       max-size-kb: 4096
-      payload-size-threshold-kb: ${qip.sessions.bulk-request.max-size-kb}
+      payload-size-threshold-kb: ${cip.sessions.bulk-request.max-size-kb}
       elements-count-threshold: 2
     checkpoints:
       cleanup:
@@ -246,7 +246,7 @@ quarkus:
     port: 8080
   rest-client:
     checkpoints:
-      url: "http://localhost:8080${qip.camel.routes.prefix}"
+      url: "http://localhost:8080${cip.camel.routes.prefix}"
       scope: jakarta.inject.Singleton
     control-plane:
       url: ${apigateway.control-plane.url}
@@ -312,8 +312,8 @@ quarkus:
       servlet-name: CamelServlet
       servlet-class: org.qubership.integration.platform.engine.camel.components.servlet.CustomCamelHttpTransportServlet
       url-patterns:
-        - "${qip.camel.routes.prefix}/*"
-        - "${qip.camel.routes.legacy-prefix}/*"
+        - "${cip.camel.routes.prefix}/*"
+        - "${cip.camel.routes.legacy-prefix}/*"
     trace:
       enabled: ${TRACING_ENABLED:false}
   scheduler:

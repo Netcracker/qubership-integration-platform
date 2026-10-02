@@ -106,3 +106,10 @@ This service handles **session observability** in the Qubership Integration Plat
 #### Data Flow
 
 Engine (and Micro Engine) write session elements directly to OpenSearch during chain execution. This service reads the same OpenSearch index to provide search, filtering, and export capabilities. There is no direct communication between Engine and Sessions Management — they share data through OpenSearch.
+
+### Legacy `qip.*` property names
+
+Properties use the `cip.` prefix. `PropertyPrefixAliasEnvironmentPostProcessor` keeps the old `qip.` names working from
+every property source, Consul included. For a lookup of `cip.x`, the first source that holds `cip.x` or `qip.x` wins,
+and within one source `cip.x` wins, so a `qip.x` in Consul still overrides a `cip.x` default in `application.yml`.
+Read and declare new keys under `cip.` only.

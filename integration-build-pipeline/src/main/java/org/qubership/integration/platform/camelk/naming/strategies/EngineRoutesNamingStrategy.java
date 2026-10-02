@@ -27,7 +27,7 @@ public class EngineRoutesNamingStrategy extends K8sResourceNamingStrategy<Resour
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
-            @Value("${qip.cr.naming.engine-routes.suffix:-routes}")
+            @Value("${cip.cr.naming.engine-routes.suffix:-routes}")
             String suffix
     ) {
         super(nameVerifier);

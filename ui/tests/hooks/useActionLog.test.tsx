@@ -55,7 +55,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("1", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -75,7 +75,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("older", 100), makeLog("newer", 200)],
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -93,7 +93,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("only-one", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -111,7 +111,7 @@ describe("useActionLog", () => {
       actionLogs: fullPage,
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -120,7 +120,7 @@ describe("useActionLog", () => {
     expect(result.current.hasNextPage).toBe(true);
   });
 
-  it("fetches the next page with the same filters", async () => {
+  it("fetches the next page with the same filters and search string", async () => {
     const filters = [
       { column: "INITIATOR", condition: "CONTAINS", value: "alice" },
     ];
@@ -137,14 +137,14 @@ describe("useActionLog", () => {
         actionLogs: [makeLog("log-20", 100)],
       });
 
-    const { result } = renderHook(() => useActionLog(filters), {
+    const { result } = renderHook(() => useActionLog(filters, "alice"), {
       wrapper: createWrapper(),
     });
 
     await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-    await act(async () => {
-      await result.current.fetchNextPage();
+    act(() => {
+      result.current.fetchNextPage();
     });
 
     await waitFor(() => expect(result.current.logsData).toHaveLength(21));
@@ -153,19 +153,48 @@ describe("useActionLog", () => {
       offset: 0,
       limit: 20,
       filters,
+      searchString: "alice",
     });
     expect(mockLoadCatalogActionsLogV2).toHaveBeenNthCalledWith(2, {
       offset: 20,
       limit: 20,
       filters,
+      searchString: "alice",
     });
+  });
+
+  it("sends a changed search string once typing stops", async () => {
+    mockLoadCatalogActionsLogV2.mockResolvedValue({
+      offset: 0,
+      actionLogs: [],
+    });
+
+    const { result, rerender } = renderHook(
+      ({ search }: { search: string }) => useActionLog([], search),
+      { wrapper: createWrapper(), initialProps: { search: "" } },
+    );
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    rerender({ search: "alice" });
+    expect(mockLoadCatalogActionsLogV2).not.toHaveBeenCalledWith(
+      expect.objectContaining({ searchString: "alice" }),
+    );
+
+    await waitFor(() =>
+      expect(mockLoadCatalogActionsLogV2).toHaveBeenLastCalledWith({
+        offset: 0,
+        limit: 20,
+        filters: [],
+        searchString: "alice",
+      }),
+    );
   });
 
   it("reports API errors and stops pagination", async () => {
     const error = new Error("catalog unavailable");
     mockLoadCatalogActionsLogV2.mockRejectedValue(error);
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 
@@ -185,7 +214,7 @@ describe("useActionLog", () => {
       actionLogs: [makeLog("1", 100)],
     });
 
-    const { result } = renderHook(() => useActionLog([]), {
+    const { result } = renderHook(() => useActionLog([], ""), {
       wrapper: createWrapper(),
     });
 

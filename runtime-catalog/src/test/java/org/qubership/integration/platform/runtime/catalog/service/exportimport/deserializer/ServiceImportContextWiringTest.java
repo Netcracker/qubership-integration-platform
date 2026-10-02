@@ -38,13 +38,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * for the wiring under test — and confirms the context starts with each bean present exactly once.
  *
  * <p>The strategy, revert-migration, and file-migration collections are empty here because the test
- * exercises wiring rather than a migration run; {@code qip.export.legacy-format} carries no default,
+ * exercises wiring rather than a migration run; {@code cip.export.legacy-format} carries no default,
  * so it is supplied the way the application config supplies it at boot.
  */
 class ServiceImportContextWiringTest {
 
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
-            .withPropertyValues("qip.export.legacy-format=false")
+            .withPropertyValues("cip.export.legacy-format=false")
             .withBean("defaultYamlMapper", YAMLMapper.class, YAMLMapper::new)
             .withBean(VersionsGetterService.class)
             .withBean(FileMigrationService.class)

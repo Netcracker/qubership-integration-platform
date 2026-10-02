@@ -1,5 +1,5 @@
 ---
-description: Build conventions for the repository's Go module.
+description: "Build conventions for the repository's Go module."
 globs: "**"
 ---
 

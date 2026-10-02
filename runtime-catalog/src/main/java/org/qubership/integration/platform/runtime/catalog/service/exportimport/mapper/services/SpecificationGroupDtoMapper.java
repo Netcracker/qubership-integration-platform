@@ -36,7 +36,7 @@ public class SpecificationGroupDtoMapper {
 
     @Autowired
     public SpecificationGroupDtoMapper(
-            @Value("${qip.json.schemas.specification-group:http://qubership.org/schemas/product/qip/specification-group}") URI schemaUri
+            @Value("${cip.json.schemas.specification-group:http://qubership.org/schemas/product/qip/specification-group}") URI schemaUri
     ) {
         this.schemaUri = schemaUri;
     }

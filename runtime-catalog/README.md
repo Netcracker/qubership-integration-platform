@@ -42,10 +42,10 @@ Application parameters can be set by environment variables.
 | PG_MIN_IDLE                       | 0                                                    |                                                                                                                                        |
 | PG_IDLE_TIMEOUT                   | 300000                                               | Sets the maximum allowed idle time between queries, when not in a transaction.                                                         |
 | PG_LEAK_DETECTION_INTERVAL        | 30000                                                | The maximum number of milliseconds that a client will wait for a connection from the pool.                                             |
-| QIP_EXPORT_REMOVE_UNUSED_SPECS    | true                                                 | Enables removal of unsed specifications from exported data.                                                                            |
-| QIP_REGISTER_INGRESS_CHAIN_ROUTES | true                                                 | Marks integration endpoints to be registered in ingress.                                                                               |
-| QIP_REGISTER_EGRESS_CHAIN_ROUTES  | true                                                 | Marks outcoming routes to be registered in egress.                                                                                     |  
-| QIP_EXPORT_LEGACY_FORMAT          | false                                                | Export configuration in "old" format.                                                                                                  |  
+| CIP_EXPORT_REMOVE_UNUSED_SPECS    | true                                                 | Enables removal of unsed specifications from exported data.                                                                            |
+| CIP_REGISTER_INGRESS_CHAIN_ROUTES | true                                                 | Marks integration endpoints to be registered in ingress.                                                                               |
+| CIP_REGISTER_EGRESS_CHAIN_ROUTES  | true                                                 | Marks outcoming routes to be registered in egress.                                                                                     |  
+| CIP_EXPORT_LEGACY_FORMAT          | false                                                | Export configuration in "old" format.                                                                                                  |  
 
 Configuration can be overridden with values stored in Consul.
 The ```config/${NAMESPACE}``` prefix is used.

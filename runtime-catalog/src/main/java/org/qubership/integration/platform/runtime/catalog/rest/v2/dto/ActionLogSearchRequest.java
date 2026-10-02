@@ -39,4 +39,8 @@ public class ActionLogSearchRequest {
     private int offset = 0;
 
     private List<ActionLogFilterRequestDTO> filters = Collections.emptyList();
+
+    @Schema(description = "Substring to find, ignoring case, in the initiator name or id, the operation,"
+            + " the request id, or the type, name, or id of the entity or its parent")
+    private String searchString;
 }

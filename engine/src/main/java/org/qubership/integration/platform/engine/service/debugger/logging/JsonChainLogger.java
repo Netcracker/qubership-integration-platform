@@ -13,7 +13,7 @@ import java.util.Optional;
 import static net.logstash.logback.marker.Markers.append;
 
 @Component
-@ConditionalOnProperty(name = "qip.logging.format", havingValue = "json", matchIfMissing = true)
+@ConditionalOnProperty(name = "cip.logging.format", havingValue = "json", matchIfMissing = true)
 public class JsonChainLogger extends AbstractChainLogger {
 
     private final LogExchangeMarkers logExchangeMarkers;

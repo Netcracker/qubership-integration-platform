@@ -56,7 +56,7 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
     public ChainExternalEntityMapper(
             ChainElementsExternalEntityMapper chainElementsMapper,
             Collection<ChainImportFileMigration> chainImportFileMigrations,
-            @Value("${qip.json.schemas.chain:http://qubership.org/schemas/product/qip/chain}") URI chainSchemaUri
+            @Value("${cip.json.schemas.chain:http://qubership.org/schemas/product/qip/chain}") URI chainSchemaUri
     ) {
         this.chainElementsMapper = chainElementsMapper;
         this.chainImportFileMigrations = chainImportFileMigrations;

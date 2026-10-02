@@ -11,7 +11,7 @@ import java.util.Optional;
 import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.*;
 
 @Component
-@ConditionalOnProperty(name = "qip.export.legacy-resource-names", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "cip.export.legacy-resource-names", havingValue = "false", matchIfMissing = true)
 public class ElementResourceFileNameBuilderImpl implements ElementResourceFileNameBuilder {
 
     @Override

@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentMap;
 public class DefaultExternalLibraryService implements ExternalLibraryService {
     private final ConcurrentMap<String, URL> libraryMap = new ConcurrentHashMap<>();
 
-    @ConfigProperty(name = "qip.libraries.path", defaultValue = "/tmp/libraries")
+    @ConfigProperty(name = "cip.libraries.path", defaultValue = "/tmp/libraries")
     String librariesPath;
 
     public void addLibrary(String specificationId, byte[] data) {

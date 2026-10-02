@@ -7,9 +7,14 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
+import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
+import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePropertiesService;
 import org.qubership.integration.platform.engine.service.debugger.logging.ChainLogger;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 import org.qubership.integration.platform.engine.testutils.MockExchanges;
@@ -23,6 +28,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -42,12 +48,15 @@ class LogRecordProcessorTest {
     @Mock
     ChainLogger chainLogger;
     @Mock
+    ChainRuntimePropertiesService propertiesService;
+    @Mock
     Exchange exchange;
 
     @BeforeEach
     void setUp() {
         exchange = MockExchanges.defaultExchange();
-        processor = new LogRecordProcessor(chainLogger, simpleInterpreter);
+        processor = new LogRecordProcessor(chainLogger, simpleInterpreter, propertiesService);
+        givenChainLogLevel(LogLoggingLevel.INFO);
     }
 
     @Test
@@ -85,31 +94,41 @@ class LogRecordProcessorTest {
         );
     }
 
-    @Test
-    void shouldLogWarningRecordWhenDefaultLogLevelAllowsWarn() throws Exception {
-        exchange.setProperty(PROPERTY_LOG_LEVEL, "WARNING");
-        exchange.setProperty(PROPERTY_SENDER, "Customer API");
-        exchange.setProperty(PROPERTY_RECEIVER, "Billing");
-        exchange.setProperty(PROPERTY_MESSAGE, "Customer profile is missing optional fields");
-
-        processor.process(exchange);
-
-        verify(chainLogger).warn(
-                "[sender=Customer API    ] [receiver=Billing         ] Customer profile is missing optional fields"
-        );
-        verifyNoInteractions(simpleInterpreter);
-    }
-
-    @Test
-    void shouldNotLogInfoRecordWhenDefaultLogLevelDoesNotAllowInfo() throws Exception {
-        exchange.setProperty(PROPERTY_LOG_LEVEL, "INFO");
-        exchange.setProperty(PROPERTY_SENDER, "Customer API");
-        exchange.setProperty(PROPERTY_RECEIVER, "Billing");
+    @ParameterizedTest
+    @CsvSource({
+            "WARNING, INFO, true",
+            "WARNING, ERROR, false",
+            "INFO, INFO, true",
+            "INFO, ERROR, false"
+    })
+    void shouldLogRecordOnlyWhenChainLogLevelEnablesIt(
+            String recordLevel,
+            LogLoggingLevel chainLogLevel,
+            boolean logged
+    ) throws Exception {
+        givenChainLogLevel(chainLogLevel);
+        exchange.setProperty(PROPERTY_LOG_LEVEL, recordLevel);
         exchange.setProperty(PROPERTY_MESSAGE, "Customer profile synchronized");
 
         processor.process(exchange);
 
-        verifyNoInteractions(chainLogger, simpleInterpreter);
+        if (logged && "WARNING".equals(recordLevel)) {
+            verify(chainLogger).warn("Customer profile synchronized");
+        } else if (logged) {
+            verify(chainLogger).info("Customer profile synchronized");
+        }
+        verifyNoMoreInteractions(chainLogger);
+    }
+
+    @Test
+    void shouldLogErrorRecordWhenChainLogLevelIsError() throws Exception {
+        givenChainLogLevel(LogLoggingLevel.ERROR);
+        exchange.setProperty(PROPERTY_LOG_LEVEL, "ERROR");
+        exchange.setProperty(PROPERTY_MESSAGE, "Customer billing synchronization failed");
+
+        processor.process(exchange);
+
+        verify(chainLogger).error("Customer billing synchronization failed");
     }
 
     @Test
@@ -137,6 +156,11 @@ class LogRecordProcessorTest {
 
         verify(chainLogger).error("No business ids available");
         verifyNoInteractions(simpleInterpreter);
+    }
+
+    private void givenChainLogLevel(LogLoggingLevel level) {
+        when(propertiesService.getRuntimeProperties(exchange))
+                .thenReturn(ChainRuntimeProperties.builder().logLoggingLevel(level).build());
     }
 
     private static String getStaticString(String fieldName) {

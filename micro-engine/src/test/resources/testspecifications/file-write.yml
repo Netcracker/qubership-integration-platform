@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=../testspecifications.schema.json
+fixtures:
+  - id: "target-file"
+    provider: "file-output"
+
+scenarios:
+  - id: "writes-message-body-to-file"
+    scope: Short
+    endpointUri: "cip-chain:fd62b92f-160c-4c43-93e3-d5fe6d86d009"
+    body: |-
+      {"message":"written to file","sequence":1}
+    expectedBody: |-
+      {"message":"written to file","sequence":1}
+    interactions:
+      - fixture: "target-file"
+        expectedRequest:
+          count: 1
+          path: "target.txt"
+          body: |-
+            {"message":"written to file","sequence":1}
+
+  - id: "writes-empty-file-for-null-body"
+    scope: Short
+    endpointUri: "cip-chain:fd62b92f-160c-4c43-93e3-d5fe6d86d009"
+    interactions:
+      - fixture: "target-file"
+        expectedRequest:
+          count: 1
+          path: "target.txt"
+          body: ""

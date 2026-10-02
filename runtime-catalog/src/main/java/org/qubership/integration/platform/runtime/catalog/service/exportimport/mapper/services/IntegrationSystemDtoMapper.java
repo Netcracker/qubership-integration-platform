@@ -44,7 +44,7 @@ public class IntegrationSystemDtoMapper {
 
     @Autowired
     public IntegrationSystemDtoMapper(
-            @Value("${qip.json.schemas.service:http://qubership.org/schemas/product/qip/service}") URI schemaUri,
+            @Value("${cip.json.schemas.service:http://qubership.org/schemas/product/qip/service}") URI schemaUri,
             List<ServiceImportFileMigration> serviceImportFileMigrations
     ) {
         this.schemaUri = schemaUri;

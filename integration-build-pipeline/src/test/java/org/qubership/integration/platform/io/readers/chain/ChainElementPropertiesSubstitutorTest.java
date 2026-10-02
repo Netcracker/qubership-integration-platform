@@ -29,6 +29,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ChainElementPropertiesSubstitutorTest {
 
@@ -98,5 +99,167 @@ class ChainElementPropertiesSubstitutorTest {
 
         assertEquals("log.info('done')", afterHandler.get("script"));
         assertFalse(afterHandler.containsKey("propertiesFilename"));
+    }
+
+    @DisplayName("A handler container script is restored even when there is no top-level properties file")
+    @Test
+    void restoresHandlerContainerScriptWithoutTopLevelFile() {
+        Map<String, Object> handlerContainer = new HashMap<>();
+        handlerContainer.put("propertiesFilename", "handler-h1.groovy");
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("handlerContainer", handlerContainer);
+
+        ChainElementExternalEntity element = ChainElementExternalEntity.builder()
+                .id("ht-1")
+                .type("http-trigger")
+                .properties(properties)
+                .build();
+        PropertyFileSource source = name ->
+                "handler-h1.groovy".equals(name) ? "handle validation" : null;
+
+        substitutor.enrichElementWithFileProperties(element, source);
+
+        assertEquals("handle validation", handlerContainer.get("script"));
+        assertFalse(handlerContainer.containsKey("propertiesFilename"));
+    }
+
+    @DisplayName("A chain failure handler container script is restored from its file")
+    @Test
+    void restoresChainFailureHandlerContainerScript() {
+        Map<String, Object> failureContainer = new HashMap<>();
+        failureContainer.put("propertiesFilename", "failure-h1.groovy");
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("chainFailureHandlerContainer", failureContainer);
+
+        ChainElementExternalEntity element = ChainElementExternalEntity.builder()
+                .id("ht-1")
+                .type("http-trigger")
+                .properties(properties)
+                .build();
+        PropertyFileSource source = name ->
+                "failure-h1.groovy".equals(name) ? "handle failure" : null;
+
+        substitutor.enrichElementWithFileProperties(element, source);
+
+        assertEquals("handle failure", failureContainer.get("script"));
+        assertFalse(failureContainer.containsKey("propertiesFilename"));
+    }
+
+    @DisplayName("A handler container mapping file restores only the mapping description")
+    @Test
+    void restoresHandlerContainerMappingDescriptionOnly() {
+        Map<String, Object> handlerContainer = new HashMap<>();
+        handlerContainer.put("propertiesFilename", "handler-h1.json");
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("handlerContainer", handlerContainer);
+
+        ChainElementExternalEntity element = ChainElementExternalEntity.builder()
+                .id("ht-1")
+                .type("http-trigger")
+                .properties(properties)
+                .build();
+        PropertyFileSource source = name ->
+                "handler-h1.json".equals(name)
+                        ? "{\"mappingDescription\": {\"mapping\": \"m\"}, \"ignored\": \"x\"}"
+                        : null;
+
+        substitutor.enrichElementWithFileProperties(element, source);
+
+        assertEquals(Map.of("mapping", "m"), handlerContainer.get("mappingDescription"));
+        assertFalse(handlerContainer.containsKey("ignored"));
+        assertFalse(handlerContainer.containsKey("propertiesFilename"));
+    }
+
+    @DisplayName("A handler container json file without mapping description is merged as-is")
+    @Test
+    void restoresHandlerContainerMapWithoutMappingDescription() {
+        Map<String, Object> handlerContainer = new HashMap<>();
+        handlerContainer.put("propertiesFilename", "handler-h1.json");
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("handlerContainer", handlerContainer);
+
+        ChainElementExternalEntity element = ChainElementExternalEntity.builder()
+                .id("ht-1")
+                .type("http-trigger")
+                .properties(properties)
+                .build();
+        PropertyFileSource source = name ->
+                "handler-h1.json".equals(name) ? "{\"throwException\": true}" : null;
+
+        substitutor.enrichElementWithFileProperties(element, source);
+
+        assertEquals(true, handlerContainer.get("throwException"));
+        assertFalse(handlerContainer.containsKey("propertiesFilename"));
+    }
+
+    @DisplayName("A handler container without a file reference is left untouched")
+    @Test
+    void skipsHandlerContainerWithoutFilename() {
+        Map<String, Object> handlerContainer = new HashMap<>();
+        handlerContainer.put("script", "keep me");
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("handlerContainer", handlerContainer);
+
+        ChainElementExternalEntity element = ChainElementExternalEntity.builder()
+                .id("ht-1")
+                .type("http-trigger")
+                .properties(properties)
+                .build();
+
+        substitutor.enrichElementWithFileProperties(element, name -> {
+            throw new AssertionError("no file should be read");
+        });
+
+        assertEquals("keep me", handlerContainer.get("script"));
+        assertFalse(handlerContainer.containsKey("propertiesFilename"));
+    }
+
+    @DisplayName("A non-map handler container is ignored")
+    @Test
+    void skipsNonMapHandlerContainer() {
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("handlerContainer", "not-a-map");
+
+        ChainElementExternalEntity element = ChainElementExternalEntity.builder()
+                .id("ht-1")
+                .type("http-trigger")
+                .properties(properties)
+                .build();
+
+        substitutor.enrichElementWithFileProperties(element, name -> {
+            throw new AssertionError("no file should be read");
+        });
+
+        assertEquals("not-a-map", element.getProperties().get("handlerContainer"));
+    }
+
+    @DisplayName("A service-call handler container is restored even when before has no file")
+    @Test
+    void restoresServiceCallHandlerContainerWithoutBeforeFile() {
+        Map<String, Object> handlerContainer = new HashMap<>();
+        handlerContainer.put("propertiesFilename", "handler-sc1.groovy");
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("before", new HashMap<>(Map.of("type", "script")));
+        properties.put("handlerContainer", handlerContainer);
+
+        ChainElementExternalEntity element = ChainElementExternalEntity.builder()
+                .id("sc-1")
+                .type("service-call")
+                .properties(properties)
+                .build();
+        PropertyFileSource source = name ->
+                "handler-sc1.groovy".equals(name) ? "handle validation" : null;
+
+        substitutor.enrichElementWithFileProperties(element, source);
+
+        assertEquals("handle validation", handlerContainer.get("script"));
+        assertFalse(handlerContainer.containsKey("propertiesFilename"));
+        assertTrue(((Map<?, ?>) element.getProperties().get("before")).containsKey("type"));
     }
 }
