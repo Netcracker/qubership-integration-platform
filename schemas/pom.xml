@@ -35,7 +35,7 @@
         <maven.compiler.target>21</maven.compiler.target>
 
         <!-- Same number as the npm package; schemas-release.yaml releases both. -->
-        <revision>1.0.1</revision>
+        <revision>1.0.2</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
