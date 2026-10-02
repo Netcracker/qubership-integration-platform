@@ -32,20 +32,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Feeds the Consul ACL token from a mounted Secret file into the environment.
- *
- * <p>At startup it reads the file {@link #TOKEN_FILE_VARIABLE} points at (default
- * {@link #DEFAULT_TOKEN_FILE}) and puts the value first as {@code consul.token} and
- * {@code spring.cloud.consul.config.acl-token}, so the mount wins over the deprecated
- * {@code CONSUL_ADMIN_TOKEN} environment variable without touching the placeholders in
- * {@code application.yml}. Running before the configuration data import is required because that
- * import resolves {@code spring.cloud.consul.config.acl-token}.
- *
- * <p>For requests made after startup use {@link #readToken()}: it reads the file every time, so a
- * rotated Secret is picked up without a restart. The Spring Cloud Consul import itself captures the
- * token only once, at startup.
- */
 public class ConsulAdminTokenEnvironmentPostProcessor implements EnvironmentPostProcessor, Ordered {
 
     public static final int ORDER = ConfigDataEnvironmentPostProcessor.ORDER - 1;
@@ -83,12 +69,6 @@ public class ConsulAdminTokenEnvironmentPostProcessor implements EnvironmentPost
         return ORDER;
     }
 
-    /**
-     * Reads the current Consul admin token, preferring the mounted file and falling back to the
-     * deprecated environment variable. Nothing is cached, so a rotated Secret takes effect at once.
-     *
-     * @return the token, or {@code null} if neither the file nor the variable carries one
-     */
     public static String readToken() {
         String token = readFromFile();
         return token == null ? readFromEnvironment() : token;

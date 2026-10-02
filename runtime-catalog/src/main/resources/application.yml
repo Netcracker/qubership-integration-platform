@@ -108,7 +108,6 @@ maas:
 
 consul:
   url: ${CONSUL_URL:http://consul:8500}
-  # Deprecated: the token is read from the file CONSUL_ADMIN_TOKEN_FILE points at. Removed in release 27.3.
   token: ${CONSUL_ADMIN_TOKEN:}
   keys:
     prefix: /config/${NAMESPACE}
