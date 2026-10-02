@@ -115,6 +115,27 @@ describe("AiDecisionCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("approve", "Looks good to me");
   });
 
+  it("should keep the export button usable after the dialog it opens is closed", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          artifactType: "CHAIN_EXPORT",
+          actions: ["export-chains"],
+          chainIds: ["c1", "c2"],
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+
+    const exportButton = screen.getByRole("button", { name: "Export" });
+    fireEvent.click(exportButton);
+    fireEvent.click(exportButton);
+
+    expect(onAnswer).toHaveBeenCalledTimes(2);
+    expect(onAnswer).toHaveBeenCalledWith("export-chains", "");
+  });
+
   it("should send import-specification-external from the import card", () => {
     const onAnswer = jest.fn();
     render(

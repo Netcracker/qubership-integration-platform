@@ -65,7 +65,7 @@ CREATE_TEST_CASES, CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
   graph or just created). Graph explanation stays ASK_CHAIN.
 
 - MANAGE_CHAIN_LIST: Work with the chains page rather than inside a chain: create, rename, move, or
-  delete folders; move, copy, rename, or delete whole chains, or change their description or
+  delete folders; move, copy, rename, export, or delete whole chains, or change their description or
   labels ("move Orders sync to Salesforce", "put every chain whose name starts with SF into one
   folder", "label these chains crm"); or list chains by name, labels, status, author, or date
   ("which chains did Alice change last week?"). Describing a new integration that should be

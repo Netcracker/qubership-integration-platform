@@ -9,6 +9,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
@@ -224,6 +225,20 @@ class ChainListScenarioTest {
         text(scenario.dispatch(card(ChatEvent.APPLY_CHAIN_LIST_CHANGE_ACTION, card), CONVERSATION)));
     verify(catalog).duplicateChain("c2");
     verify(catalog).duplicateChain("c3");
+  }
+
+  @Test
+  void exportHandsTheChainIdsToTheBrowserWithoutTouchingTheCatalog() {
+    answer(command(ChainListAction.EXPORT_CHAINS, "Legacy", null, List.of(), List.of()));
+    when(table.find(List.of())).thenReturn(List.of(ORDERS, SF_ACCOUNTS));
+
+    ChatEvent.Decision card =
+        assertInstanceOf(ChatEvent.Decision.class, scenario.dispatch(message(), CONVERSATION));
+
+    assertEquals("Export 1 chain?\n- SF accounts (Legacy)", card.question());
+    assertEquals(List.of("c2"), card.chainIds());
+    assertEquals(List.of(ChatEvent.EXPORT_CHAINS_ACTION), card.actions());
+    verifyNoInteractions(catalog);
   }
 
   private void answer(ChainListCommand command) {

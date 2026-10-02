@@ -68,6 +68,10 @@ import {
   visibleDecisionNarrative,
 } from "./chatDecisionUtils.ts";
 import { AiDecisionCard } from "./AiDecisionCard.tsx";
+import { useModalsContext } from "../../Modals.tsx";
+import { useNotificationService } from "../../hooks/useNotificationService.tsx";
+import { ExportChains } from "../modal/ExportChains.tsx";
+import { downloadChainsExport } from "../../misc/chain-export.ts";
 import {
   extractDesignUrlFromMessages,
   lastUserMessageIsBuildChainIntent,
@@ -137,11 +141,16 @@ function sessionTitleFromUserMessage(content: string): string {
 // Component
 // ---------------------------------------------------------------------------
 
+/** Card action the browser answers itself; see exportFromCard. */
+const EXPORT_CHAINS_ACTION = "export-chains";
+
 export const AiAssistant: React.FC = () => {
   const [open, setOpen] = useState(false);
 
   const sessionStore = getChatSessionStore();
   const chainContext = useChainContext();
+  const { showModal } = useModalsContext();
+  const notificationService = useNotificationService();
   const pageChainContext = useContext(PageChainContext);
 
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
@@ -956,6 +965,54 @@ export const AiAssistant: React.FC = () => {
   // Decision card answer
   // ---------------------------------------------------------------------------
 
+  /**
+   * The export card is answered in the browser: it opens the chains page export dialog and
+   * downloads the archive. The server keeps nothing for it, so nothing is sent. The card freezes
+   * only once the export starts, so closing the dialog leaves it usable.
+   */
+  const exportFromCard = useCallback(
+    (decision: ChatDecision) => {
+      const chainIds = decision.chainIds ?? [];
+      const sessionId = currentSessionId;
+      if (!sessionId || chainIds.length === 0) return;
+      showModal({
+        component: (
+          <ExportChains
+            multiple={chainIds.length !== 1}
+            onSubmit={(options) => {
+              const session = sessionStore.getSession(sessionId);
+              if (session) {
+                sessionStore.updateSessionMessages(
+                  sessionId,
+                  markDecisionAnswered(
+                    session.messages,
+                    decision.id,
+                    EXPORT_CHAINS_ACTION,
+                  ),
+                );
+                refreshSessions();
+              }
+              downloadChainsExport(api, chainIds, options).catch(
+                (error: unknown) =>
+                  notificationService.requestFailed(
+                    "Failed to export chains",
+                    error,
+                  ),
+              );
+            }}
+          />
+        ),
+      });
+    },
+    [
+      currentSessionId,
+      sessionStore,
+      refreshSessions,
+      showModal,
+      notificationService,
+    ],
+  );
+
   const handleDecisionAnswer = useCallback(
     async (
       decision: ChatDecision,
@@ -963,6 +1020,10 @@ export const AiAssistant: React.FC = () => {
       comment: string,
       specSystemTypes?: Record<string, CatalogSystemType>,
     ) => {
+      if (action === EXPORT_CHAINS_ACTION) {
+        exportFromCard(decision);
+        return;
+      }
       if (!currentSessionId || sendInProgressRef.current) return;
       resumeFollowing();
       const session = sessionStore.getSession(currentSessionId);
@@ -999,6 +1060,7 @@ export const AiAssistant: React.FC = () => {
       refreshSessions,
       sendToProvider,
       resumeFollowing,
+      exportFromCard,
     ],
   );
 
