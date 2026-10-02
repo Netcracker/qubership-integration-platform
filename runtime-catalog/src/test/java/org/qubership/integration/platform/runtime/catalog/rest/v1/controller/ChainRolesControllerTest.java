@@ -2,6 +2,8 @@ package org.qubership.integration.platform.runtime.catalog.rest.v1.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.Validation;
+import org.hibernate.validator.HibernateValidator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,6 +20,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -53,6 +56,13 @@ class ChainRolesControllerTest {
     void setUp() {
         // The controller is @Validated, so in production its constraints run through an AOP proxy.
         MethodValidationPostProcessor validationPostProcessor = new MethodValidationPostProcessor();
+        // Hibernate Validator interpolates messages in the JVM's default locale, and the assertions
+        // below match the English ones, so pin the locale rather than inherit the machine's.
+        validationPostProcessor.setValidator(Validation.byProvider(HibernateValidator.class)
+                .configure()
+                .defaultLocale(Locale.ENGLISH)
+                .buildValidatorFactory()
+                .getValidator());
         validationPostProcessor.afterPropertiesSet();
         Object controller = validationPostProcessor.postProcessAfterInitialization(
                 new ChainRolesController(chainRolesService), "chainRolesController");
