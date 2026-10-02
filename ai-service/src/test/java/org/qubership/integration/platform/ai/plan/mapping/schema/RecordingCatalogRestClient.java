@@ -280,6 +280,21 @@ public final class RecordingCatalogRestClient implements CatalogRestClient {
   }
 
   @Override
+  public ChainDto updateChain(String chainId, ChainUpdateRequest body) {
+    throw unsupported("updateChain");
+  }
+
+  @Override
+  public ChainDto copyChain(String chainId, String targetFolderId) {
+    throw unsupported("copyChain");
+  }
+
+  @Override
+  public ChainDto duplicateChain(String chainId) {
+    throw unsupported("duplicateChain");
+  }
+
+  @Override
   public ChainDto moveChain(String chainId, String targetFolderId) {
     throw unsupported("moveChain");
   }

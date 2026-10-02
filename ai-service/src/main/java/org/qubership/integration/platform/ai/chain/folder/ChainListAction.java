@@ -4,6 +4,11 @@ package org.qubership.integration.platform.ai.chain.folder;
 public enum ChainListAction {
   FIND_CHAINS,
   MOVE_CHAINS,
+  RENAME_CHAIN,
+  SET_DESCRIPTION,
+  EDIT_LABELS,
+  COPY_CHAINS,
+  DELETE_CHAINS,
   CREATE_FOLDER,
   RENAME_FOLDER,
   MOVE_FOLDER,
