@@ -36,7 +36,7 @@ CREATE_TEST_CASES, CREATE_POSTMAN_COLLECTION, IMPORT_SPECIFICATION, UNKNOWN
   product CREATE, asks for architecture, pattern, or platform-behavior advice about a possible QIP
   integration, and there is no complete requirement draft yet. On **COLD** (no draft), always prefer
   this over **CREATE_CHAIN_PLAN** for first-time chain descriptions or questions such as
-  "Как лучше организовать интеграцию через QIP?" is a discovery question. This still applies when the
+  "How should I organize an integration through QIP?" is a discovery question. This still applies when the
   message says "create chain". A question about an identifiable existing deployed catalog chain remains
   **ASK_CHAIN**.
 
