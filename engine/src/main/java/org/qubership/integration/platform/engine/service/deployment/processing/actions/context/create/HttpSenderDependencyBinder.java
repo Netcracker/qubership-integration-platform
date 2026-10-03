@@ -61,7 +61,7 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
         MetricsStore metricsStore,
         MetricTagsHelper metricTagsHelper,
         Optional<TestingService> testingService,
-        @Value("${qip.chains.http-client.m2m.fallback-interceptor.enabled}") boolean m2mFallbackEnabled,
+        @Value("${cip.chains.http-client.m2m.fallback-interceptor.enabled}") boolean m2mFallbackEnabled,
         UrlCache m2mUrlCache,
         Predicate<ElementProperties> m2mElementChecker
     ) {
