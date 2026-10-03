@@ -17,13 +17,13 @@
   <parent>
       <groupId>org.qubership.integration.platform</groupId>
       <artifactId>qip-monorepo-parent</artifactId>
-      <version>1.2.3-SNAPSHOT</version>
+      <version>1.5.0-SNAPSHOT</version>
       <relativePath>../parent</relativePath>
   </parent>
 
   <properties>
-    <revision>1.2.3</revision>
-    <changelist>-2-m2m-kuber-SNAPSHOT</changelist>
+    <revision>1.5.0</revision>
+    <changelist>-1-m2m-kuber-SNAPSHOT</changelist>
 
     <!-- BOMs -->
     <!-- 3rd party dependencies -->
@@ -41,19 +41,6 @@
     <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
     <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
   </properties>
-
-  <repositories>
-    <repository>
-      <id>github</id>
-      <url>https://maven.pkg.github.com/netcracker/*</url>
-      <releases>
-        <enabled>true</enabled>
-      </releases>
-      <snapshots>
-        <enabled>true</enabled>
-      </snapshots>
-    </repository>
-  </repositories>
 
   <dependencyManagement>
     <dependencies>

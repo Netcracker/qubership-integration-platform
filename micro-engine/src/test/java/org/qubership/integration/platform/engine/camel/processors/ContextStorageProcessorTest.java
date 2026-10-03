@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.engine.camel.CorrelationIdSetter.CORRELATION_ID;
@@ -190,6 +191,100 @@ class ContextStorageProcessorTest {
                 ANOTHER_CONTEXT_SERVICE_ID_VALUE,
                 CONTEXT_ID_VALUE
         );
+    }
+
+    // The element template sets the context ID to an empty string when the element has none.
+    @Test
+    void shouldStoreValueUnderCorrelationIdWhenContextIdIsEmpty() throws Exception {
+        exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
+        exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
+        exchange.setProperty(PROPERTY_CONTEXT_ID, "");
+        exchange.setProperty(PROPERTY_CONTEXT_SERVICE_ID, CONTEXT_SERVICE_ID_VALUE);
+        exchange.setProperty(PROPERTY_OPERATION, "SET");
+        exchange.setProperty(PROPERTY_KEY, CONTEXT_KEY);
+        exchange.setProperty(PROPERTY_VALUE, CONTEXT_VALUE);
+        exchange.setProperty(PROPERTY_TTL, 300L);
+
+        processor.process(exchange);
+
+        verify(contextStorageService).storeValue(
+                CONTEXT_KEY,
+                CONTEXT_VALUE,
+                CONTEXT_SERVICE_ID_VALUE,
+                CORRELATION_ID_VALUE,
+                300L
+        );
+    }
+
+    @Test
+    void shouldStoreValueUnderEmptyContextIdWhenExchangeHasNoCorrelationId() throws Exception {
+        exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
+        exchange.setProperty(PROPERTY_CONTEXT_ID, "");
+        exchange.setProperty(PROPERTY_CONTEXT_SERVICE_ID, CONTEXT_SERVICE_ID_VALUE);
+        exchange.setProperty(PROPERTY_OPERATION, "SET");
+        exchange.setProperty(PROPERTY_KEY, CONTEXT_KEY);
+        exchange.setProperty(PROPERTY_VALUE, CONTEXT_VALUE);
+        exchange.setProperty(PROPERTY_TTL, 300L);
+
+        processor.process(exchange);
+
+        verify(contextStorageService).storeValue(
+                CONTEXT_KEY,
+                CONTEXT_VALUE,
+                CONTEXT_SERVICE_ID_VALUE,
+                "",
+                300L
+        );
+    }
+
+    @Test
+    void shouldGetValueUnderCorrelationIdWhenContextIdIsEmpty() throws Exception {
+        Map<String, String> storedValues = Map.of("customerId", "C-100500");
+
+        exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
+        exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
+        exchange.setProperty(PROPERTY_CONTEXT_ID, "");
+        exchange.setProperty(PROPERTY_CONTEXT_SERVICE_ID, CONTEXT_SERVICE_ID_VALUE);
+        exchange.setProperty(PROPERTY_KEYS, "customerId");
+        exchange.setProperty(PROPERTY_OPERATION, "GET");
+        exchange.setProperty(PROPERTY_TARGET, "BODY");
+        exchange.setProperty(PROPERTY_UNWRAP, false);
+
+        when(contextStorageService.getValue(
+                CONTEXT_SERVICE_ID_VALUE,
+                CORRELATION_ID_VALUE,
+                List.of("customerId")
+        )).thenReturn(storedValues);
+
+        processor.process(exchange);
+
+        assertEquals(storedValues, exchange.getMessage().getBody());
+    }
+
+    @Test
+    void shouldDeleteContextUnderCorrelationIdWhenContextIdIsEmpty() throws Exception {
+        exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
+        exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
+        exchange.setProperty(PROPERTY_CONTEXT_ID, "");
+        exchange.setProperty(PROPERTY_CONTEXT_SERVICE_ID, CONTEXT_SERVICE_ID_VALUE);
+        exchange.setProperty(PROPERTY_OPERATION, "DELETE");
+
+        processor.process(exchange);
+
+        verify(contextStorageService).deleteValue(
+                CONTEXT_SERVICE_ID_VALUE,
+                CORRELATION_ID_VALUE
+        );
+    }
+
+    @Test
+    void shouldThrowNamingThePropertyWhenOperationIsNotSet() {
+        exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
+        exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
+
+        IllegalStateException e = assertThrows(IllegalStateException.class, () -> processor.process(exchange));
+
+        assertEquals("Context storage property " + PROPERTY_OPERATION + " is not set", e.getMessage());
     }
 
     private static String getStaticString(String fieldName) {

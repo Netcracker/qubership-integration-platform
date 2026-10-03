@@ -13,4 +13,6 @@ public interface IntegrationService extends Entity {
     Collection<ServiceEnvironment> getEnvironments();
 
     Collection<Label> getLabels();
+
+    Collection<SpecificationGroup> getSpecificationGroups();
 }

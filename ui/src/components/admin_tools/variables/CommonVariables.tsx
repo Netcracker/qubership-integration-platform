@@ -98,6 +98,11 @@ export const CommonVariables = () => {
         iconName="table"
         toolbar={
           <TableToolbar
+            refresh={{
+              onRefresh: fetchVariables,
+              loading: isLoading,
+              disabled: editingKey !== null || isAddingNew,
+            }}
             variant="admin"
             search={{
               value: searchTerm,

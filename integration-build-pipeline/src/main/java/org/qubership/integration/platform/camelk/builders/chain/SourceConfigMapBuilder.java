@@ -38,10 +38,10 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")
@@ -121,6 +121,7 @@ public class SourceConfigMapBuilder implements ResourceBuilder<Snapshot> {
                 .domainName(context.getBuildInfo().getOptions().getName())
                 .buildName(context.getBuildInfo().getName())
                 .buildTimestamp(context.getBuildInfo().getTimestamp())
+                .createdBy(context.getBuildInfo().getCreatedBy())
                 .integrationServiceCatalog(context.getServiceCatalog())
                 .build();
     }

@@ -9,7 +9,7 @@
 #   1. parent/pom.xml <version> == "<root pom <revision>>-SNAPSHOT"
 #   2. parent/pom.xml <revision> == root pom <revision>
 #   3. every child's <parent><version> == parent/pom.xml <version>
-#   4. runtime-catalog's library pin == integration-build-pipeline's <revision>,
+#   4. every library consumer's pin == integration-build-pipeline's <revision>,
 #      so a reactor build resolves the library from source (the dependency
 #      appends ${changelist}, so the pin names the release and the build the
 #      development coordinate)
@@ -69,9 +69,11 @@ for child in "${QIP_PARENT_CHILDREN[@]}"; do
 done
 
 library_version="$(prop integration-build-pipeline/pom.xml revision)"
-pin="$(prop runtime-catalog/pom.xml qip-integration-build-pipeline.version)"
-[ "$pin" = "$library_version" ] ||
-    fail "runtime-catalog pins the library at '$pin', but integration-build-pipeline is on '$library_version' — a reactor build would then resolve the released jar instead of the working tree"
+for consumer in "${QIP_LIBRARY_CONSUMERS[@]}"; do
+    pin="$(prop "$consumer" qip-integration-build-pipeline.version)"
+    [ "$pin" = "$library_version" ] ||
+        fail "$consumer pins the library at '$pin', but integration-build-pipeline is on '$library_version' — a reactor build would then resolve the released jar instead of the working tree"
+done
 
 checkstyle_version="$(prop checkstyle/pom.xml revision)"
 for consumer in "${QIP_CHECKSTYLE_CONSUMERS[@]}"; do

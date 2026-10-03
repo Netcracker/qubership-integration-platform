@@ -734,7 +734,6 @@ export class VSCodeFileApi implements FileApi {
               name: serviceName.trim(),
               content: {
                 description: serviceDescription?.trim() || "",
-                migrations: [],
               },
             }
           : serviceType.value === "MCP"
@@ -746,7 +745,6 @@ export class VSCodeFileApi implements FileApi {
                   identifier: identifier?.trim() || "",
                   instructions: "",
                   description: serviceDescription?.trim() || "",
-                  migrations: [],
                 },
               }
             : {
@@ -762,7 +760,6 @@ export class VSCodeFileApi implements FileApi {
                   specification: "",
                   environments: [],
                   labels: [],
-                  migrations: [],
                 },
               };
 
@@ -848,11 +845,25 @@ export class VSCodeFileApi implements FileApi {
 
   async getDirectoriesToRemove(fileUri: Uri): Promise<Uri[]> {
     const fileType = await this.getFileType(fileUri);
-    if ((fileType as unknown as QipFileType) === QipFileType.CHAIN) {
-      const chainDirectory = await this.getParentDirectoryUri(fileUri);
-      return chainDirectory === this.getRootDirectory()
+    const qipFileType = fileType as unknown as QipFileType;
+    if (
+      qipFileType === QipFileType.CHAIN ||
+      qipFileType === QipFileType.SERVICE ||
+      qipFileType === QipFileType.CONTEXT_SERVICE ||
+      qipFileType === QipFileType.MCP_SERVICE
+    ) {
+      const directory = await this.getParentDirectoryUri(fileUri);
+      const haveResourceFolder =
+        qipFileType === QipFileType.CHAIN ||
+        qipFileType === QipFileType.SERVICE;
+      return directory.fsPath === this.getRootDirectory().fsPath
         ? []
-        : [vscode.Uri.joinPath(chainDirectory, RESOURCES_FOLDER), chainDirectory];
+        : [
+            ...(haveResourceFolder
+              ? [vscode.Uri.joinPath(directory, RESOURCES_FOLDER)]
+              : []),
+            directory,
+          ];
     }
     return [];
   }

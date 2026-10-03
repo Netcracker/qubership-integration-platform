@@ -20,7 +20,7 @@ import java.util.Optional;
 import static io.quarkiverse.loggingjson.providers.KeyValueStructuredArgument.kv;
 
 @ApplicationScoped
-@IfBuildProperty(name = "qip.logging.format", stringValue = "json", enableIfMissing = true)
+@IfBuildProperty(name = "cip.logging.format", stringValue = "json", enableIfMissing = true)
 public class JsonChainLogger extends AbstractChainLogger {
     private final LogExchangeMarkers logExchangeMarkers;
 

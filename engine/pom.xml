@@ -18,12 +18,12 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>1.2.3-SNAPSHOT</version>
+    <version>1.5.0-SNAPSHOT</version>
     <relativePath>../parent</relativePath>
   </parent>
   <properties>
-    <revision>1.2.3</revision>
-    <changelist>-2-m2m-kuber-SNAPSHOT</changelist>
+    <revision>1.5.0</revision>
+    <changelist>-1-m2m-kuber-SNAPSHOT</changelist>
 
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
@@ -36,8 +36,8 @@
     <snappy-java.version>1.1.10.8</snappy-java.version>
     <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
     <atlasmap.version>2.5.2</atlasmap.version>
-    <protobuf-java.version>3.25.9</protobuf-java.version>
-    <amqp-client.version>5.33.1</amqp-client.version>
+    <protobuf-java.version>4.33.2</protobuf-java.version>
+    <amqp-client.version>5.34.0</amqp-client.version>
     <json-filter.version>4.0.1</json-filter.version>
     <conscrypt-openjdk-uber.version>2.2.1</conscrypt-openjdk-uber.version>
     <opensearch.version>2.14.0</opensearch.version>

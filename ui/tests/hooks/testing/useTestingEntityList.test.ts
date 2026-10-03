@@ -361,6 +361,27 @@ describe("useTestingEntityList", () => {
     expect(result.current.getElementName("element-1")).toBe("HTTP Trigger");
   });
 
+  it("should restore saved server sorting before the first request", async () => {
+    localStorage.setItem(
+      "savedTests_serverSort",
+      JSON.stringify({ sortBy: "name", sortOrder: TestingSortOrder.DESC }),
+    );
+    const { result, unmount } = renderList({ storageKey: "savedTests" });
+    await waitFor(() => expect(result.current.items).toHaveLength(1));
+    expect(lastListCall()[1]).toEqual({
+      offset: 0,
+      sortBy: "name",
+      sortOrder: TestingSortOrder.DESC,
+    });
+    expect(result.current.tableSort).toEqual({
+      key: "name",
+      order: "descend",
+    });
+    expect(localStorage.getItem("savedTests_sort")).toBeNull();
+    unmount();
+    localStorage.removeItem("savedTests_serverSort");
+  });
+
   it("should sort by a field the service accepts", async () => {
     const { result } = renderList({
       initialSortBy: "name",

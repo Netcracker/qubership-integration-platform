@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 
 public abstract class AbstractTruncatedFieldLogger {
 
-    @Value("${qip.logging.fields-max-size:-1}")
+    @Value("${cip.logging.fields-max-size:-1}")
     protected int fieldValueMaxSize = -1;
 
     protected String truncateValue(String value) {

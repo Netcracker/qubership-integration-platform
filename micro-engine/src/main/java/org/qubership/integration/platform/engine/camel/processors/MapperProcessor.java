@@ -80,7 +80,7 @@ public class MapperProcessor implements Processor {
     private final DefaultAtlasContextFactory factory;
     private final ObjectMapper objectMapper;
 
-    @ConfigProperty(name = "qip.mapper.cache-enabled")
+    @ConfigProperty(name = "cip.mapper.cache-enabled")
     boolean cacheEnabled;
 
     @Inject

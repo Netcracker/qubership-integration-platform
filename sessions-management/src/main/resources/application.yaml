@@ -80,12 +80,12 @@ info:
   app:
     name: ${cloud.microservice.name}
 
-qip:
+cip:
   standalone: true
   sessions:
     bulk-request:
       max-size-kb: ${SESSIONS_BULK_REQUEST_MAX_SIZE_KB:4096}
-      payload-size-threshold-kb: ${qip.sessions.bulk-request.max-size-kb}
+      payload-size-threshold-kb: ${cip.sessions.bulk-request.max-size-kb}
       elements-count-threshold: ${SESSIONS_BULK_REQUEST_ELEMENTS_COUNT_THRESHOLD:5}
   opensearch:
     client:
@@ -111,6 +111,4 @@ logging:
   config: classpath:logback-spring.xml
 
 springdoc:
-  swagger-ui:
-    tagsSorter: alpha
-    operationsSorter: alpha
+  writer-with-order-by-keys: true

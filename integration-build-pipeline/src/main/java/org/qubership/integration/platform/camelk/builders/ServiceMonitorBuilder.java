@@ -22,10 +22,10 @@ import java.util.List;
 public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
     private static final String TEMPLATE_NAME = "service-monitor";
 
-    @Value("${qip.cr.labels.domain}")
+    @Value("${cip.cr.labels.domain}")
     String domainLabel;
 
-    @Value("${qip.cr.labels.bg-version}")
+    @Value("${cip.cr.labels.bg-version}")
     String bgVersionLabel;
 
     @Value("${spring.application.deployment_version}")
@@ -42,7 +42,6 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
         private String integrationName;
         private String serviceName;
         private String interval;
-        private String namespace;
     }
 
     private final Handlebars templates;
@@ -95,7 +94,6 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
                 .name(serviceMonitorNamingStrategy.getName(context))
                 .integrationName(integrationResourceNamingStrategy.getName(context))
                 .serviceName(serviceNamingStrategy.getName(context))
-                .namespace(getNamespace(context))
                 .interval(getMetricsScrapeInterval(context))
                 .build();
     }
@@ -105,12 +103,5 @@ public class ServiceMonitorBuilder implements ResourceBuilder<List<Snapshot>> {
         return StringUtils.isBlank(interval)
                 ? "{{ .Values.monitoring.interval | default \"30s\" }}"
                 : interval;
-    }
-
-    private String getNamespace(ResourceBuildContext<?> context) {
-        String namespace = context.getBuildInfo().getOptions().getNamespace();
-        return StringUtils.isBlank(namespace)
-                ? "{{ .Release.namespace }}"
-                : namespace;
     }
 }

@@ -20,7 +20,7 @@ spring:
       config:
         m2m:
           enabled: false
-        acl-token: ${CONSUL_ADMIN_TOKEN}
+        acl-token: ${CONSUL_ADMIN_TOKEN:}
   jpa:
     show-sql: false
     properties:
@@ -48,7 +48,7 @@ otel:
   sdk:
     disabled: true
 
-qip:
+cip:
   standalone: true
   pubsub:
     emulator:

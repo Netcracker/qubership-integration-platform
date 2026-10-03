@@ -8,7 +8,7 @@ import org.qubership.integration.platform.engine.opensearch.ism.model.time.TimeV
 
 import java.util.Optional;
 
-@ConfigMapping(prefix = "qip.opensearch")
+@ConfigMapping(prefix = "cip.opensearch")
 public interface OpenSearchProperties {
     ClientProperties client();
 

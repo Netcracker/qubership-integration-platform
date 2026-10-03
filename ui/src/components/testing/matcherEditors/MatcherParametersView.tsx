@@ -6,6 +6,14 @@ export type MatcherParametersViewProps = {
   parameters: TestingNamedParameter[] | null;
 };
 
+/** A long value would run into the next column, so every line is cut to the cell width. */
+const LINE_STYLE: React.CSSProperties = {
+  display: "block",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
 /** A single parameter shows its value alone; several show `name: value` per line. */
 export const MatcherParametersView: React.FC<MatcherParametersViewProps> = ({
   parameters,
@@ -25,15 +33,23 @@ export const MatcherParametersView: React.FC<MatcherParametersViewProps> = ({
     return <Typography.Text type="secondary">Not set</Typography.Text>;
   }
   if (sorted.length === 1) {
-    return <span>{sorted[0][1].join(", ")}</span>;
+    const value = sorted[0][1].join(", ");
+    return (
+      <span style={LINE_STYLE} title={value}>
+        {value}
+      </span>
+    );
   }
   return (
-    <span>
-      {sorted.map(([name, values]) => (
-        <span key={name} style={{ display: "block" }}>
-          {name}: {values.join(", ")}
-        </span>
-      ))}
+    <span style={{ display: "block", minWidth: 0 }}>
+      {sorted.map(([name, values]) => {
+        const line = `${name}: ${values.join(", ")}`;
+        return (
+          <span key={name} style={LINE_STYLE} title={line}>
+            {line}
+          </span>
+        );
+      })}
     </span>
   );
 };

@@ -48,7 +48,7 @@ public class TasksScheduler {
     @Inject
     ChainRuntimePropertiesService chainRuntimePropertiesService;
 
-    @ConfigProperty(name = "qip.sessions.checkpoints.cleanup.interval")
+    @ConfigProperty(name = "cip.sessions.checkpoints.cleanup.interval")
     String checkpointsInterval;
 
     @Inject
@@ -75,7 +75,7 @@ public class TasksScheduler {
     }
 
     @Scheduled(
-            cron = "${qip.sessions.checkpoints.cleanup.cron}",
+            cron = "${cip.sessions.checkpoints.cleanup.cron}",
             concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
             skipExecutionIf = Scheduled.ApplicationNotRunning.class,
             executeWith = Scheduled.SIMPLE
@@ -86,7 +86,7 @@ public class TasksScheduler {
     }
 
     @Scheduled(
-            cron = "${qip.context-service.cleanup.cron}",
+            cron = "${cip.context-service.cleanup.cron}",
             concurrentExecution = Scheduled.ConcurrentExecution.SKIP,
             skipExecutionIf = Scheduled.ApplicationNotRunning.class,
             executeWith = Scheduled.SIMPLE

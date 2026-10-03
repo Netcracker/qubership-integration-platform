@@ -34,7 +34,7 @@
 
 
     <properties>
-        <revision>1.2.3</revision>
+        <revision>1.5.0</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
@@ -63,7 +63,7 @@
         <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-text.version>1.11.0</commons-text.version>
-        <protobuf-java.version>3.25.9</protobuf-java.version>
+        <protobuf-java.version>4.33.2</protobuf-java.version>
         <json-schema-validator.version>1.0.87</json-schema-validator.version>
         <json-filter.version>4.0.1</json-filter.version>
         <atlasmap.version>2.5.2</atlasmap.version>
@@ -76,19 +76,21 @@
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.6</surefire-plugin.version>
+        <wiremock.version>3.13.2</wiremock.version>
         <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
         <jacoco.plugin.version>0.8.15</jacoco.plugin.version>
         <quarkiverse.loggingjson.version>3.5.0</quarkiverse.loggingjson.version>
+        <maven-antrun-plugin.version>3.2.0</maven-antrun-plugin.version>
         <sonar.coverage.jacoco.xmlReportPaths>
             ${project.basedir}/target/site/jacoco-aggregate/jacoco.xml
         </sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
     <repositories>
-        <!-- Maven Central repository for release versions -->
+        <!-- Maven Central for release versions. Maven queries repositories in this order, so Central goes first. -->
         <repository>
-            <id>oss.sonatype.org</id>
-            <url>https://central.sonatype.com</url>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
             <releases>
                 <enabled>true</enabled>
             </releases>
@@ -681,6 +683,12 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.wiremock</groupId>
+            <artifactId>wiremock-standalone</artifactId>
+            <version>${wiremock.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter-engine</artifactId>
             <scope>test</scope>
@@ -708,6 +716,11 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>kafka</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -887,6 +900,7 @@
                     <includes>
                         <include>**/*Test.java</include>
                     </includes>
+                    <groups>!component</groups>
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
@@ -910,6 +924,7 @@
                     <includes>
                         <include>**/*IT.java</include>
                     </includes>
+                    <groups>!component</groups>
                     <skipITs>${skipITs}</skipITs>
                     <systemPropertyVariables>
                         <native.image.path>${project.build.directory}/${project.build.finalName}-runner
@@ -1043,6 +1058,158 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>snapshotTests</id>
+            <properties>
+                <snapshot.workers>6</snapshot.workers>
+                <snapshot.bundle.directory>
+                    ${maven.multiModuleProjectDirectory}/runtime-catalog/target/snapshotbundle
+                </snapshot.bundle.directory>
+                <snapshot.reports.directory>${project.build.directory}/surefire-reports</snapshot.reports.directory>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>${maven-antrun-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>generate-snapshot-shards</id>
+                                <phase>generate-test-sources</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="${java.home}/bin/java" failonerror="true">
+                                            <arg value="${project.basedir}/src/test/java/org/qubership/integration/platform/engine/routes/tests/SnapshotShardGenerator.java"/>
+                                            <arg value="${project.build.directory}/generated-test-sources/snapshot-shards"/>
+                                            <arg value="${snapshot.reports.directory}/snapshot-shards"/>
+                                            <arg value="${project.build.directory}/snapshot-workers"/>
+                                            <arg value="${snapshot.workers}"/>
+                                            <arg value="${project.build.testOutputDirectory}"/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>add-snapshot-shards</id>
+                                <phase>generate-test-sources</phase>
+                                <goals>
+                                    <goal>add-test-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>${project.build.directory}/generated-test-sources/snapshot-shards</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <groups>component</groups>
+                            <forkCount>${snapshot.workers}</forkCount>
+                            <reuseForks>true</reuseForks>
+                            <workingDirectory>${project.build.directory}/snapshot-workers/${surefire.forkNumber}</workingDirectory>
+                            <reportsDirectory>${snapshot.reports.directory}</reportsDirectory>
+                            <includes combine.self="override">
+                                <include>**/MicroEngineSnapshotShard*Test.java</include>
+                            </includes>
+                            <systemPropertyVariables>
+                                <route.contract.dir>${snapshot.bundle.directory}</route.contract.dir>
+                                <quarkus.test.component.output-directory>${project.build.directory}/snapshot-workers/${surefire.forkNumber}/arc-classes</quarkus.test.component.output-directory>
+                                <snapshot.native.reports.directory>${snapshot.reports.directory}/snapshot-shards</snapshot.native.reports.directory>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+        <profile>
+            <id>snapshotTestsShort</id>
+            <properties>
+                <snapshot.scope>Short</snapshot.scope>
+                <snapshot.workers>6</snapshot.workers>
+                <snapshot.bundle.directory>
+                    ${maven.multiModuleProjectDirectory}/runtime-catalog/target/snapshotbundle
+                </snapshot.bundle.directory>
+                <snapshot.reports.directory>${project.build.directory}/surefire-reports</snapshot.reports.directory>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-antrun-plugin</artifactId>
+                        <version>${maven-antrun-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>generate-snapshot-shards</id>
+                                <phase>generate-test-sources</phase>
+                                <goals>
+                                    <goal>run</goal>
+                                </goals>
+                                <configuration>
+                                    <target>
+                                        <exec executable="${java.home}/bin/java" failonerror="true">
+                                            <arg value="${project.basedir}/src/test/java/org/qubership/integration/platform/engine/routes/tests/SnapshotShardGenerator.java"/>
+                                            <arg value="${project.build.directory}/generated-test-sources/snapshot-shards"/>
+                                            <arg value="${snapshot.reports.directory}/snapshot-shards"/>
+                                            <arg value="${project.build.directory}/snapshot-workers"/>
+                                            <arg value="${snapshot.workers}"/>
+                                            <arg value="${project.build.testOutputDirectory}"/>
+                                        </exec>
+                                    </target>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>build-helper-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>add-snapshot-shards</id>
+                                <phase>generate-test-sources</phase>
+                                <goals>
+                                    <goal>add-test-source</goal>
+                                </goals>
+                                <configuration>
+                                    <sources>
+                                        <source>${project.build.directory}/generated-test-sources/snapshot-shards</source>
+                                    </sources>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <groups>component</groups>
+                            <forkCount>${snapshot.workers}</forkCount>
+                            <reuseForks>true</reuseForks>
+                            <workingDirectory>${project.build.directory}/snapshot-workers/${surefire.forkNumber}</workingDirectory>
+                            <reportsDirectory>${snapshot.reports.directory}</reportsDirectory>
+                            <includes combine.self="override">
+                                <include>**/MicroEngineSnapshotShard*Test.java</include>
+                            </includes>
+                            <systemPropertyVariables>
+                                <snapshot.scope>${snapshot.scope}</snapshot.scope>
+                                <route.contract.dir>${snapshot.bundle.directory}</route.contract.dir>
+                                <quarkus.test.component.output-directory>${project.build.directory}/snapshot-workers/${surefire.forkNumber}/arc-classes</quarkus.test.component.output-directory>
+                                <snapshot.native.reports.directory>${snapshot.reports.directory}/snapshot-shards</snapshot.native.reports.directory>
+                            </systemPropertyVariables>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
         <!-- Maven Central -->
         <!-- mvn deploy -P central -->
         <profile>

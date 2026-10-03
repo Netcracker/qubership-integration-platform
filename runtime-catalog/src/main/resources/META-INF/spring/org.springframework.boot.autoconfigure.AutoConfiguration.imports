@@ -2,7 +2,6 @@ org.qubership.integration.platform.runtime.catalog.configuration.ApplicationAuto
 org.qubership.integration.platform.runtime.catalog.configuration.AsyncAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.datasource.PersistenceConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.datasource.PersistenceStandaloneAutoConfiguration
-org.qubership.integration.platform.runtime.catalog.configuration.FreemakerAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.KubeOperatorAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration
 org.qubership.integration.platform.runtime.catalog.configuration.MarkdownParserAutoConfiguration

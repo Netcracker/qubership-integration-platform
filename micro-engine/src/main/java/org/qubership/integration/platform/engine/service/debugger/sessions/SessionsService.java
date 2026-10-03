@@ -63,7 +63,7 @@ public class SessionsService {
     private final Optional<SessionStepLogger> sessionStepLogger;
     private final Random random = new Random();
 
-    @ConfigProperty(name = "qip.sessions.sampler.probabilistic")
+    @ConfigProperty(name = "cip.sessions.sampler.probabilistic")
     double samplerProbabilistic;
 
     public SessionsService(

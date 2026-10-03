@@ -1,0 +1,28 @@
+---
+name: Integration Build Maven Plugin Build
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'integration-build-maven-plugin/**'
+      - 'integration-build-pipeline/**'
+      - 'parent/**'
+      - 'pom.xml'
+
+permissions: {}
+
+jobs:
+  build:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/_maven-module-build.yaml
+    with:
+      module: integration-build-maven-plugin
+      sonar-project-key: ${{ vars.SONAR_INTEGRATION_BUILD_MAVEN_PLUGIN_PROJECT_KEY }}
+      # The Sonar job runs from the module directory with no reactor, so the
+      # library this plugin depends on has to be in .m2 first.
+      preinstall-integration-build-pipeline-library: true
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

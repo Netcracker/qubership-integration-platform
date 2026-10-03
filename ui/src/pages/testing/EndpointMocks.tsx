@@ -1,5 +1,6 @@
+import { Table } from "antd";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Flex, Table } from "antd";
+import { Flex } from "antd";
 import { useNavigate, useParams } from "react-router";
 import { api } from "../../api/api.ts";
 import { EndpointMock } from "../../api/apiTypes.ts";
@@ -16,7 +17,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useColumnsWithResizeAndScroll } from "../../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
 import { EndpointMockDetailsDrawer } from "../../components/testing/EndpointMockDetailsDrawer.tsx";
 import { formatMockNumber } from "../../components/testing/endpointMocks.ts";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
@@ -64,7 +65,11 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
   const [detailsMock, setDetailsMock] = useState<EndpointMock | null>(null);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
-  const { filters, filterButton } = useTestingFilter("endpointMocks", chainId);
+  const { filters, filterButton } = useTestingFilter(
+    "endpointMocks",
+    chainId,
+    chainId ? "endpointMocksTableChain" : "endpointMocksTableAdmin",
+  );
   const permissions = useMemo(() => getTestingPermissions(chainId), [chainId]);
   const sectionPath = chainId
     ? `/chains/${chainId}/testing`
@@ -81,7 +86,8 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
     exportEntities,
     sortBy,
     sortOrder,
-    handleTableChange,
+    tableSort,
+    handleTableChange: handleServerTableChange,
     selectedRowKeys,
     selectAllMatching,
     rowSelection,
@@ -89,6 +95,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
     collectTargetIds,
     confirmSearch,
   } = useTestingEntityList<EndpointMock>({
+    storageKey: chainId ? "endpointMocksTableChain" : "endpointMocksTableAdmin",
     source: endpointMocksListSource,
     chainId,
     filters,
@@ -273,10 +280,21 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
       columnDefinitions,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(orderedColumns, COLUMN_WIDTHS, {
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    COLUMN_WIDTHS,
+    {
       selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
-    });
+      controlledSort: tableSort,
+      onChange: handleServerTableChange,
+    },
+    chainId ? "endpointMocksTableChain" : "endpointMocksTableAdmin",
+  );
 
   const toolbarActions = useMemo(
     () => (
@@ -286,7 +304,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
         createLabel="an endpoint mock"
         permissions={permissions}
         actions={[
-          { kind: "refresh", onClick: handleRefresh },
+          { kind: "refresh", onClick: handleRefresh, loading: isLoading },
           {
             kind: "export",
             onClick: () => void handleExport(),
@@ -306,6 +324,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
       chainId,
       permissions,
       handleRefresh,
+      isLoading,
       hasSelection,
       handleExport,
       handleImport,
@@ -325,6 +344,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
     actions: toolbarActions,
     registerInChainHeader: variant === "chain-tab",
     registerDependencies: [
+      isLoading,
       variant,
       searchString,
       sortBy,
@@ -362,7 +382,7 @@ export const EndpointMocks: React.FC<EndpointMocksProps> = ({
           locale={{ emptyText: tableEmpty("No endpoint mocks to display") }}
           scroll={tableScroll(scrollX, items.length)}
           components={components}
-          onChange={handleTableChange}
+          onChange={handleConfiguredTableChange}
           onRow={rowClickProps(setDetailsMock)}
         />
       </div>

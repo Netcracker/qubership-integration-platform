@@ -12,5 +12,6 @@ public class BuildInfo {
     private String id;
     private Instant timestamp;
     private String name;
+    private String createdBy;
     private ResourceBuildOptions options;
 }

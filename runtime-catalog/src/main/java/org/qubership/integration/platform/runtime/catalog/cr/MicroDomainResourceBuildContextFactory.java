@@ -9,8 +9,9 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.MountOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
-import org.qubership.integration.platform.camelk.naming.strategies.BuildNamingContext;
 import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
+import org.qubership.integration.platform.camelk.services.BuildInfoFactory;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.ResourceKey;
@@ -19,13 +20,14 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegrati
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
 import java.util.*;
 
 import static java.util.Objects.isNull;
@@ -43,21 +45,24 @@ public class MicroDomainResourceBuildContextFactory {
     private static final String HTTP_ROUTE_KIND = "HTTPRoute";
 
     private final SnapshotRepository snapshotRepository;
-    private final NamingStrategy<BuildNamingContext> buildNamingStrategy;
     private final MicroDomainService microDomainService;
     private final IntegrationConfigurationSerdes integrationConfigurationSerdes;
+    private final BuildInfoFactory buildInfoFactory;
+    private final IntegrationServiceCatalog integrationServiceCatalog;
     private final SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
     private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
+    private final AuditorAware<User> auditor;
     private final boolean hostResourcesEnabled;
 
     @Autowired
     public MicroDomainResourceBuildContextFactory(
             SnapshotRepository snapshotRepository,
-            NamingStrategy<BuildNamingContext> buildNamingStrategy,
             MicroDomainService microDomainService,
             IntegrationConfigurationSerdes integrationConfigurationSerdes,
+            BuildInfoFactory buildInfoFactory,
+            IntegrationServiceCatalog integrationServiceCatalog,
 
             @Qualifier("sourceDslConfigMapNamingStrategy")
             SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy,
@@ -74,16 +79,20 @@ public class MicroDomainResourceBuildContextFactory {
             @Qualifier("httpRouteEgressNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
 
-            @Value("${qip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
+            AuditorAware<User> auditor,
+
+            @Value("${cip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
     ) {
         this.snapshotRepository = snapshotRepository;
-        this.buildNamingStrategy = buildNamingStrategy;
         this.microDomainService = microDomainService;
         this.integrationConfigurationSerdes = integrationConfigurationSerdes;
+        this.buildInfoFactory = buildInfoFactory;
+        this.integrationServiceCatalog = integrationServiceCatalog;
         this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
         this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
         this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
         this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
+        this.auditor = auditor;
         this.hostResourcesEnabled = hostResourcesEnabled;
     }
 
@@ -108,8 +117,9 @@ public class MicroDomainResourceBuildContextFactory {
             .toList();
 
         ResourceBuildOptions options = copyOptions(request.getOptions());
-        BuildInfo buildInfo = createBuildInfo(options);
-        ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo)
+        String createdBy = auditor.getCurrentAuditor().map(User::getUsername).orElse(null);
+        BuildInfo buildInfo = buildInfoFactory.createBuildInfo(options, createdBy);
+        ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo, integrationServiceCatalog)
                 .updateTo(snapshots);
 
         Map<ResourceKey, Optional<V1ObjectMeta>> observations = new LinkedHashMap<>();
@@ -152,21 +162,6 @@ public class MicroDomainResourceBuildContextFactory {
         return MountOptions.builder()
                 .emptyDirs(source.getEmptyDirs() == null ? new HashSet<>() : new HashSet<>(source.getEmptyDirs()))
                 .resources(source.getResources() == null ? new HashSet<>() : new HashSet<>(source.getResources()))
-                .build();
-    }
-
-    private BuildInfo createBuildInfo(ResourceBuildOptions options) {
-        String id = UUID.randomUUID().toString();
-        Instant timestamp = Instant.now();
-        BuildNamingContext buildNamingContext = BuildNamingContext.builder()
-                .id(id)
-                .timestamp(timestamp)
-                .build();
-        return BuildInfo.builder()
-                .id(id)
-                .timestamp(timestamp)
-                .name(buildNamingStrategy.getName(buildNamingContext))
-                .options(options)
                 .build();
     }
 
@@ -321,7 +316,7 @@ public class MicroDomainResourceBuildContextFactory {
      * and seeded; {@code EgressRouteResourceBuilder} looks up only the keys it actually needs.
      *
      * <p>Skipping this call is safe only while {@code EgressRouteResourceBuilder} skips generating
-     * those resources, which is why both read the same {@code qip.istio.host-resources.enabled}.
+     * those resources, which is why both read the same {@code cip.istio.host-resources.enabled}.
      * Keep the two gates in step. A build that generates a {@code ServiceEntry} or
      * {@code DestinationRule} from an unseeded cache sees an empty existing spec, and since the
      * document is written with a PUT, every field it does not carry is deleted from the cluster --

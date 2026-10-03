@@ -1,0 +1,2 @@
+exchange.setProperty('afterSplitReached', true)
+

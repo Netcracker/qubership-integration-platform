@@ -1,0 +1,65 @@
+---
+id: "1b027ba1-5d45-4a10-9d1f-a409339b52aa"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "reuse"
+content:
+  labels: []
+  elements:
+  - id: "241f78fa-58e3-4f86-b844-111ccf97bb97"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "241f78fa-58e3-4f86-b844-111ccf97bb97"
+  - id: "2db0d9e9-30b5-4670-9bba-b0d6fed5b7d9"
+    name: "Reuse Reference"
+    type: "reuse-reference"
+    properties:
+      reuseElementId: "b0ff75d1-6c2b-42b9-8b26-6bf46c72b671"
+  - id: "7d4ea2c2-b548-441c-9018-d16ec4f5b40e"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-7d4ea2c2-b548-441c-9018-d16ec4f5b40e.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "868b1592-ebeb-4c46-9203-d910a7e00b52"
+    name: "Reuse Reference"
+    type: "reuse-reference"
+    properties:
+      reuseElementId: "b0ff75d1-6c2b-42b9-8b26-6bf46c72b671"
+  - id: "a928d9a8-2057-4710-9bfa-d4204b600490"
+    name: "Reuse Reference"
+    type: "reuse-reference"
+    properties:
+      reuseElementId: "b0ff75d1-6c2b-42b9-8b26-6bf46c72b671"
+  - id: "b0ff75d1-6c2b-42b9-8b26-6bf46c72b671"
+    name: "Reuse"
+    type: "reuse"
+    children:
+    - id: "d40ab391-6d23-4bf3-a226-4cfaec73dbe2"
+      name: "Script"
+      type: "script"
+      properties:
+        exportFileExtension: "groovy"
+        propertiesFilename: "script-d40ab391-6d23-4bf3-a226-4cfaec73dbe2.groovy"
+        propertiesToExportInSeparateFile: "script"
+  - id: "fe11bbea-0dc8-40a9-b45d-4231237a5fec"
+    name: "Reuse Reference"
+    type: "reuse-reference"
+    properties:
+      reuseElementId: "b0ff75d1-6c2b-42b9-8b26-6bf46c72b671"
+  dependencies:
+  - from: "241f78fa-58e3-4f86-b844-111ccf97bb97"
+    to: "7d4ea2c2-b548-441c-9018-d16ec4f5b40e"
+  - from: "fe11bbea-0dc8-40a9-b45d-4231237a5fec"
+    to: "2db0d9e9-30b5-4670-9bba-b0d6fed5b7d9"
+  - from: "7d4ea2c2-b548-441c-9018-d16ec4f5b40e"
+    to: "868b1592-ebeb-4c46-9203-d910a7e00b52"
+  - from: "868b1592-ebeb-4c46-9203-d910a7e00b52"
+    to: "fe11bbea-0dc8-40a9-b45d-4231237a5fec"
+  - from: "2db0d9e9-30b5-4670-9bba-b0d6fed5b7d9"
+    to: "a928d9a8-2057-4710-9bfa-d4204b600490"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

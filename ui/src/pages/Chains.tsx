@@ -1,4 +1,5 @@
-import { Breadcrumb, Button, Flex, Table } from "antd";
+import { Table } from "antd";
+import { Breadcrumb, Button, Flex } from "antd";
 import { message, modal } from "../misc/antd-app.ts";
 import { confirmAndRun } from "../misc/confirm-utils.ts";
 import { useNavigate, useSearchParams } from "react-router";
@@ -30,6 +31,11 @@ import {
   type ChainMetadataUpdate,
 } from "../components/modal/ChainCreate.tsx";
 import { mergeUpdatedChainInFolderItems } from "./chains/mergeUpdatedChainInFolderItems.ts";
+import {
+  collectDescendantFolderIds,
+  collectSubtreeBatches,
+} from "./chains/chainSubtree.ts";
+import type { FolderContent } from "./chains/chainSubtree.ts";
 import { copyToClipboard } from "../misc/clipboard-util.ts";
 import { traverseElementsDepthFirst } from "../misc/tree-utils.ts";
 import {
@@ -60,7 +66,7 @@ import {
 } from "../components/table/useColumnSettingsButton.tsx";
 import { useTableDragDrop } from "../hooks/useTableDragDrop.ts";
 import { treeExpandIcon } from "../components/table/TreeExpandIcon.tsx";
-import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { TableToolbar } from "../components/table/TableToolbar.tsx";
 import commonStyles from "../components/admin_tools/CommonStyle.module.css";
@@ -72,6 +78,7 @@ const CHAINS_EXPAND_COLUMN_WIDTH = 48;
 const CHAINS_SELECTION_COLUMN_WIDTH = 48;
 import { Domain } from "../components/SelectDomains.tsx";
 import { ChainDiffPopup } from "../components/chains/diff/ChainDiffPopup.tsx";
+import { useTableRowExpandCollapse } from "../components/table/useTableRowExpandCollapse.ts";
 
 type ChainTableItem = (FolderItem | ChainItem) & {
   children?: ChainTableItem[];
@@ -135,7 +142,6 @@ const Chains = () => {
   const [loadedFolders, setLoadedFolders] = useState<Set<string>>(new Set());
   const [searchParams] = useSearchParams();
   const [folderPath, setFolderPath] = useState<FolderItem[]>([]);
-  const [expandedRowKeys, setExpandedRowKeys] = useState<React.Key[]>([]);
   const [operation, setOperation] = useState<Operation | undefined>(undefined);
   const [searchString, setSearchString] = useState<string>("");
   const [detailsChain, setDetailsChain] = useState<ChainItem | null>(null);
@@ -143,6 +149,84 @@ const Chains = () => {
   const notificationService = useNotificationService();
   const { filters, filterButton } = useChainFilters();
   const { showGenerateDdsModal } = useGenerateDds();
+
+  const getChainSubtreeIds = useCallback(
+    (record: ChainTableItem | FolderItem): React.Key[] => {
+      if (record.itemType !== CatalogItemType.FOLDER) {
+        return [record.id];
+      }
+      return collectDescendantFolderIds(record.id, folderItems);
+    },
+    [folderItems],
+  );
+
+  const ensureChainSubtreeLoaded = useCallback(
+    async (record: ChainTableItem | FolderItem): Promise<React.Key[]> => {
+      if (record.itemType !== CatalogItemType.FOLDER) {
+        return [record.id];
+      }
+      const knownLoaded = new Set<string>(loadedFolders);
+      const visited = new Set<string>();
+      const needsFetch = !knownLoaded.has(record.id);
+      if (needsFetch) {
+        setIsLoading(true);
+      }
+      let batches: FolderContent[];
+      try {
+        batches = await collectSubtreeBatches(record.id, {
+          folderItems,
+          knownLoaded,
+          visited,
+          filters,
+          searchString,
+          notifyLoadFailed: (error) =>
+            notificationService.requestFailed(
+              "Failed to get folder content",
+              error,
+            ),
+        });
+      } finally {
+        if (needsFetch) {
+          setIsLoading(false);
+        }
+      }
+      if (batches.length === 0) {
+        return collectDescendantFolderIds(record.id, folderItems);
+      }
+      const flat = batches.flat();
+      setFolderItems((prev) => {
+        const prevIds = new Set(prev.map((item) => item.id));
+        const fresh = flat.filter((item) => !prevIds.has(item.id));
+        return fresh.length > 0 ? [...prev, ...fresh] : prev;
+      });
+      setLoadedFolders((prev) => {
+        const next = new Set(prev);
+        flat.forEach((item) => {
+          if (item.itemType === CatalogItemType.FOLDER) {
+            next.add(item.id);
+          }
+        });
+        return next;
+      });
+      const prevIds = new Set(folderItems.map((item) => item.id));
+      const freshItems = flat.filter((item) => !prevIds.has(item.id));
+      return collectDescendantFolderIds(record.id, [
+        ...folderItems,
+        ...freshItems,
+      ]);
+    },
+    [folderItems, loadedFolders, filters, searchString, notificationService],
+  );
+
+  const {
+    expandedRowKeys,
+    setExpandedRowKeys,
+    expandSubtree,
+    collapseSubtree,
+  } = useTableRowExpandCollapse<ChainTableItem | FolderItem>({
+    getSubtreeIds: getChainSubtreeIds,
+    ensureLoaded: ensureChainSubtreeLoaded,
+  });
 
   const getFolderId = useCallback((): string | undefined => {
     return searchParams.get("folder") ?? undefined;
@@ -203,7 +287,7 @@ const Chains = () => {
     });
 
     await getPathToFolder(folderId).then((path) => setFolderPath(path));
-  }, [getFolderId, getPathToFolder, listFolder]);
+  }, [getFolderId, getPathToFolder, listFolder, setExpandedRowKeys]);
 
   const openFolder = async (folderId: string) => {
     return listFolder(folderId).then((response) => {
@@ -883,6 +967,10 @@ const Chains = () => {
         return exportChainsWithOptions([item.id]);
       case "generateDDS":
         return showGenerateDdsModal(item.id);
+      case "expandAll":
+        return void expandSubtree(item);
+      case "collapseAll":
+        return collapseSubtree(item);
       default:
         return modal.error({ title: "Not implemented yet" });
     }
@@ -1089,25 +1177,30 @@ const Chains = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType<ChainTableItem>("chainsTable", columns);
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        name: 220,
-        id: 200,
-        description: 240,
-        status: 200,
-        labels: 200,
-        createdBy: 120,
-        createdWhen: 168,
-        modifiedBy: 120,
-        modifiedWhen: 168,
-      },
-      {
-        expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
-        selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
-      },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      name: 220,
+      id: 200,
+      description: 240,
+      status: 200,
+      labels: 200,
+      createdBy: 120,
+      createdWhen: 168,
+      modifiedBy: 120,
+      modifiedWhen: 168,
+    },
+    {
+      expandColumnWidth: CHAINS_EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: CHAINS_SELECTION_COLUMN_WIDTH,
+    },
+    "chainsTable",
+  );
 
   const rowSelection: TableRowSelection<ChainTableItem> = {
     type: "checkbox",
@@ -1138,6 +1231,7 @@ const Chains = () => {
     <>
       <Flex vertical gap={16} className={styles.container}>
         <TableToolbar
+          refresh={{ onRefresh: updateFolderItems, loading: isLoading }}
           leading={
             <Flex
               align="center"
@@ -1265,6 +1359,7 @@ const Chains = () => {
           locale={{ emptyText: tableEmpty("No chains or folders") }}
           scroll={tableScroll(scrollX, tableItems.length)}
           components={components}
+          onChange={handleConfiguredTableChange}
           rowKey="id"
           rowClassName={(record) =>
             [

@@ -31,7 +31,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.DependencyRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.verification.ElementPropertiesVerificationService;
+import org.qubership.integration.platform.verification.ElementPropertiesVerificationService;
 
 import java.util.HashMap;
 import java.util.List;

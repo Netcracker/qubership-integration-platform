@@ -13,6 +13,7 @@ import org.qubership.integration.platform.camelk.model.routes.RouteType;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.services.RoutesGetterService;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.camelk.util.paths.EgressTarget;
 import org.qubership.integration.platform.chain.model.Snapshot;
 
@@ -60,7 +61,8 @@ class EgressRouteResourceBuilderTest {
         when(snapshot.getId()).thenReturn(snapshotId);
         return ResourceBuildContext.create(BuildInfo.builder()
                         .options(ResourceBuildOptions.builder().name("my-domain").build())
-                        .build())
+                        .build(),
+                        mock(IntegrationServiceCatalog.class))
                 .updateTo(List.of(snapshot));
     }
 

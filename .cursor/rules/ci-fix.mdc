@@ -1,5 +1,5 @@
 ---
-description: Trigger for the CI failure diagnosis skill.
+description: "Trigger for the CI failure diagnosis skill."
 globs: "**"
 ---
 

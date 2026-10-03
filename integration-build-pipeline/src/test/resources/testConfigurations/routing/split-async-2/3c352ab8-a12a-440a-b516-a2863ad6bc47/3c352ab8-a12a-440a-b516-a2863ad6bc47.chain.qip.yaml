@@ -1,0 +1,54 @@
+---
+id: "3c352ab8-a12a-440a-b516-a2863ad6bc47"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "async-split error"
+content:
+  labels: []
+  elements:
+  - id: "09db13d1-1f2b-4ba2-acfc-b80aaeb7ead6"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-09db13d1-1f2b-4ba2-acfc-b80aaeb7ead6.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "493a2c37-61ce-4939-b2b6-cd62d33cf404"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "493a2c37-61ce-4939-b2b6-cd62d33cf404"
+  - id: "507048fa-2dab-4b82-9ee1-3a795c9bcc9b"
+    name: "Split Async"
+    type: "split-async-2"
+    children:
+    - id: "3ff0990f-f156-4979-b173-3e738ad42bab"
+      name: "Main Async Split Element"
+      type: "async-split-element-2"
+      children:
+      - id: "b8188695-5287-441d-89a8-c9234cc38668"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-b8188695-5287-441d-89a8-c9234cc38668.groovy"
+          propertiesToExportInSeparateFile: "script"
+    - id: "c7104f5b-91a6-47b5-8de6-85ad574ad9fd"
+      name: "Async Split Element"
+      type: "async-split-element-2"
+      children:
+      - id: "0e9f4888-9ff4-4cc7-b3ce-bac62d91502f"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-0e9f4888-9ff4-4cc7-b3ce-bac62d91502f.groovy"
+          propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "493a2c37-61ce-4939-b2b6-cd62d33cf404"
+    to: "09db13d1-1f2b-4ba2-acfc-b80aaeb7ead6"
+  - from: "09db13d1-1f2b-4ba2-acfc-b80aaeb7ead6"
+    to: "507048fa-2dab-4b82-9ee1-3a795c9bcc9b"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

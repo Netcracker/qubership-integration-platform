@@ -209,4 +209,38 @@ describe("CommonVariables", () => {
       expect(mockApi.getCommonVariables).toHaveBeenCalledTimes(2),
     );
   });
+
+  it("should report success when the export succeeds", async () => {
+    render(<CommonVariables />);
+    await waitFor(() =>
+      expect(screen.getByTestId("variables-count")).toHaveTextContent("2"),
+    );
+
+    fireEvent.click(screen.getByTestId("mock-select-rows"));
+    fireEvent.click(screen.getByTestId("Export selected variables"));
+
+    await waitFor(() =>
+      expect(mockMessage.success).toHaveBeenCalledWith("Exported"),
+    );
+    expect(mockNotificationService.requestFailed).not.toHaveBeenCalled();
+  });
+
+  it("should report only the failure when the export fails", async () => {
+    mockApi.exportVariables.mockRejectedValue(new Error("404"));
+    render(<CommonVariables />);
+    await waitFor(() =>
+      expect(screen.getByTestId("variables-count")).toHaveTextContent("2"),
+    );
+
+    fireEvent.click(screen.getByTestId("mock-select-rows"));
+    fireEvent.click(screen.getByTestId("Export selected variables"));
+
+    await waitFor(() =>
+      expect(mockNotificationService.requestFailed).toHaveBeenCalledWith(
+        "Failed to export variables",
+        expect.any(Error),
+      ),
+    );
+    expect(mockMessage.success).not.toHaveBeenCalled();
+  });
 });

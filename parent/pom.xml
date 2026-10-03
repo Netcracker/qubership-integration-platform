@@ -12,7 +12,7 @@
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
     <!-- Literal, not ${revision}: children pin this version; ${revision} breaks parent resolution on a clean repo. -->
-    <version>1.2.3-SNAPSHOT</version>
+    <version>1.5.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <url>https://github.com/Netcracker/qubership-integration-platform</url>
@@ -33,7 +33,7 @@
     </developers>
 
     <properties>
-        <revision>1.2.3</revision>
+        <revision>1.5.0</revision>
         <changelist>-SNAPSHOT</changelist>
 
         <java.version>21</java.version>
@@ -83,10 +83,11 @@
         <tag>HEAD</tag>
     </scm>
 
+    <!-- Maven queries repositories in this order and Central serves nearly every artifact, so it goes first. -->
     <repositories>
         <repository>
-            <id>oss.sonatype.org</id>
-            <url>https://central.sonatype.com</url>
+            <id>central</id>
+            <url>https://repo.maven.apache.org/maven2</url>
             <releases><enabled>true</enabled></releases>
             <snapshots><enabled>false</enabled></snapshots>
         </repository>

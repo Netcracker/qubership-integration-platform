@@ -38,7 +38,7 @@ public class ExportableObjectWriterVisitor {
     @Value("${app.prefix}")
     private String appName;
 
-    @Value("${qip.export.legacy-format}")
+    @Value("${cip.export.legacy-format}")
     private boolean isLegacyExport;
 
     @Autowired

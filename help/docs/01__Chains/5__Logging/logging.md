@@ -4,28 +4,34 @@
 ## Description
 
 ---
-This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed. Next main capabilities are available:
-- Configure logging settings and apply them in runtime.
-- Apply logging masking for specific parameters in order to protect the data from unauthorized access.
+This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed. The main capability is configuration of logging settings that will be applied in runtime.
 
 Please refer to the diagram below, that represents architecture on the high level:
 
 ![loggingSettings](img/loggingSettings.svg)
 
-| # | Description                                                                                                                                                                                                                                                                                     |
-|---|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 1 | Consul data is being cached in the QIP to ensure fast and stable access to the logging settings for the given chain.                                                                                                                                                                            |
-| 2 | Either Consul's data or default (pre-configured set of logging settings in Qubership Integration Platform itself) will be used by the Engine while maintaining the chain. Selected way will depend on the availability of the settings data in the Consul (this data has the highest priority). |
-| 3 | Custom logging settings might be applied and pushed to the Consul via Qubership Integration Platform User Interface.                                                                                                                                                                            |
+| # | Description                                                                                                                                                                                                                                                                                 |
+|---|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | Consul data is being cached in the CIP to ensure fast and stable access to the logging settings for the given chain.                                                                                                                                                                        |
+| 2 | Either Consul's data or default (pre-configured set of logging settings in Cloud Integration Platform itself) will be used by the Engine while maintaining the chain. Selected way will depend on the availability of the settings data in the Consul (this data has the highest priority). |
+| 3 | Custom logging settings might be applied and pushed to the Consul via Cloud Integration Platform User Interface.                                                                                                                                                                            |
+
+## Process Initialization
+
+---
+In the <ins>Web UI</ins>: once the chain is created, configurations of its logging settings is available in the "Logging" tab under the chain.  
+
+---
+
 
 ## User Interface
 
 ---
 ### View & Adjust Logging Settings
 User is able to navigate to the **"Logging Settings"** tab under the chain and view/correct logging settings for the chain.
-It shall be noted that Qubership Integration Platform will always attempt to use the settings that are available in the Consul, which plays the role of the main source of such data.
+It shall be noted that Cloud Integration Platform will always attempt to use the settings that are available in the Consul, which plays the role of the main source of such data.
 When no settings available in the Consul for a given chain and there are no even default settings available there,
-Qubership Integration Platform will apply its own default hardcoded option and notify the user via message on top of the screen. Please view detailed description for each particular setting below:
+Cloud Integration Platform will apply its own default hardcoded option and notify the user via message on top of the screen. Please view detailed description for each particular setting below:
 
 - **Override default properties** switcher - allows to enable other fields and specify own settings for current chain.
 - **Logging settings source** - label, that shows the source of the settings. Possible values:
@@ -47,7 +53,7 @@ Qubership Integration Platform will apply its own default hardcoded option and n
   - **Info** - log only external communications (sending and receiving external messages by any protocol, incoming and outgoing). Used for investigation of production incidents.
 - **Log Payload** - controls payload parts, which must be logged: Headers, Properties, Body. If nothing is selected - no payload data will be logged.
 
-> ⚠️ **Warning:** Log format and maximum size of logged headers, body, and exchange properties are configurable before installation:
+> ⚠️ Log format and maximum size of logged headers, body, and exchange properties are configurable before installation:
 > - Log format options: _json_ or _plain text_.
 > - When logged content exceeds the configured size limit, it is truncated and appended with `...`.
 >
@@ -60,3 +66,20 @@ Qubership Integration Platform will apply its own default hardcoded option and n
   - **checked** _(Default value)_ - masking settings, configured under "Masked Fields" expand will be applied.
   - **unchecked** - no masking applied.
 - **Apply** button - when custom settings are specified, they MUST be applied via this button. As the result of this operation, settings will be published to the Consul.
+
+## Data Storage
+
+---
+
+There are next additional articles, that could bring more details regarding data management, mentioned on this page:
+
+- [Logging] - contains details about logs, that are being gathered and stored.
+- [Deployment Process] - main article, described deployment process. Specifically, section **Deployment Profiles in Consul** brings more details regarding logging settings processing, including its accommodation in Consul and CIP Cache.
+
+## Configuration
+
+---
+
+- In CIP UI: custom logging configuration is being done via CIP UI ("Logging settings" tab under the chain). Please refer to [general logging page] for more details regarding logging capabilities and log formats. It is also possible to setup predefined chain-specific and default logging settings in Consul, which is described in detail in section **Deployment Profiles in Consul** of [Deployment Process] article.
+- In CIP VSCode Extension: custom logging configuration is not supported.
+

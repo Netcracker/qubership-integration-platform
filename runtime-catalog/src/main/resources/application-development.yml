@@ -26,11 +26,11 @@ spring:
       config:
         m2m:
           enabled: false
-        acl-token: ${CONSUL_ADMIN_TOKEN}
+        acl-token: ${CONSUL_ADMIN_TOKEN:}
   jpa:
     show-sql: false
 
-qip:
+cip:
   gateway:
     egress:
       protocol: http

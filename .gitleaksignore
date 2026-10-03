@@ -1,0 +1,16 @@
+# TLS keys used by local snapshot test fixtures.
+# Super-linter reports absolute paths inside the GitHub Actions container.
+/github/workspace/micro-engine/src/test/resources/snapshot-fixtures/kafka/expired-key.pem:private-key:1
+/github/workspace/micro-engine/src/test/resources/snapshot-fixtures/kafka/rotated-key.pem:private-key:1
+/github/workspace/micro-engine/src/test/resources/snapshot-fixtures/kafka/untrusted-key.pem:private-key:1
+/github/workspace/micro-engine/src/test/resources/snapshot-fixtures/kafka/valid-key.pem:private-key:1
+/github/workspace/micro-engine/src/test/resources/snapshot-fixtures/kafka/wrong-hostname-key.pem:private-key:1
+/github/workspace/micro-engine/src/test/resources/snapshot-fixtures/pubsub/localhost-key.pem:private-key:1
+
+# Repository-relative fingerprints for local Gitleaks scans.
+micro-engine/src/test/resources/snapshot-fixtures/kafka/expired-key.pem:private-key:1
+micro-engine/src/test/resources/snapshot-fixtures/kafka/rotated-key.pem:private-key:1
+micro-engine/src/test/resources/snapshot-fixtures/kafka/untrusted-key.pem:private-key:1
+micro-engine/src/test/resources/snapshot-fixtures/kafka/valid-key.pem:private-key:1
+micro-engine/src/test/resources/snapshot-fixtures/kafka/wrong-hostname-key.pem:private-key:1
+micro-engine/src/test/resources/snapshot-fixtures/pubsub/localhost-key.pem:private-key:1

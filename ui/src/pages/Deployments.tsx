@@ -1,8 +1,9 @@
+import { Table } from "antd";
 import React, { useCallback, useMemo, useState } from "react";
-import { useColumnsWithResizeAndScroll } from "../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../components/table/useTableConfiguration.tsx";
 import { tableEmpty } from "../components/table/tableEmpty.tsx";
 import { tableScroll } from "../components/table/tableScroll.ts";
-import { Flex, Space, Table, Tag, Tooltip } from "antd";
+import { Flex, Space, Tag, Tooltip } from "antd";
 import { DeploymentStateTag } from "../components/deployment_runtime_states/DeploymentStateTag.tsx";
 import { useDeployments } from "../hooks/useDeployments.tsx";
 import { useParams } from "react-router";
@@ -57,7 +58,7 @@ function deploymentMatchesSearch(
 
 export const Deployments: React.FC = () => {
   const { chainId } = useParams<{ chainId: string }>();
-  const { isLoading, deployments, setDeployments, removeDeployment } =
+  const { isLoading, deployments, setDeployments, removeDeployment, refresh } =
     useDeployments(chainId);
   const { snapshots } = useSnapshots(chainId);
   const { showModal } = useModalsContext();
@@ -186,14 +187,23 @@ export const Deployments: React.FC = () => {
       columns,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(orderedColumns, {
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
       snapshotId: 200,
       domain: 140,
       runtime: 260,
       createdBy: 120,
       createdWhen: 168,
-    });
+    },
+    {},
+    "deploymentsTable",
+  );
 
   const onDeploymentCreated = useCallback(
     (deployment: Deployment) => {
@@ -244,6 +254,7 @@ export const Deployments: React.FC = () => {
   const chainTabToolbar = useMemo(
     () => (
       <TableToolbar
+        refresh={{ onRefresh: refresh, loading: isLoading }}
         variant="chain-tab"
         search={{
           value: searchTerm,
@@ -266,10 +277,15 @@ export const Deployments: React.FC = () => {
         }
       />
     ),
-    [searchTerm, columnSettingsButton, onCreateClick],
+    [searchTerm, columnSettingsButton, onCreateClick, refresh, isLoading],
   );
 
-  useRegisterChainHeaderActions(chainTabToolbar, [searchTerm, onCreateClick]);
+  useRegisterChainHeaderActions(chainTabToolbar, [
+    searchTerm,
+    onCreateClick,
+    refresh,
+    isLoading,
+  ]);
 
   return (
     <TablePageLayout>
@@ -284,6 +300,7 @@ export const Deployments: React.FC = () => {
         locale={{ emptyText: tableEmpty("No deployments") }}
         scroll={tableScroll(scrollX, filteredDeployments.length)}
         components={components}
+        onChange={handleConfiguredTableChange}
         style={{ flex: 1, minHeight: 0 }}
       />
     </TablePageLayout>

@@ -1,3 +1,4 @@
+import { Table } from "antd";
 import React, {
   useEffect,
   useState,
@@ -5,7 +6,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
-import { Flex, Radio, Spin, Table, Tag } from "antd";
+import { Flex, Radio, Spin, Tag } from "antd";
 import { message } from "../../../misc/antd-app.ts";
 import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import {
@@ -38,7 +39,7 @@ import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { usePermissions } from "../../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../../permissions/funcs.ts";
 import { useColumnSettingsBasedOnColumnsType } from "../../table/useColumnSettingsButton.tsx";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { createActionsSizing } from "../../table/actionsColumn.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
@@ -435,19 +436,24 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
       columns,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        name: 160,
-        address: 200,
-        sourceType: 100,
-        modifiedWhen: 160,
-        labels: 200,
-        usedBy: 120,
-      },
-      { applyDisableResizeBeforeActions: false },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      name: 160,
+      address: 200,
+      sourceType: 100,
+      modifiedWhen: 160,
+      labels: 200,
+      usedBy: 120,
+    },
+    { applyDisableResizeBeforeActions: false },
+    "serviceEnvironmentsTable",
+  );
 
   const [tableAreaRef, tableAreaHeight] = useResizeHeight<HTMLDivElement>();
 
@@ -583,6 +589,7 @@ export const ServiceEnvironmentsTab: React.FC<ServiceEnvironmentsTabProps> = ({
             columns={columnsWithResize}
             scroll={tableScroll}
             components={components}
+            onChange={handleConfiguredTableChange}
           />
         </div>
       </TablePageLayout>

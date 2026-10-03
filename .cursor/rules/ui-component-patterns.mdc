@@ -1,5 +1,5 @@
 ---
-description: Component-level patterns for tables, modals, forms, notifications, and icons.
+description: "Component-level patterns for tables, modals, forms, notifications, and icons."
 globs: "ui/src/components/**/*.{ts,tsx}"
 ---
 

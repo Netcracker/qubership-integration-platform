@@ -1,0 +1,68 @@
+---
+id: "141e69f6-a106-47c9-ba45-090fdd7052a6"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "try-catch-finally unexpected errors"
+content:
+  labels: []
+  elements:
+  - id: "4393bfdb-8287-41b8-8ae8-63e17c3e0e3a"
+    name: "Try-Catch-Finally"
+    type: "try-catch-finally-2"
+    children:
+    - id: "11454d62-d10d-49f6-bbf9-fed62873fae8"
+      name: "Finally"
+      type: "finally-2"
+      children:
+      - id: "d3c29565-da6b-435b-94bd-059af2cfcc46"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "d3c29565-da6b-435b-94bd-059af2cfcc46.element.script.cip.groovy"
+          propertiesToExportInSeparateFile: "script"
+    - id: "a5d91227-9255-4e78-97d9-bca2851fd6e4"
+      name: "Try"
+      type: "try-2"
+      children:
+      - id: "0062155f-0d2a-43c4-979b-dbc1592a7d6b"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "0062155f-0d2a-43c4-979b-dbc1592a7d6b.element.script.cip.groovy"
+          propertiesToExportInSeparateFile: "script"
+      - id: "8ba96056-cef1-4cf7-a9bb-f46439fccca6"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "8ba96056-cef1-4cf7-a9bb-f46439fccca6.element.script.cip.groovy"
+          propertiesToExportInSeparateFile: "script"
+    - id: "eafdd913-691a-4477-9099-38565efe9611"
+      name: "Catch ArithmeticException"
+      type: "catch-2"
+      children:
+      - id: "c8f14b08-438d-4b68-a4c6-65f01ab1b28b"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "c8f14b08-438d-4b68-a4c6-65f01ab1b28b.element.script.cip.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        exception: "java.lang.ArithmeticException"
+        priority: 0
+  - id: "9632d452-1209-4922-b1a7-7303fbd15f14"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "9632d452-1209-4922-b1a7-7303fbd15f14"
+  dependencies:
+  - from: "0062155f-0d2a-43c4-979b-dbc1592a7d6b"
+    to: "8ba96056-cef1-4cf7-a9bb-f46439fccca6"
+  - from: "9632d452-1209-4922-b1a7-7303fbd15f14"
+    to: "4393bfdb-8287-41b8-8ae8-63e17c3e0e3a"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

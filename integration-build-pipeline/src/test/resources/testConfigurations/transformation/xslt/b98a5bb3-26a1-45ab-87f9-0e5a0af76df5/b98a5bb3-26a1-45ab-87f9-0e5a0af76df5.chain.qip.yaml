@@ -1,0 +1,24 @@
+---
+id: "b98a5bb3-26a1-45ab-87f9-0e5a0af76df5"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "xslt"
+content:
+  labels: []
+  elements:
+  - id: "61e9e5d6-696a-450c-829f-4c55b124fd6a"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "61e9e5d6-696a-450c-829f-4c55b124fd6a"
+  - id: "85718c16-bb01-47d6-8eeb-f3046ff0a318"
+    name: "XSLT"
+    type: "xslt"
+    properties:
+      templateName: "transform.xslt"
+  dependencies:
+  - from: "61e9e5d6-696a-450c-829f-4c55b124fd6a"
+    to: "85718c16-bb01-47d6-8eeb-f3046ff0a318"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

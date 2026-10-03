@@ -1,0 +1,91 @@
+---
+id: "b89dacba-525f-4a2d-940e-6f96a1418e48"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "reuse w/ errors"
+content:
+  labels: []
+  elements:
+  - id: "029461c1-14cb-4b0b-8cb1-abc43925221e"
+    name: "Reuse"
+    type: "reuse"
+    children:
+    - id: "a2551b8e-9fc1-44c9-92c3-b1925d5aceb5"
+      name: "Script"
+      type: "script"
+      properties:
+        exportFileExtension: "groovy"
+        propertiesFilename: "a2551b8e-9fc1-44c9-92c3-b1925d5aceb5.element.script.cip.groovy"
+        propertiesToExportInSeparateFile: "script"
+  - id: "15396432-48c7-4de8-8451-d4fd7b57337d"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "15396432-48c7-4de8-8451-d4fd7b57337d"
+  - id: "9f981a7c-f986-4f61-ae02-c06dd3ef4987"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "9f981a7c-f986-4f61-ae02-c06dd3ef4987.element.script.cip.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "b0d8636d-7911-4b35-b282-2ae212faf24f"
+    name: "Try-Catch-Finally"
+    type: "try-catch-finally-2"
+    children:
+    - id: "1c8152b1-767b-4f59-822a-662b7e89d440"
+      name: "Finally"
+      type: "finally-2"
+      children:
+      - id: "be5e415d-8118-4dee-9cc6-eda4d364f50d"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "be5e415d-8118-4dee-9cc6-eda4d364f50d.element.script.cip.groovy"
+          propertiesToExportInSeparateFile: "script"
+    - id: "995906b5-517b-44f8-8f18-9cafee5b116e"
+      name: "Catch"
+      type: "catch-2"
+      children:
+      - id: "5d84d685-6200-4f6d-8cb8-819d5a7b203b"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "5d84d685-6200-4f6d-8cb8-819d5a7b203b.element.script.cip.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        exception: "java.lang.Exception"
+        priority: 0
+    - id: "b0a17e4c-90d5-43de-a1dc-af45793f463d"
+      name: "Try"
+      type: "try-2"
+      children:
+      - id: "03adf538-42d6-4d12-aaf6-580d1996f455"
+        name: "Reuse Reference"
+        type: "reuse-reference"
+        properties:
+          reuseElementId: "029461c1-14cb-4b0b-8cb1-abc43925221e"
+      - id: "05316943-0b8d-444d-9176-8a24350f2d23"
+        name: "Reuse Reference"
+        type: "reuse-reference"
+        properties:
+          reuseElementId: "029461c1-14cb-4b0b-8cb1-abc43925221e"
+      - id: "0b4ff3b2-546a-4d38-b4c4-5dc7b39daee7"
+        name: "Reuse Reference"
+        type: "reuse-reference"
+        properties:
+          reuseElementId: "029461c1-14cb-4b0b-8cb1-abc43925221e"
+  dependencies:
+  - from: "03adf538-42d6-4d12-aaf6-580d1996f455"
+    to: "05316943-0b8d-444d-9176-8a24350f2d23"
+  - from: "05316943-0b8d-444d-9176-8a24350f2d23"
+    to: "0b4ff3b2-546a-4d38-b4c4-5dc7b39daee7"
+  - from: "15396432-48c7-4de8-8451-d4fd7b57337d"
+    to: "9f981a7c-f986-4f61-ae02-c06dd3ef4987"
+  - from: "9f981a7c-f986-4f61-ae02-c06dd3ef4987"
+    to: "b0d8636d-7911-4b35-b282-2ae212faf24f"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

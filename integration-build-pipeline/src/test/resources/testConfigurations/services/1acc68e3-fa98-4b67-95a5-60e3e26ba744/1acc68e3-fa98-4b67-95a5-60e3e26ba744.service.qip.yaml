@@ -1,0 +1,22 @@
+---
+id: "1acc68e3-fa98-4b67-95a5-60e3e26ba744"
+$schema: "http://qubership.org/schemas/product/qip/service"
+name: "Test internal service"
+content:
+  integrationSystemType: "INTERNAL"
+  protocol: "HTTP"
+  environments:
+  - id: "edcb8daf-82d5-4f06-ae0a-b54d938ed02f"
+    name: "QA"
+    address: "http://petstore.test:8080"
+    sourceType: "MANUAL"
+    labels:
+    - "QA"
+    properties:
+      soTimeout: "120000"
+      getWithBody: "false"
+      connectTimeout: "120000"
+      deleteWithBody: "false"
+      responseTimeout: "120000"
+      connectionRequestTimeout: "120000"
+  migrations: "[100, 101, 102]"

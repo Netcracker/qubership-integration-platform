@@ -18,6 +18,7 @@ package org.qubership.integration.platform.runtime.catalog.cr;
 
 import com.coreos.monitoring.models.V1ServiceMonitor;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
+import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
 import io.kubernetes.client.openapi.models.V1OwnerReference;
@@ -66,6 +67,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
@@ -263,6 +265,28 @@ class MicroDomainServiceTest {
         service.deploy(new BuiltResources(manifest, Map.of()));
 
         verify(kubeOperator).createOrUpdateResource(any(V1ConfigMap.class), anyBoolean());
+    }
+
+    @DisplayName("Writes the Integration before the ConfigMaps and keeps the build order of the rest")
+    @Test
+    void deployWritesTheIntegrationFirst() {
+        String manifest = String.join("---\n",
+                "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: source-1\n",
+                integrationYaml(INTEGRATION_RESOURCE_NAME),
+                "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: source-2\n");
+
+        MicroDomainService service = newService(false);
+        // See deployStampsObservedResourceVersion for why this call is needed.
+        service.init();
+        service.deploy(new BuiltResources(manifest, Map.of()));
+
+        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
+        verify(kubeOperator, times(3)).createOrUpdateResource(captor.capture(), anyBoolean());
+        List<String> written = captor.getAllValues().stream()
+                .map(resource -> ((KubernetesObject) resource).getMetadata().getName())
+                .toList();
+        assertEquals(List.of(INTEGRATION_RESOURCE_NAME, "source-1", "source-2"), written,
+                "a ConfigMap written first makes the operator bump the Integration's resourceVersion");
     }
 
     @DisplayName("Wraps a failed apply in a MicroDomainDeployError that keeps the cause")

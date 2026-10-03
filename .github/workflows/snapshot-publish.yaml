@@ -40,6 +40,7 @@ on:
           - runtime-catalog
           - sessions-management
           - integration-build-pipeline
+          - integration-build-maven-plugin
         default: engine
 
 concurrency:
@@ -63,7 +64,7 @@ jobs:
           persist-credentials: false
 
       - name: Set up Java
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4.8.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: "21"
           distribution: "temurin"
@@ -90,13 +91,13 @@ jobs:
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
         run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
 
-      # runtime-catalog pins integration-build-pipeline at its development
-      # coordinate, and the deploy below builds one module with no reactor.
-      # Publishing the library first gives that build the matching bytes (deploy
-      # installs locally too) and leaves consumers of the published SNAPSHOT a
-      # library SNAPSHOT they can actually resolve.
+      # runtime-catalog and the Maven plugin pin integration-build-pipeline at its
+      # development coordinate, and the deploy below builds one module with no
+      # reactor. Publishing the library first gives that build the matching bytes
+      # (deploy installs locally too) and leaves consumers of the published
+      # SNAPSHOT a library SNAPSHOT they can actually resolve.
       - name: Deploy the pinned library SNAPSHOT
-        if: ${{ inputs.module == 'runtime-catalog' }}
+        if: ${{ inputs.module == 'runtime-catalog' || inputs.module == 'integration-build-maven-plugin' }}
         env:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}

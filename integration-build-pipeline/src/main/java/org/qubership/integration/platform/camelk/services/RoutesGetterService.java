@@ -28,10 +28,10 @@ import static org.qubership.integration.platform.util.TriggerUtils.getHttpConnec
 @Slf4j
 @Service
 public class RoutesGetterService {
-    @Value("${qip.control-plane.chain-routes-registration.egress-gateway:true}")
+    @Value("${cip.control-plane.chain-routes-registration.egress-gateway:true}")
     private boolean registerOnEgress;
 
-    @Value("${qip.control-plane.chain-routes-registration.ingress-gateways:true}")
+    @Value("${cip.control-plane.chain-routes-registration.ingress-gateways:true}")
     private boolean registerOnIncomingGateways;
 
     public List<Route> getRoutes(

@@ -1,4 +1,6 @@
-# Qubership Integration Platform
+# Cloud Integration Platform
+
+(formerly known as *Qubership Integration Platform*)
 
 Open-source integration and orchestration platform built on Apache Camel. Lets you build integration flows (chains) with data transformation, process orchestration, and mapping between system formats. Deployed on Kubernetes; Docker Compose is used for local development.
 
@@ -52,7 +54,7 @@ npm -w @netcracker/qip-schemas run build
 npm -w @netcracker/qip-ui run build
 ```
 
-The `prebuild` step clones the [help repository](https://github.com/Netcracker/qubership-integration-help.git) into `ui/public/doc/`, so network access is required.
+The `fetch-docs` step copies [`help/docs/`](help/docs/) into `ui/public/doc/`.
 
 ### Step 4 — Start the local backend stack
 

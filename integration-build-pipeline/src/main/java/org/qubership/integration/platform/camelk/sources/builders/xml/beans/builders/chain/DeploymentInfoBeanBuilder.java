@@ -32,6 +32,8 @@ public class DeploymentInfoBeanBuilder implements SnapshotBeanBuilder {
         streamWriter.writeAttribute("key", "timestamp");
         streamWriter.writeAttribute("value", Long.toString(context.getBuildTimestamp().getEpochSecond()));
 
+        writeOptionalProperty(streamWriter, "createdBy", context.getCreatedBy());
+
         streamWriter.writeEmptyElement("property");
         streamWriter.writeAttribute("key", "chain.id");
         streamWriter.writeAttribute("value", snapshot.getChain().getId());
@@ -50,5 +52,18 @@ public class DeploymentInfoBeanBuilder implements SnapshotBeanBuilder {
 
         streamWriter.writeEndElement();
         streamWriter.writeEndElement();
+    }
+
+    private void writeOptionalProperty(
+            XMLStreamWriter2 streamWriter,
+            String key,
+            String value
+    ) throws Exception {
+        if (value == null) {
+            return;
+        }
+        streamWriter.writeEmptyElement("property");
+        streamWriter.writeAttribute("key", key);
+        streamWriter.writeAttribute("value", value);
     }
 }

@@ -2,7 +2,7 @@ import React, { ReactNode, useEffect, useMemo, useState } from "react";
 import { Flex, Switch, Table } from "antd";
 import { TableProps } from "antd/lib/table";
 import { PLACEHOLDER } from "../../misc/format-utils.ts";
-import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { tableScroll } from "../table/tableScroll.ts";
 import styles from "./SessionElementKVChanges.module.css";
 
@@ -288,7 +288,7 @@ export const SessionElementKVChanges = <ValueType = unknown,>({
   );
 
   const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(columns, {
+    useTableConfiguration(columns, {
       name: 180,
       typeBefore: 140,
       before: 220,

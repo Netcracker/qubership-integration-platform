@@ -41,7 +41,7 @@ import { SelectEdit } from "../table/SelectEdit.tsx";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { ChainDiffPopup } from "../chains/diff/ChainDiffPopup.tsx";
 import { useModalsContext } from "../../Modals.tsx";
 
@@ -594,7 +594,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: previewChainColumnsResized,
     scrollX: previewChainScrollX,
     components: previewChainComponents,
-  } = useColumnsWithResizeAndScroll(previewChainTableColumns, {
+  } = useTableConfiguration(previewChainTableColumns, {
     name: 180,
     id: 220,
     domains: 220,
@@ -606,7 +606,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: previewServiceColumnsResized,
     scrollX: previewServiceScrollX,
     components: previewServiceComponents,
-  } = useColumnsWithResizeAndScroll(
+  } = useTableConfiguration(
     PREVIEW_IMPORT_SERVICE_TABLE_COLUMNS,
     {
       name: 240,
@@ -621,7 +621,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: previewVariablesColumnsResized,
     scrollX: previewVariablesScrollX,
     components: previewVariablesComponents,
-  } = useColumnsWithResizeAndScroll(
+  } = useTableConfiguration(
     PREVIEW_IMPORT_COMMON_VARIABLES_TABLE_COLUMNS,
     {
       name: 200,
@@ -637,7 +637,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: resultChainColumnsResized,
     scrollX: resultChainScrollX,
     components: resultChainComponents,
-  } = useColumnsWithResizeAndScroll(resultChainTableColumns, {
+  } = useTableConfiguration(resultChainTableColumns, {
     name: 220,
     id: 260,
     status: 180,
@@ -647,7 +647,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: resultServiceColumnsResized,
     scrollX: resultServiceScrollX,
     components: resultServiceComponents,
-  } = useColumnsWithResizeAndScroll(resultServiceTableColumns, {
+  } = useTableConfiguration(resultServiceTableColumns, {
     name: 220,
     id: 260,
     status: 180,
@@ -657,7 +657,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: resultVariablesColumnsResized,
     scrollX: resultVariablesScrollX,
     components: resultVariablesComponents,
-  } = useColumnsWithResizeAndScroll(RESULT_COMMON_VARIABLES_TABLE_COLUMNS, {
+  } = useTableConfiguration(RESULT_COMMON_VARIABLES_TABLE_COLUMNS, {
     name: 200,
     value: 200,
     status: 180,

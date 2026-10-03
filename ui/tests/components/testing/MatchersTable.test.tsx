@@ -115,13 +115,14 @@ describe("MatchersTable columns", () => {
     expect(cellOf(container, "m1", 5)).toHaveTextContent("Not applicable");
   });
 
-  test("should expand and collapse the description", () => {
+  test("should offer no expand toggle for a description that fits", () => {
     renderTable({
-      matchers: [matcher({ description: "a long explanation" })],
+      matchers: [matcher({ description: "short" })],
     });
-    const toggle = screen.getByLabelText("Expand description");
-    fireEvent.click(toggle);
-    expect(screen.getByLabelText("Collapse description")).toBeInTheDocument();
+    expect(screen.getByText("short")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /expand/i }),
+    ).not.toBeInTheDocument();
   });
 });
 

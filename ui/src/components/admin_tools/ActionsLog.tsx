@@ -1,8 +1,4 @@
-import {
-  ActionLog,
-  EntityType,
-  LogOperation,
-} from "../../api/apiTypes.ts";
+import { ActionLog, EntityType, LogOperation } from "../../api/apiTypes.ts";
 import {
   Badge,
   Button,
@@ -12,7 +8,7 @@ import {
   Table,
   Tooltip,
 } from "antd";
-import React, { UIEvent, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useActionLog } from "../../hooks/useActionLog.tsx";
 import {
   capitalize,
@@ -22,6 +18,7 @@ import {
 import DateRangePicker from "../modal/DateRangePicker.tsx";
 import { exportActionsLogAsExcel } from "../../misc/log-export-utils.ts";
 import { useResizeHeight } from "../../hooks/useResizeHeigth.tsx";
+import { useTableInfiniteScroll } from "../../hooks/useTableInfiniteScroll.ts";
 import commonStyles from "./CommonStyle.module.css";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
 import { Require } from "../../permissions/Require.tsx";
@@ -32,9 +29,8 @@ import {
 import {
   attachResizeToColumns,
   sumScrollXForColumns,
-  useTableColumnResize,
 } from "../table/useTableColumnResize.tsx";
-import { matchesByFields } from "../table/tableSearch.ts";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { TableToolbar } from "../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "./AdminToolsHeader.tsx";
 import { useActionLogFilter } from "../../hooks/useActionLogFilter.ts";
@@ -143,23 +139,9 @@ const externalEntityType: EntityType[] = [
 
 const EXTERNAL_ENTITY_PATTERN = /^[^\\/:*?"<>|]+\.(zip|ya?ml|xml|wsdl)$/i;
 
-function actionLogMatchesSearch(log: ActionLog, term: string): boolean {
-  return matchesByFields(term, [
-    log.username,
-    log.userId,
-    log.operation,
-    log.entityType,
-    log.parentType,
-    log.entityName,
-    log.parentName,
-    log.entityId,
-    log.parentId,
-    log.requestId,
-  ]);
-}
-
 export const ActionsLog: React.FC = () => {
   const { filters, filterButton } = useActionLogFilter();
+  const [searchTerm, setSearchTerm] = useState("");
   const {
     logsData,
     fetchNextPage,
@@ -167,45 +149,39 @@ export const ActionsLog: React.FC = () => {
     isFetching,
     isLoading,
     refresh,
-  } = useActionLog(filters);
-  const [searchTerm, setSearchTerm] = useState("");
+    confirmSearch,
+  } = useActionLog(filters, searchTerm);
   const [currentActionLog, setCurrentActionLog] = useState<ActionLog | null>(
     null,
   );
 
-  const filteredLogsData = useMemo(
-    () => logsData.filter((log) => actionLogMatchesSearch(log, searchTerm)),
-    [logsData, searchTerm],
-  );
+  const [containerRef, containerHeight] = useResizeHeight<HTMLDivElement>();
 
-  const lastScrollTopRef = useRef(0);
-
-  const onScroll = async (event: UIEvent<HTMLDivElement>) => {
-    const target = event.target as HTMLDivElement;
-    // The scroll event fires on horizontal scroll too; only react to vertical
-    // movement so sideways scrolling never triggers a page fetch.
-    const movedVertically = target.scrollTop !== lastScrollTopRef.current;
-    lastScrollTopRef.current = target.scrollTop;
-    const isScrolledToTheEnd =
-      target.scrollTop + target.clientHeight + 1 >= target.scrollHeight;
-    if (movedVertically && hasNextPage && !isFetching && isScrolledToTheEnd) {
-      await fetchNextPage();
-    }
-  };
-
-  const [containerRef, containerHeight] = useResizeHeight<HTMLElement>();
-
-  const actionLogColumnResize = useTableColumnResize({
-    actionTime: 180,
-    username: 150,
-    operation: 150,
-    entityType: 160,
-    entityName: 260,
-    parentName: 200,
-    entityId: 200,
-    parentId: 200,
-    requestId: 200,
+  useTableInfiniteScroll(containerRef, {
+    isLoading: isFetching,
+    allLoaded: !hasNextPage,
+    loadMore: fetchNextPage,
   });
+
+  const {
+    columnResize: actionLogColumnResize,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration<ActionLog>(
+    undefined,
+    {
+      actionTime: 180,
+      username: 150,
+      operation: 150,
+      entityType: 160,
+      entityName: 260,
+      parentName: 200,
+      entityId: 200,
+      parentId: 200,
+      requestId: 200,
+    },
+    {},
+    "actionsLogTable",
+  );
 
   const [openSidebar, setOpenSidebar] = useState(false);
 
@@ -445,10 +421,12 @@ export const ActionsLog: React.FC = () => {
 
   const auditToolbar = (
     <TableToolbar
+      refresh={{ onRefresh: refresh, loading: isLoading || isFetching }}
       variant="admin"
       search={{
         value: searchTerm,
         onChange: setSearchTerm,
+        onSearchConfirm: confirmSearch,
         placeholder: "Search audit log...",
         allowClear: true,
       }}
@@ -456,12 +434,6 @@ export const ActionsLog: React.FC = () => {
       filterButton={filterButton}
       actions={
         <>
-          <Tooltip title="Refresh" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="refresh" />}
-              onClick={() => void refresh()}
-            />
-          </Tooltip>
           {!(isLoading || isFetching) && (
             <Require permissions={{ actionLog: ["export"] }}>
               <Tooltip title="Export action logs" placement="bottom">
@@ -548,7 +520,7 @@ export const ActionsLog: React.FC = () => {
           }}
         >
           <div
-            ref={containerRef as unknown as React.Ref<HTMLDivElement>}
+            ref={containerRef}
             style={{
               height: "100%",
               display: "flex",
@@ -559,7 +531,7 @@ export const ActionsLog: React.FC = () => {
               className="flex-table"
               size="small"
               columns={orderedColumnsResized}
-              dataSource={filteredLogsData}
+              dataSource={logsData}
               scroll={{
                 x: actionLogScrollX,
                 y: containerHeight > 59 ? containerHeight - 59 : 400,
@@ -567,8 +539,8 @@ export const ActionsLog: React.FC = () => {
               pagination={false}
               rowKey="id"
               loading={isFetching}
-              onScroll={(event) => void onScroll(event)}
               components={actionLogColumnResize.resizableHeaderComponents}
+              onChange={handleConfiguredTableChange}
               onRow={(row) => {
                 return {
                   onClick: () => {

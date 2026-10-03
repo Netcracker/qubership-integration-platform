@@ -1,7 +1,7 @@
+import { Table } from "antd";
 import React, { useMemo, useState, UIEvent } from "react";
 import {
   Flex,
-  Table,
   Button,
   Tag,
   Tooltip,
@@ -35,7 +35,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
@@ -375,23 +375,29 @@ export const AccessControl: React.FC = () => {
     return !accessControlData.roles.some((row) => hasUnsavedChanges(row));
   };
 
-  const { columnsWithResize, components, scrollX } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        endpoint: 200,
-        type: 100,
-        accessControlType: 160,
-        roles: 100,
-        attributes: 100,
-        chain: 190,
-        chainStatus: 110,
-      },
-      { selectionColumnWidth: 48 },
-    );
+  const {
+    columnsWithResize,
+    components,
+    scrollX,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      endpoint: 200,
+      type: 100,
+      accessControlType: 160,
+      roles: 100,
+      attributes: 100,
+      chain: 190,
+      chainStatus: 110,
+    },
+    { selectionColumnWidth: 48 },
+    "accessControlTable",
+  );
 
   const accessControlToolbar = (
     <TableToolbar
+      refresh={{ onRefresh: getAccessControl, loading: isLoading }}
       variant="admin"
       search={{
         value: searchTerm,
@@ -546,12 +552,6 @@ export const AccessControl: React.FC = () => {
               },
             }}
           />
-          <Tooltip title="Refresh" placement="bottom">
-            <Button
-              icon={<OverridableIcon name="refresh" />}
-              onClick={() => void getAccessControl()}
-            />
-          </Tooltip>
         </>
       }
     />
@@ -750,6 +750,7 @@ export const AccessControl: React.FC = () => {
                 },
               }}
               components={components}
+              onChange={handleConfiguredTableChange}
               rowClassName={(row) =>
                 hasUnsavedChanges(row) ? "highlight-row" : ""
               }

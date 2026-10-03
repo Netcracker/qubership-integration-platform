@@ -1,5 +1,5 @@
 ---
-description: Guidance for updating product documentation when a feature lands.
+description: "Guidance for updating product documentation when a feature lands."
 globs: "help/docs/**/*.md"
 ---
 

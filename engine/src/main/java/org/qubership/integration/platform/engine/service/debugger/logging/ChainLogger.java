@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
 import java.util.Optional;
 
 @Component
-@ConditionalOnProperty(name = "qip.logging.format", havingValue = "text")
+@ConditionalOnProperty(name = "cip.logging.format", havingValue = "text")
 public class ChainLogger extends AbstractChainLogger {
     private static final String LOG_EXCHANGE_FORMAT = "Headers: {}, body: {}, exchange properties: {}";
 

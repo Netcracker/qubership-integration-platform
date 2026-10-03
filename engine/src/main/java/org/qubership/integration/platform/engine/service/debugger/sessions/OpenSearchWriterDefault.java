@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
-@ConditionalOnProperty(name = "qip.opensearch.kafka-client.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = "cip.opensearch.kafka-client.enabled", havingValue = "false", matchIfMissing = true)
 public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnable {
 
     private final long queueMaxSizeBytes;
@@ -63,13 +63,13 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
 
     private long currentWriteTimeout = 0;
 
-    @Value("${qip.opensearch.write.batch.count}")
+    @Value("${cip.opensearch.write.batch.count}")
     private int queueDrainThreshold;
-    @Value("${qip.opensearch.write.retry.timeout.minimum}")
+    @Value("${cip.opensearch.write.retry.timeout.minimum}")
     private long writeTimeoutDefaultMin;
-    @Value("${qip.opensearch.write.retry.timeout.maximum}")
+    @Value("${cip.opensearch.write.retry.timeout.maximum}")
     private long writeTimeoutDefaultMax;
-    @Value("${qip.opensearch.index.elements.name}-session-elements")
+    @Value("${cip.opensearch.index.elements.name}-session-elements")
     private String indexName;
 
     private static final int EXCEPTION_COOLDOWN_DELAY = 10000;
@@ -80,11 +80,11 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
     private static final int RETRY_COUNT_ON_WRITE_ERROR = 5;
 
     @Autowired
-    public OpenSearchWriterDefault(@Value("${qip.sessions.queue.capacity}") int sessionBufferCapacity,
-                                   @Value("${qip.sessions.queue.max-size-mb}") int queueMaxSizeMb,
-                                   @Value("${qip.sessions.bulk-request.max-size-kb}") int bulkRequestMaxSizeKb,
-                                   @Value("${qip.sessions.bulk-request.payload-size-threshold-kb}") int bulkRequestPayloadSizeThresholdKb,
-                                   @Value("${qip.sessions.bulk-request.elements-count-threshold}") int bulkRequestElementsCountThreshold,
+    public OpenSearchWriterDefault(@Value("${cip.sessions.queue.capacity}") int sessionBufferCapacity,
+                                   @Value("${cip.sessions.queue.max-size-mb}") int queueMaxSizeMb,
+                                   @Value("${cip.sessions.bulk-request.max-size-kb}") int bulkRequestMaxSizeKb,
+                                   @Value("${cip.sessions.bulk-request.payload-size-threshold-kb}") int bulkRequestPayloadSizeThresholdKb,
+                                   @Value("${cip.sessions.bulk-request.elements-count-threshold}") int bulkRequestElementsCountThreshold,
                                    DbaasOpensearchClient dbaasOpenSearchClient,
                                    @Qualifier("jsonMapper") ObjectMapper mapper) {
         sessionElementsQueue = new LinkedBlockingQueue<>(sessionBufferCapacity);
@@ -190,7 +190,9 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
                         needToExecuteBulk = false;
                     }
                 } catch (Exception e) {
-                    log.error("While sessions writing an error has occurred", e);
+                    log.error("While sessions writing an error has occurred (retry {}/{}), next attempt in {}ms. queueSize={}, currentPayloadKb={}",
+                        currentRetry, RETRY_COUNT_ON_WRITE_ERROR, currentWriteTimeout,
+                        sessionElementsQueue.size(), queueTotalPayloadSize.get() / 1024, e);
                     increaseWriteTimeout();
                     if (currentRetry < RETRY_COUNT_ON_WRITE_ERROR) {
                         currentRetry++;
@@ -278,13 +280,19 @@ public class OpenSearchWriterDefault extends OpenSearchWriter implements Runnabl
 
     protected void scheduleElementToLog(SessionElementElastic element, boolean addToCache) {
         long payloadSize = calculatePayloadSizeInBytes(element);
-        if (queueTotalPayloadSize.get() >= queueMaxSizeBytes
-                || !sessionElementsQueue.offer(
+        long currentPayload = queueTotalPayloadSize.get();
+        if (currentPayload >= queueMaxSizeBytes) {
+            log.error("Queue of opensearch elements is full, element is not added (PAYLOAD LIMIT): currentPayloadKb={}, maxPayloadKb={}, queueSize={}, sessionId={}, elementId={}, writerBackoffMs={}",
+                currentPayload / 1024, queueMaxSizeBytes / 1024,
+                sessionElementsQueue.size(), element.getSessionId(), element.getId(), currentWriteTimeout);
+        } else if (!sessionElementsQueue.offer(
                 QueueElement.builder()
                         .element(element)
                         .calculatedPayloadSize(payloadSize)
                         .build())) {
-            log.error("Queue of opensearch elements is full, element is not added");
+            log.error("Queue of opensearch elements is full, element is not added (CAPACITY LIMIT): queueSize={}, currentPayloadKb={}, sessionId={}, elementId={}, writerBackoffMs={}",
+                sessionElementsQueue.size(), currentPayload / 1024,
+                element.getSessionId(), element.getId(), currentWriteTimeout);
         } else {
             queueTotalPayloadSize.addAndGet(payloadSize);
         }

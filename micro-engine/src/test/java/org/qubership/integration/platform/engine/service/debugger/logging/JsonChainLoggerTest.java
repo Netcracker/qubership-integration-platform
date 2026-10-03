@@ -34,7 +34,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 
 @DisplayNameGeneration(DisplayNameUtils.ReplaceCamelCase.class)
-@TestConfigProperty(key = "qip.logging.format", value = "json")
+@TestConfigProperty(key = "cip.logging.format", value = "json")
 @TestConfigProperty(key = "application.prefix", value = "qip")
 class JsonChainLoggerTest {
 

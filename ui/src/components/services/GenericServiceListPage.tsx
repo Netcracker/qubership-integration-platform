@@ -7,7 +7,10 @@ import React, {
   useState,
 } from "react";
 import { Flex, Space, Typography } from "antd";
-import { CompactSearch } from "../table/CompactSearch.tsx";
+import {
+  TableToolbar,
+  type TableToolbarRefresh,
+} from "../table/TableToolbar.tsx";
 import { ProtectedButton } from "../../permissions/ProtectedButton.tsx";
 import { CreateServiceModal } from "./modals/CreateServiceModal.tsx";
 import { useModalsContext } from "../../Modals.tsx";
@@ -15,6 +18,7 @@ import { IntegrationSystemType } from "../../api/apiTypes.ts";
 import ImportServicesModal from "./modals/ImportServicesModal.tsx";
 
 type GenericServiceListPageProps = PropsWithChildren & {
+  refresh?: TableToolbarRefresh;
   title: string;
   icon: ReactNode;
   extraActions: ReactNode[];
@@ -37,6 +41,7 @@ function getSystemTypeName(systemType: IntegrationSystemType): string {
 
 export const GenericServiceListPage: React.FC<GenericServiceListPageProps> = ({
   title,
+  refresh,
   icon,
   extraActions,
   serviceType,
@@ -78,68 +83,74 @@ export const GenericServiceListPage: React.FC<GenericServiceListPageProps> = ({
             </Space>
           </Typography.Title>
         </Flex>
-        <Flex vertical={false} align="center" gap={8} wrap="wrap">
-          <CompactSearch
-            value={searchString}
-            onChange={handleSearchChange}
-            placeholder="Search services..."
-            allowClear
-            onSearchConfirm={(v) => {
+        <TableToolbar
+          variant="admin"
+          search={{
+            value: searchString,
+            onChange: handleSearchChange,
+            placeholder: "Search services...",
+            allowClear: true,
+            onSearchConfirm: (value) => {
               clearTimeout(searchDebounceRef.current);
-              setDebouncedSearch(v);
-            }}
-          />
-          {extraActions.map((extraAction, index) => (
-            <React.Fragment key={index}>{extraAction}</React.Fragment>
-          ))}
-          <ProtectedButton
-            require={{ service: ["export"] }}
-            tooltipProps={{
-              title: "Download selected services",
-              placement: "bottom",
-            }}
-            buttonProps={{
-              iconName: "cloudDownload",
-              onClick: () => onExport(),
-            }}
-          />
-          <ProtectedButton
-            require={{ service: ["import"] }}
-            tooltipProps={{ title: "Upload services", placement: "bottom" }}
-            buttonProps={{
-              iconName: "cloudUpload",
-              onClick: () => {
-                showModal({
-                  component: (
-                    <ImportServicesModal
-                      onSuccess={() => onImport()}
-                      systemType={serviceType}
-                    />
-                  ),
-                });
-              },
-            }}
-          />
-          <ProtectedButton
-            require={{ service: ["create"] }}
-            tooltipProps={{ title: "Create service", placement: "bottom" }}
-            buttonProps={{
-              type: "primary",
-              iconName: "plus",
-              onClick: () => {
-                showModal({
-                  component: (
-                    <CreateServiceModal
-                      serviceType={serviceType}
-                      defaultName={`New ${getSystemTypeName(serviceType)} service`}
-                      onSubmit={onCreate}
-                    />
-                  ),
-                });
-              },
-            }}
-          />
-        </Flex>
+              setDebouncedSearch(value);
+            },
+          }}
+          refresh={refresh}
+          actions={
+            <>
+              {extraActions.map((extraAction, index) => (
+                <React.Fragment key={index}>{extraAction}</React.Fragment>
+              ))}
+              <ProtectedButton
+                require={{ service: ["export"] }}
+                tooltipProps={{
+                  title: "Download selected services",
+                  placement: "bottom",
+                }}
+                buttonProps={{
+                  iconName: "cloudDownload",
+                  onClick: () => onExport(),
+                }}
+              />
+              <ProtectedButton
+                require={{ service: ["import"] }}
+                tooltipProps={{ title: "Upload services", placement: "bottom" }}
+                buttonProps={{
+                  iconName: "cloudUpload",
+                  onClick: () => {
+                    showModal({
+                      component: (
+                        <ImportServicesModal
+                          onSuccess={() => onImport()}
+                          systemType={serviceType}
+                        />
+                      ),
+                    });
+                  },
+                }}
+              />
+              <ProtectedButton
+                require={{ service: ["create"] }}
+                tooltipProps={{ title: "Create service", placement: "bottom" }}
+                buttonProps={{
+                  type: "primary",
+                  iconName: "plus",
+                  onClick: () => {
+                    showModal({
+                      component: (
+                        <CreateServiceModal
+                          serviceType={serviceType}
+                          defaultName={`New ${getSystemTypeName(serviceType)} service`}
+                          onSubmit={onCreate}
+                        />
+                      ),
+                    });
+                  },
+                }}
+              />
+            </>
+          }
+        />
       </Flex>
       {children}
     </Flex>

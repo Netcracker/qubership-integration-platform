@@ -8,7 +8,7 @@ import { InlineEdit } from "../InlineEdit";
 import { TextValueEdit } from "../table/TextValueEdit";
 import { tableScroll } from "../table/tableScroll.ts";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 
 export type NamespacesEditDialogProps = {
   namespaces: XmlNamespace[];
@@ -135,7 +135,7 @@ export const NamespacesEditDialog: React.FC<NamespacesEditDialogProps> = ({
   );
 
   const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
+    useTableConfiguration(
       namespaceColumns,
       {
         alias: 160,

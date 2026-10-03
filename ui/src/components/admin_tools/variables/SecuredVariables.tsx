@@ -28,7 +28,7 @@ import { ProtectedButton } from "../../../permissions/ProtectedButton.tsx";
 import { Require } from "../../../permissions/Require.tsx";
 import { usePermissions } from "../../../permissions/usePermissions.tsx";
 import { hasPermissions } from "../../../permissions/funcs.ts";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { useVariableFilter } from "../../../hooks/filter/useVariableFilter.ts";
@@ -223,6 +223,10 @@ export const SecuredVariables: React.FC = () => {
 
   const handleUpdateVariable = useCallback(
     async (secret: string, key: string, value: string) => {
+      if (!value) {
+        setEditing(null);
+        return;
+      }
       const response = await api.updateSecuredVariables(secret, [
         { key, value },
       ]);
@@ -343,14 +347,15 @@ export const SecuredVariables: React.FC = () => {
   const expandedRowRender = useCallback(
     (secret: string) => (
       <VariablesTable
+        storageKey="securedVariableValuesTable"
         variables={filteredVariables[secret] || []}
         selectedKeys={selectedKeys[secret] || []}
         isAddingNew={newVariableKeys[secret]}
         editingKey={editing?.secret === secret ? editing.key : null}
         editingValue={editing?.secret === secret ? editingValue : ""}
-        onStartEditing={(key, value) => {
+        onStartEditing={(key) => {
           setEditing({ secret, key });
-          setEditingValue(value);
+          setEditingValue("");
         }}
         onChangeEditingValue={setEditingValue}
         onCancelEditing={() => {
@@ -492,9 +497,14 @@ export const SecuredVariables: React.FC = () => {
     columnResize: secretListColumnResize,
     columnsWithResize: secretListColumnsResized,
     components: secretListComponents,
-  } = useColumnsWithResizeAndScroll(secretListColumns, {
-    secret: 520,
-  });
+  } = useTableConfiguration(
+    secretListColumns,
+    {
+      secret: 520,
+    },
+    {},
+    "securedVariablesTable",
+  );
 
   return (
     <Flex vertical gap={16} className={commonStyles["container"]}>
@@ -510,6 +520,13 @@ export const SecuredVariables: React.FC = () => {
         iconName="lock"
         toolbar={
           <TableToolbar
+            refresh={{
+              onRefresh: loadSecrets,
+              loading: isLoading,
+              disabled:
+                editing !== null ||
+                Object.values(newVariableKeys).some(Boolean),
+            }}
             variant="admin"
             search={{
               value: searchTerm,

@@ -40,11 +40,8 @@ spec:
             - -jar
             - /app/qip-engine.jar
           env:
-            - name: CONSUL_ADMIN_TOKEN
-              valueFrom:
-                configMapKeyRef:
-                  key: CONSUL_ADMIN_TOKEN
-                  name: {{ .Release.Name }}-env
+            - name: CONSUL_ADMIN_TOKEN_FILE
+              value: /etc/secrets/pod-secrets/consul_admin_token
             - name: CONSUL_URL
               valueFrom:
                 configMapKeyRef:
@@ -158,4 +155,12 @@ spec:
           ports:
             - containerPort: 8080
             - containerPort: 5005
+          volumeMounts:
+            - name: pod-secrets
+              mountPath: /etc/secrets/pod-secrets
+              readOnly: true
+      volumes:
+        - name: pod-secrets
+          secret:
+            secretName: {{ .Release.Name }}-engine-pod-secrets
       restartPolicy: Always

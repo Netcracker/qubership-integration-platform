@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class TestingServiceConditionTest {
 
-    private static final String ADDRESS = "qip.testing.address=http://testing-service:8080";
+    private static final String ADDRESS = "cip.testing.address=http://testing-service:8080";
 
     private final ApplicationContextRunner runner =
             new ApplicationContextRunner().withUserConfiguration(EndpointMockTestingService.class);
@@ -29,13 +29,13 @@ class TestingServiceConditionTest {
 
     @Test
     void mockingIsOffWhenTheFlagIsFalse() {
-        runner.withPropertyValues(ADDRESS, "qip.testing.enabled=false")
+        runner.withPropertyValues(ADDRESS, "cip.testing.enabled=false")
                 .run(context -> assertEquals(0, context.getBeanNamesForType(TestingService.class).length));
     }
 
     @Test
     void mockingIsOnWhenTheFlagIsTrue() {
-        runner.withPropertyValues(ADDRESS, "qip.testing.enabled=true")
+        runner.withPropertyValues(ADDRESS, "cip.testing.enabled=true")
                 .run(context -> {
                     assertEquals(1, context.getBeanNamesForType(TestingService.class).length);
                     assertInstanceOf(EndpointMockTestingService.class, context.getBean(TestingService.class));
@@ -45,8 +45,8 @@ class TestingServiceConditionTest {
     // The keys the condition and the @Value read have to be the keys the shipped application.yml writes.
     @Test
     void theShippedConfigurationKeepsMockingOff() throws IOException {
-        assertEquals("${TESTING_SERVICE_ENABLED:false}", shippedProperty("qip.testing.enabled"));
-        assertEquals("${TESTING_SERVICE_ADDRESS:http://testing-service:8080}", shippedProperty("qip.testing.address"));
+        assertEquals("${TESTING_SERVICE_ENABLED:false}", shippedProperty("cip.testing.enabled"));
+        assertEquals("${TESTING_SERVICE_ADDRESS:http://testing-service:8080}", shippedProperty("cip.testing.address"));
     }
 
     private static Object shippedProperty(String name) throws IOException {

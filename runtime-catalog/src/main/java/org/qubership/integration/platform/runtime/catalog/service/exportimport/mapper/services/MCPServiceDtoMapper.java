@@ -39,7 +39,7 @@ public class MCPServiceDtoMapper {
 
     @Autowired
     public MCPServiceDtoMapper(
-            @Value("${qip.json.schemas.mcp-service:http://qubership.org/schemas/product/qip/mcp-service}") URI schemaUri,
+            @Value("${cip.json.schemas.mcp-service:http://qubership.org/schemas/product/qip/mcp-service}") URI schemaUri,
             List<MCPServiceImportFileMigration> migrations
     ) {
         this.schemaUri = schemaUri;

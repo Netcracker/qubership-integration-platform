@@ -3,13 +3,13 @@
 
 ---
 ### Overview
-Every integration call is being processed by **QIP Integration Engine**, which is based on **Apache Camel** framework. Based on this framework, when new session is started, there will be always **Exchange Object** created as the result. This object might be divided into three sections:
+Every integration call is being processed by **CIP Integration Engine**, which is based on **Apache Camel** framework. Based on this framework, when new session is started, there will be always **Exchange Object** created as the result. This object might be divided into three sections:
 
 - **Properties** - contains exchange properties, technical context data, declared variables and path parameters from request.
 - **Headers** - contains headers data, either received in the request as part of headers or query parameters or created as part of the chain itself.
 - **Body** - contains body data.
 
-The main purpose of utilizing Apache Camel in Qubership Integration Platform is to provide wide set of mechanism for message parsing, data modification and complex routing
+The main purpose of utilizing Apache Camel in Cloud Integration Platform is to provide wide set of mechanism for message parsing, data modification and complex routing
 while maintaining simple, understandable solution with user-friendly and convenient application.
 The application itself does not require deep knowledge in Apache Camel,
 as most of the available functionality is wrapped up into human-understandable elements, such as chain elements, entities card, etc. Diagram below shows the flow of context data through very basic chain.
@@ -83,7 +83,6 @@ Diagrams below show how context data is being managed by **Checkpoint** element:
 | 1,2 | When context data reaches ***Checkpoint***, it is being serialized and preserved to DB, so this data could be accessed later in case of chain failure. At this step system creates ***Checkpoint*** from which session could be restarted. |
 | 2   | Original context data is being processed as-is through next elements in the chain.                                                                                                                                                         |
 
-
 Diagrams below show how context data is being handled when **retry** is requested for failed session:
 
 ![Checkpoint retry context data flow diagram](img/camel_retry.svg)
@@ -109,7 +108,6 @@ Diagram below shows how context data is being managed by **Loop** element:
 | 1 | In each new iteration, ***Loop*** reuses context data from previous iteration, overriding it as the result. |
 | 2 | At the end of ***Loop*** processing, data from the last iteration will be in the context.                   |
 
-
 ### Reuse
 Diagram below shows how context data is being managed by pair of **Reuse Reference** and **Reuse** elements:
 
@@ -121,7 +119,6 @@ Diagram below shows how context data is being managed by pair of **Reuse Referen
 |---|---------------------------------------------------------------------------------------------------------------------------------|
 | 1 | Reuse reference routes context data to the ***Reuse*** container, where other elements are placed.                              |
 | 2 | When ***Reuse*** element finishes processing, context data is transferred back to ***Reuse Reference*** for further processing. |
-
 
 ### Condition
 Diagram below shows how context data is being managed by **Condition** element:
@@ -135,7 +132,6 @@ Diagram below shows how context data is being managed by **Condition** element:
 | 1 | Condition element routes context data to appropriate ***If*** container with respective chain part, depending on the expression and priority, configured in these containers. |
 | 2 | Context data reaches ***Else*** sub-element when data has not been handled by any ***If*** expression.                                                                        |
 
-
 ### Try-Catch-Finally
 Diagram below shows how context data is being managed by **Try-Catch-Finally** element:
 
@@ -148,7 +144,6 @@ Diagram below shows how context data is being managed by **Try-Catch-Finally** e
 | 1 | ***Try-Catch-Finally*** makes an attempt to execute logic under ***Try*** by using input context data.                     |
 | 2 | When attempt made and there is an error in response, resulted data will be passed to ***Catch*** sub-element if it exists. |
 | 3 | Sub element ***Finally*** receives finalized context from previous blocks and processes it.                                |
-
 
 ### Circuit Breaker
 Diagram below shows how context data is being managed by **Circuit Breaker** element in case of sunny-day scenario:
@@ -166,7 +161,6 @@ Diagram below shows how context data is being managed by **Circuit Breaker** ele
 
 ![Circuit Breaker rainy-day fallback scenario diagram](img/camel_cb_fallback.svg)
 
-
 **Steps Description**
 
 | # | Description                                                                                                                                             |
@@ -174,7 +168,26 @@ Diagram below shows how context data is being managed by **Circuit Breaker** ele
 | 1 | Context data always goes through ***Circuit Breaker Configuration*** sub-element. On the diagram above, there is a fallback happened during processing. |
 | 2 | ***On Fallback*** container receives context data and processes through the chain part, configured within this container.                               |
 
+## Process Initialization
+
+---
+
+Mentioned concept works for every chain, please refer to [Chains](../../01__Chains/chains.md) article for more details.
+
 ## User Interface
 
 ---
 Concept is being supported by [set of elements](../../01__Chains/1__Graph/graph.md) and functionality that do have a user interface. User interface capabilities and specifics are covered by respective articles, introduced for each particular element.
+
+## Data Storage
+
+---
+
+Please refer to  [CIP Architecture](../../05__Architecture/cip_architecture.md) for global data storage information.
+
+## Configuration
+
+---
+
+Configuration steps are fully covered by Installation Notes. Please read respective articles for each particular element or functionality, utilizing during chain set-up.
+

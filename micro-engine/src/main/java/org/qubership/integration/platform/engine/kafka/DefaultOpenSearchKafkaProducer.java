@@ -13,8 +13,8 @@ import org.qubership.integration.platform.engine.model.opensearch.SessionElement
 @Slf4j
 @ApplicationScoped
 @DefaultBean
-@IfBuildProperty(name = "qip.opensearch.kafka-client.enabled", stringValue = "true")
-@IfBuildProperty(name = "qip.opensearch.kafka-client.maas.enabled", stringValue = "false")
+@IfBuildProperty(name = "cip.opensearch.kafka-client.enabled", stringValue = "true")
+@IfBuildProperty(name = "cip.opensearch.kafka-client.maas.enabled", stringValue = "false")
 public class DefaultOpenSearchKafkaProducer implements OpenSearchKafkaProducer {
     @Inject
     @Channel("sessions")

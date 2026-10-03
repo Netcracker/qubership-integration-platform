@@ -6,7 +6,10 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import { Modal } from "antd";
 import { LiveExchanges } from "../../../../src/components/admin_tools/exchanges/LiveExchanges";
-import { SessionsLoggingLevel } from "../../../../src/api/apiTypes";
+import {
+  RestApiError,
+  SessionsLoggingLevel,
+} from "../../../../src/api/apiTypes";
 import { ProtectedButtonProps } from "../../../../src/permissions/ProtectedButton";
 import type { EntityFilterModel } from "../../../../src/components/table/filter/filterTypes";
 
@@ -70,9 +73,11 @@ jest.mock("../../../../src/permissions/ProtectedButton", () => ({
 }));
 
 const mockRequestFailed = jest.fn();
+const mockInfo = jest.fn();
 jest.mock("../../../../src/hooks/useNotificationService", () => ({
   useNotificationService: () => ({
     requestFailed: mockRequestFailed,
+    info: mockInfo,
   }),
 }));
 
@@ -146,11 +151,8 @@ describe("LiveExchanges", () => {
     );
     const callsBefore = mockGetAndFilterExchanges.mock.calls.length;
 
-    const refreshIcon = screen.getByTestId("icon-refresh");
-    const refreshBtn = refreshIcon.closest("button");
-    if (!refreshBtn) {
-      throw new Error("refresh button not found");
-    }
+    const refreshBtn = screen.getByRole("button", { name: "Refresh" });
+    await waitFor(() => expect(refreshBtn).toBeEnabled());
     fireEvent.click(refreshBtn);
 
     await waitFor(() => {
@@ -215,5 +217,39 @@ describe("LiveExchanges", () => {
         "ex-1",
       );
     });
+  });
+
+  it("terminate removes the row and shows an info notification when the exchange already finished", async () => {
+    mockTerminateExchange.mockRejectedValue(
+      new RestApiError("No live exchange found", 404),
+    );
+    render(<LiveExchanges />);
+    await screen.findByText("sess-1");
+
+    fireEvent.click(screen.getByTestId("Terminate exchange"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("sess-1")).not.toBeInTheDocument();
+    });
+    expect(mockInfo).toHaveBeenCalledWith("Exchange already finished");
+    expect(mockRequestFailed).not.toHaveBeenCalled();
+  });
+
+  it("terminate keeps the row and notifies when the request fails otherwise", async () => {
+    const error = new RestApiError("Cannot reach the engine pod", 500);
+    mockTerminateExchange.mockRejectedValue(error);
+    render(<LiveExchanges />);
+    await screen.findByText("sess-1");
+
+    fireEvent.click(screen.getByTestId("Terminate exchange"));
+
+    await waitFor(() => {
+      expect(mockRequestFailed).toHaveBeenCalledWith(
+        "Failed to terminate exchange",
+        error,
+      );
+    });
+    expect(screen.getByText("sess-1")).toBeInTheDocument();
+    expect(mockInfo).not.toHaveBeenCalled();
   });
 });

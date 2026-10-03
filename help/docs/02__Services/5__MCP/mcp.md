@@ -31,6 +31,7 @@ Table with MCP services is accessible by navigating to **Services** -> **MCP** t
 
 At the top of the table the following options are available:
   - **Search services** - search box, provides ability to find respective data in the table.
+  - ![refresh](img/refresh.svg) - reloads the table.
   - ![filter](img/filter.svg) - opens filter pop-up.
   - ![setting](img/setting.svg) - opens pop-up with table properties that allows to adjust visibility and sequence of columns except **Name**.
   - ![cloud-download](img/cloud-download.svg) - exports the service.
@@ -39,7 +40,7 @@ At the top of the table the following options are available:
 
 <ins>VS Code Extension</ins>
 
-Any MCP service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "QIP" folder in the left bottom.
+Any MCP service created using VS Code Extension appears under "Services" folder. This folder can be located by expanding "CIP" folder in the left bottom.
 
 ### Add MCP Service
 <ins>Web UI</ins>
@@ -57,8 +58,8 @@ System opens new window with **Common Parameters** section.
 To create any service using VS Code Extension, follow the steps outlined below:
 
 1. Open "VS Code Extension" in Visual Studio Code.
-2. In the left bottom find QIP section and expand it.
-3. Near the "Services" folder click on appearing button "QIP Create service".
+2. In the left bottom find CIP section and expand it.
+3. Near the "Services" folder click on appearing button "CIP Create service".
 4. At the top of Visual Studio Code enter the name of the chain, select the type of the service, enter the identifier, enter some description and click Enter. Next, it opens "Common Parameters" tab of the created service.
 
 ### View Common Parameters
@@ -66,7 +67,7 @@ Parameters tab contains the following information:
 - **Name** - mandatory service name.
 - **Description** - description of service.
 - **Labels** - list of colored labels of the service, specification group or specification, unique within particular entity of each type.
-  It might contain **custom** labels, entered by user via Qubership Integration Platform UI or **technical** labels,
+  It might contain **custom** labels, entered by user via Cloud Integration Platform UI or **technical** labels,
   populated as part of the **deployment via Samples Repository**. Custom labels can be added or removed clicking on the field.
   **Technical** labels cannot be updated manually.
 - **Identifier** - unique identifier of the MCP service. This identifier is used when selecting MCP services in [MCP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/10__MCP_Trigger/mcp_trigger.md).

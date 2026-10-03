@@ -1,0 +1,45 @@
+---
+id: "34205602-affb-4f13-a46a-3fc1dc8e3b72"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "loop copy context false"
+content:
+  labels: []
+  elements:
+  - id: "1e987032-1859-43e2-b69f-7780e9def3c9"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-1e987032-1859-43e2-b69f-7780e9def3c9.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
+  - id: "a5658758-fcd2-4cb8-abe7-53f40060a269"
+    name: "Loop"
+    type: "loop-2"
+    children:
+    - id: "ae2a4129-726b-4f6c-9953-7bbe4db191b9"
+      name: "Loop Script"
+      type: "script"
+      properties:
+        exportFileExtension: "groovy"
+        propertiesFilename: "script-ae2a4129-726b-4f6c-9953-7bbe4db191b9.groovy"
+        propertiesToExportInSeparateFile: "script"
+    properties:
+      copy: false
+      doWhile: false
+      expression: "${exchangeProperty.iterations}"
+      loopIndexPropertyName: "iterationIndex"
+      maxLoopIteration: "15"
+  dependencies:
+  - from: "84cc25ef-9aeb-424d-8162-5e8fe9cd6602"
+    to: "1e987032-1859-43e2-b69f-7780e9def3c9"
+  - from: "1e987032-1859-43e2-b69f-7780e9def3c9"
+    to: "a5658758-fcd2-4cb8-abe7-53f40060a269"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

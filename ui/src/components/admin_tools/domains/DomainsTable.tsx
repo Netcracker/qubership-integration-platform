@@ -1,5 +1,6 @@
+import { Table } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Flex, Table, Button, Space, Tag, Typography } from "antd";
+import { Flex, Button, Space, Tag, Tooltip, Typography } from "antd";
 import { EngineTable } from "./EngineTable";
 import { useEngines } from "./hooks/useEngines";
 import { treeExpandIcon } from "../../table/TreeExpandIcon";
@@ -7,11 +8,12 @@ import { DomainType, EngineDomain } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { tableScroll } from "../../table/tableScroll.ts";
 import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { matchesByFields } from "../../table/tableSearch.ts";
@@ -23,6 +25,7 @@ import layoutStyles from "./DomainsTablesLayout.module.css";
 const DOMAINS_EXPAND_COLUMN_WIDTH = 48;
 
 interface Props {
+  onRefresh?: () => Promise<void>;
   domains: EngineDomain[];
   isLoading?: boolean;
 }
@@ -43,6 +46,7 @@ const EnginesForDomain: React.FC<{ domain: EngineDomain }> = ({ domain }) => {
 
   return (
     <EngineTable
+      onRefresh={retry}
       engines={engines}
       isLoading={isLoading}
       domainName={domain.name}
@@ -59,7 +63,11 @@ function domainMatchesSearch(domain: EngineDomain, term: string): boolean {
   ]);
 }
 
-const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
+const DomainsTable: React.FC<Props> = ({
+  domains,
+  isLoading = false,
+  onRefresh,
+}) => {
   const [tableData, setTableData] = useState<EngineDomain[]>([]);
   const [filteredData, setFilteredData] = useState<EngineDomain[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -90,6 +98,17 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
     [notificationsService],
   );
 
+  const confirmDeleteMicroDomain = useCallback(
+    (name: string) => {
+      confirmAndRun({
+        title: "Delete domain",
+        content: "Are you sure you want to permanently delete this domain?",
+        onOk: () => void deleteMicroDomain(name),
+      });
+    },
+    [deleteMicroDomain],
+  );
+
   const columns: ColumnsTypeWithSettings<EngineDomain> = useMemo(
     () => [
       {
@@ -105,12 +124,14 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
             <Space size={"small"}>
               {domain.name}
               <Tag>micro</Tag>
-              <Button
-                size={"small"}
-                type={"text"}
-                icon={<OverridableIcon name="delete" />}
-                onClick={() => void deleteMicroDomain(domain.name)}
-              />
+              <Tooltip title="Delete domain">
+                <Button
+                  size={"small"}
+                  type={"text"}
+                  icon={<OverridableIcon name="delete" />}
+                  onClick={() => confirmDeleteMicroDomain(domain.name)}
+                />
+              </Tooltip>
             </Space>
           ) : (
             domain.name
@@ -136,7 +157,7 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
         align: "right",
       },
     ],
-    [deleteMicroDomain],
+    [confirmDeleteMicroDomain],
   );
 
   const { orderedColumns, columnSettingsButton } =
@@ -145,19 +166,24 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
       columns,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        name: 200,
-        version: 120,
-        replicas: 140,
-        namespace: 220,
-      },
-      {
-        expandColumnWidth: DOMAINS_EXPAND_COLUMN_WIDTH,
-      },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      name: 200,
+      version: 120,
+      replicas: 140,
+      namespace: 220,
+    },
+    {
+      expandColumnWidth: DOMAINS_EXPAND_COLUMN_WIDTH,
+    },
+    "domainsAdminTable",
+  );
 
   const [expandedRowKeys, setExpandedRowKeys] = React.useState<React.Key[]>([]);
 
@@ -168,6 +194,7 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
         iconName="domains"
         toolbar={
           <TableToolbar
+            refresh={onRefresh ? { onRefresh, loading: isLoading } : undefined}
             variant="admin"
             search={{
               value: searchTerm,
@@ -190,6 +217,7 @@ const DomainsTable: React.FC<Props> = ({ domains, isLoading = false }) => {
           pagination={false}
           scroll={tableScroll(scrollX, filteredData.length)}
           components={components}
+          onChange={handleConfiguredTableChange}
           expandable={{
             expandIcon: treeExpandIcon(),
             expandedRowRender: (record) => (

@@ -24,13 +24,13 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>1.2.3-SNAPSHOT</version>
+    <version>1.5.0-SNAPSHOT</version>
     <relativePath>../parent</relativePath>
   </parent>
 
   <properties>
-    <revision>1.2.3</revision>
-    <changelist>-2-m2m-kuber-SNAPSHOT</changelist>
+    <revision>1.5.0</revision>
+    <changelist>-1-m2m-kuber-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
@@ -343,6 +343,26 @@
 
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <version>3.6.1</version>
+        <executions>
+          <execution>
+            <id>snapshot-bundle-test-sources</id>
+            <!-- Register test sources before the compile-phase Checkstyle check. -->
+            <phase>generate-sources</phase>
+            <goals>
+              <goal>add-test-source</goal>
+            </goals>
+            <configuration>
+              <sources>
+                <source>${project.basedir}/src/test-support/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>flatten-maven-plugin</artifactId>

@@ -1,9 +1,9 @@
 # Qubership Integration Visual Studio Code Extension
 
 This is Visual Studio Code extension based
-on [Qubership Integration Platform - UI](https://github.com/Netcracker/qubership-integration-ui)
+on [Qubership Integration Platform - UI](../ui)
 project to manipulate chain configurations offline. To run configurations you still need the other part
-of [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform).
+of [Qubership Integration Platform](../README.md).
 
 ## Build
 
@@ -22,5 +22,5 @@ This software is licensed under Apache License Version 2.0. License text is loca
 
 ## Additional Resources
 
-- [Qubership Integration Platform](https://github.com/Netcracker/qubership-integration-platform) — core deployment
+- [Qubership Integration Platform](../README.md) — core deployment
   guide.

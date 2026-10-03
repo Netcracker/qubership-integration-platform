@@ -5,7 +5,7 @@
 ## Description
 
 ---
-Variables are data items, which can be used in different places of Qubership Integration Platform like chain elements, services, configuration management settings, etc. Variable can contain any useful information for integration flows like namespace, RabbitMQ server address, etc.
+Variables are data items, which can be used in different places of Cloud Integration Platform like chain elements, services, configuration management settings, etc. Variable can contain any useful information for integration flows like namespace, RabbitMQ server address, etc.
 
 There are two variable types:
 - **Common** - commonly used type of variables. Their values are stored in the Consul and visible for user.
@@ -27,7 +27,7 @@ Please refer to the syntax sample below for design time variables:
 ### Runtime Variables
 It is possible to configure **runtime variables**, so the chain will always pick up the actual variable value during processing. Redeploying the chain is not required when the variable is configured using the syntax described below:
 
-- For **QIP fields** (where Apache Simple language is being utilized):
+- For **CIP fields** (where Apache Simple language is being utilized):
 
   ```text
   ${exchangeProperty.variables["variable_name"]}
@@ -36,10 +36,10 @@ It is possible to configure **runtime variables**, so the chain will always pick
 
 - For **Scripts** (that use Groovy language):
 
-  ```groovy
+```groovy
   exchange.getProperty("variables").get("variable_name")
   exchange.getProperty("variables").get("secret_name:variable_name") //only for secured variables, stored in non-default secrets.
-  ```
+ ```
 ### Default Variables
 There are currently two default variables, that are being specified as part of the installation:
 - namespace
@@ -57,6 +57,12 @@ When specific fields do not "recognize" such combination, it means that fields d
 and [HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/http_sender.md), please read respective articles for more details).
 
 > ℹ️ **Note:** For **common variables used in design time mode** there is no need to remember its value or check it on dedicated UI page. **Just hover the mouse on variable name and the value will appear on the screen**.
+
+## Process Initialization
+
+---
+
+Default set of variables is being delivered as part of OOB. Additional variables (or updates for existing ones) could be added via "**Variables**" tab under "**Admin tools**" section.
 
 ## User Interface
 
@@ -97,7 +103,7 @@ Under each secret the following actions can be applied:
 To create a secret, which represents a **secured storage object in Kubernetes**, click "**Add Secret**" button marked with ![plus](img/plus.svg), specify the name and confirm operation with "**Create**" button.
 As the result of this operation, there will be new Secret created with a given name in Kubernetes. Secret's name must be specified in lower case, start with a letter and contain no special symbols besides "-", which could be used as a delimiter.
 
-> ⚠️ **Warning:** Never **ever** attempt to override or re-create secret with the name "*qip-secured-variables-v2*", as it is reserved for **default** secret name. Any improper actions with default secret may lead to data corruption or system malfunction.
+> ⚠️ **Warning:** Never **ever** attempt to override or re-create secret with the name "*cip-secured-variables-v2*", as it is reserved for **default** secret name. Any improper actions with default secret may lead to data corruption or system malfunction.
 
 ### Create Variable
 To add new variable, click actions menu icon ![plus](img/plus.svg) for respective secret, specify variable name and value in the respective fields. Finally, press button **"Add"** on the widget.
@@ -139,3 +145,22 @@ As the result of the import, new variables will be published to the respective s
 - **Consul** - for common variables.
 
 Variable's values **will override** the ones that are currently available in the storages, if the variables names match.
+
+## Data Storage
+
+---
+
+Each common variables are stored in Consul by the following path:
+
+```text
+config/{namespace}/cip-engine-configurations/variables/common/{variableName}
+```
+
+Secured variables are stored in K8S secrets.
+
+## Configuration
+
+---
+
+Configuration could be done via CIP user interface or via native functionality of K8s / Consul.
+

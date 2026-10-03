@@ -143,19 +143,21 @@
         <process ref="httpProducerCharsetProcessor"/>
     {{/if-property}}
 
-    {{#if-property 'before' presented=''}}
+    {{#if (or (property 'before') (eq (property 'integrationOperationProtocolType') 'graphql'))}}
         <step id="Prepare request--{{identifier}}">
-            {{#with-property 'before'}}
-                {{#if-property 'type' equals='script'}}
-                    {{> script}}
-                {{/if-property}}
-                {{#if-property 'type' equals='mapper'}}
-                    {{> mapper}}
-                {{/if-property}}
-                {{#if-property 'type' equals='mapper-2'}}
-                    {{> mapper-2}}
-                {{/if-property}}
-            {{/with-property}}
+            {{#if-property 'before' presented=''}}
+                {{#with-property 'before'}}
+                    {{#if-property 'type' equals='script'}}
+                        {{> script}}
+                    {{/if-property}}
+                    {{#if-property 'type' equals='mapper'}}
+                        {{> mapper}}
+                    {{/if-property}}
+                    {{#if-property 'type' equals='mapper-2'}}
+                        {{> mapper-2}}
+                    {{/if-property}}
+                {{/with-property}}
+            {{/if-property}}
             {{#if-property 'integrationOperationProtocolType' equals='graphql'}}
                 <setHeader name="CamelGraphQLQuery">
                     <simple>{{escape (property 'integrationGqlQuery')}}</simple>
@@ -179,7 +181,7 @@
                 <process ref="graphQLSessionLoggingProcessor"/>
             {{/if-property}}
         </step>
-    {{/if-property}}
+    {{/if}}
 
     {{#if-property 'bodyMimeType' presented=''}}
         <step id="Building body--{{identifier}}">

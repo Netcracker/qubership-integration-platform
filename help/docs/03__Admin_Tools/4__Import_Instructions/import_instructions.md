@@ -14,6 +14,12 @@ This page allows managing Import Instructions, which are intended to extend the 
 
 Find more details about manual import process on the design articles for respective entities.
 
+## Process Initialization
+
+---
+
+Import Instructions might be uploaded via file or created manually on "**Import Instructions**" tab under "**Admin Tools**" section.
+
 ## User Interface
 
 ---
@@ -21,14 +27,14 @@ Find more details about manual import process on the design articles for respect
 After navigation to "Import Instructions" tab, system initially displays a table, where next information and control elements are presented:
 
 - **Id** - identifies the particular entity. Content depends on the section:
-  - **Chains** - unique identifier of the chain. When the chain exists in QIP, its name is displayed as a clickable link to the chain's Configuration Graph; otherwise the ID is shown as plain text.
-  - **Services** - unique identifier of the service. When the service exists in QIP, its name is displayed as a clickable link to the service's parameters page; otherwise the ID is shown as plain text.
+  - **Chains** - unique identifier of the chain. When the chain exists in CIP, its name is displayed as a clickable link to the chain's Configuration Graph; otherwise the ID is shown as plain text.
+  - **Services** - unique identifier of the service. When the service exists in CIP, its name is displayed as a clickable link to the service's parameters page; otherwise the ID is shown as plain text.
   - **Common Variables** - unique name of the common variable.
 - **Action** - editable value, describes the action, that will be taken during entity import process. List of available values:
   - **Ignore** - specified entity will be ignored. Applicable for Chains, Services and Common Variables.
   - **Override** - specified chain is going to be overridden by another one. Applicable only for the Chains section. Overridden chain will receive all changes from import archive without snapshot creation and be undeployed. Applicable for Chains only.
 > ℹ️ **Note:** **"Delete"** action cannot be configured via UI. It is only possible to specify entities, that are going to be removed as the result of the import, via **import instruction file**.
-- **Overridden By** - editable value, applicable only for "Override" action. Specifies the ID of the chain that overrides the original chain. When the overriding chain exists in QIP, its name is displayed as a clickable link; clicking it opens the chain's Configuration Graph in a new tab.
+- **Overridden By** - editable value, applicable only for "Override" action. Specifies the ID of the chain that overrides the original chain. When the overriding chain exists in CIP, its name is displayed as a clickable link; clicking it opens the chain's Configuration Graph in a new tab.
 - **Labels** - list of colored **technical labels**, optional populated during import instructions upload via API.
 - **Modified At** - date and time of the last entity modification.
 
@@ -96,7 +102,7 @@ Before further processing, the system shows a confirmation dialog. When the oper
   - Specifications Groups.
   - Services.
   - Variables.
-- Verify that override and ignore instructions, that are going to be uploaded, already exist in QIP:
+- Verify that override and ignore instructions, that are going to be uploaded, already exist in CIP:
   - If instructions from the file match with already existing ones, system overrides their values with the data from the file.
   - Otherwise, system creates new instructions under respective sections.
 
@@ -118,14 +124,15 @@ As a result of the upload, system displays all ignore and override instructions 
 ### Download Import Instructions
 To download full list of the import instructions from "**Import Instructions**" tab, click icon ![20](img/cloud-download.svg).
 
-### Constraints
+## Data Storage
 
 ---
 
-Please consider next constraints:
+Data is being stored in CIP Database, except delete instructions, which are not saved anywhere.
 
-- Delete import instructions **will not be stored** in QIP, hence they are not presented in Import Instruction table.
-- During deployment process it is not possible to remove already existing import instructions in Database by uploading Import Instructions file. It can only be done manually via UI or respective API.
-- System prohibits to delete services, specification groups and specifications while import process if desired entities have a reference to any chain in "**Used By**" list.
-- System doesn't consider specification status, hence it can remove the specification that has not been moved to deprecated.
-- When system applies override logic, it undeploys overridden chain even if a new chain has not been deployed.
+## Configuration
+
+---
+
+Configuration is done by utilizing Cloud Integration Platform user interface capabilities or via text editors when file is built manually.
+

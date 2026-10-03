@@ -1,0 +1,69 @@
+---
+id: "c0273e0b-d143-4704-b4ee-266f045c6631"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "checkpoint"
+content:
+  labels: []
+  elements:
+  - id: "1fdf8320-5663-41b5-b121-8c7ff75b50ae"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "1fdf8320-5663-41b5-b121-8c7ff75b50ae"
+  - id: "ef6c17f2-5575-47dd-9d06-f0051e02f151"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      accessControlType: "NONE"
+      allowedContentTypes: []
+      chunked: true
+      connectTimeout: 120000
+      contextPath: "checkpoint-start"
+      externalRoute: false
+      handleChainFailureAction: "default"
+      handleValidationAction: "default"
+      httpBinding: "handlingHttpBinding"
+      httpMethodRestrict: "POST"
+      idempotency:
+        enabled: false
+        keyExpiry: 600
+        actionOnDuplicate: "ignore"
+      killSessionOnTimeout: false
+      privateRoute: false
+      receiveCorrelationId: false
+      rejectRequestIfNonNullBodyGetDelete: true
+  - id: "d0f7adc5-295b-44f5-8a5b-809ebf2896fd"
+    name: "Initialize checkpoint inputs"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-d0f7adc5-295b-44f5-8a5b-809ebf2896fd.groovy"
+      propertiesToExportInSeparateFile: "script"
+  - id: "3ddc6ac7-b537-4f30-a207-cb7e5da8bdab"
+    name: "Checkpoint"
+    type: "checkpoint"
+    properties:
+      checkpointElementId: "3ddc6ac7-b537-4f30-a207-cb7e5da8bdab"
+      contextPath: "/chains/c0273e0b-d143-4704-b4ee-266f045c6631/sessions/{checkpointSessionId}/checkpoint-elements/3ddc6ac7-b537-4f30-a207-cb7e5da8bdab/retry"
+      externalRoute: false
+      httpMethodRestrict: "POST"
+  - id: "a81e8f34-72ef-4f95-a80b-7a5049d52547"
+    name: "Script"
+    type: "script"
+    properties:
+      exportFileExtension: "groovy"
+      propertiesFilename: "script-a81e8f34-72ef-4f95-a80b-7a5049d52547.groovy"
+      propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "1fdf8320-5663-41b5-b121-8c7ff75b50ae"
+    to: "d0f7adc5-295b-44f5-8a5b-809ebf2896fd"
+  - from: "ef6c17f2-5575-47dd-9d06-f0051e02f151"
+    to: "d0f7adc5-295b-44f5-8a5b-809ebf2896fd"
+  - from: "d0f7adc5-295b-44f5-8a5b-809ebf2896fd"
+    to: "3ddc6ac7-b537-4f30-a207-cb7e5da8bdab"
+  - from: "3ddc6ac7-b537-4f30-a207-cb7e5da8bdab"
+    to: "a81e8f34-72ef-4f95-a80b-7a5049d52547"
+  deployments:
+  - domain: "default"
+  deployAction: "DEPLOY"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -152,9 +152,9 @@ services:
     ports:
       - "8095:8080"
     environment:
-      QIP_TESTING_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable&search_path=testing_service"
-      QIP_TESTING_CATALOG_ADDRESS: "http://runtime-catalog:8080"
-      QIP_TESTING_ENGINE_ADDRESS: "http://engine:8080"
+      CIP_TESTING_POSTGRES_DSN: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable&search_path=testing_service"
+      CIP_TESTING_CATALOG_ADDRESS: "http://runtime-catalog:8080"
+      CIP_TESTING_ENGINE_ADDRESS: "http://engine:8080"
       # The installation-wide flag every service reads. It defaults to production,
       # which hides the Testing section in the UI, and a local stack is not one.
       PRODUCTION_MODE: "false"
@@ -199,16 +199,16 @@ services:
   #        ports:
   #        - "8094:8094"
   #        environment:
-  #          QIP_AI_SERVICE_PORT: "8094"
-  #          QIP_AI_LOG_LEVEL: "INFO"
-  #          QIP_AI_LOG_FORMAT: "json"
-  #          QIP_AI_LLM_PROVIDER: "${QIP_AI_LLM_PROVIDER:-gemini}"
-  #          QIP_AI_GEMINI_API_KEY: "${QIP_AI_GEMINI_API_KEY:-}"
-  #          QIP_AI_GEMINI_MODEL: "${QIP_AI_GEMINI_MODEL:-gemini-2.5-flash}"
-  #          QIP_AI_OPENROUTER_API_KEY: "${QIP_AI_OPENROUTER_API_KEY:-}"
-  #          QIP_AI_OPENROUTER_MODEL: "${QIP_AI_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
-  #          QIP_AI_POSTGRES_DSN: "postgresql+asyncpg://postgres:postgres@postgres:5432/postgres"
-  #          QIP_AI_CATALOG_BASE_URL: "http://runtime-catalog:8080"
+  #          CIP_AI_SERVICE_PORT: "8094"
+  #          CIP_AI_LOG_LEVEL: "INFO"
+  #          CIP_AI_LOG_FORMAT: "json"
+  #          CIP_AI_LLM_PROVIDER: "${CIP_AI_LLM_PROVIDER:-gemini}"
+  #          CIP_AI_GEMINI_API_KEY: "${CIP_AI_GEMINI_API_KEY:-}"
+  #          CIP_AI_GEMINI_MODEL: "${CIP_AI_GEMINI_MODEL:-gemini-2.5-flash}"
+  #          CIP_AI_OPENROUTER_API_KEY: "${CIP_AI_OPENROUTER_API_KEY:-}"
+  #          CIP_AI_OPENROUTER_MODEL: "${CIP_AI_OPENROUTER_MODEL:-google/gemini-2.5-flash}"
+  #          CIP_AI_POSTGRES_DSN: "postgresql+asyncpg://postgres:postgres@postgres:5432/postgres"
+  #          CIP_AI_CATALOG_BASE_URL: "http://runtime-catalog:8080"
   #        command:
   #        - "/bin/sh"
   #        - "-c"

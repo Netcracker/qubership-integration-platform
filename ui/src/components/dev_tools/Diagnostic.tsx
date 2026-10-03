@@ -1,13 +1,5 @@
-import {
-  Alert,
-  Badge,
-  BadgeProps,
-  Button,
-  Flex,
-  Table,
-  Tag,
-  Tooltip,
-} from "antd";
+import { Table } from "antd";
+import { Alert, Badge, BadgeProps, Button, Flex, Tag, Tooltip } from "antd";
 import { CompactSearch } from "../table/CompactSearch";
 import { tableScroll } from "../table/tableScroll.ts";
 import {
@@ -29,7 +21,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../table/useColumnSettingsButton";
-import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import commonStyles from "../admin_tools/CommonStyle.module.css";
 
 const DIAGNOSTIC_EXPAND_COLUMN_WIDTH = 48;
@@ -220,21 +212,26 @@ export const Diagnostic: React.FC = () => {
       columns,
     );
 
-  const { columnsWithResize, components, scrollX } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        title: 360,
-        status: 130,
-        alertsCount: 100,
-        hint: 80,
-        startTime: 180,
-      },
-      {
-        expandColumnWidth: DIAGNOSTIC_EXPAND_COLUMN_WIDTH,
-        selectionColumnWidth: DIAGNOSTIC_SELECTION_COLUMN_WIDTH,
-      },
-    );
+  const {
+    columnsWithResize,
+    components,
+    scrollX,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      title: 360,
+      status: 130,
+      alertsCount: 100,
+      hint: 80,
+      startTime: 180,
+    },
+    {
+      expandColumnWidth: DIAGNOSTIC_EXPAND_COLUMN_WIDTH,
+      selectionColumnWidth: DIAGNOSTIC_SELECTION_COLUMN_WIDTH,
+    },
+    "diagnosticTable",
+  );
 
   const rowSelection: TableRowSelection<DiagnosticValidationTableItem> = {
     type: "checkbox",
@@ -464,6 +461,7 @@ export const Diagnostic: React.FC = () => {
         sticky
         scroll={tableScroll(scrollX, tableData.length)}
         components={components}
+        onChange={handleConfiguredTableChange}
         expandable={{
           expandIcon: treeExpandIcon(),
           expandedRowKeys,

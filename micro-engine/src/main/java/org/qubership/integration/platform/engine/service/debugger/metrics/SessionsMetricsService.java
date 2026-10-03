@@ -56,7 +56,7 @@ public class SessionsMetricsService {
     private final CheckpointRepository  checkpointRepository;
 
     public SessionsMetricsService(
-            @ConfigProperty(name = "qip.opensearch.index.elements.name") String indexName,
+            @ConfigProperty(name = "cip.opensearch.index.elements.name") String indexName,
             MetricsStore metricsStore,
             OpenSearchClientSupplier openSearchClientSupplier,
             CheckpointRepository checkpointRepository

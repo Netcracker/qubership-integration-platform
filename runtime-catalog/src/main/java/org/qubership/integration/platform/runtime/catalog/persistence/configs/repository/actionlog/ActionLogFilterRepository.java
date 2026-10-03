@@ -26,7 +26,8 @@ public interface ActionLogFilterRepository {
     List<ActionLog> findActionLogsByFilter(
             Timestamp offsetTime, long rangeTime, List<ActionLogFilterRequestDTO> filters);
 
-    List<ActionLog> findActionLogsByFilter(int offset, int limit, List<ActionLogFilterRequestDTO> filters);
+    List<ActionLog> findActionLogsByFilter(
+            int offset, int limit, List<ActionLogFilterRequestDTO> filters, String searchString);
 
     long getRecordsCountAfterTime(Timestamp timestamp, List<ActionLogFilterRequestDTO> filters);
 }

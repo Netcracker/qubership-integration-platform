@@ -45,7 +45,7 @@ public class CustomErrorController extends AbstractErrorController {
     public CustomErrorController(
         ErrorAttributes errorAttributes,
         List<ErrorViewResolver> errorViewResolvers,
-        @Value("${qip.camel.routes.prefix}") String routesPrefix
+        @Value("${cip.camel.routes.prefix}") String routesPrefix
     ) {
         super(errorAttributes, errorViewResolvers);
         this.routesPrefix = routesPrefix;

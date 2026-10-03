@@ -28,5 +28,9 @@ export const useSnapshots = (chainId?: string) => {
     void getSnapshots(chainId);
   }, [chainId, getSnapshots]);
 
-  return { isLoading, snapshots, setSnapshots };
+  const refresh = useCallback(
+    () => (chainId ? getSnapshots(chainId) : Promise.resolve()),
+    [chainId, getSnapshots],
+  );
+  return { isLoading, snapshots, setSnapshots, refresh };
 };

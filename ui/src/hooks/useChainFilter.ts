@@ -142,5 +142,5 @@ export const useChainFilters = (): {
     [buildFilterValues, domains, services],
   );
 
-  return useFilter(filterColumns);
+  return useFilter(filterColumns, "chainsTable");
 };

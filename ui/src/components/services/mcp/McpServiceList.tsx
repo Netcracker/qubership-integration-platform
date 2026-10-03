@@ -1,7 +1,8 @@
+import { Table } from "antd";
 import React, { useCallback, useEffect, useState } from "react";
 import { GenericServiceListPage } from "../GenericServiceListPage.tsx";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
-import { Button, Table } from "antd";
+import { Button } from "antd";
 import { message } from "../../../misc/antd-app.ts";
 import {
   IntegrationSystemType,
@@ -25,7 +26,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../table/useColumnSettingsButton.tsx";
-import { useColumnsWithResizeAndScroll } from "../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../table/useTableConfiguration.tsx";
 import { nameLinkStyle } from "../../table/nameLinkStyle.ts";
 import { useFilter } from "../../table/filter/useFilter.tsx";
 import {
@@ -45,17 +46,20 @@ export const McpServiceList: React.FC = () => {
   const notificationService = useNotificationService();
   const navigate = useNavigate();
   const [searchString, setSearchString] = useState<string>("");
-  const { filters, filterButton } = useFilter([
-    { id: "ID", name: "ID", conditions: IdFilterConditions },
-    { id: "NAME", name: "Name", conditions: StringFilterConditions },
-    {
-      id: "IDENTIFIER",
-      name: "Identifier",
-      conditions: StringFilterConditions,
-    },
-    { id: "LABELS", name: "Labels", conditions: LabelsStringTableFilter },
-    { id: "CREATED", name: "Created", conditions: DateFilterConditions },
-  ]);
+  const { filters, filterButton } = useFilter(
+    [
+      { id: "ID", name: "ID", conditions: IdFilterConditions },
+      { id: "NAME", name: "Name", conditions: StringFilterConditions },
+      {
+        id: "IDENTIFIER",
+        name: "Identifier",
+        conditions: StringFilterConditions,
+      },
+      { id: "LABELS", name: "Labels", conditions: LabelsStringTableFilter },
+      { id: "CREATED", name: "Created", conditions: DateFilterConditions },
+    ],
+    "mcpSystemTable",
+  );
 
   const loadSystems = useCallback(async () => {
     try {
@@ -241,24 +245,30 @@ export const McpServiceList: React.FC = () => {
   const { orderedColumns, columnSettingsButton } =
     useColumnSettingsBasedOnColumnsType("mcpSystemTable", columns);
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
-      orderedColumns,
-      {
-        name: 200,
-        identifier: 200,
-        usedBy: 120,
-        labels: 200,
-        createdBy: 120,
-        createdWhen: 168,
-        modifiedBy: 120,
-        modifiedWhen: 168,
-      },
-      { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
-    );
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    {
+      name: 200,
+      identifier: 200,
+      usedBy: 120,
+      labels: 200,
+      createdBy: 120,
+      createdWhen: 168,
+      modifiedBy: 120,
+      modifiedWhen: 168,
+    },
+    { selectionColumnWidth: SELECTION_COLUMN_WIDTH },
+    "mcpSystemTable",
+  );
 
   return (
     <GenericServiceListPage
+      refresh={{ onRefresh: loadSystems, loading: isLoading }}
       title={"MCP Services"}
       icon={<OverridableIcon name={"mcp"} />}
       extraActions={[filterButton, columnSettingsButton]}
@@ -285,6 +295,7 @@ export const McpServiceList: React.FC = () => {
           onChange: (keys) => setSelectedRowKeys(keys),
         }}
         components={components}
+        onChange={handleConfiguredTableChange}
       />
     </GenericServiceListPage>
   );
