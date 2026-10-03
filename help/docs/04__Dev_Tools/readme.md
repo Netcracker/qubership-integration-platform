@@ -1,0 +1,24 @@
+# Dev Tools
+
+> ⛔️ This functionality is not available via the VS Code Extension.
+
+## Description
+
+---
+Tab is specifically designed to contain developer tools for the purposes of testing and debugging.
+
+> ⚠️ **Warning:** Tab is **only** available for non-production environments, and provided tools shall not serve to any other purposes besides testing and debugging.
+
+## User Interface
+
+---
+
+### View "Dev Tools" Section
+By navigating to "Dev Tools", next tabs are going to be available:
+- [MaaS](1__MaaS/readme.md) - allows to create Kafka topics or RabbitMQ exchanges/queues in MaaS.
+- [Diagnostic](2__Diagnostic/readme.md) - allows to execute system validations to find issues and get resolution hints.
+
+## Configuration
+
+---
+Availability of the tab is strictly dependent on the value, specified for ```PRODUCTION_MODE``` environment parameter.

@@ -1,0 +1,84 @@
+# Logging
+> ⛔️ This functionality is not available via the VS Code Extension.
+
+## Description
+
+---
+This tab provides consolidated access to the logging capabilities, that could be applied to the chain, when it is deployed. The main capability is configuration of logging settings that will be applied in runtime.
+
+Please refer to the diagram below, that represents architecture on the high level:
+
+![loggingSettings](img/loggingSettings.svg)
+
+| # | Description                                                                                                                                                                                                                                                                                 |
+|---|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | Consul data is being cached in the CIP to ensure fast and stable access to the logging settings for the given chain.                                                                                                                                                                        |
+| 2 | Either Consul's data or default (pre-configured set of logging settings in Cloud Integration Platform itself) will be used by the Engine while maintaining the chain. Selected way will depend on the availability of the settings data in the Consul (this data has the highest priority). |
+| 3 | Custom logging settings might be applied and pushed to the Consul via Cloud Integration Platform User Interface.                                                                                                                                                                            |
+
+## Process Initialization
+
+---
+In the <ins>Web UI</ins>: once the chain is created, configurations of its logging settings is available in the "Logging" tab under the chain.  
+
+---
+
+
+## User Interface
+
+---
+### View & Adjust Logging Settings
+User is able to navigate to the **"Logging Settings"** tab under the chain and view/correct logging settings for the chain.
+It shall be noted that Cloud Integration Platform will always attempt to use the settings that are available in the Consul, which plays the role of the main source of such data.
+When no settings available in the Consul for a given chain and there are no even default settings available there,
+Cloud Integration Platform will apply its own default hardcoded option and notify the user via message on top of the screen. Please view detailed description for each particular setting below:
+
+- **Override default properties** switcher - allows to enable other fields and specify own settings for current chain.
+- **Logging settings source** - label, that shows the source of the settings. Possible values:
+  - **Default (Consul)** - when default settings from Consul are applied.
+  - **Custom** - when chain's custom settings from Consul are applied.
+  - **Default (Fallback)** - when Consul has no settings available, and system applied its own default values. In this case, system will also show a proper warning message.
+- **Sessions Level** - level of logs for chain [sessions](../../01__Chains/4__Sessions/readme.md). Possible values:
+  - **Off** _(Default value)_ - logging is fully turned off.
+  - **Error** - only sessions failed with errors are going to be logged. If failed elements are part of sub-chain(s), session will also show Chain Call(s) to maintain proper structure.
+  This level of logging has a low effect on performance, as it handles only failed sessions and considers writing the data, related to the failed element only. Memory and storage capacity consumption is also considered to be on low level.
+  - **Info** - only completed inbound/outbound communications, as well as failed sessions are going to be logged. When mentioned elements are part of sub-chain(s), session will also contain Chain Call(s) to maintain proper structure. This level of logging has a medium effect on performance in general, as well as on memory and storage capacity consumption.
+  - **Debug** - all available parameters will be logged: session status, status of each chain element, headers, body (request and response). This level of logging _drastically_ increases the consumption of memory and storage capacity, as well as negatively affects the performance in general, hence shall be used carefully.
+
+> ℹ️ **Note:** You can also log a particular transaction with a **Debug** session level by sending **"TraceMe"** header with "true" value in the HTTP request, which will make all available session parameters logged at **Debug level**, regardless of the current state of chain's logging settings.
+
+- **Log Level** - supported log levels. For proper logging, it should not be higher than logging level, globally specified for microservice. Possible values:
+  - **Error** _(Default value)_ - logging of Integrations with Exceptions. Log levels - ERROR, FATAL.
+  - **Warning** - logging of Integrations with Warnings. Log level - WARNING, ERROR, FATAL.
+  - **Info** - log only external communications (sending and receiving external messages by any protocol, incoming and outgoing). Used for investigation of production incidents.
+- **Log Payload** - controls payload parts, which must be logged: Headers, Properties, Body. If nothing is selected - no payload data will be logged.
+
+> ⚠️ Log format and maximum size of logged headers, body, and exchange properties are configurable before installation:
+> - Log format options: _json_ or _plain text_.
+> - When logged content exceeds the configured size limit, it is truncated and appended with `...`.
+>
+> Contact your system administrator for the values configured in the environment.
+
+- **Produce DPT Events** - based on selected option, system either sends DPT events or not:
+  - **checked** - deployed chain will be publishing events to DPT (Distributed Process Tracing and Monitoring system).
+  - **unchecked** _(Default value)_ - no events will be published to DPT.
+- **Enable Logging Masking** - based on selected option, system decides if masking must be applied to configured set of parameters:
+  - **checked** _(Default value)_ - masking settings, configured under "Masked Fields" expand will be applied.
+  - **unchecked** - no masking applied.
+- **Apply** button - when custom settings are specified, they MUST be applied via this button. As the result of this operation, settings will be published to the Consul.
+
+## Data Storage
+
+---
+
+There are next additional articles, that could bring more details regarding data management, mentioned on this page:
+
+- [Logging] - contains details about logs, that are being gathered and stored.
+- [Deployment Process] - main article, described deployment process. Specifically, section **Deployment Profiles in Consul** brings more details regarding logging settings processing, including its accommodation in Consul and CIP Cache.
+
+## Configuration
+
+---
+
+- In CIP UI: custom logging configuration is being done via CIP UI ("Logging settings" tab under the chain). Please refer to [general logging page] for more details regarding logging capabilities and log formats. It is also possible to setup predefined chain-specific and default logging settings in Consul, which is described in detail in section **Deployment Profiles in Consul** of [Deployment Process] article.
+- In CIP VSCode Extension: custom logging configuration is not supported.
