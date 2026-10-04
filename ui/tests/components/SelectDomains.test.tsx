@@ -3,6 +3,10 @@
  */
 import { act, renderHook } from "@testing-library/react";
 import {
+  domainNamesRule,
+  getDomainNameError,
+  isDomainSelectionInvalid,
+  K8S_RESOURCE_NAME_MAX_LENGTH,
   resolveDomains,
   useDomainTypes,
 } from "../../src/components/SelectDomains";
@@ -63,5 +67,97 @@ describe("useDomainTypes", () => {
       loaded: true,
       domainTypes: [DomainType.CLASSIC],
     });
+  });
+});
+
+describe("getDomainNameError", () => {
+  it.each(["default", "a", "abc123", "a-b", "a--b", "ab-1-c"])(
+    "should accept valid name %j",
+    (name) => {
+      expect(getDomainNameError(name)).toBeUndefined();
+    },
+  );
+
+  it("should accept a name at the length limit", () => {
+    expect(
+      getDomainNameError("a".repeat(K8S_RESOURCE_NAME_MAX_LENGTH)),
+    ).toBeUndefined();
+  });
+
+  it.each(["Foo", "ABC", "1abc", "-abc", "abc-", "a_b", "a b", "UPPER"])(
+    "should reject invalid name %j",
+    (name) => {
+      expect(getDomainNameError(name)).toBeDefined();
+    },
+  );
+
+  it("should reject a name exceeding the length limit", () => {
+    expect(
+      getDomainNameError("a".repeat(K8S_RESOURCE_NAME_MAX_LENGTH + 1)),
+    ).toBeDefined();
+  });
+
+  it("should name the offending domain in the message", () => {
+    expect(getDomainNameError("Foo")).toContain("Foo");
+  });
+
+  it("should report the backend length message with the domain name", () => {
+    const name = "a".repeat(K8S_RESOURCE_NAME_MAX_LENGTH + 1);
+    expect(getDomainNameError(name)).toBe(
+      `Name exceeds maximum length of ${K8S_RESOURCE_NAME_MAX_LENGTH}: ${name}`,
+    );
+  });
+
+  it("should report the backend pattern message with the domain name", () => {
+    expect(getDomainNameError("Foo")).toBe(
+      "Resource name should match pattern: [a-z](-*[a-z0-9])*: Foo",
+    );
+  });
+});
+
+describe("isDomainSelectionInvalid", () => {
+  it("should report missing selection as invalid", () => {
+    expect(isDomainSelectionInvalid(undefined)).toBe(true);
+    expect(isDomainSelectionInvalid([])).toBe(true);
+  });
+
+  it("should report valid selection as valid", () => {
+    expect(
+      isDomainSelectionInvalid([{ name: "default", type: DomainType.CLASSIC }]),
+    ).toBe(false);
+  });
+
+  it("should report selection with an invalid name as invalid", () => {
+    expect(
+      isDomainSelectionInvalid([{ name: "Foo", type: DomainType.CLASSIC }]),
+    ).toBe(true);
+  });
+});
+
+describe("domainNamesRule", () => {
+  it("should resolve for valid domain names", async () => {
+    if (!("validator" in domainNamesRule) || !domainNamesRule.validator) {
+      throw new Error("domainNamesRule must define a validator");
+    }
+    await expect(
+      domainNamesRule.validator(
+        {},
+        [{ name: "default", type: DomainType.CLASSIC }],
+        () => {},
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("should reject invalid domain names with the offending name", async () => {
+    if (!("validator" in domainNamesRule) || !domainNamesRule.validator) {
+      throw new Error("domainNamesRule must define a validator");
+    }
+    await expect(
+      domainNamesRule.validator(
+        {},
+        [{ name: "Foo", type: DomainType.CLASSIC }],
+        () => {},
+      ),
+    ).rejects.toThrow("Foo");
   });
 });

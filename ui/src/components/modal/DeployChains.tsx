@@ -17,7 +17,11 @@ import {
   Space,
   Tag,
 } from "antd";
-import { Domain, SelectDomains } from "../SelectDomains.tsx";
+import {
+  Domain,
+  DomainsFormItem,
+  isDomainSelectionInvalid,
+} from "../SelectDomains.tsx";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import type { TableProps } from "antd";
 
@@ -77,8 +81,11 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
   onSubmit,
 }) => {
   const { closeContainingModal } = useModalContext();
+  const [form] = Form.useForm<DeployRequest>();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const [step, setStep] = useState<"form" | "results">("form");
+  const domains = Form.useWatch("domains", form);
+  const isDeployDisabled = isDomainSelectionInvalid(domains);
   const [results, setResults] = useState<
     (BulkDeploymentResult & { key: React.Key })[]
   >([]);
@@ -114,6 +121,7 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
               form="deployOptionsForm"
               htmlType="submit"
               loading={confirmLoading}
+              disabled={isDeployDisabled}
             >
               Deploy
             </Button>
@@ -129,19 +137,14 @@ export const DeployChains: React.FC<DeployChainsProps> = ({
         <Form<DeployRequest>
           layout="vertical"
           id="deployOptionsForm"
+          form={form}
           initialValues={{
             domains: [{ name: "default", type: DomainType.CLASSIC }],
             snapshotAction: BulkDeploymentSnapshotAction.CREATE_NEW,
           }}
           onFinish={(values) => void onFinish(values)}
         >
-          <Form.Item
-            name="domains"
-            label="Engine domains"
-            rules={[{ required: true }]}
-          >
-            <SelectDomains />
-          </Form.Item>
+          <DomainsFormItem label="Engine domains" />
           <Form.Item name="snapshotAction" label="Snapshot action">
             <Select
               options={[

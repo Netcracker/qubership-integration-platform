@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Select } from "antd";
+import { Form, Select } from "antd";
+import type { Rule } from "antd/lib/form/index";
 import { useDomains } from "../hooks/useDomains.tsx";
 import type { LabelRenderProps, OptionRenderProps } from "../types/antd.ts";
 import { DomainType, EngineDomain } from "../api/apiTypes.ts";
@@ -11,9 +12,70 @@ export type Domain = {
   type: DomainType;
 };
 
+export const K8S_RESOURCE_NAME_MAX_LENGTH = 63;
+
+export const K8S_RESOURCE_NAME_PATTERN_SOURCE = "[a-z](-*[a-z0-9])*";
+
+export const K8S_RESOURCE_NAME_REGEX = new RegExp(
+  `^${K8S_RESOURCE_NAME_PATTERN_SOURCE}$`,
+);
+
+export function getDomainNameError(name: string): string | undefined {
+  if (name && name.length > K8S_RESOURCE_NAME_MAX_LENGTH) {
+    return `Name exceeds maximum length of ${K8S_RESOURCE_NAME_MAX_LENGTH}: ${name}`;
+  }
+  if (!name || !K8S_RESOURCE_NAME_REGEX.test(name)) {
+    return `Resource name should match pattern: ${K8S_RESOURCE_NAME_PATTERN_SOURCE}: ${name}`;
+  }
+  return undefined;
+}
+
+export function getInvalidDomainName(
+  domains: Domain[] | undefined,
+): string | undefined {
+  const invalid = (domains ?? []).find(
+    (domain) => getDomainNameError(domain.name) !== undefined,
+  );
+  return invalid ? getDomainNameError(invalid.name) : undefined;
+}
+
+export function isDomainSelectionInvalid(
+  domains: Domain[] | undefined,
+): boolean {
+  return !domains?.length || getInvalidDomainName(domains) !== undefined;
+}
+
+export const domainNamesRule: Rule = {
+  validator: (_, value: Domain[]) => {
+    const message = getInvalidDomainName(value);
+    return message ? Promise.reject(new Error(message)) : Promise.resolve();
+  },
+};
+
 export type SelectDomainsProperties = {
   value?: Domain[];
   onChange?: (value: Domain[]) => void;
+};
+
+export type DomainsFormItemProperties = {
+  label?: string;
+};
+
+export const DomainsFormItem: React.FC<DomainsFormItemProperties> = ({
+  label = "Domains",
+}) => {
+  return (
+    <Form.Item
+      label={label}
+      name="domains"
+      rules={[
+        { required: true, message: "Please specify at least one domain" },
+        domainNamesRule,
+      ]}
+    >
+      <SelectDomains />
+    </Form.Item>
+  );
 };
 
 export function getDomainType(
