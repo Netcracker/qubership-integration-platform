@@ -190,7 +190,7 @@ data:
       # keeps the /api prefix instead of stripping it.
       location ~ "^/api/(v\d+)/.*/testing-service" {
         rewrite "^/api/(v\d+)/.*/testing-service/(.*)$"  /api/$1/$2  break;
-        proxy_pass  http://{{ .Release.Name }}-testing-service:8080;
+        proxy_pass  http://{{ .Release.Name }}-testing-service-{{ .Values.global.blueGreenVersion }}:8080;
         proxy_redirect     off;
         proxy_set_header   Host $host;
         proxy_intercept_errors on;
