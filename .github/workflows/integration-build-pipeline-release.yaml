@@ -1,7 +1,7 @@
 ---
 name: Integration Build Pipeline Release
 
-run-name: Integration Build Pipeline Release (${{ inputs.release-type }})
+run-name: Integration Build Pipeline Release (patch)
 
 on:
   workflow_call:
@@ -32,17 +32,9 @@ on:
         required: false
       GH_BUMP_VERSION_APP_KEY:
         required: false
+  # Patch only: minor and major go through release-all.
   workflow_dispatch:
     inputs:
-      release-type:
-        description: "patch | minor | major"
-        type: choice
-        options:
-          - "patch"
-          - "minor"
-          - "major"
-        required: false
-        default: "patch"
       profile:
         description: "Maven profile to use"
         type: choice
