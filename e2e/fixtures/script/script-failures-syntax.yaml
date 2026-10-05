@@ -1,0 +1,34 @@
+id: "e2e50017-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-script-failures-syntax"
+description: "A script that does not parse. The chain is imported, deployed and deleted by\
+  \ specs/runtime/script-failures.spec.ts and is named in SPEC_OWNED_FIXTURES: the seed gates on\
+  \ every corpus chain reaching a live route, and this one never deploys at all."
+content:
+  labels: []
+  elements:
+  - id: "e2e50017-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-failures-syntax"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50017-0000-4000-8000-000000000003"
+    name: "Unbalanced Script"
+    type: "script"
+    properties:
+      script: |-
+        // script-failures-syntax/unbalanced
+        def broken = (
+  dependencies:
+  - from: "e2e50017-0000-4000-8000-000000000002"
+    to: "e2e50017-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

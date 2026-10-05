@@ -1,0 +1,99 @@
+id: "e2e50021-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-script-in-container-split"
+description: "A script in each branch of a Split. A script before the split seeds an exchange\
+  \ property, every branch reports whether it can see that seed and whether any other branch's\
+  \ property reached it, so the response says once per branch what one copy of the exchange saw."
+content:
+  labels: []
+  elements:
+  - id: "e2e50021-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-in-container-split"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50021-0000-4000-8000-000000000003"
+    name: "Seed Split"
+    type: "script"
+    properties:
+      script: |-
+        // script-in-container-split/seed-split
+        // Before the split: one property every branch's copy of the exchange inherits.
+        exchange.setProperty('e2eSplitSeed', exchange.getIn().getHeader('e2e-seed'))
+  - id: "e2e50021-0000-4000-8000-000000000004"
+    name: "Split"
+    type: "split-2"
+    properties:
+      aggregationStrategy: "chainsAggregationStrategy"
+      stopOnException: true
+      timeout: 0
+    children:
+    - id: "e2e50021-0000-4000-8000-000000000005"
+      name: "Main Branch"
+      type: "main-split-element-2"
+      properties:
+        splitName: "main"
+      children:
+      - id: "e2e50021-0000-4000-8000-000000000006"
+        name: "Main Pass"
+        type: "script"
+        properties:
+          script: |-
+            // script-in-container-split/main-pass
+            // The main branch runs once, on its own copy: the seed is there and neither secondary
+            // branch's property ever is.
+            exchange.setProperty('e2eSplitMain', 'ran')
+            def alone = exchange.getProperty('e2eSplitFirst') == null && exchange.getProperty('e2eSplitSecond') == null
+            exchange.getIn().setBody('{"branch":"main","seed":"' + exchange.getProperty('e2eSplitSeed') + '","isolated":' + alone + '}')
+    - id: "e2e50021-0000-4000-8000-000000000007"
+      name: "First Branch"
+      type: "split-element-2"
+      properties:
+        splitName: "first"
+        propagateHeaders: false
+        propagateProperties: false
+      children:
+      - id: "e2e50021-0000-4000-8000-000000000008"
+        name: "First Pass"
+        type: "script"
+        properties:
+          script: |-
+            // script-in-container-split/first-pass
+            // The first secondary branch, reporting the same two readings its siblings do.
+            exchange.setProperty('e2eSplitFirst', 'ran')
+            def alone = exchange.getProperty('e2eSplitMain') == null && exchange.getProperty('e2eSplitSecond') == null
+            exchange.getIn().setBody('{"branch":"first","seed":"' + exchange.getProperty('e2eSplitSeed') + '","isolated":' + alone + '}')
+    - id: "e2e50021-0000-4000-8000-000000000009"
+      name: "Second Branch"
+      type: "split-element-2"
+      properties:
+        splitName: "second"
+        propagateHeaders: false
+        propagateProperties: false
+      children:
+      - id: "e2e50021-0000-4000-8000-00000000000a"
+        name: "Second Pass"
+        type: "script"
+        properties:
+          script: |-
+            // script-in-container-split/second-pass
+            // The second secondary branch. Its text differs from its sibling's, which the corpus
+            // rule requires: the compiled-script cache is keyed on the source alone.
+            exchange.setProperty('e2eSplitSecond', 'ran')
+            def alone = exchange.getProperty('e2eSplitMain') == null && exchange.getProperty('e2eSplitFirst') == null
+            exchange.getIn().setBody('{"branch":"second","seed":"' + exchange.getProperty('e2eSplitSeed') + '","isolated":' + alone + '}')
+  dependencies:
+  - from: "e2e50021-0000-4000-8000-000000000002"
+    to: "e2e50021-0000-4000-8000-000000000003"
+  - from: "e2e50021-0000-4000-8000-000000000003"
+    to: "e2e50021-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

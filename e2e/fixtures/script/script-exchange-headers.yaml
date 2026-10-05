@@ -1,0 +1,48 @@
+id: "e2e50004-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-script-exchange-headers"
+description: "A script reading, adding and removing headers. The second script is what makes the\
+  \ case: it reports the two headers the first one wrote and whether the one it removed is still\
+  \ there, so every change is read back by an element that did not make it."
+content:
+  labels: []
+  elements:
+  - id: "e2e50004-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-exchange-headers"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50004-0000-4000-8000-000000000003"
+    name: "Change Headers"
+    type: "script"
+    properties:
+      script: |-
+        // script-exchange-headers/change-headers
+        // Read one header the caller sent, add two, remove one.
+        exchange.getIn().setHeader('e2e-echo', exchange.getIn().getHeader('e2e-in'))
+        exchange.getIn().setHeader('e2e-added', 'added-by-script')
+        exchange.getIn().removeHeader('e2e-remove-me')
+  - id: "e2e50004-0000-4000-8000-000000000004"
+    name: "Read Headers"
+    type: "script"
+    properties:
+      script: |-
+        // script-exchange-headers/read-headers
+        def message = exchange.getIn()
+        def removed = message.getHeader('e2e-remove-me') == null
+        exchange.getIn().setBody('{"echo":"' + message.getHeader('e2e-echo') + '","added":"' + message.getHeader('e2e-added') + '","removed":' + removed + '}')
+  dependencies:
+  - from: "e2e50004-0000-4000-8000-000000000002"
+    to: "e2e50004-0000-4000-8000-000000000003"
+  - from: "e2e50004-0000-4000-8000-000000000003"
+    to: "e2e50004-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

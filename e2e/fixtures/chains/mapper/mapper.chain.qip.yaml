@@ -1,0 +1,80 @@
+---
+id: "e2e00008-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-mapper"
+description: "Tier-1 fixture for the Mapper element. The mapping writes one constant into a target\
+  \ header, which is the smallest shape that needs no imported specification and still proves the\
+  \ mapper processor ran."
+content:
+  labels: []
+  elements:
+  - id: "e2e00008-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-mapper"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00008-0000-4000-8000-000000000003"
+    name: "Mapper"
+    type: "mapper-2"
+    properties:
+      throwException: true
+      mappingDescription:
+        source:
+          headers: []
+          properties: []
+        target:
+          headers:
+          - id: "e2e00008-attr-mapped"
+            name: "e2e-mapped"
+            type:
+              name: "string"
+          properties: []
+          body:
+            name: "object"
+            schema:
+              id: "e2e00008-body-schema"
+              attributes:
+              - id: "e2e00008-attr-body"
+                name: "mapped"
+                type:
+                  name: "string"
+        constants:
+        - id: "e2e00008-const-1"
+          name: "mappedValue"
+          type:
+            name: "string"
+          valueSupplier:
+            kind: "given"
+            value: "mapper-ran"
+        actions:
+        - id: "e2e00008-action-1"
+          sources:
+          - type: "constant"
+            constantId: "e2e00008-const-1"
+          target:
+            type: "attribute"
+            kind: "header"
+            path:
+            - "e2e00008-attr-mapped"
+        - id: "e2e00008-action-2"
+          sources:
+          - type: "constant"
+            constantId: "e2e00008-const-1"
+          target:
+            type: "attribute"
+            kind: "body"
+            path:
+            - "e2e00008-attr-body"
+  dependencies:
+  - from: "e2e00008-0000-4000-8000-000000000002"
+    to: "e2e00008-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

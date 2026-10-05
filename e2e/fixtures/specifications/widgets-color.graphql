@@ -1,0 +1,10 @@
+"The first state of the external-library lever: a Widget carrying `color`."
+type Widget {
+  id: ID!
+  name: String!
+  color: String
+}
+
+type Query {
+  widget(id: ID!): Widget
+}
