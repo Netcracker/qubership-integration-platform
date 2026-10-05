@@ -100,6 +100,16 @@ Name unit tests `should ... when ...` where it fits:
 - should show full URI when no path component exists
 - should export participants with names
 
+## Browser tests read markers in `src`
+
+`e2e/specs/ui/` drives the production bundle through nginx and selects controls by markers in `src`:
+a `data-testid` named `<screen>-<action>` on an icon-only button (a `<span data-testid>` at the call
+site for a button a shared hook renders), the `-editor` IDs passed through Monaco's `wrapperProps`,
+`aria-label` and `aria-expanded` on `TreeExpandIcon`, and `deployment-status-<status>` on
+`DeploymentStatusTag`. Renaming or removing one breaks a browser case, and a new icon-only button
+gets its own id. Check a change with `cd e2e && npm test -- --project=ui`, which rebuilds the bundle
+when `src` changed. "The browser layer" in `e2e/AGENTS.md` has the selector rules.
+
 ## jsdom prerequisites
 
 jsdom is missing browser APIs that production code and react-router rely on. Two of them are already solved; reuse the

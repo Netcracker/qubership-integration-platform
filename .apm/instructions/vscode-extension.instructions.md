@@ -31,8 +31,7 @@ npm run package-web         # webpack --mode production (used by vscode:prepubli
 npm test                    # = test:unit
 npm run test:unit           # jest -c jest.config.cjs (mocks `vscode` via tests/__mocks__)
 npm run test:unit:coverage  # jest --coverage  → coverage/
-npm run test:integration    # @vscode/test-web in chromium (compiles web first); mounts tests/fixtures/service-projects
-npm run test:integration:headless   # xvfb-run wrapper for CI
+npm run test:integration    # @vscode/test-web in headless chromium, pinned VS Code build; mounts src/web/test/workspace
 
 # Lint / types
 npm run lint                # eslint --fix src
@@ -53,39 +52,18 @@ Two webpack outputs (`webpack.config.js` exports an array):
 
 **Webview embedding:** `copy-webpack-plugin` copies `qip-ui/dist-lib/**` (excluding `types/` and `.d.ts`) into `dist/web/qip-ui/`, and `qip-schemas/assets` into `dist/web/qip-schemas/assets`. At runtime `getWebviewContent` (in `extension.ts`) generates the webview HTML, preferring `index.bundled.es.js` (React embedded); it falls back to `index.es.js` + an esm.sh `<importmap>` for React if the bundled file is absent.
 
-**Custom editors & commands:** `package.json` registers seven custom text editors, one per file pattern —
-`*.chain.qip.yaml`, `*.service.qip.yaml`, `*.external-service.qip.yaml`, `*.internal-service.qip.yaml`,
-`*.implemented-service.qip.yaml`, `*.context-service.qip.yaml`, `*.mcp-service.qip.yaml` — plus a `qip-main`
-explorer tree view and commands (`qip.open`, `qip.createChain`, `qip.createService`, delete/reveal, etc.). The
-chain editor additionally supports an inline diff view (proposed `customEditorDiffs` API).
-`editorViewTypes.ts:getEditorViewTypeForUri` is the single URI → view type resolver; `qip.revealInExplorer`
-goes through it too, so a new editor type needs no second suffix chain. A slash-free `filenamePattern` matches
-within one name segment, so `*.service.qip.yaml` does not claim `x.external-service.qip.yaml` — the same
-reason `.context-service.` has always been safe.
+**Custom editors & commands:** `package.json` registers four custom text editors, one per file pattern:
+`qip.chainFile.editor` (`*.chain.qip.yaml`), `qip.serviceFile.editor` (`*.service.qip.yaml`),
+`qip.contextServiceFile.editor` (`*.context-service.qip.yaml`), and `qip.mcpServiceFile.editor`
+(`*.mcp-service.qip.yaml`). It also registers a `qip-main` explorer tree view and eleven commands (`qip.open`,
+`qip.createChain`, `qip.createService`, delete/reveal, etc.). The chain editor additionally supports an inline diff
+view (proposed `customEditorDiffs` API).
+`editorViewTypes.ts:getEditorViewTypeForUri` resolves a URI to its view type for `openDocumentInEditor`.
+`qip.revealInExplorer` in `extension.ts` does not use it: its own suffix check knows chains and plain services only,
+so it opens context and MCP services in the chain editor. `docs/product-defects.md` records that defect, and
+`commands.test.ts` pins it by asserting the chain editor. A new editor type needs an entry in both places until the
+command uses the resolver.
 
-**Dual-format read, single-format write.** The extension reads both `.specification.<app>.yaml` (legacy
-`specificationSources[]` with `fileName`/`mainSource`) and `.api.<app>.yaml` (current `specifications[]` with
-`filePath`/`isRoot`, plus typed operations), and writes only `.api.<app>.yaml`. The first write of a model converts it:
-it creates the `.api.<app>.yaml` file and deletes the `.specification.<app>.yaml` sibling, so a project migrates as its
-files are edited, with no migration command. Git records the change as a rename. `parentId` stays the source of truth
-for the API-to-group link; the group's `apis[]` is derived and rewritten by scanning the service folder after any API
-write or delete.
-
-**Conversion on first write**, the same rule as `.specification.` → `.api.` above: reads accept both formats, writes emit
-the current name wherever one can be spelled, and Git records the change as a rename.
-`serviceFileWrite.ts:writeServiceInCurrentFormat` is the conversion, and it returns the URI the service landed in rather
-than the one it came from, so a caller that re-reads must use the return value. Three call sites hang off it, not one:
-`serviceApiModify`'s local `writeMainService` (every update, environment edits included), `SystemService.saveSystem`, and
-`EnvironmentService.saveSystem`. Leaving any out migrates a service or not depending on which screen edited it.
-
-What converts is usually the **carrier**, not the name: a pre-#553 document keeps its `.service.` name and trades
-`content.integrationSystemType` for the type's own `$schema` (`typed-service-content.schema.yaml` forbids the field).
-The one rename left is a per-type name going back to the plain one.
-
-Two documents are left exactly as they are:
-
-- one whose type neither `$schema` nor `content.integrationSystemType` states — nothing to stamp, and a guess would
-  hand the backend a type nobody wrote;
 ### Project Structure
 
 Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions and schema URLs are configurable per app via a `.config.qip.yaml` (see `.config.qip.yaml.example`; defaults to the `qip` app).
@@ -95,12 +73,35 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
 - **Conventional Commits** required (enforced in CI on PR titles and commit messages).
 - **Apache License 2.0** — existing source files carry the NetCracker copyright header; new files do not need it.
 - `tsconfig.json`: `strict`, `module/moduleResolution: Node16`, target `ES2020`, libs `ES2020`+`WebWorker`.
-- Jest mocks the `vscode` module (`tests/__mocks__/vscode.ts`); unit tests live beside `api-services/` (`*.test.ts`) and under `tests/`. Integration tests under `src/web/test/` run in a real chromium web host and are excluded from Jest. Both suites run in CI (`vscode-extension-build.yaml`).
-- The CI `paths:` filter in `vscode-extension-build.yaml` needs no special entry for them: `schemas/**` already covers the golden trees and the naming corpus.
+- Jest mocks the `vscode` module (`tests/__mocks__/vscode.ts`); unit tests live beside `api-services/` (`*.test.ts`) and under `tests/`. Integration tests under `src/web/test/` run in a real chromium web host and are excluded from Jest. CI
+  (`vscode-extension-build.yaml`) runs the Jest suite only; `npm run release-check` in `e2e/` runs the integration
+  suite after the Playwright one.
 - The rule against mocking the file API in a disk-state test is about **faithfulness, not layering**. Modelling an
   unreadable file as a rejection from `parseFile` is fine — the real one logs and rethrows. Stubbing `getFileType` to
   reject was not, because the real one catches everything and answers `UNKNOWN`.
 - Node `>=22` (root monorepo `engines`).
+
+### Integration tests
+
+- Specs are `src/web/test/suite/*.test.ts`, bundled by webpack through `require.context` in `index.ts`, never
+  `tests/`, which Jest owns. `index.ts` sets up mocha's `tdd` interface, so write `suite`/`test`: a `describe`
+  throws at import and aborts the whole run.
+- `test:integration` runs `--headless` and opens `src/web/test/workspace/`, files exported by the catalog. The host
+  keeps writes in memory; a spec that writes or deletes works on files of its own, a copy (`copyFolder` in
+  `harness.ts`) or new files (`writeYaml`), and removes them in a teardown hook or a `finally`.
+- The script pins the VS Code build with `--quality insiders --commit <sha>`, the build the suite's host facts were
+  measured on. Moving the pin is a change to review like any other: rerun the suite and recheck those facts.
+- The test bundle carries its own copy of the extension's modules. Call `useExtensionModules` from `harness.ts`
+  before calling one, such as `getApiResponse`, so that copy has a file API. The `vscode` API object is shared, so a
+  stub on `vscode.window` supplies the input the extension's prompts return.
+- A spec sends `getApiResponse` the message the webview would, so the wiring in `enrichWebview` from the webview to
+  the running extension's router is not exercised. In this host the embedded UI does not use that wiring anyway:
+  `docs/product-defects.md` records why it sends nothing in VS Code for the Web. The webview DOM is out of scope.
+- `src/web/test/golden/` holds files the extension wrote, and the specs that write them compare the bytes. The end-to-end
+  suite imports the same files into the catalog (`e2e/specs/api/extension-output.spec.ts`), so a change to what the
+  extension writes updates the golden file in the same commit and runs that spec too.
+- The document schemas under `schemas/src/main/resources/qip-model/` are bundled as text by a webpack
+  `asset/source` rule, so a spec validates a saved file against the checked-in sources.
 
 ### Platform Context
 
