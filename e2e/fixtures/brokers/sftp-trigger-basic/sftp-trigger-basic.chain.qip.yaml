@@ -1,0 +1,44 @@
+---
+id: "e2e0h001-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-sftp-trigger-basic"
+description: "sftp-trigger-2 at its schema defaults: idempotent true, the default idempotentKey.\
+  \ A spec drops a file onto the polled directory over SFTP and correlates the session the\
+  \ two-hop way, by chain id, since the trigger sends no correlation header."
+content:
+  labels: []
+  elements:
+  - id: "e2e0h001-0000-4000-8000-000000000002"
+    name: "SFTP Trigger"
+    type: "sftp-trigger-2"
+    properties:
+      connectUrl: "sftp-server:22/upload/{{RUN}}/trigger-basic"
+      antInclude: "*.txt"
+      autoCreate: true
+      binary: true
+      idempotent: true
+      idempotentKey: "${file:name}-${file:size}-${file:modified}"
+      ignoreFileNotFoundOrPermissionError: true
+      jschLoggingLevel: "OFF"
+      password: "e2epass"
+      readLockLoggingLevel: "OFF"
+      runLoggingLevel: "OFF"
+      scheduler: "quartz"
+      scheduler.cron: "0/3 * * * * ?"
+      scheduler.deleteJob: false
+      scheduler.triggerGroup: "%%{domain-placeholder}-group"
+      streamDownload: true
+      username: "e2e"
+      useUserKnownHostsFile: false
+  - id: "e2e0h001-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e0h001-0000-4000-8000-000000000002"
+    to: "e2e0h001-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

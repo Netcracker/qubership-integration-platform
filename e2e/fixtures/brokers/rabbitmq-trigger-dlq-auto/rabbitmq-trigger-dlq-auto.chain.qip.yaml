@@ -1,0 +1,49 @@
+---
+id: "e2e0g003-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-rabbitmq-trigger-dlq-auto"
+description: "rabbitmq-trigger-2 with acknowledgeMode AUTO (the schema default) into an http-sender\
+  \ pointed at a host that can never resolve, so the message fails deterministically.\
+  \ template.hbs pins maximumRetryAttempts=1 on the consumer URI, so under AUTO the failed delivery\
+  \ is rejected after one attempt and, with the queue's x-dead-letter-* arguments in place, lands on\
+  \ the configured dead-letter queue. Not MANUAL: RabbitMqTriggerProcessor.process acks a MANUAL\
+  \ delivery as its first statement, before the chain runs, so a failure afterwards can never reject\
+  \ and never reaches the DLQ -- that is rabbitmq-trigger-dlq-manual's case."
+content:
+  labels: []
+  elements:
+  - id: "e2e0g003-0000-4000-8000-000000000002"
+    name: "RabbitMQ Trigger"
+    type: "rabbitmq-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      addresses: "rabbitmq:5672"
+      username: "guest"
+      password: "guest"
+      exchange: "e2e-{{RUN}}-rabbitmq-trigger-dlq-auto"
+      routingKey: "e2e-{{RUN}}-rabbitmq-trigger-dlq-auto"
+      queues: "e2e-{{RUN}}-rabbitmq-trigger-dlq-auto"
+      exchangeType: "direct"
+      acknowledgeMode: "AUTO"
+      deadLetterExchange: "e2e-{{RUN}}-rabbitmq-trigger-dlq-auto-dlx"
+      deadLetterExchangeType: "direct"
+      deadLetterQueue: "e2e-{{RUN}}-rabbitmq-trigger-dlq-auto-dlq"
+      deadLetterRoutingKey: "e2e-{{RUN}}-rabbitmq-trigger-dlq-auto-dlk"
+      idempotency:
+        enabled: false
+  - id: "e2e0g003-0000-4000-8000-000000000003"
+    name: "HTTP Sender"
+    type: "http-sender"
+    properties:
+      uri: "http://e2e-rabbitmq-fail.invalid/boom"
+      httpMethod: "POST"
+      isExternalCall: false
+      m2m: false
+      reuseEstablishedConnection: true
+      propagateContext: false
+      receiveCorrelationId: false
+  dependencies:
+  - from: "e2e0g003-0000-4000-8000-000000000002"
+    to: "e2e0g003-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

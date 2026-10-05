@@ -1,0 +1,40 @@
+---
+id: "e2e0g002-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-rabbitmq-sender-basic"
+description: "rabbitmq-sender-2 at its schema defaults: connectionSourceType manual. An HTTP call\
+  \ drives it and a spec binds its own queue to the exchange with amqplib to assert the payload\
+  \ arrived."
+content:
+  labels: []
+  elements:
+  - id: "e2e0g002-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-rabbitmq-sender-basic"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e0g002-0000-4000-8000-000000000003"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      connectionSourceType: "manual"
+      addresses: "rabbitmq:5672"
+      username: "guest"
+      password: "guest"
+      exchange: "e2e-{{RUN}}-rabbitmq-sender-basic"
+      routingKey: "e2e-{{RUN}}-rabbitmq-sender-basic"
+      exchangePattern: "InOnly"
+      propagateContext: false
+  dependencies:
+  - from: "e2e0g002-0000-4000-8000-000000000002"
+    to: "e2e0g002-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"
