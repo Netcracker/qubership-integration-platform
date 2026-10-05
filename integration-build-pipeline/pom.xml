@@ -29,7 +29,7 @@
   </parent>
 
   <properties>
-    <revision>1.5.0</revision>
+    <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
