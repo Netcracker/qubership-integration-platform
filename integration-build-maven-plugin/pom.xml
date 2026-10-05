@@ -26,7 +26,7 @@
   </parent>
 
   <properties>
-    <revision>1.5.0</revision>
+    <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
     <!-- Last released version of the in-repo library, kept equal to integration-build-pipeline's revision by
