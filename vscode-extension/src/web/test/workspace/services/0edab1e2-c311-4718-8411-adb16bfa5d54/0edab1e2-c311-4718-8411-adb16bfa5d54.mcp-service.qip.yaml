@@ -1,0 +1,9 @@
+---
+id: "0edab1e2-c311-4718-8411-adb16bfa5d54"
+$schema: "http://qubership.org/schemas/product/qip/mcp-service"
+name: "vsc-fixture-mcp"
+content:
+  description: "MCP service for the extension integration tests"
+  identifier: "vscFixtureMcp"
+  instructions: "Answer with the fixture data."
+  migrations: "[100]"

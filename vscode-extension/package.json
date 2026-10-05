@@ -8,6 +8,7 @@
   "types": "dist/web/index.d.ts",
   "files": [
     "dist",
+    "!dist/web/test",
     "configs",
     "vscode.proposed.customEditorDiffs.d.ts"
   ],
@@ -200,8 +201,7 @@
   },
   "scripts": {
     "test": "npm run test:unit",
-    "test:integration": "npm run compile-web && vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
-    "test:integration:headless": "xvfb-run -a npm run test:integration",
+    "test:integration": "npm run compile-web && vscode-test-web --browserType=chromium --headless --quality insiders --commit c718b461a175300ec6f4949c808291d2149f3f8d --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js src/web/test/workspace",
     "test:unit": "jest -c jest.config.cjs",
     "test:unit:coverage": "jest -c jest.config.cjs --coverage",
     "prepublishOnly": "rimraf dist && npm run build",
@@ -226,6 +226,7 @@
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
     "@vscode/test-web": "^0.0.80",
+    "ajv": "^8.20.0",
     "assert": "^2.1.0",
     "copy-webpack-plugin": "^13.0.1",
     "eslint": "^9.25.1",
