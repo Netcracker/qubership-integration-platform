@@ -1,7 +1,11 @@
 import React, { useState } from "react";
 import { Button, Form, Modal } from "antd";
 import { useModalContext } from "../../ModalContextProvider.tsx";
-import { Domain, SelectDomains } from "../SelectDomains.tsx";
+import {
+  Domain,
+  DomainsFormItem,
+  isDomainSelectionInvalid,
+} from "../SelectDomains.tsx";
 import { DomainType } from "../../api/apiTypes.ts";
 
 export type SaveAndDeployProps = {
@@ -17,9 +21,11 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
   chainId,
   onSubmit,
 }) => {
-  const [form] = Form.useForm();
+  const [form] = Form.useForm<SaveAndDeployFormData>();
   const [confirmLoading, setConfirmLoading] = useState(false);
   const { closeContainingModal } = useModalContext();
+  const domains = Form.useWatch("domains", form);
+  const isDeployDisabled = isDomainSelectionInvalid(domains);
 
   const handleSubmit = (data: SaveAndDeployFormData) => {
     if (!chainId) {
@@ -59,6 +65,7 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
           form="saveAndDeployForm"
           htmlType={"submit"}
           loading={confirmLoading}
+          disabled={isDeployDisabled}
         >
           Deploy
         </Button>,
@@ -76,15 +83,7 @@ export const SaveAndDeploy: React.FC<SaveAndDeployProps> = ({
         labelWrap
         onFinish={(values) => handleSubmit(values)}
       >
-        <Form.Item
-          label="Domains"
-          name="domains"
-          rules={[
-            { required: true, message: "Please specify at least one domain" },
-          ]}
-        >
-          <SelectDomains />
-        </Form.Item>
+        <DomainsFormItem />
       </Form>
     </Modal>
   );
