@@ -492,18 +492,24 @@ export const ServicesList: React.FC<ServicesListProps> = ({ tab }) => {
                 key="service-discovery"
                 permissions={{ service: ["execute"] }}
               >
-                <ServiceDiscoveryButton
-                  onSystemsDiscovered={(systemIds: string[]) => {
-                    if (systemIds.length > 0) {
-                      void loadServices();
-                    }
-                  }}
-                />
+                <span data-testid="services-discovery">
+                  <ServiceDiscoveryButton
+                    onSystemsDiscovered={(systemIds: string[]) => {
+                      if (systemIds.length > 0) {
+                        void loadServices();
+                      }
+                    }}
+                  />
+                </span>
               </Require>,
             ]
           : []),
-        filterButton,
-        servicesTable.FilterButton(),
+        <span key="filter" data-testid="services-filter">
+          {filterButton}
+        </span>,
+        <span key="column-settings" data-testid="services-column-settings">
+          {servicesTable.FilterButton()}
+        </span>,
       ]}
       serviceType={getSystemType(tab)}
       onCreate={(name, description) => handleCreate(name, description)}

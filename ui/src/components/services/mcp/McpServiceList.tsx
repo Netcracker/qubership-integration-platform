@@ -271,7 +271,14 @@ export const McpServiceList: React.FC = () => {
       refresh={{ onRefresh: loadSystems, loading: isLoading }}
       title={"MCP Services"}
       icon={<OverridableIcon name={"mcp"} />}
-      extraActions={[filterButton, columnSettingsButton]}
+      extraActions={[
+        <span key="filter" data-testid="services-filter">
+          {filterButton}
+        </span>,
+        <span key="column-settings" data-testid="services-column-settings">
+          {columnSettingsButton}
+        </span>,
+      ]}
       serviceType={IntegrationSystemType.MCP}
       onCreate={(name, description, properties) =>
         createSystem(name, description, properties["identifier"])

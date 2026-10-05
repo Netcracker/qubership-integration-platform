@@ -70,6 +70,7 @@ export const ChainTextViewPanel: React.FC<ChainTextViewPanelProps> = ({
     <div className={`${styles.rightPanelCodeBlock} qip-editor`}>
       <Editor
         height="100%"
+        wrapperProps={{ "data-testid": "chain-text-view-editor" }}
         language="yaml"
         value={textViewContent}
         theme={monacoTheme}

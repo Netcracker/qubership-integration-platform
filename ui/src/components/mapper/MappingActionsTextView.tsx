@@ -525,6 +525,7 @@ export const MappingActionsTextView: React.FC<MappingActionsTextViewProps> = ({
   return (
     <Editor
       className="qip-editor"
+      wrapperProps={{ "data-testid": "mapping-actions-editor" }}
       value={value}
       language={MAPPER_ACTIONS_LANGUAGE_ID}
       theme={monacoTheme}

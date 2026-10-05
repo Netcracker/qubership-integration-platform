@@ -31,7 +31,9 @@ describe("treeExpandIcon", () => {
       />,
     );
     expect(screen.getByTestId("icon-right")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand row", expanded: false }),
+    );
     expect(onExpand).toHaveBeenCalledWith({ id: "r1" }, expect.any(Object));
   });
 
@@ -47,6 +49,9 @@ describe("treeExpandIcon", () => {
       />,
     );
     expect(screen.getByTestId("icon-down")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Collapse row", expanded: true }),
+    ).toBeInTheDocument();
   });
 
   it("renders spacer when not expandable", () => {

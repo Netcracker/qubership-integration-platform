@@ -48,6 +48,7 @@ type EditorProps = {
   theme?: string;
   height?: number | string;
   className?: string;
+  wrapperProps?: Record<string, unknown>;
   beforeMount?: (monaco: FakeMonaco) => void;
   onMount?: (
     editor: { getDomNode: () => HTMLDivElement | null },
@@ -162,6 +163,25 @@ describe("Script", () => {
       expect(capturedEditorProps?.options?.lineHeight).toBe(28);
       expect(capturedEditorProps?.options?.fontFamily).toBe("Consolas");
       expect(capturedEditorProps?.options?.fontWeight).toBe("bold");
+    });
+
+    it("should mark the editor wrapper when mounted", () => {
+      render(<Script value="" />);
+      expect(capturedEditorProps?.wrapperProps).toEqual({
+        "data-testid": "script-editor",
+      });
+    });
+
+    it("should keep a caller test id on the container when one is passed", () => {
+      const { container } = render(
+        <Script value="" data-testid="request-body" />,
+      );
+      expect(
+        container.querySelector('[data-testid="request-body"]'),
+      ).toBeTruthy();
+      expect(capturedEditorProps?.wrapperProps).toEqual({
+        "data-testid": "script-editor",
+      });
     });
 
     it("spreads extra HTML attributes onto the container", () => {

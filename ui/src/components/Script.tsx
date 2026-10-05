@@ -315,6 +315,7 @@ export const Script: React.FC<ScriptProps> = ({
       <Editor
         height="100%"
         className="qip-editor"
+        wrapperProps={{ "data-testid": "script-editor" }}
         value={value}
         language={mode}
         theme={monacoTheme}

@@ -473,6 +473,7 @@ export const SecuredVariables: React.FC = () => {
                 }}
                 buttonProps={{
                   iconName: "plus",
+                  "data-testid": "secured-variables-add",
                   size: "small",
                   type: "text",
                   disabled: !canAddVariableToSecret(secret),
