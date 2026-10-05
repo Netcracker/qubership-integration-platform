@@ -5,11 +5,17 @@ description: Release a module of this monorepo, or read back how a release is ve
 
 # Releasing a module
 
-A release is version-type driven, so you never type a version number. Pick `patch`, `minor`, or
-`major` — either a `<module>-release.yaml` dispatch, or `release-all.yaml` for a wave. The workflow
-computes the version from the file in the repo, publishes it, tags it `<module>-vX.Y.Z`, and commits
-the bumped version back to the branch as `qubership-actions[bot]`. The file in the repo is the
-source of truth for the next version.
+A release is version-type driven, so you never type a version number. The workflow computes the
+version from the file in the repo, publishes it, tags it `<module>-vX.Y.Z`, and commits the bumped
+version back to the branch as `qubership-actions[bot]`. The file in the repo is the source of truth
+for the next version.
+
+- `release-all.yaml` takes `patch`, `minor`, or `major` and bumps every module except checkstyle by
+  it, each from its own version. The drop tag `v<platform-version>` is the root `pom.xml`
+  `<revision>` bumped the same way.
+- A `<module>-release.yaml` dispatch always releases a `patch`, so all modules keep one
+  major.minor. A module released alone stays a patch ahead: after an engine hotfix to 1.5.1, the
+  next patch wave puts engine on 1.5.2 and the rest on 1.5.1.
 
 ## Per-ecosystem behavior
 
@@ -27,8 +33,8 @@ branch protection on the target branch. Without that bypass the next release of 
 because its tag already exists. `scripts/commit-and-push.sh` does the commit and the rebase-retry
 push, and both reusable workflows share it.
 
-The optional `version` input overrides the computed version for edge cases such as a first release
-or an explicit jump.
+`_maven-module-release.yaml` keeps an optional `version` input that overrides the computed version.
+Only schemas' Maven line uses it, to take the number its npm release decided.
 
 ## Snapshot and dev publishing
 

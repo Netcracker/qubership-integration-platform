@@ -2,8 +2,8 @@
 # Release the repository's only Go module.
 #
 # Model (bump-before, like maven and npm): testing-service/VERSION holds the last
-# released version. A release bumps it per release-type (or the `version`
-# override), writes it back, commits, and tags the bump commit.
+# released version. A release bumps it per release-type, writes it back,
+# commits, and tags the bump commit.
 #
 # The tag is `testing-service/vX.Y.Z`, not the repository's usual
 # `<module>-vX.Y.Z`: the go command resolves a module living in a repository
@@ -29,11 +29,6 @@ on:
         required: false
         type: string
         default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump the current VERSION by release-type."
-        required: false
-        type: string
-        default: ""
       build-docker:
         description: "Build Docker image"
         required: false
@@ -43,22 +38,9 @@ on:
       GH_BUMP_VERSION_APP_KEY:
         required: false
         description: "Private key of the GitHub App that bypasses branch protection for the version-bump push. Falls back to GITHUB_TOKEN if unset."
+  # Patch only: minor and major go through release-all.
   workflow_dispatch:
     inputs:
-      release-type:
-        description: "Release type (ignored if a version override is given)"
-        type: choice
-        options:
-          - "patch"
-          - "minor"
-          - "major"
-        required: false
-        default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump the current VERSION by release-type."
-        required: false
-        default: ""
-        type: string
       build-docker:
         description: "Build Docker image"
         required: false
@@ -80,8 +62,7 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
-  # Preflight: bump VERSION per release-type (or the override); recover if the
-  # tag already exists.
+  # Preflight: bump VERSION per release-type; recover if the tag already exists.
   check-version:
     runs-on: ubuntu-latest
     permissions:
@@ -104,7 +85,6 @@ jobs:
           ECOSYSTEM: go
           MODULE: testing-service
           RELEASE_TYPE: ${{ inputs.release-type }}
-          VERSION_OVERRIDE: ${{ inputs.version }}
         run: bash scripts/compute-release-version.sh
 
   # Verify, then write VERSION, commit, and tag. Recovery skips the checks and

@@ -1,7 +1,7 @@
 ---
 name: Sessions Management Release
 
-run-name: Sessions Management Release (${{ inputs.release-type }})
+run-name: Sessions Management Release (patch)
 
 on:
   workflow_call:
@@ -11,11 +11,6 @@ on:
         required: false
         type: string
         default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
-        required: false
-        type: string
-        default: ""
       profile:
         description: "Maven profile to use"
         type: string
@@ -42,17 +37,9 @@ on:
         required: false
       GH_BUMP_VERSION_APP_KEY:
         required: false
+  # Patch only: minor and major go through release-all.
   workflow_dispatch:
     inputs:
-      release-type:
-        description: "patch | minor | major"
-        type: choice
-        options:
-          - "patch"
-          - "minor"
-          - "major"
-        required: false
-        default: "patch"
       profile:
         description: "Maven profile to use"
         type: choice
@@ -83,7 +70,6 @@ jobs:
     with:
       module: sessions-management
       release-type: ${{ inputs.release-type }}
-      version: ${{ inputs.version || '' }}
       profile: ${{ inputs.profile }}
       build-docker: ${{ inputs.build-docker }}
       mvn-args: ${{ inputs.mvn-args }}

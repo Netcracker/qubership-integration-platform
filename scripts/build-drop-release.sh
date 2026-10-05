@@ -5,8 +5,8 @@
 # Tag = bare vX.Y.Z; body = module BOM + GitHub-native notes since the previous
 # drop.
 #
-# VERSION is the version the wave released — the same number every backend
-# service was published under. The caller (release-all) computes it once; this
+# VERSION is the platform version of the wave: the root <revision> bumped by the
+# wave's release-type. The caller (release-all) computes it once; this
 # script writes it into the platform POMs (root <revision>, parent, and the
 # children that pin the parent), commits, tags that commit, and cuts the release.
 #
