@@ -55,12 +55,20 @@ services:
     env_file:
       - "qip-dev.env"
       - "engine-dev.env"
+    environment:
+      # The pubsub check builds its own admin client from `serviceAccountKey` with no emulator
+      # endpoint, so against the local emulator it always reaches real googleapis and fails
+      # UNAUTHENTICATED. Off until the check itself learns about the emulator; see
+      # docs/product-defects.md.
+      CAMEL_PUBSUB_PREDEPLOY_CHECK_ENABLED: "false"
+    # Each connector a chain uses loads its library's classes into Metaspace once: with Kafka,
+    # RabbitMQ, Pub/Sub and SFTP in use the engine needs more than 224m, and redeploys add nothing.
     command:
       [
         "/opt/java/openjdk/bin/java",
         "-Xmx832m",
-        "-XX:MetaspaceSize=224m",
-        "-XX:MaxMetaspaceSize=224m",
+        "-XX:MetaspaceSize=384m",
+        "-XX:MaxMetaspaceSize=384m",
         "-XX:MaxDirectMemorySize=224m",
         "-XX:+ExitOnOutOfMemoryError",
         "-XX:+HeapDumpOnOutOfMemoryError",

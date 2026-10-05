@@ -315,6 +315,9 @@ else.
 `doUpdate` therefore reads the stored row **before** it validates. A payload that is invalid for an entity that does
 not exist is now a 404 rather than a 400: the lookup is what decides which of the two answers applies.
 
+None of these rules sees a misspelled field. The JSON decoder drops a field it does not know, so a mock created with
+`elementReference` instead of `endpointReference` answers 201 and is stored with no reference, where no call reaches it.
+
 ## Go version ceiling
 
 The `go` directive stays at **1.22**. The downstream build pins `GOTOOLCHAIN=local` to a 1.22 toolchain, so a
@@ -339,6 +342,12 @@ go test ./...                    # the default suite, no Docker needed
 go test -tags integration ./...  # PostgreSQL through testcontainers
 golangci-lint run                # v1.64.8, the version .golangci.yml is written against
 ```
+
+The end-to-end suite pins the HTTP contract of all 40 operations against the local stack:
+`e2e/specs/api/testing-service-mocks.spec.ts`, `e2e/specs/api/testing-service-portability.spec.ts`,
+`e2e/specs/runtime/testing-service-cases.spec.ts`, and `e2e/specs/runtime/testing-service-runs.spec.ts`. After changing
+a route, a JSON field name, the import and export envelope, or a CSV export, rebuild the container and run them from
+`e2e/` with `npx playwright test --project=api --project=runtime`.
 
 Anything that has to exercise real SQL belongs behind the `integration` build tag. Faking the runner alone does not
 remove the database, because repositories re-enter through the DAO's context helper and issue real bun queries; unit

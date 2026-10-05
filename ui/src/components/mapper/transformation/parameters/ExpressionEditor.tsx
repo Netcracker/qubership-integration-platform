@@ -816,6 +816,7 @@ export const ExpressionEditor: React.FC<ExpressionEditorProps> = ({
   return (
     <Editor
       className="qip-editor"
+      wrapperProps={{ "data-testid": "mapper-expression-editor" }}
       value={value}
       language={MAPPER_TRANSFORMATION_EXPRESSION_LANGUAGE_ID}
       path={action.id}

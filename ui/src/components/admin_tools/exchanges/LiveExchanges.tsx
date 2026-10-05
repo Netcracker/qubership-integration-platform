@@ -238,6 +238,7 @@ export const LiveExchanges: React.FC = () => {
                 buttonProps={{
                   type: "text",
                   iconName: "stop",
+                  "data-testid": "live-exchanges-terminate",
                   onClick: () => void showTerminateExchangeModal(item),
                 }}
               />

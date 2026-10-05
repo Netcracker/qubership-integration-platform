@@ -146,6 +146,7 @@ jest.mock("../../../../src/permissions/ProtectedButton", () => ({
       <button
         type="button"
         data-testid={String(tooltipProps.title)}
+        title={String(tooltipProps.title)}
         {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
       />
     );
@@ -346,20 +347,21 @@ describe("SecuredVariables Component", () => {
       render(<SecuredVariables />);
       await screen.findByText("default-secret");
       const defaultRow = screen.getByText("default-secret").closest("tr");
-      expect(
-        within(defaultRow!).getByTestId(
-          "Adding new variables to default secret is not allowed",
-        ),
-      ).toBeDisabled();
-      fireEvent.click(
-        within(defaultRow!).getByTestId(
-          "Adding new variables to default secret is not allowed",
-        ),
+      const defaultAdd = within(defaultRow!).getByTestId(
+        "secured-variables-add",
       );
+      expect(defaultAdd).toHaveAttribute(
+        "title",
+        "Adding new variables to default secret is not allowed",
+      );
+      expect(defaultAdd).toBeDisabled();
+      fireEvent.click(defaultAdd);
 
       await screen.findByText("app-secret");
       const row = screen.getByText("app-secret").closest("tr");
-      fireEvent.click(within(row!).getByTestId("Add variable"));
+      const add = within(row!).getByTestId("secured-variables-add");
+      expect(add).toHaveAttribute("title", "Add variable");
+      fireEvent.click(add);
       await waitFor(() => {
         expect(screen.getByTestId("is-adding-new")).toHaveTextContent("true");
       });

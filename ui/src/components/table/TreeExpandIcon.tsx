@@ -26,6 +26,8 @@ export function treeExpandIcon<T = unknown>() {
       <button
         type="button"
         className={styles.expandIcon}
+        aria-label={expanded ? "Collapse row" : "Expand row"}
+        aria-expanded={expanded}
         onClick={(e) => {
           onExpand(record, e);
           e.stopPropagation();

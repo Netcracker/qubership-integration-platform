@@ -7,9 +7,14 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}
-  strategy: {}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
   template:
     metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         app: {{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}
     spec:
@@ -17,9 +22,9 @@ spec:
       containers:
         - args:
             - /opt/java/openjdk/bin/java
-            - -Xmx642m
-            - -XX:MetaspaceSize=192m
-            - -XX:MaxMetaspaceSize=192m
+            - -Xmx{{ .Values.jvm.maxHeap }}
+            - -XX:MetaspaceSize={{ .Values.jvm.metaspaceSize }}
+            - -XX:MaxMetaspaceSize={{ .Values.jvm.maxMetaspaceSize }}
             - -XX:MaxDirectMemorySize=64m
             - -XX:+ExitOnOutOfMemoryError
             - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
@@ -126,7 +131,10 @@ spec:
                 configMapKeyRef:
                   key: SERVICE_MESH_TYPE
                   name: {{ .Release.Name }}-env
-          image: ghcr.io/netcracker/qubership-integration-runtime-catalog:latest
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          image: ghcr.io/netcracker/qubership-integration-runtime-catalog:{{ .Values.image.tag }}
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:

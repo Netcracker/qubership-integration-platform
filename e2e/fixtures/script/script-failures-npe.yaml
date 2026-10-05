@@ -1,0 +1,35 @@
+id: "e2e50015-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-script-failures-npe"
+description: "The most common real Script failure: a property read off a header that is not there.\
+  \ Nothing catches it, so what the caller and the trace see is the platform's own answer to a null\
+  \ pointer raised by Groovy rather than by the script's own throw."
+content:
+  labels: []
+  elements:
+  - id: "e2e50015-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-failures-npe"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50015-0000-4000-8000-000000000003"
+    name: "Null Property"
+    type: "script"
+    properties:
+      script: |-
+        // script-failures-npe/null-property
+        def missing = exchange.getIn().getHeader('e2e-header-nobody-sends')
+        exchange.getIn().setBody(missing.length())
+  dependencies:
+  - from: "e2e50015-0000-4000-8000-000000000002"
+    to: "e2e50015-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

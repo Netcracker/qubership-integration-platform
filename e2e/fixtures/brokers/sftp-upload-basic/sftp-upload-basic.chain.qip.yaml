@@ -1,0 +1,40 @@
+---
+id: "e2e0h004-0000-4000-8000-000000000001"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "e2e-{{RUN}}-sftp-upload-basic"
+description: "sftp-upload at its schema defaults. An HTTP call drives it; a spec reads the file\
+  \ back over SFTP with its own client to assert the body it sent actually landed on the server."
+content:
+  labels: []
+  elements:
+  - id: "e2e0h004-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-sftp-upload-basic"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e0h004-0000-4000-8000-000000000003"
+    name: "SFTP Upload"
+    type: "sftp-upload"
+    properties:
+      connectUrl: "sftp-server:22/upload/{{RUN}}/upload-basic"
+      fileName: "e2e-{{RUN}}-sftp-upload.txt"
+      autoCreate: true
+      username: "e2e"
+      password: "e2epass"
+      allowNullBody: true
+      binary: true
+      throwExceptionOnConnectFailed: true
+      useUserKnownHostsFile: false
+  dependencies:
+  - from: "e2e0h004-0000-4000-8000-000000000002"
+    to: "e2e0h004-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

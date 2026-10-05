@@ -17,6 +17,7 @@ module, scoped by `applyTo` to that module's path:
 - `vscode-extension` — offline web extension, embeds `@netcracker/qip-ui`
 - `infrastructure` — Docker Compose + Helm for the local stack
 - `testing-service` — chain test cases and endpoint mocks; the repository's only Go module, with a hand-maintained `testing-service/AGENTS.md`
+- `e2e` — the end-to-end suite (Playwright) against a local stack, Docker Compose or a Kubernetes cluster (`CIP_TARGET`); outside the npm workspaces, with its own `package.json` and lockfile
 - `integration-build-pipeline` — `qip-integration-build-pipeline`, the chain-compilation library runtime-catalog depends on (codegen, parsers, mapper, library, chain, io). No instruction of its own yet.
 
 The `ui` module is covered by the four `ui-*` skills rather than an instruction, because its
@@ -25,6 +26,19 @@ configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact
 `parent/` (the Maven parent POM `qip-monorepo-parent`).
 
 Edit these instructions under `.apm/`, never the generated `AGENTS.md` files.
+
+### The `docs/` tree
+
+`docs/` holds working documents that outlive the branch that produced them, and it belongs to no
+module.
+
+- An implementation plan, when one is committed, is `docs/plans/<yyyymmdd>-<slug>.md`, and moves to
+  `docs/plans/completed/` under the same name once its tasks are done.
+- `docs/repro/<slug>/` holds the artifacts of one reproduction — the chain document, the archive,
+  and a `README.md` with the commands. Reference it from whatever entry needed it rather than
+  pasting a ZIP archive into prose.
+- `docs/product-defects.md` is the register of defects found in the platform itself. Every entry
+  carries the `file:line` or the command that proves it; nothing there is inferred.
 
 ### Top-level build commands
 
@@ -57,7 +71,7 @@ Node `>=22` required (see `engines` in root `package.json`).
 docker compose -f infrastructure/docker-compose.yml up -d --build
 ```
 
-See the `infrastructure` instruction and `infrastructure/README.md` for sibling-repo expectations, ports, and optional compose files (`docker-compose.kafka.yml`, `.rabbitmq.yml`, `.redis.yml`, `.pubsub.yml`).
+See the `infrastructure` instruction and `infrastructure/README.md` for sibling-repo expectations, ports, and optional compose files (`docker-compose.kafka.yml`, `.rabbitmq.yml`, `.redis.yml`, `.pubsub.yml`, `.sftp.yml`).
 
 ### Build order between workspaces
 

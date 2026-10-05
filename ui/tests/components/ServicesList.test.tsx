@@ -347,7 +347,7 @@ describe("ServicesListPage", () => {
     jest.useRealTimers();
     render(<ServicesList tab="external" />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
-    fireEvent.click(screen.getByTestId("svc-action-upload-services"));
+    fireEvent.click(screen.getByTestId("services-import"));
     expect(mockShowModal).toHaveBeenCalledWith(
       expect.objectContaining({
         component: expect.anything(),
@@ -359,7 +359,7 @@ describe("ServicesListPage", () => {
     jest.useRealTimers();
     render(<ServicesList tab="external" />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
-    fireEvent.click(screen.getByTestId("svc-action-create-service"));
+    fireEvent.click(screen.getByTestId("services-create"));
     expect(mockShowModal).toHaveBeenCalledWith(
       expect.objectContaining({
         component: expect.anything(),
@@ -372,7 +372,7 @@ describe("ServicesListPage", () => {
     render(<ServicesList tab="external" />);
     await waitFor(() => expect(mockGetServices).toHaveBeenCalled());
     fireEvent.click(
-      screen.getByTestId("svc-action-download-selected-services"),
+      screen.getByTestId("services-export"),
     );
     expect(messageInfoSpy).toHaveBeenCalledWith("No services selected");
   });

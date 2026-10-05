@@ -1,0 +1,10 @@
+"The second state of the external-library lever: the same Widget, carrying `shade` instead."
+type Widget {
+  id: ID!
+  name: String!
+  shade: String
+}
+
+type Query {
+  widget(id: ID!): Widget
+}

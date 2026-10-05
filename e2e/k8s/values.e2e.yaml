@@ -1,0 +1,71 @@
+# Values for the e2e suite's install of infrastructure/qip-dev into namespace
+# qip-e2e. The provisioner adds the image tags, the micro-engine image, the host
+# ports, and the cluster-specific resolver and dev-server host on the command
+# line.
+
+global:
+  qip:
+    # Compose runs with PRODUCTION_MODE=false, which the Testing section needs.
+    production: false
+    testingService:
+      # On in Compose (engine-dev.env); off by default in the chart.
+      engineMockingEnabled: true
+    ui:
+      e2eLocations: true
+      # No sidecar, so nginx's own answers reach the host as Compose serves them: an inbound
+      # sidecar replaces the Server header with istio-envoy.
+      podAnnotations:
+        sidecar.istio.io/inject: "false"
+
+# Recreate on every service: under a rolling update the old pod keeps serving
+# while the new one starts, and a restart spec would see no downtime.
+# The environment and the catalog's JVM sizes match infrastructure/docker-compose.yml.
+# The engine runs with more heap and Metaspace than that file gives it.
+qip-engine:
+  strategy:
+    type: Recreate
+  jvm:
+    maxHeap: 1024m
+    metaspaceSize: 512m
+    maxMetaspaceSize: 512m
+  extraEnv:
+    - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+      value: always
+    - name: MONITORING_ENABLED
+      value: "true"
+
+qip-runtime-catalog:
+  # The http-out fixture calls the catalog by its Compose name.
+  serviceAliases:
+    - qip-runtime-catalog
+  strategy:
+    type: Recreate
+  jvm:
+    maxHeap: 642m
+    metaspaceSize: 320m
+    maxMetaspaceSize: 320m
+  extraEnv:
+    - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+      value: always
+    # The development profile Compose runs sets this level; the audit lines a spec reads are DEBUG.
+    - name: LOGGING_LEVEL_ORG_QUBERSHIP_INTEGRATION
+      value: DEBUG
+    # Without it camel-k caps a micro domain at 500m, and runtime-micro spent most of its CPU periods
+    # throttled there. The classic engine has no CPU limit; a micro domain peaked at 2.9 cores under 4.
+    - name: MICRO_DOMAIN_CONTAINER_LIMIT_CPU
+      value: "4"
+
+qip-sessions-management:
+  strategy:
+    type: Recreate
+  extraEnv:
+    - name: MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS
+      value: always
+
+qip-testing-service:
+  strategy:
+    type: Recreate
+  # No sidecar: an inbound one answers a request with an unknown method itself, with 400
+  # "Bad Request", before the service can refuse it.
+  podAnnotations:
+    sidecar.istio.io/inject: "false"

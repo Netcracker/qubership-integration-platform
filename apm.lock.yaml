@@ -135,6 +135,15 @@ deployments:
   content_hash: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
 - kind: project-relative
   target: claude
+  value: .claude/rules/e2e.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:b5aee08da1d51bca055086b6bdfb8c6d2382bbf33db5823330f5f6271819a2a7
+- kind: project-relative
+  target: claude
   value: .claude/rules/engine.md
   runtime: null
   scope: project
@@ -168,7 +177,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:69ad40235830883b3306fbe52ee7fc7cf63f88c83a1638ce030f6e713babacdd
+  content_hash: sha256:daac09c825081c41d9f83af43602bba2224d338398cfd2fa2a74ffa34d68a7e9
 - kind: project-relative
   target: claude
   value: .claude/rules/micro-engine.md
@@ -186,7 +195,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:d37af9657bd03542aeda35a3ddf5c31310c044a52e243a7fb83f737ebc127f06
+  content_hash: sha256:637a5dace70830ab398ddf17b1f5d48732fc7642985a82da024816c86ad9ded4
 - kind: project-relative
   target: claude
   value: .claude/rules/qip-working-agreements.md
@@ -213,7 +222,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:2625b9b398e7239c8faeb3d1725ae27f58b2d835c79bcd91bdc801bba2ac1e37
+  content_hash: sha256:6c1cb2c1d80b8a9c7c39dc31ff7e157ce8b6fc0c41bb3ce59bd232ae54937451
 - kind: project-relative
   target: claude
   value: .claude/rules/sessions-management.md
@@ -276,7 +285,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:a00d5eecb511d4d2aaa675ca535621e9d604779cf9068bd2204e66b8f48a4517
+  content_hash: sha256:583cb5c5938b85d9e9dd073677aef676489de2ff2e8bcc04ed30da885e819a79
 - kind: project-relative
   target: claude
   value: .claude/skills/apm-authoring
@@ -675,6 +684,15 @@ deployments:
   content_hash: sha256:5896f61123e24afdab8e95f0b2ec503a929c8a14839f8044d732bee46037dd7d
 - kind: project-relative
   target: cursor
+  value: .cursor/rules/e2e.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:46d2a38d0deae34eb5e36d1212f6ff4b119a77d08d9c24f76c275e4924230d1b
+- kind: project-relative
+  target: cursor
   value: .cursor/rules/engine.mdc
   runtime: null
   scope: project
@@ -708,7 +726,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:cf663816c1a34dec7a45671ec0b63f93fac679db5bc3d2e8227d211885253cc2
+  content_hash: sha256:78ab718cc566053a3d2cb24cd4a01f4fe80521613fc73432db878e83654fd707
 - kind: project-relative
   target: cursor
   value: .cursor/rules/micro-engine.mdc
@@ -726,7 +744,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:2d6204c106c5b0100596c195064ad241021ae49e3becf8571d84b36052fb367e
+  content_hash: sha256:beaf45bea182ddfe6b28dab88bdc2cbafa7dc77334ce8ddce1a50b4550166cde
 - kind: project-relative
   target: cursor
   value: .cursor/rules/qip-working-agreements.mdc
@@ -753,7 +771,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:30f5bef4117538fe58af3b1f5f0b449102a8ed89236913f246131a5197c76d75
+  content_hash: sha256:2340a5959a00160871e92efef8ea144d30165f03a8d6420f9a88ddbc6ec04b15
 - kind: project-relative
   target: cursor
   value: .cursor/rules/sessions-management.mdc
@@ -816,7 +834,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:df8f46f5cf24f735294d5f857a283a0a1b8341d2b7b90d3759ff1f661d10f42f
+  content_hash: sha256:eab1550cd8a79b3d63656daf930a4f07a2898cf1dad66bdfd2bc7ac8a726231e
 - kind: project-relative
   target: legacy
   value: .agents/skills/ci-fix
