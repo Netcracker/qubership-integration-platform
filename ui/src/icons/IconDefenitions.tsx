@@ -134,6 +134,7 @@ import {
   CaretUpOutlined,
   CaretDownOutlined,
   ExperimentOutlined,
+  CompassOutlined,
 } from "@ant-design/icons";
 
 /**
@@ -289,6 +290,7 @@ export const commonIcons = {
   previousChange: CaretUpOutlined,
   nextChange: CaretDownOutlined,
   testing: ExperimentOutlined,
+  compass: CompassOutlined,
 };
 
 export const elementIcons = {
