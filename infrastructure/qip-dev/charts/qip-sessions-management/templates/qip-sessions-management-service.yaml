@@ -1,13 +1,1 @@
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
-  name: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
-spec:
-  ports:
-    - name: "8080"
-      port: 8080
-      targetPort: 8080
-  selector:
-    app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
+{{- include "qip-dev.roleService" (dict "app" (printf "%s-sessions-management-%s" .Release.Name .Values.global.blueGreenVersion) "nodePort" .Values.nodePort "loadBalancerPort" .Values.loadBalancerPort) }}
