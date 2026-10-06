@@ -76,13 +76,7 @@ marked with icon ![carry-out](img/carry-out.svg) on top of the table.
 ### Refresh
 To update actual list of all endpoints and related data, use ![redo](img/redo.svg) button.
 
-## Data Storage
-
----
-No specific data additionally stored.
-
 ## Configuration
 
 ---
 Initially, all endpoints, mentioned in this section are built by fetching the data from all existing chains. All additional configurations (e.g. updating roles) is done via UI elements available on "**Access Control**" tab under "**Admin** **Tools**" section.
-

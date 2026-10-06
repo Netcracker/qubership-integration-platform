@@ -73,13 +73,13 @@ Cloud Integration Platform will apply its own default hardcoded option and notif
 
 There are next additional articles, that could bring more details regarding data management, mentioned on this page:
 
-- [Logging] - contains details about logs, that are being gathered and stored.
-- [Deployment Process] - main article, described deployment process. Specifically, section **Deployment Profiles in Consul** brings more details regarding logging settings processing, including its accommodation in Consul and CIP Cache.
+- [Platform Logging](../../06__Observability/1__Platform_Logging/logging.md) - contains details about logs, that are being gathered and stored.
+- [Deployment Process](../3__Deployments/deployments.md) - main article, described deployment process. Specifically, section **Deployment Profiles in Consul** brings more details regarding logging settings processing, including its accommodation in Consul and CIP Cache.
 
 ## Configuration
 
 ---
 
-- In CIP UI: custom logging configuration is being done via CIP UI ("Logging settings" tab under the chain). Please refer to [general logging page] for more details regarding logging capabilities and log formats. It is also possible to setup predefined chain-specific and default logging settings in Consul, which is described in detail in section **Deployment Profiles in Consul** of [Deployment Process] article.
+- In CIP UI: custom logging configuration is being done via CIP UI ("Logging settings" tab under the chain). Please refer to [general logging page] for more details regarding logging capabilities and log formats. It is also possible to setup predefined chain-specific and default logging settings in Consul, which is described in detail in section **Deployment Profiles in Consul** of [Deployment Process](../3__Deployments/deployments.md) article.
 - In CIP VSCode Extension: custom logging configuration is not supported.
 
