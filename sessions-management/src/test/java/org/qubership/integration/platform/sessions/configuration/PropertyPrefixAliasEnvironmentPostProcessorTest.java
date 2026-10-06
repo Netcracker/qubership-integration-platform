@@ -31,7 +31,8 @@ class PropertyPrefixAliasEnvironmentPostProcessorTest {
     @BeforeEach
     void setUp() {
         MutablePropertySources sources = environment.getPropertySources();
-        sources.addFirst(new SystemEnvironmentPropertySource("testEnvironment", osEnvironment));
+        sources.addFirst(new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, osEnvironment));
         sources.addLast(new MapPropertySource("consul", consul));
         sources.addLast(new MapPropertySource("applicationYml", applicationYml));
         ConfigurationPropertySources.attach(environment);
@@ -75,6 +76,26 @@ class PropertyPrefixAliasEnvironmentPostProcessorTest {
         applicationYml.put("cip.opensearch.index.prefix", "default");
 
         assertEquals("from-env", environment.getProperty("cip.opensearch.index.prefix"));
+    }
+
+    @Test
+    void dashlessEnvironmentVariableOverridesApplicationYml() {
+        osEnvironment.put("CIP_INTERNALSERVICES_RUNTIMECATALOG", "env-catalog");
+        applicationYml.put("cip.internal-services.runtime-catalog", "qubership-integration-platform-runtime-catalog");
+
+        assertEquals("env-catalog", Binder.get(environment)
+                .bind("cip.internal-services.runtime-catalog", String.class)
+                .get());
+    }
+
+    @Test
+    void dashlessLegacyEnvironmentVariableOverridesApplicationYml() {
+        osEnvironment.put("QIP_INTERNALSERVICES_RUNTIMECATALOG", "env-catalog");
+        applicationYml.put("cip.internal-services.runtime-catalog", "qubership-integration-platform-runtime-catalog");
+
+        assertEquals("env-catalog", Binder.get(environment)
+                .bind("cip.internal-services.runtime-catalog", String.class)
+                .get());
     }
 
     @Test

@@ -31,7 +31,8 @@ class PropertyPrefixAliasEnvironmentPostProcessorTest {
     @BeforeEach
     void setUp() {
         MutablePropertySources sources = environment.getPropertySources();
-        sources.addFirst(new SystemEnvironmentPropertySource("testEnvironment", osEnvironment));
+        sources.addFirst(new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, osEnvironment));
         sources.addLast(new MapPropertySource("consul", consul));
         sources.addLast(new MapPropertySource("applicationYml", applicationYml));
         ConfigurationPropertySources.attach(environment);
@@ -75,6 +76,26 @@ class PropertyPrefixAliasEnvironmentPostProcessorTest {
         applicationYml.put("cip.istio.enabled", "true");
 
         assertEquals("false", environment.getProperty("cip.istio.enabled"));
+    }
+
+    @Test
+    void dashlessEnvironmentVariableOverridesApplicationYml() {
+        osEnvironment.put("CIP_VARIABLES_DEFAULTSECRET_ENABLED", "true");
+        applicationYml.put("cip.variables.default-secret.enabled", "false");
+
+        assertEquals("true", Binder.get(environment)
+                .bind("cip.variables.default-secret.enabled", String.class)
+                .get());
+    }
+
+    @Test
+    void dashlessLegacyEnvironmentVariableOverridesApplicationYml() {
+        osEnvironment.put("QIP_VARIABLES_DEFAULTSECRET_ENABLED", "true");
+        applicationYml.put("cip.variables.default-secret.enabled", "false");
+
+        assertEquals("true", Binder.get(environment)
+                .bind("cip.variables.default-secret.enabled", String.class)
+                .get());
     }
 
     @Test
