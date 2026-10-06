@@ -26,7 +26,12 @@ class MappingIntentJacksonTest {
         "sourcePort": "output",
         "targetRef": "call-salesforce-createTask",
         "targetPort": "REQUEST",
-        "rules": [{"sourcePath": "name", "targetPath": "Subject"}]
+        "rules": [{
+          "targetPath": "$.Subject",
+          "value": {"operation": "COPY", "source": {
+            "kind": "MESSAGE", "interactionId": "trigger-onTaskStart", "port": "OUTPUT", "path": "$.name"
+          }}
+        }]
       }
       """;
 
@@ -47,8 +52,8 @@ class MappingIntentJacksonTest {
     assertEquals("trigger-onTaskStart", intent.sourceRef());
     assertEquals(MappingPort.OUTPUT, intent.sourcePort());
     assertEquals("call-salesforce-createTask", intent.targetRef());
-    assertEquals("name", intent.rules().getFirst().sourcePath());
-    assertEquals("Subject", intent.rules().getFirst().targetPath());
+    assertEquals("$.name", intent.rules().getFirst().sourcePath());
+    assertEquals("$.Subject", intent.rules().getFirst().targetPath());
   }
 
   @Test

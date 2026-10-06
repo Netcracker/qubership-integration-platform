@@ -102,7 +102,19 @@
         "targetRef": "edge-request-map",
         "targetPort": "REQUEST",
         "rules": [
-          {"sourcePath": "customerId", "targetPath": "customer.id", "status": "PROPOSED"}
+          {
+            "targetPath": "customer.id",
+            "status": "PROPOSED",
+            "value": {
+              "operation": "COPY",
+              "source": {
+                "kind": "MESSAGE",
+                "interactionId": "http-in",
+                "port": "OUTPUT",
+                "path": "customerId"
+              }
+            }
+          }
         ]
       },
       {
@@ -112,7 +124,19 @@
         "targetRef": "edge-response-map",
         "targetPort": "OUTPUT",
         "rules": [
-          {"sourcePath": "orderId", "targetPath": "id", "status": "PROPOSED"}
+          {
+            "targetPath": "id",
+            "status": "PROPOSED",
+            "value": {
+              "operation": "COPY",
+              "source": {
+                "kind": "MESSAGE",
+                "interactionId": "orders-create",
+                "port": "RESPONSE",
+                "path": "orderId"
+              }
+            }
+          }
         ]
       }
     ],

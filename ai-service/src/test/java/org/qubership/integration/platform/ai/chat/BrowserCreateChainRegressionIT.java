@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import io.restassured.http.ContentType;
 import io.smallrye.mutiny.Multi;
 import java.util.Optional;
@@ -29,6 +31,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
  * approval turn without A2A Task DTOs.
  */
 @QuarkusTest
+@TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class BrowserCreateChainRegressionIT {
 
   @InjectMock ScenarioRouter router;

@@ -327,7 +327,8 @@ class CompilerValidationPipelineTest {
 
   private static CompilerQualityValidator quality(ValidationResult result) {
     CompilerQualityValidator validator = mock(CompilerQualityValidator.class);
-    when(validator.validate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+    when(validator.validate(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.any()))
         .thenReturn(result);
     return validator;
   }

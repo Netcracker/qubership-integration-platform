@@ -643,12 +643,9 @@ class WorkFillingHarnessTest {
     JSON.writeValue(input.toFile(), answer);
   }
 
-  private static String processIdAnswer() throws Exception {
-    return Files.readString(
-            repoRoot()
-                .resolve(
-                    ".scratch/progressive-chain-work-document/after-10-document-filling/fixtures/process-id-answer.txt"))
-        .trim();
+  private static String processIdAnswer() {
+    return org.qubership.integration.platform.ai.plan.workdocument.WorkFillingFixtures
+        .read("process-id-answer.txt").trim();
   }
 
   private static List<String> requestRuleIds(JsonNode document) {

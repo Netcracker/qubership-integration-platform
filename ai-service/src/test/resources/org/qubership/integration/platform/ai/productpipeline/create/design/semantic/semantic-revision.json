@@ -85,10 +85,17 @@
       "targetPort": "REQUEST",
       "rules": [
         {
-          "sourcePath": "id",
           "targetPath": "orderId",
-          "expression": null,
-          "status": "PROPOSED"
+          "status": "PROPOSED",
+          "value": {
+            "operation": "COPY",
+            "source": {
+              "kind": "MESSAGE",
+              "interactionId": "op-shared",
+              "port": "OUTPUT",
+              "path": "id"
+            }
+          }
         }
       ],
       "implementationPreference": null

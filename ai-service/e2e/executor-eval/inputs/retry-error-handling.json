@@ -97,7 +97,19 @@
         "targetRef": "payment-call",
         "targetPort": "REQUEST",
         "rules": [
-          {"sourcePath": "amount", "targetPath": "payment.amount", "status": "PROPOSED"}
+          {
+            "targetPath": "payment.amount",
+            "status": "PROPOSED",
+            "value": {
+              "operation": "COPY",
+              "source": {
+                "kind": "MESSAGE",
+                "interactionId": "http-in",
+                "port": "OUTPUT",
+                "path": "amount"
+              }
+            }
+          }
         ]
       }
     ],

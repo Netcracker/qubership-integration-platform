@@ -14,6 +14,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import io.restassured.http.ContentType;
 import io.smallrye.mutiny.Multi;
 import jakarta.inject.Inject;
@@ -51,6 +53,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Start
  * client sends, and it must reach the same handler.
  */
 @QuarkusTest
+@TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class A2aJsonRpcTransportIT {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
