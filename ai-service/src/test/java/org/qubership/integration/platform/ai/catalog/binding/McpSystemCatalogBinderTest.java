@@ -37,12 +37,16 @@ class McpSystemCatalogBinderTest {
   @Test
   void gatherWritesPathWhenNameMatchesOneSystem() {
     CatalogMcpSystemDto system = system("sys-1", "Orders MCP", "orders-mcp");
-    RequirementFact fact = mcpFact("in-1", "Orders MCP", "");
+    RequirementFact fact = new RequirementFact("mcp-fact", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CAPABILITY, "mcp-trigger", "Expose Orders MCP",
+        "Orders MCP", "", "", "", "", "", List.of("in-1"));
     McpSystemCatalogBinder.McpSystemGatherResult result =
         McpSystemCatalogBinder.gather(
             flow("in-1"), List.of(fact), "expose as MCP tool on Orders MCP", List.of(system));
     assertTrue(result.openQuestion().isEmpty());
     assertEquals("sys-1", mcpFactIn(result.facts()).path());
+    assertEquals("mcp-fact", mcpFactIn(result.facts()).sourceFactId());
+    assertEquals(List.of("in-1"), mcpFactIn(result.facts()).interactionIds());
   }
 
   @Test
@@ -188,6 +192,27 @@ class McpSystemCatalogBinderTest {
     ChainPlanGraph out =
         binder.bind(graphWithTrigger("in-1"), briefWith(mcpFact("in-1", "Brand New", "")));
     assertEquals("[\"existing-id\"]", property(node(out, "in-1"), "mcpServiceIds"));
+    verify(catalog, never()).createMcpSystem(any());
+  }
+
+  @Test
+  void bindUsesExplicitOwnersWhenTwoCapabilityIdsDifferFromTheirTriggerIds() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.listMcpSystems()).thenReturn(List.of(
+        system("sys-1", "First service", "first"), system("sys-2", "Second service", "second")));
+    RequirementBrief brief = briefWith(
+        new RequirementFact("fact-1", RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY, "mcp-trigger", "First endpoint",
+            "First service", "", "", "", "sys-1", "", List.of("entry-1")),
+        new RequirementFact("fact-2", RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.CAPABILITY, "mcp-trigger", "Second endpoint",
+            "Second service", "", "", "", "sys-2", "", List.of("entry-2")));
+
+    ChainPlanGraph result = new McpSystemCatalogBinder(catalog)
+        .bind(graphWithTriggers("entry-1", "entry-2"), brief);
+
+    assertEquals("[\"sys-1\"]", property(node(result, "entry-1"), "mcpServiceIds"));
+    assertEquals("[\"sys-2\"]", property(node(result, "entry-2"), "mcpServiceIds"));
     verify(catalog, never()).createMcpSystem(any());
   }
 

@@ -69,6 +69,8 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     validateHiddenJoins(revision, index, errors);
     validateMappings(revision, brief, index, errors);
     validateScriptOwnership(revision, index, brief, errors);
+    errors.addAll(org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureAdapter
+        .validateElementIntent(brief, revision.nodes(), revision.executionEdges()));
     validateBindingPolicy(revision, brief, errors);
     if (!errors.isEmpty()) {
       throw new IllegalArgumentException(
@@ -990,7 +992,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
           || !ChainElementFamilies.isTrigger(fact.capabilityKey())) {
         continue;
       }
-      if (flow.interaction(fact.sourceFactId())
+      if (flow.interaction(fact.owningInteractionId())
           .filter(interaction -> interaction.direction() == Direction.OUTBOUND)
           .isPresent()) {
         errors.add(

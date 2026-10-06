@@ -571,6 +571,9 @@ class GraphPatchApplierTest {
 
   @Test
   void appliesChainNameAndDescriptionUpdates() {
+    baseGraph = new ChainPlanGraph(baseGraph.schemaVersion(),
+        new ChainSection("demo-chain", "Demo", null, null, null, null, "/Campaign/Folder"),
+        baseGraph.nodes(), baseGraph.edges());
     GraphPatch patch =
         new GraphPatch(
             "patch-chain-name",
@@ -593,6 +596,7 @@ class GraphPatchApplierTest {
     assertEquals("Demo.Internal.Process", result.graph().chain().name());
     assertEquals("Demo chain with corporate naming", result.graph().chain().description());
     assertEquals("demo-chain", baseGraph.chain().name());
+    assertEquals("/Campaign/Folder", result.graph().chain().folderPath());
   }
 
   private static Set<String> reachableFromTriggers(ChainPlanGraph graph) {

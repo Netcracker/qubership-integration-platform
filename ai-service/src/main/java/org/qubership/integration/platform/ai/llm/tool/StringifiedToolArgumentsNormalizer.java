@@ -25,6 +25,13 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFeedbackChannel;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind;
+import org.qubership.integration.platform.ai.compiler.CompilerGraphPatchTool;
 import org.qubership.integration.platform.ai.compiler.HttpTriggerCaptureTool;
 import org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool;
 import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool;
@@ -45,19 +52,25 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
   private final ProductRequirementBriefTool productBriefTool;
   private final DesignPlanCaptureTool designPlanTool;
   private final HttpTriggerCaptureTool httpTriggerTool;
+  private final CaptureToolOutcomeGateway outcomeGateway;
 
   @Inject
   public StringifiedToolArgumentsNormalizer(
       ObjectMapper objectMapper, ProductRequirementBriefTool productBriefTool,
-      DesignPlanCaptureTool designPlanTool, HttpTriggerCaptureTool httpTriggerTool) {
+      DesignPlanCaptureTool designPlanTool, HttpTriggerCaptureTool httpTriggerTool,
+      CaptureToolOutcomeGateway outcomeGateway) {
     this.objectMapper = objectMapper;
     this.productBriefTool = productBriefTool;
     this.designPlanTool = designPlanTool;
     this.httpTriggerTool = httpTriggerTool;
+    this.outcomeGateway = outcomeGateway;
   }
 
   StringifiedToolArgumentsNormalizer(ObjectMapper objectMapper) {
-    this(objectMapper, null, null, null);
+    this(objectMapper, null, null, null,
+        new CaptureToolOutcomeGateway(
+            new ToolCallFingerprintStore(),
+            new CaptureAttemptFeedbackStore()));
   }
 
   @Override
@@ -114,6 +127,29 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
         String conversationId = memoryId == null
             ? ToolSession.resolveConversationId() : memoryId.toString();
         String result = httpTriggerTool.rejectArguments(conversationId, inspected.issue());
+        return ToolExecutionResult.builder().result(result).resultText(result).build();
+      }
+      return next.apply(inspected.request(), invocationContext);
+    }
+    if (method != null && List.of("captureGraphPatch", "captureNamingManifest", "captureConfiguredTriggerSet",
+        "repairScriptBodies")
+        .contains(method.methodName())) {
+      var inspected = StructuredCaptureArguments.inspect(request, method, objectMapper);
+      if (inspected.issue() != null) {
+        Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
+        String conversationId = memoryId == null ? ToolSession.resolveConversationId() : memoryId.toString();
+        String capabilityId = CompilerGraphPatchTool.resolveCapabilityId();
+        var issue = inspected.issue();
+        String result = outcomeGateway.onFailure(
+            List.of("captureGraphPatch", "repairScriptBodies").contains(method.methodName())
+                ? CaptureFeedbackChannel.PATCH
+                : CaptureFeedbackChannel.PLAN,
+            conversationId, capabilityId,
+            CaptureFailureKind.VALIDATION,
+            CaptureFailureClass.CORRECTABLE,
+            method.methodName(), request.arguments(),
+            issue.code() + " " + issue.path() + ": " + issue.message()
+                + " Resubmit the complete " + method.methodName() + " argument object.");
         return ToolExecutionResult.builder().result(result).resultText(result).build();
       }
       return next.apply(inspected.request(), invocationContext);

@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.llm.exchange;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.langchain4j.data.message.AiMessage;
@@ -21,8 +23,60 @@ class LlmExchangeFormatterTest {
 
   @BeforeEach
   void setUp() {
-    formatter = new LlmExchangeFormatter();
+    formatter = new LlmExchangeFormatter(new com.fasterxml.jackson.databind.ObjectMapper());
     mdc = new LlmExchangeMdcContext("conv-1", "CREATE_CHAIN_PLAN", "cip-structure-generator");
+  }
+
+  @Test
+  void completeCapturePreservesArgumentsAndRecordsInputAndSchemaIdentity() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    String arguments = "{\"script\":\"" + "x".repeat(60000) + "tail\"}";
+    var response = ChatResponse.builder().id("response-1").modelName("actual-model")
+        .aiMessage(AiMessage.from(dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
+            .id("tool-1").name("captureGraphPatch").arguments(arguments).build())).build();
+    var capture = mapper.readTree(formatter.responseCapture(response, "exchange-1", mdc, 123));
+    assertEquals(arguments, capture.path("toolCalls").get(0).path("arguments").asText());
+    assertEquals("actual-model", capture.path("model").asText());
+    assertEquals("response-1", capture.path("responseId").asText());
+    assertFalse(formatter.formatResponse(response, mdc, 123, 20).contains(arguments));
+
+    var metadata = dev.langchain4j.model.openai.OpenAiResponsesChatResponseMetadata.builder()
+        .id("response-2").modelName("actual-model")
+        .rawHttpResponse(dev.langchain4j.http.client.SuccessfulHttpResponse.builder()
+            .statusCode(200).body("complete response")
+            .headers(java.util.Map.of("X-Request-Id", List.of("provider-request-1"),
+                "Authorization", List.of("credential"))).build())
+        .rawServerSentEvents(List.of(new dev.langchain4j.http.client.sse.ServerSentEvent("response.done", arguments)))
+        .build();
+    var raw = mapper.readTree(formatter.responseCapture(response.toBuilder().metadata(metadata).build(),
+        "exchange-1", mdc, 123));
+    assertEquals(arguments, raw.path("sdkSseEvents").get(0).path("data").asText());
+    assertEquals("complete response", raw.path("rawResponseBody").asText());
+    assertTrue(raw.path("responseHeaders").has("X-Request-Id"));
+    assertFalse(raw.toString().contains("credential"));
+    formatter.responseCapture(response.toBuilder().metadata(
+        dev.langchain4j.model.openai.OpenAiResponsesChatResponseMetadata.builder().build()).build(),
+        "exchange-1", mdc, 123);
+
+    var schema = dev.langchain4j.model.chat.request.json.JsonObjectSchema.builder()
+        .addStringProperty("value").required("value").build();
+    var request = dev.langchain4j.model.chat.request.ChatRequest.builder()
+        .messages(UserMessage.from("task with selected artifact ref-1"))
+        .parameters(dev.langchain4j.model.openai.OpenAiResponsesChatRequestParameters.builder()
+            .modelName("requested-model").temperature(0.2).maxOutputTokens(24000).reasoningEffort("none")
+            .toolSpecifications(dev.langchain4j.agent.tool.ToolSpecification.builder()
+                .name("captureGraphPatch").parameters(schema).build()).build()).build();
+    String endpoint = "https://user:password@example.test/v1/?api_key=secret";
+    var before = mapper.readTree(formatter.requestCapture(request, endpoint, "exchange-1", mdc));
+    var changed = mapper.readTree(formatter.requestCapture(request.toBuilder()
+        .messages(UserMessage.from("changed task")).build(), endpoint, "exchange-2", mdc));
+    assertEquals("https://example.test/v1/", before.path("endpoint").asText());
+    assertFalse(before.toString().contains("password"));
+    assertFalse(before.toString().contains("secret"));
+    assertEquals("none", before.path("reasoningEffort").asText());
+    assertTrue(before.path("messages").asText().contains("ref-1"));
+    assertNotEquals(before.path("inputSha256"), changed.path("inputSha256"));
+    assertEquals(before.path("schemaSha256"), changed.path("schemaSha256"));
   }
 
   @Test

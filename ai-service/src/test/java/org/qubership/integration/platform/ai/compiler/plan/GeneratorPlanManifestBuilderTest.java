@@ -71,6 +71,30 @@ class GeneratorPlanManifestBuilderTest {
           + " no context storage, no messaging, no JMS, no Pub/Sub, no XSLT, no ABAC.";
 
   @Test
+  void approvedProducersSurviveEmptyOrNegatedOptionalIntentClassification() {
+    InMemorySkillWorkspace workspace = workspaceWithGraph(
+        greetingsGraph(), "Sender has no authentication; entry requires RBAC", "");
+    var required = java.util.Set.of("cip-security-generator", "cip-auth-generator",
+        "cip-transformation-generator", "cip-trigger-generator");
+    List<org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorDescriptor> wired =
+        policy.generators().stream().filter(descriptor -> generationSkillIds.contains(descriptor.skillId()))
+            .toList();
+    classifier.reply = "rbac, credentials";
+    GeneratorPlanManifest manifest = builder.build("pinned-version", wired, required, workspace).manifest();
+    assertEquals("pinned-version", manifest.packVersion());
+    for (String skillId : required) {
+      assertEquals(GeneratorPlanStatus.READY, statusFor(manifest, skillId));
+    }
+    assertEquals(GeneratorPlanStatus.SKIPPED, statusFor(manifest, "cip-error-handling-generator"));
+
+    var withErrorScope = new java.util.HashSet<>(required);
+    withErrorScope.add("cip-error-handling-generator");
+    assertEquals(GeneratorPlanStatus.READY, statusFor(
+        builder.build("pinned-version", wired, withErrorScope, workspace).manifest(),
+        "cip-error-handling-generator"));
+  }
+
+  @Test
   void greetingsE2ePromptSkipsOptionalGenerators() {
     InMemorySkillWorkspace workspace =
         workspaceWithGraph(greetingsE2eGraph(), GREETINGS_E2E_PROMPT, GREETINGS_E2E_PROMPT);

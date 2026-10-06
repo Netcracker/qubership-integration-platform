@@ -11,11 +11,15 @@ public sealed interface MappingTurnResult
     permits MappingTurnResult.Changes,
         MappingTurnResult.Query,
         MappingTurnResult.Clarification,
-        MappingTurnResult.ConfirmationRequired {
+        MappingTurnResult.ConfirmationRequired,
+        MappingTurnResult.StructuralReminder {
 
   static Changes changes(Operation... operations) {
     return new Changes(List.of(operations));
   }
+
+  /** Reminder of approved local element placement, with no mapping mutation. */
+  record StructuralReminder(List<String> elementRefs) implements MappingTurnResult {}
 
   /** Mapping mutations to apply atomically to {@code mappingIntents}. */
   record Changes(List<Operation> operations) implements MappingTurnResult {

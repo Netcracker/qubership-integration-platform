@@ -54,6 +54,50 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
 
 class ChainSemanticCaptureAdapterTest {
 
+  @Test
+  void localElementAndInlineHookFactsCannotBeRealizedByOtherNodes() throws Exception {
+    var brief = ChainSemanticCaptureFixtures.approvedBrief();
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var body = mapper.valueToTree(brief);
+    var facts = (com.fasterxml.jackson.databind.node.ArrayNode) body.path("facts");
+    var local = new org.qubership.integration.platform.ai.plan.RequirementElementIntent(
+        "checkpoint", "checkpoint", org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger-1", "op-shared", "http-in", null, List.of(), List.of());
+    facts.add(mapper.valueToTree(new RequirementFact("checkpoint-config", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Create a checkpoint before the script.", "", "", "", "", "", "",
+        List.of("trigger-1"), null, local)));
+    brief = mapper.treeToValue(body, RequirementBrief.class);
+    var revision = adapter.adapt(ChainSemanticCaptureFixtures.linearCapture(), "run", ChainSemanticCaptureFixtures.approvedBrief(), CONTRACT);
+    List<SemanticNode> wrong = new ArrayList<>(revision.nodes());
+    var trigger = (SemanticNode.Trigger) wrong.getFirst();
+    wrong.set(0, new SemanticNode.Trigger(trigger.nodeId(), trigger.capabilityKey(),
+        new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(
+            List.of("trigger-1", "checkpoint-config"))));
+    assertFalse(ChainSemanticCaptureAdapter.validateElementIntent(brief, wrong, revision.executionEdges()).isEmpty());
+    List<SemanticNode> valid = new ArrayList<>(revision.nodes());
+    valid.add(new SemanticNode.Operation("checkpoint", "checkpoint",
+        new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(List.of("checkpoint-config"))));
+    List<SemanticExecutionEdge> edges = List.of(
+        new SemanticExecutionEdge("e1", "http-in", "checkpoint", null, null, null),
+        new SemanticExecutionEdge("e2", "checkpoint", "op-shared", null, null, null));
+    assertTrue(ChainSemanticCaptureAdapter.validateElementIntent(brief, valid, edges).isEmpty());
+
+    var hook = new org.qubership.integration.platform.ai.plan.RequirementElementIntent(
+        "before-call", "script", org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK,
+        "call-1", null, null, null, List.of(), List.of());
+    facts.remove(facts.size() - 1);
+    facts.add(mapper.valueToTree(new RequirementFact("before-script", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Set the message body in the inline before hook.", "", "", "", "", "", "",
+        List.of("call-1"), null, hook)));
+    brief = mapper.treeToValue(body, RequirementBrief.class);
+    var call = new SemanticNode.ServiceCall("call-1", "call-1", "getOrder",
+        new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(List.of("before-script")));
+    assertTrue(ChainSemanticCaptureAdapter.validateElementIntent(brief, List.of(call), List.of()).isEmpty());
+    var duplicate = new SemanticNode.Operation("set-body", "script",
+        new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(List.of("before-script")));
+    assertFalse(ChainSemanticCaptureAdapter.validateElementIntent(brief, List.of(call, duplicate), List.of()).isEmpty());
+  }
+
   private static final CompilerContract CONTRACT =
       new ClasspathCompilerContractRepository().require(CompilerContract.V1);
 
@@ -238,6 +282,27 @@ class ChainSemanticCaptureAdapterTest {
             .count();
     assertEquals(1, senderCount);
     assertEquals("kafka-sender-2", senderOperation(revision, outboundId).elementType());
+    new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
+  }
+
+  @Test
+  void directSenderUsesItsInteractionIdAndPreservesTheDistinctCapabilityProvenance() {
+    RequirementBrief original = nativeSenderBrief("kafka-sender-2", "relay-out", List.of());
+    RequirementFact capability = new RequirementFact("sender-fact", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CAPABILITY, "kafka-sender-2", "Send the event",
+        "Target", "", "events", "", "", "", List.of("relay-out"));
+    RequirementFact behavior = new RequirementFact("relay-out", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Preserve the event body",
+        "", "", "", "", "", "", List.of("relay-out"));
+    RequirementBrief brief = original.withFacts(List.of(original.facts().getFirst(), behavior, capability));
+
+    ChainSemanticCapture capture = withAddedOperations(nativeSenderCapture("relay-out"),
+        List.of(new CapturedOperation("relay-out", "kafka-sender-2", List.of("relay-out"))));
+    ChainSemanticRevision revision = adapt(capture, brief);
+
+    SemanticNode.Operation sender = senderOperation(revision, "relay-out");
+    assertEquals("kafka-sender-2", sender.elementType());
+    assertEquals(Set.of("sender-fact", "relay-out"), Set.copyOf(sender.provenance().sourceFactIds()));
     new DefaultChainSemanticRevisionValidator().validate(revision, CONTRACT, brief);
   }
 

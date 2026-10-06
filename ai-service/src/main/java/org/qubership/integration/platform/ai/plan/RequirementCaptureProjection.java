@@ -52,7 +52,7 @@ public final class RequirementCaptureProjection {
       projected.add(new RequirementFact(
           fact.sourceFactId(), RequirementFactPolarity.valueOf(fact.polarity().name()),
           RequirementFactKind.valueOf(fact.kind().name()), "", fact.text(), "", "", "", "", "",
-          "", fact.interactionIds(), fact.policyConflict()));
+          "", fact.interactionIds(), fact.policyConflict(), fact.elementIntent()));
       if (!blank(fact.sourceFactId())) {
         usedIds.add(fact.sourceFactId());
       }
@@ -69,15 +69,12 @@ public final class RequirementCaptureProjection {
       String operation = capability.mcpServerId() != null
           ? capability.mcpServerId() : owner.operation();
       projected.add(new RequirementFact(
-          capability.interactionId(), RequirementFactPolarity.POSITIVE,
+          uniqueDerivedId(usedIds, capability.interactionId()), RequirementFactPolarity.POSITIVE,
           RequirementFactKind.CAPABILITY, capability.capabilityKey(),
           "Use " + capability.capabilityKey() + " for " + owner.participant() + ".",
           owner.participant(), operation,
           capability.topic(), capability.httpMethod() == null ? null : capability.httpMethod().name(),
           path, "", List.of(capability.interactionId())));
-      if (!blank(capability.interactionId())) {
-        usedIds.add(capability.interactionId());
-      }
     }
     for (InteractionInput interaction : input.flow().interactions()) {
       if (interaction.retryPolicy() == null || interaction.retryPolicy().retryCount() == null) {
@@ -97,10 +94,7 @@ public final class RequirementCaptureProjection {
     return List.copyOf(projected);
   }
 
-  /**
-   * Capability facts keep {@code interactionId} as {@code sourceFactId} because target lookup and
-   * flow validation match on that equality. Retry facts are the only derived ids that can move.
-   */
+  /** Reserve authored IDs first; generated facts retain their preferred ID when it is available. */
   private static String uniqueDerivedId(Set<String> usedIds, String preferred) {
     String candidate = preferred;
     int suffix = 2;
@@ -158,11 +152,18 @@ public final class RequirementCaptureProjection {
           pending.add(new PendingWork("CAPABILITY_CHOICE_REQUIRED", id, null,
               "Choose custom or catalog HTTP mode."));
         }
-        if (("http-sender".equals(capability.capabilityKey())
-                || capability.httpMode() == RequirementCaptureInput.HttpMode.CUSTOM)
-            && (capability.httpMethod() == null || blank(capability.path()))) {
+        boolean httpSender = "http-sender".equals(capability.capabilityKey());
+        if ((httpSender || capability.httpMode() == RequirementCaptureInput.HttpMode.CUSTOM)
+            && (capability.httpMethod() == null || blank(capability.path())
+                || httpSender && !RequirementFlowValidator.isDirectHttpTarget(capability.path()))) {
           pending.add(new PendingWork("CAPABILITY_FIELD_REQUIRED", id, null,
-              "Provide the HTTP method and path or URI."));
+              httpSender
+                  ? "Provide the HTTP method and full runtime HTTP URI, including http:// or https://"
+                      + " and the host. A helper name or relative route path is not an endpoint."
+                      + " Use the URI supplied by the author; ask for missing connection details."
+                      + " For a named catalog operation, remove the http-sender capability and resolve"
+                      + " the catalog operation. Do not invent a host or version placeholder."
+                  : "Provide the HTTP method and path or URI."));
         }
         if ("chain-call-2".equals(capability.capabilityKey())
             && !targets.containsKey(id)) {
@@ -314,6 +315,9 @@ public final class RequirementCaptureProjection {
             .map(labels::get).reduce((left, right) -> left + ", " + right).orElse("")).append(")");
       }
       text.append('\n');
+      if (fact.elementIntent() != null) {
+        text.append("- Element intent: ").append(fact.elementIntent()).append(".\n");
+      }
       if (fact.policyConflict() != null) {
         var conflict = fact.policyConflict();
         text.append("- Company policy ").append(conflict.policyId()).append(": ")
@@ -406,7 +410,7 @@ public final class RequirementCaptureProjection {
           && ("chain-call-2".equals(fact.capabilityKey())
               || "mcp-trigger".equals(fact.capabilityKey()))
           && !blank(fact.path())) {
-        targets.put(fact.sourceFactId(), fact.path());
+        targets.put(fact.owningInteractionId(), fact.path());
       }
     }
     return Map.copyOf(targets);

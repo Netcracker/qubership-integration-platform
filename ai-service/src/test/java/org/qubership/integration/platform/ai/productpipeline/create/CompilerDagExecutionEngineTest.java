@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillContextBuilder;
@@ -54,6 +55,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
@@ -202,6 +204,40 @@ class CompilerDagExecutionEngineTest {
     SkillWorkspace workspace = workspaceStore.getOrCreate(conversationId);
     assertTrue(workspace.get(SkillArtifactType.REQUIREMENT_BRIEF).isPresent());
     assertTrue(workspace.get(SkillArtifactType.COMPILER_VALIDATION_BUNDLE).isPresent());
+  }
+
+  @Test
+  void executionRepairTravelsSeparatelyFromTheApprovedTask() {
+    String conversationId = "conv-scoped-repair";
+    ResolvedCompilerDag dag = dagWithMandatoryValidation();
+    AtomicReference<SkillRunContext> received = new AtomicReference<>();
+    when(skillRegistry.require("cip-pattern-selector")).thenReturn(new PatternExecutor() {
+      @Override
+      public Uni<SkillExecutionResult> run(SkillRunContext context, SkillWorkspace workspace) {
+        received.set(context);
+        return super.run(context, workspace);
+      }
+    });
+    stubAssemblyAndValidator(dag);
+    workspaceStore.putArtifact(conversationId, SkillArtifact.of(
+        SkillArtifactType.CHAIN_STRUCTURE, "seed",
+        new SkillArtifactPayload.ChainStructurePayload(
+            new ChainStructure(graphForAssembly(), List.of(), List.of()))));
+    StageRepairEvidence repair = new StageRepairEvidence(
+        "CONTRACT_FAILURE", "design-execution", "INVALID_JSON: capture failed",
+        "Rejected response " + "CIP:GEN-000059,".repeat(4000), "", "evidence-1",
+        List.of(), "cip-pattern-selector", "CONTRACT_SHAPE");
+    CompilerDagExecutionRequest request = new CompilerDagExecutionRequest(
+        "run-1", conversationId, manifestFor(dag), brief(), null, dag,
+        List.of(), List.of(), null, repair);
+
+    CompilerDagExecutionResult result = engine.execute(request, (id, status) -> {})
+        .await().indefinitely();
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
+    assertFalse(received.get().effectiveUserText().contains("Rejected response"));
+    assertTrue(received.get().repairEvidence().contains("INVALID_JSON"));
+    assertFalse(received.get().repairEvidence().contains("CIP:GEN-000059"));
   }
 
   @Test

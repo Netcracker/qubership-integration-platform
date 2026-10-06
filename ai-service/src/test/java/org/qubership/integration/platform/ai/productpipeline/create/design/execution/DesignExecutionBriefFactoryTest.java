@@ -123,7 +123,7 @@ class DesignExecutionBriefFactoryTest {
 
     assertEquals(1, brief.mappingIntents().size());
     assertEquals("map-request", brief.mappingIntents().getFirst().mappingIntentId());
-    assertEquals("name", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    assertEquals("$.name", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
   }
 
   @Test
@@ -146,13 +146,29 @@ class DesignExecutionBriefFactoryTest {
   }
 
   @Test
-  void repairTurnFoldsHaltEvidenceAndPriorGraphIntoDraftText() {
+  void executionKeepsTheApprovedFolderOnFirstAttemptAndRepair() {
+    RequirementBrief stored = new RequirementBrief("Folder test", List.of(), List.of(), List.of(), List.of(), "Folder test")
+        .withApprovedDraftText("Create the chain in the approved folder.")
+        .withTargetFolderPath("/Elements autotest chains/Campaign");
+    StageRepairEvidence repair = new StageRepairEvidence("CONTRACT_FAILURE", "design-execution",
+        "INVALID_JSON", "rejected capture", "");
+
+    RequirementBrief first = DesignExecutionBriefFactory.build(stored, sampleRevision());
+    RequirementBrief repaired = DesignExecutionBriefFactory.build(stored, sampleRevision(), repair, null);
+
+    assertEquals(stored.targetFolderPath(), first.targetFolderPath());
+    assertEquals(first, repaired);
+    assertEquals(stored.approvedDraftText(), repaired.approvedDraftText());
+  }
+
+  @Test
+  void repairTurnPreservesApprovedTextWithoutRawErrorsOrPriorGraph() {
     StageRepairEvidence repairEvidence =
         new StageRepairEvidence(
             "VALIDATION_FAILURE",
             "design-execution",
             "http-trigger-1: schema violation",
-            "Phase 5 plan validation failed",
+            "MALFORMED_ARGUMENT " + "CIP:GEN-000005 ".repeat(4000),
             "use RBAC");
     ChainPlanGraph priorGraph =
         new ChainPlanGraph(
@@ -161,16 +177,14 @@ class DesignExecutionBriefFactoryTest {
             List.of(new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of())),
             List.of());
 
+    RequirementBrief stored =
+        new RequirementBrief("goal", List.of(), List.of(), List.of(), List.of(), "summary")
+            .withApprovedDraftText("Approved task");
     RequirementBrief brief =
-        DesignExecutionBriefFactory.build(null, sampleRevision(), repairEvidence, priorGraph);
+        DesignExecutionBriefFactory.build(stored, sampleRevision(), repairEvidence, priorGraph);
 
-    assertTrue(brief.approvedDraftText().contains("VALIDATION_FAILURE"));
-    assertTrue(brief.approvedDraftText().contains("design-execution"));
-    assertTrue(brief.approvedDraftText().contains("schema violation"));
-    assertTrue(brief.approvedDraftText().contains("Phase 5 plan validation failed"));
-    assertTrue(brief.approvedDraftText().contains("use RBAC"));
-    assertTrue(brief.approvedDraftText().contains("trigger"));
-    assertTrue(brief.approvedDraftText().contains("http-trigger"));
+    assertEquals("Approved task", brief.approvedDraftText());
+    assertEquals(DesignExecutionBriefFactory.build(stored, sampleRevision()), brief);
   }
 
   @Test

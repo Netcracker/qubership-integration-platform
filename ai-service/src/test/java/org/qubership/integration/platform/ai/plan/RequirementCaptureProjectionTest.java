@@ -28,6 +28,82 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureProjectionTest {
 
   @Test
+  void elementIntentSurvivesProjectionAndAutomaticRepairCannotDropIt() throws Exception {
+    var intent = new RequirementElementIntent("checkpoint", "checkpoint",
+        RequirementElementIntent.Placement.LOCAL_NODE, "entry", "check-properties", "entry", null,
+        List.of(), List.of());
+    var script = new RequirementElementIntent("check-properties", "script",
+        RequirementElementIntent.Placement.LOCAL_NODE, "entry", null, "checkpoint", "Check properties",
+        List.of(), List.of("This is parent session"));
+    var fact = new FactInput("checkpoint-config", List.of("entry"), FactKind.BEHAVIOR,
+        Polarity.POSITIVE, "Create an internal checkpoint with a POST retry route.", null, null, intent);
+    DraftInput input = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+        "Caller", "GET /check", null, null, null)), List.of()),
+        List.of(fact, new FactInput("check-session", List.of("entry"), FactKind.BEHAVIOR,
+            Polarity.POSITIVE, "Check properties: throw This is parent session for a missing parent ID.",
+            null, null, script)),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
+            "/check", null, null, null)), List.of(), new DraftSettings(null, null));
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    DraftInput restored = mapper.readValue(mapper.writeValueAsString(input), DraftInput.class);
+    assertTrue(RequirementCaptureEditor.initialize(restored).accepted());
+    assertEquals(intent, RequirementCaptureProjection.facts(restored).getFirst().elementIntent());
+    assertEquals(intent, RequirementCaptureProjection.facts(restored).getFirst()
+        .withKind(RequirementFactKind.CONSTRAINT).elementIntent());
+    var legacyIntent = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(script);
+    legacyIntent.set("beforeElementRef", legacyIntent.remove("successorElementRef"));
+    legacyIntent.set("afterElementRef", legacyIntent.remove("predecessorElementRef"));
+    assertEquals(script, mapper.treeToValue(legacyIntent, RequirementElementIntent.class));
+
+    var lost = new DraftInput(input.flow(), List.of(new FactInput(fact.sourceFactId(), fact.interactionIds(),
+        fact.kind(), fact.polarity(), fact.text()), input.facts().get(1)),
+        input.capabilities(), input.openQuestions(), input.settings());
+    assertTrue(RequirementCaptureEditor.validateFactPreservation(input, lost).stream()
+        .anyMatch(issue -> issue.code().equals("REPAIR_FACT_LOSS")));
+    var old = mapper.valueToTree(fact);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) old).remove("elementIntent");
+    assertEquals(null, mapper.treeToValue(old, FactInput.class).elementIntent());
+  }
+
+  @Test
+  void relativeHelperRouteRequiresRuntimeEndpointBeforePlanning() {
+    for (var example : Map.of(
+        "auto-tests/get-context-headers", false,
+        "/auto-tests/get-context-headers", false,
+        "http://engine:8080/routes/auto-tests/get-context-headers", true,
+        "https://runtime.example/routes/${header.helperPath}", true).entrySet()) {
+      DraftInput input = new DraftInput(
+          new FlowInput(List.of(
+              new InteractionInput("entry", Direction.INBOUND, "Caller", "GET /check",
+                  null, null, null),
+              new InteractionInput("helper", Direction.OUTBOUND, "Get Context Headers", "GET",
+                  null, null, null)), List.of(new TransitionInput("entry", "helper"))),
+          List.of(new FactInput("helper-behavior", List.of("helper"), FactKind.BEHAVIOR,
+              Polarity.POSITIVE, "Call the helper and verify its context headers.")),
+          List.of(
+              new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
+                  "/check", null, null, null),
+              new CapabilityInput("helper", "http-sender", null, HttpMethod.GET,
+                  example.getKey(), null, null, null)),
+          List.of(), new DraftSettings(false, null));
+      var pending = RequirementCaptureProjection.pending(input, List.of());
+      RequirementDraft draft = RequirementCaptureProjection.toDraft(
+          input, null, List.of(), "1", "hash");
+
+      assertEquals(example.getValue(), draft.readyForPlan(), example.getKey());
+      assertEquals(example.getValue(), pending.isEmpty(), example.getKey());
+      assertTrue(draft.facts().stream().anyMatch(f -> f.sourceFactId().equals("helper-behavior")
+          && f.text().equals(input.facts().getFirst().text())));
+      if (!example.getValue()) {
+        assertEquals("helper", pending.getFirst().interactionId());
+        assertTrue(pending.getFirst().message().contains("full runtime HTTP URI"));
+        assertTrue(pending.getFirst().message().contains("resolve the catalog operation"));
+        assertTrue(pending.getFirst().message().contains("Do not invent a host"));
+      }
+    }
+  }
+
+  @Test
   void reviewDistinguishesRepeatedCallsWithoutExposingCaptureIds() {
     DraftInput draft = new DraftInput(
         new FlowInput(List.of(
@@ -61,6 +137,33 @@ class RequirementCaptureProjectionTest {
         RequirementCaptureProjection.facts(draft).stream()
             .filter(fact -> "first-secret-id-retry".equals(fact.sourceFactId()))
             .findFirst().orElseThrow().polarity());
+  }
+
+  @Test
+  void derivedCapabilitiesDoNotReplaceAuthoredFactsWithTheSameInteractionIds() {
+    DraftInput input = kafkaDraft(List.of(
+        new FactInput("http-entry", List.of("http-entry"), FactKind.CONSTRAINT,
+            Polarity.POSITIVE, "Require RBAC on the entry."),
+        new FactInput("publish-kafka", List.of("publish-kafka"), FactKind.BEHAVIOR,
+            Polarity.POSITIVE, "Preserve the published body."),
+        new FactInput("publish-kafka-2", List.of("publish-kafka"), FactKind.CONSTRAINT,
+            Polarity.NEGATIVE, "Do not log the body.")));
+
+    RequirementDraft draft = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+    RequirementBrief brief = RequirementBriefProjector.project(new RequirementBrief(
+        "Publish", List.of(), List.of(), List.of(), List.of(), "Publish", null, "Publish",
+        draft.facts(), List.of(), List.of(), List.of(), List.of(), draft.flow(), List.of()));
+
+    assertEquals(draft.facts().size(), draft.facts().stream().map(RequirementFact::sourceFactId).distinct().count());
+    assertEquals(3, draft.facts().stream().filter(fact -> input.facts().stream()
+        .anyMatch(authored -> authored.sourceFactId().equals(fact.sourceFactId())
+            && authored.text().equals(fact.text()))).count());
+    assertTrue(RequirementFlowValidator.validateBindings(draft.flow(), draft.facts(), List.of()).isEmpty());
+    assertEquals("http-entry", brief.entryPoints().getFirst().entryPointId());
+    assertEquals("http-trigger", brief.entryPoints().getFirst().capabilityKey());
+    assertEquals(capabilityId(draft.facts(), "http-trigger"), brief.entryPoints().getFirst().sourceFactId());
+    assertTrue(brief.serviceCalls().isEmpty());
+    assertEquals("publish-kafka-3", capabilityId(draft.facts(), "kafka-sender-2"));
   }
 
   @Test
@@ -116,6 +219,32 @@ class RequirementCaptureProjectionTest {
         "step-retry-retry".equals(fact.sourceFactId())
             && fact.polarity() == RequirementFactPolarity.POSITIVE
             && fact.text().contains("1 times")));
+  }
+
+  @Test
+  void resolvedCatalogTargetsUseTheInteractionWhenTheCapabilityIdMoves() {
+    for (String key : List.of("chain-call-2", "mcp-trigger")) {
+      String owner = "catalog-owner";
+      DraftInput input = new DraftInput(
+          new FlowInput(List.of(new InteractionInput(owner,
+              "mcp-trigger".equals(key) ? Direction.INBOUND : Direction.OUTBOUND,
+              "Target service", "start", null, null, null)), List.of()),
+          List.of(new FactInput(owner, List.of(owner), FactKind.BEHAVIOR,
+              Polarity.POSITIVE, "Preserve context.")),
+          List.of(new CapabilityInput(owner, key, null, null, null, null, null, null)),
+          List.of(), new DraftSettings(null, null));
+      Map<String, String> target = Map.of(owner, "catalog-target-id");
+
+      RequirementDraft first = RequirementCaptureProjection.toDraft(
+          input, null, List.of(), "1", "hash", target);
+      RequirementDraft refreshed = RequirementCaptureProjection.toDraft(
+          input, first, List.of(), "1", "hash");
+
+      assertEquals(owner + "-2", capabilityId(first.facts(), key));
+      assertEquals(target, RequirementCaptureProjection.resolvedTargets(first));
+      assertEquals(target, RequirementCaptureProjection.resolvedTargets(refreshed));
+      assertEquals(first.facts(), refreshed.facts());
+    }
   }
 
   @Test

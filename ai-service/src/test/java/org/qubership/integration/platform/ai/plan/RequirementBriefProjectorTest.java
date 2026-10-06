@@ -428,7 +428,7 @@ class RequirementBriefProjectorTest {
     MappingIntent merged = projected.mappingIntents().getFirst();
     assertEquals("request-onTaskStart-to-createTask", merged.mappingIntentId());
     assertEquals(2, merged.rules().size());
-    assertEquals("name", merged.rules().getFirst().sourcePath());
+    assertEquals("$.name", merged.rules().getFirst().sourcePath());
     assertEquals("Subject", merged.rules().getFirst().targetPath());
     assertEquals("Subject", merged.rules().get(1).targetPath());
   }
@@ -479,7 +479,7 @@ class RequirementBriefProjectorTest {
     MappingIntent mergedResponse = projected.mappingIntents().get(1);
     assertEquals("response-createTask-to-onTaskResult", mergedResponse.mappingIntentId());
     assertEquals(2, mergedResponse.rules().size());
-    assertEquals("processInstanceId", mergedResponse.rules().get(1).sourcePath());
+    assertEquals("$.processInstanceId", mergedResponse.rules().get(1).sourcePath());
     assertEquals("processId", mergedResponse.rules().get(1).targetPath());
   }
 

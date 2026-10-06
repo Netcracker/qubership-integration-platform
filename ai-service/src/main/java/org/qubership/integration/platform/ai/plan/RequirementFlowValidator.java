@@ -222,7 +222,7 @@ public final class RequirementFlowValidator {
       if (ChainElementFamilies.bindingMode(fact.capabilityKey()) == BindingMode.UNSUPPORTED_IN_CREATE) {
         continue;
       }
-      Optional<Interaction> owner = flow.interaction(fact.sourceFactId());
+      Optional<Interaction> owner = flow.interaction(fact.owningInteractionId());
       if (owner.isEmpty() || owner.get().direction() != Direction.INBOUND) {
         return Optional.of(
             "native trigger fact sourceFactId="
@@ -325,7 +325,7 @@ public final class RequirementFlowValidator {
       if (inboundCapability.filter("http-trigger"::equals).isPresent()
           && factList.stream()
               .filter(fact -> fact != null)
-              .filter(fact -> interaction.interactionId().equals(fact.sourceFactId()))
+              .filter(fact -> fact.targetsInteraction(interaction.interactionId()))
               .filter(fact -> "http-trigger".equals(fact.capabilityKey()))
               .allMatch(fact -> fact.httpMethod().isBlank())) {
         return Optional.of(
@@ -362,7 +362,7 @@ public final class RequirementFlowValidator {
   static boolean hasEntryPointCapabilityFact(String interactionId, List<RequirementFact> facts) {
     for (RequirementFact fact : facts) {
       if (fact != null
-          && interactionId.equals(fact.sourceFactId())
+          && fact.targetsInteraction(interactionId)
           && (fact.kind() == RequirementFactKind.CAPABILITY
               || fact.kind() == RequirementFactKind.ENDPOINT)
           && fact.capabilityKey() != null
@@ -419,7 +419,7 @@ public final class RequirementFlowValidator {
       return null;
     }
     for (RequirementFact fact : facts) {
-      if (fact != null && interactionId.equals(fact.sourceFactId())) {
+      if (fact != null && fact.targetsInteraction(interactionId) && !fact.capabilityKey().isBlank()) {
         return fact;
       }
     }
@@ -430,7 +430,7 @@ public final class RequirementFlowValidator {
       String interactionId, List<RequirementFact> facts) {
     for (RequirementFact fact : facts) {
       if (fact == null
-          || !interactionId.equals(fact.sourceFactId())
+          || !fact.targetsInteraction(interactionId)
           || !"http-trigger".equals(fact.capabilityKey())) {
         continue;
       }
@@ -460,7 +460,7 @@ public final class RequirementFlowValidator {
   private static boolean hasSenderCapabilityFact(String interactionId, List<RequirementFact> facts) {
     return facts.stream()
         .filter(Objects::nonNull)
-        .filter(fact -> interactionId.equals(fact.sourceFactId()))
+        .filter(fact -> fact.targetsInteraction(interactionId))
         .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
         .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
         .anyMatch(
@@ -473,7 +473,7 @@ public final class RequirementFlowValidator {
       String interactionId, List<RequirementFact> facts) {
     return facts.stream()
         .filter(Objects::nonNull)
-        .filter(fact -> interactionId.equals(fact.sourceFactId()))
+        .filter(fact -> fact.targetsInteraction(interactionId))
         .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
         .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
         .anyMatch(fact -> ChainElementFamilies.CHAIN_CALL.contains(fact.capabilityKey()));
@@ -486,7 +486,7 @@ public final class RequirementFlowValidator {
     }
     for (RequirementFact fact : facts) {
       if (fact != null
-          && interaction.interactionId().equals(fact.sourceFactId())
+          && fact.targetsInteraction(interaction.interactionId())
           && fact.capabilityKey() != null
           && !fact.capabilityKey().isBlank()) {
         return Optional.of(fact.capabilityKey());
@@ -510,7 +510,7 @@ public final class RequirementFlowValidator {
       String interactionId, List<RequirementFact> facts) {
     return facts.stream()
         .filter(Objects::nonNull)
-        .filter(fact -> interactionId.equals(fact.sourceFactId()))
+        .filter(fact -> fact.targetsInteraction(interactionId))
         .filter(fact -> fact.polarity() == RequirementFactPolarity.POSITIVE)
         .filter(fact -> fact.kind() == RequirementFactKind.CAPABILITY)
         .map(RequirementFact::capabilityKey)
@@ -554,7 +554,7 @@ public final class RequirementFlowValidator {
         + interaction.participant()
         + " "
         + interaction.operation()
-        + "). Capture a CAPABILITY fact with sourceFactId="
+        + "). Configure a trigger capability for interactionId="
         + interaction.interactionId()
         + " and a trigger capabilityKey (http-trigger, kafka-trigger-2, async-api-trigger,"
         + " chain-trigger-2, or another supported trigger).";

@@ -11,6 +11,7 @@ import java.util.Map;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.productpipeline.create.CompilerValidationPipeline;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.schema.ElementPatchDefaultsApplicator;
 import org.qubership.integration.platform.ai.schema.ElementPatchValidator;
@@ -102,9 +103,8 @@ public final class RecoveryEvidenceFactory {
         continue;
       }
       String patchJson =
-          toPropertiesPatchJson(
-              elementType,
-              node.properties(),
+          CompilerValidationPipeline.toPropertiesPatchJson(
+              node,
               objectMapper,
               deterministicElementSchemaService,
               schemaRefResolver);
@@ -118,38 +118,6 @@ public final class RecoveryEvidenceFactory {
       }
     }
     return List.copyOf(findings);
-  }
-
-  private static String toPropertiesPatchJson(
-      String elementType,
-      List<PlanProperty> properties,
-      ObjectMapper objectMapper,
-      DeterministicElementSchemaService deterministicElementSchemaService,
-      SchemaRefResolver schemaRefResolver) {
-    try {
-      var root = objectMapper.createObjectNode();
-      var props = objectMapper.createObjectNode();
-      if (properties != null) {
-        for (PlanProperty property : properties) {
-          if (property == null || property.key() == null || property.key().isBlank()) {
-            continue;
-          }
-          Object coerced =
-              deterministicElementSchemaService.coercePatchPropertyValue(
-                  elementType, property.key(), property.value());
-          props.set(property.key(), objectMapper.valueToTree(coerced));
-        }
-      }
-      root.set("properties", props);
-      if (elementType != null && !elementType.isBlank()) {
-        var model = ElementPropertiesSchemaModelBuilder.build(elementType.trim(), schemaRefResolver);
-        ElementPatchDefaultsApplicator.applyMissingPropertyDefaults(
-            root, model, schemaRefResolver, objectMapper, null);
-      }
-      return objectMapper.writeValueAsString(root);
-    } catch (Exception e) {
-      return "{\"properties\":{}}";
-    }
   }
 
   private static JsonNode parseRoot(String validationJson, ObjectMapper objectMapper) {

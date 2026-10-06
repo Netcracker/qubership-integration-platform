@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.compiler;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import dev.langchain4j.model.output.structured.Description;
@@ -10,9 +11,12 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperat
 /** LLM-facing property patch with schema-coerced values. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 record PropertyPatchCapture(
-    @Description("ADD, UPDATE, or REMOVE") GraphPatchOperation operation,
-    @Description("Existing plan node id") String targetNodeId,
-    @Description("Catalog property key from describeElementPatchSchema") String key,
+    @Description("ADD, UPDATE, or REMOVE")
+        @JsonProperty(required = true) GraphPatchOperation operation,
+    @Description("Existing plan node id")
+        @JsonProperty(required = true) String targetNodeId,
+    @Description("Catalog property key from describeElementPatchSchema")
+        @JsonProperty(required = true) String key,
     @Description("Unused placeholder when mapEntries or arrayValue is set; send {}") JsonNode value,
     @Description("String, number, boolean, or serialized JSON object/array; schema-coerced when value is {}")
         String scalarValue,

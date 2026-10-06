@@ -383,6 +383,8 @@ class DesignExecutionCapabilityTest {
 
     assertEquals(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, outcome.outcomeClass());
     assertTrue(outcome.message().contains("NamingManifest"));
+    assertTrue(outcome.recoveryCause().formattedFindings().contains("INVALID_TOOL_ARGUMENTS"));
+    assertFalse(outcome.recoveryCause().formattedFindings().contains("NamingManifest"));
     verifyNoInteractions(runner);
   }
 

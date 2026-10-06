@@ -88,6 +88,7 @@ public record MappingTurnCapture(
     CHANGES,
     QUERY,
     NONE,
+    STRUCTURAL_REMINDER,
     CLARIFICATION
   }
 

@@ -223,7 +223,7 @@ public class McpSystemCatalogBinder {
         brief == null || brief.facts() == null ? List.of() : brief.facts();
     List<RequirementFact> mcpFacts = mcpTriggerFacts(facts);
     for (RequirementFact fact : mcpFacts) {
-      if (trigger.nodeId().equals(fact.sourceFactId())) {
+      if (fact.targetsInteraction(trigger.nodeId())) {
         return fact;
       }
     }
@@ -410,7 +410,9 @@ public class McpSystemCatalogBinder {
         fact.topic(),
         fact.httpMethod(),
         path,
-        fact.serviceCallId());
+        fact.serviceCallId(),
+        fact.interactionIds(),
+        fact.policyConflict(), fact.elementIntent());
   }
 
   private static String pickerQuestion(List<CatalogMcpSystemDto> matches) {

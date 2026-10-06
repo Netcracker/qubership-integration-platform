@@ -6,7 +6,6 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.chain.presentation.ChainMaterializedSummary;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
@@ -41,7 +40,6 @@ public class CreateProductPipelineCoordinator {
   private final CreateChainApplicationFacade facade;
   private final ProductPipelineRunStore runStore;
   private final ApprovalPrompts approvalPrompts;
-  private final GateReplyAgent gateReplyAgent;
   private final ApprovalQuestionStore approvalQuestions;
 
   private static final org.jboss.logging.Logger LOG =
@@ -85,7 +83,6 @@ public class CreateProductPipelineCoordinator {
     this.facade = Objects.requireNonNull(facade, "facade");
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.approvalPrompts = Objects.requireNonNull(approvalPrompts, "approvalPrompts");
-    this.gateReplyAgent = gateReplyAgent;
     this.approvalQuestions = approvalQuestions;
   }
 
@@ -124,9 +121,6 @@ public class CreateProductPipelineCoordinator {
         return createChain(conversationId);
       }
       return Multi.createFrom().item(creationDecision(conversationId, doc));
-    }
-    if (status == RunStatus.WAITING_FOR_APPROVAL && approvesCurrentCandidate(conversationId, text)) {
-      return approveVisibleCandidate(conversationId, doc);
     }
     return mapEvents(
         facade.start(
@@ -345,42 +339,4 @@ public class CreateProductPipelineCoordinator {
         .map(CreateChainPendingAction.Approve.class::cast);
   }
 
-  /**
-   * Reads a typed reply at an open gate and reports whether it approves the current candidate.
-   *
-   * <p>No pattern match decides this. The reply reaches a model that can only express an approval
-   * by naming the artifact type, hash, and revision, and the facade refuses a binding that does not
-   * match the open gate — so a qualified reply, a reply about later work, or a stale one leaves the
-   * run where it is and travels on as input for the stage.
-   */
-  private boolean approvesCurrentCandidate(String conversationId, String text) {
-    if (gateReplyAgent == null || text == null || text.isBlank()) {
-      return false;
-    }
-    CreateChainPendingAction.Approve candidate = visibleApproval(conversationId).orElse(null);
-    if (candidate == null) {
-      return false;
-    }
-    AtomicReference<ApproveCandidateTool.Binding> named = new AtomicReference<>();
-    try (AutoCloseable ignored = ApproveCandidateTool.capture(named)) {
-      gateReplyAgent.interpretReply(
-          "gate:" + conversationId,
-          candidate.artifactType(),
-          candidate.artifactHash(),
-          candidate.revision(),
-          text);
-    } catch (Exception ex) {
-      LOG.warnf(ex, "Gate reply agent failed; treating the reply as not an approval");
-      return false;
-    }
-    ApproveCandidateTool.Binding binding = named.get();
-    if (binding == null) {
-      return false;
-    }
-    return facade
-        .validateApprove(
-            new ApproveCreateChainArtifactCommand(
-                conversationId, binding.artifactType(), binding.artifactHash(), binding.revision()))
-        .isEmpty();
-  }
 }

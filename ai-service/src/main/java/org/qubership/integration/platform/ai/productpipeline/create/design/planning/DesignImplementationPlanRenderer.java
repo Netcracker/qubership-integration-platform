@@ -104,7 +104,6 @@ public final class DesignImplementationPlanRenderer {
       body.append('\n').append("## Trigger").append('\n').append("- ").append(triggerFact).append('\n');
     }
 
-    List<String> approvedRequirementFacts = new ArrayList<>();
     if (brief != null) {
       for (var fact : brief.facts()) {
         if (fact == null || fact.text().isBlank()) {
@@ -124,11 +123,9 @@ public final class DesignImplementationPlanRenderer {
                 || (!fact.httpMethod().isBlank() && !fact.path().isBlank());
         if (endpoint && !endpointFacts.contains(fact.text())) {
           endpointFacts.add(fact.text());
-          approvedRequirementFacts.add(fact.text());
         } else if (fact.kind() == RequirementFactKind.BEHAVIOR
             && !scriptOutcomes.contains(fact.text())) {
           scriptOutcomes.add(fact.text());
-          approvedRequirementFacts.add(fact.text());
         }
       }
       for (CatalogBindingHint binding : brief.catalogBindings()) {
@@ -138,11 +135,10 @@ public final class DesignImplementationPlanRenderer {
         }
       }
     }
-    if (!approvedRequirementFacts.isEmpty()) {
+    if (brief != null && !brief.facts().isEmpty()) {
       body.append('\n').append("## Approved requirement facts").append('\n');
-      for (String fact : approvedRequirementFacts) {
-        body.append("- ").append(fact).append('\n');
-      }
+      body.append(org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText
+          .formatFacts(brief.facts())).append('\n');
     }
 
     if (!negativeConstraints.isEmpty()) {

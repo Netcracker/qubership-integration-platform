@@ -111,7 +111,10 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             graphCompiler,
             new ClasspathCompilerContractRepository(),
             new CompositionCatalogBinder(mock(CatalogRestClient.class)),
-            new McpSystemCatalogBinder(mock(CatalogRestClient.class)));
+            new McpSystemCatalogBinder(mock(CatalogRestClient.class)),
+            new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifestBuilder(
+                new org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator(),
+                (catalog, intentRequest, intentBrief) -> ""));
   }
 
   @Test
@@ -195,6 +198,7 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             .contains(CompilerExecutionSeed.TRIGGER_GENERATOR_SKILL));
     assertTrue(request.effectiveSeed().presentArtifactTypes().contains("SELECTED_PATTERN"));
     assertTrue(request.effectiveSeed().presentArtifactTypes().contains("CONFIGURED_TRIGGER_SET"));
+    assertTrue(request.effectiveSeed().presentArtifactTypes().contains("GENERATOR_PLAN_MANIFEST"));
   }
 
   @Test

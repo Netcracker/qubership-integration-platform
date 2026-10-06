@@ -21,6 +21,56 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureEditorTest {
 
   @Test
+  void laterFactsCannotIntroduceConflictingNamesOrUnknownOrderReferences() {
+    var base = initial();
+    var facts = new java.util.ArrayList<>(base.facts());
+    for (int i = 0; i < 3; i++) {
+      var intent = new RequirementElementIntent("checkpoint", "checkpoint",
+          RequirementElementIntent.Placement.LOCAL_NODE, "start", i == 2 ? "missing" : null,
+          null, i == 0 ? null : i == 1 ? "First name" : "Second name", List.of(), List.of());
+      facts.add(new FactInput("checkpoint-" + i, List.of("start"), FactKind.BEHAVIOR,
+          Polarity.POSITIVE, "Save the current context.", null, null, intent));
+    }
+    var result = RequirementCaptureEditor.initialize(new DraftInput(base.flow(), facts,
+        base.capabilities(), base.openQuestions(), base.settings()));
+    assertFalse(result.accepted());
+    assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("CONFLICTING_ELEMENT_INTENT")));
+    assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNKNOWN_ELEMENT_REFERENCE")));
+    var valid = RequirementCaptureEditor.initialize(new DraftInput(base.flow(), facts.subList(0, 4),
+        base.capabilities(), base.openQuestions(), base.settings()));
+    assertTrue(valid.accepted(), valid.issues().toString());
+  }
+
+  @Test
+  void fieldListsAreRejectedBeforeAcceptanceWithoutLosingOtherFacts() {
+    DraftInput initial = initial();
+    for (boolean sourceList : List.of(false, true)) {
+      var mapping = new FactInput("mapping", List.of("start", "create-task"),
+          FactKind.FIELD_MAPPING, Polarity.POSITIVE, "Keep the original values for the result.",
+          new RequirementCaptureInput.FieldMappingInput("start",
+              sourceList ? "taskId,executionId,parameters" : null, "create-task",
+              sourceList ? "Description" : "executionId,orderId,processId,executionNumber,taskId",
+              "Read the original values saved before the call."));
+      var input = new DraftInput(initial.flow(), List.of(initial.facts().getFirst(), mapping),
+          initial.capabilities(), initial.openQuestions(), initial.settings());
+      var rejected = RequirementCaptureEditor.initialize(input);
+      assertFalse(rejected.accepted());
+      assertTrue(rejected.issues().stream().anyMatch(issue ->
+          (sourceList ? "MAPPING_SINGLE_SOURCE_REQUIRED" : "MAPPING_SINGLE_TARGET_REQUIRED").equals(issue.code())
+              && "mapping".equals(issue.entityId())));
+      assertEquals(List.of(initial.facts().getFirst()),
+          RequirementCaptureEditor.factsToPreserve(input, rejected.issues()));
+      var corrected = new FactInput(mapping.sourceFactId(), mapping.interactionIds(), mapping.kind(),
+          mapping.polarity(), mapping.text(), new RequirementCaptureInput.FieldMappingInput(
+              "start", null, "create-task", sourceList ? "Description" : "executionId",
+              mapping.fieldMapping().expression()));
+      var accepted = RequirementCaptureEditor.initialize(new DraftInput(input.flow(),
+          List.of(initial.facts().getFirst(), corrected), input.capabilities(), input.openQuestions(), input.settings()));
+      assertTrue(accepted.accepted(), accepted.issues().toString());
+    }
+  }
+
+  @Test
   void focusedFactEditRetainsFlowAndOtherFacts() {
     DraftInput initial = initial();
     FactInput revised = new FactInput("mapping", List.of("create-task"),

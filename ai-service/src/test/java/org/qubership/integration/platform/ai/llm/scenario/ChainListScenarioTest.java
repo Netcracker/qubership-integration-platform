@@ -299,6 +299,32 @@ class ChainListScenarioTest {
   }
 
   @Test
+  void replacesTheLastListAfterAnEmptySearchButKeepsItAfterAFailedSearch() {
+    List<Row> rows = List.of(ORDERS, SF_ACCOUNTS, SF_CONTACTS, row("c4", "SF leads", "Legacy/CRM"));
+    answer(command(ChainListAction.FIND_CHAINS, null, null, List.of(), List.of()));
+    when(table.find(List.of())).thenReturn(rows, List.of(), rows);
+
+    assertTrue(text(scenario.dispatch(message(), CONVERSATION)).startsWith("Found 4 chains."));
+    assertEquals("No chains match.", text(scenario.dispatch(message(), CONVERSATION)));
+    answer(fromList(ChainListAction.FIND_CHAINS, null, List.of(1)));
+    assertEquals(
+        "The last list has 0 chains, so there is no number 1.",
+        text(scenario.dispatch(message(), CONVERSATION)));
+
+    answer(command(ChainListAction.FIND_CHAINS, null, null, List.of(), List.of()));
+    when(table.find(List.of()))
+        .thenReturn(rows)
+        .thenThrow(new IllegalStateException("Catalog unavailable"))
+        .thenReturn(rows);
+    scenario.dispatch(message(), CONVERSATION);
+    assertTrue(
+        text(scenario.dispatch(message(), CONVERSATION)).startsWith("The catalog request failed:"));
+    answer(fromList(ChainListAction.FIND_CHAINS, null, List.of(1)));
+    assertEquals("Found 1 chain.\n1. Orders sync", text(scenario.dispatch(message(), CONVERSATION)));
+    verifyNoInteractions(catalog);
+  }
+
+  @Test
   void asksWhichChainsWhenTheChatHasNoListYet() {
     answer(fromList(ChainListAction.DELETE_CHAINS, null, List.of()));
     when(table.find(List.of())).thenReturn(List.of(ORDERS));

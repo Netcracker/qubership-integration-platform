@@ -17,6 +17,24 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifes
 class CompilerQualityValidatorTest {
 
   @Test
+  void approvedNamesCannotBeParaphrasedInTheAssembledGraph() {
+    var requirements = mock(MaterializationRequirementsValidator.class);
+    when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("script", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "trigger", null, null, "Set the exact response", List.of(), List.of());
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("script-name",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.PARAMETER, "", "Requested name", "", "", "", "", "", "",
+        List.of("trigger"), null, intent);
+    var brief = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief("goal", List.of(),
+        List.of(), List.of(), List.of(), "summary", "ref", "source", List.of(fact), List.of());
+    var validator = new CompilerQualityValidator(requirements);
+    assertFalse(validator.validate(null, graph(), brief).valid());
+    assertTrue(validator.validate(null, RequestedElementValues.apply(graph(), brief.facts()), brief).valid());
+  }
+
+  @Test
   void namingViolationsAreWarnings() {
     MaterializationRequirementsValidator requirements = mock(MaterializationRequirementsValidator.class);
     when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());

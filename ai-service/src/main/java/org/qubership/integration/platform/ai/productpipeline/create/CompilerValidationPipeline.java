@@ -109,7 +109,7 @@ public class CompilerValidationPipeline {
       case CONFIGURATION -> configurationValidator.apply(graph);
       case SECURITY -> brief == null ? compilerSecurityValidator.validate(graph)
           : compilerSecurityValidator.validate(graph, brief);
-      case QUALITY -> compilerQualityValidator.validate(namingManifest, graph);
+      case QUALITY -> compilerQualityValidator.validate(namingManifest, graph, brief);
       default -> throw new IllegalArgumentException("Unsupported validator skill id: " + validatorSkillId);
     };
   }
@@ -149,8 +149,7 @@ public class CompilerValidationPipeline {
       }
       String patchJson =
           toPropertiesPatchJson(
-              elementType,
-              node.properties(),
+              node,
               objectMapper,
               deterministicElementSchemaService,
               schemaRefResolver);
@@ -255,13 +254,15 @@ public class CompilerValidationPipeline {
             + " blocker(s)");
   }
 
-  private static String toPropertiesPatchJson(
-      String elementType,
-      List<PlanProperty> properties,
+  /** Projects plan properties for schema validation before catalog IDs are assigned. */
+  public static String toPropertiesPatchJson(
+      ChainPlanNode node,
       ObjectMapper objectMapper,
       DeterministicElementSchemaService deterministicElementSchemaService,
       SchemaRefResolver schemaRefResolver) {
     try {
+      String elementType = node.type().trim();
+      List<PlanProperty> properties = node.properties();
       var root = objectMapper.createObjectNode();
       var props = objectMapper.createObjectNode();
       if (properties != null) {
@@ -277,6 +278,10 @@ public class CompilerValidationPipeline {
                   elementType, property.key(), property.value());
           props.set(property.key(), objectMapper.valueToTree(coerced));
         }
+      }
+      if ("chain-trigger-2".equals(elementType)) {
+        // Materialization replaces this logical self-reference with the catalog element ID.
+        props.put("elementId", node.nodeId());
       }
       root.set("properties", props);
       if (elementType != null && !elementType.isBlank()) {

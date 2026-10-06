@@ -21,6 +21,8 @@ import org.qubership.integration.platform.ai.llm.agent.ChainSemanticDesignAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
@@ -66,6 +68,9 @@ public class DesignInputCapability implements StageCapability {
   private final ChainSemanticIdsRenderer idsRenderer;
   private final CompilerContractRepository contractRepository;
   private final BiFunction<String, String, Multi<String>> designRunner;
+
+  @Inject
+  org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer chatMemorySanitizer;
 
   @Inject
   public DesignInputCapability(
@@ -183,6 +188,9 @@ public class DesignInputCapability implements StageCapability {
     AtomicReference<String> rejection = new AtomicReference<>();
     AtomicReference<Boolean> terminalRejection = new AtomicReference<>(false);
     String captureConversationId = captureConversationId(context);
+    if (chatMemorySanitizer != null) {
+      chatMemorySanitizer.clear(captureConversationId);
+    }
     ToolSession.bind(captureConversationId);
     ProductCapabilityCaptureContext.bindDesign(
         context.runId(),
@@ -278,14 +286,14 @@ public class DesignInputCapability implements StageCapability {
     prompt
         .append("Capture one ChainSemanticRevision from this approved requirement brief.\n\n")
         .append(RequirementBriefText.format(brief))
+        .append("\n\nUse LOCAL_NODE elementRef as nodeId. Keep inline hook facts exclusively on their Service Call.\n")
         .append("\n\nCompiler contract version: ")
         .append(contract.contractVersion())
         .append("\nSemantic schema version: ")
         .append(contract.semanticSchemaVersion())
         .append("\nAllowed operation elementType values: ")
         .append(String.join(", ", contract.elements().keySet().stream()
-            .filter(type -> !"split-element-2".equals(type)
-                && !"main-split-element-2".equals(type) && !"async-split-element-2".equals(type))
+            .filter(type -> !org.qubership.integration.platform.ai.schema.ChainElementFamilies.isProjectedRegionShell(type))
             .sorted().toList()))
         .append(
             "\n\nExternal interaction anchors are server-owned. Reference these node ids from"
@@ -302,12 +310,13 @@ public class DesignInputCapability implements StageCapability {
           .append(entryPoint.capabilityKey());
     }
     for (RequirementFact fact : brief.facts()) {
-      if (fact == null) {
+      if (fact == null || fact.kind() != RequirementFactKind.CAPABILITY
+          || fact.polarity() != RequirementFactPolarity.POSITIVE) {
         continue;
       }
       String outboundKey =
           RequirementFlowValidator.nativeDirectOutboundCapabilityKey(
-                  fact.sourceFactId(), brief.facts())
+                  fact.owningInteractionId(), brief.facts())
               .orElse(null);
       if (outboundKey == null) {
         continue;
@@ -315,7 +324,7 @@ public class DesignInputCapability implements StageCapability {
       anyAnchor = true;
       prompt
           .append("\n- nodeId=")
-          .append(fact.sourceFactId())
+          .append(fact.owningInteractionId())
           .append(" role=OUTBOUND capabilityKey=")
           .append(outboundKey)
           .append(" elementType=")
@@ -406,17 +415,11 @@ public class DesignInputCapability implements StageCapability {
 
   private static String repairSection(StageExecutionContext context) {
     StageRepairEvidence repair = StageRepairEvidence.from(context);
-    if (repair == null
-        || !repair.hasEvidence()
-        || StageRepairEvidence.isCleanDesignInputRebuild(context, repair)) {
+    if (repair == null || !repair.hasEvidence()) {
       return "";
     }
-    String rejection =
-        repair.findings() != null && !repair.findings().isBlank()
-            ? repair.findings()
-            : repair.errorEvidence();
     StringBuilder extra = new StringBuilder();
-    extra.append("\n\nThe previous capture was rejected:\n").append(rejection);
+    extra.append("\n\nThe previous capture was rejected:\n").append(repair.diagnosticText());
     if (repair.haltFollowUpText() != null && !repair.haltFollowUpText().isBlank()) {
       extra.append("\n\nAuthor correction:\n").append(repair.haltFollowUpText().trim());
     }

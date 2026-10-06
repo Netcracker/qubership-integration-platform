@@ -8,4 +8,22 @@ public record SkillRunContext(
     SkillSubgraph subgraph,
     int stepIndex,
     boolean implementSegmentOnly,
-    String effectiveUserText) {}
+    String effectiveUserText,
+    String repairEvidence) {
+
+  public SkillRunContext(
+      String conversationId,
+      String skillId,
+      String packVersion,
+      SkillSubgraph subgraph,
+      int stepIndex,
+      boolean implementSegmentOnly,
+      String effectiveUserText) {
+    this(conversationId, skillId, packVersion, subgraph, stepIndex, implementSegmentOnly,
+        effectiveUserText, "");
+  }
+
+  public SkillRunContext {
+    repairEvidence = repairEvidence == null ? "" : repairEvidence;
+  }
+}

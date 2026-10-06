@@ -482,7 +482,10 @@ class OneBriefLogTipTest {
         new ClasspathCompilerContractRepository(),
         new CompositionCatalogBinder(mock(CatalogRestClient.class)),
         new org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder(
-            mock(CatalogRestClient.class)));
+            mock(CatalogRestClient.class)),
+            new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifestBuilder(
+                new org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator(),
+                (catalog, intentRequest, intentBrief) -> ""));
   }
 
   private static ChainPlanGraph engineGraph() {

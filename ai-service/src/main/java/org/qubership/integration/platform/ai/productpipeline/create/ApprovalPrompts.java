@@ -8,7 +8,7 @@ import org.qubership.integration.platform.ai.llm.agent.ApprovalPromptAgent;
 
 /**
  * LLM-authored approval / implement CTAs for create-chain@2 chat. English fallbacks only when the
- * prompt agent is absent or fails.
+ * prompt agent is absent, fails, or returns reasoning markup.
  */
 public final class ApprovalPrompts {
 
@@ -45,7 +45,8 @@ public final class ApprovalPrompts {
     if (promptAgent != null) {
       try {
         String authored = promptAgent.askStageApproval(stage, normalizedLocale(responseLocale), reference);
-        if (authored != null && !authored.isBlank()) {
+        if (authored != null && !authored.isBlank()
+            && !authored.contains("<think>") && !authored.contains("</think>")) {
           return authored.trim();
         }
       } catch (RuntimeException ex) {
@@ -67,7 +68,8 @@ public final class ApprovalPrompts {
     if (promptAgent != null) {
       try {
         String authored = promptAgent.askImplementContinuation(normalizedLocale(responseLocale), reference);
-        if (authored != null && !authored.isBlank()) {
+        if (authored != null && !authored.isBlank()
+            && !authored.contains("<think>") && !authored.contains("</think>")) {
           return authored.trim();
         }
       } catch (RuntimeException ex) {

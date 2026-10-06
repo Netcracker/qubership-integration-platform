@@ -19,6 +19,15 @@ class LlmExchangeListenerTest {
   }
 
   @Test
+  void responseContextKeepsTheRequestOwnerAfterThreadMdcChanges() {
+    var original = new LlmExchangeMdcContext("original-conversation", "CREATE", "cip-script-generator");
+    java.util.Map<Object, Object> attributes = new java.util.HashMap<>();
+    attributes.put(LlmExchangeListener.CONTEXT_KEY, original);
+    MDC.put(ChatMdc.CONVERSATION_ID, "different-conversation");
+    assertEquals(original, LlmExchangeListener.exchangeContext(attributes));
+  }
+
+  @Test
   void readMdcContextUsesNoneWhenMissing() {
     LlmExchangeMdcContext context = LlmExchangeListener.readMdcContext();
 

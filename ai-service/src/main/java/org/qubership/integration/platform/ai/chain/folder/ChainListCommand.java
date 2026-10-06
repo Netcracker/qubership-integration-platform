@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.chain.folder;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
@@ -48,8 +49,8 @@ public record ChainListCommand(
     @Description("Numbers of the chains the user left out of the last list, as in all but 2.")
         List<Integer> excludePositions,
     @Description(
-            "For FIND_CHAINS when the user asks how many chains each group has; empty for a"
-                + " plain list.")
+            "For FIND_CHAINS when the user asks how many chains each group has. Use JSON null"
+                + " for a plain list and for every other action; never an empty string.")
         Grouping groupBy) {
 
   /** A column FIND_CHAINS counts the chains by. Dates are UTC days. */
@@ -63,7 +64,12 @@ public record ChainListCommand(
     CREATED_DAY,
     CREATED_MONTH,
     MODIFIED_DAY,
-    MODIFIED_MONTH
+    MODIFIED_MONTH;
+
+    @JsonCreator
+    public static Grouping fromCaptureValue(String raw) {
+      return raw == null || raw.isBlank() ? null : valueOf(raw.strip());
+    }
   }
 
   /** Folder and move commands, which carry no description or labels. */

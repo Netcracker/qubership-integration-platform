@@ -329,8 +329,8 @@ public class RequirementDraftTool {
       Do not author ENDPOINT or SERVICE_CALL topology facts. Java projects those roles from the
       flow. Keep facts as ordinary constraints and native-trigger configuration: polarity, text,
       and optional kind (GOAL, PARAMETER, BEHAVIOR, CONSTRAINT, CAPABILITY, VISIBILITY, ROUTING).
-      Native trigger configuration uses a CAPABILITY fact whose sourceFactId matches the inbound
-      interactionId. In-scope trigger keys: http-trigger, chain-trigger-2, async-api-trigger,
+      Native trigger configuration uses a CAPABILITY fact whose interactionIds contains the inbound
+      interactionId. Give the fact a unique sourceFactId. In-scope trigger keys: http-trigger, chain-trigger-2, async-api-trigger,
       jms-trigger, kafka-trigger-2, mcp-trigger, pubsub-trigger, quartz-scheduler,
       rabbitmq-trigger-2, sds-trigger, and sftp-trigger-2.
       MCP trigger configuration uses capabilityKey=mcp-trigger with participant set to the MCP
@@ -339,12 +339,12 @@ public class RequirementDraftTool {
       Leave path blank unless you already have an MCP system UUID from the user or from gather. Do
       not invent UUIDs. Capture READY_FOR_PLAN when the service name is known; gather binds a
       unique catalog match or asks the user to choose or create an MCP service.
-      Direct HTTP sender configuration uses a CAPABILITY fact whose sourceFactId matches the
+      Direct HTTP sender configuration uses a CAPABILITY fact whose interactionIds contains the
       outbound interactionId, capabilityKey=http-sender, and httpMethod plus an absolute or
       relative URI in path. In-scope direct sender keys: graphql-sender, http-sender, jms-sender,
       kafka-sender-2, mail-sender, pubsub-sender, rabbitmq-sender-2, and scs-sender.
       SFTP file transfer uses capabilityKey sftp-download or sftp-upload. No catalog lookup.
-      Chain-call configuration uses a CAPABILITY fact whose sourceFactId matches the outbound
+      Chain-call configuration uses a CAPABILITY fact whose interactionIds contains the outbound
       interactionId and capabilityKey=chain-call-2. Put the target chain's name in participant
       (the catalog chainName or the name the user used). Leave path blank unless you already
       have a chain-trigger-2 UUID from the user or from a gather list. Do not invent UUIDs.
@@ -1036,7 +1036,7 @@ public class RequirementDraftTool {
       }
       for (RequirementFact fact : factList) {
         if (fact == null
-            || !interaction.interactionId().equals(fact.sourceFactId())
+            || !fact.targetsInteraction(interaction.interactionId())
             || fact.polarity() != RequirementFactPolarity.POSITIVE
             || fact.kind() != RequirementFactKind.CAPABILITY
             || !"mcp-trigger".equals(fact.capabilityKey())) {
@@ -1597,7 +1597,7 @@ public class RequirementDraftTool {
               "",
               operation[0],
               operation[1],
-              ""));
+              "", evidence.interactionIds(), evidence.policyConflict(), evidence.elementIntent()));
     }
     return List.copyOf(aligned);
   }
@@ -1611,7 +1611,7 @@ public class RequirementDraftTool {
     if (!text.contains("http sender") && !text.contains("http-sender")) {
       return false;
     }
-    if (interaction.interactionId().equals(fact.sourceFactId())) {
+    if (fact.targetsInteraction(interaction.interactionId())) {
       return true;
     }
     String participant = fact.participant().toLowerCase(Locale.ROOT);
@@ -1625,7 +1625,7 @@ public class RequirementDraftTool {
         && fact.kind() == RequirementFactKind.CAPABILITY
         && ("http-trigger".equals(fact.capabilityKey())
             || "kafka-trigger-2".equals(fact.capabilityKey()))
-        && flow.interaction(fact.sourceFactId()).isEmpty();
+        && flow.interaction(fact.owningInteractionId()).isEmpty();
   }
 
   private static boolean matchesNativeTrigger(
@@ -1653,7 +1653,7 @@ public class RequirementDraftTool {
         fact.topic(),
         fact.httpMethod(),
         fact.path(),
-        fact.serviceCallId());
+        fact.serviceCallId(), fact.interactionIds(), fact.policyConflict(), fact.elementIntent());
   }
 
   private static String rejectTopologyFacts(List<RequirementFact> facts) {

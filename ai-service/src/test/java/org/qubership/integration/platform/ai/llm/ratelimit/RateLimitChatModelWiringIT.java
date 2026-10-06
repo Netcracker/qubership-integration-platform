@@ -16,6 +16,10 @@ import dev.langchain4j.model.openai.OpenAiResponsesChatRequestParameters;
 import io.quarkiverse.langchain4j.ModelName;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
+import jakarta.enterprise.inject.Instance;
+import io.quarkiverse.langchain4j.ModelBuilderCustomizer;
+import dev.langchain4j.model.openai.OpenAiResponsesChatModel;
+import dev.langchain4j.model.openai.OpenAiResponsesStreamingChatModel;
 import org.jboss.logging.Logger;
 import org.junit.jupiter.api.Test;
 
@@ -47,8 +51,18 @@ class RateLimitChatModelWiringIT {
   @ModelName(RateLimitChatModelProducer.ANTHROPIC_UPSTREAM_MODEL_NAME)
   StreamingChatModel anthropicStreamingChatModel;
 
+  @Inject
+  @ModelName(RateLimitChatModelProducer.OPENAI_UPSTREAM_MODEL_NAME)
+  Instance<ModelBuilderCustomizer<OpenAiResponsesChatModel.Builder>> chatCustomizers;
+
+  @Inject
+  @ModelName(RateLimitChatModelProducer.OPENAI_UPSTREAM_MODEL_NAME)
+  Instance<ModelBuilderCustomizer<OpenAiResponsesStreamingChatModel.Builder>> streamingCustomizers;
+
   @Test
   void unqualifiedModelsAreRateLimitWrappersOverNamedUpstream() {
+    assertTrue(chatCustomizers.isResolvable(), "Responses deadline customizer must be registered");
+    assertTrue(streamingCustomizers.isResolvable(), "Streaming deadline customizer must be registered");
     assertNotNull(chatModel, "ChatModel must inject (no 'No delegate ChatModel bean found')");
     assertNotNull(
         streamingChatModel,

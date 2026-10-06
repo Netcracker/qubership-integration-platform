@@ -89,6 +89,29 @@ class CompilerValidationPipelineTest {
   }
 
   @Test
+  void planValidationUsesServerOwnedTriggerIdentity() throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    var schemaService = DeterministicElementSchemaService.createForUnitTests(mapper);
+    var loader = new SchemaResourceLoader();
+    var resolver = new SchemaRefResolver(loader, new QipSchemaYamlParser());
+    var pipeline = new CompilerValidationPipeline(loader, resolver, mapper,
+        new ChainPlanGraphValidator(schemaService), schemaService,
+        security(valid("security")), quality(valid("quality")));
+    var trigger = new ChainPlanNode("entry", "chain-trigger-2", "Calling chain", null, null, List.of());
+    var graph = new ChainPlanGraph("1.0", new ChainSection("test", "Test"), List.of(trigger), List.of());
+
+    assertTrue(pipeline.validatePass(CompilerValidationPipeline.ELEMENT, null, graph).valid());
+    assertTrue(org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidenceFactory
+        .findingsFromChainPlanGraph(graph, "design-execution", mapper, resolver, schemaService, loader).isEmpty());
+    assertEquals(List.of(), trigger.properties());
+    assertFalse(mapper.readTree(schemaService.validateElementPatch("chain-trigger-2", "{\"properties\":{}}"))
+        .path("valid").asBoolean());
+    var call = new ChainPlanNode("call", "chain-call-2", "Call", null, null, List.of());
+    var callGraph = new ChainPlanGraph("1.0", graph.chain(), List.of(call), List.of());
+    assertFalse(pipeline.validatePass(CompilerValidationPipeline.ELEMENT, null, callGraph).valid());
+  }
+
+  @Test
   void elementValidatorAcceptsServiceCallAfterRetryDefaults() {
     ObjectMapper mapper = new ObjectMapper();
     DeterministicElementSchemaService schemaService =
