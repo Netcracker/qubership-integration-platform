@@ -60,6 +60,7 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.i
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
@@ -110,8 +111,6 @@ public class ChainImportService {
 
     @Value("${cip.build.artifact-descriptor-version}")
     private String artifactDescriptorVersion;
-    @Value("${app.prefix}")
-    private String appName;
 
     @Autowired
     public ChainImportService(
@@ -508,9 +507,7 @@ public class ChainImportService {
     }
 
     private File getChainYAMLFile(File chainDir) {
-        File[] chainFiles = chainDir.listFiles((dir, fileName) ->
-                (fileName.startsWith(CHAIN_YAML_NAME_PREFIX) && fileName.endsWith(YAML_FILE_NAME_POSTFIX))
-                        || fileName.endsWith(CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX));
+        File[] chainFiles = chainDir.listFiles((dir, fileName) -> ExportImportUtils.isChainFileName(fileName));
 
         if (ArrayUtils.isEmpty(chainFiles)) {
             throw new RuntimeException("Directory " + chainDir.getName() + " does not contain chain YAML file");

@@ -28,6 +28,7 @@ import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommi
 import org.qubership.integration.platform.io.readers.migrations.chain.ChainImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.common.GroupPathUtils;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
@@ -36,7 +37,6 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.ExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.util.DistinctByKey;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 
@@ -56,11 +56,11 @@ public class ChainExternalEntityMapper implements ExternalEntityMapper<Chain, Ch
     public ChainExternalEntityMapper(
             ChainElementsExternalEntityMapper chainElementsMapper,
             Collection<ChainImportFileMigration> chainImportFileMigrations,
-            @Value("${cip.json.schemas.chain:http://qubership.org/schemas/product/qip/chain}") URI chainSchemaUri
+            ApplicationJsonSchemaProperties schemas
     ) {
         this.chainElementsMapper = chainElementsMapper;
         this.chainImportFileMigrations = chainImportFileMigrations;
-        this.chainSchemaUri = chainSchemaUri;
+        this.chainSchemaUri = URI.create(schemas.getChain());
     }
 
     @Override

@@ -3,6 +3,7 @@ package org.qubership.integration.platform.runtime.catalog.service.exportimport;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 import org.mockito.InjectMocks;
@@ -15,6 +16,8 @@ import org.qubership.integration.platform.io.model.exportimport.chain.ChainExter
 import org.qubership.integration.platform.io.model.exportimport.chain.DeploymentExternalEntity;
 import org.qubership.integration.platform.io.readers.chain.ChainModelMapper;
 import org.qubership.integration.platform.io.readers.chain.ChainReader;
+import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.cr.BulkDeploymentService;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.DeployMode;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.DomainTypeDisabledException;
@@ -22,12 +25,14 @@ import org.qubership.integration.platform.runtime.catalog.model.domains.DomainTy
 import org.qubership.integration.platform.runtime.catalog.model.domains.EngineDomain;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalMapperEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportChainResult;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ChainImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Folder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
+import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportEntityStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.engine.ImportDomainDTO;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.remoteimport.ChainCommitRequest;
@@ -41,6 +46,8 @@ import org.qubership.integration.platform.runtime.catalog.service.SnapshotServic
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,15 +60,19 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -476,5 +487,44 @@ class ChainImportServiceTest {
                 ImportSessionService.SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD, 100);
         order.verify(importSessionService).calculateImportStatus("import-1", 2, 1,
                 ImportSessionService.SNAPSHOT_BUILD_PERCENTAGE_THRESHOLD, 100);
+    }
+
+    @DisplayName("getChainsImportPreview reads a chain file named with either qip or cip")
+    @Test
+    void previewReadsChainFilesNamedWithQipOrCip(@TempDir Path importDirectory) throws Exception {
+        writeChainFile(importDirectory, "qip-chain", "qip-chain.chain.qip.yaml");
+        writeChainFile(importDirectory, "cip-chain", "cip-chain.chain.cip.yaml");
+        writeChainFile(importDirectory, "other-chain", "other-chain.chain.other.yaml");
+        FileMigrationService fileMigrationService = mock(FileMigrationService.class);
+        when(fileMigrationService.migrate(anyString(), anyCollection()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        ChainImportService previewService = new ChainImportService(
+                new MapperAutoConfiguration().yamlExportImportMapper(), null, chainService, chainFinderService,
+                folderService, snapshotService, chainExternalEntityMapper, importSessionService, actionsLogService,
+                dependencyService, elementService, maskedFieldsService, null, null, fileMigrationService,
+                List.of(), chainModelMapper, chainReader, bulkDeploymentService);
+
+        List<ImportChainPreviewDTO> previews = previewService.getChainsImportPreview(
+                importDirectory.toFile(), ChainImportInstructionsConfig.builder().build());
+
+        Map<String, ImportChainPreviewDTO> byId = new HashMap<>();
+        previews.stream().filter(preview -> preview.getId() != null).forEach(preview -> byId.put(preview.getId(), preview));
+        assertEquals(Set.of("qip-chain", "cip-chain"), byId.keySet());
+        assertNull(byId.get("qip-chain").getErrorMessage());
+        assertNull(byId.get("cip-chain").getErrorMessage());
+        assertEquals(3, previews.size());
+        assertNotNull(previews.stream().filter(preview -> preview.getId() == null).findFirst()
+                .orElseThrow().getErrorMessage());
+    }
+
+    private static void writeChainFile(Path importDirectory, String chainId, String fileName) throws Exception {
+        Path chainDirectory = importDirectory.resolve("chains").resolve(chainId);
+        Files.createDirectories(chainDirectory);
+        Files.writeString(chainDirectory.resolve(fileName), """
+                id: %s
+                name: %s
+                content:
+                  elements: []
+                """.formatted(chainId, chainId));
     }
 }

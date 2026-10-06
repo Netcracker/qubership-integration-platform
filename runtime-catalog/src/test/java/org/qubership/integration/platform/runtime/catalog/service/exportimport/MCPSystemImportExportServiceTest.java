@@ -22,10 +22,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
+import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.ImportInstructionsConfig;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.system.ImportSystemResult;
 import org.qubership.integration.platform.runtime.catalog.model.system.exportimport.ExportedSystemObject;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
@@ -40,7 +45,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -85,7 +91,7 @@ class MCPSystemImportExportServiceTest {
                 archiveWriter,
                 importInstructionsService,
                 importProgressService,
-                new URI("http://qubership.org/schemas/product/qip/mcp-service")
+                new ApplicationJsonSchemaProperties()
         );
     }
 
@@ -266,6 +272,52 @@ class MCPSystemImportExportServiceTest {
         List<ImportSystemResult> result = service.getImportPreview(file);
 
         assertThat(result, empty());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "cip, , http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service, true",
+            "cip, , http://qubership.org/schemas/product/qip/mcp-service, true",
+            "qip, , http://qubership.org/schemas/product/qip/mcp-service, true",
+            "cip, , http://unknown.schema/mcp-service, false",
+            "cip, http://custom/mcp-service, http://custom/mcp-service, true",
+            "cip, http://custom/mcp-service, http://qubership.org/schemas/product/qip/mcp-service, true",
+            "cip, http://custom/mcp-service, "
+                    + "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service, false"
+    })
+    @DisplayName("getImportPreview reads MCP service files with the configured or the legacy schema and skips others")
+    void getImportPreviewFiltersMcpServiceFilesBySchema(
+            String appName,
+            String configuredSchema,
+            String schema,
+            boolean imported,
+            @TempDir Path importDirectory
+    ) throws Exception {
+        Path serviceDirectory = Files.createDirectories(importDirectory.resolve("services").resolve(SYSTEM_ID));
+        Files.writeString(serviceDirectory.resolve(SYSTEM_ID + ".mcp-service." + appName + ".yaml"),
+                "$schema: " + schema + "\nid: " + SYSTEM_ID + "\nname: " + SYSTEM_NAME + "\n");
+        ApplicationJsonSchemaProperties schemaProperties = new ApplicationJsonSchemaProperties();
+        if (configuredSchema != null) {
+            schemaProperties.setMcpService(configuredSchema);
+        }
+        MCPSystemImportExportService fileService = new MCPSystemImportExportService(
+                transactionTemplate,
+                new YAMLMapper(),
+                mcpSystemService,
+                actionLogger,
+                mcpSystemSerializer,
+                mcpSystemDeserializer,
+                archiveWriter,
+                importInstructionsService,
+                importProgressService,
+                schemaProperties
+        );
+
+        List<ImportSystemResult> result = fileService.getImportPreview(
+                importDirectory.toFile(), ImportInstructionsConfig.builder().build());
+
+        assertEquals(imported ? List.of(SYSTEM_ID) : List.of(),
+                result.stream().map(ImportSystemResult::getId).toList());
     }
 
     // helpers

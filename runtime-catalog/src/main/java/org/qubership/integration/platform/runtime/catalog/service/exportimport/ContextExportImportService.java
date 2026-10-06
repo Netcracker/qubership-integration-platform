@@ -23,6 +23,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.ServicesNotFoundException;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ImportContextServiceAndInstructionsResult;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.instructions.IgnoreResult;
@@ -48,7 +49,6 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.s
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.serializer.ContextServiceSerializer;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -58,7 +58,6 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.nio.file.Paths;
 import java.sql.Timestamp;
 import java.util.*;
@@ -88,7 +87,7 @@ public class ContextExportImportService {
     private final ImportSessionService importProgressService;
     private final ImportInstructionsService importInstructionsService;
 
-    private final URI contextServiceSchemaUri;
+    private final ApplicationJsonSchemaProperties schemas;
 
     @Autowired
     public ContextExportImportService(
@@ -101,7 +100,7 @@ public class ContextExportImportService {
             ArchiveWriter archiveWriter,
             ImportSessionService importProgressService,
             ImportInstructionsService importInstructionsService,
-            @Value("${cip.json.schemas.context-service:http://qubership.org/schemas/product/qip/context-service}") URI contextServiceSchemaUri
+            ApplicationJsonSchemaProperties schemas
     ) {
         this.transactionTemplate = transactionTemplate;
         this.contextBaseService = contextBaseService;
@@ -112,7 +111,7 @@ public class ContextExportImportService {
         this.archiveWriter = archiveWriter;
         this.importProgressService = importProgressService;
         this.importInstructionsService = importInstructionsService;
-        this.contextServiceSchemaUri = contextServiceSchemaUri;
+        this.schemas = schemas;
     }
 
 
@@ -458,7 +457,7 @@ public class ContextExportImportService {
             JsonNode schemaNode = node.get("$schema");
             if (schemaNode != null && schemaNode.isTextual()) {
                 String fileSchema = schemaNode.asText();
-                return contextServiceSchemaUri.toString().equals(fileSchema);
+                return schemas.isContextService(fileSchema);
             }
             return false;
         } catch (Exception e) {

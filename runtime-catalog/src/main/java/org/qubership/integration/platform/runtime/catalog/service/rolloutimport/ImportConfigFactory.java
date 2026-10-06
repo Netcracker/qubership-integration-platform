@@ -49,15 +49,15 @@ public class ImportConfigFactory {
             for (RolloutImportConfigurationItem configuration : configurations) {
                 String schema = configuration.getSchema();
                 String id = configuration.getId();
-                if (schemas.getChain().equals(schema)) {
+                if (schemas.isChain(schema)) {
                     chains.put(id, configuration);
-                } else if (schemas.getService().equals(schema)) {
+                } else if (schemas.isService(schema)) {
                     services.put(id, configuration);
-                } else if (schemas.getSpecificationGroup().equals(schema)) {
+                } else if (schemas.isSpecificationGroup(schema)) {
                     specificationGroups.put(id, configuration);
-                } else if (schemas.getSpecification().equals(schema)) {
+                } else if (schemas.isSpecification(schema)) {
                     specifications.put(id, configuration);
-                } else if (schemas.getContextService().equals(schema)) {
+                } else if (schemas.isContextService(schema)) {
                     contextServices.put(id, configuration);
                 }
             }
