@@ -12,6 +12,7 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 
 /** Writes catalog identity properties onto bound plan nodes without cross-protocol residue. */
 public final class ServiceCallCatalogIdentity {
+  private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
 
   private static final Set<String> STRIPPED_KEYS =
       Set.of(
@@ -121,12 +122,34 @@ public final class ServiceCallCatalogIdentity {
       properties.add(new PlanProperty("integrationOperationPath", binding.path()));
     }
     if ("async-api-trigger".equals(node.type()) && "kafka".equals(protocol)) {
-      // ponytail: sample default until catalog specs carry groupId
-      String groupId = binding.groupId().isEmpty() ? "qip" : binding.groupId();
+      var options = JSON.createObjectNode();
+      String existing = propertyValue(node, "integrationOperationAsyncProperties");
+      if (existing != null && !existing.isBlank()) {
+        try {
+          var parsed = JSON.readTree(existing);
+          if (!parsed.isObject()) {
+            throw new IllegalArgumentException("Kafka consumer options must be a JSON object.");
+          }
+          options.setAll((com.fasterxml.jackson.databind.node.ObjectNode) parsed);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+          throw new IllegalArgumentException("Kafka consumer options contain invalid JSON.", error);
+        }
+      }
+      String groupId = options.path("groupId").asText("");
+      if (groupId.isBlank()) {
+        groupId = binding.groupId().isEmpty() ? "qip" : binding.groupId();
+      }
+      options.remove("groupId");
+      if (!binding.maasClassifierName().isEmpty()) {
+        options.put("maas.classifier.name", binding.maasClassifierName());
+      } else {
+        options.remove("maas.classifier.name");
+      }
+      options.put("groupId", groupId);
       properties.add(
           new PlanProperty(
               "integrationOperationAsyncProperties",
-              kafkaAsyncPropertiesJson(binding.maasClassifierName(), groupId)));
+              options.toString()));
       return;
     }
     if (!binding.groupId().isEmpty()) {
@@ -138,13 +161,6 @@ public final class ServiceCallCatalogIdentity {
               "integrationOperationAsyncProperties",
               "{\"maas.classifier.name\":\"" + binding.maasClassifierName() + "\"}"));
     }
-  }
-
-  private static String kafkaAsyncPropertiesJson(String classifier, String groupId) {
-    if (classifier.isEmpty()) {
-      return "{\"groupId\":\"" + groupId + "\"}";
-    }
-    return "{\"maas.classifier.name\":\"" + classifier + "\",\"groupId\":\"" + groupId + "\"}";
   }
 
   private static void assertUniqueServiceCallIds(ChainPlanGraph graph) {

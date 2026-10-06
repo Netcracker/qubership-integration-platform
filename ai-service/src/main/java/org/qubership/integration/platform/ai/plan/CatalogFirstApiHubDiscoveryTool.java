@@ -20,6 +20,8 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogO
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogQuery;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
 import org.qubership.integration.platform.ai.integration.catalog.util.CatalogStrings;
+import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 
 /**
@@ -43,6 +45,7 @@ public class CatalogFirstApiHubDiscoveryTool {
   private final ApiHubSearchAuthorizations searchAuthorizations;
   private final ObjectMapper objectMapper;
   private final RequirementDraftStore draftStore;
+  private final OperationSchemaLoader schemaLoader;
 
   @Inject
   public CatalogFirstApiHubDiscoveryTool(
@@ -53,7 +56,8 @@ public class CatalogFirstApiHubDiscoveryTool {
       ConversationApiResolutions conversationResolutions,
       ApiHubSearchAuthorizations searchAuthorizations,
       ObjectMapper objectMapper,
-      RequirementDraftStore draftStore) {
+      RequirementDraftStore draftStore,
+      OperationSchemaLoader schemaLoader) {
     this.catalogOperationLookup = catalogOperationLookup;
     this.catalogReadTool = catalogReadTool;
     this.catalogCache = catalogCache;
@@ -62,25 +66,7 @@ public class CatalogFirstApiHubDiscoveryTool {
     this.searchAuthorizations = searchAuthorizations;
     this.objectMapper = objectMapper;
     this.draftStore = draftStore;
-  }
-
-  CatalogFirstApiHubDiscoveryTool(
-      CatalogOperationLookup catalogOperationLookup,
-      CatalogSystemReadTool catalogReadTool,
-      ConversationCatalogCache catalogCache,
-      ApiHubMcpTools apiHubMcpTools,
-      ConversationApiResolutions conversationResolutions,
-      ApiHubSearchAuthorizations searchAuthorizations,
-      ObjectMapper objectMapper) {
-    this(
-        catalogOperationLookup,
-        catalogReadTool,
-        catalogCache,
-        apiHubMcpTools,
-        conversationResolutions,
-        searchAuthorizations,
-        objectMapper,
-        null);
+    this.schemaLoader = schemaLoader;
   }
 
   @Tool("""
@@ -89,7 +75,8 @@ public class CatalogFirstApiHubDiscoveryTool {
       and operation. Pass interactionId from the stored RequirementFlow. The stored direction
       determines whether the interaction becomes an entry point or a service call; catalog lookup
       does not change that role. Do not repeat interaction prose. Give HTTP method and path only as
-      optional narrowing hints. If status is CATALOG_BOUND, recapture with that interactionId; do
+      optional narrowing hints. If status is CATALOG_BOUND, use its payloadContracts to update
+      fieldMapping paths against the actual body fields, then recapture with that interactionId; do
       not copy catalog UUIDs by hand. If status is APIHUB_CANDIDATES, select one result with
       selectApiHubCandidate using the same interactionId. If status is AMBIGUOUS, ask the reader
       to choose; never search API Hub for an ambiguous local catalog match. If status is
@@ -227,6 +214,7 @@ public class CatalogFirstApiHubDiscoveryTool {
           binding.put("integrationOperationId", match.integrationOperationId());
           binding.put("systemName", match.systemName());
           binding.put("evidenceRef", match.evidenceRef());
+          addPayloadContracts(root, match.integrationOperationId());
         }
         case AMBIGUOUS -> {
           root.put("status", "AMBIGUOUS");
@@ -241,6 +229,34 @@ public class CatalogFirstApiHubDiscoveryTool {
       return objectMapper.writeValueAsString(root);
     } catch (Exception exception) {
       return error("could not encode resolution outcome: " + exception.getMessage());
+    }
+  }
+
+  private void addPayloadContracts(ObjectNode root, String operationId) {
+    ObjectNode contracts = root.putObject("payloadContracts");
+    try {
+      var schemas = schemaLoader.load(operationId);
+      ObjectNode requests = contracts.putObject("request");
+      schemas.requestByContentType().forEach((contentType, schema) ->
+          requests.set(contentType, objectMapper.valueToTree(JsonSchemaMappingContractFactory.from(schema))));
+      ObjectNode responses = contracts.putObject("response");
+      schemas.responseByStatusThenContentType().forEach((status, byContentType) -> {
+        ObjectNode response = responses.putObject(status);
+        byContentType.forEach((contentType, schema) ->
+            response.set(contentType, objectMapper.valueToTree(JsonSchemaMappingContractFactory.from(schema))));
+      });
+      contracts.put("status", "AVAILABLE");
+      contracts.put("instruction", "Update affected fieldMapping paths to these body fields before continuing."
+          + " Operation names, resource names and schema titles are not JSON wrappers."
+          + " Include a wrapper only when the fields below contain it. Preserve fact IDs, text,"
+          + " expressions and unrelated requirements. A path ending in .* allows additional child fields"
+          + " under that object, including author-requested fields not listed by name."
+          + " A known=false contract does not establish field paths.");
+    } catch (RuntimeException error) {
+      contracts.removeAll();
+      contracts.put("status", "UNAVAILABLE");
+      contracts.put("message", "Catalog binding is resolved, but payload schemas could not be loaded: "
+          + error.getMessage() + ". Do not infer field paths from operation or resource names.");
     }
   }
 
@@ -303,7 +319,9 @@ public class CatalogFirstApiHubDiscoveryTool {
           error(
               "interactionId="
                   + interaction.interactionId()
-                  + " is a direct endpoint and must not use catalog or API Hub resolution");
+                  + " is configured as a native direct element and must not use catalog or API Hub resolution."
+                  + " If the author requested a named catalog operation, remove its native sender capability"
+                  + " and resolve it again. Do not invent a runtime URI from an operation path.");
       case ASK -> outboundAskAllowsExplicitResolve(interaction);
       case REJECT_UNSUPPORTED ->
           error(

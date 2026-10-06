@@ -1,77 +1,56 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.planning;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.HexFormat;
 import java.util.Optional;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocument;
 import org.qubership.integration.platform.ai.compiler.CompilerSkillDocumentService;
-import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonContext;
-import org.qubership.integration.platform.ai.compiler.addon.CompilerSkillAddonRepository;
-import org.qubership.integration.platform.ai.llm.agent.DesignPlanCaptureAgent;
-import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 
 class DefaultDesignPlanSkillRunnerTest {
 
-  @AfterEach
-  void cleanup() {
-    ToolSession.clear();
-    DesignPlanCaptureSession.unbind("conversation");
-  }
-
   @Test
-  void cleansConversationBindingsWhenTheAgentFails() throws Exception {
-    CompilerSkillDocumentService documents = mock(CompilerSkillDocumentService.class);
-    CompilerSkillAddonRepository addons = mock(CompilerSkillAddonRepository.class);
-    DesignPlanCaptureAgent agent = mock(DesignPlanCaptureAgent.class);
-    CompilerSkillDocument document =
-        new CompilerSkillDocument(
-            CipDesignPlannerAdapter.SKILL_ID,
-            "source",
-            "path",
-            "Planner",
-            null,
-            true,
-            null,
-            "planner skill");
-    when(documents.loadByCapabilityId(CipDesignPlannerAdapter.SKILL_ID)).thenReturn(document);
-    when(addons.loadForSkill(CipDesignPlannerAdapter.SKILL_ID))
-        .thenReturn(CompilerSkillAddonContext.empty());
-    when(agent.chat(anyString(), anyString())).thenThrow(new IllegalStateException("model failed"));
-    ChainSemanticRevision revision = DesignPlanTestFixtures.revision();
-    DefaultDesignPlanSkillRunner runner =
-        new DefaultDesignPlanSkillRunner(documents, addons, agent);
+  void buildsAllApprovedTargetsWithoutOptionalModelDescriptions() {
+    var documents = documents();
+    var revision = DesignPlanTestFixtures.revision();
+    var result = new DefaultDesignPlanSkillRunner(documents).runOnce(
+        "conversation", "approved targets", Optional.empty(), Optional.empty(),
+        CanonicalPayloadHash.sha256Hex("planner skill"), "2026.1", revision,
+        DesignPlanTestFixtures.brief(), DesignPlanTestFixtures.planningPin(revision));
 
-    assertThrows(
-        IllegalStateException.class,
-        () ->
-            runner.runOnce(
-                "conversation",
-                "input",
-                Optional.empty(),
-                Optional.empty(),
-                sha256(document.markdown()),
-                "2026.1",
-                revision,
-                DesignPlanTestFixtures.brief(),
-                DesignPlanTestFixtures.pin(revision)));
-
+    assertTrue(result.contract().steps().stream().anyMatch(step -> step.claims().stream()
+        .anyMatch(claim -> claim.targetKind() == TargetKind.ENTRY_POINT && claim.targetId().equals("entry-1"))));
+    assertTrue(result.contract().steps().stream().anyMatch(step -> step.claims().stream()
+        .anyMatch(claim -> claim.targetKind() == TargetKind.SERVICE_CALL && claim.targetId().equals("call-1"))));
+    assertEquals("2026.1", result.contract().apiRelease());
+    var report = new DesignPlanReportRenderer().render(result.contract());
+    assertTrue(report.markdown().contains(DesignPlanReportRenderer.APPROVAL_SENTENCE));
     assertTrue(DesignPlanCaptureSession.binding("conversation").isEmpty());
   }
 
-  private static String sha256(String value) throws Exception {
-    return HexFormat.of()
-        .formatHex(
-            MessageDigest.getInstance("SHA-256")
-                .digest(value.getBytes(StandardCharsets.UTF_8)));
+  @Test
+  void unresolvedOwnersAndInvalidPinsStillRejectThePlan() {
+    var revision = DesignPlanTestFixtures.revision();
+    var runner = new DefaultDesignPlanSkillRunner(documents());
+    assertThrows(PlannerContractException.class, () -> runner.runOnce(
+        "conversation", "input", Optional.empty(), Optional.empty(), "wrong-hash", "2026.1",
+        revision, DesignPlanTestFixtures.brief(), DesignPlanTestFixtures.planningPin(revision)));
+    assertThrows(PlannerContractException.class, () -> runner.runOnce(
+        "conversation", "input", Optional.empty(), Optional.empty(), CanonicalPayloadHash.sha256Hex("planner skill"),
+        "2026.1", revision, DesignPlanTestFixtures.brief(), DesignPlanTestFixtures.pin(revision)));
+  }
+
+  private static CompilerSkillDocumentService documents() {
+    var documents = mock(CompilerSkillDocumentService.class);
+    when(documents.loadByCapabilityId(CipDesignPlannerAdapter.SKILL_ID)).thenReturn(
+        new CompilerSkillDocument(CipDesignPlannerAdapter.SKILL_ID, "source", "path", "Planner",
+            null, true, null, "planner skill"));
+    return documents;
   }
 }

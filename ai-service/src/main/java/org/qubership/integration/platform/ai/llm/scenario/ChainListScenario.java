@@ -259,10 +259,10 @@ public class ChainListScenario implements ScenarioHandler {
   private Outcome findChains(String conversationId, ChainListCommand command) {
     Selection selection = select(conversationId, command, sourceTree(command));
     List<Row> rows = selection.rows();
+    listed.put(conversationId, rows.stream().map(Row::id).toList());
     if (rows.isEmpty()) {
       return Outcome.text("No chains match." + notFound(selection));
     }
-    listed.put(conversationId, rows.stream().map(Row::id).toList());
     String found = "Found " + count(rows.size(), "chain") + ".";
     Grouping grouping = command.groupBy();
     if (grouping == null) {

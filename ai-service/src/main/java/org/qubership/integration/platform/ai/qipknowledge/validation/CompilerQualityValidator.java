@@ -33,6 +33,11 @@ public class CompilerQualityValidator {
   }
 
   public ValidationResult validate(NamingManifest namingManifest, ChainPlanGraph graph) {
+    return validate(namingManifest, graph, null);
+  }
+
+  public ValidationResult validate(NamingManifest namingManifest, ChainPlanGraph graph,
+      org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief brief) {
     List<ValidationIssue> issues = new ArrayList<>();
     int counter = 1;
 
@@ -50,6 +55,18 @@ public class CompilerQualityValidator {
 
     counter = validateNamingManifest(namingManifest, issues, counter);
     validateGraphProperties(graph, issues, counter);
+    if (brief != null && graph != null) {
+      try {
+        if (!graph.equals(RequestedElementValues.apply(graph, brief.facts()))) {
+          issues.add(new ValidationIssue("requested-values", ValidationSeverity.BLOCKER,
+              "Assembled graph changed approved element names or configuration.", OWNER, List.of(), List.of(),
+              "Restore the approved elementIntent values before materialization."));
+        }
+      } catch (IllegalArgumentException error) {
+        issues.add(new ValidationIssue("requested-values", ValidationSeverity.BLOCKER,
+            error.getMessage(), OWNER, List.of(), List.of(), "Restore the approved element intent."));
+      }
+    }
 
     boolean valid = issues.stream().noneMatch(issue -> issue.severity() == ValidationSeverity.BLOCKER);
     return new ValidationResult(

@@ -38,6 +38,17 @@ class ApprovalPromptsTest {
   }
 
   @Test
+  void reasoningMarkupUsesExistingFallbacks() {
+    for (String text : new String[] {"<think>provider reasoning</think> Approve?", "</think> Create?"}) {
+      var prompts = ApprovalPrompts.withFixedPrompts((stage, ref) -> text, ref -> text);
+      assertEquals(ApprovalPrompts.FALLBACK_STAGE_APPROVAL,
+          prompts.stageApprovalPrompt("design-planning", "Create a chain."));
+      assertEquals(ApprovalPrompts.FALLBACK_IMPLEMENT,
+          prompts.implementContinuationPrompt("Create a chain."));
+    }
+  }
+
+  @Test
   void passesPinnedResponseLocaleToThePromptAgent() {
     AtomicReference<String> receivedLocale = new AtomicReference<>();
     ApprovalPromptAgent agent =

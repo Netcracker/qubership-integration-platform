@@ -20,6 +20,7 @@ import java.util.Set;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
@@ -134,6 +135,10 @@ public class ChainSemanticCaptureAdapter {
     List<SemanticContainment> containment = containment(capture, nodeIds);
     requireNativeDirectOutboundFactCoverage(authoritative, nodes);
     requirePositiveExecutableFactCoverage(authoritative, nodes);
+    List<String> intentErrors = validateElementIntent(authoritative, nodes, edges);
+    if (!intentErrors.isEmpty()) {
+      throw new IllegalArgumentException(String.join("\n", intentErrors));
+    }
 
     ChainSemanticRevision forIdentity =
         new ChainSemanticRevision(
@@ -223,17 +228,18 @@ public class ChainSemanticCaptureAdapter {
               new SemanticProvenance(provenance)));
     }
     for (RequirementFact fact : facts) {
-      if (fact == null) {
+      if (fact == null || fact.kind() != RequirementFactKind.CAPABILITY
+          || fact.polarity() != RequirementFactPolarity.POSITIVE) {
         continue;
       }
       String senderType =
           RequirementFlowValidator
-              .nativeDirectOutboundCapabilityKey(fact.sourceFactId(), facts)
+              .nativeDirectOutboundCapabilityKey(fact.owningInteractionId(), facts)
               .orElse(null);
       if (senderType == null) {
         continue;
       }
-      String nodeId = fact.sourceFactId();
+      String nodeId = fact.owningInteractionId();
       if (!interactionIds.add(nodeId)) {
         if (matchesProjectedSender(nodes, nodeId, senderType)) {
           continue;
@@ -358,15 +364,66 @@ public class ChainSemanticCaptureAdapter {
     }
   }
 
+  public static List<String> validateElementIntent(
+      RequirementBrief brief, List<SemanticNode> nodes, List<SemanticExecutionEdge> edges) {
+    if (brief == null) {
+      return List.of();
+    }
+    List<String> errors = new ArrayList<>();
+    Map<String, List<String>> outgoing = adjacency(edges);
+    for (RequirementFact fact : brief.facts()) {
+      var intent = fact.elementIntent();
+      if (intent == null || fact.polarity() != RequirementFactPolarity.POSITIVE
+          || intent.placement() == Placement.CHAIN) {
+        continue;
+      }
+      boolean hook = intent.placement() == Placement.BEFORE_HOOK
+          || intent.placement() == Placement.AFTER_HOOK;
+      String nodeId = hook ? intent.ownerInteractionId() : intent.elementRef();
+      List<SemanticNode> owners = nodes.stream()
+          .filter(node -> node.provenance().sourceFactIds().contains(fact.sourceFactId())).toList();
+      if (owners.size() != 1 || !nodeId.equals(owners.getFirst().nodeId())
+          || hook && !(owners.getFirst() instanceof SemanticNode.ServiceCall)
+          || !hook && !intent.elementType().equals(elementType(owners.getFirst()))) {
+        errors.add("ELEMENT_INTENT_REALIZATION: fact=" + fact.sourceFactId() + " elementRef="
+            + intent.elementRef() + " type=" + intent.elementType() + " placement=" + intent.placement()
+            + " owner=" + intent.ownerInteractionId() + " actual=" + owners.stream().map(SemanticNode::nodeId).toList()
+            + ". Attach the fact to its required element; inline hooks belong only to their Service Call.");
+        continue;
+      }
+      if (intent.successorElementRef() != null
+          && !reachableWithinTransition(nodeId, intent.successorElementRef(), outgoing, Set.of())
+          || intent.predecessorElementRef() != null
+              && !reachableWithinTransition(intent.predecessorElementRef(), nodeId, outgoing, Set.of())) {
+        errors.add("ELEMENT_INTENT_ORDER: elementRef=" + intent.elementRef()
+            + " successor=" + intent.successorElementRef() + " predecessor=" + intent.predecessorElementRef()
+            + ". Required paths: "
+            + (intent.predecessorElementRef() == null ? "" : intent.predecessorElementRef() + " -> " + nodeId + "; ")
+            + (intent.successorElementRef() == null ? "" : nodeId + " -> " + intent.successorElementRef() + "; ")
+            + "correct edges, not the operations array. Preserve the approved element intent.");
+      }
+    }
+    return List.copyOf(errors);
+  }
+
+  private static String elementType(SemanticNode node) {
+    return switch (node) {
+      case SemanticNode.Operation operation -> operation.elementType();
+      case SemanticNode.Trigger trigger -> trigger.capabilityKey();
+      case SemanticNode.ServiceCall ignored -> "service-call";
+    };
+  }
+
   private static void requireNativeDirectOutboundFactCoverage(
       RequirementBrief brief, List<SemanticNode> nodes) {
     for (RequirementFact fact : brief.facts()) {
-      if (fact == null) {
+      if (fact == null || fact.kind() != RequirementFactKind.CAPABILITY
+          || fact.polarity() != RequirementFactPolarity.POSITIVE) {
         continue;
       }
       String expectedType =
           RequirementFlowValidator
-              .nativeDirectOutboundCapabilityKey(fact.sourceFactId(), brief.facts())
+              .nativeDirectOutboundCapabilityKey(fact.owningInteractionId(), brief.facts())
               .orElse(null);
       if (expectedType == null) {
         continue;
@@ -376,14 +433,14 @@ public class ChainSemanticCaptureAdapter {
               .anyMatch(
                   node ->
                       node instanceof SemanticNode.Operation operation
-                          && fact.sourceFactId().equals(operation.nodeId())
+                          && fact.targetsInteraction(operation.nodeId())
                           && expectedType.equals(operation.elementType()));
       if (!covered) {
         throw new IllegalArgumentException(
             "Positive native outbound fact '"
                 + fact.sourceFactId()
                 + "' requires operation nodeId '"
-                + fact.sourceFactId()
+                + fact.owningInteractionId()
                 + "' with elementType '"
                 + expectedType
                 + "'. Add that operation and connect it through the execution edges.");
@@ -964,6 +1021,11 @@ public class ChainSemanticCaptureAdapter {
   }
 
   private static String chainIdentity(ChainSemanticCapture capture, RequirementBrief brief) {
+    String requested = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues
+        .chainName(brief.facts(), null);
+    if (requested != null) {
+      return requested;
+    }
     String captured = trimmed(capture.chainIdentity());
     if (!captured.isEmpty()) {
       return captured;
@@ -1037,8 +1099,8 @@ public class ChainSemanticCaptureAdapter {
         continue;
       }
       RequirementFlowValidator
-          .nativeDirectOutboundCapabilityKey(fact.sourceFactId(), brief.facts())
-          .ifPresent(ignored -> interactionIds.add(fact.sourceFactId()));
+          .nativeDirectOutboundCapabilityKey(fact.owningInteractionId(), brief.facts())
+          .ifPresent(ignored -> interactionIds.add(fact.owningInteractionId()));
     }
     Set<AnchorEdge> contracted = contractedAnchorEdges(interactionIds, edges);
     Set<AnchorEdge> approved = new LinkedHashSet<>();

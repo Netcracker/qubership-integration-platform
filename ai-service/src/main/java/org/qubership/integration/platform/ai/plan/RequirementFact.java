@@ -48,7 +48,18 @@ public record RequirementFact(
         String serviceCallId,
         List<String> interactionIds,
     @Description("Copy the approved policy conflict and user decision unchanged; null for ordinary facts.")
-        RequirementPolicyConflict policyConflict) {
+        RequirementPolicyConflict policyConflict,
+    @Description("Copy the approved element intent and exact author values unchanged.")
+        RequirementElementIntent elementIntent) {
+
+  public RequirementFact(
+      String sourceFactId, RequirementFactPolarity polarity, RequirementFactKind kind,
+      String capabilityKey, String text, String participant, String operation, String topic,
+      String httpMethod, String path, String serviceCallId, List<String> interactionIds,
+      RequirementPolicyConflict policyConflict) {
+    this(sourceFactId, polarity, kind, capabilityKey, text, participant, operation, topic,
+        httpMethod, path, serviceCallId, interactionIds, policyConflict, null);
+  }
 
   public RequirementFact(
       String sourceFactId, RequirementFactPolarity polarity, RequirementFactKind kind,
@@ -126,6 +137,18 @@ public record RequirementFact(
         httpMethod, path, serviceCallId, List.of());
   }
 
+  /** Explicit scope takes precedence; older facts used their source ID as the interaction ID. */
+  public boolean targetsInteraction(String interactionId) {
+    return interactionId != null && (interactionIds.isEmpty()
+        ? interactionId.equals(sourceFactId) : interactionIds.contains(interactionId));
+  }
+
+  /** A capability has one owner. Multiple explicit targets have no single owning interaction. */
+  public String owningInteractionId() {
+    return interactionIds.isEmpty() ? sourceFactId
+        : interactionIds.size() == 1 ? interactionIds.getFirst() : "";
+  }
+
   /** Compatibility constructor used by tests and older capture JSON without identity fields. */
   public RequirementFact(
       String sourceFactId,
@@ -196,7 +219,7 @@ public record RequirementFact(
         path,
         serviceCallId,
         interactionIds,
-        policyConflict);
+        policyConflict, elementIntent);
   }
 
   public static String deriveSourceFactId(RequirementFactPolarity polarity, String text) {

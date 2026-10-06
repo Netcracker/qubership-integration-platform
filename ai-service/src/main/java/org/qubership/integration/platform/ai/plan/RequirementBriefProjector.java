@@ -410,7 +410,7 @@ public final class RequirementBriefProjector {
               : "async-api-trigger";
       return new RequirementEntryPoint(
           interactionId,
-          interactionId,
+          config == null ? interactionId : config.sourceFactId(),
           capabilityKey,
           config == null ? "" : config.topic(),
           config == null ? "" : config.httpMethod(),
@@ -419,7 +419,7 @@ public final class RequirementBriefProjector {
     }
     return new RequirementEntryPoint(
         interactionId,
-        interactionId,
+        config == null ? interactionId : config.sourceFactId(),
         config == null ? "" : config.capabilityKey(),
         config == null ? "" : config.topic(),
         config == null ? "" : config.httpMethod(),
@@ -474,7 +474,7 @@ public final class RequirementBriefProjector {
       return null;
     }
     for (RequirementFact fact : facts) {
-      if (fact != null && interactionId.equals(fact.sourceFactId())) {
+      if (fact != null && fact.targetsInteraction(interactionId) && !fact.capabilityKey().isBlank()) {
         return fact;
       }
     }

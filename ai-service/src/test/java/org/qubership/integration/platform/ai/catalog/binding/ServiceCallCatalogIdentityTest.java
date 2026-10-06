@@ -14,6 +14,22 @@ import org.qubership.integration.platform.ai.plan.model.PlanProperty;
 class ServiceCallCatalogIdentityTest {
 
   @Test
+  void asyncRebindingPreservesExplicitConsumerGroup() throws Exception {
+    ChainPlanGraph graph = new ChainPlanGraph("1.0", new ChainSection("n", "n"), List.of(
+        new ChainPlanNode("trigger-async", "async-api-trigger", "Consume", null, null,
+            List.of(new PlanProperty("integrationOperationAsyncProperties", "{\"groupId\":\"CIP\"}")))), List.of());
+    ResolvedServiceCallBinding binding = new ResolvedServiceCallBinding("trigger-async", "consume-om",
+        "INTERNAL", "sys-om", "sg-om", "spec-om", "op-om", "kafka", "subscribe", "task.start",
+        "onTaskStart", ResolvedServiceCallBinding.Source.EXISTING_CATALOG, "catalog", "ev", "", "wfms", "");
+    ChainPlanGraph out = ServiceCallCatalogIdentity.upsert(graph, binding);
+    var options = new com.fasterxml.jackson.databind.ObjectMapper().readTree(
+        property(node(out, "trigger-async"), "integrationOperationAsyncProperties"));
+    assertEquals("CIP", options.path("groupId").asText());
+    assertEquals("wfms", options.path("maas.classifier.name").asText());
+    assertEquals("op-om", property(node(out, "trigger-async"), "integrationOperationId"));
+  }
+
+  @Test
   void occurrenceIdPrefersStoredServiceCallId() {
     ChainPlanNode node =
         new ChainPlanNode(

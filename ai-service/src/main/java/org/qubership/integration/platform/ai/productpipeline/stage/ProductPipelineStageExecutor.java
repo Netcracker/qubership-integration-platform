@@ -609,7 +609,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
    */
   private static StageOutcome outcomeOf(Throwable failure) {
     if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(failure)) {
-      return StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, failureMessage(failure));
+      return StageOutcome.technicalFailure(failure);
     }
     if (TransientFailures.isTransient(failure)) {
       return StageOutcome.of(
@@ -617,7 +617,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (ToolArgumentsFailures.isToolArgumentsFailure(failure)) {
       return StageOutcome.of(
-          StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, ToolArgumentsFailures.message(failure));
+          StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, ToolArgumentsFailures.message(failure),
+          new RecoveryCause(RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED,
+              List.of(new PlanValidationFinding("INVALID_TOOL_ARGUMENTS",
+                  ToolArgumentsFailures.DIAGNOSTIC, true)), ""));
     }
     if (TransientFailures.isPermanentEnvironment(failure)) {
       return StageOutcome.of(
@@ -652,6 +655,24 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   private StageExecutionResult handleCapabilitySignals(
       String runId, ProfileStage stage, List<CapabilitySignal> signals) {
+    StageOutcome outcome = requireSingleCompleted(signals);
+    String activeSkill = "";
+    String failedSkill = "";
+    for (CapabilitySignal signal : signals) {
+      if (signal instanceof CapabilitySignal.SkillProgress progress) {
+        if ("running".equals(progress.status())) {
+          activeSkill = progress.skillId();
+          failedSkill = "";
+        } else if (activeSkill.equals(progress.skillId())) {
+          failedSkill = "error".equals(progress.status()) ? progress.skillId() : "";
+        }
+      }
+    }
+    if (outcome.outcomeClass() == StageOutcomeClass.SUCCEEDED
+        || outcome.outcomeClass() == StageOutcomeClass.CANDIDATE) {
+      failedSkill = "";
+    }
+    putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR, failedSkill);
     List<PipelineSignal> live = new ArrayList<>();
     for (CapabilitySignal signal : signals) {
       if (signal instanceof CapabilitySignal.SkillProgress skillProgress) {
@@ -667,7 +688,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         live.add(new PipelineSignal.Message(message.text()));
       }
     }
-    return handleOutcome(runId, stage, requireSingleCompleted(signals), live);
+    return handleOutcome(runId, stage, outcome, live);
   }
 
   private StageExecutionResult executeNoOutputSkip(String runId, ProfileStage stage) {
@@ -846,6 +867,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         String key = stageRetryKey(runId, stage.stageId());
         int used = technicalRetriesByStage.getOrDefault(key, 0);
         int max = stage.retry().maxTechnicalRetries();
+        if (outcome.recoveryCause() != null && outcome.recoveryCause().findings().stream()
+            .anyMatch(finding -> "LLM_CONTEXT_OVERFLOW".equals(finding.code()))) {
+          max = Math.min(max, 1);
+        }
         long delayMs =
             outcome.retryDelayMs() != null
                 ? outcome.retryDelayMs()
@@ -3358,6 +3383,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   private String languageReferenceFor(String runId) {
+    var currentBrief = artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF);
+    if (currentBrief.isPresent()) {
+      return MappingGapWait.languageReference(artifactStore.payload(currentBrief.get(), RequirementBrief.class));
+    }
     Map<String, Object> attributes = attributesByRun.get(runId);
     if (attributes == null) {
       return "";

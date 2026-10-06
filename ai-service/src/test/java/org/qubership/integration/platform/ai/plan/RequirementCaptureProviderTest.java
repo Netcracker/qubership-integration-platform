@@ -65,6 +65,18 @@ class RequirementCaptureProviderTest {
         capabilities.items());
     assertTrue(capability.properties().get("httpMode").description()
         .contains("null for every other capability"));
+    JsonArraySchema facts = assertInstanceOf(JsonArraySchema.class, draftSchema.properties().get("facts"));
+    JsonObjectSchema fact = assertInstanceOf(JsonObjectSchema.class, facts.items());
+    JsonAnyOfSchema intentValue = assertInstanceOf(JsonAnyOfSchema.class, fact.properties().get("elementIntent"));
+    JsonObjectSchema intent = intentValue.anyOf().stream().filter(JsonObjectSchema.class::isInstance)
+        .map(JsonObjectSchema.class::cast).findFirst().orElseThrow();
+    assertTrue(intent.properties().get("successorElementRef").description().contains("A -> B"));
+    assertTrue(intent.properties().get("predecessorElementRef").description().contains("B -> A"));
+    var types = assertInstanceOf(dev.langchain4j.model.chat.request.json.JsonEnumSchema.class,
+        intent.properties().get("elementType")).enumValues();
+    assertTrue(types.contains("split-async-2"));
+    assertTrue(types.contains("chain"));
+    assertTrue(!types.contains("split-async"));
 
     DraftInput input = new DraftInput(new FlowInput(List.of(
         new InteractionInput("entry", Direction.INBOUND, "Caller", "POST /tasks",

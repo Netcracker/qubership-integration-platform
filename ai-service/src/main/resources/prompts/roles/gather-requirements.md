@@ -34,6 +34,37 @@ catalog resolution, and defaults.
   Keep `settings.idsRequested=null` unless the user explicitly accepts or declines IDS.
   When the user names a folder for the chain, keep its `PARAMETER` fact and also set
   `settings.targetFolderPath` to the folder exactly as written; the chain is created there.
+- Capture `elementIntent` for explicitly requested elements, hooks, names, or literal values:
+  `elementRef` is a stable local reference; `elementType` is the existing compiler key.
+  Use `ANCHOR` with elementRef equal to the business interaction ID for an entry or call.
+  Use `LOCAL_NODE` for a separate Checkpoint, Script, or other local element. Scope it to its owner
+  interaction; use successorElementRef and predecessorElementRef for explicit order. Do not add a local interaction.
+  These fields name neighboring elements in the execution path: for elementRef A, predecessorElementRef B means B -> A;
+  successorElementRef B means A -> B. Preserve the user's numbered flow order within one execution path. For Trigger -> Checkpoint -> Script,
+  the Script has predecessorElementRef=Checkpoint and successorElementRef=null, never successorElementRef=Checkpoint.
+  If and Else are alternative branch containers, not sequential steps. Capture one LOCAL_NODE for
+  their owning Condition; keep branch predicates and membership in ROUTING facts on that Condition.
+  Do not assign elementIntent to projected If/Else, split, or try/catch branch containers.
+  Branch Scripts remain LOCAL_NODEs. Reference the Condition as their predecessor when specified;
+  never connect alternative branches through successorElementRef or predecessorElementRef.
+  Keep the fact text and elementIntent order consistent before finishing the turn.
+  Use `BEFORE_HOOK` or `AFTER_HOOK` for inline Service Call code, with the call's ownerInteractionId;
+  hook names and requestedProperties stay null/empty because no separate element is created.
+  Copy requestedName verbatim, without labels such as "Chain name:" or language annotations.
+  Chain name uses elementType=chain, placement=CHAIN, ownerInteractionId=null, interactionIds=[].
+  Keep requestedProperties as schema {key,value} pairs for explicitly supplied settings only.
+  For async-api-trigger Kafka consumer settings, use
+  {"key":"integrationOperationAsyncProperties","value":"{\"groupId\":\"CIP\"}"} for an explicitly
+  requested consumer group CIP, and {"key":"reconnectDelay","value":"30000"} for 30000 ms.
+  Catalog bindings supply operation IDs and topic/classifier identity. Do not invent consumerGroupId,
+  reconnectDelayMs, or topicClassifier property keys. On invalid-property feedback, correct the
+  key and encoding while retaining the author's value; do not clear the setting to make capture pass.
+  Keep exactValues as verbatim response bodies, error strings, and expression literals in this fact.
+  Use [] for unspecified properties and exactValues, and null for unspecified optional fields.
+  Never invent a requested name, configuration, or literal from an example. Preserve metadata during repair.
+  For example, a Service Call named "Publish message to kafka" with an inline before Script has
+  one ANCHOR naming fact for the call and one BEFORE_HOOK behavior fact on the same call.
+  It has no standalone Set body Script. A separately requested Script uses LOCAL_NODE.
 - Before finishing, compare each accepted user requirement against the complete saved draft.
   Add omitted requirements through `addFacts`. Server `READY` confirms structural completeness;
   it does not prove that every user requirement was captured.
@@ -161,12 +192,49 @@ catalog resolution, and defaults.
 
 ## Coverage and repair example
 
+These complete `elementIntent` values illustrate three distinct placements. The facts remain scoped
+to business interaction `entry` or `publish`; these examples create no additional interaction.
+For an actual capture, use references from the current task and preserve every supplied literal.
+
+```json
+{
+  "checkpoint": {
+    "elementRef": "save-context", "elementType": "checkpoint", "placement": "LOCAL_NODE",
+    "ownerInteractionId": "entry", "successorElementRef": "check-properties", "predecessorElementRef": "entry",
+    "requestedName": null,
+    "requestedProperties": [{"key": "httpMethodRestrict", "value": "POST"}, {"key": "externalRoute", "value": "false"}],
+    "exactValues": []
+  },
+  "standaloneScript": {
+    "elementRef": "check-properties", "elementType": "script", "placement": "LOCAL_NODE",
+    "ownerInteractionId": "entry", "successorElementRef": null, "predecessorElementRef": "save-context",
+    "requestedName": "Check properties", "requestedProperties": [],
+    "exactValues": ["This is parent session"]
+  },
+  "inlineBeforeHook": {
+    "elementRef": "publish-body", "elementType": "script", "placement": "BEFORE_HOOK",
+    "ownerInteractionId": "publish", "successorElementRef": null, "predecessorElementRef": null,
+    "requestedName": null, "requestedProperties": [],
+    "exactValues": ["{\"testKey\":\"test message\"}"]
+  }
+}
+```
+
+The standalone Script's fact text includes `This is parent session` verbatim. The inline hook's
+fact text includes its complete JSON body and before position. A separate ANCHOR fact gives
+`publish` the exact requested Service Call name. A chain-name fact uses CHAIN intent with
+`requestedName="Events"`; `Chain name:` belongs in the readable fact text only.
+
 For "Create chain Events in folder Checks, language version 2026.1, with an external HTTP route
 and RBAC", include these facts in addition to the inbound interaction and HTTP capability:
 
 ```json
 [
-  {"sourceFactId":"chain-name","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE","text":"Chain name: Events.","fieldMapping":null},
+  {"sourceFactId":"chain-name","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE",
+   "text":"Chain name: Events.","fieldMapping":null,"policyConflict":null,
+   "elementIntent":{"elementRef":"chain","elementType":"chain","placement":"CHAIN","ownerInteractionId":null,
+     "successorElementRef":null,"predecessorElementRef":null,"requestedName":"Events",
+     "requestedProperties":[],"exactValues":[]}},
   {"sourceFactId":"chain-folder","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE","text":"Folder: Checks.","fieldMapping":null},
   {"sourceFactId":"language-version","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE","text":"Language version: 2026.1.","fieldMapping":null},
   {"sourceFactId":"route-visibility","interactionIds":["entry"],"kind":"VISIBILITY","polarity":"POSITIVE","text":"External HTTP route.","fieldMapping":null},

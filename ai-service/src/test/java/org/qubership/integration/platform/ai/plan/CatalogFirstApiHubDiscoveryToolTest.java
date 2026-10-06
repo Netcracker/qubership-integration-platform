@@ -18,6 +18,7 @@ import static org.qubership.integration.platform.ai.qipknowledge.artifact.Requir
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -29,11 +30,89 @@ import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogL
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogMatch;
 import org.qubership.integration.platform.ai.integration.catalog.lookup.CatalogOperationLookup;
 import org.qubership.integration.platform.ai.integration.catalog.tool.CatalogSystemReadTool;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader;
+import org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaMaps;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 class CatalogFirstApiHubDiscoveryToolTest {
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void resolvedOperationExposesActualBodyFieldsBeforeDraftApproval(boolean wrapped) throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    var payload = mapper.readTree("""
+        {"title":"Task","type":"object","required":["Subject"],
+         "properties":{"Subject":{"type":"string"},"parameters":{"type":"object","properties":{}}},
+         "additionalProperties":false}
+        """);
+    var request = wrapped
+        ? mapper.createObjectNode().put("type", "object").set("properties",
+            mapper.createObjectNode().set("Task", payload))
+        : payload;
+    OperationSchemaLoader schemas = mock(OperationSchemaLoader.class);
+    when(schemas.load("operation-1")).thenReturn(new OperationSchemaMaps("operation-1",
+        Map.of("application/json", request), Map.of("200", Map.of("application/json",
+            mapper.readTree("{\"type\":\"object\",\"properties\":{\"id\":{\"type\":\"string\"}}}")))));
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.Exact(petstoreMatch()));
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeCatalogBackedFlow(store, "conv-fields",
+        catalogInteraction("call-stock", "Petstore Ext", "getInventory", "Read stock"));
+
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-fields")) {
+      result = tool(lookup, apiHub, new ConversationApiResolutions(), store, schemas)
+          .resolveApiOperation("call-stock", "", "", null, null, "");
+    }
+    var actual = mapper.readTree(result);
+    assertEquals("CATALOG_BOUND", actual.path("status").asText(), result);
+    var contracts = actual.path("payloadContracts");
+    assertEquals("AVAILABLE", contracts.path("status").asText(), result);
+    var fields = contracts.path("request").path("application/json").path("fields");
+    String expected = wrapped ? "$.Task.Subject" : "$.Subject";
+    assertTrue(java.util.stream.StreamSupport.stream(fields.spliterator(), false)
+        .anyMatch(field -> expected.equals(field.path("path").asText())
+            && field.path("required").asBoolean()), result);
+    if (!wrapped) {
+      assertFalse(fields.toString().contains("$.Task.Subject"), result);
+    }
+    assertTrue(contracts.path("response").path("200").path("application/json")
+        .path("fields").toString().contains("$.id"), result);
+    assertTrue(contracts.path("instruction").asText().contains("Preserve fact IDs"), result);
+    assertTrue(fields.toString().contains(wrapped ? "$.Task.parameters.*" : "$.parameters.*"), result);
+    assertTrue(contracts.path("instruction").asText().contains("allows additional child fields"), result);
+    verify(schemas).load("operation-1");
+    verifyNoInteractions(apiHub);
+  }
+
+  @Test
+  void unavailableSchemasDoNotMasqueradeAsAnEmptyKnownContract() throws Exception {
+    CatalogOperationLookup lookup = mock(CatalogOperationLookup.class);
+    when(lookup.resolve(any())).thenReturn(new CatalogLookupResult.Exact(petstoreMatch()));
+    OperationSchemaLoader schemas = mock(OperationSchemaLoader.class);
+    when(schemas.load("operation-1")).thenThrow(new IllegalStateException("schema service unavailable"));
+    ApiHubMcpTools apiHub = mock(ApiHubMcpTools.class);
+    RequirementDraftStore store = new RequirementDraftStore();
+    storeCatalogBackedFlow(store, "conv-schema-unavailable",
+        catalogInteraction("call-stock", "Petstore Ext", "getInventory", "Read stock"));
+    ConversationApiResolutions resolutions = new ConversationApiResolutions();
+    String result;
+    try (ToolSession.Handle ignored = ToolSession.open("conv-schema-unavailable")) {
+      result = tool(lookup, apiHub, resolutions, store, schemas)
+          .resolveApiOperation("call-stock", "", "", null, null, "");
+    }
+    var actual = new ObjectMapper().readTree(result);
+    assertEquals("CATALOG_BOUND", actual.path("status").asText(), result);
+    assertEquals("UNAVAILABLE", actual.at("/payloadContracts/status").asText(), result);
+    assertFalse(actual.path("payloadContracts").has("request"), result);
+    assertTrue(actual.at("/payloadContracts/message").asText().contains("schema service unavailable"), result);
+    assertEquals(InteractionAssessment.Outcome.RESOLVED,
+        resolutions.forInteraction("conv-schema-unavailable", "call-stock").orElseThrow().outcome());
+    verifyNoInteractions(apiHub);
+  }
 
   @Test
   void exactCatalogMatchDoesNotQueryApiHub() {
@@ -498,6 +577,10 @@ class CatalogFirstApiHubDiscoveryToolTest {
           result.contains("must not use catalog or API Hub resolution")
               || result.contains("direct endpoint"),
           result);
+      if (!inbound) {
+        assertTrue(result.contains("remove its native sender capability"), result);
+        assertTrue(result.contains("Do not invent a runtime URI"), result);
+      }
     }
 
     verifyNoInteractions(lookup);
@@ -741,6 +824,17 @@ class CatalogFirstApiHubDiscoveryToolTest {
       ApiHubMcpTools apiHub,
       ConversationApiResolutions resolutions,
       RequirementDraftStore draftStore) {
+    OperationSchemaLoader schemas = mock(OperationSchemaLoader.class);
+    when(schemas.load(any())).thenReturn(new OperationSchemaMaps("operation-1", Map.of(), Map.of()));
+    return tool(lookup, apiHub, resolutions, draftStore, schemas);
+  }
+
+  private static CatalogFirstApiHubDiscoveryTool tool(
+      CatalogOperationLookup lookup,
+      ApiHubMcpTools apiHub,
+      ConversationApiResolutions resolutions,
+      RequirementDraftStore draftStore,
+      OperationSchemaLoader schemas) {
     CatalogSystemReadTool catalogRead = mock(CatalogSystemReadTool.class);
     when(catalogRead.searchCatalogSystems(any())).thenReturn(List.of());
     when(catalogRead.getApiSpecifications(any())).thenReturn(List.of());
@@ -753,6 +847,7 @@ class CatalogFirstApiHubDiscoveryToolTest {
         resolutions,
         new ApiHubSearchAuthorizations(),
         new ObjectMapper(),
-        draftStore);
+        draftStore,
+        schemas);
   }
 }

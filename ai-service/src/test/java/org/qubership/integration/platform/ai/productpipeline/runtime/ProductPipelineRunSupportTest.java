@@ -55,6 +55,7 @@ class ProductPipelineRunSupportTest {
     attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "mapping contract rejected");
     attributes.put(ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR, "VALIDATION_FAILURE");
     attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-execution");
+    attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR, "cip-script-generator");
     attributes.put(ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "MAPPING_UNKNOWN_TARGET");
     attributes.put(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR, "MAPPING_CONTRACT");
     attributes.put(ProductPipelineRunSupport.STAGE_ERROR_REQUESTED_FACT_ATTR, "");
@@ -68,6 +69,7 @@ class ProductPipelineRunSupportTest {
     assertEquals("hash-active-evidence", restored.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
     assertEquals("MAPPING_CONTRACT", restored.get(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR));
     assertEquals("design-execution", restored.get(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR));
+    assertEquals("cip-script-generator", restored.get(ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR));
   }
 
   @Test

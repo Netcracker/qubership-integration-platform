@@ -123,6 +123,9 @@ public final class ProductPipelineRunSupport {
   /** Stage id that produced the halt; kept when a causal reopen moves currentStageId. */
   public static final String STAGE_ERROR_FAILED_STAGE_ATTR = "stageErrorFailedStageId";
 
+  /** Compiler skill identified by the failed attempt's execution signals. */
+  public static final String STAGE_ERROR_FAILED_SKILL_ATTR = "stageErrorFailedSkillId";
+
   /** Formatted validation findings from the halt, when present. */
   public static final String STAGE_ERROR_FINDINGS_ATTR = "stageErrorFindings";
 
@@ -1153,10 +1156,42 @@ public final class ProductPipelineRunSupport {
       return Optional.of(stayAfterMappingTurn(doc, ""));
     }
     MappingTurnResult result = application.result();
+    var structuralRepair = tryStructuralReminder(doc, command, brief, result);
+    if (structuralRepair.isPresent()) {
+      return structuralRepair;
+    }
     if (result instanceof MappingTurnResult.Query
         || result instanceof MappingTurnResult.Clarification
         || result instanceof MappingTurnResult.ConfirmationRequired) {
       return Optional.of(stayAfterMappingTurn(doc, mappingStayMessage(application)));
+    }
+    return Optional.empty();
+  }
+
+  private Optional<Multi<PipelineSignal>> tryStructuralReminder(ProductPipelineRunDocument doc,
+      AcceptInputCommand command, RequirementBrief brief, MappingTurnResult result) {
+    if (result instanceof MappingTurnResult.StructuralReminder && !catalogHasBeenWritten(command.runId())) {
+      var revision = artifactStore.latest(command.runId(), Kind.CHAIN_SEMANTIC_REVISION)
+          .map(stored -> artifactStore.payload(stored,
+              org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision.class))
+          .orElse(null);
+      if (revision != null) {
+        var errors = org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureAdapter
+            .validateElementIntent(brief, revision.nodes(), revision.executionEdges());
+        if (!errors.isEmpty()) {
+          var attributes = attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
+          attributes.put(STAGE_ERROR_CONTEXT_ATTR, String.join("\n", errors));
+          attributes.put(STAGE_ERROR_FAILED_SKILL_ATTR, "design-input");
+          attributes.put(STAGE_ERROR_CAUSE_CODE_ATTR, RecoveryCauseCode.GRAPH_STRUCTURE.name());
+          attributes.put(STAGE_ERROR_FINDINGS_ATTR, String.join("\n", errors));
+          attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, command.text());
+          if (!shouldCausalReopen(doc, "design-input", command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR)) {
+            return Optional.of(refuseWithGuard(doc, command, HaltRecoveryGuard.MAX_CAUSAL_REOPENS));
+          }
+          return Optional.of(causalReopenOwner(doc, command, "design-input"));
+        }
+      }
+      return Optional.empty();
     }
     return Optional.empty();
   }
@@ -1310,6 +1345,10 @@ public final class ProductPipelineRunSupport {
       return stayOnMappingGap(doc, command, application.brief(), "");
     }
     MappingTurnResult result = application.result();
+    var structuralRepair = tryStructuralReminder(doc, command, brief, result);
+    if (structuralRepair.isPresent()) {
+      return structuralRepair.get();
+    }
     if (result instanceof MappingTurnResult.Query
         || result instanceof MappingTurnResult.Clarification
         || result instanceof MappingTurnResult.ConfirmationRequired) {
@@ -1888,6 +1927,10 @@ public final class ProductPipelineRunSupport {
     }
     MappingTurnApplication correction =
         MappingTurnProcessor.process(brief, command.text(), mappingTurnAdapter);
+    var structuralRepair = tryStructuralReminder(doc, command, brief, correction.result());
+    if (structuralRepair.isPresent()) {
+      return structuralRepair.get();
+    }
     if (!correction.applied()) {
       return stayAfterMappingTurn(doc, mappingStayMessage(correction));
     }
@@ -2515,8 +2558,9 @@ public final class ProductPipelineRunSupport {
                 && "materialization".equals(doc.run().currentStageId())
                 && "design-execution".equals(owner))
             || (cause.causeCode() == RecoveryCauseCode.GRAPH_STRUCTURE
-                && "design-execution".equals(doc.run().currentStageId())
-                && "design-input".equals(owner)))) {
+                && "design-input".equals(owner)
+                && profilesByRun.get(doc.run().runId()) != null
+                && stageIdsAfter(profilesByRun.get(doc.run().runId()), owner).contains(doc.run().currentStageId())))) {
       return false;
     }
     return doc.run().stages().stream()
@@ -3799,6 +3843,7 @@ public final class ProductPipelineRunSupport {
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_CONTEXT_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_OUTCOME_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_FAILED_STAGE_ATTR);
+    copyHaltAttribute(attributes, evidence, STAGE_ERROR_FAILED_SKILL_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_FINDINGS_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_CAUSE_CODE_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_REQUESTED_FACT_ATTR);
@@ -3829,6 +3874,7 @@ public final class ProductPipelineRunSupport {
         STAGE_ERROR_CONTEXT_ATTR,
         STAGE_ERROR_OUTCOME_ATTR,
         STAGE_ERROR_FAILED_STAGE_ATTR,
+        STAGE_ERROR_FAILED_SKILL_ATTR,
         STAGE_ERROR_FINDINGS_ATTR,
         STAGE_ERROR_CAUSE_CODE_ATTR,
         STAGE_ERROR_REQUESTED_FACT_ATTR,
@@ -4172,6 +4218,10 @@ public final class ProductPipelineRunSupport {
   }
 
   private String languageReferenceFor(String runId) {
+    var currentBrief = artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF);
+    if (currentBrief.isPresent()) {
+      return MappingGapWait.languageReference(artifactStore.payload(currentBrief.get(), RequirementBrief.class));
+    }
     Map<String, Object> attributes = attributesByRun.get(runId);
     if (attributes == null) {
       return "";

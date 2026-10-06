@@ -610,7 +610,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       RequirementFlow.Interaction interaction, List<RequirementFact> facts) {
     StringBuilder evidence = new StringBuilder(interaction.description());
     for (RequirementFact fact : facts) {
-      if (fact != null && interaction.interactionId().equals(fact.sourceFactId())) {
+      if (fact != null && fact.targetsInteraction(interaction.interactionId())) {
         evidence.append('\n').append(fact.text());
       }
     }

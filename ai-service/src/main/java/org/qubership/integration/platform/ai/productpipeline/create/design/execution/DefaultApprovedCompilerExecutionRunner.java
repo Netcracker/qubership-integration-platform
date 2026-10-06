@@ -18,6 +18,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
+import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifestBuilder;
+import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorDescriptor;
+import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorReadiness;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -34,6 +37,10 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspace;
+import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
+import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
+import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 /**
  * Maps an approval-bound owning-skill closure and resolved catalog bindings into the shared
@@ -61,8 +68,10 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
   private final CompilerContractRepository contractRepository;
   private final CompositionCatalogBinder compositionBinder;
   private final McpSystemCatalogBinder mcpSystemCatalogBinder;
+  private final GeneratorPlanManifestBuilder manifestBuilder;
 
   @Inject
+  @SuppressWarnings("java:S107")
   public DefaultApprovedCompilerExecutionRunner(
       CompilerDagExecutionEngine engine,
       ProductPipelineRunStore runStore,
@@ -70,7 +79,8 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       ChainSemanticGraphCompiler graphCompiler,
       CompilerContractRepository contractRepository,
       CompositionCatalogBinder compositionBinder,
-      McpSystemCatalogBinder mcpSystemCatalogBinder) {
+      McpSystemCatalogBinder mcpSystemCatalogBinder,
+      GeneratorPlanManifestBuilder manifestBuilder) {
     this.engine = Objects.requireNonNull(engine, "engine");
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
@@ -79,6 +89,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     this.compositionBinder = Objects.requireNonNull(compositionBinder, "compositionBinder");
     this.mcpSystemCatalogBinder =
         Objects.requireNonNull(mcpSystemCatalogBinder, "mcpSystemCatalogBinder");
+    this.manifestBuilder = Objects.requireNonNull(manifestBuilder, "manifestBuilder");
   }
 
   @Override
@@ -188,6 +199,21 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
             priorGraph);
     CompilerExecutionSeed seed =
         CompilerExecutionSeed.forCreate(conversationId, brief, revision, graph, resolvedBindings);
+    InMemorySkillWorkspace workspace = new InMemorySkillWorkspace(conversationId);
+    seed.artifacts().forEach(workspace::put);
+    Set<String> required = new LinkedHashSet<>(approvedOwningSkillIds);
+    required.addAll(List.of(SECURITY_GENERATOR_SKILL_ID, TRANSFORMATION_GENERATOR_SKILL_ID,
+        AUTH_GENERATOR_SKILL_ID));
+    List<CompilerGeneratorDescriptor> generators = executionDag.nodes().stream()
+        .filter(node -> node.generatorId() != null && node.generatorId().startsWith("GEN-"))
+        .map(node -> new CompilerGeneratorDescriptor(node.generatorId(), node.skillId(),
+            node.stableTieBreaker(), "GRAPH_PATCH_ARTIFACT", List.of(),
+            new CompilerGeneratorReadiness("pinned", node.readinessSignals())))
+        .toList();
+    var readiness = manifestBuilder.build(pin.compilerPackageVersion(), generators, required, workspace);
+    seed = seed.with(SkillArtifact.of(SkillArtifactType.GENERATOR_PLAN_MANIFEST,
+        CompilerExecutionSeed.SEMANTIC_COMPILER_PRODUCER,
+        new SkillArtifactPayload.GeneratorPlanManifestPayload(readiness.manifest())));
     CompilerDagExecutionRequest request =
         new CompilerDagExecutionRequest(
             runManifest.runId(),
@@ -198,7 +224,8 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
             executionDag,
             approvedOwningSkillIds,
             List.of(storedBriefRef),
-            seed);
+            seed,
+            repairEvidence);
     return engine.execute(request, attemptId, progress).await().indefinitely();
   }
 

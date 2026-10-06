@@ -311,10 +311,11 @@ class DefaultChainSemanticGraphCompilerTest {
                     new RequirementFlow.Interaction(
                         "http-in", RequirementFlow.Direction.INBOUND, "GeoSite", "getGeo", "")),
                 List.of()),
-            List.of(binding));
+            List.of(binding)).withTargetFolderPath("/Campaign/Folder");
 
     ChainPlanGraph graph = compiler.compile(conditionRevision(), CONTRACT, List.of(), brief);
 
+    assertEquals("/Campaign/Folder", graph.chain().folderPath());
     ChainPlanNode trigger = node(graph, "trigger-http");
     assertEquals("op-geo", property(trigger, "integrationOperationId"));
     assertEquals("sys-geo", property(trigger, "integrationSystemId"));

@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
@@ -230,7 +231,10 @@ public class DesignExecutionCapability implements StageCapability {
         return completedSignal(
             StageOutcome.of(
                 StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
-                ToolArgumentsFailures.message(ex)));
+                ToolArgumentsFailures.message(ex),
+                new RecoveryCause(RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED,
+                    List.of(new PlanValidationFinding("INVALID_TOOL_ARGUMENTS",
+                        ToolArgumentsFailures.DIAGNOSTIC, true)), "")));
       }
       if (ex instanceof PlanningSkillArtifactUnavailableException missing) {
         return completedSignal(

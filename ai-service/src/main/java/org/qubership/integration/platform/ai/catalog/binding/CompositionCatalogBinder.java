@@ -102,7 +102,7 @@ public class CompositionCatalogBinder {
         }
         return new ChainCallGatherResult(
             input,
-            Optional.of(pickerQuestion(fact.sourceFactId())),
+            Optional.of(pickerQuestion(fact.owningInteractionId())),
             triggerList(catalog));
       }
       return new ChainCallGatherResult(List.copyOf(rewritten), Optional.empty());
@@ -200,7 +200,7 @@ public class CompositionCatalogBinder {
         brief == null || brief.facts() == null ? List.of() : brief.facts();
     List<RequirementFact> chainCallFacts = chainCallFacts(facts);
     for (RequirementFact fact : chainCallFacts) {
-      if (call.nodeId().equals(fact.sourceFactId())) {
+      if (fact.targetsInteraction(call.nodeId())) {
         return fact;
       }
     }
@@ -248,7 +248,7 @@ public class CompositionCatalogBinder {
       if (fact == null
           || fact.polarity() != RequirementFactPolarity.POSITIVE
           || fact.kind() != RequirementFactKind.CAPABILITY
-          || !interaction.interactionId().equals(fact.sourceFactId())) {
+          || !fact.targetsInteraction(interaction.interactionId())) {
         continue;
       }
       if (ChainElementFamilies.isSender(fact.capabilityKey())
@@ -350,7 +350,9 @@ public class CompositionCatalogBinder {
         fact.topic(),
         fact.httpMethod(),
         path,
-        fact.serviceCallId());
+        fact.serviceCallId(),
+        fact.interactionIds(),
+        fact.policyConflict(), fact.elementIntent());
   }
 
   private static String pickerQuestion(String interactionId) {

@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
@@ -27,7 +28,9 @@ public record StageRepairEvidence(
     String errorEvidence,
     String haltFollowUpText,
     String recoveryEvidenceRef,
-    List<Reference> priorOutputRefs) {
+    List<Reference> priorOutputRefs,
+    String failedSkillId,
+    String causeCode) {
 
   /**
    * Attribute holding what the halted attempt of the stage now running produced. The runtime
@@ -38,6 +41,15 @@ public record StageRepairEvidence(
 
   public StageRepairEvidence {
     priorOutputRefs = priorOutputRefs == null ? List.of() : List.copyOf(priorOutputRefs);
+    failedSkillId = failedSkillId == null ? "" : failedSkillId;
+    causeCode = causeCode == null ? "" : causeCode;
+  }
+
+  public StageRepairEvidence(
+      String outcomeClass, String failedStageId, String findings, String errorEvidence,
+      String haltFollowUpText, String recoveryEvidenceRef, List<Reference> priorOutputRefs) {
+    this(outcomeClass, failedStageId, findings, errorEvidence, haltFollowUpText,
+        recoveryEvidenceRef, priorOutputRefs, "", "");
   }
 
   /** Halt evidence with no artifact behind it: the attempt failed before producing one. */
@@ -108,7 +120,48 @@ public record StageRepairEvidence(
         context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR),
         context.attributeAsString(ProductPipelineRunSupport.HALT_FOLLOW_UP_TEXT_ATTR),
         context.attributeAsString(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR),
-        priorOutputRefs(context));
+        priorOutputRefs(context),
+        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR),
+        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR));
+  }
+
+  /** Diagnostic fields for a model turn. Complete raw error text stays in the halt evidence. */
+  public String diagnosticText() {
+    StringBuilder text = new StringBuilder();
+    if (outcomeClass != null && !outcomeClass.isBlank()) {
+      text.append("- outcomeClass: ").append(outcomeClass).append('\n');
+    }
+    if (failedStageId != null && !failedStageId.isBlank()) {
+      text.append("- failedStageId: ").append(failedStageId).append('\n');
+    }
+    if (!causeCode.isBlank()) {
+      text.append("- causeCode: ").append(causeCode).append('\n');
+    }
+    if (findings != null && !findings.isBlank()) {
+      text.append("- validationFindings:\n").append(findings).append('\n');
+    } else if ("CONTRACT_SHAPE".equals(causeCode)) {
+      text.append("- validationFindings: ").append(ToolArgumentsFailures.DIAGNOSTIC).append('\n');
+    }
+    if (recoveryEvidenceRef != null && !recoveryEvidenceRef.isBlank()) {
+      text.append("- recoveryEvidenceRef: ").append(recoveryEvidenceRef).append('\n');
+    }
+    text.append("Raw rejected output is retained in the halt evidence and is excluded from this request.\n");
+    return text.toString();
+  }
+
+  /** Only the compiler skill recorded as failing receives the execution repair diagnosis. */
+  public String repairTextForSkill(String skillId) {
+    if (!"design-execution".equals(failedStageId) || !hasEvidence()
+        || failedSkillId.isBlank() || !failedSkillId.equals(skillId)) {
+      return "";
+    }
+    StringBuilder text = new StringBuilder("\n\nRepair evidence for ")
+        .append(skillId).append(":\n").append(diagnosticText());
+    if (haltFollowUpText != null && !haltFollowUpText.isBlank()) {
+      text.append("Author follow-up:\n").append(haltFollowUpText).append('\n');
+    }
+    return text.append("Correct this producer's output while preserving the approved requirements.\n")
+        .toString();
   }
 
   /** True when there is enough evidence to act on: formatted findings or raw error text. */

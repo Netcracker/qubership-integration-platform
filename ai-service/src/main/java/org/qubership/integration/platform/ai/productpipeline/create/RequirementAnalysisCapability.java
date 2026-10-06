@@ -483,12 +483,7 @@ public class RequirementAnalysisCapability implements StageCapability {
                           .items(
                               SkillActivitySupport.error(SKILL_ID),
                               new CapabilitySignal.Completed(
-                                  StageOutcome.of(
-                                      org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(error)
-                                          ? StageOutcomeClass.NEEDS_INPUT : StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
-                                      error.getMessage() == null
-                                          ? "requirement analysis failed"
-                                          : error.getMessage())));
+                                  StageOutcome.technicalFailure(error)));
                     }));
   }
 
@@ -508,6 +503,9 @@ public class RequirementAnalysisCapability implements StageCapability {
   void clearAnalysisCaptureState(String conversationId) {
     if (conversationId == null || conversationId.isBlank()) {
       return;
+    }
+    if (chatMemorySanitizer != null) {
+      chatMemorySanitizer.clear(conversationId);
     }
     if (feedbackStore != null) {
       feedbackStore.clearPlan(conversationId);

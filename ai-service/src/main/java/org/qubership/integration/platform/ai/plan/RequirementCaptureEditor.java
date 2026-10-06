@@ -26,6 +26,7 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Questi
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.RetryInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /** Validates an authored requirement snapshot and applies focused edits without partial writes. */
@@ -219,7 +220,10 @@ public final class RequirementCaptureEditor {
           && fact.kind() != null && fact.polarity() != null && fact.interactionIds() != null
           && issues.stream().noneMatch(issue ->
               (issue.path().equals(prefix) || issue.path().startsWith(prefix + "/"))
-                  && !issue.path().equals(prefix + "/sourceFactId"))) {
+                  && !issue.path().equals(prefix + "/sourceFactId")
+                  || Objects.equals(issue.entityId(), fact.sourceFactId())
+                      && issue.path().startsWith("/draft/facts/")
+                      && !issue.path().endsWith("/sourceFactId"))) {
         facts.add(fact);
       }
     }
@@ -250,6 +254,7 @@ public final class RequirementCaptureEditor {
           || (!original.interactionIds().isEmpty() && updated.interactionIds().isEmpty())
           || original.interactionIds().stream().anyMatch(id ->
               interactions.contains(id) && !updated.interactionIds().contains(id))
+          || !Objects.equals(original.elementIntent(), updated.elementIntent())
           || !sameMappingContent(original.fieldMapping(), updated.fieldMapping(), interactions)
           || !Objects.equals(original.policyConflict() == null ? null : original.policyConflict().unresolved(),
               updated.policyConflict() == null ? null : updated.policyConflict().unresolved())) {
@@ -456,6 +461,7 @@ public final class RequirementCaptureEditor {
           "Transitions must not form a cycle.");
     }
 
+    validateElementIntents(draft, ids, issues);
     Set<String> factIds = new HashSet<>();
     for (int i = 0; i < draft.facts().size(); i++) {
       FactInput fact = draft.facts().get(i);
@@ -524,6 +530,15 @@ public final class RequirementCaptureEditor {
             && blank(mapping.expression())) {
           add(issues, "MAPPING_FIELD_REQUIRED", path + "/fieldMapping",
               fact.sourceFactId(), "Provide a target field and a source field or expression.");
+        }
+        if (MappingContract.expandedCanonicalPaths(mapping.targetPath()).size() > 1) {
+          add(issues, "MAPPING_SINGLE_TARGET_REQUIRED", path + "/fieldMapping/targetPath", fact.sourceFactId(),
+              "Capture one FIELD_MAPPING fact per target field. Do not put a field list in targetPath.");
+        }
+        if (MappingContract.expandedCanonicalPaths(mapping.sourcePath()).size() > 1) {
+          add(issues, "MAPPING_SINGLE_SOURCE_REQUIRED", path + "/fieldMapping/sourcePath", fact.sourceFactId(),
+              "Use one source field path. For a computed value, set sourcePath=null and describe all inputs"
+                  + " in expression. Preserve the full requested behavior.");
         }
         if (fact.polarity() != RequirementCaptureInput.Polarity.POSITIVE) {
           add(issues, "MAPPING_POLARITY_INVALID", path + "/polarity", fact.sourceFactId(),
@@ -599,6 +614,85 @@ public final class RequirementCaptureEditor {
       }
     }
     return sorted(issues);
+  }
+
+  private static void validateElementIntents(DraftInput draft, Set<String> interactions, List<Issue> issues) {
+    Map<String, List<RequirementElementIntent>> intents = new HashMap<>();
+    String chainName = null;
+    for (FactInput fact : draft.facts()) {
+      if (fact == null || fact.elementIntent() == null) {
+        continue;
+      }
+      var intent = fact.elementIntent();
+      String path = "/draft/facts/" + fact.sourceFactId() + "/elementIntent";
+      checkId(issues, intent.elementRef(), path + "/elementRef");
+      if (intent.placement() == null || intent.elementType() == null || intent.elementType().isBlank()
+          || intent.requestedProperties() == null || intent.exactValues() == null) {
+        add(issues, "INVALID_ELEMENT_INTENT", path, fact.sourceFactId(),
+            "Provide elementType, placement, requestedProperties, and exactValues; use empty lists when unspecified.");
+        continue;
+      }
+      boolean chain = intent.placement() == RequirementElementIntent.Placement.CHAIN;
+      if (chain ? !"chain".equals(intent.elementType())
+          : !interactions.contains(intent.ownerInteractionId())
+              || !fact.interactionIds().contains(intent.ownerInteractionId())) {
+        add(issues, "INVALID_ELEMENT_OWNER", path, fact.sourceFactId(),
+            "Chain intent uses elementType=chain. Other intent must target its owning business interaction.");
+      }
+      if (intent.placement() == RequirementElementIntent.Placement.ANCHOR
+          && !Objects.equals(intent.elementRef(), intent.ownerInteractionId())
+          || intent.placement() == RequirementElementIntent.Placement.LOCAL_NODE
+              && interactions.contains(intent.elementRef())) {
+        add(issues, "INVALID_ELEMENT_REFERENCE", path, fact.sourceFactId(),
+            "An anchor uses its interaction ID; a local element uses a separate elementRef.");
+      }
+      if ((intent.placement() == RequirementElementIntent.Placement.BEFORE_HOOK
+          || intent.placement() == RequirementElementIntent.Placement.AFTER_HOOK)
+          && (!"script".equals(intent.elementType()) || intent.requestedName() != null
+              || !intent.requestedProperties().isEmpty())) {
+        add(issues, "INVALID_HOOK_INTENT", path, fact.sourceFactId(),
+            "An inline hook is script behavior on its owner, without a display name or standalone properties.");
+      }
+      if (chain && (intent.ownerInteractionId() != null || !intent.requestedProperties().isEmpty()
+          || intent.successorElementRef() != null || intent.predecessorElementRef() != null)) {
+        add(issues, "INVALID_CHAIN_INTENT", path, fact.sourceFactId(),
+            "Chain intent records the exact chain name and has no element owner or configuration.");
+      }
+      if (chain && conflictingValue(chainName, intent.requestedName())) {
+        add(issues, "CONFLICTING_ELEMENT_INTENT", path, fact.sourceFactId(),
+            "Facts about the chain must agree on its requested name.");
+      }
+      if (chain && intent.requestedName() != null) {
+        chainName = intent.requestedName();
+      }
+      var priors = intents.computeIfAbsent(intent.elementRef(), ignored -> new ArrayList<>());
+      if (priors.stream().anyMatch(prior -> prior.placement() != intent.placement()
+          || !Objects.equals(prior.elementType(), intent.elementType())
+          || !Objects.equals(prior.ownerInteractionId(), intent.ownerInteractionId())
+          || conflictingValue(prior.requestedName(), intent.requestedName())
+          || conflictingValue(prior.successorElementRef(), intent.successorElementRef())
+          || conflictingValue(prior.predecessorElementRef(), intent.predecessorElementRef())
+          || prior.requestedProperties().stream().anyMatch(property -> intent.requestedProperties().stream()
+              .anyMatch(other -> property != null && other != null && property.key().equals(other.key())
+                  && !Objects.equals(property.value(), other.value()))))) {
+        add(issues, "CONFLICTING_ELEMENT_INTENT", path, fact.sourceFactId(),
+            "Facts about the same elementRef must agree on type, owner, placement, names, and supplied property values.");
+      }
+      priors.add(intent);
+    }
+    for (var intent : intents.values().stream().flatMap(List::stream).toList()) {
+      for (String ref : new String[] {intent.successorElementRef(), intent.predecessorElementRef()}) {
+        if (ref != null && (!intents.containsKey(ref) && !interactions.contains(ref)
+            || ref.equals(intent.elementRef()))) {
+          add(issues, "UNKNOWN_ELEMENT_REFERENCE", "/draft/facts/elementIntent", intent.elementRef(),
+              "Relative placement must name another accepted elementRef or business interaction.");
+        }
+      }
+    }
+  }
+
+  private static boolean conflictingValue(String left, String right) {
+    return left != null && right != null && !left.equals(right);
   }
 
   private static void checkApplicable(List<Issue> issues, String path, CapabilityInput capability) {

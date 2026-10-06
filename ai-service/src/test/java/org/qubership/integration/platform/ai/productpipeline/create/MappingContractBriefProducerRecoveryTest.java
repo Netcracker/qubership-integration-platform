@@ -1328,7 +1328,10 @@ class MappingContractBriefProducerRecoveryTest {
             new ClasspathCompilerContractRepository(),
             new CompositionCatalogBinder(mock(CatalogRestClient.class)),
             new org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBinder(
-                mock(CatalogRestClient.class)));
+                mock(CatalogRestClient.class)),
+            new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifestBuilder(
+                new org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator(),
+                (catalog, intentRequest, intentBrief) -> ""));
     ExecutorCatalogBindingAdapter bindingAdapter = mock(ExecutorCatalogBindingAdapter.class);
     when(bindingAdapter.resolve(eq(CONV_ID), any(), anyList(), any()))
         .thenReturn(List.of(new BindingResolutionResult.Resolved(sampleBinding())));

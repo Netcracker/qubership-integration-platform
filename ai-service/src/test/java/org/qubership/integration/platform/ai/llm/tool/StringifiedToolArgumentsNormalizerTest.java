@@ -42,6 +42,41 @@ class StringifiedToolArgumentsNormalizerTest {
   }
 
   @Test
+  void rejectsNamingShapeBeforeBindingAndRecordsActionableFeedback() throws Exception {
+    var feedback = new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+    var gateway = new org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway(
+        new org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore(), feedback);
+    var boundary = new StringifiedToolArgumentsNormalizer(objectMapper, null, null, null, gateway);
+    var capture = JsonObjectSchema.builder().addIntegerProperty("schemaVersion").addStringProperty("chainName")
+        .addProperty("labels", JsonArraySchema.builder().items(JsonObjectSchema.builder()
+            .addStringProperty("roleId").addStringProperty("label").build()).build())
+        .addProperty("sourceRequirementFactIds", JsonArraySchema.builder().items(new JsonStringSchema()).build())
+        .addProperty("knowledgeCitations", JsonArraySchema.builder()
+            .items(dev.langchain4j.model.chat.request.json.JsonRawSchema.from("{}")).build()).build();
+    var specification = ToolSpecification.builder().name("captureNamingManifest")
+        .parameters(JsonObjectSchema.builder().addProperty("capture", capture).build()).build();
+    var method = new ToolMethodCreateInfo("captureNamingManifest", "invoker", specification,
+        "mapper", ToolMethodCreateInfo.ExecutionModel.BLOCKING, ReturnBehavior.TO_LLM, null, null);
+    var executor = org.mockito.Mockito.mock(io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor.class);
+    org.mockito.Mockito.when(executor.getMethodCreateInfo()).thenReturn(method);
+    org.qubership.integration.platform.ai.chat.ToolSession.bind("shape-test");
+    try {
+      var result = boundary.wrap(ToolExecutionRequest.builder().id("call-1").name("captureNamingManifest")
+              .arguments("{\"capture\":{\"labels\":[]}}").build(), null,
+          (call, context) -> { throw new AssertionError("Invalid capture reached argument binding"); }, executor);
+      org.junit.jupiter.api.Assertions.assertTrue(result.resultText().contains("MISSING_FIELD /capture/chainName"));
+      org.junit.jupiter.api.Assertions.assertTrue(feedback.lastPlanFailure("shape-test").orElseThrow()
+          .summary().contains("/capture/chainName"));
+      var accepted = boundary.wrap(ToolExecutionRequest.builder().id("call-2").name("captureNamingManifest")
+              .arguments("{\"capture\":{\"chainName\":\"Exact name\",\"labels\":[]}}").build(), null,
+          (call, context) -> dev.langchain4j.service.tool.ToolExecutionResult.builder().resultText("bound").build(), executor);
+      assertEquals("bound", accepted.resultText());
+    } finally {
+      org.qubership.integration.platform.ai.chat.ToolSession.clear();
+    }
+  }
+
+  @Test
   void leavesDeclaredStringsAndMalformedJsonUntouched() {
     ToolExecutionRequest request =
         request("{\"script\":\"{\\\"id\\\":7}\",\"capture\":\"{broken\"}");

@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.planning;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignPlanContract.TargetKind;
@@ -14,7 +15,10 @@ public record DesignPlanCapture(
   }
 
   public record Note(
-      @Description("Approved target kind") TargetKind targetKind,
-      @Description("Exact approved target id") String targetId,
-      @Description("Short human-readable step description") String summary) {}
+      @Description("Approved target kind")
+        @JsonProperty(required = true) TargetKind targetKind,
+      @Description("Exact approved target id")
+        @JsonProperty(required = true) String targetId,
+      @Description("Short human-readable step description")
+        @JsonProperty(required = true) String summary) {}
 }

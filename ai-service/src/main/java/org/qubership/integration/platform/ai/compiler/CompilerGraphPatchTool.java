@@ -142,8 +142,7 @@ public class CompilerGraphPatchTool {
       Capture the compiler skill output as a typed GraphPatch object in the same turn.
       Do not pass conversationId or capabilityId — the server binds them automatically.
       If the skill is not applicable, set notApplicable=true and keep all patch arrays empty
-      (do not invent node/edge/property/chain patches). Omit notApplicable or set false for
-      normal patches.
+      (do not invent node/edge/property/chain patches). Set notApplicable=false for normal patches.
       ownerCapabilityId must match the skill being executed. Always send notApplicable explicitly:
       false for a normal patch, true only for the empty not-applicable path.
       GraphPatch shape:
@@ -730,7 +729,7 @@ public class CompilerGraphPatchTool {
     return ToolSession.resolveConversationId();
   }
 
-  static String resolveCapabilityId() {
+  public static String resolveCapabilityId() {
     Object mdcValue = MDC.get(CompilerSkillMdc.CAPABILITY_ID);
     if (mdcValue != null) {
       String id = mdcValue.toString().trim();

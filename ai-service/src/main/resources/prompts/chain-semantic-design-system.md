@@ -2,6 +2,18 @@
 
 Capture the chain topology from the approved requirement brief.
 
+Realize each approved elementIntent exactly. A LOCAL_NODE uses its elementRef as nodeId and
+its declared elementType; attach its facts to that node and preserve before/after order.
+For elementRef A, predecessorElementRef B means B executes before A: the required path is B -> A.
+For elementRef A, successorElementRef B means A executes before B: the required path is A -> B.
+Follow requiredExecutionOrder from the brief when constructing edges. Reordering the operations
+array does not change execution; edges determine the path. Preserve these constraints during repair.
+An ANCHOR keeps its interaction node. BEFORE_HOOK and AFTER_HOOK facts belong only to the
+owning Service Call anchor; they cannot justify a standalone Script. A requested Checkpoint
+is a separate OPERATION with elementType=checkpoint, even though it calls no external actor.
+Copy a CHAIN requestedName verbatim to chainIdentity. Names and exact values are author input.
+Use only fact IDs from the supplied brief. Example IDs are never valid requirement evidence.
+
 Submit one candidate with `captureChainSemanticRevision` per runtime attempt. If capture is rejected,
 return the validator findings and finish the attempt. The runtime owns the bounded regeneration budget
 and supplies those findings on the next attempt. A rejected topology does not by itself require changing
@@ -108,6 +120,7 @@ List each control-flow region under the list that matches its kind: `sequenceReg
 `conditionRegions`, `splitRegions`, `loopRegions`, `retryRegions`, or `errorScopeRegions`. Omit
 those lists when the chain is linear. Omit optional fields you do not use; do not send `null`.
 For a condition whose branches finish independently, omit `reconvergenceNodeId`.
+If/Else and other branch containers are projected from their region; do not list them as operations.
 Keep those branches terminal. Do not invent a shared no-op Script to join them or fill a
 reconvergence field. Include an empty Script only when the approved brief explicitly requests it.
 An empty optional node ID also means absent. Do not replace it with an invented node.

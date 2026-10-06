@@ -317,6 +317,9 @@ public interface AppConfig {
     @WithDefault("auto")
     String provider();
 
+    @WithName("openrouter-provider")
+    Optional<String> openRouterProvider();
+
     @WithName("base-url")
     String baseUrl();
 

@@ -380,6 +380,25 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void executionHaltRecordsTheFailedChildInsteadOfItsOrchestrator() {
+    StageCapability failing = capability("fail-cap", context -> Multi.createFrom().items(
+        new CapabilitySignal.SkillProgress("cip-design-executor", "running"),
+        new CapabilitySignal.SkillProgress("cip-error-handling-generator", "running"),
+        new CapabilitySignal.SkillProgress("cip-error-handling-generator", "error"),
+        new CapabilitySignal.SkillProgress("cip-design-executor", "error"),
+        new CapabilitySignal.Completed(StageOutcome.of(
+            StageOutcomeClass.INTERNAL_FAILURE, "capture failed"))));
+    ProductPipelineProfile profile = retryProfile("design-execution", "fail-cap", new RetryPolicy(0, 1L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    execute(runtime, "design-execution");
+
+    assertTrue(requireRun().attempts().getLast().failureEvidence().contains(
+        "\"stageErrorFailedSkillId\":\"cip-error-handling-generator\""));
+  }
+
+  @Test
   void skillProgressStaysInTheDrainBatchWhenTheLiveSinkIsUnbound() {
     StageCapability cap =
         capability(
@@ -1145,6 +1164,23 @@ class ProductPipelineStageExecutorTest {
     assertFalse(
         ChatEvent.actionsForGate(PipelineGates.RECOVERY_REPEATED)
             .contains(ChatEvent.RETRY_CREATION_ACTION));
+  }
+
+  @Test
+  void contextOverflowGetsOneFreshTechnicalAttemptBeforeRecoverableHalt() {
+    StageCapability failing = capability("fail-cap", context -> Multi.createFrom().failure(
+        new org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.Overflow(
+            "LLM_CONTEXT_OVERFLOW: hash=original-packet")));
+    ProductPipelineProfile profile = retryProfile("work", "fail-cap", new RetryPolicy(5, 25L));
+    CreateChainTestOrchestrator runtime = newRuntime(profile, failing);
+    startAndRecordInput(runtime, profile);
+
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "work").decision());
+    StageDecision.WaitForInput halted =
+        assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "work").decision());
+    assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL,
+        PipelineGates.gateOf(halted.prompt()).orElseThrow());
+    assertTrue(halted.prompt().contains("LLM_CONTEXT_OVERFLOW"));
   }
 
   @Test

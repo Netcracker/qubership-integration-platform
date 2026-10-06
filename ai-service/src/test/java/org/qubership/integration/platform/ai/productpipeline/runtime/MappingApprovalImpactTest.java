@@ -192,6 +192,34 @@ class MappingApprovalImpactTest {
   }
 
   @Test
+  void reminderOfAnApprovedMissingLocalElementReopensItsSemanticProducer() throws Exception {
+    useFourStageRuntime();
+    waitAtPlanningApproval();
+    var mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(mappedBrief());
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("checkpoint", "checkpoint",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "task-start", null, null, null, List.of(), List.of());
+    var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("checkpoint-context",
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Save context.", "", "", "", "", "", "",
+        List.of("task-start"), null, intent);
+    json.set("facts", mapper.valueToTree(List.of(fact)));
+    append(Kind.REQUIREMENT_BRIEF, "1", mapper.treeToValue(json, RequirementBrief.class));
+    String briefHash = committedHash(Kind.REQUIREMENT_BRIEF);
+    var oldApproval = snapshot("planning").approvableReference();
+    mappingAdapter = (brief, message) -> new MappingTurnResult.StructuralReminder(List.of("checkpoint"));
+    type("The approved Checkpoint must remain before the Script.");
+    assertEquals("design-input", run().run().currentStageId());
+    assertEquals(StageStatus.PENDING, snapshot("planning").status());
+    assertTrue(snapshot("planning").outputRefs().isEmpty());
+    assertNotEquals(oldApproval, snapshot("planning").approvableReference());
+    assertEquals(briefHash, committedHash(Kind.REQUIREMENT_BRIEF));
+    assertTrue(support.runAttributes(RUN_ID).get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR)
+        .toString().contains("ELEMENT_INTENT_REALIZATION"));
+  }
+
+  @Test
   void queryDoesNotReopenTheBriefOrInvalidateAPlan() {
     waitAtPlanningApproval();
     storeDownstreamArtifacts();

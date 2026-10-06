@@ -329,12 +329,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
                           .items(
                               SkillActivitySupport.error(skillId),
                               new CapabilitySignal.Completed(
-                                  StageOutcome.of(
-                                      org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(error)
-                                          ? StageOutcomeClass.NEEDS_INPUT : StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
-                                      error.getMessage() == null
-                                          ? "requirement discovery failed"
-                                          : error.getMessage())));
+                                  StageOutcome.technicalFailure(error)));
                     }));
   }
 

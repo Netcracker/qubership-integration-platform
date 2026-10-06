@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.compiler;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dev.langchain4j.model.output.structured.Description;
 import java.util.List;
@@ -9,9 +10,10 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch;
 /** LLM-facing graph patch input for {@link CompilerGraphPatchTool#captureGraphPatch}. */
 @JsonIgnoreProperties(ignoreUnknown = true)
 record GraphPatchCapture(
-    @Description("Unique patch id") String patchId,
+    @Description("Unique patch id")
+        @JsonProperty(required = true) String patchId,
     @Description("Compiler skill id that owns this patch, e.g. cip-routing-generator")
-        String ownerCapabilityId,
+        @JsonProperty(required = true) String ownerCapabilityId,
     @Description("Node add/update/remove operations") List<NodePatch> nodePatches,
     @Description("Edge add/update/remove operations") List<EdgePatch> edgePatches,
     @Description("Property patches on existing node ids; use key plus structured value")

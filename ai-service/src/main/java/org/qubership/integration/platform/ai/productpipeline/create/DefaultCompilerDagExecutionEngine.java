@@ -55,6 +55,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -321,7 +322,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
                     consumedArtifacts,
                     dag,
                     validatorPasses,
-                    patchLedger);
+                    patchLedger,
+                    engineRequest.repairEvidence());
             outputs =
                 materializeGraphPatchOutputs(
                     request,
@@ -594,7 +596,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       List<Reference> consumedArtifacts,
       ResolvedCompilerDag dag,
       Map<String, ValidationResult> validatorPasses,
-      PlanningPatchLedger.Builder patchLedger) {
+      PlanningPatchLedger.Builder patchLedger,
+      StageRepairEvidence repairEvidence) {
     if (node.executionMode() == CompilerNodeExecutionMode.LLM_SKILL) {
       SkillExecutor executor = skillRegistry.require(node.skillId());
       SkillRunContext context =
@@ -605,7 +608,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
               SkillSubgraph.BUILD_CHAIN,
               state.invocationCount(),
               false,
-              seed.seedText());
+              seed.seedText(),
+              repairEvidence == null ? "" : repairEvidence.repairTextForSkill(node.skillId()));
       GraphPatchExecutionContext executionContext =
           buildExecutionContext(request, seed, workspace, node, pinned, consumedArtifacts);
       executionContext = prepareMappingGeneration(request, workspace, node, executionContext);
@@ -733,6 +737,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             .map(a -> ((SkillArtifactPayload.ChainPlanGraphPayload) a.payload()).graph())
             .orElse(null);
     if (currentGraph != null) {
+      var facts = workspace.get(SkillArtifactType.REQUIREMENT_BRIEF)
+          .map(artifact -> ((SkillArtifactPayload.RequirementBriefPayload) artifact.payload()).brief().facts())
+          .orElse(java.util.List.of());
+      currentGraph = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.apply(currentGraph, facts);
       ChainPlanGraph secured = CredentialPlaceholderApplicator.apply(currentGraph);
       if (secured != currentGraph) {
         LOG.infof(
@@ -762,10 +770,19 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
                         ((SkillArtifactPayload.GraphPatchArtifactPayload) artifact.payload())
                             .artifact()))
             .orElse(List.of());
-    return graphAssemblyService.assemble(structure, acceptedPatchArtifacts,
+    var assembled = graphAssemblyService.assemble(structure, acceptedPatchArtifacts,
         workspace.get(SkillArtifactType.NAMING_MANIFEST)
             .map(a -> ((SkillArtifactPayload.NamingManifestPayload) a.payload()).manifest())
             .orElse(null));
+    var facts = workspace.get(SkillArtifactType.REQUIREMENT_BRIEF)
+        .map(artifact -> ((SkillArtifactPayload.RequirementBriefPayload) artifact.payload()).brief().facts())
+        .orElse(java.util.List.of());
+    var graph = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.apply(
+        assembled.graph(), facts);
+    var finalAssembly = graphAssemblyService.assembleFromGraph(graph, assembled.orderedPatchReferences(),
+        assembled.ownershipFacts());
+    return new GraphAssemblyResult(finalAssembly.schemaVersion(), finalAssembly.graph(), finalAssembly.graphDigest(),
+        finalAssembly.orderedPatchReferences(), finalAssembly.ownershipFacts(), assembled.rejectedPatches());
   }
 
   private GraphAssemblyResult resolveGraphAssemblyResult(SkillWorkspace workspace) {

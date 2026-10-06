@@ -13,6 +13,7 @@ import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanism;
 import org.qubership.integration.platform.ai.plan.mapping.MappingMechanismSelector;
@@ -184,9 +185,9 @@ public class DesignPlanningCapability implements StageCapability {
       StageRepairEvidence repair = StageRepairEvidence.from(context);
       boolean cleanRebuild = StageRepairEvidence.isCleanDesignPlanRebuild(context, repair);
       String repairEvidenceText =
-          repair == null || cleanRebuild
+          repair == null
               ? ""
-              : repairEvidenceText(repair, priorPlanMarkdown(context, repair));
+              : repairEvidenceText(repair, cleanRebuild ? "" : priorPlanMarkdown(context, repair));
       PlannerRequest plannerRequest =
           new PlannerRequest(
               cleanRebuild
@@ -404,19 +405,7 @@ public class DesignPlanningCapability implements StageCapability {
    * halted attempt kept its output.
    */
   static String repairEvidenceText(StageRepairEvidence repair, String priorPlanMarkdown) {
-    StringBuilder sb = new StringBuilder();
-    if (repair.outcomeClass() != null && !repair.outcomeClass().isBlank()) {
-      sb.append("- outcomeClass: ").append(repair.outcomeClass().trim()).append('\n');
-    }
-    if (repair.failedStageId() != null && !repair.failedStageId().isBlank()) {
-      sb.append("- failedStageId: ").append(repair.failedStageId().trim()).append('\n');
-    }
-    if (repair.findings() != null && !repair.findings().isBlank()) {
-      sb.append("- validationFindings:\n").append(repair.findings().trim()).append('\n');
-    }
-    if (repair.errorEvidence() != null && !repair.errorEvidence().isBlank()) {
-      sb.append("- errorEvidence:\n").append(repair.errorEvidence().trim()).append('\n');
-    }
+    StringBuilder sb = new StringBuilder(repair.diagnosticText());
     if (repair.haltFollowUpText() != null
         && !repair.haltFollowUpText().isBlank()
         && !isStageIdFollowUp(repair.haltFollowUpText())) {
@@ -572,7 +561,7 @@ public class DesignPlanningCapability implements StageCapability {
               .append(operation.elementType());
         }
       }
-      text.append('\n');
+      text.append(" sourceFactIds=").append(node.provenance().sourceFactIds()).append('\n');
     }
 
     text.append("\nControl-flow regions:\n");
@@ -625,6 +614,9 @@ public class DesignPlanningCapability implements StageCapability {
       if (constraint != null && !constraint.isBlank()) {
         text.append("Constraint: ").append(constraint.trim()).append('\n');
       }
+    }
+    if (brief != null) {
+      text.append("\nApproved requirements:\n").append(RequirementBriefText.format(brief)).append('\n');
     }
     return text.toString();
   }

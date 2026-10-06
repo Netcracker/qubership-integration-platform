@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.integration.catalog.tool;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -21,6 +22,63 @@ class CatalogSystemReadToolBoundOperationTest {
 
   private CatalogRestClient catalogRestClient;
   private CatalogSystemReadTool readTool;
+
+  @Test
+  void operationListingOmitsSchemasAndKeepsCompleteTypedOperations() throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    CatalogOperationsLookupService lookup = mock(CatalogOperationsLookupService.class);
+    CatalogToolSupport support = new CatalogToolSupport();
+    support.objectMapper = mapper;
+    CatalogSystemReadTool tool = new CatalogSystemReadTool(catalogRestClient, lookup, support);
+    var schema = mapper.createObjectNode().put("largeDefinition", "x".repeat(300_000));
+    var operations = java.util.stream.IntStream.range(0, 226)
+        .mapToObj(i -> new CatalogRestClient.OperationDto(
+            "op-" + i, "Operation " + i, "POST", "/tasks/" + i, "spec-1", schema))
+        .toList();
+    when(lookup.validateSpecificationIdForOperations("chat", "spec-1"))
+        .thenReturn(java.util.Optional.empty());
+    when(lookup.listOperations("chat", "spec-1", "sys-1")).thenReturn(operations);
+
+    var json = mapper.readTree(tool.listCatalogOperationsJson("chat", "spec-1", "sys-1", null));
+
+    assertEquals(226, json.path("data").size());
+    assertTrue(json.path("complete").asBoolean());
+    assertEquals("op-225", json.path("data").get(225).path("id").asText());
+    assertFalse(json.path("data").get(0).has("specification"));
+    assertEquals(schema, tool.listCatalogOperations("chat", "spec-1", "sys-1", null)
+        .get(225).specification());
+  }
+
+  @Test
+  void boundedListingReportsContinuationAndRejectsOversizedMetadata() throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    CatalogOperationsLookupService lookup = mock(CatalogOperationsLookupService.class);
+    CatalogToolSupport support = new CatalogToolSupport();
+    support.objectMapper = mapper;
+    CatalogSystemReadTool tool = new CatalogSystemReadTool(catalogRestClient, lookup, support);
+    var operations = java.util.stream.IntStream.range(0, 10)
+        .mapToObj(i -> new CatalogRestClient.OperationDto(
+            "op-" + i, "x".repeat(20_000), "POST", "/tasks", "spec-1"))
+        .toList();
+    when(lookup.validateSpecificationIdForOperations("chat", "spec-1"))
+        .thenReturn(java.util.Optional.empty());
+    when(lookup.listOperations("chat", "spec-1", "sys-1")).thenReturn(operations);
+
+    String first = tool.listCatalogOperationsJson("chat", "spec-1", "sys-1", null);
+    var page = mapper.readTree(first);
+    assertFalse(page.path("complete").asBoolean());
+    assertTrue(first.length() <= CatalogSystemReadTool.MAX_OPERATION_LIST_CHARS);
+    int next = page.path("nextOffset").asInt();
+    var second = mapper.readTree(tool.listCatalogOperationsJson("chat", "spec-1", "sys-1", null, next));
+    assertEquals("op-" + next, second.path("data").get(0).path("id").asText());
+    assertEquals(10, tool.listCatalogOperations("chat", "spec-1", "sys-1", null).size());
+
+    when(lookup.listOperations("chat", "spec-1", "sys-1")).thenReturn(List.of(
+        new CatalogRestClient.OperationDto("large", "x".repeat(100_000), "POST", "/tasks", "spec-1")));
+    var rejected = mapper.readTree(tool.listCatalogOperationsJson("chat", "spec-1", "sys-1", null));
+    assertFalse(rejected.path("ok").asBoolean());
+    assertEquals("CATALOG_METADATA_TOO_LARGE", rejected.path("error").path("code").asText());
+  }
 
   @BeforeEach
   void setUp() throws Exception {
