@@ -399,7 +399,7 @@ final class FillingCheckpoint {
             "LOGICAL_FLOW",
             List.of(new StageSnapshot("LOGICAL_FLOW", StageStatus.RUNNING, List.of(), null)),
             null));
-    String raw = Files.readString(canonicalSource());
+    String raw = org.qubership.integration.platform.ai.plan.workdocument.WorkFillingFixtures.read("om-salesforce.md");
     String text = canonicalBlock(raw).replace("<effective-model-label>", modelLabel(model)).replace("<run-id>", runId);
     String hash = sha256(text);
     WorkDocumentState state =
@@ -452,7 +452,7 @@ final class FillingCheckpoint {
     report.put("buildIdentity", blankToEmpty(System.getenv("WORK_CHECKPOINT_BUILD")));
     String content = document.path("sources").path(0).path("content").asText("");
     report.put("sourceHash", sha256(content));
-    report.put("canonicalFileHash", sha256(Files.readString(canonicalSource())));
+    report.put("canonicalFileHash", sha256(org.qubership.integration.platform.ai.plan.workdocument.WorkFillingFixtures.read("om-salesforce.md")));
     report.put("effectiveProvider", session.provider());
     report.put("effectiveModel", session.model());
     String observed = request.sequentialFake() ? null : OBSERVED_MODEL.get();
@@ -1444,19 +1444,6 @@ final class FillingCheckpoint {
       ids.add(id);
     }
     store.put("harness/fault-" + runId, JSON.writeValueAsBytes(node));
-  }
-
-  private static Path canonicalSource() {
-    Path module = Path.of("").toAbsolutePath();
-    Path sibling = module.resolve("../.scratch/progressive-chain-work-document/fixtures/om-salesforce.md");
-    if (Files.exists(sibling)) {
-      return sibling.normalize();
-    }
-    Path local = module.resolve(".scratch/progressive-chain-work-document/fixtures/om-salesforce.md");
-    if (Files.exists(local)) {
-      return local;
-    }
-    throw new IllegalStateException("SOURCE_UNAVAILABLE: canonical source file is missing.");
   }
 
   private static String canonicalBlock(String fileText) {

@@ -85,7 +85,7 @@ class DesignInputRecoveryTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"brief-question", "brief-revision", "park"})
-  void explicitRecoveryDecisionsAndDisabledRepairsDoNotRegenerate(String decisionMode) {
+  void rejectedCaptureIgnoresNarrativeBriefDiagnosisAndParkDecision(String decisionMode) {
     verifyRecovery(decisionMode, false);
   }
 
@@ -137,8 +137,9 @@ class DesignInputRecoveryTest {
                 assertTrue(prompt.contains("generic-barrier"), prompt);
                 assertTrue(
                     prompt.contains(brief.mappingIntents().getFirst().mappingIntentId()), prompt);
-              } else if (call > 2 || decisionMode.equals("zero-budget")) {
-                assertFalse(prompt.contains("is missing a region"), prompt);
+              } else if (call > 2 || (call > 1 && decisionMode.equals("zero-budget"))) {
+                assertTrue(prompt.contains("is missing a region"), prompt);
+                assertTrue(prompt.contains("Raw rejected output is retained in the halt evidence and is excluded"), prompt);
                 assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
               }
               String result =
@@ -318,22 +319,6 @@ class DesignInputRecoveryTest {
         .indefinitely();
     var before = runs.load(RUN).orElseThrow().run().stages().getFirst();
     var first = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
-    if (decisionMode.startsWith("brief-")
-        || decisionMode.equals("park")) {
-      var wait = assertInstanceOf(StageDecision.WaitForInput.class, first.decision());
-      String expected =
-          switch (decisionMode) {
-            case "brief-question" -> PipelineGates.STAGE_CLARIFICATION;
-            case "brief-revision" -> PipelineGates.RECOVERY_REVISE_BRIEF;
-            case "park" -> PipelineGates.RECOVERY_UNCLASSIFIED;
-            default -> PipelineGates.RECOVERY_UNCLASSIFIED;
-          };
-      assertEquals(expected, PipelineGates.gateOf(wait.prompt()).orElseThrow());
-      assertEquals(1, calls.get());
-      assertEquals(before, runs.load(RUN).orElseThrow().run().stages().getFirst());
-      assertEquals(1, artifacts.history(RUN, Kind.REQUIREMENT_BRIEF).size());
-      return;
-    }
     assertInstanceOf(StageDecision.Retry.class, first.decision());
     support.applyStageLifecycle(RUN, first).collect().asList().await().indefinitely();
 

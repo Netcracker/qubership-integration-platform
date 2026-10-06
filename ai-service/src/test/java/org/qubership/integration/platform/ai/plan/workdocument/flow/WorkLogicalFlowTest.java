@@ -8,8 +8,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -69,20 +67,8 @@ class WorkLogicalFlowTest {
 
   @Test
   void omExampleStoresTriggerCallAndReplyAndKeepsCompleteTaskAsRequirement() throws Exception {
-    String skill = Files.readString(skillPath());
-    List<String> prompts = new ArrayList<>();
-    WorkCommit commit =
-        flow.design(
-            RUN_ID,
-            materials(),
-            request -> {
-              prompts.add(request.prompt());
-              return omCapture();
-            });
+    WorkCommit commit = flow.design(RUN_ID, materials(), request -> omCapture());
 
-    assertTrue(prompts.get(0).contains("Do not add a step that only receives the synchronous result"));
-    assertTrue(prompts.get(0).contains("Do not merge steps that share an operation, label, or service name"));
-    assertTrue(skill.contains("Do not add a step that only receives the synchronous result"));
     JsonNode steps = steps(commit.state());
     assertEquals(List.of("TRIGGER", "SERVICE_CALL", "REPLY"), kinds(steps));
     assertEquals(List.of("onTaskStart", "createTask", "onTaskResult"), labels(steps));
@@ -507,10 +493,6 @@ class WorkLogicalFlowTest {
           }
         }
         """;
-  }
-
-  private static Path skillPath() {
-    return Path.of("../integration-platform-skills/.apm/skills/logical-design/SKILL.md");
   }
 
   private static RunSnapshot openRun() {

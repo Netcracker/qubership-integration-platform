@@ -42,7 +42,7 @@ class DesignPlanProjectorTest {
   @Test
   void typedProjectionUsesOwnersClaimsAndDependenciesRegardlessOfSummaryWording() {
     ChainSemanticRevision revision = SemanticFixtures.linearOrders();
-    CompilerRunPin pin = samplePin(revision, sampleDag());
+    CompilerRunPin pin = samplePin(revision, typedSampleDag());
     DesignPlanContract contract =
         new DesignPlanContract(
             DesignPlanCaptureAdapter.SCHEMA_VERSION,
@@ -54,7 +54,7 @@ class DesignPlanProjectorTest {
                 typedStep(
                     "trigger",
                     "Resolve and connect the public endpoint",
-                    "cip-trigger-generator",
+                    "cip-http-trigger-endpoint-generator",
                     List.of(new Claim(TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),
                     List.of()),
                 typedStep(
@@ -84,7 +84,7 @@ class DesignPlanProjectorTest {
     DesignPlanReport report = new DesignPlanReportRenderer().render(contract);
 
     DesignExecutionPlan projected =
-        projector.project(contract, report, revision, pin, briefFrom(revision));
+        projector.project(contract, report, revision, pin, typedBriefFrom(revision));
 
     assertEquals(List.of("trigger"), projected.steps().get(1).dependsOn());
     assertEquals(List.of("call"), projected.steps().get(2).dependsOn());
@@ -97,14 +97,14 @@ class DesignPlanProjectorTest {
   @Test
   void typedContractAllowsRepeatedReferencesButRejectsRepeatedProducers() {
     ChainSemanticRevision revision = SemanticFixtures.linearOrders();
-    CompilerRunPin pin = samplePin(revision, sampleDag());
+    CompilerRunPin pin = samplePin(revision, typedSampleDag());
     List<Step> steps =
         new ArrayList<>(
             List.of(
                 typedStep(
                     "trigger",
                     "Trigger",
-                    "cip-trigger-generator",
+                    "cip-http-trigger-endpoint-generator",
                     List.of(new Claim(TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),
                     List.of()),
                 typedStep(
@@ -140,7 +140,7 @@ class DesignPlanProjectorTest {
     DesignPlanContract references =
         typedContract(revision, pin, "references", steps);
     DesignPlanContractValidator validator = new DesignPlanContractValidator();
-    assertTrue(validator.findings(references, revision, briefFrom(revision), pin).isEmpty());
+    assertTrue(validator.findings(references, revision, typedBriefFrom(revision), pin).isEmpty());
 
     steps.add(
         typedStep(
@@ -153,7 +153,7 @@ class DesignPlanProjectorTest {
         validator.findings(
             typedContract(revision, pin, "duplicate", steps),
             revision,
-            briefFrom(revision),
+            typedBriefFrom(revision),
             pin);
     assertTrue(
         findings.stream()
@@ -166,8 +166,8 @@ class DesignPlanProjectorTest {
   @Test
   void typedContractKeepsTwoOccurrencesOfTheSameCatalogOperationDistinct() {
     ChainSemanticRevision revision = twoCallsToTheSameOperation();
-    RequirementBrief brief = briefFrom(revision);
-    CompilerRunPin pin = samplePin(revision, sampleDag());
+    RequirementBrief brief = typedBriefFrom(revision);
+    CompilerRunPin pin = samplePin(revision, typedSampleDag());
     DesignPlanContract contract =
         typedContract(
             revision,
@@ -177,7 +177,7 @@ class DesignPlanProjectorTest {
                 typedStep(
                     "trigger",
                     "Trigger",
-                    "cip-trigger-generator",
+                    "cip-http-trigger-endpoint-generator",
                     List.of(new Claim(TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),
                     List.of()),
                 typedStep(
@@ -242,9 +242,9 @@ class DesignPlanProjectorTest {
   @Test
   void unresolvedServiceCallRequiresAnExactApiHubBindingProducer() {
     ChainSemanticRevision revision = SemanticFixtures.linearOrders();
-    CompilerRunPin pin = samplePin(revision, sampleDag());
+    CompilerRunPin pin = samplePin(revision, typedSampleDag());
     RequirementBrief brief =
-        briefFrom(revision)
+        typedBriefFrom(revision)
             .withServiceCalls(
                 List.of(
                     new RequirementServiceCall(
@@ -254,7 +254,7 @@ class DesignPlanProjectorTest {
             typedStep(
                 "trigger",
                 "Trigger",
-                "cip-trigger-generator",
+                "cip-http-trigger-endpoint-generator",
                 List.of(new Claim(TargetKind.ENTRY_POINT, "entry-1", ClaimRole.PRODUCER)),
                 List.of()),
             typedStep(
@@ -820,7 +820,7 @@ class DesignPlanProjectorTest {
                     SemanticFixtures.linearOrders(),
                     samplePin(SemanticFixtures.linearOrders(), sampleDag())));
     assertTrue(ex.getMessage().contains("trigger coverage"));
-    assertTrue(ex.getMessage().contains("cip-trigger-generator"));
+    assertTrue(ex.getMessage().contains("entry-point producer skill"));
   }
 
   @Test
@@ -1296,6 +1296,26 @@ class DesignPlanProjectorTest {
         If you agree, reply **Agree** or **Execute plan** to proceed.
         """
         .trim();
+  }
+
+  private static RequirementBrief typedBriefFrom(ChainSemanticRevision revision) {
+    return briefFrom(revision).withFacts(List.of(
+        new org.qubership.integration.platform.ai.plan.RequirementFact(
+            "entry-1", org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+            org.qubership.integration.platform.ai.plan.RequirementFactKind.CAPABILITY,
+            "http-trigger", "Receive orders at a custom HTTP endpoint", "", "receiveOrder", "",
+            "POST", "/orders", "", List.of("entry-1"))));
+  }
+
+  private static ResolvedCompilerDag typedSampleDag() {
+    var dag = sampleDag();
+    return new ResolvedCompilerDag(dag.nodes().stream().map(item -> node(
+        item.skillId().equals("cip-trigger-generator")
+            ? "cip-http-trigger-endpoint-generator" : item.skillId(),
+        item.consumes(), item.produces(), item.dependsOn().stream().map(dependency ->
+            dependency.equals("cip-trigger-generator")
+                ? "cip-http-trigger-endpoint-generator" : dependency).toList(),
+        item.topologicalLevel())).toList(), List.of(), "dag");
   }
 
   private static RequirementBrief briefFrom(ChainSemanticRevision revision) {

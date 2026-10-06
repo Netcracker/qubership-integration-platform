@@ -3,8 +3,6 @@ package org.qubership.integration.platform.ai.plan.workdocument;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Instant;
@@ -65,7 +63,7 @@ final class FillingWorld {
             "LOGICAL_FLOW",
             List.of(new StageSnapshot("LOGICAL_FLOW", StageStatus.RUNNING, List.of(), null)),
             null));
-    String text = Files.readString(fixture("fixtures/om-salesforce.md"));
+    String text = WorkFillingFixtures.read("om-salesforce.md");
     WorkSource source =
         new WorkSource(
             "src-om",
@@ -158,18 +156,8 @@ final class FillingWorld {
         new RetryPolicy(3, 250L));
   }
 
-  private static Path fixture(String suffix) {
-    Path module = Path.of("").toAbsolutePath();
-    Path sibling = module.resolve("../.scratch/progressive-chain-work-document").resolve(suffix);
-    if (Files.exists(sibling)) {
-      return sibling;
-    }
-    return module.resolve(".scratch/progressive-chain-work-document").resolve(suffix);
-  }
-
-  static String answerText() throws Exception {
-    return Files.readString(
-        fixture("after-10-document-filling/fixtures/process-id-answer.txt")).trim();
+  static String answerText() {
+    return WorkFillingFixtures.read("process-id-answer.txt").trim();
   }
 
   private static String sha256(String value) throws Exception {

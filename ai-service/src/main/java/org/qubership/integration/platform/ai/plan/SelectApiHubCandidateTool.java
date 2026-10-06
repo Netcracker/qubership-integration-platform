@@ -280,9 +280,12 @@ public class SelectApiHubCandidateTool {
 
   private static List<String> unresolvedInteractionIds(RequirementDraft draft) {
     return draft.flow().interactions().stream()
-        .filter(
-            interaction ->
-                RequirementFlowValidator.requiresCatalogBinding(interaction, draft.facts()))
+        .filter(interaction -> {
+          var lookup = RequirementFlowValidator.catalogLookupAction(interaction, draft.facts());
+          return lookup == RequirementFlowValidator.LookupAction.REQUIRE
+              || interaction.direction() == RequirementFlow.Direction.OUTBOUND
+                  && lookup == RequirementFlowValidator.LookupAction.ASK;
+        })
         .map(RequirementFlow.Interaction::interactionId)
         .filter(
             id ->
