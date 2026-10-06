@@ -9,7 +9,7 @@
  *
  * The archive layout is measured rather than assumed. `ExportService.zipChainFiles` writes every
  * entry under `chains/`, `getChainDirectory` is the chain id, and an export off the local stack
- * confirms `chains/<id>/<id>.chain.qip.yaml`. Services use `services/` and `.service.qip.yaml` the
+ * confirms `chains/<id>/<id>.chain.cip.yaml`. Services use `services/` and `.service.cip.yaml` the
  * same way, which `concurrent-service-import.spec.ts` already asserts against a live export.
  */
 import crypto from "node:crypto";
@@ -279,8 +279,8 @@ export type RenderedTree = Map<string, string>;
 
 /** The document kinds a fixture directory can hold, and how each is addressed in an archive. */
 const DOCUMENT_KINDS = {
-  chain: { parentDir: "chains", postfix: ".chain.qip.yaml" },
-  service: { parentDir: "services", postfix: ".service.qip.yaml" },
+  chain: { parentDir: "chains", postfix: ".chain.cip.yaml" },
+  service: { parentDir: "services", postfix: ".service.cip.yaml" },
 } as const;
 
 export type DocumentKind = keyof typeof DOCUMENT_KINDS;
@@ -390,8 +390,8 @@ function documentKindOf(schemaUrl: unknown, where: string): DocumentKind {
   if (typeof schemaUrl !== "string") {
     throw new Error(`${where}: no $schema, so the document kind is unknown`);
   }
-  // The exporter writes `.../chain` while the schema samples carry the schema's own `$id`,
-  // `.../chain.schema.yaml`. Both name the same kind, and both appear in tracked fixtures.
+  // The exporter writes `.../conf-model/chain`, and the frozen documents keep the old
+  // `.../qip/chain.schema.yaml`. Both name the same kind.
   const tail = schemaUrl.split("/").pop()!.replace(/\.schema\.yaml$/, "");
   if (tail in DOCUMENT_KINDS) return tail as DocumentKind;
   throw new Error(`${where}: $schema "${schemaUrl}" names no document kind this suite assembles`);

@@ -1,5 +1,5 @@
 id: "e2e50018-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-failures-unresolved"
 description: "A script that parses and names a class no library on the engine carries. The import\
   \ is what makes it a compile failure rather than a runtime one: Groovy resolves a dotted\

@@ -1,6 +1,6 @@
 ---
 id: "e2e0k003-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-missing-rabbitmq-exchange"
 description: "rabbitmq-sender-2 pointed at an exchange the brokers seed never declares. Spec-owned\
   \ (SPEC_OWNED_FIXTURES), so it sits outside the seed's corpus scan and ensureRabbitmqTopology\

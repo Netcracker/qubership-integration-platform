@@ -79,7 +79,7 @@ function idsOf(items: readonly CatalogItemV2[]): string[] {
 function rolloutChain(chainId: string, name: string, elementId: string, resourceName: string) {
   return {
     id: chainId,
-    $schema: "http://qubership.org/schemas/product/qip/chain",
+    $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain",
     name,
     content: {
       labels: [],
@@ -753,7 +753,7 @@ test("a rollout configuration under an unknown schema is dropped, and the packag
     randomUUID(),
     "script-unused.groovy",
   );
-  rejected.$schema = "http://qubership.org/schemas/product/qip/not-a-thing";
+  rejected.$schema = "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/not-a-thing";
 
   // A second package, well-formed, fired **after** the first. An absence is only an assertion once
   // something says the pipeline has run since; polling the rejected id alone would pass on its very

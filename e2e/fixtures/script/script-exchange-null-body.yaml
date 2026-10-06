@@ -1,5 +1,5 @@
 id: "e2e50003-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-exchange-null-body"
 description: "A null body in and out. The first script records what a request carrying no body at\
   \ all arrives as and then drops the body; the second records what the step after a setBody(null)\

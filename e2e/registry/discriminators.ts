@@ -17,7 +17,7 @@ import yaml from "js-yaml";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
-/** Everything `http://qubership.org/schemas/product/qip/` resolves against. */
+/** The tree every `SCHEMA_BASE_URL` id resolves into, as `<id path>.schema.yaml`. */
 export const QIP_MODEL_DIR = path.resolve(
   HERE,
   "../../schemas/src/main/resources/qip-model",
@@ -26,8 +26,11 @@ export const QIP_MODEL_DIR = path.resolve(
 /** The canonical element schemas. A caller may point the extractor somewhere else. */
 export const ELEMENT_SCHEMA_DIR = path.join(QIP_MODEL_DIR, "element");
 
-/** The prefix every schema `$id` in `QIP_MODEL_DIR` carries. */
-export const SCHEMA_BASE_URL = "http://qubership.org/schemas/product/qip/";
+/**
+ * The prefix every schema `$id` in `QIP_MODEL_DIR` carries; the rest of the id is the file path
+ * without `.schema.yaml`.
+ */
+export const SCHEMA_BASE_URL = "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/";
 
 export type SchemaValue = string | number | boolean | null;
 
@@ -56,14 +59,14 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 // Resolution
 // ---------------------------------------------------------------------------
 
-function qubershipResolver(modelDir: string) {
+function confModelResolver(modelDir: string) {
   return {
     order: 2,
     canRead: (file: { url: string }) => file.url.startsWith(SCHEMA_BASE_URL),
     read(file: { url: string }) {
       const absPath = path.resolve(
         modelDir,
-        file.url.slice(SCHEMA_BASE_URL.length),
+        `${file.url.slice(SCHEMA_BASE_URL.length)}.schema.yaml`,
       );
       // `ELEMENT_SCHEMA_DIR` is overridable through `E2E_ELEMENT_SCHEMA_DIR`, which is how the
       // mutation seam works, so the tree being resolved is not always the tracked one. A `$ref`
@@ -95,7 +98,7 @@ const ignoreMapperResolver = {
   order: 1,
   canRead: (file: { url: string }) =>
     file.url ===
-    `${SCHEMA_BASE_URL}element/properties/mapper-description.schema.yaml`,
+    `${SCHEMA_BASE_URL}element/properties/mapper-description`,
   read: () => ({ type: "object" }),
 };
 
@@ -129,7 +132,7 @@ async function resolveElementSchema(
     resolve: {
       ignoreSchema: ignoreSchemaResolver,
       ignoreMapperResolver,
-      qubership: qubershipResolver(modelDir),
+      confModel: confModelResolver(modelDir),
       file: true,
       http: false,
     },

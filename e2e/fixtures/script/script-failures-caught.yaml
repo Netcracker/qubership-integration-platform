@@ -1,5 +1,5 @@
 id: "e2e50013-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-failures-caught"
 description: "A script that dereferences null inside a Try branch. The catch branch reads\
   \ CamelExceptionCaught and reports the class and the message the Groovy runtime raised, so the\

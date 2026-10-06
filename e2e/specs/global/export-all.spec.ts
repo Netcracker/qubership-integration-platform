@@ -40,7 +40,7 @@ function errorMessageOf(body: string): string {
 
 test("the export of everything carries a chain exactly as its own export does", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
   const chain = await catalog.createChain(tokenized(run, "export-all"), folder.id, "in both");
-  const entry = `chains/${chain.id}/${chain.id}.chain.qip.yaml`;
+  const entry = `chains/${chain.id}/${chain.id}.chain.cip.yaml`;
 
   const everything = await catalog.exportAllChains();
   const mine = await optionalEntryText(everything, entry);

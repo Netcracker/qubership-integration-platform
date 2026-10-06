@@ -1,0 +1,57 @@
+---
+id: "e2e00026-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-split-async"
+description: "Split Async with two branches. The flow answers without waiting for them, so the\
+  \ response comes from the step after the split and only the trace shows the branches ran. The\
+  \ second branch sleeps three seconds, so the answer arrives before it ends."
+content:
+  labels: []
+  elements:
+  - id: "e2e00026-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-split-async"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00026-0000-4000-8000-000000000003"
+    name: "Split Async"
+    type: "split-async-2"
+    children:
+    - id: "e2e00026-0000-4000-8000-000000000004"
+      name: "First Async Branch"
+      type: "async-split-element-2"
+      children:
+      - id: "e2e00026-0000-4000-8000-000000000005"
+        name: "First Async Script"
+        type: "script"
+        properties:
+          script: "exchange.getMessage().setBody('{\"branch\":\"first\"}')"
+    - id: "e2e00026-0000-4000-8000-000000000006"
+      name: "Second Async Branch"
+      type: "async-split-element-2"
+      children:
+      - id: "e2e00026-0000-4000-8000-000000000007"
+        name: "Second Async Script"
+        type: "script"
+        properties:
+          script: "Thread.sleep(3000)\nexchange.getMessage().setBody('{\"branch\":\"second\"}')"
+  - id: "e2e00026-0000-4000-8000-000000000008"
+    name: "After Split"
+    type: "script"
+    properties:
+      script: "exchange.getMessage().setBody('{\"split\":\"answered\"}')"
+  dependencies:
+  - from: "e2e00026-0000-4000-8000-000000000002"
+    to: "e2e00026-0000-4000-8000-000000000003"
+  - from: "e2e00026-0000-4000-8000-000000000003"
+    to: "e2e00026-0000-4000-8000-000000000008"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

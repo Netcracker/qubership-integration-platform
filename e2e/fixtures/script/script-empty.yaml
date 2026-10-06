@@ -1,5 +1,5 @@
 id: "e2e50016-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-empty"
 description: "A whitespace-only script, which is the one fixture in this corpus that carries no\
   \ comment line of its own: a comment would make it a script. It is unique anyway, because the\
