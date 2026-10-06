@@ -30,7 +30,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
             ClassicHttpRequest alteredRequest;
             try {
                 alteredRequest = buildRequest(request, SecurityConfiguration.getDefaultM2MToken());
-                log.debug("Sending request to {} with kubernetes token", request.getRequestUri());
+                log.info("Sending request to {} with kubernetes token", request.getRequestUri());
             } catch (IllegalStateException | IllegalArgumentException e) {
                 log.warn("Error acquiring kubernetes token for m2m communication", e);
 
@@ -40,7 +40,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
 
             ClassicHttpResponse response = chain.proceed(alteredRequest, scope);
             if (response.getCode() == 401) {
-                log.debug("Failed to establish m2m connection to {} with kubernetes token. Cause: 401 Unauthorized",
+                log.info("Failed to establish m2m connection to {} with kubernetes token. Cause: 401 Unauthorized",
                         request.getRequestUri());
                 response.close();
 
@@ -51,7 +51,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
         }
 
         ClassicHttpRequest fallbackRequest = buildRequest(request, SecurityConfiguration.getOldM2MToken());
-        log.debug("Sending request to {} with keycloak token", fallbackRequest.getRequestUri());
+        log.info("Sending request to {} with keycloak token", fallbackRequest.getRequestUri());
         return chain.proceed(fallbackRequest, scope);
     }
 
@@ -61,7 +61,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
             ExecChain chain,
             String cacheKey
     ) throws HttpException, IOException {
-        log.debug("Sending request to {} with keycloak token", fallbackRequest.getRequestUri());
+        log.info("Sending request to {} with keycloak token", fallbackRequest.getRequestUri());
         ClassicHttpResponse fallbackResponse = chain.proceed(fallbackRequest, scope);
         if (isResponseSuccessful(fallbackResponse)) {
             urlCache.store(cacheKey);
