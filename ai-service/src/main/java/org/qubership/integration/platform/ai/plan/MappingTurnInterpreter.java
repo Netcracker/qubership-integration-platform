@@ -107,6 +107,16 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
       RequirementBrief brief,
       String authorMessage,
       boolean omitMissingAdditions) {
+    if (brief != null && capture != null && capture.outcome() == Kind.STRUCTURAL_REMINDER) {
+      var approvedRefs = brief.facts().stream().map(RequirementFact::elementIntent)
+          .filter(Objects::nonNull)
+          .filter(intent -> intent.placement() == RequirementElementIntent.Placement.LOCAL_NODE
+              || intent.placement() == RequirementElementIntent.Placement.BEFORE_HOOK
+              || intent.placement() == RequirementElementIntent.Placement.AFTER_HOOK)
+          .map(RequirementElementIntent::elementRef).collect(java.util.stream.Collectors.toSet());
+      return capture.candidates().isEmpty() || !approvedRefs.containsAll(capture.candidates())
+          ? MappingTurnResult.changes() : new MappingTurnResult.StructuralReminder(capture.candidates());
+    }
     RequirementFlow flow = brief == null ? null : brief.flow();
     List<MappingIntent> intents = brief == null ? List.of() : brief.mappingIntents();
     return fromCapture(capture, flow, intents, authorMessage, omitMissingAdditions);
@@ -594,10 +604,13 @@ public class MappingTurnInterpreter implements MappingTurnAdapter {
   }
 
   static String renderIntents(RequirementBrief brief) {
-    if (brief == null || brief.mappingIntents().isEmpty()) {
+    if (brief == null) {
       return "(none)";
     }
-    StringBuilder sb = new StringBuilder();
+    StringBuilder sb = new StringBuilder("Approved element intent (not mapping transitions):\n");
+    brief.facts().stream().filter(fact -> fact.elementIntent() != null).forEach(fact ->
+        sb.append("- ").append(fact.elementIntent()).append("\n"));
+    sb.append("Current mapping intents:\n");
     for (MappingIntent intent : brief.mappingIntents()) {
       sb.append("- mappingIntentId=")
           .append(intent.mappingIntentId())

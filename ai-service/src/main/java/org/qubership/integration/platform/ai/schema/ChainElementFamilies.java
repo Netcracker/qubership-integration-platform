@@ -58,6 +58,12 @@ public final class ChainElementFamilies {
   private ChainElementFamilies() {
   }
 
+  /** Branch containers are projected from semantic regions, not authored as execution steps. */
+  public static boolean isProjectedRegionShell(String type) {
+    return ROUTING_BRANCH_CHILDREN.contains(type) || PARALLEL_BRANCH_CHILDREN.contains(type)
+        || TRY_CATCH_SHELL.contains(type);
+  }
+
   public static boolean isTrigger(String type) {
     return contains(TRIGGERS, type);
   }

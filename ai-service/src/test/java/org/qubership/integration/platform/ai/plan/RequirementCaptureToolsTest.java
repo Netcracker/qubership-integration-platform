@@ -37,6 +37,104 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureToolsTest {
 
   @Test
+  void legacySchemaCannotAuthorizeAnUnsupportedCompilerType() throws Exception {
+    assertTrue(new org.qubership.integration.platform.ai.schema.SchemaResourceLoader()
+        .existsElementSchema("split-async"));
+    var store = new RequirementDraftStore();
+    var adapter = mock(RequirementDraftTool.class);
+    when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var tools = new RequirementCaptureTools(store, adapter, mapper);
+    String chat = "compiler-type-" + UUID.randomUUID();
+    store.beginTurn(chat, "Create one asynchronous split.");
+    try (var ignored = ToolSession.open(chat)) {
+      for (String type : List.of("split-async", "if", "else", "async-split-element-2", "catch-2", "split-async-2")) {
+        var intent = new RequirementElementIntent("split", type, RequirementElementIntent.Placement.LOCAL_NODE,
+            "entry", null, "entry", null, List.of(), List.of());
+        var input = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+            "Caller", "GET /check", null, null, null)), List.of()),
+            List.of(new FactInput("split-config", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+                "Create one asynchronous split.", null, null, intent)),
+            List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/check",
+                null, null, null)), List.of(), new DraftSettings(null, null));
+        var result = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+        assertEquals(type.equals("split-async-2"), result.accepted(), result.issues().toString());
+        if (!result.accepted()) {
+          assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNSUPPORTED_COMPILER_ELEMENT_TYPE")));
+          assertTrue(store.get(chat).isEmpty());
+        } else {
+          assertEquals(intent, store.get(chat).orElseThrow().authoredDraft().facts().getFirst().elementIntent());
+        }
+      }
+    }
+  }
+
+  @Test
+  void invalidConsumerKeyCanBeRepairedWithoutLosingTheRequestedGroup() throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), "Consume tasks using Kafka consumer group CIP.");
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      for (String key : List.of("consumerGroupId", "integrationOperationAsyncProperties")) {
+        var intent = new RequirementElementIntent("entry", "async-api-trigger",
+            RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null,
+            List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty(key,
+                key.equals("consumerGroupId") ? "CIP" : "{\"groupId\":\"CIP\"}")), List.of());
+        var draft = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+            "Kafka", "onTaskStart", null, null, null)), List.of()),
+            List.of(new FactInput("consumer", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+                "Consume tasks using Kafka consumer group CIP.", null, null, intent)),
+            List.of(new CapabilityInput("entry", "async-api-trigger", null, null, null,
+                null, null, null)), List.of(), new DraftSettings(null, null));
+        var result = h.mapper().readValue(h.tools().captureRequirementDraft(draft), RequirementCaptureResult.class);
+        if (key.equals("consumerGroupId")) {
+          assertFalse(result.accepted());
+          assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("INVALID_REQUESTED_PROPERTY")
+              && issue.message().contains("integrationOperationAsyncProperties")), result.issues().toString());
+        } else {
+          assertTrue(result.accepted(), result.issues().toString());
+          assertEquals(intent, h.store().get(h.conversationId()).orElseThrow()
+              .authoredDraft().facts().getFirst().elementIntent());
+        }
+      }
+    }
+  }
+
+  @Test
+  void alteredLiteralCannotBeCapturedAsAnExactAuthorValue() throws Exception {
+    var store = new RequirementDraftStore();
+    var adapter = mock(RequirementDraftTool.class);
+    when(adapter.canonicalBindings(any(), nullable(RequirementDraft.class), anyString())).thenReturn(List.of());
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var tools = new RequirementCaptureTools(store, adapter, mapper);
+    String chat = "literal-source-" + UUID.randomUUID();
+    store.beginTurn(chat, "Respond with {\"error\":\"test-header incorrect value\"}.");
+    var wrong = new RequirementElementIntent("set-error", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, null, List.of(), List.of("{\"error\":\"test-header incorrect values\"}"));
+    var input = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND, "Caller",
+        "GET /check", null, null, null)), List.of()), List.of(new FactInput("error-body", List.of("entry"),
+            FactKind.BEHAVIOR, Polarity.POSITIVE, "Respond with {\"error\":\"test-header incorrect values\"}", null, null, wrong)),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET, "/check",
+            null, null, null)), List.of(), new DraftSettings(null, null));
+    try (var ignored = ToolSession.open(chat)) {
+      var result = mapper.readValue(tools.captureRequirementDraft(input), RequirementCaptureResult.class);
+      assertFalse(result.accepted());
+      assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("ELEMENT_LITERAL_SOURCE_MISMATCH")));
+      assertTrue(store.get(chat).isEmpty());
+      String literal = "{\"error\":\"test-header incorrect value\"}";
+      var correct = new RequirementElementIntent(wrong.elementRef(), wrong.elementType(), wrong.placement(),
+          wrong.ownerInteractionId(), null, null, null, List.of(), List.of(literal));
+      var accepted = mapper.readValue(tools.captureRequirementDraft(new DraftInput(input.flow(),
+          List.of(new FactInput("error-body", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+              "Respond with " + literal, null, null, correct)), input.capabilities(), input.openQuestions(),
+          input.settings())), RequirementCaptureResult.class);
+      assertTrue(accepted.accepted(), accepted.issues().toString());
+      assertEquals(correct, store.get(chat).orElseThrow().authoredDraft().facts().getFirst().elementIntent());
+    }
+  }
+
+  @Test
   void asksWhichFolderWhenTheNameMatchesSeveral() throws Exception {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraftTool bindingAdapter = mock(RequirementDraftTool.class);

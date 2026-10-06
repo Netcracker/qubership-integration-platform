@@ -92,6 +92,10 @@ public class ChainSemanticCaptureTool {
 
   @Tool(value = """
       Capture the chain topology for this design-input turn.
+      Split branches are metadata in splitRegions. Their entryNodeId and exitNodeIds refer to
+      executable work. The server creates branch containers. A requested Split with three Script
+      branches uses one split-2 owner, three script operations, and three branch metadata entries.
+      Leave containment empty for those branches; connect the owner to their work with SPLIT_BRANCH.
       Do not pass conversationId. The server binds capture to the current design session.
       Copy sourceFactIds and mappingIntentId from the approved requirement brief. Do not mint
       occurrence ids. External interaction anchors are server-owned. Reference these node ids
@@ -106,6 +110,10 @@ public class ChainSemanticCaptureTool {
       and compiler contract versions, and leave out catalog values it reads from the brief.
       List each internal node you do author under operations, and each control-flow region
       under the list that matches its kind; omit the region lists when the chain is linear.
+      Each operations item requires nodeId and elementType, for example
+      {"nodeId":"approved-processing-id","elementType":"script","sourceFactIds":["approved-fact-id"]}.
+      Each edge requires sourceNodeId and targetNodeId. For a region, fill its owner and
+      branch/body entry fields from the actual topology; a regionId alone is insufficient.
       Submit one candidate per runtime attempt, then finish the turn. If rejected, return
       the findings; the runtime supplies them on a bounded regeneration attempt.""",
       returnBehavior = ReturnBehavior.IMMEDIATE)

@@ -399,6 +399,36 @@ class CompilerSkillRuntimeTest {
   }
 
   @Test
+  void executionRepairUsesFreshSkillMemoryWithoutChangingKnowledgeRetrieval() {
+    String approvedTask = "Return the greeting from the approved HTTP entry.";
+    String repair = "\n\nRepair evidence for " + GENERATOR_ID + ":\nCONTRACT_SHAPE: INVALID_JSON";
+    when(generatorAgent.chat(eq(memoryId(GENERATOR_ID)), any()))
+        .thenAnswer(invocation -> {
+          putGraphPatch(GENERATOR_ID,
+              GraphPatchFixtures.wrapHttpTriggerFlow("http-trigger-1", "script-1"));
+          return Multi.createFrom().empty();
+        });
+    SkillRunContext context = new SkillRunContext(
+        CONVERSATION_ID, GENERATOR_ID, QipKnowledgePackFixturePaths.PACK_DIR,
+        SkillSubgraph.BUILD_CHAIN, 3, false, approvedTask, repair);
+    SkillWorkspace workspace = workspaceWithGraph(greetingsGraph());
+    workspace.put(SkillArtifact.of(SkillArtifactType.REQUIREMENT_BRIEF, "approved",
+        new SkillArtifactPayload.RequirementBriefPayload(
+            new RequirementBrief("Greeting", List.of(), List.of(), List.of(), List.of(), "Greeting")
+                .withApprovedDraftText(approvedTask))));
+
+    runtime.runStreaming(context, workspace, GENERATOR_ID)
+        .collect().asList().await().indefinitely();
+
+    ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+    verify(generatorAgent).chat(eq(memoryId(GENERATOR_ID)), message.capture());
+    assertTrue(message.getValue().contains(approvedTask));
+    assertTrue(message.getValue().contains(repair));
+    assertEquals(approvedTask, knowledgeClient.lastContextRequest().requestText());
+    verify(chatMemorySanitizer).clear(memoryId(GENERATOR_ID));
+  }
+
+  @Test
   void sanitizesMemoryBeforeRepairRetryAfterTerminalGraphPatchValidation() {
     AtomicInteger agentCalls = new AtomicInteger();
     when(generatorAgent.chat(eq(memoryId(GENERATOR_ID)), any()))

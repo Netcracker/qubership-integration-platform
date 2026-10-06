@@ -42,6 +42,8 @@ public class RequirementCaptureTools {
   private final CaptureAttemptFeedbackStore feedbackStore;
   private final RequirementTargetResolver targetResolver;
   private final CatalogFolders catalogFolders;
+  @Inject org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService elementSchemas;
+  @Inject org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
 
   @Inject
   public RequirementCaptureTools(
@@ -305,6 +307,8 @@ public class RequirementCaptureTools {
     List<Issue> preferenceIssues = RequirementPreferenceEvidence.validate(
         input, previous, store.currentAuthorText(conversationId).orElse(null),
         previous == null || previous.authoredDraft() == null ? "/draft" : "/changes");
+    preferenceIssues = new ArrayList<>(preferenceIssues);
+    preferenceIssues.addAll(validateElementEvidence(conversationId, input, previous));
     if (!preferenceIssues.isEmpty()) {
       if (previous == null || previous.authoredDraft() == null) {
         store.rememberRejectedCaptureFacts(conversationId,
@@ -335,6 +339,81 @@ public class RequirementCaptureTools {
     store.markCaptured(conversationId);
     ProductCapabilityCaptureContext.offerDraft(draft);
     return view(draft, true, true, List.of());
+  }
+
+  private List<Issue> validateElementEvidence(String conversationId, DraftInput input, RequirementDraft previous) {
+    List<Issue> issues = new ArrayList<>();
+    String authorText = store.currentAuthorText(conversationId).orElse(null);
+    if (conversations != null) {
+      authorText = conversations.archive().read(conversationId).activeTurns().stream()
+          .filter(turn -> turn.message().role()
+              == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER)
+          .map(turn -> turn.message().content()).collect(Collectors.joining("\n"));
+    }
+    for (FactInput fact : input.facts()) {
+      var intent = fact.elementIntent();
+      if (intent == null) {
+        continue;
+      }
+      String path = "/draft/facts/" + fact.sourceFactId() + "/elementIntent";
+      if (intent.placement() != RequirementElementIntent.Placement.CHAIN
+          && !RequirementCaptureSchemas.COMPILER_ELEMENT_TYPES.contains(intent.elementType())) {
+        issues.add(new Issue("UNSUPPORTED_COMPILER_ELEMENT_TYPE", path, fact.sourceFactId(),
+            "Use an element type from the capture schema's compiler contract enum. A legacy schema's existence"
+                + " does not make that type an execution step. Branch containers come from semantic regions; capture their"
+                + " policy as facts on the owning control element. Preserve the fact and correct its elementIntent."));
+        continue;
+      }
+      if (elementSchemas != null && intent.placement() != RequirementElementIntent.Placement.CHAIN) {
+        if (!elementSchemas.hasElementSchema(intent.elementType())) {
+          issues.add(new Issue("UNKNOWN_ELEMENT_TYPE", path, fact.sourceFactId(),
+              "Use an existing compiler element type."));
+          continue;
+        }
+        var keys = elementSchemas.allowedPatchPropertyKeys(intent.elementType());
+        var used = new java.util.HashSet<String>();
+        for (var property : intent.requestedProperties()) {
+          if (property == null || !keys.contains(property.key()) || !used.add(property.key())
+              || property.key().endsWith("Id") && property.key().startsWith("integration")) {
+            issues.add(new Issue("INVALID_REQUESTED_PROPERTY", path, fact.sourceFactId(),
+                "Use unique runtime property keys: " + String.join(", ", new java.util.TreeSet<>(keys))
+                    + ". Catalog identity belongs to the resolver. Correct the key or encoding without dropping"
+                    + " the author setting."
+                    + ("async-api-trigger".equals(intent.elementType())
+                        ? " For Kafka consumer options, use integrationOperationAsyncProperties with a JSON object"
+                            + " value, for example {\"groupId\":\"CIP\"}." : "")));
+          } else {
+            elementSchemas.validateCapturePropertyValue(intent.elementType(), property.key(),
+                mapper.valueToTree(elementSchemas.coercePatchPropertyValue(
+                    intent.elementType(), property.key(), property.value())))
+                .ifPresent(error -> issues.add(new Issue("INVALID_REQUESTED_PROPERTY", path,
+                    fact.sourceFactId(), error)));
+          }
+        }
+      }
+      boolean unchanged = previous != null && previous.authoredDraft() != null
+          && previous.authoredDraft().facts().stream().anyMatch(prior ->
+              prior.sourceFactId().equals(fact.sourceFactId()) && Objects.equals(prior.elementIntent(), intent));
+      if (authorText != null && !unchanged) {
+        for (String literal : intent.exactValues()) {
+          if (literal != null && !fact.text().contains(literal)) {
+            issues.add(new Issue("ELEMENT_LITERAL_FACT_MISMATCH", path, fact.sourceFactId(),
+                "Keep each exactValues literal unchanged in this fact text."));
+          }
+        }
+        List<String> literals = new ArrayList<>(intent.exactValues());
+        if (intent.requestedName() != null) {
+          literals.add(intent.requestedName());
+        }
+        for (String literal : literals) {
+          if (literal == null || literal.isBlank() || !authorText.contains(literal)) {
+            issues.add(new Issue("ELEMENT_LITERAL_SOURCE_MISMATCH", path, fact.sourceFactId(),
+                "Copy names and exactValues verbatim from an author source. Generated suggestions are not requested names."));
+          }
+        }
+      }
+    }
+    return issues;
   }
 
   private RequirementCaptureResult view(

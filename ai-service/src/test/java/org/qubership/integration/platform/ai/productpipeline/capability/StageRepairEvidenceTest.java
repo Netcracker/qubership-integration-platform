@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
@@ -108,6 +109,53 @@ class StageRepairEvidenceTest {
     assertFalse(
         StageRepairEvidence.isCleanDesignPlanRebuild(
             selected, StageRepairEvidence.from(selected)));
+  }
+
+  @Test
+  void executionRepairReachesOnlyTheFailedSkillWithoutRawArguments() {
+    StageExecutionContext context = contextWithAttributes(Map.of(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "MALFORMED_ARGUMENT " + "CIP:GEN-000005 ".repeat(4000),
+        ProductPipelineRunSupport.STAGE_ERROR_OUTCOME_ATTR, "CONTRACT_FAILURE",
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-execution",
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR, "cip-error-handling-generator",
+        ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "INVALID_JSON at /patch",
+        ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR, "CONTRACT_SHAPE",
+        ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR, "evidence-1"));
+    StageRepairEvidence evidence = StageRepairEvidence.from(context);
+
+    String repair = evidence.repairTextForSkill("cip-error-handling-generator");
+
+    assertTrue(repair.contains("INVALID_JSON at /patch"));
+    assertTrue(repair.contains("CONTRACT_SHAPE"));
+    assertTrue(repair.contains("evidence-1"));
+    assertFalse(repair.contains("MALFORMED_ARGUMENT"));
+    assertFalse(repair.contains("CIP:GEN-000005"));
+    assertEquals("", evidence.repairTextForSkill("cip-naming-generator"));
+    assertEquals("", evidence.repairTextForSkill("cip-transformation-generator"));
+    assertTrue(evidence.errorEvidence().contains("MALFORMED_ARGUMENT"));
+  }
+
+  @Test
+  void aLegacyShapeFailureGetsCorrectiveGuidanceWithoutItsRejectedArguments() {
+    StageRepairEvidence evidence = new StageRepairEvidence(
+        "CONTRACT_FAILURE", "design-execution", "", "params 'broken JSON'", "",
+        "evidence-legacy", List.of(), "cip-naming-generator", "CONTRACT_SHAPE");
+
+    String repair = evidence.repairTextForSkill("cip-naming-generator");
+
+    assertTrue(repair.contains("Tool arguments could not be decoded"));
+    assertTrue(repair.contains("active capture tool schema"));
+    assertFalse(repair.contains("broken JSON"));
+  }
+
+  @Test
+  void staleSemanticFailureCannotBecomeCompilerRepairEvidence() {
+    StageRepairEvidence evidence = StageRepairEvidence.from(contextWithAttributes(Map.of(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "semantic capture rejected",
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-input",
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR, "cip-naming-generator")));
+
+    assertEquals("", evidence.repairTextForSkill("cip-naming-generator"));
   }
 
   @Test

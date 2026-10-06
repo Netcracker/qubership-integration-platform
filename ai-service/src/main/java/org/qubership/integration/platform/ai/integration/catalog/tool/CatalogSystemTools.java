@@ -103,15 +103,23 @@ public class CatalogSystemTools {
     }
   }
 
+  public String listCatalogOperations(
+      String specificationId, String systemId, String searchFilter, String memoryId) {
+    return listCatalogOperations(specificationId, systemId, searchFilter, null, memoryId);
+  }
+
   @Tool("List operations for a catalog specification. Use specificationId (model id) returned by"
       + " getApiSpecifications. Optional searchFilter for name substring. This listing does not"
       + " bind an interaction; call resolveApiOperation with the interactionId from the stored"
       + " RequirementFlow to record the match. Returns JSON:"
-      + " { ok, tool, message, data: OperationDto[] }.")
+      + " Summaries omit schemas. Returns JSON: { ok, tool, message, data, total, complete, nextOffset }."
+      + " If complete is false, continue with nextOffset as offset or use resolveApiOperation,"
+      + " which searches the complete catalog without paging.")
   public String listCatalogOperations(
       @P("Specification UUID from getApiSpecifications result") String specificationId,
       @P("Optional system UUID for context") String systemId,
       @P("Optional name filter substring") String searchFilter,
+      @P("Listing offset; null or 0 starts a new listing, otherwise use nextOffset") Integer offset,
       @ToolMemoryId String memoryId) {
     long startMs = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(
@@ -126,7 +134,7 @@ public class CatalogSystemTools {
             + searchFilter);
     try {
       String out = readSupport.listCatalogOperationsJson(
-          CompilerSkillMemoryIds.conversationId(memoryId), specificationId, systemId, searchFilter);
+          CompilerSkillMemoryIds.conversationId(memoryId), specificationId, systemId, searchFilter, offset);
       support.logCatalogToolDone(CatalogSystemToolNames.OPS, out);
       ToolTraceLog.logToolComplete(
           LOG, CatalogSystemToolNames.OPS, null, System.currentTimeMillis() - startMs, out);

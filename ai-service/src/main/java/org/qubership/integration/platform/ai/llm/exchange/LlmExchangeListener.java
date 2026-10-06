@@ -24,8 +24,11 @@ public class LlmExchangeListener implements ChatModelListener {
 
   static final String LOGGER_NAME = "org.qubership.integration.platform.ai.llm.exchange";
   static final String START_TIME_KEY = "llmExchangeStartMs";
+  static final String CONTEXT_KEY = "llmExchangeContext";
+  static final String EXCHANGE_ID_KEY = "llmExchangeId";
 
   private static final Logger LOG = Logger.getLogger(LOGGER_NAME);
+  private static final Logger CAPTURE_LOG = Logger.getLogger(LOGGER_NAME + ".capture");
 
   private final AppConfig appConfig;
   private final LlmExchangeFormatter formatter;
@@ -42,10 +45,15 @@ public class LlmExchangeListener implements ChatModelListener {
       return;
     }
     requestContext.attributes().put(START_TIME_KEY, System.currentTimeMillis());
-    LOG.info("model=" + appConfig.llm().modelName() + " "
+    var context = readMdcContext();
+    String exchangeId = java.util.UUID.randomUUID().toString();
+    requestContext.attributes().put(CONTEXT_KEY, context);
+    requestContext.attributes().put(EXCHANGE_ID_KEY, exchangeId);
+    CAPTURE_LOG.info(formatter.requestCapture(requestContext.chatRequest(), appConfig.llm().baseUrl(), exchangeId, context));
+    LOG.info("exchangeId=" + exchangeId + " model=" + appConfig.llm().modelName() + " "
         + formatter.formatRequest(
             requestContext.chatRequest().messages(),
-            readMdcContext(),
+            context,
             -1,
             appConfig.llm().exchange().maxChars()));
   }
@@ -55,10 +63,14 @@ public class LlmExchangeListener implements ChatModelListener {
     if (!appConfig.llm().exchange().enabled()) {
       return;
     }
-    LOG.info("model=" + appConfig.llm().modelName() + " "
+    CAPTURE_LOG.info(formatter.responseCapture(responseContext.chatResponse(),
+        String.valueOf(responseContext.attributes().get(EXCHANGE_ID_KEY)),
+        exchangeContext(responseContext.attributes()), durationMs(responseContext.attributes())));
+    LOG.info("exchangeId=" + responseContext.attributes().get(EXCHANGE_ID_KEY)
+        + " model=" + appConfig.llm().modelName() + " "
         + formatter.formatResponse(
             responseContext.chatResponse(),
-            readMdcContext(),
+            exchangeContext(responseContext.attributes()),
             durationMs(responseContext.attributes()),
             appConfig.llm().exchange().maxChars()));
   }
@@ -68,9 +80,17 @@ public class LlmExchangeListener implements ChatModelListener {
     if (!appConfig.llm().exchange().enabled()) {
       return;
     }
-    LOG.error("model=" + appConfig.llm().modelName() + " "
+    CAPTURE_LOG.info(formatter.errorCapture(errorContext.error(),
+        String.valueOf(errorContext.attributes().get(EXCHANGE_ID_KEY)),
+        exchangeContext(errorContext.attributes()), durationMs(errorContext.attributes())));
+    LOG.error("exchangeId=" + errorContext.attributes().get(EXCHANGE_ID_KEY)
+        + " model=" + appConfig.llm().modelName() + " "
         + formatter.formatError(
-            readMdcContext(), durationMs(errorContext.attributes()), errorContext.error()));
+            exchangeContext(errorContext.attributes()), durationMs(errorContext.attributes()), errorContext.error()));
+  }
+
+  static LlmExchangeMdcContext exchangeContext(java.util.Map<Object, Object> attributes) {
+    return attributes.get(CONTEXT_KEY) instanceof LlmExchangeMdcContext context ? context : readMdcContext();
   }
 
   static LlmExchangeMdcContext readMdcContext() {

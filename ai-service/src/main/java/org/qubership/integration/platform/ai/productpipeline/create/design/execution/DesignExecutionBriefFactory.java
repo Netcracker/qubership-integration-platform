@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
-import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -32,67 +31,16 @@ public final class DesignExecutionBriefFactory {
   }
 
   /**
-   * Same brief, plus the halt evidence and the chain-plan graph the failing attempt produced.
-   * {@code repairEvidence} and {@code priorGraph} are null on a first turn, in which case this
-   * returns exactly what {@link #build(RequirementBrief, ChainSemanticRevision)} does.
+   * Keeps approved context separate from repair evidence. The execution request carries repair
+   * evidence to the failing skill; it must never become part of the approved task.
    */
+  @SuppressWarnings("java:S1172")
   public static RequirementBrief build(
       RequirementBrief storedBrief,
       ChainSemanticRevision revision,
       StageRepairEvidence repairEvidence,
       ChainPlanGraph priorGraph) {
-    RequirementBrief brief = build(storedBrief, revision);
-    if (repairEvidence == null || !repairEvidence.hasEvidence()) {
-      return brief;
-    }
-    return brief.withApprovedDraftText(
-        withRepairEvidence(brief.approvedDraftText(), repairEvidence, priorGraph));
-  }
-
-  private static String withRepairEvidence(
-      String draftText, StageRepairEvidence repair, ChainPlanGraph priorGraph) {
-    StringBuilder sb = new StringBuilder();
-    sb.append(
-        "Repair the previous design-execution attempt. Correct the step named below instead of "
-            + "regenerating the whole chain.\n\n");
-    sb.append("Halt repair evidence:\n");
-    if (repair.outcomeClass() != null && !repair.outcomeClass().isBlank()) {
-      sb.append("- outcomeClass: ").append(repair.outcomeClass().trim()).append('\n');
-    }
-    if (repair.failedStageId() != null && !repair.failedStageId().isBlank()) {
-      sb.append("- failedStageId: ").append(repair.failedStageId().trim()).append('\n');
-    }
-    if (repair.findings() != null && !repair.findings().isBlank()) {
-      sb.append("- validationFindings:\n").append(repair.findings().trim()).append('\n');
-    }
-    if (repair.errorEvidence() != null && !repair.errorEvidence().isBlank()) {
-      sb.append("- errorEvidence:\n").append(repair.errorEvidence().trim()).append('\n');
-    }
-    if (repair.haltFollowUpText() != null && !repair.haltFollowUpText().isBlank()) {
-      sb.append("- haltFollowUpText: ").append(repair.haltFollowUpText().trim()).append('\n');
-    }
-    if (priorGraph != null) {
-      sb.append("\nPrior chain plan graph:\n").append(formatPriorGraph(priorGraph)).append('\n');
-    }
-    sb.append('\n').append(draftText == null ? "" : draftText);
-    return sb.toString();
-  }
-
-  private static String formatPriorGraph(ChainPlanGraph graph) {
-    StringBuilder body = new StringBuilder();
-    for (ChainPlanNode node : graph.nodes()) {
-      if (node == null) {
-        continue;
-      }
-      body.append("- ")
-          .append(node.nodeId())
-          .append(" [")
-          .append(node.type())
-          .append("] ")
-          .append(node.label() == null ? "" : node.label())
-          .append('\n');
-    }
-    return body.toString().trim();
+    return build(storedBrief, revision);
   }
 
   private static RequirementBrief enrich(
@@ -116,7 +64,7 @@ public final class DesignExecutionBriefFactory {
             brief.requirements(),
             brief.mappingIntents(),
             brief.flow(),
-            brief.catalogBindings()));
+            brief.catalogBindings()).withTargetFolderPath(brief.targetFolderPath()));
   }
 
   private static RequirementBrief fromRevision(ChainSemanticRevision revision) {

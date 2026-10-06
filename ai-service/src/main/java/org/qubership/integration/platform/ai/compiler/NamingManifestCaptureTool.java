@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.compiler;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.langchain4j.agent.tool.Tool;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -21,11 +22,11 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeC
 @ApplicationScoped
 public class NamingManifestCaptureTool {
 
-  public record RoleLabel(String roleId, String label) {}
+  public record RoleLabel(@JsonProperty(required = true) String roleId, @JsonProperty(required = true) String label) {}
 
   public record NamingCapture(
       int schemaVersion,
-      String chainName,
+      @JsonProperty(required = true) String chainName,
       List<RoleLabel> labels,
       List<String> sourceRequirementFactIds,
       List<QipKnowledgeCitation> knowledgeCitations) {}

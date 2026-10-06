@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
@@ -27,7 +28,8 @@ import java.util.Optional;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ChainPlanNode(
-    @Description("Unique node id within the plan graph") String nodeId,
+    @Description("Unique node id within the plan graph")
+        @JsonProperty(required = true) String nodeId,
     @Description("Catalog element type, e.g. http-trigger, script, condition, if, else")
         String type,
     @Description("Human-readable element label") String label,

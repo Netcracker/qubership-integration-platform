@@ -36,7 +36,9 @@ public final class StructuredCaptureArguments {
       if (!input.isObject()) {
         return invalid("INVALID_TYPE", "/", "Send one JSON argument object.");
       }
-      String parameter = method.toolSpecification().parameters().properties().keySet()
+      JsonObjectSchema parameters = org.qubership.integration.platform.ai.plan.RequirementCaptureSchemas
+          .specification(method.toolSpecification()).parameters();
+      String parameter = parameters.properties().keySet()
           .iterator().next();
       if (!input.has(parameter)) {
         return invalid("MISSING_FIELD", "/" + parameter, "Include this field.");
@@ -47,8 +49,7 @@ public final class StructuredCaptureArguments {
         ((com.fasterxml.jackson.databind.node.ObjectNode) input).set(parameter, capture);
       }
       Issue issue = unknownField(
-          input, method.toolSpecification().parameters(),
-          method.toolSpecification().parameters().definitions(), "");
+          input, parameters, parameters.definitions(), "");
       if (issue != null) {
         return new Result(null, issue);
       }
@@ -111,10 +112,18 @@ public final class StructuredCaptureArguments {
       if (!value.isObject()) {
         return invalidType(path);
       }
+      for (String required : object.required()) {
+        if (!value.has(required)) {
+          return new Issue("MISSING_FIELD", path + "/" + required, "Include this field.");
+        }
+      }
       for (var fields = value.fields(); fields.hasNext();) {
         Map.Entry<String, JsonNode> field = fields.next();
         JsonSchemaElement child = object.properties().get(field.getKey());
         String childPath = path + "/" + field.getKey();
+        if (child == null && Boolean.TRUE.equals(object.additionalProperties())) {
+          continue;
+        }
         if (child == null) {
           return new Issue("UNEXPECTED_FIELD", childPath, "Remove this unsupported field.");
         }

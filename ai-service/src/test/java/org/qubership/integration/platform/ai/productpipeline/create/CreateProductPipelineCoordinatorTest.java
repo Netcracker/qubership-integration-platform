@@ -122,30 +122,18 @@ public class CreateProductPipelineCoordinatorTest {
     assertFalse(source.contains("enum RunState"));
   }
 
-  /**
-   * The stage advances on an approval the literal check cannot read.
-   *
-   * <p>Both shapes reach this service in practice: the approval question is authored in the
-   * language of the conversation, so the reply arrives in that language, and an agent relaying a
-   * person's approval writes a sentence rather than the bare token. Read literally, both are fed
-   * back into the stage as fresh input, which re-runs it instead of approving it.
-   */
   @Test
-  void approvalInAnotherLanguageAdvancesTheStage() {
+  void freeTextCannotApproveEvenWhenTheGateModelWouldApproveIt() {
     CreateProductPipelineCoordinator coordinator = fixture.coordinatorWith(approvingAgent());
     ChatRequest request = new ChatRequest();
     request.setResolvedEffectiveUserText("create greetings API");
     coordinator.handle(request, "conv-lang").collect().asList().await().indefinitely();
-    assertEquals(
-        RunStatus.WAITING_FOR_APPROVAL, coordinator.loadRun("conv-lang").orElseThrow().run().status());
-
-    ChatRequest approval = new ChatRequest();
-    approval.setResolvedEffectiveUserText("De acuerdo, puede continuar");
-    coordinator.handle(approval, "conv-lang").collect().asList().await().indefinitely();
-
-    assertNotEquals(
-        "requirement-discovery",
-        coordinator.loadRun("conv-lang").orElseThrow().run().currentStageId());
+    ChatRequest correction = new ChatRequest();
+    correction.setResolvedEffectiveUserText("Restore the exact error body. Keep everything else unchanged.");
+    coordinator.handle(correction, "conv-lang").collect().asList().await().indefinitely();
+    assertEquals("requirement-discovery", coordinator.loadRun("conv-lang").orElseThrow().run().currentStageId());
+    coordinator.approveCurrent("conv-lang").collect().asList().await().indefinitely();
+    assertNotEquals("requirement-discovery", coordinator.loadRun("conv-lang").orElseThrow().run().currentStageId());
   }
 
   /** A reply the model does not act on leaves the stage where it was. */
@@ -194,21 +182,18 @@ public class CreateProductPipelineCoordinatorTest {
    * gate and stops there.
    */
   @Test
-  void modelApprovalStopsAtTheImplementGate() {
+  void explicitApprovalStopsAtTheImplementGate() {
     CreateProductPipelineCoordinator coordinator = fixture.coordinatorWith(approvingAgent());
     ChatRequest start = new ChatRequest();
     start.setResolvedEffectiveUserText("create greetings API");
     coordinator.handle(start, "conv-gate").collect().asList().await().indefinitely();
 
-    // Drive every approval gate with prose no pattern match could read as an approval.
     for (int turn = 0; turn < 8; turn++) {
       RunStatus status = coordinator.loadRun("conv-gate").orElseThrow().run().status();
       if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
         break;
       }
-      ChatRequest reply = new ChatRequest();
-      reply.setResolvedEffectiveUserText("Se ve bien, continue");
-      coordinator.handle(reply, "conv-gate").collect().asList().await().indefinitely();
+      coordinator.approveCurrent("conv-gate").collect().asList().await().indefinitely();
     }
 
     assertEquals(
@@ -231,9 +216,7 @@ public class CreateProductPipelineCoordinatorTest {
       if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
         break;
       }
-      ChatRequest reply = new ChatRequest();
-      reply.setResolvedEffectiveUserText("Looks good, continue");
-      coordinator.handle(reply, "conv-implement").collect().asList().await().indefinitely();
+      coordinator.approveCurrent("conv-implement").collect().asList().await().indefinitely();
     }
 
     ChatRequest implement = new ChatRequest();

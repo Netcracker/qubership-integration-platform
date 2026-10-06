@@ -5,6 +5,9 @@ import dev.langchain4j.exception.ToolArgumentsException;
 /** Detects LangChain4j tool-argument deserialization failures in exception chains. */
 public final class ToolArgumentsFailures {
 
+  public static final String DIAGNOSTIC =
+      "Tool arguments could not be decoded. Return a complete JSON object that matches the active capture tool schema.";
+
   private ToolArgumentsFailures() {}
 
   public static boolean isToolArgumentsFailure(Throwable error) {

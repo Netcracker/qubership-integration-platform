@@ -112,6 +112,11 @@ public class GatherRequirementsPromptBuilder {
           If capture reports readiness PARTIAL or nextAction COMPLETE_DRAFT, call
           updateRequirementDraft to complete the saved draft. Do not tell the user the draft is ready, and do not use
           CONTINUE.
+          Preserve explicit elementIntent on facts: ANCHOR uses the interaction ID; LOCAL_NODE
+          uses a separate stable elementRef; BEFORE_HOOK and AFTER_HOOK belong only to their
+          Service Call. Chain names use CHAIN placement with elementType=chain. Copy requestedName
+          without prefixes or language labels, and keep literal bodies/strings in exactValues.
+          Use existing element schema keys for requestedProperties; omit guessed defaults.
           Capture known requirements before catalog lookup or a clarifying question. When a
           business choice is unresolved, save the known interactions and facts as a partial
           draft with an open question. Do not end a create or design request without saving

@@ -10,7 +10,7 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
 public final class LlmRequestBudget {
   private static final Logger LOG = Logger.getLogger(LlmRequestBudget.class);
   public static final class Overflow extends IllegalArgumentException {
-    Overflow(String message) { super(message); }
+    public Overflow(String message) { super(message); }
   }
 
   public static boolean isOverflow(Throwable failure) {
@@ -32,6 +32,12 @@ public final class LlmRequestBudget {
   ChatRequest prepare(ChatRequest request) {
     var parameters = request.parameters();
     var tools = parameters.toolSpecifications();
+    if (tools != null && !tools.isEmpty()) {
+      tools = tools.stream().map(org.qubership.integration.platform.ai.plan.RequirementCaptureSchemas::specification)
+          .toList();
+      parameters = parameters.overrideWith(DefaultChatRequestParameters.builder().toolSpecifications(tools).build());
+      request = request.toBuilder().parameters(parameters).build();
+    }
     boolean analysis = tools != null && tools.stream().anyMatch(tool ->
         "captureRequirementBrief".equals(tool.name())
             && tool.parameters().properties().containsKey("capture"));

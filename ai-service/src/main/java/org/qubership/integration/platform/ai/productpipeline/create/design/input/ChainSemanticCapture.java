@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.productpipeline.create.design.input;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dev.langchain4j.model.output.structured.Description;
 import java.util.ArrayList;
@@ -27,7 +28,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 public record ChainSemanticCapture(
     @Description("Exact full approved chain name, including spaces and any run id; do not shorten or slug it")
         String chainIdentity,
-    @Description("Processing nodes, plus exact existing anchor nodeId/elementType entries that only attach sourceFactIds")
+    @Description("Executable work, region owners, and provenance for existing anchors. The server creates split branch containers from splitRegions.")
         List<CapturedOperation> operations,
     @Description("Plain sequence regions; omit when there is no control-flow region")
         List<CapturedSequenceRegion> sequenceRegions,
@@ -42,8 +43,8 @@ public record ChainSemanticCapture(
     @Description("Try-catch regions; omit when the chain has no error handling")
         List<CapturedErrorScopeRegion> errorScopeRegions,
     @Description("Directed control-flow edges; the server derives every edge id")
-        List<CapturedEdge> edges,
-    @Description("Parent-child relations for container nodes; omit when there is no container")
+        @JsonProperty(required = true) List<CapturedEdge> edges,
+    @Description("Explicit containment such as a reuse subtree. Split branch membership comes from splitRegions. Leave this list empty when split branch membership is the only nesting.")
         List<CapturedContainment> containment) {
 
   public ChainSemanticCapture {
@@ -118,9 +119,10 @@ public record ChainSemanticCapture(
   /** Processing node or provenance annotation for an existing external anchor. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedOperation(
-      @Description("Local processing node id, or exact existing anchor nodeId for provenance only") String nodeId,
+      @Description("Local processing node id, or exact existing anchor nodeId for provenance only")
+        @JsonProperty(required = true) String nodeId,
       @Description("Compiler type for processing, or exact anchor type: trigger capabilityKey, service-call, or outbound capabilityKey")
-          String elementType,
+          @JsonProperty(required = true) String elementType,
       @Description("sourceFactIds copied from the approved brief") List<String> sourceFactIds) {
 
     CapturedOperation {
@@ -131,7 +133,8 @@ public record ChainSemanticCapture(
   /** Ordered group of nodes without branching. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedSequenceRegion(
-      @Description("Local region id used by edges in this capture") String regionId,
+      @Description("Local region id used by edges in this capture")
+        @JsonProperty(required = true) String regionId,
       @Description("Node ids inside this region, in execution order") List<String> memberNodeIds) {
 
     CapturedSequenceRegion {
@@ -142,8 +145,10 @@ public record ChainSemanticCapture(
   /** Branching region owned by one condition node. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedConditionRegion(
-      @Description("Local region id used by edges in this capture") String regionId,
-      @Description("nodeId of the condition node that owns this region") String ownerNodeId,
+      @Description("Local region id used by edges in this capture")
+        @JsonProperty(required = true) String regionId,
+      @Description("nodeId of the condition node that owns this region")
+        @JsonProperty(required = true) String ownerNodeId,
       @Description("One entry per branch; exactly one branch has role ELSE")
           List<CapturedConditionBranch> branches,
       @Description("Existing nodeId of approved work after all branches; omit or use an empty string when branches end independently. Never invent a join node.")
@@ -157,11 +162,14 @@ public record ChainSemanticCapture(
   /** One branch of a condition region. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedConditionBranch(
-      @Description("Local branch id referenced by CONDITION_BRANCH edges") String branchId,
-      @Description("IF or ELSE") ConditionBranchRole role,
+      @Description("Local branch id referenced by CONDITION_BRANCH edges")
+        @JsonProperty(required = true) String branchId,
+      @Description("IF or ELSE")
+        @JsonProperty(required = true) ConditionBranchRole role,
       @Description("Predicate expression; leave empty on the ELSE branch") String predicate,
       @Description("Evaluation priority; lower runs first") Integer priority,
-      @Description("nodeId of the first node on this branch") String entryNodeId,
+      @Description("nodeId of the first node on this branch")
+        @JsonProperty(required = true) String entryNodeId,
       @Description("Node ids where this branch ends") List<String> exitNodeIds) {
 
     CapturedConditionBranch {
@@ -172,10 +180,13 @@ public record ChainSemanticCapture(
   /** Parallel region owned by one split node. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedSplitRegion(
-      @Description("Local region id used by edges in this capture") String regionId,
-      @Description("nodeId of the split node that owns this region") String ownerNodeId,
-      @Description("SYNC for split-2, ASYNC for split-async-2") SplitMode mode,
-      @Description("One entry per parallel branch") List<CapturedSplitBranch> branches,
+      @Description("Local region id used by edges in this capture")
+        @JsonProperty(required = true) String regionId,
+      @Description("nodeId of the split node that owns this region")
+        @JsonProperty(required = true) String ownerNodeId,
+      @Description("SYNC for split-2, ASYNC for split-async-2")
+        @JsonProperty(required = true) SplitMode mode,
+      @Description("One metadata entry per parallel branch. The server creates each branch container; its entryNodeId and exitNodeIds refer to executable branch work.") List<CapturedSplitBranch> branches,
       @Description("Existing nodeId after SYNC branches; omit or use an empty string for ASYNC or independently ending branches.")
           String reconvergenceNodeId,
       @Description("Main branchId for SYNC; omit to use the first ordered branch. Omit for ASYNC.")
@@ -195,10 +206,12 @@ public record ChainSemanticCapture(
   /** One branch of a split region. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedSplitBranch(
-      @Description("Local branch id referenced by SPLIT_BRANCH edges") String branchId,
+      @Description("Local branch id referenced by SPLIT_BRANCH edges")
+        @JsonProperty(required = true) String branchId,
       @Description("Presentation order; omit to use list position") Integer order,
-      @Description("nodeId of the first node on this branch") String entryNodeId,
-      @Description("Node ids where this branch ends") List<String> exitNodeIds) {
+      @Description("nodeId of the first executable work on this split branch, such as a script or existing service-call anchor. Never invent a branch container or another split-2 owner as a branch entry.")
+        @JsonProperty(required = true) String entryNodeId,
+      @Description("Node ids of the last executable work on this split branch; use the entryNodeId when the branch contains one operation.") List<String> exitNodeIds) {
 
     CapturedSplitBranch {
       exitNodeIds = copy(exitNodeIds);
@@ -208,13 +221,19 @@ public record ChainSemanticCapture(
   /** Repetition region owned by one loop node. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedLoopRegion(
-      @Description("Local region id used by edges in this capture") String regionId,
-      @Description("nodeId of the loop node that owns this region") String ownerNodeId,
-      @Description("nodeId of the first node inside the loop body") String bodyEntryNodeId,
+      @Description("Local region id used by edges in this capture")
+        @JsonProperty(required = true) String regionId,
+      @Description("nodeId of the loop node that owns this region")
+        @JsonProperty(required = true) String ownerNodeId,
+      @Description("nodeId of the first node inside the loop body")
+        @JsonProperty(required = true) String bodyEntryNodeId,
       @Description("Node ids where the loop body ends") List<String> bodyExitNodeIds,
-      @Description("nodeId reached when the loop finishes") String exitNodeId,
-      @Description("COPY or DO_WHILE") LoopMode loopMode,
-      @Description("Loop expression, e.g. the collection to iterate") String loopExpression,
+      @Description("nodeId reached when the loop finishes")
+        @JsonProperty(required = true) String exitNodeId,
+      @Description("COPY or DO_WHILE")
+        @JsonProperty(required = true) LoopMode loopMode,
+      @Description("Loop expression, e.g. the collection to iterate")
+        @JsonProperty(required = true) String loopExpression,
       @Description("Positive iteration cap explicitly requested in the approved brief; otherwise omit or use 0 for the schema default. Do not infer a cap from the expression.")
           Integer loopSafetyBound) {
 
@@ -227,11 +246,15 @@ public record ChainSemanticCapture(
   /** Retry region owned by one retry node. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedRetryRegion(
-      @Description("Local region id used by edges in this capture") String regionId,
-      @Description("nodeId of the retry node that owns this region") String ownerNodeId,
-      @Description("nodeId of the first node inside the retried body") String bodyEntryNodeId,
+      @Description("Local region id used by edges in this capture")
+        @JsonProperty(required = true) String regionId,
+      @Description("nodeId of the retry node that owns this region")
+        @JsonProperty(required = true) String ownerNodeId,
+      @Description("nodeId of the first node inside the retried body")
+        @JsonProperty(required = true) String bodyEntryNodeId,
       @Description("Node ids where the retried body ends") List<String> bodyExitNodeIds,
-      @Description("nodeId reached when every attempt fails") String exhaustedNodeId,
+      @Description("nodeId reached when every attempt fails")
+        @JsonProperty(required = true) String exhaustedNodeId,
       @Description("Number of attempts") Integer retryCount,
       @Description("Delay between attempts, in milliseconds") Integer retryDelayMillis) {
 
@@ -243,9 +266,12 @@ public record ChainSemanticCapture(
   /** Try-catch region owned by one error-handling node. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedErrorScopeRegion(
-      @Description("Local region id used by edges in this capture") String regionId,
-      @Description("nodeId of the try-catch node that owns this region") String ownerNodeId,
-      @Description("nodeId of the first node inside the try path") String tryEntryNodeId,
+      @Description("Local region id used by edges in this capture")
+        @JsonProperty(required = true) String regionId,
+      @Description("nodeId of the try-catch node that owns this region")
+        @JsonProperty(required = true) String ownerNodeId,
+      @Description("nodeId of the first node inside the try path")
+        @JsonProperty(required = true) String tryEntryNodeId,
       @Description("Handlers in catch order") List<CapturedErrorHandler> handlers,
       @Description("nodeId of the first node on the finally path; omit when there is none")
           String finallyEntryNodeId,
@@ -260,9 +286,12 @@ public record ChainSemanticCapture(
   /** One catch handler inside a try-catch region. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedErrorHandler(
-      @Description("Local handler id referenced by CATCH_PATH edges") String handlerId,
-      @Description("Exception class this handler catches") String exceptionClass,
-      @Description("nodeId of the first node on this handler path") String entryNodeId,
+      @Description("Local handler id referenced by CATCH_PATH edges")
+        @JsonProperty(required = true) String handlerId,
+      @Description("Exception class this handler catches")
+        @JsonProperty(required = true) String exceptionClass,
+      @Description("nodeId of the first node on this handler path")
+        @JsonProperty(required = true) String entryNodeId,
       @Description("Node ids where this handler ends") List<String> exitNodeIds) {
 
     CapturedErrorHandler {
@@ -276,8 +305,10 @@ public record ChainSemanticCapture(
    */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedEdge(
-      @Description("nodeId the exchange leaves") String sourceNodeId,
-      @Description("nodeId the exchange reaches") String targetNodeId,
+      @Description("nodeId the exchange leaves")
+        @JsonProperty(required = true) String sourceNodeId,
+      @Description("nodeId the exchange reaches")
+        @JsonProperty(required = true) String targetNodeId,
       @Description("regionId this edge belongs to; omit outside a control-flow region")
           String regionId,
       @Description("Edge role; omit for a plain sequence edge") SemanticRouteKind routeKind,
@@ -295,9 +326,12 @@ public record ChainSemanticCapture(
   /** Structural parent-child relation. It does not describe exchange flow. */
   @JsonIgnoreProperties(ignoreUnknown = true)
   record CapturedContainment(
-      @Description("nodeId of the container node") String parentNodeId,
-      @Description("nodeId of the contained node") String childNodeId,
-      @Description("Containment role declared by the compiler contract") String role) {}
+      @Description("nodeId of the container node")
+        @JsonProperty(required = true) String parentNodeId,
+      @Description("nodeId of the contained node")
+        @JsonProperty(required = true) String childNodeId,
+      @Description("Containment role declared by the compiler contract")
+        @JsonProperty(required = true) String role) {}
 
   /** Null-tolerant copy. A capture list may arrive absent, or with null holes the model emitted. */
   private static <T> List<T> copy(List<T> values) {

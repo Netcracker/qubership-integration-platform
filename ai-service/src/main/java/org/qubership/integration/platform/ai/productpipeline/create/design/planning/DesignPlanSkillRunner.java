@@ -6,7 +6,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
-/** Executes the pinned design-planner skill and returns its structured capture. */
+/** Produces a validated plan under the pinned planner contract. */
 public interface DesignPlanSkillRunner {
 
   Result runOnce(

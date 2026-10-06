@@ -44,6 +44,42 @@ class RateLimitChatModelTest {
   }
 
   @Test
+  void bothProviderWrappersSendDeclaredNestedRequiredFields() {
+    AppConfig config = mock(AppConfig.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    when(config.llm().transientRetry().backoffSeconds()).thenReturn("2,5,10");
+    var note = JsonObjectSchema.builder().addStringProperty("targetKind")
+        .addStringProperty("targetId").addStringProperty("summary").build();
+    var tool = ToolSpecification.builder().name("captureDesignPlan")
+        .parameters(JsonObjectSchema.builder().addProperty("capture", JsonObjectSchema.builder()
+            .addProperty("notes", dev.langchain4j.model.chat.request.json.JsonArraySchema.builder()
+                .items(note).build()).build()).build()).build();
+    var request = ChatRequest.builder().messages(UserMessage.from("Approved targets"))
+        .parameters(OpenAiChatRequestParameters.builder().maxOutputTokens(24000).reasoningEffort("none")
+            .toolSpecifications(tool).build()).build();
+    ChatModel sync = mock(ChatModel.class);
+    StreamingChatModel stream = mock(StreamingChatModel.class);
+    when(sync.defaultRequestParameters()).thenReturn(OpenAiChatRequestParameters.builder().build());
+    when(stream.defaultRequestParameters()).thenReturn(OpenAiChatRequestParameters.builder().build());
+    new RateLimitChatModel(sync, config, seconds -> {}, new RateLimitErrorClassifier(),
+        new RateLimitWaitPolicy()).chat(request);
+    new RateLimitStreamingChatModel(stream, config, seconds -> {}, new RateLimitErrorClassifier(),
+        new RateLimitWaitPolicy()).chat(request, mock(StreamingChatResponseHandler.class));
+    var sent = org.mockito.ArgumentCaptor.forClass(ChatRequest.class);
+    verify(sync).chat(sent.capture());
+    verify(stream).chat(sent.capture(), any(StreamingChatResponseHandler.class));
+    for (ChatRequest packet : sent.getAllValues()) {
+      var capture = (JsonObjectSchema) packet.parameters().toolSpecifications().getFirst()
+          .parameters().properties().get("capture");
+      var notes = (dev.langchain4j.model.chat.request.json.JsonAnyOfSchema) capture.properties().get("notes");
+      var array = (dev.langchain4j.model.chat.request.json.JsonArraySchema) notes.anyOf().getFirst();
+      assertEquals(java.util.List.of("targetKind", "targetId", "summary"),
+          ((JsonObjectSchema) array.items()).required());
+      assertEquals(24000, packet.parameters().maxOutputTokens());
+      assertEquals("none", ((OpenAiChatRequestParameters) packet.parameters()).reasoningEffort());
+    }
+  }
+
+  @Test
   void shortAnalysisCeilingPreservesGeneratorOutputAndProviderSettings() {
     AppConfig config = mock(AppConfig.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
     when(config.llm().analysisOutputTokens()).thenReturn(4096);

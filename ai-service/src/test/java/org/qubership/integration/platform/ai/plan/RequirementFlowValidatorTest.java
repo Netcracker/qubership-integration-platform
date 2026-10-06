@@ -445,7 +445,7 @@ class RequirementFlowValidatorTest {
     assertTrue(message.isPresent());
     assertTrue(message.get().contains("entry point orders-http"));
     assertTrue(message.get().contains("no trigger type"));
-    assertTrue(message.get().contains("sourceFactId=orders-http"));
+    assertTrue(message.get().contains("interactionId=orders-http"));
     assertTrue(message.get().contains("http-trigger"));
     assertFalse(message.get().contains("resolveApiOperation"));
   }

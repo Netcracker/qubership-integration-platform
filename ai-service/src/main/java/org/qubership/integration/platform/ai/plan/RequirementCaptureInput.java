@@ -46,7 +46,15 @@ public final class RequirementCaptureInput {
           FieldMappingInput fieldMapping,
       @NullableCaptureValue(description = "Only for a CONSTRAINT tied to one interaction: company policy,"
           + " requested and recommended property values, persisted question ID, and the user's decision.")
-          RequirementPolicyConflict policyConflict) {
+          RequirementPolicyConflict policyConflict,
+      @NullableCaptureValue(description = "Explicit requested element, local node, inline hook, or chain name. Copy exact author values; null when unspecified.")
+          RequirementElementIntent elementIntent) {
+
+    public FactInput(
+        String sourceFactId, List<String> interactionIds, FactKind kind, Polarity polarity,
+        String text, FieldMappingInput fieldMapping, RequirementPolicyConflict policyConflict) {
+      this(sourceFactId, interactionIds, kind, polarity, text, fieldMapping, policyConflict, null);
+    }
 
     public FactInput(
         String sourceFactId, List<String> interactionIds, FactKind kind, Polarity polarity,
@@ -63,7 +71,8 @@ public final class RequirementCaptureInput {
 
   public record FieldMappingInput(
       String sourceInteractionId,
-      @NullableCaptureValue String sourcePath,
+      @NullableCaptureValue(description = "One source field path, never a field list. Use null and"
+          + " describe the inputs in expression for computed values or retained context.") String sourcePath,
       String targetInteractionId,
       String targetPath,
       @NullableCaptureValue String expression) {}

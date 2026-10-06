@@ -51,6 +51,11 @@ public class ChatMemorySanitizer {
     this.store = store;
   }
 
+  /** Starts a producer from explicit inputs without its previous tool exchange. */
+  public void clear(String memoryId) {
+    store.deleteMessages(memoryId);
+  }
+
   /**
    * Appends a synthetic parse-failure result for every {@code tool_call} in the memory that has no
    * matching tool-result message. Returns the number of results inserted.

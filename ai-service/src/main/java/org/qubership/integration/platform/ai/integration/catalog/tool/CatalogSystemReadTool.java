@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.integration.catalog.tool;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.qubership.integration.platform.ai.integration.catalog.cache.CatalogOperationsLookupService;
@@ -20,6 +21,8 @@ import java.util.Optional;
  */
 @ApplicationScoped
 public class CatalogSystemReadTool {
+
+  static final int MAX_OPERATION_LIST_CHARS = 96_000;
 
   static final String LISTING_IS_NOT_A_BINDING =
       "This listing does not bind an interaction. Call resolveApiOperation with the interactionId"
@@ -234,7 +237,7 @@ public class CatalogSystemReadTool {
         "Call listCatalogOperations with specificationId="
             + operation.modelId()
             + " to see the other operations of the same specification.",
-        operation);
+        operationSummary(operation));
   }
 
   public String listCatalogOperationsJson(
@@ -244,6 +247,12 @@ public class CatalogSystemReadTool {
 
   public String listCatalogOperationsJson(
       String conversationId, String specificationId, String systemId, String searchFilter) {
+    return listCatalogOperationsJson(conversationId, specificationId, systemId, searchFilter, 0);
+  }
+
+  public String listCatalogOperationsJson(
+      String conversationId, String specificationId, String systemId, String searchFilter,
+      Integer offset) {
     if (conversationId == null || conversationId.isBlank()) {
       return missingContext(CatalogSystemToolNames.OPS);
     }
@@ -252,17 +261,53 @@ public class CatalogSystemReadTool {
     if (validationError.isPresent()) {
       return support.catalogToolError(CatalogSystemToolNames.OPS, validationError.get());
     }
-    String mid = CatalogStrings.blankToNull(specificationId);
     List<CatalogRestClient.OperationDto> ops =
         listCatalogOperations(conversationId, specificationId, systemId, searchFilter);
-    if (ops.isEmpty()) {
-      Optional<String> hint = CatalogLookupArgsValidator.emptyOperationsHint(mid);
-      return hint.isPresent()
-          ? support.catalogToolSuccess(CatalogSystemToolNames.OPS, hint.get(), List.of())
-          : support.catalogToolSuccess(CatalogSystemToolNames.OPS, List.of());
+    int start = offset == null ? 0 : offset;
+    if (start < 0 || start > ops.size()) {
+      return support.catalogToolError(CatalogSystemToolNames.OPS,
+          CatalogToolResult.CODE_INVALID_ARGUMENT, "offset is outside the operation list.",
+          "Use nextOffset from the previous response, or 0 for a new listing.");
     }
-    return support.catalogToolSuccess(
-        CatalogSystemToolNames.OPS, LISTING_IS_NOT_A_BINDING, ops);
+    ObjectNode result = support.objectMapper.createObjectNode();
+    result.put("ok", true);
+    result.put("tool", CatalogSystemToolNames.OPS);
+    result.put("message", LISTING_IS_NOT_A_BINDING);
+    result.put("total", ops.size());
+    var data = result.putArray("data");
+    int size = result.toString().length() + 512;
+    int next = start;
+    for (; next < ops.size(); next++) {
+      ObjectNode summary = operationSummary(ops.get(next));
+      int rowSize = summary.toString().length() + 1;
+      if (size + rowSize > MAX_OPERATION_LIST_CHARS) {
+        if (data.isEmpty()) {
+          return support.catalogToolError(CatalogSystemToolNames.OPS, "CATALOG_METADATA_TOO_LARGE",
+              "Operation selection metadata exceeds the listing limit.",
+              "Call resolveApiOperation with the stored interactionId; it searches the complete catalog.");
+        }
+        break;
+      }
+      data.add(summary);
+      size += rowSize;
+    }
+    result.put("complete", next == ops.size());
+    if (next < ops.size()) {
+      result.put("nextOffset", next);
+      result.put("continuation", "Repeat this listing with the same filters and nextOffset as offset."
+          + " resolveApiOperation searches all candidates without paging.");
+    }
+    return result.toString();
+  }
+
+  private ObjectNode operationSummary(CatalogRestClient.OperationDto operation) {
+    ObjectNode summary = support.objectMapper.createObjectNode();
+    summary.put("id", operation.id());
+    summary.put("name", operation.name());
+    summary.put("method", operation.method());
+    summary.put("path", operation.path());
+    summary.put("modelId", operation.modelId());
+    return summary;
   }
 
   private String missingContext(String tool) {

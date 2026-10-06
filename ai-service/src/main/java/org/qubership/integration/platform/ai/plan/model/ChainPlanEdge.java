@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.plan.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import dev.langchain4j.model.output.structured.Description;
 
@@ -12,7 +13,10 @@ import dev.langchain4j.model.output.structured.Description;
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ChainPlanEdge(
-    @Description("Unique edge id within the plan graph") String edgeId,
-    @Description("Source node id") String fromNodeId,
-    @Description("Target node id") String toNodeId,
+    @Description("Unique edge id within the plan graph")
+        @JsonProperty(required = true) String edgeId,
+    @Description("Source node id")
+        @JsonProperty(required = true) String fromNodeId,
+    @Description("Target node id")
+        @JsonProperty(required = true) String toNodeId,
     @Description("Container branch scope node id; null for root-level edges") String scopeNodeId) {}

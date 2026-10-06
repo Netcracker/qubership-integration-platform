@@ -49,6 +49,26 @@ class CompositionCatalogBinderTest {
   }
 
   @Test
+  void bindUsesExplicitOwnersWhenTwoCapabilityIdsDifferFromTheirCallIds() {
+    CatalogRestClient catalog = mock(CatalogRestClient.class);
+    when(catalog.getElementsByType("any-chain", "chain-trigger-2"))
+        .thenReturn(List.of(trigger("trig-1", "First chain"), trigger("trig-2", "Second chain")));
+    ChainPlanGraph graph = new ChainPlanGraph("1.0", new ChainSection("calls", "Calls"),
+        List.of(new ChainPlanNode("call-1", "chain-call-2", "First", null, null, List.of()),
+            new ChainPlanNode("call-2", "chain-call-2", "Second", null, null, List.of())), List.of());
+    RequirementBrief brief = brief().withFacts(List.of(
+        new RequirementFact("fact-1", RequirementFactPolarity.POSITIVE, RequirementFactKind.CAPABILITY,
+            "chain-call-2", "First call", "First chain", "", "", "", "trig-1", "", List.of("call-1")),
+        new RequirementFact("fact-2", RequirementFactPolarity.POSITIVE, RequirementFactKind.CAPABILITY,
+            "chain-call-2", "Second call", "Second chain", "", "", "", "trig-2", "", List.of("call-2"))));
+
+    ChainPlanGraph result = new CompositionCatalogBinder(catalog).bind(graph, brief);
+
+    assertEquals("trig-1", property(node(result, "call-1"), "elementId"));
+    assertEquals("trig-2", property(node(result, "call-2"), "elementId"));
+  }
+
+  @Test
   void bindWritesChainCallElementIdFromFactPath() {
     CatalogRestClient catalog = mock(CatalogRestClient.class);
     when(catalog.getElementsByType("any-chain", "chain-trigger-2"))
@@ -166,7 +186,9 @@ class CompositionCatalogBinderTest {
             chainCallFlow(),
             List.of(
                 httpTriggerFact(),
-                chainCallFact("call-other", "Chain trigger + Header modification", "")),
+                new RequirementFact("call-fact", RequirementFactPolarity.POSITIVE,
+                    RequirementFactKind.CAPABILITY, "chain-call-2", "Call the header chain",
+                    "Chain trigger + Header modification", "", "", "", "", "", List.of("call-other"))),
             "Call Chain trigger + Header modification",
             List.of(
                 trigger("trig-other", "Other chain"),
@@ -174,6 +196,8 @@ class CompositionCatalogBinderTest {
 
     assertTrue(result.openQuestion().isEmpty(), result.openQuestion().toString());
     assertEquals("trig-header", chainCallPath(result.facts()));
+    assertTrue(result.facts().stream().anyMatch(fact -> "call-fact".equals(fact.sourceFactId())
+        && fact.interactionIds().equals(List.of("call-other"))));
   }
 
   @Test

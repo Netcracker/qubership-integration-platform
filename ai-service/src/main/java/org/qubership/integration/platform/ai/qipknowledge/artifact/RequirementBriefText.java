@@ -157,6 +157,12 @@ public final class RequirementBriefText {
     }
   }
 
+  public static String formatFacts(List<RequirementFact> facts) {
+    StringBuilder body = new StringBuilder();
+    appendFacts(body, facts);
+    return body.toString();
+  }
+
   private static void appendFacts(StringBuilder body, List<RequirementFact> facts) {
     if (facts == null || facts.isEmpty()) {
       return;
@@ -175,6 +181,29 @@ public final class RequirementBriefText {
       // Design capture is told to copy sourceFactIds from the brief, so the ids have to be here.
       if (fact.sourceFactId() != null && !fact.sourceFactId().isBlank()) {
         body.append(" sourceFactId=").append(fact.sourceFactId());
+      }
+      body.append(" kind=").append(fact.kind())
+          .append(" interactionIds=").append(fact.interactionIds());
+      if (fact.elementIntent() != null) {
+        var intent = fact.elementIntent();
+        body.append(" elementIntent=").append(intent);
+        if (intent.predecessorElementRef() != null) {
+          body.append(" requiredExecutionOrder=").append(intent.predecessorElementRef())
+              .append(" -> ").append(intent.elementRef());
+        }
+        if (intent.successorElementRef() != null) {
+          body.append(" requiredExecutionOrder=").append(intent.elementRef())
+              .append(" -> ").append(intent.successorElementRef());
+        }
+      }
+      if (fact.policyConflict() != null) {
+        var policy = fact.policyConflict();
+        body.append(" policyId=").append(policy.policyId())
+            .append(" propertyKey=").append(policy.propertyKey())
+            .append(" requested=").append(policy.requestedValue())
+            .append(" recommended=").append(policy.recommendedValue())
+            .append(" decision=").append(policy.decision())
+            .append(" selected=").append(policy.selectedValue());
       }
     }
   }

@@ -30,4 +30,15 @@ public record StageOutcome(
       StageOutcomeClass outcomeClass, String message, RecoveryCause recoveryCause) {
     return new StageOutcome(outcomeClass, List.of(), message, null, recoveryCause);
   }
+
+  public static StageOutcome technicalFailure(Throwable failure) {
+    String message = failure.getMessage() == null ? "Stage invocation failed." : failure.getMessage();
+    RecoveryCause cause = org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget
+        .isOverflow(failure)
+        ? new RecoveryCause(RecoveryCauseCode.TECHNICAL_RETRY_EXHAUSTED,
+            List.of(new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+                "LLM_CONTEXT_OVERFLOW", message, true)), "")
+        : null;
+    return of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, message, cause);
+  }
 }

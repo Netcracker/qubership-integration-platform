@@ -1,5 +1,9 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.JsonNode;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.chat.request.json.JsonRawSchema;
 import dev.langchain4j.model.chat.request.json.JsonAnyOfSchema;
 import dev.langchain4j.model.chat.request.json.JsonArraySchema;
 import dev.langchain4j.model.chat.request.json.JsonBooleanSchema;
@@ -18,7 +22,12 @@ import java.util.List;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 
 /** Builds the provider schema from the capture records and their nullability markers. */
-final class RequirementCaptureSchemas {
+public final class RequirementCaptureSchemas {
+  static final java.util.Set<String> COMPILER_ELEMENT_TYPES =
+      new org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository()
+          .require(org.qubership.integration.platform.ai.compiler.contract.CompilerContract.V1).elements().keySet().stream()
+          .filter(type -> !ChainElementFamilies.isProjectedRegionShell(type))
+          .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
   private RequirementCaptureSchemas() {}
 
@@ -32,6 +41,75 @@ final class RequirementCaptureSchemas {
 
   static JsonObjectSchema emptyParameters() {
     return JsonObjectSchema.builder().required(List.of()).additionalProperties(false).build();
+  }
+
+
+  /** Adds declared required fields to Quarkus schemas without regenerating their field types. */
+  public static ToolSpecification specification(ToolSpecification original) {
+    Class<?> tool = switch (original.name()) {
+      case "captureChainSemanticRevision" ->
+          org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureTool.class;
+      case "captureDesignPlan" ->
+          org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanCaptureTool.class;
+      case "captureGraphPatch" -> org.qubership.integration.platform.ai.compiler.CompilerGraphPatchTool.class;
+      case "captureNamingManifest" -> org.qubership.integration.platform.ai.compiler.NamingManifestCaptureTool.class;
+      case "captureHttpTriggers" -> org.qubership.integration.platform.ai.compiler.HttpTriggerCaptureTool.class;
+      case "captureConfiguredTriggerSet" ->
+          org.qubership.integration.platform.ai.compiler.ConfiguredTriggerSetCaptureTool.class;
+      case "repairScriptBodies" -> org.qubership.integration.platform.ai.compiler.ScriptBodyRepairTool.class;
+      default -> null;
+    };
+    if (tool == null) {
+      return original;
+    }
+    var method = java.util.Arrays.stream(tool.getDeclaredMethods())
+        .filter(candidate -> candidate.getName().equals(original.name()))
+        .findFirst().orElseThrow();
+    var root = original.parameters();
+    String parameter = root.properties().keySet().iterator().next();
+    var capture = declaredFields(root.properties().get(parameter), method.getGenericParameterTypes()[0]);
+    return original.toBuilder().parameters(root.toBuilder().addProperty(parameter, capture)
+        .required(parameter).additionalProperties(false).build()).build();
+  }
+
+  private static JsonSchemaElement declaredFields(JsonSchemaElement schema, Type type) {
+    if (type instanceof ParameterizedType parameterized
+        && parameterized.getRawType() == List.class && schema instanceof JsonArraySchema array) {
+      return JsonArraySchema.builder().description(array.description())
+          .items(declaredFields(array.items(), parameterized.getActualTypeArguments()[0]))
+          .build();
+    }
+    if (type == JsonNode.class) {
+      return JsonRawSchema.from("{}");
+    }
+    if (type instanceof ParameterizedType parameterized
+        && parameterized.getRawType() == java.util.Map.class) {
+      return JsonObjectSchema.builder().additionalProperties(true).build();
+    }
+    if (!(type instanceof Class<?> record) || !record.isRecord()
+        || !(schema instanceof JsonObjectSchema object)) {
+      return schema;
+    }
+    var builder = object.toBuilder().additionalProperties(false);
+    List<String> required = new ArrayList<>();
+    for (RecordComponent component : record.getRecordComponents()) {
+      JsonProperty declaration;
+      try {
+        declaration = record.getDeclaredField(component.getName()).getAnnotation(JsonProperty.class);
+      } catch (NoSuchFieldException error) {
+        throw new IllegalStateException(error);
+      }
+      JsonSchemaElement child = declaredFields(
+          object.properties().get(component.getName()), component.getGenericType());
+      if (declaration != null && declaration.required()) {
+        required.add(component.getName());
+      } else if (!component.getType().isPrimitive()
+          && !(child instanceof JsonRawSchema) && !(child instanceof JsonAnyOfSchema)) {
+        child = JsonAnyOfSchema.builder().anyOf(child, new JsonNullSchema()).build();
+      }
+      builder.addProperty(component.getName(), child);
+    }
+    return builder.required(required).build();
   }
 
   private static JsonSchemaElement schema(Type type, String name) {
@@ -60,6 +138,11 @@ final class RequirementCaptureSchemas {
       }
       return object.required(required).build();
     }
+    if ("elementType".equals(name)) {
+      var keys = new java.util.TreeSet<>(COMPILER_ELEMENT_TYPES);
+      keys.add("chain");
+      return JsonEnumSchema.builder().enumValues(List.copyOf(keys)).build();
+    }
     if ("capabilityKey".equals(name)) {
       LinkedHashSet<String> keys = new LinkedHashSet<>(ChainElementFamilies.TRIGGERS);
       keys.addAll(ChainElementFamilies.SENDERS);
@@ -76,6 +159,11 @@ final class RequirementCaptureSchemas {
               .map(value -> ((Enum<?>) value).name()).toList()).build();
     }
     if (clazz == String.class) {
+      if ("targetPath".equals(name)) {
+        return JsonStringSchema.builder().description(
+            "Exactly one target field path. Capture a separate FIELD_MAPPING fact for each output field.")
+            .build();
+      }
       return new JsonStringSchema();
     }
     if (clazz == Integer.class || clazz == int.class) {

@@ -36,23 +36,37 @@ public class GeneratorPlanManifestBuilder {
 
   public BuildResult build(
       CompilerGeneratorPolicy policy, List<String> wiredSkillIds, SkillWorkspace workspace) {
-    ChainPlanGraph graph = readGraph(workspace);
-    String rawUserRequest = readRawUserRequest(workspace);
-    String requirementBrief = readRequirementBrief(workspace);
-
     List<CompilerGeneratorDescriptor> wired =
         policy.generators().stream()
             .filter(descriptor -> wiredSkillIds.contains(descriptor.skillId()))
             .toList();
-    Set<String> matchedIntents = classifyIntents(wired, rawUserRequest, requirementBrief);
+    return build(policy.packVersion().normalized(), wired, Set.of(), workspace);
+  }
+
+  /** Approved producers remain ready regardless of an optional dependency's intent classification. */
+  public BuildResult build(
+      String packVersion,
+      List<CompilerGeneratorDescriptor> wired,
+      Set<String> requiredSkillIds,
+      SkillWorkspace workspace) {
+    ChainPlanGraph graph = readGraph(workspace);
+    List<CompilerGeneratorDescriptor> optional = wired.stream()
+        .filter(descriptor -> !requiredSkillIds.contains(descriptor.skillId())).toList();
+    Set<String> matchedIntents = classifyIntents(
+        optional, readRawUserRequest(workspace), readRequirementBrief(workspace));
 
     List<GeneratorPlan> plans = new ArrayList<>();
     for (CompilerGeneratorDescriptor descriptor : wired) {
-      plans.add(planFor(descriptor, graph, matchedIntents));
+      plans.add(requiredSkillIds.contains(descriptor.skillId())
+          ? new GeneratorPlan(descriptor.generatorId(), descriptor.skillId(),
+              GeneratorPlanStatus.READY, List.of("approved_producer"),
+              graph == null ? List.of() : graph.nodes().stream()
+                  .map(node -> node.nodeId()).toList())
+          : planFor(descriptor, graph, matchedIntents));
     }
 
     GeneratorPlanManifest manifest =
-        new GeneratorPlanManifest(policy.packVersion().normalized(), List.copyOf(plans));
+        new GeneratorPlanManifest(packVersion, List.copyOf(plans));
     CompilerStatus status = buildCompilerStatus(manifest);
     return new BuildResult(manifest, status);
   }

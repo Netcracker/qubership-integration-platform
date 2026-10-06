@@ -263,11 +263,13 @@ public class CompilerSkillRuntime {
     }
     CaptureRoute route = captureRouter.routeFor(capabilityId);
     String memoryId = CompilerSkillMemoryIds.forSkill(conversationId, capabilityId);
+    chatMemorySanitizer.clear(memoryId);
 
     CompilerSkillInputSnapshot snapshot = contextBuilder.snapshotFromWorkspace(workspace);
     snapshot = overlayMappingGenerationContext(conversationId, capabilityId, snapshot);
     GeneratorPlan activePlan = readActivePlan(workspace, capabilityId);
     String userMessage = buildUserMessage(conversationId, document, snapshot, activePlan, route);
+    userMessage += context.repairEvidence();
     HttpTriggerCaptureSession.unbind(conversationId);
     if (route.captureTool() == CaptureTool.CAPTURE_CONFIGURED_TRIGGER_SET) {
       var revision = workspace.get(SkillArtifactType.CHAIN_SEMANTIC_REVISION)
@@ -298,7 +300,10 @@ public class CompilerSkillRuntime {
                     memoryId,
                     capabilityId,
                     userMessage,
-                    inputGraph)));
+                    inputGraph,
+                    workspace.get(SkillArtifactType.REQUIREMENT_BRIEF)
+                        .map(artifact -> ((SkillArtifactPayload.RequirementBriefPayload) artifact.payload()).brief().facts())
+                        .orElse(java.util.List.of()))));
 
     return Multi.createFrom()
         .<ChatEvent>emitter(
@@ -775,7 +780,7 @@ public class CompilerSkillRuntime {
       String memoryId,
       String capabilityId,
       String userMessage,
-      ChainPlanGraph inputGraph) {
+      ChainPlanGraph inputGraph, java.util.List<org.qubership.integration.platform.ai.plan.RequirementFact> facts) {
     if (!toolMatchesPhase(route.captureTool(), phase)) {
       return Multi.createFrom()
           .failure(
@@ -828,7 +833,7 @@ public class CompilerSkillRuntime {
         chatMemorySanitizer.repairDanglingToolCalls(memoryId);
         yield captureRepairRunner.runWithRepair(
             message -> generatorAgent.chat(memoryId, message),
-            () -> acceptCapturedNaming(conversationId, inputGraph),
+            () -> acceptCapturedNaming(conversationId, inputGraph, facts),
             () -> feedbackStore.lastPlanFailure(conversationId),
             sanitizingOnToolArgs(
                 memoryId,
@@ -1093,14 +1098,22 @@ public class CompilerSkillRuntime {
   }
 
   boolean acceptCapturedNaming(String conversationId, ChainPlanGraph inputGraph) {
+    return acceptCapturedNaming(conversationId, inputGraph, java.util.List.of());
+  }
+
+  boolean acceptCapturedNaming(String conversationId, ChainPlanGraph inputGraph,
+      java.util.List<org.qubership.integration.platform.ai.plan.RequirementFact> facts) {
     CaptureKey key = CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, conversationId);
     NamingManifest naming = captureSession.get(key, NamingManifest.class).orElse(null);
     if (naming == null) {
       return false;
     }
+    naming = org.qubership.integration.platform.ai.qipknowledge.validation.RequestedElementValues.naming(naming, facts);
+    captureSession.set(key, naming);
+    NamingManifest acceptedNaming = naming;
     List<String> missing = inputGraph == null ? List.of() : inputGraph.nodes().stream()
         .map(ChainPlanNode::nodeId)
-        .filter(id -> naming.labelsByRoleId().getOrDefault(id, "").isBlank())
+        .filter(id -> acceptedNaming.labelsByRoleId().getOrDefault(id, "").isBlank())
         .toList();
     if (!missing.isEmpty()) {
       captureSession.clearIfSame(key, naming);

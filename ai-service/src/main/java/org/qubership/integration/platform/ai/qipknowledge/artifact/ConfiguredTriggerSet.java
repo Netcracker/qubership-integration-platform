@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.qipknowledge.artifact;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.List;
 
@@ -7,7 +8,7 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record ConfiguredTriggerSet(
     int schemaVersion,
-    List<ConfiguredTrigger> triggers,
+    @JsonProperty(required = true) List<ConfiguredTrigger> triggers,
     List<String> sourceRequirementFactIds,
     List<QipKnowledgeCitation> knowledgeCitations) {
 

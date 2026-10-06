@@ -184,6 +184,7 @@ public class MappingTurnTelemetry {
     return switch (result) {
       case MappingTurnResult.Changes(var operations) -> operations.isEmpty() ? "NONE" : "CHANGES";
       case Query ignored -> "QUERY";
+      case MappingTurnResult.StructuralReminder ignored -> "STRUCTURAL_REMINDER";
       case Clarification ignored -> "CLARIFICATION";
       case ConfirmationRequired ignored -> "CONFIRMATION_REQUIRED";
       case null -> "NONE";

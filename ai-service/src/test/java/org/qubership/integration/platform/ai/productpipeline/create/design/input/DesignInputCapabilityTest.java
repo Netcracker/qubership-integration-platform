@@ -532,7 +532,7 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void cleanRebuildUsesAFreshConversationAndOmitsRejectedCapture() {
+  void cleanRebuildUsesAFreshConversationAndRetainsTheDiagnosis() {
     java.util.concurrent.atomic.AtomicReference<String> seenConversationId =
         new java.util.concurrent.atomic.AtomicReference<>();
     java.util.concurrent.atomic.AtomicReference<String> seenPrompt =
@@ -562,9 +562,9 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains("Capture one ChainSemanticRevision"), prompt);
     assertTrue(prompt.contains("Allowed operation elementType values:"), prompt);
     assertFalse(prompt.contains("rejected topology"), prompt);
-    assertFalse(prompt.contains("unknown element type"), prompt);
-    assertFalse(prompt.contains("use another node type"), prompt);
-    assertFalse(prompt.contains("The previous capture was rejected"), prompt);
+    assertTrue(prompt.contains("unknown element type"), prompt);
+    assertTrue(prompt.contains("use another node type"), prompt);
+    assertTrue(prompt.contains("The previous capture was rejected"), prompt);
   }
 
   @Test

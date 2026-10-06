@@ -13,6 +13,10 @@ phrases such as `request mapping` or `sourcePath` are not required.
 - `QUERY`: the author asked what mapping exists, what writes a target, where a source is used,
   which transitions are mapped or pass-through, or which required targets remain unresolved.
   Fill `query` only. Leave change lists empty.
+- `STRUCTURAL_REMINDER`: the author asks to restore a local element or hook already present in the approved element intent.
+  Put its exact elementRef values in candidates. Keep every mapping change list empty.
+  A local Checkpoint, Script, or hook is not a flow interaction or a new mapping transition.
+  A genuinely new or changed structural requirement uses NONE so requirement discovery handles it.
 - `NONE`: ordinary conversation, a question unrelated to mapping, a negated mapping request, or
   field names mentioned without asking to adapt them.
 - `CLARIFICATION`: a friendly name matches several transitions or none, an add collides with an

@@ -277,6 +277,36 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
+  void cleanRebuildRetainsDiagnosisInAFreshPlannerConversation() {
+    AtomicReference<Optional<String>> seenRepairEvidence = new AtomicReference<>();
+    AtomicReference<String> seenConversation = new AtomicReference<>();
+    CipDesignPlannerAdapter planner =
+        new CipDesignPlannerAdapter(
+            (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> {
+              seenConversation.set(conversationId);
+              seenRepairEvidence.set(repairEvidence);
+              return validReport();
+            },
+            new CipDesignPlannerReportParser());
+    DesignPlanningCapability capability =
+        new DesignPlanningCapability(
+            planner, new DesignPlanProjector(), new DesignImplementationPlanRenderer(), artifactStore);
+    StageExecutionContext base = sampleContextWithHaltAttributes();
+    Map<String, Object> attributes = new HashMap<>(base.attributes());
+    attributes.put(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR, "evidence-plan");
+    attributes.put(ProductPipelineRunSupport.DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR, "evidence-plan");
+    StageExecutionContext context =
+        new StageExecutionContext(
+            base.runId(), base.conversationId(), base.stageId(), base.executionKey(), base.attemptId(),
+            base.profile(), base.runManifest(), base.inputRefs(), attributes);
+
+    capability.execute(context).collect().asList().await().indefinitely();
+
+    assertTrue(seenConversation.get().contains("-clean-plan-"));
+    assertTrue(seenRepairEvidence.get().orElseThrow().contains("missing trigger coverage for step-call"));
+  }
+
+  @Test
   void repairTurnCarriesHaltEvidenceAndFollowUpToThePlannerRunner() {
     AtomicReference<Optional<String>> seenRepairEvidence = new AtomicReference<>();
     CipDesignPlannerAdapter planner =
@@ -305,7 +335,7 @@ class DesignPlanningCapabilityTest {
     assertTrue(evidence.contains("CONTRACT_FAILURE"), evidence);
     assertTrue(evidence.contains("design-planning"), evidence);
     assertTrue(evidence.contains("missing trigger coverage for step-call"), evidence);
-    assertTrue(evidence.contains("planner report rejected: missing trigger step"), evidence);
+    assertFalse(evidence.contains("planner report rejected: missing trigger step"), evidence);
     assertTrue(evidence.contains("keep the trigger on Orders API"), evidence);
   }
 
@@ -402,7 +432,7 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
-  void repairEvidenceTextFormatsEveryHaltField() {
+  void repairEvidenceTextRetainsDiagnosisWithoutRawErrorText() {
     StageRepairEvidence repair =
         new StageRepairEvidence(
             "CONTRACT_FAILURE",
@@ -416,7 +446,7 @@ class DesignPlanningCapabilityTest {
     assertTrue(text.contains("outcomeClass: CONTRACT_FAILURE"), text);
     assertTrue(text.contains("failedStageId: design-planning"), text);
     assertTrue(text.contains("validationFindings:\nmissing trigger coverage"), text);
-    assertTrue(text.contains("errorEvidence:\nplanner report rejected"), text);
+    assertFalse(text.contains("errorEvidence:\nplanner report rejected"), text);
     assertTrue(text.contains("authorFollowUp: keep the trigger on Orders API"), text);
   }
 
@@ -589,6 +619,20 @@ class DesignPlanningCapabilityTest {
         plan.serviceBindings().stream().anyMatch(binding -> binding.contains("operation-fulfillment")));
     assertTrue(plan.planText().contains("## Service bindings"), plan.planText());
     plan.serviceBindings().forEach(binding -> assertTrue(plan.planText().contains(binding)));
+  }
+
+  @Test
+  void plannerInputKeepsScopedFactsAndNodeProvenance() {
+    RequirementBrief brief = sampleBrief().withFacts(List.of(
+        new RequirementFact("sender-m2m",
+            RequirementFactPolarity.POSITIVE,
+            RequirementFactKind.PARAMETER,
+            "", "m2m = true.", "", "", "", "", "", "", List.of("create-task"))));
+
+    String input = DesignPlanningCapability.buildPlannerInput(sampleIds(), sampleRevision(), "2024.4", brief);
+
+    assertTrue(input.contains("sourceFactIds="), input);
+    assertTrue(input.contains("sourceFactId=sender-m2m kind=PARAMETER interactionIds=[create-task]"), input);
   }
 
   @Test

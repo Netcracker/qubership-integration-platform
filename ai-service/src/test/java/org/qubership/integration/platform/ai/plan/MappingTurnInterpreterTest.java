@@ -32,6 +32,26 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class MappingTurnInterpreterTest {
 
   @Test
+  void approvedLocalReminderIsDistinctFromNewStructure() throws Exception {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var json = mapper.valueToTree(rockyBrief());
+    var intent = new RequirementElementIntent("checkpoint", "checkpoint",
+        RequirementElementIntent.Placement.LOCAL_NODE, "task-start", null, null,
+        null, List.of(), List.of());
+    var fact = new RequirementFact("checkpoint-context", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Save context.", "", "", "", "", "", "",
+        List.of("task-start"), null, intent);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) json).set("facts", mapper.valueToTree(List.of(fact)));
+    var brief = mapper.treeToValue(json, RequirementBrief.class);
+    var interpreter = interpreter(unusedCapture());
+    var reminder = new MappingTurnCapture(Kind.STRUCTURAL_REMINDER, List.of(), List.of(), "", List.of("checkpoint"));
+    assertInstanceOf(MappingTurnResult.StructuralReminder.class, interpreter.fromCapture(reminder, brief));
+    var newStep = new MappingTurnCapture(Kind.STRUCTURAL_REMINDER, List.of(), List.of(), "", List.of("new-script"));
+    assertTrue(((MappingTurnResult.Changes) interpreter.fromCapture(newStep, brief)).operations().isEmpty());
+    assertTrue(MappingTurnInterpreter.renderIntents(brief).contains("checkpoint"));
+  }
+
+  @Test
   void documentInterpretationSurfacesAParsingFailure() {
     MappingTurnInterpreter interpreter =
         interpreter(

@@ -5,6 +5,7 @@ import java.util.Objects;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
@@ -18,7 +19,24 @@ public record CompilerDagExecutionRequest(
     ResolvedCompilerDag executionDag,
     List<String> approvedOwningSkillIds,
     List<CompilationArtifacts.Reference> preSatisfiedArtifactRefs,
-    CompilerExecutionSeed seed) {
+    CompilerExecutionSeed seed,
+    StageRepairEvidence repairEvidence) {
+
+  @SuppressWarnings("java:S107")
+  public CompilerDagExecutionRequest(
+      String runId,
+      String conversationId,
+      RunManifest runManifest,
+      RequirementBrief requirementBrief,
+      ChainSemanticRevision semanticRevision,
+      ResolvedCompilerDag executionDag,
+      List<String> approvedOwningSkillIds,
+      List<CompilationArtifacts.Reference> preSatisfiedArtifactRefs,
+      CompilerExecutionSeed seed) {
+    this(
+        runId, conversationId, runManifest, requirementBrief, semanticRevision, executionDag,
+        approvedOwningSkillIds, preSatisfiedArtifactRefs, seed, null);
+  }
 
   public CompilerDagExecutionRequest {
     Objects.requireNonNull(runId, "runId");

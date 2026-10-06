@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.qipknowledge.artifact;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,11 +12,58 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
+import org.qubership.integration.platform.ai.plan.RequirementPolicyConflict;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 
 class RequirementBriefTextTest {
 
+  @Test
+  void relativeOrderIsRenderedAsADirectedExecutionPath() {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("verify", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", "call", "checkpoint", null, List.of(), List.of());
+    var fact = new RequirementFact("verify-fact", RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", "Verify checkpoint properties.", "", "", "", "", "", "", List.of("entry"), null, intent);
+    String text = RequirementBriefText.formatFacts(List.of(fact));
+    assertTrue(text.contains("requiredExecutionOrder=checkpoint -> verify"));
+    assertTrue(text.contains("requiredExecutionOrder=verify -> call"));
+    assertFalse(text.contains("requiredExecutionOrder=verify -> checkpoint"));
+  }
+
   private final ObjectMapper objectMapper = new ObjectMapper();
+
+  @Test
+  void factOwnerAndKindRemainVisibleInTheModelContext() {
+    RequirementBrief brief = new RequirementBrief("HTTP relay", List.of(), List.of(), List.of(), List.of(), "Relay");
+    RequirementFact sender = new RequirementFact("m2m", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CONSTRAINT, "", "m2m = true.", "", "", "", "", "", "", List.of("sender"));
+    RequirementFact entry = new RequirementFact("m2m", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.CONSTRAINT, "", "m2m = true.", "", "", "", "", "", "", List.of("entry"));
+    RequirementFact behavior = new RequirementFact("m2m", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "m2m = true.", "", "", "", "", "", "", List.of("sender"));
+
+    String rendered = RequirementBriefText.format(brief.withFacts(List.of(sender)));
+
+    assertNotEquals(rendered, RequirementBriefText.format(brief.withFacts(List.of(entry))));
+    assertNotEquals(rendered, RequirementBriefText.format(brief.withFacts(List.of(behavior))));
+    assertTrue(rendered.contains("sourceFactId=m2m kind=CONSTRAINT interactionIds=[sender]"));
+  }
+
+  @Test
+  void policyContextPreservesTheUsersChoiceAlongsideTheCompanyRecommendation() {
+    var policy = new RequirementPolicyConflict("http-access", "accessControlType",
+        "NONE", "RBAC", "choose-access", RequirementPolicyConflict.Decision.KEEP_REQUESTED);
+    RequirementFact fact = new RequirementFact("access", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.PARAMETER, "", "Keep NONE as confirmed.", "", "", "", "", "", "",
+        List.of("entry"), policy);
+    RequirementBrief brief = new RequirementBrief("HTTP", List.of(), List.of(), List.of(), List.of(), "HTTP")
+        .withFacts(List.of(fact));
+
+    String rendered = RequirementBriefText.format(brief);
+
+    assertTrue(rendered.contains("requested=NONE recommended=RBAC decision=KEEP_REQUESTED selected=NONE"));
+    assertTrue(rendered.contains("interactionIds=[entry]"));
+  }
 
   @Test
   void formatsBusinessInteractionsAndTransitions() {
