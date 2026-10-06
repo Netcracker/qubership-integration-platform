@@ -204,14 +204,9 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         if (event.isInitialUpdate()) {
             return;
         }
-        for (SpringCamelContext context : getCache().getContexts().values()) {
-            // A stopped context can stay in the cache (superseded, or failed to start), and the stop has emptied its registry
-            GroovyLanguageWithResettableCache language = context.getRegistry()
-                .lookupByNameAndType("groovy", GroovyLanguageWithResettableCache.class);
-            if (language != null) {
-                language.resetScriptCache();
-            }
-        }
+        // A stopped context can stay in the cache: superseded, or failed to start
+        getCache().getContexts().values().forEach(context -> GroovyLanguageWithResettableCache.of(context)
+            .ifPresent(GroovyLanguageWithResettableCache::resetScriptCache));
     }
 
     // requires completion of all deployment processes
@@ -609,11 +604,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
         deploymentProcessingService.processAfterContextCreated(context, deploymentInfo, deploymentConfiguration);
 
-        // A stopping context clears the script cache of every language it resolved, so each context gets its own
-        GroovyLanguageWithResettableCache groovyLanguage = new GroovyLanguageWithResettableCache();
-        context.getRegistry().bind("groovy", groovyLanguage);
-
-        this.loadRoutes(context, configurationXml, groovyLanguage);
+        this.loadRoutes(context, configurationXml, GroovyLanguageWithResettableCache.bindTo(context));
         return context;
     }
 
@@ -695,7 +686,7 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         for (ProcessorDefinition<?> processor : parent.getOutputs()) {
             if (processor instanceof ExpressionNode expressionNode) {
                 ExpressionDefinition expression = expressionNode.getExpression();
-                if (expression.getLanguage().equals("groovy")) {
+                if (expression.getLanguage().equals(GroovyLanguageWithResettableCache.NAME)) {
                     log.debug("Compiling groovy script for processor {}", processor.getId());
                     compileGroovyScript(expression, groovyLanguage);
                 }
