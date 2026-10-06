@@ -37,16 +37,3 @@ Tab contains RabbitMQ-specific parameters, that allow to create classifier in Ma
 
 ### Export Configuration File
 To export MaaS configuration file, simply click ![20](img/cloud-download.svg) **Export**  button. All mandatory fields must be specified before button becomes active.
-
-## Data Storage
-
----
-
-No specific information is being stored.
-
-## Configuration
-
----
-
-No specific configuration available for this particular tab.
-

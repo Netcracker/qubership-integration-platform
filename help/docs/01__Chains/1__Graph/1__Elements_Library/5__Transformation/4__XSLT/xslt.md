@@ -8,11 +8,11 @@
 
 ---
 ### "Parameters" Tab
-| Parameter                          | Mandatory | Data Type | Description                                                      | Sample        |
-| ---------------------------------- | :-------- | :-------- | ---------------------------------------------------------------- | ------------- |
-| Template name (path to local file) | M         | String    | Path to the template, which must be stored in temporary storage. | /tmp/file.xsl |
-| Name        | M         | String    | Name of the element.                                       | Transform account data                       |
-| Description | O         | String    | Free text field, that contains description of the element. | Utilizes the template from the temp storage. |
+| Parameter                          | Mandatory | Data Type | Description                                                      | Sample                                       |
+|------------------------------------|:----------|:----------|------------------------------------------------------------------|----------------------------------------------|
+| Template name (path to local file) | M         | String    | Path to the template, which must be stored in temporary storage. | /tmp/file.xsl                                |
+| Name                               | M         | String    | Name of the element.                                             | Transform account data                       |
+| Description                        | O         | String    | Free text field, that contains description of the element.       | Utilizes the template from the temp storage. |
 
 ## Constraints
 

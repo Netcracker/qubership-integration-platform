@@ -75,15 +75,8 @@ To expand the engine tree and see **chain deployments**, click ![20](img/down.sv
 - **Snapshot Name** - name of the deployed [Snapshot](../../01__Chains/2__Snapshots/snapshots.md).
 - **Status** - deployment status. Detailed information is available in [Deployments page](../../01__Chains/3__Deployments/deployments.md).
 
-## Data Storage
-
----
-
-No specific information is being stored.
-
 ## Configuration
 
 ---
 
 The scaling is being settled during the CIP installation. No configuration option available in CIP UI.
-
