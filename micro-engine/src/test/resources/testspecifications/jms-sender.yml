@@ -4529,6 +4529,7 @@ scenarios:
           expectedSendCount: 0
           subscriberCount: 2
   - id: rejects-connection-refused
+    timeoutSeconds: 120
     endpointUri: cip-chain:8b2411a4-4bcb-4cc5-bb11-bfede4b74334
     body: Rejected connection-refused
     headers:

@@ -207,6 +207,8 @@ reconnect before verifying that the failed call delivered no messages. This test
 unavailability and recovery through the same generated components, not interruption of
 an in-flight publication. The fixture bounds connection, request, and send waits at five
 seconds; these are test connection-factory settings, not exported element options.
+The `rejects-connection-refused` invocation sets `timeoutSeconds: 120` to allow time
+for Docker shutdown, broker startup, and observer reconnection within the same call.
 Artemis and controlled JNDI do not establish WebLogic authentication, transaction,
 or acknowledgment behavior.
 
@@ -227,6 +229,13 @@ a container concurrently with its startup.
 Progress logs identify the target, scenario, selected deployments, fixture startup,
 each invocation, verification, and completion time.
 
+Each invocation has a shared deadline for its setup, all `repeat` executions, and
+fixture verification. The default is 30 seconds, configured by
+`route.contract.invocation.timeout.seconds`. An invocation may set `timeoutSeconds`
+to a positive integer to override that limit for the whole invocation. Omitted or null
+values use the configured default. The override does not affect later invocations,
+final fixture verification, fixture startup, or the clients' request timeouts.
+
 Async fixtures release their gates together, await all
 branches, and then check the shared session counter. This also supports an async branch
 that calls another chain with its own async branch. Fixture verification uses the runner's
@@ -238,9 +247,9 @@ HTTP Service Call fixtures accept `response.delayMillis` to delay a response thr
 WireMock. The value is a nonnegative integer in milliseconds; omitting it adds no delay.
 Keep delays below the HTTP and invocation timeouts when testing slow successful calls.
 
-The `http-sender.yml` manifest runs 16 generated sender chains through the
-`http-sender-http` fixture. Its 16 Short scenarios and one Long scenario contain
-76 invocations. They cover GET, POST, PUT, PATCH, DELETE, HEAD, dynamic URIs,
+The `http-sender.yml` manifest runs 20 sender variants in four generated chains through the
+`http-sender-http` fixture. Its 18 Short scenarios and one Long scenario contain
+111 invocations. They cover GET, POST, PUT, PATCH, DELETE, HEAD, dynamic URIs,
 context overrides, correlation IDs, generated external addresses, connection reuse,
 and redirects. Failure and recovery invocations share a client, including HTTP
 400/401/403/404/500 responses, transport faults, and a response timeout. The timeout
@@ -248,11 +257,32 @@ scenario delays a response beyond the exported timeout; it does not simulate a
 connection establishment timeout. The incoming GET/POST sequence belongs to
 `http-trigger.yml`.
 
-The POST scenario `sends-post-requests-and-recovers-from-failures` groups 23 invocations:
-six transport failure and recovery calls, 13 body and HTTP error calls, and four
-redirect calls. Connection refusal runs first, before the client has an established
+Each chain groups related sender configurations under independent entrypoints:
+
+| Chain | Sender variants |
+| --- | --- |
+| `http-sender-methods` | GET, POST, PUT, PATCH, DELETE, HEAD |
+| `http-sender-addressing` | Dynamic URI, explicit external call, default external call |
+| `http-sender-context` | Disabled propagation, literal and dynamic overrides, header and body correlation, sequential senders, HTTP error fallback |
+| `http-sender-client` | Response timeout, connection reuse disabled |
+
+Scenarios select a chain through `deployment` and a branch through `endpointUri`.
+Every invocation includes zero-count interactions for unused senders in that chain.
+The HTTP fixture starts a server only for a sender with a positive expected send count
+in at least one invocation of the scenario. The count comes from `expectedSendCount`,
+or from `expectedRequest.count` when the send count is omitted. A send attempt to an
+unused branch is recorded and rejected before HTTP; its zero-count assertion also fails.
+This keeps HTTP server startup scoped to the exercised branches while loading all
+generated routes and client configurers for the selected chain.
+
+The POST scenario `sends-post-requests-and-recovers-from-failures` groups 38 invocations:
+six transport failure and recovery calls, 17 body and HTTP error calls, seven
+redirect and recovery calls, and eight charset calls. Connection refusal runs first, before the client has an established
 connection. Each HTTP error remains paired with its recovery call. Connection reuse
 has a separate scenario so its client and cumulative connection count start fresh.
+It also checks reconnection after the server returns `Connection: close`, then reuse
+of the new connection. Dynamic URI cases check encoded slashes and percent signs,
+literal plus signs, repeated query keys, and empty query values.
 
 HTTP sender fixtures retain the generated client configurer and production sender,
 charset, context, and exception processors. Before the HTTP call, the fixture records
@@ -277,6 +307,17 @@ HTTP sender fixtures accept these response settings:
 | `response.properties.expectedConnectionCount` | Checks the cumulative number of TCP connections accepted by the server during the scenario. |
 | `response.properties.redirects` | Lists redirect responses as `status` and `location` pairs. Locations must be paths on the same local server, optionally with a query. |
 | `response.properties.expectedRequests` | Checks the ordered request sequence, including the initial request and every redirect. Each entry requires `method`, `path`, and `body`; `query` and `headers` are optional. Its length must equal `expectedRequest.count`. |
+| `response.properties.expectedRequestBodyHex` | Compares the raw bytes of every received request with the hexadecimal string. Each byte needs two hex digits; an empty string requires an empty body. |
+| `response.properties.bodyCharset` | Encodes a string response body using the named charset. Set the response `Content-Type` separately. Omitted values use UTF-8; object bodies remain JSON. |
+
+Charset cases check exact UTF-16LE request bytes when the encoding comes from
+`Content-Type`, a `CamelCharsetName` property, or a `CamelCharsetName` header.
+They also check a UTF-16LE response after a UTF-8 request, rejection of an unknown
+Content-Type charset before HTTP, and a successful UTF-8 request after that failure.
+Text and empty HTTP error bodies retain their status and response headers.
+An HTTP 500 response with a UTF-16LE body checks error-body decoding and recovery
+with UTF-8. Body correlation also retains the outgoing ID for an empty request and
+HTTP 204 response, with an exact zero-byte request assertion.
 
 Run connection refusal before the first successful request when asserting
 `HttpHostConnectException`: stopping a server with an established pooled connection
@@ -287,8 +328,9 @@ request. `expectedSendCount` counts entries into the generated sender step, whil
 `expectedRequest.count` includes every HTTP request in the redirect sequence.
 The scenarios check two redirects for each of 301, 302, 307, and 308, including
 method, body, and headers at every hop. The current HTTP client turns POST into
-GET for 301/302 and discards its body and custom headers. For 307/308 it retains
-the method, body, and custom headers.
+GET for 301/302/303 and discards its body and custom headers. For 307/308 it retains
+the method, body, and custom headers. The added 303 cases cover a successful response
+and a redirect sequence ending in HTTP 500, followed by recovery.
 
 HTTP sender, GraphQL, and JMS fixtures share request-context initialization and production
 context processors. `response.properties.expectedRestoredContext` checks context
@@ -298,6 +340,19 @@ registers a scoped test context provider backed by the production
 and incoming-header priority to run through the real context processors. It does
 not validate tokens or exercise M2M. Fixture cleanup restores the previous context
 and provider registrations.
+Response-header collision cases check the returned exchange separately from the
+restored context: the exchange retains the response Authorization value and removes
+X-Request-Id, while the context restores the original incoming values.
+
+HTTP fixtures initialize request context on the generated `cip-chain` entry routes.
+Sender and Catch routes retain that snapshot, including when the entry route itself
+contains no sender. JMS and GraphQL fixtures keep their existing route initialization.
+The sequential HTTP scenario checks five invocations: success, first-sender failure
+with no second send, second-sender failure, and recovery after each failure. The
+fallback scenario checks six invocations: primary success, caught HTTP error, fallback
+HTTP error, uncaught transport error, and recovery after the two propagated errors.
+Assertions include per-sender restoration, response-to-request body flow, correlation
+IDs, captured HTTP error details, completion markers, and one Finally execution.
 
 External-address scenarios assert the generated gateway prefix, path, and query
 before redirecting the request to the local server. Live gateway routing, TLS, and

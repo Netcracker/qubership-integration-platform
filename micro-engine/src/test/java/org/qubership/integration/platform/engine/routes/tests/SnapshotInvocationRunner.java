@@ -30,10 +30,18 @@ final class SnapshotInvocationRunner implements AutoCloseable {
     }
 
     SnapshotInvocationRunner(Duration timeout, Duration terminationTimeout) {
+        this(timeout, terminationTimeout, createExecutor());
+    }
+
+    SnapshotInvocationRunner(Duration timeout, Duration terminationTimeout, ExecutorService executor) {
         this.timeout = requirePositive(timeout, "Invocation timeout");
         this.terminationTimeout = requirePositive(terminationTimeout, "Invocation termination timeout");
+        this.executor = Objects.requireNonNull(executor, "executor");
+    }
+
+    private static ExecutorService createExecutor() {
         ClassLoader contextClassLoader = Thread.currentThread().getContextClassLoader();
-        this.executor = Executors.newSingleThreadExecutor(runnable -> {
+        return Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "snapshot-invocation");
             thread.setContextClassLoader(contextClassLoader);
             thread.setDaemon(true);
@@ -64,15 +72,27 @@ final class SnapshotInvocationRunner implements AutoCloseable {
             Callable<T> invocation,
             TimeoutCleanup timeoutCleanup
     ) throws Exception {
+        return execute(null, executionName, invocation, timeoutCleanup);
+    }
+
+    <T> T execute(
+            Integer timeoutSeconds,
+            Supplier<String> executionName,
+            Callable<T> invocation,
+            TimeoutCleanup timeoutCleanup
+    ) throws Exception {
         Objects.requireNonNull(executionName, "executionName");
         Objects.requireNonNull(invocation, "invocation");
         Objects.requireNonNull(timeoutCleanup, "timeoutCleanup");
+        Duration effectiveTimeout = timeoutSeconds == null
+                ? timeout
+                : requirePositive(Duration.ofSeconds(timeoutSeconds), "Invocation timeout");
         Future<T> future = submit(invocation);
         try {
-            return future.get(timeout.toNanos(), TimeUnit.NANOSECONDS);
+            return future.get(effectiveTimeout.toNanos(), TimeUnit.NANOSECONDS);
         } catch (TimeoutException exception) {
             AssertionError timeoutFailure = new AssertionError(
-                    executionName.get() + " timed out after " + timeout.toMillis() + " ms.",
+                    executionName.get() + " timed out after " + effectiveTimeout.toMillis() + " ms.",
                     exception
             );
             cancelAndCleanUp(future, timeoutCleanup, timeoutFailure);

@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.qubership.integration.platform.engine.model.constants.CamelConstants.Properties.REQUEST_CONTEXT_PROPAGATION_SNAPSHOT;
@@ -35,6 +36,7 @@ import static org.qubership.integration.platform.engine.routes.support.SnapshotC
 final class SnapshotContextRuntime implements AutoCloseable {
     private final List<SnapshotFixtureBinding> bindings;
     private final List<ContextProvider<?>> additionalContextProviders;
+    private final Supplier<CamelExchangeContextPropagation> contextPropagationSupplier;
     private final Map<String, String> fixturesByExchangeId = new ConcurrentHashMap<>();
     private final Map<String, List<Map<String, Object>>> restoredContexts = new ConcurrentHashMap<>();
     private List<ContextProvider<?>> originalContextProviders;
@@ -46,11 +48,21 @@ final class SnapshotContextRuntime implements AutoCloseable {
     }
 
     SnapshotContextRuntime(List<SnapshotFixtureBinding> bindings, List<ContextProvider<?>> additionalContextProviders) {
+        this(bindings, additionalContextProviders, () -> CDI.current().select(CamelExchangeContextPropagation.class).get());
+    }
+
+    SnapshotContextRuntime(List<SnapshotFixtureBinding> bindings, List<ContextProvider<?>> additionalContextProviders,
+                           Supplier<CamelExchangeContextPropagation> contextPropagationSupplier) {
         this.bindings = List.copyOf(bindings);
         this.additionalContextProviders = List.copyOf(additionalContextProviders);
+        this.contextPropagationSupplier = contextPropagationSupplier;
     }
 
     void configure(CamelContext context, List<RouteDefinition> routes) throws Exception {
+        configure(context, routes, routes.stream().filter(SnapshotContextRuntime::usesContext).toList());
+    }
+
+    void configure(CamelContext context, List<RouteDefinition> routes, List<RouteDefinition> entryRoutes) throws Exception {
         List<RouteDefinition> contextRoutes = routes.stream().filter(SnapshotContextRuntime::usesContext).toList();
         if (contextRoutes.isEmpty()) {
             return;
@@ -62,7 +74,7 @@ final class SnapshotContextRuntime implements AutoCloseable {
                 .noneMatch(provider -> XRequestIdContextProvider.X_REQUEST_ID_CONTEXT_NAME.equals(provider.contextName()))) {
             ContextManager.register(List.of(new XRequestIdContextProvider()));
         }
-        contextPropagation = CDI.current().select(CamelExchangeContextPropagation.class).get();
+        contextPropagation = contextPropagationSupplier.get();
         ContextRestoreProcessor restore = new ContextRestoreProcessor(contextPropagation);
         Processor observedRestore = exchange -> {
             restore.process(exchange);
@@ -78,7 +90,7 @@ final class SnapshotContextRuntime implements AutoCloseable {
                         "correlationIdReceiverProcessor", new CorrelationIdReceiverProcessor(
                                 new CorrelationIdSetter(ObjectMappers.getObjectMapper()))
                 ));
-        for (RouteDefinition route : contextRoutes) {
+        for (RouteDefinition route : entryRoutes) {
             AdviceWith.adviceWith(context, route, false, advice -> advice.weaveAddFirst().process(this::initializeContext));
         }
     }

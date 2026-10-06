@@ -210,7 +210,7 @@ class BinaryInputSnapshotScenarioDriverProviderTest {
         Map<String, Object> properties = Map.of("kafkaKey", "configured-key", "outboundRequestId", "outbound-id");
         SnapshotScenarioInvocation invocation = new SnapshotScenarioInvocation(
                 "binary-input", null, null, null, "00ff", headers, properties,
-                null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null
         );
 
         Exchange result = execute(driver("bytes"), invocation);
@@ -294,7 +294,7 @@ class BinaryInputSnapshotScenarioDriverProviderTest {
     private SnapshotScenarioInvocation invocation(Object body) {
         return new SnapshotScenarioInvocation(
                 "binary-input", null, null, null, body, Map.of(), Map.of(),
-                null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null
         );
     }
 

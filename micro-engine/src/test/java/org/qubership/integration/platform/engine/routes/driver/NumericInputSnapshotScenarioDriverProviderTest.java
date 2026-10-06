@@ -113,7 +113,7 @@ class NumericInputSnapshotScenarioDriverProviderTest {
         headers.put("nullable", null);
         SnapshotScenarioInvocation invocation = new SnapshotScenarioInvocation(
                 "typed-input", null, null, null, 0, headers, Map.of("kafkaKey", 9, "requestId", "original"),
-                null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null, null, null
         );
         SnapshotScenarioDriver driver = provider.create(null, definition(Map.of(
                 "endpointUri", ENDPOINT_URI,

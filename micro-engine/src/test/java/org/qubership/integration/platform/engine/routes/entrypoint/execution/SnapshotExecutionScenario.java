@@ -166,7 +166,8 @@ public class SnapshotExecutionScenario {
                     expectedProperties,
                     legacyInteractions,
                     expectedExchangeHeaders,
-                    expectedAbsentExchangeHeaders
+                    expectedAbsentExchangeHeaders,
+                    null
             ));
         }
         if (explicitInvocations.isEmpty()) {

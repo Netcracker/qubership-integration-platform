@@ -105,7 +105,7 @@ abstract class SnapshotRouteExecutionTest {
                 AtomicReference<String> currentExecution = new AtomicReference<>(
                         invocationStageName(scenario, invocation, "setup")
                 );
-                invocationRunner.execute(currentExecution::get, () -> {
+                invocationRunner.execute(invocation.getTimeoutSeconds(), currentExecution::get, () -> {
                     environment.beforeInvocation(invocation);
                     for (int repetition = 1; repetition <= invocation.getRepeat(); repetition++) {
                         currentExecution.set(executionName(scenario, invocation, repetition));
