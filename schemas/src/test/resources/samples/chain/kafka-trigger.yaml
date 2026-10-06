@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "19a2ee4c-3810-46f6-8207-7e4cb5fd910b"
 name: "Kafka Trigger - MaaS"
 content:

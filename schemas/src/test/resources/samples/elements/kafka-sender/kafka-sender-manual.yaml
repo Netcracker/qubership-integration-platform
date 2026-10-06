@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/kafka-sender-2.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/kafka-sender-2
 id: "3be400c6-db17-4330-96e7-9a2e5d7488e5"
 name: "Kafka Sender"
 type: "kafka-sender-2"

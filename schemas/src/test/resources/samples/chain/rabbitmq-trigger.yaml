@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "68b75b82-fc22-4249-987f-3fe9c23ab1f9"
 name: "RabbitMQ Trigger - MaaS"
 content:

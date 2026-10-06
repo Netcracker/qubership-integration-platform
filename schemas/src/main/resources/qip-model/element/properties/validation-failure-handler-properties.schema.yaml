@@ -1,5 +1,5 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/properties/validation-failure-handler-properties.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/validation-failure-handler-properties
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
@@ -20,7 +20,7 @@ allOf:
         - handlerContainer
       properties:
         handlerContainer:
-          $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
+          $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-script"
   - if:
       properties:
         handleValidationAction:
@@ -32,12 +32,12 @@ allOf:
         - handlerContainer
       properties:
         handlerContainer:
-          $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml"
+          $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-mapper"
 title: Validation Failure Handler
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   handleValidationAction:
     type: string

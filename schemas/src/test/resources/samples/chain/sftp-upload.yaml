@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "b7ce2e4c-88ac-4b45-9409-50626f140baa"
 name: "SFTP Upload"
 content:

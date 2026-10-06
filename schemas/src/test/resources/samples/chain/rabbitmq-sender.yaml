@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "12db6b4c-a56d-4baa-97e2-8533d0ae3614"
 name: "RabbitMQ Sender - MaaS"
 content:

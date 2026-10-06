@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "229dab5d-13ec-4230-a540-324ce0ab302f"
 name: "Circuit Breaker"
 content:

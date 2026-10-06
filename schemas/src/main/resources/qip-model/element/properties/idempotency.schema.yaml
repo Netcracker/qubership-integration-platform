@@ -1,12 +1,12 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/idempotency
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Idempotency properties
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   idempotency:
     type: object
@@ -40,7 +40,7 @@ definitions:
     properties:
       keyExpiry:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
         title: Key expiration time (seconds)
         default: 600
       contextExpression:
@@ -89,7 +89,7 @@ definitions:
         title: Chain trigger
       chainCallTimeout:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
         title: Chain call timeout (ms)
         default: 30000
     required:

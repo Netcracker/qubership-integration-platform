@@ -1,5 +1,5 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/properties/chain-failure-handler-properties.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/chain-failure-handler-properties
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
@@ -22,7 +22,7 @@ allOf:
         - chainFailureHandlerContainer
       properties:
         chainFailureHandlerContainer:
-          $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
+          $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-script"
   - if:
       properties:
         handleChainFailureAction:
@@ -34,7 +34,7 @@ allOf:
         - chainFailureHandlerContainer
       properties:
         chainFailureHandlerContainer:
-          $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml"
+          $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-mapper"
   - if:
       properties:
         handleChainFailureAction:
@@ -53,9 +53,9 @@ allOf:
             - elementId
 title: Chain Failure Handler
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   handleChainFailureAction:
     type: string

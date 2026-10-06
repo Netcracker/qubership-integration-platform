@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import com.networknt.schema.*;
+import com.networknt.schema.serialization.JsonNodeReader;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -33,6 +34,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 public final class SchemaOnSamplesTest {
     private static final Logger LOGGER =
             Logger.getLogger(SchemaOnSamplesTest.class.getName());
+    private static final String ID_PREFIX =
+            "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/";
+    private static final String SCHEMA_FILE_SUFFIX = ".schema.yaml";
 
     static class ThisTestArgumentsProvider implements ArgumentsProvider {
         private static final YAMLMapper MAPPER;
@@ -104,12 +108,17 @@ public final class SchemaOnSamplesTest {
         jsonSchemaFactory = JsonSchemaFactory.getInstance(
                 SpecVersion.VersionFlag.V7,
                 builder -> builder.schemaMappers(schemaMappers -> schemaMappers.mappings(
-                        iri -> iri.startsWith("http://qubership.org/schemas/product/qip"),
+                        iri -> iri.startsWith(ID_PREFIX),
                         iri -> {
-                            String result = iri.replace("http://qubership.org/schemas/product/qip", "classpath:qip-model");
+                            String result = iri.replace(ID_PREFIX, "classpath:qip-model/") + SCHEMA_FILE_SUFFIX;
                             LOGGER.info(iri + " -> " + result);
                             return result;
-                        })).yamlMapper(ThisTestArgumentsProvider.MAPPER)
+                        }))
+                        // The factory reads YAML only for an id ending in .yaml, and schema ids carry no extension.
+                        .jsonNodeReader(JsonNodeReader.builder()
+                                .jsonMapper(ThisTestArgumentsProvider.MAPPER)
+                                .yamlMapper(ThisTestArgumentsProvider.MAPPER)
+                                .build())
         );
         SchemaValidatorsConfig.Builder builder = SchemaValidatorsConfig.builder();
 

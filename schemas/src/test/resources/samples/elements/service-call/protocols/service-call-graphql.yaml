@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/service-call
 id: "a6b13613-9378-4458-821c-403faaf5e9c6"
 name: "Service Call Graphql"
 type: "service-call"

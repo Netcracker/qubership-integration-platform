@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "5aa42289-b2f7-44c6-8703-edcc170f930b"
 name: "Try-Catch-Finally"
 content:

@@ -1,14 +1,14 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/scs-sender.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/scs-sender
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
 title: SCS Sender
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   type:
     type: string
@@ -22,7 +22,7 @@ properties:
         default: false
       connectTimeout:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
         title: Connection timeout (ms)
         description: >
           Specifies connection timeout in millis
@@ -40,7 +40,7 @@ properties:
         title: Operation
         default: GET
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/context-propagation"
       - if:
           properties:
             useCorrelationId:
