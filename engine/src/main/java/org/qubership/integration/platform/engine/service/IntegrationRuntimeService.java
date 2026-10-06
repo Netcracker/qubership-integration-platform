@@ -49,6 +49,7 @@ import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 import org.qubership.integration.platform.engine.errorhandling.RouteRegistrationException;
 import org.qubership.integration.platform.engine.errorhandling.errorcode.ErrorCode;
 import org.qubership.integration.platform.engine.events.ConsulSessionCreatedEvent;
+import org.qubership.integration.platform.engine.events.ExternalLibrariesUpdatedEvent;
 import org.qubership.integration.platform.engine.forms.FormData;
 import org.qubership.integration.platform.engine.model.RuntimeIntegrationCache;
 import org.qubership.integration.platform.engine.model.constants.CamelConstants.ChainProperties;
@@ -109,7 +110,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     private final QuartzSchedulerService quartzSchedulerService;
     private final TracingConfiguration tracingConfiguration;
     private final ExternalLibraryGroovyShellFactory groovyShellFactory;
-    private final GroovyLanguageWithResettableCache groovyLanguage;
     private final MetricsStore metricsStore;
     private final ExternalLibraryService externalLibraryService;
     private final MaasService maasService;
@@ -147,7 +147,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         QuartzSchedulerService quartzSchedulerService,
         TracingConfiguration tracingConfiguration,
         ExternalLibraryGroovyShellFactory groovyShellFactory,
-        GroovyLanguageWithResettableCache groovyLanguage,
         MetricsStore metricsStore,
         ExternalLibraryService externalLibraryService,
         MaasService maasService,
@@ -170,7 +169,6 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         this.quartzSchedulerService = quartzSchedulerService;
         this.tracingConfiguration = tracingConfiguration;
         this.groovyShellFactory = groovyShellFactory;
-        this.groovyLanguage = groovyLanguage;
         this.metricsStore = metricsStore;
         this.externalLibraryService = externalLibraryService;
         this.maasService = maasService;
@@ -199,6 +197,21 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     public void onExternalLibrariesUpdated(ConsulSessionCreatedEvent event) {
         // if consul session (re)create - force update engine state
         updateEngineState();
+    }
+
+    @EventListener
+    public void resetGroovyScriptCaches(ExternalLibrariesUpdatedEvent event) {
+        if (event.isInitialUpdate()) {
+            return;
+        }
+        for (SpringCamelContext context : getCache().getContexts().values()) {
+            // A stopped context can stay in the cache (superseded, or failed to start), and the stop has emptied its registry
+            GroovyLanguageWithResettableCache language = context.getRegistry()
+                .lookupByNameAndType("groovy", GroovyLanguageWithResettableCache.class);
+            if (language != null) {
+                language.resetScriptCache();
+            }
+        }
     }
 
     // requires completion of all deployment processes
@@ -596,7 +609,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
 
         deploymentProcessingService.processAfterContextCreated(context, deploymentInfo, deploymentConfiguration);
 
-        this.loadRoutes(context, configurationXml);
+        // A stopping context clears the script cache of every language it resolved, so each context gets its own
+        GroovyLanguageWithResettableCache groovyLanguage = new GroovyLanguageWithResettableCache();
+        context.getRegistry().bind("groovy", groovyLanguage);
+
+        this.loadRoutes(context, configurationXml, groovyLanguage);
         return context;
     }
 
@@ -636,7 +653,11 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
     /**
      * Upload routes to a new context from provided configuration
      */
-    private void loadRoutes(SpringCamelContext context, String xmlConfiguration) throws Exception {
+    private void loadRoutes(
+        SpringCamelContext context,
+        String xmlConfiguration,
+        GroovyLanguageWithResettableCache groovyLanguage
+    ) throws Exception {
         if (log.isDebugEnabled()) {
             log.debug("Loading routes from: \n{}", xmlConfiguration);
         }
@@ -653,32 +674,41 @@ public class IntegrationRuntimeService implements ApplicationContextAware {
         }
         routesDefinition.getRoutes().forEach(RouteDefinition::markUnprepared);
 
-        compileGroovyScripts(routesDefinition);
+        compileGroovyScripts(routesDefinition, groovyLanguage);
 
         context.addRouteDefinitions(routesDefinition.getRoutes());
     }
 
-    private void compileGroovyScripts(RoutesDefinition routesDefinition) {
+    private void compileGroovyScripts(
+        RoutesDefinition routesDefinition,
+        GroovyLanguageWithResettableCache groovyLanguage
+    ) {
         for (RouteDefinition route : routesDefinition.getRoutes()) {
-            compileGroovyScripts(route);
+            compileGroovyScripts(route, groovyLanguage);
         }
     }
 
-    private void compileGroovyScripts(ProcessorDefinition<?> parent) {
+    private void compileGroovyScripts(
+        ProcessorDefinition<?> parent,
+        GroovyLanguageWithResettableCache groovyLanguage
+    ) {
         for (ProcessorDefinition<?> processor : parent.getOutputs()) {
             if (processor instanceof ExpressionNode expressionNode) {
                 ExpressionDefinition expression = expressionNode.getExpression();
                 if (expression.getLanguage().equals("groovy")) {
                     log.debug("Compiling groovy script for processor {}", processor.getId());
-                    compileGroovyScript(expression);
+                    compileGroovyScript(expression, groovyLanguage);
                 }
             }
-            compileGroovyScripts(processor);
+            compileGroovyScripts(processor, groovyLanguage);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private void compileGroovyScript(ExpressionDefinition expression) {
+    private void compileGroovyScript(
+        ExpressionDefinition expression,
+        GroovyLanguageWithResettableCache groovyLanguage
+    ) {
         try {
             String text = expression.getExpression();
             if (isNull(expression.getTrim()) || Boolean.parseBoolean(expression.getTrim())) {
