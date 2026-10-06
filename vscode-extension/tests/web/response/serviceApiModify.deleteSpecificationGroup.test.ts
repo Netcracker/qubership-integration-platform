@@ -57,9 +57,9 @@ const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {}
 
 describe("deleteSpecificationGroup", () => {
   const serviceFileUri = {
-    path: "/workspace/svc/svc.service.qip.yaml",
-    fsPath: "/workspace/svc/svc.service.qip.yaml",
-    toString: jest.fn().mockReturnValue("/workspace/svc/svc.service.qip.yaml"),
+    path: "/workspace/svc/svc.service.cip.yaml",
+    fsPath: "/workspace/svc/svc.service.cip.yaml",
+    toString: jest.fn().mockReturnValue("/workspace/svc/svc.service.cip.yaml"),
   } as unknown as Uri;
 
   const mockGetSpecGroupFiles = (fileApi as any).getSpecificationGroupFiles as jest.Mock;
@@ -73,8 +73,8 @@ describe("deleteSpecificationGroup", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockGetMainService.mockResolvedValue({ id: "svc", name: "svc" });
-    mockGetSpecGroupFiles.mockResolvedValue(["g1.specification-group.qip.yaml", "g2.specification-group.qip.yaml"]);
-    mockGetSpecFiles.mockResolvedValue(["s1.specification.qip.yaml", "s2.specification.qip.yaml", "s3.specification.qip.yaml"]);
+    mockGetSpecGroupFiles.mockResolvedValue(["g1.specification-group.cip.yaml", "g2.specification-group.cip.yaml"]);
+    mockGetSpecFiles.mockResolvedValue(["s1.specification.cip.yaml", "s2.specification.cip.yaml", "s3.specification.cip.yaml"]);
     mockDeleteFile.mockResolvedValue(undefined);
     mockParse.mockImplementation(async (uri: any) => {
       const p = uri.path as string;
@@ -98,10 +98,10 @@ describe("deleteSpecificationGroup", () => {
     expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("resources/openapi.yaml") }));
     expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("resources/folder/a.yaml") }));
     expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("resources/folder") }));
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s1.specification.qip.yaml") }));
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s2.specification.qip.yaml") }));
-    expect(mockDeleteFile).not.toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s3.specification.qip.yaml") }));
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.qip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s1.specification.cip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s2.specification.cip.yaml") }));
+    expect(mockDeleteFile).not.toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s3.specification.cip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.cip.yaml") }));
     expect(mockShowInfo).toHaveBeenCalledWith('Specification group "Group One" has been deleted successfully!');
     expect(mockShowError).not.toHaveBeenCalled();
   });
@@ -111,21 +111,21 @@ describe("deleteSpecificationGroup", () => {
 
     expect(mockShowInfo).not.toHaveBeenCalled();
     expect(mockShowError).not.toHaveBeenCalled();
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.qip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.cip.yaml") }));
   });
 
   it("should delete only group file when no specs belong to group", async () => {
-    mockGetSpecFiles.mockResolvedValue(["s3.specification.qip.yaml"]);
+    mockGetSpecFiles.mockResolvedValue(["s3.specification.cip.yaml"]);
 
     await deleteSpecificationGroup(serviceFileUri, "g1");
 
     expect(mockDeleteFile).not.toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s3.specification") }));
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.qip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.cip.yaml") }));
     expect(mockDeleteFile).toHaveBeenCalledTimes(1);
   });
 
   it("should skip group files that fail to parse and still find correct group", async () => {
-    mockGetSpecGroupFiles.mockResolvedValue(["bad.specification-group.qip.yaml", "g1.specification-group.qip.yaml"]);
+    mockGetSpecGroupFiles.mockResolvedValue(["bad.specification-group.cip.yaml", "g1.specification-group.cip.yaml"]);
     mockParse.mockImplementation(async (uri: any) => {
       if (uri.path.includes("bad.specification-group")) throw new Error("parse fail");
       if (uri.path.includes("g1.specification-group")) return { id: "g1", name: "Group One" };
@@ -136,7 +136,7 @@ describe("deleteSpecificationGroup", () => {
     await deleteSpecificationGroup(serviceFileUri, "g1");
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error reading specification group file"), expect.any(Error));
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.qip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.cip.yaml") }));
   });
 
   it("should skip spec files that fail to parse", async () => {
@@ -150,8 +150,8 @@ describe("deleteSpecificationGroup", () => {
     await deleteSpecificationGroup(serviceFileUri, "g1");
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error reading specification file"), expect.any(Error));
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s2.specification.qip.yaml") }));
-    expect(mockDeleteFile).not.toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s1.specification.qip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s2.specification.cip.yaml") }));
+    expect(mockDeleteFile).not.toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s1.specification.cip.yaml") }));
   });
 
   it("should swallow error deleting source file with not empty and still delete group", async () => {
@@ -164,7 +164,7 @@ describe("deleteSpecificationGroup", () => {
     await deleteSpecificationGroup(serviceFileUri, "g1");
 
     expect(consoleErrorSpy).not.toHaveBeenCalledWith(expect.stringContaining("Error deleting source file"), expect.anything());
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.qip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.cip.yaml") }));
   });
 
   it("should log error when deleting source file fails with other error", async () => {
@@ -176,25 +176,25 @@ describe("deleteSpecificationGroup", () => {
     await deleteSpecificationGroup(serviceFileUri, "g1");
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error deleting source file"), expect.any(Error));
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s1.specification.qip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s1.specification.cip.yaml") }));
   });
 
   it("should swallow error deleting spec file and continue", async () => {
     mockDeleteFile.mockImplementation((uri: any) => {
-      if (uri.path.includes("s1.specification.qip.yaml")) return Promise.reject(new Error("delete fail"));
+      if (uri.path.includes("s1.specification.cip.yaml")) return Promise.reject(new Error("delete fail"));
       return Promise.resolve(undefined);
     });
 
     await deleteSpecificationGroup(serviceFileUri, "g1");
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("Error deleting specification file"), expect.any(Error));
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s2.specification.qip.yaml") }));
-    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.qip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("s2.specification.cip.yaml") }));
+    expect(mockDeleteFile).toHaveBeenCalledWith(expect.objectContaining({ path: expect.stringContaining("g1.specification-group.cip.yaml") }));
   });
 
   it("should throw and show error when group file delete fails and silent false", async () => {
     mockDeleteFile.mockImplementation((uri: any) => {
-      if (uri.path.includes("g1.specification-group.qip.yaml")) return Promise.reject(new Error("group delete fail"));
+      if (uri.path.includes("g1.specification-group.cip.yaml")) return Promise.reject(new Error("group delete fail"));
       return Promise.resolve(undefined);
     });
 
@@ -207,7 +207,7 @@ describe("deleteSpecificationGroup", () => {
 
   it("should throw but not show error when silent true and group file delete fails", async () => {
     mockDeleteFile.mockImplementation((uri: any) => {
-      if (uri.path.includes("g1.specification-group.qip.yaml")) return Promise.reject(new Error("group delete fail"));
+      if (uri.path.includes("g1.specification-group.cip.yaml")) return Promise.reject(new Error("group delete fail"));
       return Promise.resolve(undefined);
     });
 

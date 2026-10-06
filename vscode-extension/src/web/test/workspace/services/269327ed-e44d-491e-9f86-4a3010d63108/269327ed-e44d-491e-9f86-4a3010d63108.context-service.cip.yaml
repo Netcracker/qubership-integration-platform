@@ -1,6 +1,6 @@
 ---
 id: "269327ed-e44d-491e-9f86-4a3010d63108"
-$schema: "http://qubership.org/schemas/product/qip/context-service"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service"
 name: "vsc-fixture-context"
 content:
   description: "Context service for the extension integration tests"

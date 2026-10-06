@@ -1,4 +1,4 @@
-$schema: http://qubership.org/schemas/product/qip/service
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
 id: 4587b5f6-5963-4809-810f-65b498aaa70c
 name: vsc-created-external
 content:

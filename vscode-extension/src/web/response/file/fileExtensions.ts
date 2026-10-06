@@ -1,3 +1,4 @@
+import { DEFAULT_APP_NAME } from "../../constants/appName";
 import { ProjectConfigService } from "../../services/ProjectConfigService";
 import { Uri } from "vscode";
 import * as vscode from "vscode";
@@ -24,7 +25,9 @@ export function buildDefaultExtensions(appName: string): FileExtensionsConfig {
   };
 }
 
-let defaultAppName = "qip";
+export { DEFAULT_APP_NAME };
+
+let defaultAppName = DEFAULT_APP_NAME;
 let memoizedDefaultExtensions: FileExtensionsConfig | null = null;
 
 export function setDefaultAppName(appName: string) {

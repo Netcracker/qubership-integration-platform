@@ -4,12 +4,14 @@ export type QipSchemaType =
   | "SERVICE"
   | "CHAIN";
 
+export const CONF_MODEL_BASE_URL =
+  "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/";
+
 export const QIP_SCHEMA_URLS = {
-  SPECIFICATION: "http://qubership.org/schemas/product/qip/specification",
-  SPECIFICATION_GROUP:
-    "http://qubership.org/schemas/product/qip/specification-group",
-  SERVICE: "http://qubership.org/schemas/product/qip/service",
-  CHAIN: "http://qubership.org/schemas/product/qip/chain",
+  SPECIFICATION: `${CONF_MODEL_BASE_URL}specification`,
+  SPECIFICATION_GROUP: `${CONF_MODEL_BASE_URL}specification-group`,
+  SERVICE: `${CONF_MODEL_BASE_URL}service`,
+  CHAIN: `${CONF_MODEL_BASE_URL}chain`,
 } as const;
 
 export function getQipSchemaType(schemaUrl: string): QipSchemaType | null {

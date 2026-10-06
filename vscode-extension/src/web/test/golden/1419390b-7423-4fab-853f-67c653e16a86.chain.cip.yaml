@@ -1,5 +1,5 @@
 id: 1419390b-7423-4fab-853f-67c653e16a86
-$schema: http://qubership.org/schemas/product/qip/chain
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
 name: vsc-roundtrip-chain
 content:
   description: Saved by the round-trip test

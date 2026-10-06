@@ -24,10 +24,10 @@ const writeMainChainMock = fileApi.writeMainChain as jest.Mock;
 // object (the group write-format matches the read-format, including sanitization) —
 // it does not exercise YAML serialization/persistence.
 describe("group format consistency: changeFolder <-> schemaToChain", () => {
-  const fileUri = Uri.file("/workspace/chain-1.chain.qip.yaml");
+  const fileUri = Uri.file("/workspace/chain-1.chain.cip.yaml");
 
   const newChain = () => ({
-    $schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml",
+    $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain",
     id: "chain-1",
     name: "Chain 1",
     content: { dependencies: [] },

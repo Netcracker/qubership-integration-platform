@@ -1,6 +1,6 @@
 ---
 id: "3b2e9742-139c-4750-bb76-adaf1cc9e3f0-orders-1.0.0"
-$schema: "http://qubership.org/schemas/product/qip/specification"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification"
 name: "1.0.0"
 content:
   deprecated: false

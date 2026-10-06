@@ -1,4 +1,4 @@
-$schema: http://qubership.org/schemas/product/qip/context-service
+$schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service
 id: 8c167f39-dec0-4713-836c-ed25951446db
 name: vsc-created-context
 content:

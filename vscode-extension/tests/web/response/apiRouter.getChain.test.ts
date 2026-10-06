@@ -43,7 +43,7 @@ describe("apiRouter getChain handler", () => {
   });
 
   test("passes explicit chain file path from object payload", async () => {
-    const chainFileUri = Uri.file("/workspace/chains/chain-1.chain.qip.yaml");
+    const chainFileUri = Uri.file("/workspace/chains/chain-1.chain.cip.yaml");
 
     await getApiResponse(
       {
