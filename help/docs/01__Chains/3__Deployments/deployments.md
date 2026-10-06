@@ -50,11 +50,11 @@ If you want to **delete deployment**, click ![delete](img/delete.svg) on the rig
 
 ---
 
-As the result of the deployment, deployment data is going to be stored in CIP in a way of cards (records) under the respective UI tabs. If any specific logging level is specified, then CIP will produce the session logs to the Open Search (please refer to the general logging page for more details [Logging].
+As the result of the deployment, deployment data is going to be stored in CIP Runtime-Catalog DB and displayed on Web UI as a table records.
 
 ## Configuration
 
 ---
 
-In general, all configurations are being done via UI. For detailed information about logging configuration, please refer to the [Logging] article. Global configuration aspects and guides for Cloud Integration Platform are available in Installation Notes articles.
+In general, all configurations are being done via UI. For detailed information about logging configuration, please refer to the [Logging](../5__Logging/logging.md) article. Global configuration aspects and guides for Cloud Integration Platform are available in Installation guide.
 

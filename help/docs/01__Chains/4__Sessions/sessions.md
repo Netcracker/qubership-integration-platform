@@ -88,7 +88,7 @@ Next information is available, when element's name clicked and window with its d
 - **Body** tab - contains before/after states of request body, participated in the processing.  Slider **"View diff"** highlights payloads differences.
 - **Headers** tab - contains the list of headers and their before/after values.
     > ℹ️ **Note**: For **HTTP Sender** and **Service Call** header **"CamelHttpUri"** will contain full URI, with resource and query parameters in it.
-- **Exchange properties** tab - contains list of exchange properties. There are specific properties, available for failed elements in sessions, please refer to the [Building Logic Around Failed Elements](../../00__Overview/6__Building_Logic_Around_Failed_Elements/failed_elements_logic.md) article for more details.
+- **Exchange properties** tab - contains list of exchange properties. There are specific properties, available for failed elements in sessions, please refer to the [Building Logic Around Failed Elements](../../05__How_To/1__Build_Logic_Around_Failed_Elements/failed_elements_logic.md) article for more details.
 - **Technical context** tab - contains the list of context headers, that have been received by the chain.
 
 There is also "**Only modified**" switch, available for "**Headers**", "**Exchange properties**" and "**Technical context**" tabs, that could be used to only show records that were modified during the processing.
