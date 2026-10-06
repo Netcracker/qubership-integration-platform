@@ -964,13 +964,7 @@ export class Catalog {
     return this.call("get", `/v1/design-generator/chains/${chainId}`);
   }
 
-  /**
-   * One diagram per requested mode, keyed by the mode.
-   *
-   * The body is required and `diagramModes` with it: `{}` is a `500` on a null dereference and a
-   * zero-byte body is a `400`. Both are filed in `docs/product-defects.md`, and the spec pins them,
-   * so this method never defaults the key — a caller sending nothing means to send nothing.
-   */
+  /** One diagram per requested mode, keyed by the mode. `diagramModes` is required, as the UI sends it. */
   chainDesigns(
     chainId: string,
     diagramModes: readonly DiagramMode[],
@@ -981,9 +975,7 @@ export class Catalog {
   /**
    * The same diagram off a snapshot's elements rather than the chain's.
    *
-   * `chainId` decides only the participant label — the elements come from `snapshotId` alone — so
-   * any chain's URL renders any snapshot. Filed in `docs/product-defects.md` and carried as a
-   * `test.fail()` in `specs/api/design.spec.ts`.
+   * `chainId` decides only the participant label, so any chain's URL renders any snapshot.
    */
   snapshotDesign(chainId: string, snapshotId: string): Promise<SequenceDiagram> {
     return this.call("get", `/v1/design-generator/chains/${chainId}/snapshots/${snapshotId}`);
@@ -1690,13 +1682,7 @@ export class Catalog {
     return this.call("get", `/v1/catalog/mcp-system/${id}`);
   }
 
-  /**
-   * Merges the fields it is given — and **500s without a `labels` key**.
-   *
-   * `MCPSystemService.update` calls `request.getLabels().stream()` unguarded, so an omitted key is
-   * an NPE reported as `500 Cannot invoke "java.util.List.stream()"`. The same shape the chain
-   * create once had; here it is still live, so the key is sent rather than left to the caller.
-   */
+  /** Merges the fields it is given. `labels` is always sent, as the UI does: the update requires it. */
   updateMcpSystem(id: string, mcp: Partial<McpSystemView>): Promise<McpSystemView> {
     return this.call("put", `/v1/catalog/mcp-system/${id}`, { labels: [], ...mcp });
   }

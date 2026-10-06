@@ -130,11 +130,6 @@ const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
   "observable redelivery within a bounded test window, so a case sees the same one session, no " +
   "failed elements AUTO's case already shows; the case still runs, without a covers() call";
 
-const R_PUBSUB_ORDERING_INDISTINGUISHABLE =
-  "product defect (docs/product-defects.md, \"pubsub-sender's orderingKey property never reaches " +
-  "the published message\"): with no ordering key ever set on the message, a case cannot tell " +
-  "messageOrderingEnabled=true apart from false; the case still runs, without a covers() call";
-
 // `async-api-trigger`'s protocol axis is covered by one kafka and one amqp case in
 // `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close as a
 // byproduct of building those two chains. Its method, systemType, idempotency and acknowledgeMode
@@ -648,7 +643,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "on-fallback-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "otherwise", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "pubsub-sender", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: true, tier: 2, status: NOT_COVERED, reason: R_PUBSUB_ORDERING_INDISTINGUISHABLE, tags: ENGINE },
+  { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: true, tier: 2, status: "covered", tags: ENGINE, target: "compose" },
   { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: false, tier: 2, status: "covered", tags: ENGINE, target: "compose" },
   { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
   { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },

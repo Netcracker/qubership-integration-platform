@@ -304,45 +304,17 @@ export async function seedCorpus(
   return { run, chains };
 }
 
-/**
- * Deploys the whole corpus, and then deploys one chain again through a different endpoint.
- *
- * The second half is not redundancy. **A bulk deploy tells the engine nothing.**
- * `DeploymentService.bulkCreate` reaches its own `@DeploymentModification` methods by
- * self-invocation — `bulkCreate` → `deploySnapshot` → `deploySnapshotToDomain` → `create` — and
- * Spring's proxy AOP does not intercept a call an object makes to itself, so the aspect that writes
- * Consul's `deployments-update` key never runs. The engine watches that key with a blocking query
- * and fetches only when its index moves, so the deployment rows exist in the catalog and no route
- * ever comes up. Measured: three bulk deploys in a row left the key at its previous timestamp, the
- * engine issued no `deployments/update` request for ten minutes, and the chains sat at no runtime
- * state at all.
- *
- * `POST /v1/catalog/chains/{id}/deployments` reaches `create` from the **controller**, through the
- * proxy, so the aspect runs. One chain deployed that way after the batch moves the key once, and
- * the engine then collects every pending deployment in the same round — which is exactly the one
- * Consul tick the batch exists to pay.
- */
+/** Deploys the whole corpus in one bulk call, which moves Consul's `deployments-update` key once. */
 export async function deployCorpus(catalog: Catalog, chains: readonly SeedChain[]): Promise<void> {
   if (chains.length === 0) {
-    throw new Error(
-      "deployCorpus was given no chains: the last one is what moves Consul's deployments-update " +
-        "key, so an empty corpus has nothing to deploy and nothing downstream would come up",
-    );
+    throw new Error("deployCorpus was given no chains, so nothing downstream would come up");
   }
-  const batch = chains.slice(0, -1);
-  const last = chains[chains.length - 1];
-
-  if (batch.length > 0) {
-    const { status, rows } = await catalog.bulkDeploy(batch.map((each) => each.id));
-    expect(status, `the corpus deploy answered ${status}: ${JSON.stringify(rows)}`).toBe(200);
-    expect(
-      rows.filter((row) => row.status !== "CREATED").map((row) => `${row.chainName}: ${row.status}`),
-      "a chain the batch could not deploy",
-    ).toEqual([]);
-  }
-
-  const snapshot = await catalog.createSnapshot(last.id);
-  await catalog.deploy(last.id, snapshot.id);
+  const { status, rows } = await catalog.bulkDeploy(chains.map((each) => each.id));
+  expect(status, `the corpus deploy answered ${status}: ${JSON.stringify(rows)}`).toBe(200);
+  expect(
+    rows.filter((row) => row.status !== "CREATED").map((row) => `${row.chainName}: ${row.status}`),
+    "a chain the batch could not deploy",
+  ).toEqual([]);
 }
 
 /** Polls until every seeded chain is keyed in the runtime view, failing with the set difference. */

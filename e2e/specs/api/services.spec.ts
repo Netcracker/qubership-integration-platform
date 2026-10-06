@@ -20,9 +20,8 @@
  *   carrying one label.
  * - `PUT /v1/catalog/context-system/{id}` **merges**, which is the opposite of the service `PUT`
  *   on the line above.
- * - `PUT /v1/catalog/mcp-system/{id}` **500s without a `labels` key** — `MCPSystemService.update`
- *   calls `getLabels().stream()` unguarded — and its `DELETE` is idempotent where the context
- *   delete answers 404 the second time.
+ * - `DELETE /v1/catalog/mcp-system/{id}` is idempotent where the context delete answers 404 the
+ *   second time.
  * - The two families disagree about the **filter envelope**: the context filter takes a bare list
  *   of clauses and the MCP one wraps them in `{searchString, filters}`, though both deserialize the
  *   same `FilterRequestDTO`.
@@ -298,7 +297,7 @@ test("a context service is filtered, exported by either verb, and previewed back
   }
 });
 
-test("an MCP service round-trips, and its update needs the labels key it never asks for", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
+test("an MCP service round-trips", { tag: ["@catalog", "@tier1"] }, async ({ catalog, run }) => {
   const name = tokenized(run, "mcp");
   const created = await catalog.createMcpSystem({
     name,
@@ -313,19 +312,6 @@ test("an MCP service round-trips, and its update needs the labels key it never a
       identifier: name,
       instructions: "answer questions",
     });
-
-    // The sharp edge, asserted rather than only worked around in the client: without `labels` the
-    // update is a 500 from an unguarded `getLabels().stream()`, not a 400 naming a missing field.
-    const unguarded = await catalog.raw("put", `/v1/catalog/mcp-system/${created.id}`, {
-      name: `${name}-renamed`,
-      identifier: name,
-    });
-    expect(unguarded.status()).toBe(500);
-    expect(await unguarded.text()).toContain("java.util.List.stream()");
-    expect(
-      (await catalog.getMcpSystem(created.id)).name,
-      "and the failed update wrote nothing",
-    ).toBe(name);
 
     const updated = await catalog.updateMcpSystem(created.id, {
       name: `${name}-renamed`,

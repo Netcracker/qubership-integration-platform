@@ -197,7 +197,7 @@ export async function deletePullSubscription(subscription: string): Promise<void
 }
 
 /** One message off `subscription`, acked, or `null` if none arrives within `timeoutMs`. */
-export async function pullOnePubsub(subscription: string, timeoutMs = 20_000): Promise<{ data: unknown } | null> {
+export async function pullOnePubsub(subscription: string, timeoutMs = 20_000): Promise<{ data: unknown; orderingKey?: string } | null> {
   const received = await readUntil(
     async () => {
       const response = await fetch(pubsubUrl(`subscriptions/${subscription}:pull`), {
@@ -207,7 +207,7 @@ export async function pullOnePubsub(subscription: string, timeoutMs = 20_000): P
       });
       if (!response.ok) throw new Error(`pulling ${subscription} answered ${response.status}`);
       const body = (await response.json()) as {
-        receivedMessages?: Array<{ ackId: string; message: { data: string } }>;
+        receivedMessages?: Array<{ ackId: string; message: { data: string; orderingKey?: string } }>;
       };
       return body.receivedMessages?.[0] ?? null;
     },
@@ -220,7 +220,10 @@ export async function pullOnePubsub(subscription: string, timeoutMs = 20_000): P
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ ackIds: [received.ackId] }),
   });
-  return { data: JSON.parse(Buffer.from(received.message.data, "base64").toString("utf-8")) };
+  return {
+    data: JSON.parse(Buffer.from(received.message.data, "base64").toString("utf-8")),
+    orderingKey: received.message.orderingKey,
+  };
 }
 
 /** One SFTP connection, host-side, closed whether `fn` throws or not. */

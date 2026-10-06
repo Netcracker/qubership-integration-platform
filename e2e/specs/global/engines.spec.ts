@@ -38,8 +38,6 @@
  * - **an engine host nothing answers to is not an error**: `/engines/{ip}/deployments` answers
  *   `200 []`, and so does `/domains/{unknown}/engines`; `/domains/{unknown}/deployments/count`
  *   answers `200 0`. There is no 404 anywhere in this controller.
- * - **`deployments/update` needs `excludeDeployments` present.** A body of `{}` answers **500** on
- *   a null dereference, filed in `docs/product-defects.md`; a zero-byte body answers 400.
  * - **a checkpoint session survives only a failure.** `CamelDebugger.finishCheckpointSession`
  *   deletes the `SessionInfo` row for a session that completed normally and keeps it for
  *   `COMPLETED_WITH_ERRORS`, which is why the chain this file builds ends in a script that throws.
@@ -220,31 +218,6 @@ test("the update feed hands the engine every deployment it does not already have
     { deploymentId: ABSENT_DEPLOYMENT },
   ]);
   expect(stopping.stop.map((each) => each.deploymentInfo.deploymentId)).toEqual([ABSENT_DEPLOYMENT]);
-});
-
-test("the update feed 500s on a body that omits excludeDeployments, and 400s on no body at all", { tag: ["@catalog", "@tier2"] }, async ({ catalog }) => {
-  // A pinned defect rather than a contract: `getDeploymentsForDomain` calls
-  // `engineDeployments.getExcludeDeployments().isEmpty()` with nothing between it and a null, so a
-  // body that omits the only field the DTO has is a null dereference. Filed in
-  // `docs/product-defects.md` as "The engine update feed 500s on a body that omits
-  // excludeDeployments". Not carried as `test.fail()`: the 500 is what the platform answers today
-  // and the case asserts that reading, so a fix turns the message assertion red and says so.
-  const missing = await catalog.raw(
-    "post",
-    `/v1/catalog/domains/${DEFAULT_DOMAIN}/deployments/update`,
-    {},
-  );
-  expect(missing.status()).toBe(500);
-  expect(await missing.text()).toContain("getExcludeDeployments()");
-
-  // A request Spring cannot read at all fails earlier and correctly, which is what makes the 500
-  // above the service's own doing rather than the framework's.
-  const empty = await catalog.upload(
-    "post",
-    `/v1/catalog/domains/${DEFAULT_DOMAIN}/deployments/update`,
-    { headers: { "Content-Type": "application/json" } },
-  );
-  expect(empty.status()).toBe(400);
 });
 
 test("the engine keeps a failed session for retry, answers it by id, and lists none without one", { tag: ["@engine", "@tier1"] }, async ({ catalog, engine, env, folder, request, run, sessions }) => {

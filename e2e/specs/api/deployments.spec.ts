@@ -35,12 +35,10 @@
  * The engine-side `FAILED` status is not reachable from here without a broker: on this stack the
  * one `FAILED` deployment got there through an AMQP `IOException`.
  *
- * **The bulk endpoint does not reach the engine on its own.** It writes its rows and never moves
- * Consul's `deployments-update` key, so no route comes up until something else moves it. The entry
- * in `docs/product-defects.md` has the mechanism. The bulk case below deploys one of its chains
- * again through the annotated controller path for exactly that reason, and says so at the line that
- * does it. `POST .../deployments/all`, which deploys one chain to a list of domains, goes through
- * the annotated path and needs no such help.
+ * **The bulk endpoint reaches the engine on its own.** `DeploymentService.bulkCreate` carries
+ * `@DeploymentModification`, so Consul's `deployments-update` key moves once after the batch
+ * commits and the engine collects every row of it in one round. `POST .../deployments/all`, which
+ * deploys one chain to a list of domains, moves the key the same way.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { DEFAULT_DOMAIN, type Catalog, type RuntimeDeployment } from "../../support/catalog.js";
@@ -452,19 +450,6 @@ test("bulk deploy takes the snapshot itself and reports one row per chain", { ta
   // The snapshot the bulk call took for itself is a real one.
   expect((await catalog.listSnapshots(one.id)).map((each) => each.name)).toEqual(["V1"]);
 
-  // And now the defect this case has to route around rather than pretend away. `bulkCreate` reaches
-  // its own annotated methods by self-invocation, so the aspect that writes Consul's
-  // `deployments-update` key never runs and the engine is never told — `docs/product-defects.md`,
-  // "A bulk deploy creates the rows and never tells the engine". Waiting for the routes straight
-  // after the bulk call therefore passes only when some neighboring parallel case happens to deploy
-  // through the annotated controller path inside the budget, which is not this case's doing.
-  //
-  // So one of the two is deployed again through `POST /v1/catalog/chains/{id}/deployments`, which
-  // does move the key — and the engine then collects every pending deployment in that one round,
-  // the second chain's bulk row included. `support/corpus.ts` deploys the seed the same way.
-  const nudge = await catalog.createSnapshot(one.id);
-  await catalog.deploy(one.id, nudge.id);
-
   await deploymentRowOf(catalog, one);
   await deploymentRowOf(catalog, two);
   expect((await callDeployedChain(request, env, one)).marker).toBe("one");
@@ -508,7 +493,7 @@ test("deploying a chain to a list of domains creates the deployment and tells th
   expect(created[0]).toMatchObject({ chainId: chain.id, snapshotId: snapshot.id, domain: DEFAULT_DOMAIN });
   expect((await catalog.listDeployments(chain.id)).map((each) => each.id)).toEqual([created[0].id]);
 
-  // Unlike the bulk endpoint, this one tells the engine itself.
+  // Like the bulk endpoint, this one tells the engine itself.
   const reported = await deploymentRowOf(catalog, chain);
   expect(reported.deploymentInfo).toMatchObject({ deploymentId: created[0].id, snapshotId: snapshot.id });
   expect((await callDeployedChain(request, env, chain)).marker).toBe("all");

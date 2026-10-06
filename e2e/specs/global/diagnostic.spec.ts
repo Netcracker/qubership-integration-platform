@@ -5,15 +5,15 @@
  * rewrites `validation_chains_alerts` for **every** chain on the stack, one rule at a time
  * (`DiagnosticService.runValidationsAsync`), and the last-run status is a single row per rule in
  * `validation_status` that `POST /validations` and `GET /validations/{id}` both read. Two workers
- * running validations at once would each be reading the other's rewrite, which the service tries to
- * stop and only half manages — see the third bullet.
+ * running validations at once would each be reading the other's rewrite, which the service stops
+ * with a lock — see the third bullet.
  *
  * The rule under test is `scripting-found-in-chain`, chosen because it is the one built-in rule a
  * spec can satisfy on demand and undo again: its query is
  * `SELECT * FROM catalog.elements WHERE chain_id IS NOT NULL AND type = 'script' …`, so a `script`
  * element in a chain is enough and nothing has to be snapshotted, deployed, or timed.
  *
- * Five shapes measured against the stack rather than assumed:
+ * Five shapes, each measured against the stack or read off the code:
  *
  * - **The listing carries counts, a search carries entities.** With neither a `searchString` nor
  *   `filters`, `getFilteredValidations` builds each row from `alertsCount` alone and every
@@ -21,11 +21,10 @@
  * - **`PATCH` answers 202 and the work runs on a `CompletableFuture`.** An assertion made straight
  *   after the call reads the *previous* run, so every case here polls `startedWhen` forward rather
  *   than sleeping.
- * - **The run is exclusive only against a caller that is late enough.** A second `PATCH` issued
- *   after the first has answered is refused with **409** `Validation(s) already in progress`, and
- *   two issued together both answer 202 — the lock is a `ConfigParameter` row read and written
- *   with nothing holding the two together. Neither outcome is asserted here, because both are
- *   races; the hole is filed in `docs/product-defects.md`.
+ * - **A run is exclusive.** `DiagnosticService.validationUpdateTryLock` takes a `ConfigParameter`
+ *   row with one `INSERT … ON CONFLICT DO UPDATE … WHERE` and counts it taken only when that
+ *   statement changed a row, so a `PATCH` that arrives while a run holds it is refused with **409**
+ *   `Validation(s) already in progress`. A lock older than 15 minutes is taken over.
  * - **An unknown validation id is dropped, not refused.** `PATCH ?validationIds=no-such` answers
  *   202 and runs nothing — `filteredIds` is an intersection with the known rules. `GET` of the same
  *   id answers **404**, so the two disagree about what an unknown id is.
@@ -227,11 +226,6 @@ test("the reader and the runner disagree about an unknown validation id", { tag:
     "a validation id nothing answers to ran a rule that was never asked for",
   ).toBe(witnessBefore);
 
-  // The 409 the controller answers a second caller with is **not** asserted here, and the omission
-  // is deliberate. `DiagnosticService.validationUpdateTryLock` reads a `ConfigParameter` row and
-  // writes it back with nothing holding the two together, so which of 202 and 409 a second call
-  // gets is a matter of how far apart the two requests land: measured, a call issued after the
-  // first has answered is refused, and two issued together both succeed, 8 pairs out of 8. Pinning
-  // either outcome would pin a race. Filed in `docs/product-defects.md` under "Two diagnostic runs
-  // started at once both proceed".
+  // The 409 a second caller gets is not asserted: whether a call lands while the first run still
+  // holds the lock depends on how long that run takes.
 });
