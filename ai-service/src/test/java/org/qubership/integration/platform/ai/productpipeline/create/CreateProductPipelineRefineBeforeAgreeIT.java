@@ -26,12 +26,12 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
-import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairMessageBuilder;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSession;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureSlot;
 import org.qubership.integration.platform.ai.plan.DraftDecision;
-import org.qubership.integration.platform.ai.plan.RequirementBriefCapture;
-import org.qubership.integration.platform.ai.plan.RequirementBriefTool;
+import org.qubership.integration.platform.ai.plan.RequirementAnalysisCapture;
+import org.qubership.integration.platform.ai.plan.ProductRequirementBriefTool;
+import org.qubership.integration.platform.ai.plan.ProductRequirementBriefToolTestSupport;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
@@ -60,11 +60,10 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResu
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
-import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /**
  * Mock-LLM e2e: each gated CREATE stage receives a refine-before-Agree turn. Analysis uses the real
- * {@link RequirementAnalysisCapability} + {@link RequirementBriefTool} path so a second
+ * {@link RequirementAnalysisCapability} + {@link ProductRequirementBriefTool} path so a second
  * {@code captureRequirementBrief} must succeed after capture-slot clear (no stream failure).
  */
 class CreateProductPipelineRefineBeforeAgreeIT {
@@ -131,8 +130,17 @@ class CreateProductPipelineRefineBeforeAgreeIT {
         captureSession.isPresent(
             CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION_ID)));
 
-    // Change-request re-runs analysis: capture slot must clear so the tool path does not throw.
-    Reference analysisSecond = acceptInput("add quartz trigger").candidate();
+    RequirementBrief firstBrief = captureSession.get(
+        CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, CONVERSATION_ID), RequirementBrief.class).orElseThrow();
+    assertTrue(firstBrief.approvedDraftReference() != null);
+    assertTrue(runStore.load(RUN_ID).orElseThrow().run().stages().stream()
+        .flatMap(stage -> stage.outputRefs().stream())
+        .anyMatch(ref -> ref.artifactId().equals(firstBrief.approvedDraftReference())));
+
+    Reference refinedDraft = acceptInput("add quartz trigger").candidate();
+    assertEquals("requirement-discovery", loadCurrentStageId());
+    assertEquals(1, analysisCaptures.get());
+    Reference analysisSecond = approveAndAwaitApproval(refinedDraft).candidate();
     assertNotEquals(analysisFirst, analysisSecond);
     assertEquals(2, analysisCaptures.get());
     assertTrue(lastAnalysisMessage.get().contains("add quartz trigger"));
@@ -168,12 +176,7 @@ class CreateProductPipelineRefineBeforeAgreeIT {
 
   private StageCapability realAnalysis(
       CaptureSession session, CaptureAttemptFeedbackStore feedbackStore) {
-    RequirementBriefTool briefTool =
-        new RequirementBriefTool(
-            session,
-            new ObjectMapper(),
-            feedbackStore,
-            new CaptureRepairMessageBuilder(mock(DeterministicElementSchemaService.class)));
+    ProductRequirementBriefTool briefTool = ProductRequirementBriefToolTestSupport.create(session, feedbackStore);
     FakeKnowledgeClient knowledge = knowledgeWithMandatoryObjects();
     return new RequirementAnalysisCapability(
         knowledge,
@@ -186,24 +189,12 @@ class CreateProductPipelineRefineBeforeAgreeIT {
         (conversationId, userMessage) -> {
           lastAnalysisMessage.set(userMessage);
           org.jboss.logmanager.MDC.put(ChatMdc.CONVERSATION_ID, conversationId);
-          RequirementDraft approved =
-              ProductCapabilityCaptureContext.approvedDraft()
-                  .orElseGet(RequirementFactFixtures::greetingsApprovedDraft);
           int call = analysisCaptures.incrementAndGet();
           String goal = call == 1 ? "Greetings brief" : "Greetings with quartz";
-          String result =
-              briefTool.captureRequirementBrief(
-                  new RequirementBriefCapture(
-                      goal,
-                      List.of(),
-                      List.of(),
-                      List.of(),
-                      goal,
-                      null,
-                      approved.planningText(),
-                      approved.facts(),
-                      List.of()));
-          assertTrue(result.contains("Requirement brief captured"), result);
+          var result = ProductRequirementBriefToolTestSupport.capture(briefTool,
+              new RequirementAnalysisCapture(goal, List.of("GET /greetings"), List.of(),
+                  goal, List.of(), List.of()), conversationId);
+          assertTrue(result.accepted(), result.message());
           return Multi.createFrom().item(ChatEvent.token("analysis-ok"));
         },
         null);

@@ -411,7 +411,10 @@ class CreateChainTriggerSenderPipelineMatrixTest {
     seeds.put("chain-trigger-2", Map.of("elementId", INBOUND_ID));
     seeds.put("jms-trigger", jmsProperties());
     seeds.put("jms-sender", jmsSenderProperties());
-    seeds.put("kafka-trigger-2", Map.of("groupId", "grp", "topicsClassifierName", "orders-in"));
+    seeds.put("kafka-trigger-2", Map.of("groupId", "grp", "brokers", "localhost:9092",
+        "topics", "orders-in", "securityProtocol", "PLAINTEXT", "saslMechanism", "GSSAPI"));
+    seeds.put("kafka-sender-2", Map.of("brokers", "localhost:9092", "topics", "orders-out",
+        "securityProtocol", "PLAINTEXT", "saslMechanism", "GSSAPI"));
     seeds.put(
         "mcp-trigger",
         Map.of(
@@ -422,7 +425,7 @@ class CreateChainTriggerSenderPipelineMatrixTest {
     seeds.put("pubsub-trigger", pubsubProperties());
     seeds.put("pubsub-sender", pubsubProperties());
     seeds.put("quartz-scheduler", Map.of("cron", "0 */5 * ? * *", "deleteJob", "false"));
-    seeds.put("rabbitmq-trigger-2", Map.of("queues", "orders", "exchange", "orders"));
+    seeds.put("rabbitmq-trigger-2", Map.of("queues", "orders", "exchange", "orders", "addresses", "localhost:5672"));
     seeds.put("sds-trigger", Map.of("jobId", "job-1", "prohibitParallelRun", "false"));
     seeds.put(
         "sftp-trigger-2",
@@ -438,8 +441,9 @@ class CreateChainTriggerSenderPipelineMatrixTest {
     seeds.put("mail-sender", Map.of("from", "sender@example.com", "url", "smtp://localhost", "password", "password"));
     seeds.put(
         "rabbitmq-sender-2",
-        Map.of("exchange", "orders", "routingKey", "orders"));
-    seeds.put("scs-sender", Map.of("useCorrelationId", "true", "operation", "DELETE"));
+        Map.of("exchange", "orders", "routingKey", "orders", "addresses", "localhost:5672"));
+    seeds.put("scs-sender", Map.of("useCorrelationId", "false", "operation", "SET",
+        "key", "order", "ttl", "21600", "sessionId", "session-1"));
     return seeds;
   }
 

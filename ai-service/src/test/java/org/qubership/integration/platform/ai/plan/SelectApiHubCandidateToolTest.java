@@ -16,6 +16,8 @@ import java.util.Optional;
 import org.jboss.logmanager.MDC;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.chat.ChatMdc;
 import org.qubership.integration.platform.ai.integration.apihub.ConversationApiHubCache;
 import org.qubership.integration.platform.ai.integration.catalog.ApiHubExistingCatalogBinder;
@@ -160,8 +162,9 @@ class SelectApiHubCandidateToolTest {
     assertFalse(apiHubCache.latestCandidate("select-conv").isPresent());
   }
 
-  @Test
-  void selectRequiresServiceCallIdWhenSeveralCallsAreUnresolved() {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void selectRequiresServiceCallIdWhenSeveralCallsAreUnresolved(boolean currentFacts) {
     MDC.put(ChatMdc.CONVERSATION_ID, "select-conv");
     store.beginTurn("select-conv");
     store.put(
@@ -184,6 +187,16 @@ class SelectApiHubCandidateToolTest {
             serviceCall("call-om-result", "OM", "onTaskResult"),
             serviceCall("call-wfm-create-task", "Salesforce WFM", "createTask")));
 
+    RequirementDraft original = store.get("select-conv").orElseThrow();
+    if (currentFacts) {
+      original = original.withFacts(original.facts().stream()
+          .map(fact -> new RequirementFact(fact.sourceFactId(), fact.polarity(),
+              RequirementFactKind.BEHAVIOR, null, fact.text(), fact.participant(), fact.operation(),
+              null, null, null, null, List.of(fact.serviceCallId())))
+          .toList());
+      store.put("select-conv", original);
+    }
+
     String result =
         tool.selectApiHubCandidate(
             "S.ProdCat.PartyMgmt",
@@ -198,6 +211,8 @@ class SelectApiHubCandidateToolTest {
     assertTrue(result.contains("interactionId is required"), result);
     assertTrue(result.contains("call-om-result"), result);
     assertTrue(result.contains("call-wfm-create-task"), result);
+    assertEquals(original, store.get("select-conv").orElseThrow());
+    assertTrue(apiHubCache.latestCandidate("select-conv").isEmpty());
   }
 
   @Test

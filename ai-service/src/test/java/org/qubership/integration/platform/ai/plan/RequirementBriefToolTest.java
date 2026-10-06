@@ -255,7 +255,7 @@ class RequirementBriefToolTest {
     RequirementBrief brief = getBrief("conv-brief").orElseThrow();
     assertEquals(1, brief.mappingIntents().size());
     assertEquals("map-request", brief.mappingIntents().getFirst().mappingIntentId());
-    assertEquals("name", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    assertEquals("$.name", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
     assertEquals("Subject", brief.mappingIntents().getFirst().rules().getFirst().targetPath());
   }
 

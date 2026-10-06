@@ -201,9 +201,17 @@
         "targetPort": "REQUEST",
         "rules": [
           {
-            "sourcePath": "customerId",
             "targetPath": "customer.id",
-            "status": "PROPOSED"
+            "status": "PROPOSED",
+            "value": {
+              "operation": "COPY",
+              "source": {
+                "kind": "MESSAGE",
+                "interactionId": "http-in",
+                "port": "OUTPUT",
+                "path": "customerId"
+              }
+            }
           }
         ]
       },
@@ -215,9 +223,17 @@
         "targetPort": "REQUEST",
         "rules": [
           {
-            "sourcePath": "orderId",
             "targetPath": "parentOrderId",
-            "status": "PROPOSED"
+            "status": "PROPOSED",
+            "value": {
+              "operation": "COPY",
+              "source": {
+                "kind": "MESSAGE",
+                "interactionId": "orders-create",
+                "port": "RESPONSE",
+                "path": "orderId"
+              }
+            }
           }
         ]
       },
@@ -229,9 +245,17 @@
         "targetPort": "OUTPUT",
         "rules": [
           {
-            "sourcePath": "orderId",
             "targetPath": "id",
-            "status": "PROPOSED"
+            "status": "PROPOSED",
+            "value": {
+              "operation": "COPY",
+              "source": {
+                "kind": "MESSAGE",
+                "interactionId": "inventory-reserve",
+                "port": "RESPONSE",
+                "path": "orderId"
+              }
+            }
           }
         ]
       }

@@ -354,6 +354,8 @@ class CompilerRunPinResolverTest {
         Set.of(
             "connectionSourceType",
             "brokers",
+            "securityProtocol",
+            "saslMechanism",
             "topics",
             "groupId",
             "topicsClassifierName",
@@ -392,6 +394,10 @@ class CompilerRunPinResolverTest {
     assertEquals(
         Set.of(
             "connectionSourceType",
+            "brokers",
+            "topics",
+            "securityProtocol",
+            "saslMechanism",
             "topicsClassifierName",
             "maasClassifierNamespace",
             "maasClassifierTenantEnabled",
@@ -422,7 +428,8 @@ class CompilerRunPinResolverTest {
             "isExternalCall",
             "m2m",
             "propagateContext",
-            "reuseEstablishedConnection"),
+            "reuseEstablishedConnection",
+            "overrideContextParams"),
         ownership.properties().get("http-sender"));
   }
 
