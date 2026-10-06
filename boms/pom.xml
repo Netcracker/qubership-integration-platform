@@ -1,0 +1,22 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.qubership.integration.platform</groupId>
+    <artifactId>qip-parent-base</artifactId>
+    <version>1.5.1-SNAPSHOT</version>
+    <relativePath>../parents/base/pom.xml</relativePath>
+  </parent>
+
+  <artifactId>qip-boms</artifactId>
+  <packaging>pom</packaging>
+
+  <name>QIP BOMs</name>
+  <description>Aggregator for QIP BOMs</description>
+
+  <modules>
+    <module>external-boms</module>
+    <module>internal-boms</module>
+  </modules>
+</project>

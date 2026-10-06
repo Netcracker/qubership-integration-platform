@@ -1,275 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>org.qubership.integration.platform</groupId>
+
   <artifactId>qip-runtime-catalog</artifactId>
-  <version>${revision}${changelist}</version>
+
   <name>QIP Runtime Catalog</name>
   <description>
     Managing integration flows (so-called integration chains), services, snapshots and deployments.
   </description>
-  <url>https://github.com/Netcracker/qubership-integration-platform</url>
-  <scm>
-      <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-      <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-      <url>https://github.com/Netcracker/qubership-integration-platform</url>
-      <tag>HEAD</tag>
-  </scm>
+
   <parent>
       <groupId>org.qubership.integration.platform</groupId>
-      <artifactId>qip-monorepo-parent</artifactId>
+      <artifactId>qip-parent-spring</artifactId>
       <version>1.5.1-SNAPSHOT</version>
-      <relativePath>../parent</relativePath>
+      <relativePath>../parents/spring/pom.xml</relativePath>
   </parent>
 
   <properties>
     <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
-    <!-- Last released version of the in-repo library, kept equal to integration-build-pipeline's revision by
-         scripts/check-version-invariants.sh. The dependency below appends ${changelist}, so a normal build
-         resolves the development coordinate from the reactor and a release, which passes -Dchangelist=,
-         resolves the published jar. -->
-    <qip-integration-build-pipeline.version>1.5.1</qip-integration-build-pipeline.version>
+    <qip-integration-build-pipeline.version>1.5.1-SNAPSHOT</qip-integration-build-pipeline.version>
+    <qip.spring-internal-bom.version>1.5.1-SNAPSHOT</qip.spring-internal-bom.version>
 
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <!-- 3rd party dependencies -->
-    <commons-text.version>1.11.0</commons-text.version>
-    <json.version>20231013</json.version>
-    <logback-gelf.version>5.0.1</logback-gelf.version>
-    <handlebars.version>4.3.1</handlebars.version>
-    <kubernetes-client-java.version>25.0.0</kubernetes-client-java.version>
-    <atlasmap.version>2.5.2</atlasmap.version>
-    <antlr4.version>4.13.2</antlr4.version>
-    <google-guava.version>33.4.0-jre</google-guava.version>
-    <okio.version>3.16.4</okio.version>
-    <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
-    <flexmark.version>0.64.8</flexmark.version>
-    <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
-    <graphql-java.version>21.5</graphql-java.version>
-    <commons-validator.version>1.7</commons-validator.version>
-    <plexus-utils.version>3.6.1</plexus-utils.version>
-    <commons-beanutils.version>1.11.0</commons-beanutils.version>
-    <jose4j.version>0.9.6</jose4j.version>
-    <grpc.version>1.54.2</grpc.version>
-    <protobuf-java.version>4.33.2</protobuf-java.version>
-    <okhttp-bom.version>5.3.2</okhttp-bom.version>
-    <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
-    <!-- Newest versions requires commons-io 2.15! -->
-    <!-- TODO update io.kubernetes.client-java before update this library -->
-    <poi.version>5.2.3</poi.version>
-    <!-- Plugins -->
-    <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
-    <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
-    <hibernate-enhance-maven-plugin.version>${hibernate.version}</hibernate-enhance-maven-plugin.version>
   </properties>
+
   <dependencyManagement>
     <dependencies>
-      <!-- BOMs -->
       <dependency>
-        <groupId>com.fasterxml.jackson</groupId>
-        <artifactId>jackson-bom</artifactId>
-        <version>${jackson-bom.version}</version>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-spring-internal-bom</artifactId>
+        <version>${qip.spring-internal-bom.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
       <dependency>
-        <groupId>com.squareup.okhttp3</groupId>
-        <artifactId>okhttp-bom</artifactId>
-        <version>${okhttp-bom.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <!-- Dependencies -->
-      <dependency>
-        <groupId>org.springdoc</groupId>
-        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-        <version>${springdoc.version}</version>
-      </dependency>
-      <!-- Utility dependencies -->
-      <dependency>
-        <groupId>org.apache.commons</groupId>
-        <artifactId>commons-text</artifactId>
-        <version>${commons-text.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>de.siegmar</groupId>
-        <artifactId>logback-gelf</artifactId>
-        <version>${logback-gelf.version}</version>
-      </dependency>
-      <!-- Camel dependencies -->
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-core</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-json-model</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-json-module</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-xml-model</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-xml-module</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.github.jknack</groupId>
-        <artifactId>handlebars</artifactId>
-        <version>${handlebars.version}</version>
-      </dependency>
-      <!-- Converter dependencies -->
-      <dependency>
-        <groupId>org.json</groupId>
-        <artifactId>json</artifactId>
-        <version>${json.version}</version>
-      </dependency>
-      <!-- ... -->
-      <dependency>
-        <groupId>io.kubernetes</groupId>
-        <artifactId>client-java-api-fluent</artifactId>
-        <version>${kubernetes-client-java.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.kubernetes</groupId>
-        <artifactId>client-java</artifactId>
-        <version>${kubernetes-client-java.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.kubernetes</groupId>
-        <artifactId>client-java-prometheus-operator-models</artifactId>
-        <version>${kubernetes-client-java.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.micrometer</groupId>
-        <artifactId>micrometer-registry-prometheus</artifactId>
-        <version>${micrometer.version}</version>
-      </dependency>
-      <!-- TODO Vulnerable version is used -->
-      <dependency>
-        <groupId>com.google.guava</groupId>
-        <artifactId>guava</artifactId>
-        <version>${google-guava.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.squareup.okio</groupId>
-        <artifactId>okio-jvm</artifactId>
-        <version>${okio.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.squareup.okio</groupId>
-        <artifactId>okio-fakefilesystem-jvm</artifactId>
-        <version>${okio.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.dhatim</groupId>
-        <artifactId>fastexcel</artifactId>
-        <version>${dhatim.fastexcel.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.vladsch.flexmark</groupId>
-        <artifactId>flexmark</artifactId>
-        <version>${flexmark.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.vladsch.flexmark</groupId>
-        <artifactId>flexmark-ext-tables</artifactId>
-        <version>${flexmark.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.hypersistence</groupId>
-        <artifactId>hypersistence-utils-hibernate-63</artifactId>
-        <version>${hypersistence-utils-hibernate.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>commons-validator</groupId>
-        <artifactId>commons-validator</artifactId>
-        <version>${commons-validator.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.codehaus.plexus</groupId>
-        <artifactId>plexus-utils</artifactId>
-        <version>${plexus-utils.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>commons-beanutils</groupId>
-        <artifactId>commons-beanutils</artifactId>
-        <version>${commons-beanutils.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.bitbucket.b_c</groupId>
-        <artifactId>jose4j</artifactId>
-        <version>${jose4j.version}</version>
-      </dependency>
-      <!-- Apache POI dependencies -->
-      <dependency>
-        <groupId>org.apache.poi</groupId>
-        <artifactId>poi</artifactId>
-        <version>${poi.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.poi</groupId>
-        <artifactId>poi-ooxml</artifactId>
-        <version>${poi.version}</version>
-      </dependency>
-      <!-- GraphQL -->
-      <dependency>
-        <groupId>com.graphql-java</groupId>
-        <artifactId>graphql-java</artifactId>
-        <version>${graphql-java.version}</version>
-      </dependency>
-      <!-- OpenAPI and Swagger -->
-      <dependency>
-        <groupId>io.swagger.parser.v3</groupId>
-        <artifactId>swagger-parser</artifactId>
-        <version>${swagger-parser.version}</version>
-        <exclusions>
-          <exclusion>
-            <groupId>io.swagger.core.v3</groupId>
-            <artifactId>swagger-core</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>io.swagger.core.v3</groupId>
-        <artifactId>swagger-core-jakarta</artifactId>
-        <version>${swagger-core.version}</version>
-      </dependency>
-      <!-- GRPC -->
-      <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-protobuf</artifactId>
-        <version>${grpc.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-stub</artifactId>
-        <version>${grpc.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.google.protobuf</groupId>
-        <artifactId>protobuf-java</artifactId>
-        <version>${protobuf-java.version}</version>
-      </dependency>
-      <!-- Use maven plugin code in runtime -->
-      <dependency>
-        <groupId>com.graphql-java-generator</groupId>
-        <artifactId>graphql-maven-plugin-logic</artifactId>
-        <version>${graphql-maven-plugin.version}</version>
+        <groupId>${project.parent.groupId}</groupId>
+        <artifactId>qip-integration-build-pipeline</artifactId>
+        <version>${qip-integration-build-pipeline.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
+
   <dependencies>
     <!--    DbaaS dependencies    -->
     <dependency>
@@ -461,7 +233,6 @@
     <dependency>
       <groupId>net.logstash.logback</groupId>
       <artifactId>logstash-logback-encoder</artifactId>
-      <version>${logstash-logback-encoder.version}</version>
     </dependency>
     <!-- Tracing -->
     <dependency>
@@ -561,7 +332,6 @@
     <dependency>
       <groupId>${project.parent.groupId}</groupId>
       <artifactId>qip-integration-build-pipeline</artifactId>
-      <version>${qip-integration-build-pipeline.version}${changelist}</version>
     </dependency>
   </dependencies>
   <build>
@@ -593,22 +363,6 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
-      </plugin>
-      <plugin>
-        <groupId>org.antlr</groupId>
-        <artifactId>antlr4-maven-plugin</artifactId>
-        <version>${antlr4.version}</version>
-        <configuration>
-          <visitor>true</visitor>
-        </configuration>
-        <executions>
-          <execution>
-            <id>antlr</id>
-            <goals>
-              <goal>antlr4</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>

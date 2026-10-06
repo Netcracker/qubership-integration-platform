@@ -1,0 +1,256 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>org.qubership.integration.platform</groupId>
+    <artifactId>qip-parent-quarkus</artifactId>
+    <version>1.5.1-SNAPSHOT</version>
+    <relativePath>../../../parents/quarkus/pom.xml</relativePath>
+  </parent>
+
+  <artifactId>qip-quarkus-internal-bom</artifactId>
+  <packaging>pom</packaging>
+
+  <name>QIP Internal BOM - Quarkus</name>
+  <description>Internal BOM for Quarkus-based modules</description>
+
+  <properties>
+    <!-- Quarkus-related dependencies -->
+    <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+    <quarkus-mcp-server.version>1.8.0</quarkus-mcp-server.version>
+    <quarkiverse.loggingjson.version>3.5.0</quarkiverse.loggingjson.version>
+    <camel-k-runtime.version>3.15.3</camel-k-runtime.version>
+
+    <!-- Non-Quarkus dependencies -->
+    <testcontainers.version>1.20.4</testcontainers.version>
+
+    <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
+    <lombok.version>1.18.46</lombok.version>
+    <mapstruct.version>1.5.5.Final</mapstruct.version>
+    <commons-lang3.version>3.18.0</commons-lang3.version>
+    <commons-text.version>1.11.0</commons-text.version>
+    <protobuf-java.version>4.33.2</protobuf-java.version>
+    <json-schema-validator.version>1.0.87</json-schema-validator.version>
+    <json-filter.version>4.0.1</json-filter.version>
+    <atlasmap.version>2.5.2</atlasmap.version>
+    <jetbrains.annotations.version>26.0.2-1</jetbrains.annotations.version>
+    <opensearch.version>2.14.0</opensearch.version>
+    <kubernetes-client-java.version>19.0.3</kubernetes-client-java.version>
+    <reflections.version>0.10.2</reflections.version>
+    <hypersistence-utils-hibernate.version>3.14.1</hypersistence-utils-hibernate.version>
+    <wiremock.version>3.13.2</wiremock.version>
+
+    <!-- Cloud Core dependencies -->
+    <cloud-core.version>10.0.1</cloud-core.version>
+    <maas-client.version>12.2.1</maas-client.version>
+    <maas-client-quarkus.version>11.0.1</maas-client-quarkus.version>
+    <blue-green-state-monitor.version>4.0.1</blue-green-state-monitor.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>${quarkus.platform.group-id}</groupId>
+        <artifactId>${quarkus.platform.artifact-id}</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>${quarkus.platform.group-id}</groupId>
+        <artifactId>quarkus-camel-bom</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.quarkiverse.mcp</groupId>
+        <artifactId>quarkus-mcp-server-bom</artifactId>
+        <version>${quarkus-mcp-server.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.quarkiverse.loggingjson</groupId>
+        <artifactId>quarkus-logging-json</artifactId>
+        <version>${quarkiverse.loggingjson.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.camel.k</groupId>
+        <artifactId>camel-k-runtime-bom</artifactId>
+        <version>${camel-k-runtime.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.groovy</groupId>
+        <artifactId>groovy-bom</artifactId>
+        <version>${groovy-apache-bom.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>${lombok.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.mapstruct</groupId>
+        <artifactId>mapstruct</artifactId>
+        <version>${mapstruct.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.mapstruct</groupId>
+        <artifactId>mapstruct-processor</artifactId>
+        <version>${mapstruct.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-lang3</artifactId>
+        <version>${commons-lang3.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-text</artifactId>
+        <version>${commons-text.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>${protobuf-java.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java-util</artifactId>
+        <version>${protobuf-java.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>com.networknt</groupId>
+        <artifactId>json-schema-validator</artifactId>
+        <version>${json-schema-validator.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.arakelian</groupId>
+        <artifactId>json-filter</artifactId>
+        <version>${json-filter.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-api</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-core</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-json-model</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-json-module</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-xml-model</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-xml-module</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.jetbrains</groupId>
+        <artifactId>annotations</artifactId>
+        <version>${jetbrains.annotations.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.opensearch.client</groupId>
+        <artifactId>opensearch-java</artifactId>
+        <version>${opensearch.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.kubernetes</groupId>
+        <artifactId>client-java</artifactId>
+        <version>${kubernetes-client-java.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.hypersistence</groupId>
+        <artifactId>hypersistence-utils-hibernate-71</artifactId>
+        <version>${hypersistence-utils-hibernate.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.reflections</groupId>
+        <artifactId>reflections</artifactId>
+        <version>${reflections.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.apache.camel</groupId>
+        <artifactId>camel-bom</artifactId>
+        <version>${camel.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>org.wiremock</groupId>
+        <artifactId>wiremock-standalone</artifactId>
+        <version>${wiremock.version}</version>
+      </dependency>
+
+      <!-- Cloud Core dependencies -->
+      <dependency>
+        <groupId>com.netcracker.cloud.quarkus</groupId>
+        <artifactId>cloud-core-quarkus-bom-publish</artifactId>
+        <version>${cloud-core.version}</version>
+        <scope>import</scope>
+        <type>pom</type>
+      </dependency>
+      <dependency>
+        <groupId>com.netcracker.cloud.maas.client</groupId>
+        <artifactId>maas-client-bom</artifactId>
+        <version>${maas-client.version}</version>
+        <scope>import</scope>
+        <type>pom</type>
+      </dependency>
+      <dependency>
+        <groupId>com.netcracker.cloud.quarkus</groupId>
+        <artifactId>maas-client-quarkus-bom</artifactId>
+        <version>${maas-client-quarkus.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>com.netcracker.cloud.quarkus</groupId>
+        <artifactId>blue-green-state-monitor-quarkus</artifactId>
+        <version>${blue-green-state-monitor.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>
