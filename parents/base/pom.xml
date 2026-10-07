@@ -93,6 +93,8 @@
     <maven-javadoc-plugin.version>3.7.0</maven-javadoc-plugin.version>
     <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
     <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
+    <maven-compiler-plugin.version>3.14.1</maven-compiler-plugin.version>
+    <maven-jar-plugin.version>3.4.2</maven-jar-plugin.version>
   </properties>
 
   <!-- Maven queries repositories in this order and Central serves nearly every artifact, so it goes first. -->
@@ -187,6 +189,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
+          <version>${maven-compiler-plugin.version}</version>
           <configuration>
             <source>${java.version}</source>
             <target>${java.version}</target>
@@ -330,6 +333,11 @@
               </goals>
             </execution>
           </executions>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>${maven-jar-plugin.version}</version>
         </plugin>
       </plugins>
     </pluginManagement>

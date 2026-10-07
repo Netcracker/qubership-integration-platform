@@ -65,6 +65,11 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>flatten-maven-plugin</artifactId>
+        <configuration>
+          <pomElements>
+            <dependencyManagement>resolve</dependencyManagement>
+          </pomElements>
+        </configuration>
       </plugin>
     </plugins>
   </build>
