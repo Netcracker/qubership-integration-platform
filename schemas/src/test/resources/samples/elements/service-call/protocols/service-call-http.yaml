@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/service-call
 id: "d5c98e17-7395-411c-b662-777e2238df1f"
 name: "Service Call HTTP"
 type: "service-call"

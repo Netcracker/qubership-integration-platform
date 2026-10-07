@@ -1,5 +1,5 @@
 id: "e2e50007-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-libraries-xml"
 description: "groovy-xml reached from a script through both of its parsers. XmlSlurper reads the\
   \ document as a GPath, XmlParser reads the same bytes into a groovy.util.Node tree, and the last\

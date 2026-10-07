@@ -524,6 +524,7 @@ function getExtensionConfiguration(
     pendingExportImagesByPanel.delete(panel);
   }
   return {
+    // Stays "qip": the UI builds the /qip-routes/ prefix from it, and app.prefix is still qip.
     appName: "qip",
     ...(exportImages
       ? { operation: "exportImages" as const, exportImages }

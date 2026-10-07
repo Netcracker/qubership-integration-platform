@@ -1,0 +1,39 @@
+---
+id: "e2e0f009-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-sender-value-ser"
+description: "kafka-sender-2 with valueSerializer=ByteArraySerializer, the one non-default value\
+  \ the suite runs for the axis; keySerializer stays at its default."
+content:
+  labels: []
+  elements:
+  - id: "e2e0f009-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-kafka-sender-value-ser"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e0f009-0000-4000-8000-000000000003"
+    name: "Kafka Sender"
+    type: "kafka-sender-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29092"
+      topics: "e2e-{{RUN}}-kafka-sender-value-ser"
+      securityProtocol: "PLAINTEXT"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLS"
+      keySerializer: "org.apache.kafka.common.serialization.StringSerializer"
+      valueSerializer: "org.apache.kafka.common.serialization.ByteArraySerializer"
+  dependencies:
+  - from: "e2e0f009-0000-4000-8000-000000000002"
+    to: "e2e0f009-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

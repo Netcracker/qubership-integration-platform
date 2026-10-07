@@ -32,6 +32,7 @@ import org.qubership.integration.platform.io.readers.migrations.system.ServiceIm
 import org.qubership.integration.platform.io.readers.migrations.system.V100ServiceImportFileMigration;
 import org.qubership.integration.platform.io.readers.migrations.versions.VersionsGetterService;
 import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource;
@@ -42,7 +43,6 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.m
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -89,9 +89,9 @@ class ServiceDeserializerArchiveLayoutTest {
 
         deserializer = new ServiceDeserializer(
                 reader,
-                new IntegrationSystemDtoMapper(URI.create("http://qubership.org/schemas/product/qip/service"), migrations),
-                new SpecificationGroupDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification-group")),
-                new SystemModelDtoMapper(URI.create("http://qubership.org/schemas/product/qip/specification"))
+                new IntegrationSystemDtoMapper(new ApplicationJsonSchemaProperties(), migrations),
+                new SpecificationGroupDtoMapper(new ApplicationJsonSchemaProperties()),
+                new SystemModelDtoMapper(new ApplicationJsonSchemaProperties())
         );
     }
 

@@ -1,10 +1,10 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/properties/simple-expression.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/simple-expression
 $schema: http://json-schema.org/draft-07/schema
 type: string
 title: Camel Simple Expression
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 pattern: "\\$\\{[^}]+\\}"

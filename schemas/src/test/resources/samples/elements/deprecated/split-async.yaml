@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/split-async.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split-async
 id: "3369e7c5-0bc0-47f9-86d0-67c8e5f9b85e"
 name: "Split Async (deprecated)"
 type: "split-async"

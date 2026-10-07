@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "b573b53b-08f8-49a9-ae33-601eaaa30f21"
 name: "Mail Sender"
 content:

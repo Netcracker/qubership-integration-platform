@@ -1,5 +1,5 @@
-d81712cbe5f765058a0bd9b092f770fd22563deec16332f917834712e553c15e  chain-1-30-100-105/deprecated-routing.chain.qip.yaml
-1571bb081e23f9fecb733342c6f0c254d7720dc719bc93b582113c7978ca4295  chain-100-101-102-103/context-storage.chain.qip.yaml
-6a0e5f613e76c872d473415b873f6242d34530204f3725e7e663e59dab3c0273  chain-100-101-108/grouped-chain.chain.qip.yaml
-3f34cb7bfe9913b06d0f411bc29f1c68c12108512aae7afe027480cd3168d4cf  chain-100-101/header-modification.chain.qip.yaml
-499f22a95a2b2f73776fedf28f41fb90359d803c2cb1f30c24cdff8d01cdf79a  service-100-101/external-service.service.qip.yaml
+d81712cbe5f765058a0bd9b092f770fd22563deec16332f917834712e553c15e  chain-1-30-100-105/deprecated-routing.chain.cip.yaml
+1571bb081e23f9fecb733342c6f0c254d7720dc719bc93b582113c7978ca4295  chain-100-101-102-103/context-storage.chain.cip.yaml
+6a0e5f613e76c872d473415b873f6242d34530204f3725e7e663e59dab3c0273  chain-100-101-108/grouped-chain.chain.cip.yaml
+3f34cb7bfe9913b06d0f411bc29f1c68c12108512aae7afe027480cd3168d4cf  chain-100-101/header-modification.chain.cip.yaml
+499f22a95a2b2f73776fedf28f41fb90359d803c2cb1f30c24cdff8d01cdf79a  service-100-101/external-service.service.cip.yaml

@@ -22,6 +22,7 @@ import org.qubership.integration.platform.chain.impl.ImportEnvironmentImpl;
 import org.qubership.integration.platform.chain.impl.ImportSystemImpl;
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.Environment;
@@ -43,14 +44,14 @@ import static org.mockito.Mockito.when;
 
 class IntegrationSystemDtoMapperTest {
 
-    private static final URI SCHEMA_URI = URI.create("http://qubership.org/schemas/product/qip/service");
+    private static final URI SCHEMA_URI = URI.create("http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service");
     private IntegrationSystemDtoMapper mapper;
 
     @BeforeEach
     void setUp() {
         ServiceImportFileMigration migration = mock(ServiceImportFileMigration.class);
         when(migration.getVersion()).thenReturn(102);
-        mapper = new IntegrationSystemDtoMapper(SCHEMA_URI, List.of(migration));
+        mapper = new IntegrationSystemDtoMapper(new ApplicationJsonSchemaProperties(), List.of(migration));
     }
 
     @Test

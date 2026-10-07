@@ -1,2 +1,2 @@
-# $schema: http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/correlation-id
 receiveCorrelationId: false

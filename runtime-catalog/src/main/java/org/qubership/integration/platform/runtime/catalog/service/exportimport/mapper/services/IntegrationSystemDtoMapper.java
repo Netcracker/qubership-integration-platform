@@ -21,10 +21,10 @@ import org.qubership.integration.platform.io.model.exportimport.system.Integrati
 import org.qubership.integration.platform.io.model.exportimport.system.IntegrationSystemDto;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystemLabel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -44,10 +44,10 @@ public class IntegrationSystemDtoMapper {
 
     @Autowired
     public IntegrationSystemDtoMapper(
-            @Value("${cip.json.schemas.service:http://qubership.org/schemas/product/qip/service}") URI schemaUri,
+            ApplicationJsonSchemaProperties schemas,
             List<ServiceImportFileMigration> serviceImportFileMigrations
     ) {
-        this.schemaUri = schemaUri;
+        this.schemaUri = URI.create(schemas.getService());
         this.serviceImportFileMigrations = serviceImportFileMigrations;
     }
 

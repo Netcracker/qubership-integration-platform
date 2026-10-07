@@ -44,25 +44,37 @@ The following tables specify the structure for CIP artifacts in the different su
 ```text
 Project root (git/SVN root, not included in zip-archive)
 └── chains/                                                                    container for chains [1..1]
-    └── {chain-id}/                                                            UUID of the chain [0..N]
-        ├── chain-{chain_id}.yaml                                              yaml configuration of the chain [1..1]
-        ├── script-{module_id}.groovy                                          groovy file for script module (if chain configuration contains script) [0..N]
-        ├── script-before-{service_call_id}.groovy                             groovy file for embedded scripting module in Service Call for preparing of request [0..N]
-        ├── script-{response code}-{module_id}.groovy                          groovy file for embedded scripting module in Service Call for response handling (by particular response code) [0..N]
-        ├── mappingDescription-{module_id}.json                                json file with mapping configuration (if chain configuration contains mapper) [0..N]
-        ├── mappingDescription-before-{module_id}.json                         json file for embedded Mapper in Service Call for preparing of request [0..N]
-        └── mappingDescription-{response code}-{module_id}.json                json file for embedded Mapper in Service Call for response handling (by particular response code) [0..N]
+    └── {chain_id}/                                                            UUID of the chain [0..N]
+        ├── {chain_id}.chain.cip.yaml                                          yaml configuration of the chain [1..1]
+        └── resources/                                                         files the chain elements refer to [0..1]
+            ├── {element_id}.element.script.cip.groovy                         groovy file for script module (if chain configuration contains script) [0..N]
+            ├── {element_id}.element.mapper.cip.json                           json file with mapping configuration (if chain configuration contains mapper) [0..N]
+            ├── {element_id}.before.script.cip.groovy                          groovy file for embedded scripting module in Service Call for preparing of request [0..N]
+            ├── {element_id}.after-{response_code}.script.cip.groovy           groovy file for embedded scripting module in Service Call for response handling (by particular response code) [0..N]
+            ├── {element_id}.before.mapper.cip.json                            json file for embedded Mapper in Service Call for preparing of request [0..N]
+            └── {element_id}.after-{response_code}.mapper.cip.json             json file for embedded Mapper in Service Call for response handling (by particular response code) [0..N]
 ├── services/                                                                  container for services [1..1]
 │   └── {service_id}/                                                          UUID of the service [1..N]
-│       ├── service-{service_id}.yaml                                          yaml configuration of the chain (incl. env configs) [1..1]
-│       ├── specGroup-{specification_group_id}.yaml                            yaml configuration of the specification group [0..N]
-│       ├── specification-{specification_id}.yaml                              yaml configuration of the API Specification [0..N]
-│       └── source-{specification_id}/                                         container for specifications of the group [0..N]
+│       ├── {service_id}.service.cip.yaml                                      yaml configuration of the service (incl. env configs) [0..1]
+│       ├── {service_id}.context-service.cip.yaml                              yaml configuration of the context service [0..1]
+│       ├── {service_id}.mcp-service.cip.yaml                                  yaml configuration of the MCP service [0..1]
+│       ├── {service_id}-{group_name}.specification-group.cip.yaml             yaml configuration of the specification group [0..N]
+│       ├── {service_id}-{group_name}-{version}.specification.cip.yaml         yaml configuration of the API Specification [0..N]
+│       └── resources/source-{service_id}-{group_name}-{version}/              container for the sources of the specification [0..N]
 │           └── {specification_name}.{json|yaml|wsdl|xsd}                      swagger | asyncAPI | wsdl specification source file [1..N]
 ├── variables/                                                                 common CIP variables [1..1]
 │   └── common-variables.yaml                                                  yaml file with list of common variables (will be exported every time if exist at least one variable) [0..1]
 └── import-instructions.yaml                                               yaml configuration of the import instructions [0..1]
 ```
+
+Each service directory holds one of the three service files, depending on the service type.
+Each YAML configuration file declares its schema in the `$schema` field:
+`http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/<type>`, where `<type>` is `chain`,
+`service`, `context-service`, `mcp-service`, `specification-group`, or `specification`.
+
+> ℹ️ **Note:** Before the move to the CIP namespace, these files ended in `.qip.yaml` and declared
+> `http://qubership.org/schemas/product/qip/<type>`. Import accepts both `*.qip.yaml` and `*.cip.yaml` files, and both
+> `$schema` values.
 
 </details>
 

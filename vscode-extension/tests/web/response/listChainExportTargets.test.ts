@@ -10,7 +10,7 @@ jest.mock("../../../src/web/response/file", () => ({
 }));
 
 jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn(() => ({ chain: "**/*.chain.qip.yaml" })),
+  getExtensionsForUri: jest.fn(() => ({ chain: "**/*.chain.cip.yaml" })),
 }));
 
 const findFiles = fileApi.findFiles as jest.Mock;
@@ -23,8 +23,8 @@ describe("listChainExportTargets", () => {
   });
 
   test("returns sorted targets from fileApi discovery", async () => {
-    const first = Uri.file("/workspace/chains/b.chain.qip.yaml");
-    const second = Uri.file("/workspace/chains/a.chain.qip.yaml");
+    const first = Uri.file("/workspace/chains/b.chain.cip.yaml");
+    const second = Uri.file("/workspace/chains/a.chain.cip.yaml");
     findFiles.mockResolvedValue([first, second]);
     parseFile.mockImplementation(async (uri: Uri) => ({
       id: uri.fsPath.includes("/a.") ? "alpha" : "beta",
@@ -32,7 +32,7 @@ describe("listChainExportTargets", () => {
 
     const targets = await listChainExportTargets();
 
-    expect(findFiles).toHaveBeenCalledWith("**/*.chain.qip.yaml");
+    expect(findFiles).toHaveBeenCalledWith("**/*.chain.cip.yaml");
     expect(targets).toEqual([
       {
         chainId: "alpha",
@@ -48,7 +48,7 @@ describe("listChainExportTargets", () => {
   });
 
   test("skips chain files without id", async () => {
-    const fileUri = Uri.file("/workspace/chains/invalid.chain.qip.yaml");
+    const fileUri = Uri.file("/workspace/chains/invalid.chain.cip.yaml");
     findFiles.mockResolvedValue([fileUri]);
     parseFile.mockResolvedValue({ name: "no-id" });
 
@@ -58,7 +58,7 @@ describe("listChainExportTargets", () => {
   });
 
   test("skips chain files with non-string id", async () => {
-    const fileUri = Uri.file("/workspace/chains/invalid.chain.qip.yaml");
+    const fileUri = Uri.file("/workspace/chains/invalid.chain.cip.yaml");
     findFiles.mockResolvedValue([fileUri]);
     parseFile.mockResolvedValue({ id: 42 });
 

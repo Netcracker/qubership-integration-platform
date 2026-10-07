@@ -1,5 +1,5 @@
 id: "e2e50010-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-libraries-sql"
 description: "groovy-sql reached from a script, without a database. GroovyRowResult and the Sql\
   \ parameter constants are the module's own behavior and need no connection; a live query would\

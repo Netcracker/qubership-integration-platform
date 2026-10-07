@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/service-call
 id: "ebfc3319-4cc2-48ae-bec4-f1dc31615546"
 name: "Service Call amqp-maas"
 type: "service-call"

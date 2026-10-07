@@ -1,5 +1,5 @@
 id: "e2e50011-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-libraries-jsr223"
 description: "groovy-jsr223 reached from a script: a script asking the JSR-223 manager for a second\
   \ Groovy engine, binding a value into it and evaluating there. The module registers the factory\

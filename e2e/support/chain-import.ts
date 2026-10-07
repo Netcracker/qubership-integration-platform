@@ -3,7 +3,7 @@ import type { Catalog, ImportResult } from "./catalog.js";
 
 /** The one entry a chain archive holds, spelled the way the exporter spells it. */
 export function chainEntry(chainId: string): string {
-  return `chains/${chainId}/${chainId}.chain.qip.yaml`;
+  return `chains/${chainId}/${chainId}.chain.cip.yaml`;
 }
 
 export async function importChains(

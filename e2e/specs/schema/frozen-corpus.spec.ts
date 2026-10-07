@@ -102,7 +102,7 @@ for (const archive of FROZEN_ARCHIVES) {
     // The full path, not the basename. An archive whose entry sits at the zip root imports
     // nothing and answers success, so a basename assertion is green over that failure.
     const parent = archive.kind === "chain" ? "chains" : "services";
-    const postfix = archive.kind === "chain" ? ".chain.qip.yaml" : ".service.qip.yaml";
+    const postfix = archive.kind === "chain" ? ".chain.cip.yaml" : ".service.cip.yaml";
     expect(entries[0]).toMatch(
       new RegExp(`^${parent}/([0-9a-f-]{36})/\\1${postfix.replace(/\./g, "\\.")}$`),
     );

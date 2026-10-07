@@ -1,0 +1,21 @@
+version: "1.0"
+
+configs:
+  cip:
+    extensions:
+      chain: .chain.cip.yaml
+      contextService: .context-service.cip.yaml
+      mcpService: .mcp-service.cip.yaml
+      service: .service.cip.yaml
+      specificationGroup: .specification-group.cip.yaml
+      specification: .specification.cip.yaml
+    schemaUrls:
+      contextService: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service
+      mcpService: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service
+      service: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
+      chain: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+      specification: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification
+      specificationGroup: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group
+
+cache:
+  ttl: 60000

@@ -1,5 +1,5 @@
 id: "e2e50004-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-exchange-headers"
 description: "A script reading, adding and removing headers. The second script is what makes the\
   \ case: it reports the two headers the first one wrote and whether the one it removed is still\

@@ -1,14 +1,14 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/chain-call-2.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/chain-call-2
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
 title: Chain Call
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   type:
     type: string
@@ -21,7 +21,7 @@ properties:
         title: Chain trigger
       timeout:
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
         title: Timeout (ms)
         default: 30000
     required:

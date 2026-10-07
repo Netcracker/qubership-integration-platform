@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/rabbitmq-trigger-2.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/rabbitmq-trigger-2
 id: "935da466-0e8d-4077-9ec0-18a8eb727e41"
 name: "RabbitMQ Trigger"
 type: "rabbitmq-trigger-2"

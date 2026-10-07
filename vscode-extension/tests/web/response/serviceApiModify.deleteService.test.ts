@@ -47,9 +47,9 @@ const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {}
 
 describe("deleteService", () => {
   const serviceFileUri = {
-    path: "/workspace/service/svc.service.qip.yaml",
-    fsPath: "/workspace/service/svc.service.qip.yaml",
-    toString: jest.fn().mockReturnValue("/workspace/service/svc.service.qip.yaml"),
+    path: "/workspace/service/svc.service.cip.yaml",
+    fsPath: "/workspace/service/svc.service.cip.yaml",
+    toString: jest.fn().mockReturnValue("/workspace/service/svc.service.cip.yaml"),
   } as unknown as Uri;
 
   const serviceFolderUri = {
@@ -87,7 +87,7 @@ describe("deleteService", () => {
 
   describe("resource cleanup for SERVICE", () => {
     it("should attempt to delete spec groups when fileType is SERVICE", async () => {
-      mockGetSpecGroupFiles.mockResolvedValue(["a.specification-group.qip.yaml", "b.specification-group.qip.yaml"]);
+      mockGetSpecGroupFiles.mockResolvedValue(["a.specification-group.cip.yaml", "b.specification-group.cip.yaml"]);
       mockParse.mockResolvedValue({ id: "g1", name: "g1", content: {} });
       mockGetSpecFiles.mockResolvedValue([]);
 
@@ -142,7 +142,7 @@ describe("deleteService", () => {
     });
 
     it("should skip group when parse returns null or missing id and continue", async () => {
-      mockGetSpecGroupFiles.mockResolvedValue(["a.specification-group.qip.yaml", "b.specification-group.qip.yaml", "c.specification-group.qip.yaml"]);
+      mockGetSpecGroupFiles.mockResolvedValue(["a.specification-group.cip.yaml", "b.specification-group.cip.yaml", "c.specification-group.cip.yaml"]);
       mockParse.mockResolvedValueOnce(null).mockResolvedValueOnce({ name: "no-id" }).mockResolvedValueOnce({ id: "g3", name: "g3", content: {} });
       mockGetSpecFiles.mockResolvedValue([]);
 
@@ -152,7 +152,7 @@ describe("deleteService", () => {
     });
 
     it("should swallow error from deleteSpecificationGroup and still delete service", async () => {
-      mockGetSpecGroupFiles.mockResolvedValue(["a.specification-group.qip.yaml", "b.specification-group.qip.yaml"]);
+      mockGetSpecGroupFiles.mockResolvedValue(["a.specification-group.cip.yaml", "b.specification-group.cip.yaml"]);
       mockParse.mockResolvedValue({ id: "g1", name: "g1", content: {} });
       const { fileApi: innerFileApi } = await import("../../../src/web/response/file/fileApiProvider");
       (innerFileApi.getSpecificationFiles as jest.Mock).mockRejectedValue(new Error("fail group"));

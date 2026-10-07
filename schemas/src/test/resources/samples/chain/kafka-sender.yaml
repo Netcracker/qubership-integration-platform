@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "4c2d910e-4972-415a-b2d5-4f5b08b72c60"
 name: "Kafka Sender - MaaS"
 content:

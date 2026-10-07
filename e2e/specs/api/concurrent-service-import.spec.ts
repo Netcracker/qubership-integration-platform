@@ -35,7 +35,7 @@ for (const lane of [1, 2, 3, 4]) {
       expect(await ours()).toEqual(mine);
 
       const zip = await catalog.exportSystems(mine);
-      expect(await entryNames(zip)).toEqual(mine.map((id) => `services/${id}/${id}.service.qip.yaml`).sort());
+      expect(await entryNames(zip)).toEqual(mine.map((id) => `services/${id}/${id}.service.cip.yaml`).sort());
 
       // Delete before importing: an import over a live id is an update, so the assertion below
       // would pass whether the import created the services, updated them, or did nothing.

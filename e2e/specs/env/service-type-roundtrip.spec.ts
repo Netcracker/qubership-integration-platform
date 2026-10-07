@@ -176,7 +176,7 @@ test.describe("service type round trip", () => {
     const currentMcpZip = Buffer.from(await mcpExport.body());
 
     expect(await entryNames(currentPlainZip)).toEqual(
-      plain().map((id) => `services/${id}/${id}.service.qip.yaml`).sort(),
+      plain().map((id) => `services/${id}/${id}.service.cip.yaml`).sort(),
     );
     expect(await declaredTypes(currentPlainZip)).toEqual(
       [
@@ -186,10 +186,10 @@ test.describe("service type round trip", () => {
       ].sort(),
     );
     expect(await entryNames(currentContextZip)).toEqual([
-      `services/${services.context}/${services.context}.context-service.qip.yaml`,
+      `services/${services.context}/${services.context}.context-service.cip.yaml`,
     ]);
     expect(await entryNames(currentMcpZip)).toEqual([
-      `services/${services.mcp}/${services.mcp}.mcp-service.qip.yaml`,
+      `services/${services.mcp}/${services.mcp}.mcp-service.cip.yaml`,
     ]);
 
     await deleteAllFive(catalog);

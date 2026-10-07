@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.chain.impl.ContextServiceImpl;
 import org.qubership.integration.platform.io.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
 
 import java.net.URI;
@@ -36,14 +37,14 @@ import static org.mockito.Mockito.when;
 
 class ContextServiceDtoMapperTest {
 
-    private static final URI SCHEMA_URI = URI.create("http://qubership.org/schemas/product/qip/context-service");
+    private static final URI SCHEMA_URI = URI.create("http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service");
     private ContextServiceDtoMapper mapper;
 
     @BeforeEach
     void setUp() {
         ServiceImportFileMigration migration = mock(ServiceImportFileMigration.class);
         when(migration.getVersion()).thenReturn(102);
-        mapper = new ContextServiceDtoMapper(SCHEMA_URI, List.of(migration));
+        mapper = new ContextServiceDtoMapper(new ApplicationJsonSchemaProperties(), List.of(migration));
     }
 
     @Test

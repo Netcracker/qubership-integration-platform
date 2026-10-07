@@ -6,7 +6,7 @@ paths:
 ### Project Overview
 
 QIP VS Code Extension (`@netcracker/qip-vscode-extension`, v1.0.6) — an **offline, web-based** VS Code
-extension for visually editing QIP chains and services stored as local `*.qip.yaml` files. It embeds
+extension for visually editing QIP chains and services stored as local `*.cip.yaml` files. It embeds
 `@netcracker/qip-ui` (`^1.0.0`) as a webview bundle and validates against `@netcracker/qip-schemas`. Built as
 a **web extension** (runs in the `webworker` extension host — no Node runtime, no network). Stack: TypeScript
 `^5.9.3`, VS Code Extension API (`engines.vscode: ^1.120.0`), webpack `^5.99.7`, Jest `^29.7.0`. Ships as an
@@ -53,10 +53,10 @@ Two webpack outputs (`webpack.config.js` exports an array):
 **Webview embedding:** `copy-webpack-plugin` copies `qip-ui/dist-lib/**` (excluding `types/` and `.d.ts`) into `dist/web/qip-ui/`, and `qip-schemas/assets` into `dist/web/qip-schemas/assets`. At runtime `getWebviewContent` (in `extension.ts`) generates the webview HTML, preferring `index.bundled.es.js` (React embedded); it falls back to `index.es.js` + an esm.sh `<importmap>` for React if the bundled file is absent.
 
 **Custom editors & commands:** `package.json` registers four custom text editors, one per file pattern:
-`qip.chainFile.editor` (`*.chain.qip.yaml`), `qip.serviceFile.editor` (`*.service.qip.yaml`),
-`qip.contextServiceFile.editor` (`*.context-service.qip.yaml`), and `qip.mcpServiceFile.editor`
-(`*.mcp-service.qip.yaml`). It also registers a `qip-main` explorer tree view and eleven commands (`qip.open`,
-`qip.createChain`, `qip.createService`, delete/reveal, etc.). The chain editor additionally supports an inline diff
+`qip.chainFile.editor` (`*.chain.cip.yaml`), `qip.serviceFile.editor` (`*.service.cip.yaml`),
+`qip.contextServiceFile.editor` (`*.context-service.cip.yaml`), and `qip.mcpServiceFile.editor`
+(`*.mcp-service.cip.yaml`). A `*.qip.yaml` file does not open in them. It also registers a `qip-main` explorer
+tree view and eleven commands (`qip.open`, `qip.createChain`, `qip.createService`, delete/reveal, etc.). The chain editor additionally supports an inline diff
 view (proposed `customEditorDiffs` API).
 `editorViewTypes.ts:getEditorViewTypeForUri` resolves a URI to its view type for `openDocumentInEditor`.
 `qip.revealInExplorer` in `extension.ts` does not use it: its own suffix check knows chains and plain services only,
@@ -66,7 +66,7 @@ command uses the resolver.
 
 ### Project Structure
 
-Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions and schema URLs are configurable per app via a `.config.qip.yaml` (see `.config.qip.yaml.example`; defaults to the `qip` app).
+Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@netcracker/qip-ui`; schema types from `@netcracker/qip-schemas`. File extensions and schema URLs are configurable per app via a `.config.qip.yaml` (see `.config.qip.yaml.example`; defaults to the `cip` app from `configs/default.config.cip.yaml`).
 
 ### Conventions
 
@@ -107,7 +107,7 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
 
 This module is the offline visual editor for QIP chains and services — a standalone VS Code web extension with no backend. See `README.md` for the repository layout.
 
-Unlike the backend services, this extension performs **no backend or network communication**: it operates entirely on local `*.qip.yaml` files via `vscode.workspace.fs`. It consumes/embeds:
+Unlike the backend services, this extension performs **no backend or network communication**: it operates entirely on local `*.cip.yaml` files via `vscode.workspace.fs`. It consumes/embeds:
 
 - **`@netcracker/qip-ui`** — the React visual editor, loaded as a library bundle into the webview (`dist/web/qip-ui/`); the webview and extension host communicate only via `postMessage`.
 - **`@netcracker/qip-schemas`** — JSON Schema definitions used for validation; `assets/` copied into `dist/web/qip-schemas/`.

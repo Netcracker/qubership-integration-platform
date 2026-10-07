@@ -1,5 +1,5 @@
 id: "e2e50006-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-libraries-json"
 description: "groovy-json reached from a script: JsonSlurper parses the request, JsonOutput writes\
   \ the answer. Two elements rather than one, so the parsed value crosses an element boundary as a\

@@ -46,6 +46,15 @@ Application parameters can be set by environment variables.
 | CIP_REGISTER_INGRESS_CHAIN_ROUTES | true                                                 | Marks integration endpoints to be registered in ingress.                                                                               |
 | CIP_REGISTER_EGRESS_CHAIN_ROUTES  | true                                                 | Marks outcoming routes to be registered in egress.                                                                                     |  
 | CIP_EXPORT_LEGACY_FORMAT          | false                                                | Export configuration in "old" format.                                                                                                  |  
+| CHAIN_JSON_SCHEMA_URI             | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain` | `$schema` that export writes on chains. |
+| SERVICE_JSON_SCHEMA_URI           | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service` | `$schema` that export writes on services. |
+| CONTEXT_SERVICE_JSON_SCHEMA_URI   | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service` | `$schema` that export writes on context services. |
+| MCP_SERVICE_JSON_SCHEMA_URI       | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service` | `$schema` that export writes on MCP services. |
+| SPECIFICATION_GROUP_JSON_SCHEMA_URI | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group` | `$schema` that export writes on specification groups. |
+| SPECIFICATION_JSON_SCHEMA_URI     | `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification` | `$schema` that export writes on specifications. |
+
+An import that checks `$schema` accepts the configured value and the value that exports wrote before the move to
+the CIP namespace, `http://qubership.org/schemas/product/qip/<type>`.
 
 Configuration can be overridden with values stored in Consul.
 The ```config/${NAMESPACE}``` prefix is used.

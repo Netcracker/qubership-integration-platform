@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "04454195-0a73-4601-aea7-926d1b30d42b"
 name: "Quartz Scheduler"
 content:

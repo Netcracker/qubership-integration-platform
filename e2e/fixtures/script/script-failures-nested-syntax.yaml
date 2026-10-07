@@ -1,5 +1,5 @@
 id: "e2e50019-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-failures-nested-syntax"
 description: "The same syntax error, one container deeper and with no script anywhere else in the\
   \ chain. Both engines iterate the deployment's outputs without recursing, so the question is\

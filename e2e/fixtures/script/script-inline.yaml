@@ -1,5 +1,5 @@
 id: "e2e50001-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-inline"
 description: "The Script element with its script written inline. The spec that owns it exports the\
   \ chain, deletes it, and imports the original bytes, so what it proves is that the separate\

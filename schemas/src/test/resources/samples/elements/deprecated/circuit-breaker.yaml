@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/circuit-breaker.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/circuit-breaker
 id: "bc966a29-47cf-4547-af85-76d550f38438"
 name: "Circuit Breaker (deprecated)"
 type: "circuit-breaker"

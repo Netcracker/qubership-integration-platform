@@ -1,0 +1,35 @@
+---
+id: "e2e00017-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-placeholder-resolution"
+description: "The one chain that proves a #{variable} placeholder in an element property resolves\
+  \ at deploy time. The seed creates the common variable between import and deploy; the header\
+  \ modification answers with whatever the engine substituted."
+content:
+  labels: []
+  elements:
+  - id: "e2e00017-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-placeholder-resolution"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00017-0000-4000-8000-000000000003"
+    name: "Resolve Placeholder"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-placeholder: "#{e2e-{{RUN}}-placeholder}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e00017-0000-4000-8000-000000000002"
+    to: "e2e00017-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"
