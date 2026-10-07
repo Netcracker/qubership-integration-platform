@@ -63,6 +63,7 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
                 .map(ElementType.REUSE::equals)
                 .orElse(false)) {
 
+                // The engine's execution map is keyed by step id, which is the element id, not the original id.
                 writePropertyElement(streamWriter, "parentId", parent.getId());
                 writePropertyElement(streamWriter, "hasIntermediateParents", Boolean.toString(ELEMENTS_WITH_INTERMEDIATE_CHILDREN
                     .contains(parent.getType())));
