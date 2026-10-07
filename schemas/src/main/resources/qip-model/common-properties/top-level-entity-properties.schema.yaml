@@ -1,12 +1,12 @@
 ---
-$id: http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/top-level-entity-properties
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: TopLevel Entity Properties
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   $schema:
     type: string

@@ -1,22 +1,22 @@
 ---
-$id: http://qubership.org/schemas/product/qip/mcp-service.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/top-level-entity-properties"
 title: MCP Service
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
-  fileExtension: mcp-service.qip
+    - CIP
+  fileExtension: mcp-service.cip
 properties:
   content:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/migrations-property.schema.yaml"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/description-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/labels-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/migrations-property"
     properties:
       identifier:
         type: string

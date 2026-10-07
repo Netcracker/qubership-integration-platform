@@ -28,6 +28,7 @@ import org.qubership.integration.platform.io.readers.migrations.versions.strateg
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.MigrationFieldStrategy;
 import org.qubership.integration.platform.io.readers.migrations.versions.strategies.VersionFieldStrategy;
 import org.qubership.integration.platform.io.readers.system.IntegrationSystemReader;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.configuration.MapperAutoConfiguration;
 import org.qubership.integration.platform.runtime.catalog.model.system.IntegrationSystemType;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
@@ -49,7 +50,6 @@ import org.qubership.integration.platform.runtime.catalog.service.exportimport.s
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 
 import java.io.File;
-import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -72,8 +72,6 @@ import static org.qubership.integration.platform.io.model.exportimport.ExportImp
  * asserts each source's stored hash survives the round trip.
  */
 class ServiceDeserializerTest {
-
-    private static final String APP_NAME = "qip";
 
     private static final String SYSTEM_ID = "system-1";
     private static final String GROUP_ID = "group-1";
@@ -101,11 +99,11 @@ class ServiceDeserializerTest {
         List<ServiceImportFileMigration> serviceMigrations = List.of(new V100ServiceImportFileMigration());
 
         IntegrationSystemDtoMapper systemMapper = new IntegrationSystemDtoMapper(
-                URI.create("http://qubership.org/schemas/product/qip/service"), serviceMigrations);
+                new ApplicationJsonSchemaProperties(), serviceMigrations);
         SpecificationGroupDtoMapper groupMapper = new SpecificationGroupDtoMapper(
-                URI.create("http://qubership.org/schemas/product/qip/specification-group"));
+                new ApplicationJsonSchemaProperties());
         SystemModelDtoMapper modelMapper = new SystemModelDtoMapper(
-                URI.create("http://qubership.org/schemas/product/qip/specification"));
+                new ApplicationJsonSchemaProperties());
 
         IntegrationSystemReader reader = new IntegrationSystemReader(
                 yamlMapper, fileMigrationService, versionsGetterService, serviceMigrations);
@@ -308,17 +306,17 @@ class ServiceDeserializerTest {
         ExportedIntegrationSystem exportedSystem = (ExportedIntegrationSystem) serializer.serialize(system);
 
         Path serviceFile = archiveDir.resolve(
-                ExportImportUtils.generateMainSystemFileExportName(exportedSystem.getId(), APP_NAME, false));
+                ExportImportUtils.generateMainSystemFileExportName(exportedSystem.getId(), false));
         writeYaml(serviceFile, exportedSystem);
 
         for (ExportedSpecificationGroup exportedGroup : exportedSystem.getSpecificationGroups()) {
             Path groupFile = archiveDir.resolve(
-                    ExportImportUtils.generateSpecificationGroupFileExportName(exportedGroup.getId(), APP_NAME, false));
+                    ExportImportUtils.generateSpecificationGroupFileExportName(exportedGroup.getId(), false));
             writeYaml(groupFile, exportedGroup);
 
             for (ExportedSpecification exportedSpecification : exportedGroup.getSpecifications()) {
                 Path specFile = archiveDir.resolve(ExportImportUtils.generateSpecificationFileExportName(
-                        exportedSpecification.getId(), APP_NAME, false));
+                        exportedSpecification.getId(), false));
                 writeYaml(specFile, exportedSpecification);
 
                 for (ExportedSpecificationSource source : exportedSpecification.getSpecificationSources()) {

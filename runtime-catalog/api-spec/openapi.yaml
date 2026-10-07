@@ -6233,6 +6233,11 @@ components:
           type: integer
           format: int32
           description: Row offset
+        searchString:
+          type: string
+          description: "Substring to find, ignoring case, in the initiator name or\
+            \ id, the operation, the request id, or the type, name, or id of the entity\
+            \ or its parent"
     ActionLogSearchResponse:
       type: object
       description: Paged action log response

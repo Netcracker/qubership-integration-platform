@@ -171,6 +171,7 @@ export const CommonVariables = () => {
                   buttonProps={{
                     type: "primary",
                     iconName: "plus",
+                    "data-testid": "common-variables-add",
                     onClick: () => setIsAddingNew(true),
                   }}
                 />

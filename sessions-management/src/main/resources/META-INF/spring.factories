@@ -1,4 +1,5 @@
 org.springframework.boot.context.config.ConfigDataLocationResolver=\
 org.qubership.integration.platform.sessions.consul.ConsulUrlWithSchemaDataLocationResolver
 org.springframework.boot.env.EnvironmentPostProcessor=\
-org.qubership.integration.platform.sessions.configuration.PropertyPrefixAliasEnvironmentPostProcessor
+org.qubership.integration.platform.sessions.configuration.PropertyPrefixAliasEnvironmentPostProcessor,\
+org.qubership.integration.platform.sessions.secrets.ConsulAdminTokenEnvironmentPostProcessor

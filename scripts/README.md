@@ -9,8 +9,9 @@ locally to see what a release would do.
 - You pick `patch`, `minor`, or `major`. Nothing anywhere lets you type a version number.
 - Each version file holds the **last released** version. A release bumps it, publishes that, writes it back, and tags
   the bump commit — so `git checkout <tag>` reproduces the tree that was published.
-- The **platform version** lives in the root `pom.xml` `<revision>`. One wave publishes the four backend services under
-  it, tags the drop `v<platform-version>`, and titles the GitHub Release with it.
+- The **platform version** lives in the root `pom.xml` `<revision>`. A `release-all` wave bumps it and every module
+  except checkstyle by the same release type, tags the drop `v<platform-version>`, and titles the GitHub Release with
+  it. A module dispatched alone releases a patch, so major.minor stay shared and only patches differ.
 - In-repo libraries (`qip-integration-build-pipeline`, `qip-checkstyle`) are pinned by property, not by the reactor
   version. Their release moves the pins in the same bump commit. The pins name the last release either way, but
   runtime-catalog appends `${changelist}` to the library pin so a normal build resolves the development coordinate
@@ -32,5 +33,5 @@ locally to see what a release would do.
 ## What is not here
 
 `modules.sh` is not the only place the module topology appears. Dispatch `choice` options, the `main-build` matrix, and
-`release-all`'s `ALL_MODULES` must be literal YAML, so they stay hand-written. Adding or removing a module means
+`release-all`'s per-module jobs must be literal YAML, so they stay hand-written. Adding or removing a module means
 touching those three too.

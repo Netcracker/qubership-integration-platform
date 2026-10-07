@@ -168,12 +168,25 @@ export function configure(config: Partial<AppConfig>): void {
     appConfigValue.dev = config.dev;
     overrides.push(`dev: ${oldValue} -> ${config.dev}`);
   }
+  if (config.productionMode !== undefined) {
+    const oldValue = appConfigValue.productionMode;
+    appConfigValue.productionMode = config.productionMode;
+    overrides.push(`productionMode: ${oldValue} -> ${config.productionMode}`);
+  }
 
   if (config.permissions !== undefined) {
     const oldValue = appConfigValue.permissions;
     appConfigValue.permissions = config.permissions;
     overrides.push(
       `permissions: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.permissions)}`,
+    );
+  }
+
+  if (config.domainTypes !== undefined) {
+    const oldValue = appConfigValue.domainTypes;
+    appConfigValue.domainTypes = config.domainTypes;
+    overrides.push(
+      `domainTypes: ${JSON.stringify(oldValue)} -> ${JSON.stringify(config.domainTypes)}`,
     );
   }
 

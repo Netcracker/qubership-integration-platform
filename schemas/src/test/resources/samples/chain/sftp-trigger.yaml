@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "bb393e92-64fd-4288-a440-77d3eab57f7f"
 name: "SFTP Trigger"
 content:

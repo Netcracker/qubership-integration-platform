@@ -1,0 +1,55 @@
+id: "e2e50006-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-script-libraries-json"
+description: "groovy-json reached from a script: JsonSlurper parses the request, JsonOutput writes\
+  \ the answer. Two elements rather than one, so the parsed value crosses an element boundary as a\
+  \ Map and the second script is handed something no String conversion could have produced."
+content:
+  labels: []
+  elements:
+  - id: "e2e50006-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-libraries-json"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50006-0000-4000-8000-000000000003"
+    name: "Slurp Json"
+    type: "script"
+    properties:
+      # Textually unique, like every script in this corpus: the compiled-script cache is keyed on
+      # the trimmed source alone, so two identical scripts share one compiled class and a per-chain
+      # assertion can be met by another chain's compilation. Do not deduplicate these.
+      script: |-
+        // script-libraries-json/slurp-json
+        // Parsed from the raw bytes rather than from a String, which is the reading a stream body
+        // supports without a conversion of ours in the way.
+        def parsed = new groovy.json.JsonSlurper().parse(exchange.getIn().getBody(byte[].class))
+        exchange.getIn().setHeader('e2e-json-token', parsed.token)
+        exchange.getIn().setBody(parsed)
+  - id: "e2e50006-0000-4000-8000-000000000004"
+    name: "Write Json"
+    type: "script"
+    properties:
+      script: |-
+        // script-libraries-json/write-json
+        // The body arrives as the map the previous script parsed, so `sum()` runs over numbers and
+        // not over text. prettyPrint is reported as a line count: a header cannot carry newlines.
+        def carried = exchange.getIn().getBody()
+        def answer = groovy.json.JsonOutput.toJson([token: carried.token, sum: carried.items.sum()])
+        exchange.getIn().setHeader('e2e-json-pretty-lines', groovy.json.JsonOutput.prettyPrint(answer).split('\n').length.toString())
+        exchange.getIn().setBody(answer)
+  dependencies:
+  - from: "e2e50006-0000-4000-8000-000000000002"
+    to: "e2e50006-0000-4000-8000-000000000003"
+  - from: "e2e50006-0000-4000-8000-000000000003"
+    to: "e2e50006-0000-4000-8000-000000000004"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

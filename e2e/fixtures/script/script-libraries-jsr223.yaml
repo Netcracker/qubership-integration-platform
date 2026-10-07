@@ -1,0 +1,44 @@
+id: "e2e50011-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-script-libraries-jsr223"
+description: "groovy-jsr223 reached from a script: a script asking the JSR-223 manager for a second\
+  \ Groovy engine, binding a value into it and evaluating there. The module registers the factory\
+  \ through META-INF/services, so the manager finds an engine only while the jar is on the path."
+content:
+  labels: []
+  elements:
+  - id: "e2e50011-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-libraries-jsr223"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50011-0000-4000-8000-000000000003"
+    name: "Use Jsr223"
+    type: "script"
+    properties:
+      script: |-
+        // script-libraries-jsr223/use-jsr223
+        // The manager is given this script's own classloader: the default one reads the thread
+        // context loader, which on a Camel worker thread is not the loader carrying the module.
+        // A missing factory is reported as "none" rather than thrown, so the failure names itself.
+        def token = exchange.getIn().getHeader('e2e-in')
+        def engine = new javax.script.ScriptEngineManager(getClass().getClassLoader()).getEngineByName('groovy')
+        if (engine == null) {
+            exchange.getIn().setBody('{"engine":"none"}')
+            return
+        }
+        engine.put('token', token)
+        exchange.getIn().setBody('{"engine":"' + engine.getFactory().getEngineName() + '","bound":"' + engine.eval('token.toUpperCase()') + '","evaluated":' + engine.eval('2 * 21') + '}')
+  dependencies:
+  - from: "e2e50011-0000-4000-8000-000000000002"
+    to: "e2e50011-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

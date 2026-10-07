@@ -339,6 +339,7 @@ const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
   return (
     <Editor
       className="qip-editor"
+      wrapperProps={{ "data-testid": "mapper-dictionary-editor" }}
       theme={monacoTheme}
       value={text}
       language={MAPPER_DICTIONARY_LANGUAGE_ID}

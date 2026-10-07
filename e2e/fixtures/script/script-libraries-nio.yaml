@@ -1,0 +1,43 @@
+id: "e2e50009-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-script-libraries-nio"
+description: "groovy-nio reached from a script. The file is written, read back and deleted inside\
+  \ one script, so the case leaves nothing in the engine's temporary directory and asserts the\
+  \ module's Path extensions rather than the file system."
+content:
+  labels: []
+  elements:
+  - id: "e2e50009-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-libraries-nio"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50009-0000-4000-8000-000000000003"
+    name: "Use Nio"
+    type: "script"
+    properties:
+      script: |-
+        // script-libraries-nio/use-nio
+        // setText, getText and size() are the module's extensions on java.nio.file.Path; Files
+        // itself is plain JDK and would answer with the module absent.
+        def token = exchange.getIn().getHeader('e2e-in')
+        def path = java.nio.file.Files.createTempFile('e2e-script-nio-', '.txt')
+        path.setText(token + '\n', 'UTF-8')
+        def carried = path.getText('UTF-8').trim()
+        def size = path.size()
+        def name = path.getFileName().toString()
+        java.nio.file.Files.deleteIfExists(path)
+        exchange.getIn().setBody('{"read":"' + carried + '","size":' + size + ',"name":"' + name + '","deleted":' + !java.nio.file.Files.exists(path) + '}')
+  dependencies:
+  - from: "e2e50009-0000-4000-8000-000000000002"
+    to: "e2e50009-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

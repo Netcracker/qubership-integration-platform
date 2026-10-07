@@ -1,12 +1,12 @@
 ---
-$id: http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/service-type
 $schema: http://json-schema.org/draft-07/schema
 type: string
 title: Service Type
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 enum:
   - INTERNAL
   - EXTERNAL

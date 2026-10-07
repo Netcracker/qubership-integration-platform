@@ -1,0 +1,29 @@
+id: 43a37736-5ff8-52db-add2-444269fb4a4b
+$schema: http://qubership.org/schemas/product/qip/chain
+name: http-sender-dynamic-uri
+content:
+  labels: []
+  elements:
+  - id: 716d9462-69ff-536b-8b9a-eeb7738993a4
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 716d9462-69ff-536b-8b9a-eeb7738993a4
+  - id: a4979157-ac8c-5860-9376-0ac60ebb87e3
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: ${exchangeProperty.targetUri}
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+  dependencies:
+  - from: 716d9462-69ff-536b-8b9a-eeb7738993a4
+    to: a4979157-ac8c-5860-9376-0ac60ebb87e3
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

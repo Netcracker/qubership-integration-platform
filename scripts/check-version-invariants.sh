@@ -17,10 +17,10 @@
 #      on purpose: checkstyle is a plugin dependency, never in a module's
 #      reactor, so its pin always names a published release.
 #
-# Deliberately NOT checked: that the backend services share one <revision>. That
-# is a postcondition of a full release-all wave, not a property at rest — a
-# partial wave (`modules: engine,ui`) and a single-module release both leave them
-# apart on purpose, and release-all asserts it for itself once the wave is done.
+# Deliberately NOT checked: that the modules share one major.minor. That is a
+# postcondition of a full release-all wave, not a property at rest — a partial
+# minor or major wave (`modules: engine,ui`) leaves them apart on purpose, and
+# release-all asserts it for itself once the wave is done.
 #
 # Usage: scripts/check-version-invariants.sh
 

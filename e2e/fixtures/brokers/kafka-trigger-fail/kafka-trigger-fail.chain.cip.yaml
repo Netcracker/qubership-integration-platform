@@ -1,0 +1,44 @@
+---
+id: "e2e0f006-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-trigger-fail"
+description: "kafka-trigger-2 into an http-sender pointed at a host that can never resolve, so every\
+  \ message this chain reads fails deterministically. Two messages prove the commit semantics: does\
+  \ the consumer move past a failed record and read the next one, or does it stall re-reading the\
+  \ first."
+content:
+  labels: []
+  elements:
+  - id: "e2e0f006-0000-4000-8000-000000000002"
+    name: "Kafka Trigger"
+    type: "kafka-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29092"
+      topics: "e2e-{{RUN}}-kafka-trigger-fail"
+      securityProtocol: "PLAINTEXT"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLS"
+      groupId: "e2e-{{RUN}}-kafka-trigger-fail"
+      consumerConsistencyMode: "EVENTUAL"
+      autoOffsetReset: "latest"
+      keyDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      idempotency:
+        enabled: false
+  - id: "e2e0f006-0000-4000-8000-000000000003"
+    name: "HTTP Sender"
+    type: "http-sender"
+    properties:
+      uri: "http://e2e-kafka-fail.invalid/boom"
+      httpMethod: "POST"
+      isExternalCall: false
+      m2m: false
+      reuseEstablishedConnection: true
+      propagateContext: false
+      receiveCorrelationId: false
+  dependencies:
+  - from: "e2e0f006-0000-4000-8000-000000000002"
+    to: "e2e0f006-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -1,6 +1,6 @@
 ---
 id: "586b2f98-4806-4f02-9ecf-286ec62b2b96"
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "deprecated-routing"
 content:
   elements:

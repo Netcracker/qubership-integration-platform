@@ -1,0 +1,28 @@
+---
+id: "265679a0-5a16-494f-b8ff-e8d899d16fd8"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "rabbitmq-sender-maas"
+content:
+  labels: []
+  elements:
+  - id: "6c39bf8f-06fb-4c08-8b3a-068551d60e26"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "6c39bf8f-06fb-4c08-8b3a-068551d60e26"
+  - id: "33323786-5bfe-46f2-b080-48a849b8a0be"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      connectionSourceType: "maas"
+      exchange: "test"
+      exchangePattern: "InOnly"
+      propagateContext: true
+      routingKey: "maas.order"
+      vhostClassifierName: "snapshot-orders"
+      maasClassifierNamespace: "snapshot-maas-namespace"
+  dependencies:
+  - from: "6c39bf8f-06fb-4c08-8b3a-068551d60e26"
+    to: "33323786-5bfe-46f2-b080-48a849b8a0be"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -24,7 +24,7 @@ const menuItems = [
     label: "Context",
   },
   {
-    key: "mcp",
+    key: "#mcp",
     icon: <OverridableIcon name="mcp" />,
     label: "MCP",
   },

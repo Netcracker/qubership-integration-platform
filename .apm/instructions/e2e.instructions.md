@@ -1,0 +1,672 @@
+---
+description: "End-to-end suite: what it is for, how data is isolated on a shared stack, and the rules a spec has to follow."
+applyTo: "e2e/**"
+---
+
+### Project overview
+
+`e2e/` holds the end-to-end suite. It runs against one of two local targets, which `CIP_TARGET`
+picks: `compose`, the default, is the stack from `infrastructure/docker-compose.yml`, and `k8s` is
+a local cluster where the suite installs `infrastructure/qip-dev` into namespace `qip-e2e`. It
+answers one question before a release: does the platform still work. It produces a report; a person
+reads the report and decides what to fix.
+
+Stack: `@playwright/test` as the runner, TypeScript, ESM. The `request` fixture drives HTTP without
+a browser, so API specs and browser specs share one runner and one report.
+
+The module sits **outside the npm workspaces** on purpose. `ui-build.yaml` runs
+`npm ci --legacy-peer-deps` at the repository root, so a workspace entry would pull Playwright and
+its browser into every UI job and for every contributor who never runs these tests. `e2e/` keeps its
+own `package.json` and lockfile, and `npm install` runs inside the directory.
+
+`e2e/README.md` covers running the suite and reading its result: every command, flag, and state
+file, provisioning, residue, and troubleshooting. This file holds the rules for writing and changing
+a spec.
+
+### Commands
+
+```bash
+npm run check-types          # type-check
+npm test -- --project=schema # the specs that need no stack
+npm test -- --project=<name> --no-deps -g "…"  # one case, against a corpus kept with E2E_KEEP=1
+npm test; npm run reconcile  # a full run, then the registries checked against it
+npx playwright test --list   # count the cases and the projects; starts nothing
+```
+
+`--no-deps` belongs on every `--grep` and every file path: a filter selects tests and never
+dependency projects, so without it one tagged `env` case drags `api`, `runtime`, `seed`,
+`seed-teardown`, and `tooling` in whole. Every runtime case reruns against a kept corpus; a case that
+cannot is a case to fix, not to document.
+
+The VS Code extension's integration tests are a sibling suite with their own runner, not Playwright
+specs. A case that needs the `vscode` API goes under `vscode-extension/src/web/test/suite/`, never
+under `specs/`. The two suites meet on `vscode-extension/src/web/test/golden/`: the extension suite
+checks it still writes those files, and `specs/api/extension-output.spec.ts` imports them into the
+catalog.
+
+### No CI job
+
+No workflow runs the suite. `npm run check-types` and `npx playwright test --project=schema` need no
+stack, so run both before pushing a change to `e2e/` or to a tree the `schema` project reads:
+`schemas/src/main/resources/qip-model/`, `schemas/src/test/resources/samples/`, `infrastructure/`,
+and the import-file migration classes under `integration-build-pipeline/`. The rest of the suite
+provisions a Compose stack or a cluster namespace and expects to own it for the length of the run.
+
+### Provisioning
+
+`npx playwright test` brings the stack to this checkout before any project starts. It starts what is
+missing or unhealthy, rebuilds a service whose sources are newer than the image its container runs,
+and never recreates a running container that is already current, because a developer may be
+debugging on the same stack.
+
+- **Rebuilding takes two commands.** The service Dockerfiles copy a jar the host already built
+  (`runtime-catalog/Dockerfile:24`), so `mvn install` runs first and `docker compose up -d --build`
+  second. `--build` on its own repackages whatever sits in `target/` and compiles no Java.
+- **Configuration recreates rather than rebuilds.** A change to `infrastructure/docker-compose.yml`
+  or to an env file a service reads is compared against the **container's** creation time rather
+  than the image's, and answered with `up -d --force-recreate`; the report names the two apart. A
+  change under `infrastructure/nginx/` is read by a proxy reload instead, since that directory is
+  bind-mounted.
+- **Every created or recreated container is followed by `Env.reloadProxy()`.** nginx resolves
+  `proxy_pass http://engine:8080` once, at config load, with no `resolver` in scope, so a recreated
+  backend leaves the proxy pointing at an address Docker has since handed to another container.
+  `restartWith` reloads the proxy itself for the same reason.
+- **A selection that needs no stack skips provisioning.** Playwright runs `globalSetup` once per run
+  and has no flag that skips it, so `globalSetup` returns before it mints a run token when every
+  selected project declares `metadata: { stack: false }` in `playwright.config.ts`. The selection
+  is read off `config.argv`, because `config.grep` serializes to `{}` and `config.projects` lists
+  every declared project. Without that return, `--project=schema` could not run on a machine with no
+  Docker.
+
+On `k8s` the suite provisions the namespace, never the cluster. `env/provision/k8s.ts` checks the
+kube-context, the Gateway API CRDs, Istio, the camel-k operator, and metrics-server in that order,
+and fails on the first one missing, naming the section of `e2e/k8s/README.md` that installs it. It
+then builds the images, each tagged with a hash over its own sources, and runs
+`helm upgrade --install qip infrastructure/qip-dev -n qip-e2e -f e2e/k8s/values.e2e.yaml`. A chart
+change the suite needs goes in the chart as an optional value with a default that renders what it
+rendered before, and `e2e/k8s/values.e2e.yaml` sets it.
+
+**Broker overlays are not brought up by provisioning.** `Env.ensureOverlay(overlay)` brings one up,
+composed with the base file under the same project name, when the `brokers-seed` project needs it,
+and leaves a healthy overlay alone. `Env.restartOverlay(overlay)` restarts the overlay's own broker
+container without recreating it, and only `broker-restart.spec.ts` calls it. A spec reaches both
+through the `env` fixture, never by calling `docker`.
+
+### Layout
+
+```text
+e2e/
+  playwright.config.ts   the projects both targets run, and the project list for the run
+  env/                   index.ts (the Env interface), target.ts (reads CIP_TARGET),
+                         target-setup.ts (each target's Env, provisioner, and projects),
+                         compose.ts and k8s.ts (the two Envs), provision.ts (the globalSetup)
+  k8s/                   the chart values for qip-e2e, and the page that installs a cluster
+  registry/              what the suite claims to cover, read off the tracked schemas
+  specs/schema/          no stack needed: registries, fixtures, checksums
+  specs/api/             parallel-safe
+  specs/seed/            imports and deploys the shared corpus, and removes it again
+  specs/tooling/         the testing service works as a tool, before runtime leans on it
+  specs/runtime/         calls the seeded chains and asserts what they did
+  specs/env/             restarts a service; one worker, after api, runtime and ui
+  specs/brokers-seed/    imports and deploys fixtures/brokers/, outside the shared corpus
+  specs/brokers/         one file per transport, plus the missing-target and broker-restart cases
+  specs/global/          reads over the whole platform, or over state it shares; one
+                         worker, after api, runtime, env and ui
+  specs/ui-server/       builds and serves the UI bundle on 4200, then stops it
+  specs/ui/              the browser layer, Chromium through nginx on 8080; imports `test`
+                         from support/page-guard.ts, which fails a case on a page error
+  specs/seed-micro/      k8s only: the micro copy of the corpus, on a micro domain of the run
+  specs/k8s/             k8s only: custom resources, gateway routes, discovery, /e2e/ locations
+  pages/                 page objects for the UI, plus the shared TableView
+```
+
+`playwright.config.ts` declares the projects both targets run, and `env/target-setup.ts` declares
+the ones only one target runs, through `TargetSetup.projects`, and the edges only one target needs on
+a common project, through `decorate`. The project list and every `dependencies` list come from those
+two places and nowhere else. The common list never names a target. A project or a spec file one
+target leaves out goes in that target's `absent` list, which the report header prints with the
+reason.
+
+**A flag lands in the config together with the project that reads it, never ahead of one.**
+`CIP_TARGET` meets that rule: `target()` in `env/target.ts` reads it, `targetSetup()` turns it into
+projects, and `playwright.config.ts` writes it into `metadata`, which the report and
+`npm run reconcile` read.
+
+`dependencies` is resolved transitively: a bare `--project=global` fires `seed`, then `runtime`, then
+`global`, and a setup project's `teardown` runs after every transitive dependent. So a project that
+reaches the corpus through a project declaring `seed` needs no edge of its own.
+
+`dependencies` also gates a project on the success of the ones it names. That is why `global` names
+no broker project: one failing broker case would skip every `global` case. Where only the order
+matters, name a shared `teardown` project instead. `global` declares `brokers-seed-teardown` (Compose)
+or `seed-micro-teardown` (k8s) as its `teardown`, which holds that teardown back until `global` has
+run without gating either side.
+
+`seed` declares `teardown: "seed-teardown"`, which names **another project**. Setup and teardown
+behind one project's `testMatch` would make the teardown an ordinary test of the setup project,
+running before the corpus had been used once. `testMatch` is not optional on either: Playwright's
+default does not collect `seed.setup.ts`, and a setup project that runs zero tests reports success
+and satisfies its dependents.
+
+### Isolation on a shared stack
+
+One Postgres and one engine serve every worker, so specs split their data two ways.
+
+- **Shared and read-only.** Fixture chains a seed step imports and deploys once per run. Templates
+  carry `{{RUN}}` so two runs cannot collide on an HTTP trigger `contextPath`: the deploy is refused
+  with 409 naming the chain that holds the path (#840), so a run without the token fails its own
+  seed.
+- **Mutable and per worker.** Anything a spec creates. Chains and folders go under a per-worker
+  folder; deleting the folder cascades. Entities with no folder carry the run token in their name.
+
+**Size a deploy poll on about 5 s.** `TasksScheduler.java:130` is `@Scheduled(fixedDelay = 2500)`,
+but the body blocks inside `ConsulService.waitForDeploymentsUpdate()` for up to 20 s
+(`ConsulService.java:50`), and Consul returns the moment the KV index moves. Measured over 15
+deploys, the pickup took a median of 2.165 s and a maximum of 3.113 s, so 2.5 s is too short and
+20 s over-provisions sixfold.
+
+### Coverage registries
+
+Two registries under `registry/` hold what the suite claims to cover, and both are checked against
+the run rather than believed. A spec that covers something new is not finished until its row says
+so, and the row moves in the same commit as the spec. `e2e/README.md` describes how reconcile is run
+and what it refuses.
+
+**`registry/elements.ts`: one row per element family and per axis value.** Every row starts
+`not-covered` with a required reason. A row moves to `covered` only together with a spec that
+declares it:
+
+```ts
+covers("http-trigger", "accessControlType", "RBAC");
+```
+
+`specs/schema/coverage.spec.ts` reads the schemas: an element or an axis value with no row fails it,
+and so does a row naming a value the schemas no longer declare. `npm run reconcile` reads the run: a
+row marked `covered` with no passing `covers()` behind it fails, and so does a declaration naming a
+row that does not exist. A row only one target can prove carries `target: "compose"` or
+`target: "k8s"`.
+
+**The rows are read against the schema sources, not against a copy.** `registry/discriminators.ts`
+resolves `schemas/src/main/resources/qip-model/element/` (`schemas/assets/` is generated), so a new
+element family, or a new value on a discriminator axis, turns `specs/schema/coverage.spec.ts` red
+until a row exists for it. Point it at another tree with `E2E_ELEMENT_SCHEMA_DIR` to confirm the
+check still goes red.
+
+**An element's axes are covered as a sum, never as a product.** Each case varies one axis value and
+holds the rest at their defaults, so an element with ten two-value axes costs twenty cases rather than
+1024. What a case may set besides the axis under test is fixed:
+
+- a default the schema needs spelled out, because its `if` branches match an **absent** property:
+  every generated trigger writes `accessControlType: NONE` and `handleChainFailureAction: default`;
+- a companion the value cannot run without and no default supplies: `roles` under RBAC, `uri` on
+  `http-sender`, `idempotency/enabled: true` under an `actionOnDuplicate` value;
+- a single-value precondition that makes the branch reachable, such as the `afterValidation` entry a
+  `service-call` response handler handles. It has no discriminator, so it is not a second axis.
+
+A case setting two varying axes together names the defect that justifies it in
+`docs/product-defects.md`. Value unions (`#{variable}` against a literal) are one class, covered
+once by `specs/runtime/placeholder.spec.ts`; do not add a case per element.
+
+The chains come from `fixtures/axis-generator.ts`. An `axisFixtures` entry names a family, an axis
+path and a value, plus the `properties` template, and a `downstream` element where only a later step
+reaches the branch. Generation refuses an axis or value the schemas do not declare and validates the
+element and the chain against their schemas, so a missing companion fails there, naming the
+property, and not at deploy. An axis that changes the chain's shape is written by hand under
+`fixtures/chains/` and declared with `handWritten`; `writeAxisFixtures` refuses a hand-written
+fixture that does not set the axis to the value. The element under test is named
+`<axisPath>=<value>`, the `elementName` a session trace reports.
+
+A runtime axis case asserts the response **and** the ordered `elementName` list of the session
+trace, walked through `children[]`. A branch can answer the same status as the default: a handler
+keeps the failure's status, and only the trace shows which handler ran. Children of a parallel
+branch arrive in completion order, so compare them as a set. Find the session by a per-call token,
+because `GET /v1/sessions/external-id/{id}` returns one session and the run token matches any
+spec's. The exception is a call that must not carry the correlation header, because the testing
+service would mock it, or cannot, like an MCP tool call. Such a case finds the session through
+`Sessions.onlyOf` in `support/sessions.ts`, by chain id and a filter that leaves out every session the
+case did not cause (read `Sessions.idsOf` before the call), or by a marker the call carries in its
+body, so the case still reruns against a kept corpus.
+
+A row reads what a passing test proves, which gives three shapes besides `covered`:
+
+- **Observable only on the compile.** When the engine ignores a value (`accessControlType` is
+  `anyRequest().permitAll()` on the engine), assert the compiled `xmlDefinition` of the snapshot in
+  the `api` project, tag it `@catalog`, and record the runtime gap in a comment above the rows.
+  `GET /v2/catalog/snapshots/{id}/full` echoes the property back and proves nothing.
+- **A defect.** A value that only a `test.fail()` case exercises stays `not-covered`, with the defect
+  as its reason.
+- **Superseded.** An uncovered row of an element the library flags `deprecated` carries
+  `supersededReason()`, and `SUPERSEDED` maps it to its successor, which carries the case.
+
+**`registry/operations.ts`: one row per API operation, and three states.** `not-reached` carries a
+required reason, `reached` means a call to the operation was recorded, and `covered` means a named
+assertion about its response shape, its side effect, or its failure path passed. The two numbers are
+reported side by side and never summed: a sweep that calls every endpoint once proves only that the
+platform still answers 200.
+
+A row is one `METHOD /path` of one service, and the registry spans all four services the suite
+addresses. A row cannot express a status per branch, so a branch a project cannot reach, such as the
+`204` of `GET /v1/catalog/runtime-deployments`, is recorded in the spec's header and the row stays
+whole. `npm run refresh-operations` reads four documents: the testing service serves Swagger 2.0 at
+`/api/v1/swagger/doc.json`, where the three Java services serve OpenAPI at `/v3/api-docs`, and
+`specs/schema/api-coverage.spec.ts` demands a cache key per service, so a refresh against a stack
+missing one fails instead of dropping its rows.
+
+`reached` is recorded by the run and never by the spec. `noteReached()` fires inside
+`support/catalog.ts`, `support/sessions.ts`, `support/engine.ts` and `support/testing-service.ts`,
+and inside the `request` fixture, which `recordingRequest` in `registry/reached.ts` wraps so that a
+call a spec sends to a service's own port is matched the same way. `reconcile()` fails a
+`not-reached` row a passing test reached. Go through the client anyway when the call is meant to
+assert something, and give the client a `raw` method when what the case asserts is a status or a
+failure body. Two kinds of call record nothing, and neither can carry a row's status: a request
+through nginx, whose `/api/` path matches no row, and a call from `globalSetup` or `globalTeardown`,
+where `test.info()` throws.
+
+`specs/schema/api-coverage.spec.ts` diffs the registry against `registry/operations.cache.json` with
+no stack, and `specs/api/api-docs-live.spec.ts` diffs that cache against what the services serve
+right now, so a controller added to a service fails a run.
+
+### Rules for a spec
+
+1. **Assert over your own entities, never over a global list.** "The table holds three rows" breaks
+   when a parallel worker adds a fourth. Filter the list by what this spec created.
+2. **A spec that needs a global view, or reads global state, goes in `specs/global/`.** That project
+   runs one worker after `api`, `runtime`, `env`, and `ui`: under a parallel `--project=api` run, an
+   export of every chain answered 500 for 3 of 120 calls because another worker deleted a folder
+   mid-export. One worker is **`workers: 1`, never `fullyParallel: false`**, which serializes the
+   cases inside a file and still lets two files run side by side. The worker count bounds the project
+   rather than the run, so the `dependencies` list is the half that empties the pool around it.
+   These endpoint families are global by construction:
+
+   | Endpoint | Why no spec can scope it |
+   | --- | --- |
+   | `GET /v1/library/elements/types` | the element types in use across every chain |
+   | `GET/POST /v1/catalog/live-exchanges` | the top N exchanges on every engine, and `204` when there are none |
+   | `GET /v1/catalog/runtime-deployments` | the deployment status of every chain on every engine pod |
+   | `POST/GET/PATCH /v1/catalog/diagnostic/validations` | one run over the whole catalog, **destroying** every chain's alert rows and each rule's status row |
+   | `GET /v1/catalog/events` | one change stream for the platform |
+   | `DELETE /v1/sessions`, the bare form | removes every session; `POST /v1/sessions` takes a filter, so it is not global |
+   | `POST /v1/catalog/domains/{domain}/deployments/update` | `DeploymentService` holds the deployment cache in `private static` fields |
+   | `POST /v1/catalog/maintenance/snapshots/prune` | the delete carries no caller, chain, or run-token predicate |
+   | `GET /v1/catalog/export` | takes no IDs, so it exports every chain |
+
+   Global **state** counts the same as a global view. `specs/global/script-external-library.spec.ts`
+   reads its own chain, but the compiled-script cache it asserts is one Spring singleton that
+   `GroovyLanguage.stop()` on any undeploy clears, so no promise about its own chains keeps another
+   worker off it.
+3. **A spec that restarts a service belongs in `specs/env/`.** A restart costs about 30 s against
+   0.15 s for an API assertion and disturbs everything in flight. Placement follows that scheduling
+   need, not the spec's subject.
+4. **Never name `docker` or `kubectl` in a spec, never construct an `Env` to reach a stack, and never
+   name the target.** A spec asks for the `env` worker fixture and gets an `Env`, which
+   `targetSetup().createEnv(engineKind)` in `env/target-setup.ts` creates for the target
+   `CIP_TARGET` names. A fact that differs between the targets is an `Env` member the spec reads,
+   such as `domainFacts()` or `generatedRequestId`, never a branch on `target()`; the difference
+   lives in `env/compose.ts` and `env/k8s.ts`. Without that seam the suite cannot run on a cluster,
+   and the micro engine exists only there. Two `specs/schema/` files construct an `Env` directly, and
+   neither reaches a stack: `report.spec.ts` builds a `ComposeEnv` to read a URL off, and
+   `k8s-adapter.spec.ts` builds `K8sEnv` instances to unit-test the adapter. `specs/k8s/` is the
+   exception to the first half: its specs run on the Kubernetes target alone and read Integrations,
+   ConfigMaps, HTTPRoutes, and Services through `support/kube.ts`, a `kubectl` reader that no spec
+   outside `specs/k8s/` imports.
+5. **Delete before importing.** An import over a live id is an update, so an assertion that the IDs
+   are present passes whether the import created them, updated them, or did nothing.
+6. **Import the original bytes.** `ArchiveWriter` builds `services/<id>/` unconditionally, and an
+   archive whose entries sit at the ZIP root imports as 204 with an empty body. Re-zipping an
+   unpacked tree turns a no-op import into a green run.
+7. **No retries.** `retries: 0` is deliberate: a shared stack cannot absorb a re-run of a
+   half-applied scenario. A spec that has to tolerate timing waits for a condition through
+   `expect.poll` or `expect.toPass`.
+8. **A spec asserts behavior, not the presence of a control.**
+9. **A flaky spec is fixed or deleted, never skipped.** A skipped spec claims coverage it does not
+   have. Fix it where it surfaces, whoever wrote the file, and fix it by asserting what the case is
+   about rather than by polling harder.
+10. **Tag every test by component and tier**:
+    `test("…", { tag: ["@engine", "@tier1"] }, …)`. Components are `@catalog`, `@engine`,
+    `@sessions`, `@testing-service`, `@ui`, `@infra`; the tier is `@tier1` for the release floor
+    and `@tier2` for the rest. No case carries `@extension`, because the extension's cases run under
+    their own runner. A case in the `ui` project is tagged `@ui` and its tier, never a backend tag,
+    so a backend grep with `--no-deps` selects no case that needs Chromium. A spec missing either tag
+    fails `npm run reconcile`. `e2e/` has no formatter config, so keep the title, the tag object, and
+    the fixture destructuring on the declaration line, however long it runs.
+11. **Call a chain on the engine, never through the proxy.** `http://localhost:8092/routes/…`, not
+    `http://localhost:8080/…`. No nginx `location` matches `/routes/`, so a request through the
+    proxy falls through to the SPA and answers **200 with `index.html`** whatever the chain did. A
+    chain also answers on `/qip-routes/{contextPath}`, and the suite addresses `/routes`.
+12. **An endpoint that answers 202 is polled for its artifact, never for `done`.** A gRPC import
+    reports `done: true` with a null library id, and a root-layout archive imports nothing and
+    reports success. `Catalog.awaitSpecificationImport` stops on the specifications and their
+    operations for that reason.
+13. **Carry a known divergence as `test.fail()`, never as a red result the reader is told to
+    expect.** The annotation inverts the verdict, so the run stays green while the defect stands and
+    turns red the day it is fixed, which is the signal to remove the annotation. Every case carrying
+    it names its entry in `docs/product-defects.md` at the annotation; `grep -rn "test\.fail(" specs/`
+    lists them, so quote no count. Two limits come with the annotation:
+    - It accepts **any** failure, so a pinned case narrows itself to the divergence it carries
+      through `support/known-defect.ts`: `onlyTheKnownStatus` where the defect is one status and the
+      fix another, `notTheKnownDefect` where the message has to be read too, and `outsideTheDefect`
+      around the setup, since an inverted verdict turns a fixture that could not be built into a
+      pass. `specs/global/export-all.spec.ts` and `specs/api/error-contract.spec.ts` show the
+      message-reading form.
+    - It is for a divergence a spec can reproduce on demand. Where no create path manufactures the
+      offending state, such as an element of a type the library does not offer, the spec asserts the
+      healthy contract and prints the query that finds the offender instead.
+    - A defect that only a stack holding enough data meets would turn a plain `test.fail()` red on a
+      small stack. Wrap the step that meets it in `strikesAsKnown` with a `ConditionalDefect` from
+      `support/known-defect.ts`: the case becomes an expected failure only when the step throws that
+      defect, and the defect's `matches` gets a case in `specs/schema/conditional-defects.spec.ts`.
+14. **A `specs/schema/` spec imports `test` and `expect` from `@playwright/test`, never from
+    `support/fixtures.js`.** That module installs `auto: true` fixtures which create a folder over
+    HTTP and shell out to `docker logs`, so one wrong import turns the `schema` project into one that
+    needs a stack, and CI has no Docker. `specs/schema/schema-imports.spec.ts` holds every sibling to
+    it. Importing a *helper* from `support/` is fine: it is `test` and `expect` that carry the
+    fixtures.
+15. **Move the registry row in the same commit as the spec.** A covered element row needs a
+    `covers(family, axis, value)` declaration in a passing test, or `npm run reconcile` fails naming
+    the row; an operation row moves to `reached` or `covered` once a passing test calls or asserts
+    it. A tag makes a spec visible; a registry row is what makes it count.
+16. **Read the platform over HTTP, never over SQL.** The suite has no database client: a second way
+    of seeing the platform sits outside the transports, so nothing it reads counts as `reached`.
+17. **Prove a guard by breaking what it guards.** An assertion nobody has watched fail is a claim, so
+    make one edit at a time, each turning its own case red and no other. A transport that drops a
+    parameter, a header, or a body field is a failure no spec-side edit can reach, so some mutations
+    belong in `support/`.
+18. **An assertion on a log is two-sided, and scoped to a window the spec opened.** `env.logs` takes
+    a `since` for that reason: an unscoped read is satisfied by an unrelated earlier line, and an
+    absence-only assertion is equally green when the mechanism never ran. Assert the line that
+    proves it ran **and** the line that would show it failing, and scope the positive half to
+    something only this case could have caused. `specs/global/script-external-library.spec.ts` is
+    the shape: `Resetting groovy script cache` read after the case's own `Saved library` line for its
+    model id, and `Failed to reset groovy script cache` absent.
+19. **Correlate a broker or file trigger by transport, never by the shared run token.**
+    `Properties.TESTING_SESSION_ID` is set in exactly one place, `HttpTriggerProcessor.java:85`, so a
+    chain triggered by Kafka, RabbitMQ, pub/sub, SFTP, or the scheduler is never marked as a
+    test-case run, and its outbound calls reach real endpoints, un-mocked. Kafka and RabbitMQ
+    triggers, and every sender (Kafka, RabbitMQ, pub/sub), carry a per-call
+    `external-session-cip-id` header the producing side sets, and the spec finds the session with
+    `GET /v1/sessions/external-id/{token}?includeDetails=true`. That endpoint answers **404 with an
+    error body** while the session is not yet written, so a poll against it tolerates a non-2xx.
+    `pubsub-trigger` cannot carry the header: the emulator delivers its attributes as one
+    `GooglePubsubConstants.ATTRIBUTES` header, and `SessionsService.startSession` reads the
+    correlation header before any route element could unpack it. So `pubsub-trigger`,
+    `sftp-trigger-2`, and `quartz-scheduler` correlate through `POST /v1/sessions/chains/{chainId}`
+    filtered on the window the spec opened, then `GET /v1/sessions/{sessionId}` for the element
+    trace.
+20. **A runtime spec reads `engineKind` in two places only.** `specs/runtime/` runs twice on `k8s`,
+    as `runtime` against the classic engine and as `runtime-micro` against the micro engine, and
+    `seedChain` returns the copy of the corpus that matches the project's `engineKind`. A spec may
+    read `engineKind` in a micro-only pin, `test.fail(engineKind === "micro", <defect>.title)`,
+    which `support/known-defect.ts` narrows to that defect, and in `engine-identity.spec.ts`, whose
+    subject is the engine kind. A case pinned for the step names reads each step the micro engine
+    named by a UUID under its chain element's name, so the rest of the case still runs on micro and
+    fails on the defect only once its body has passed. A difference between the two engines is a
+    finding: pin it with its entry in `docs/product-defects.md`, never loosen the assertion for one
+    engine. A runtime file that deploys its own chains, calls the classic engine directly, or goes
+    through the testing service is classic-only: it goes in `CLASSIC_ONLY_RUNTIME_FILES` in
+    `env/target-setup.ts`, which `runtime-micro` ignores and the report header lists.
+    `specs/schema/target-rules.spec.ts` checks this rule and the `support/kube.ts` half of rule 4.
+
+### Assertions that catch a reported success
+
+Most defects this product has produced report success: a green deployment consuming nothing, a
+completed import with no artifact, a 200 that discarded the message. Beside rule 12, three specs
+exist for that shape, and each is invisible from inside the file that carries it:
+
+- **Creation-path equivalence**, `specs/api/creation-path-equivalence.spec.ts`. A chain built through
+  the API and the same chain restored from its own export are deployed, driven with one request, and
+  their session traces compared. Every fixture spells out its full property set, which makes every
+  other spec blind to a schema-default defect.
+- **Process envelope**, `specs/env/process-envelope.spec.ts`. Every service is still the process the
+  run started, its Metaspace is inside a stated share of its ceiling, and its peak memory and CPU are
+  inside stated bands, sampled over the run.
+- **Negative configuration**, `specs/brokers/missing-target.spec.ts` and
+  `specs/brokers/broker-restart.spec.ts`. Every other fixture is correct by construction, so these
+  assert the pre-deploy refusal of a missing Kafka topic, RabbitMQ queue, and exchange, and the
+  platform's reconnect after a broker restart.
+
+### The browser layer
+
+`specs/ui/` drives Chromium through nginx on 8080, against the production bundle `ui-server`
+serves on 4200. A case covers what only a browser shows: layout, computed styles, focus, a screen
+redrawn with no reload, a screen that throws. A fact the API can assert belongs in `specs/api/`,
+and a fact jsdom renders the same way belongs in Jest under `ui/tests/`. Data is created through
+the API and read in the browser; a case whose subject is the creation flow says so in its spec
+header. No `toHaveScreenshot()`: a golden image needs a baseline per platform.
+
+Every spec that opens a page imports `test` and `expect` from `support/page-guard.ts`
+(`spa-fallthrough.spec.ts` opens none: it sits here only because it needs the bundle on 4200). Its
+automatic fixture fails the case on an uncaught exception, a `console.error`, or a 4xx or 5xx
+answer to a request the page sent under `/api/`, and names the route. A message the product cannot
+stop logging gets an allowlist entry there with its reason, added together with the first case that
+meets it. A guard failure clears `test.fail()`, so a pinned case fails for real on a problem that is
+not its defect. A page object under `pages/` holds locators and the few interactions worth naming,
+and no assertion.
+
+**Selectors**, in this order:
+
+1. A role and an accessible name: `getByRole("dialog", { name: "Create service" })`. A list is
+   global, so a row is found by what the case created:
+   `getByRole("row").filter({ has: page.getByRole("link", { name, exact: true }) })`.
+2. A `data-testid` for a control with no accessible name, usually an antd icon-only button. The id
+   goes on each button, never on the toolbar around it, since a container id still leaves the
+   buttons inside to positional selection. It is named `<screen>-<action>` (`chains-compare`,
+   `snapshots-create`, `test-case-save`). A button a shared hook renders gets a
+   `<span data-testid>` at the call site (`chains-column-settings`), and the case selects the
+   button inside it. A named button gets no id. Where the missing name is an accessibility gap,
+   restore the attribute antd's own component carries instead: `TreeExpandIcon` got `aria-label`
+   and `aria-expanded` rather than an id. Adding an id to `ui/src` is in scope. It is an attribute
+   on the button, or the `<span>` around a hook-rendered one, and changes no behavior; a Jest mock
+   that reported an id is updated to report the shipped one.
+3. `getByTitle` where antd renders the name only as a `title`: a Select's visible option, whose
+   listbox options stay hidden, and a Segmented option.
+4. Never a CSS class; antd renames them between minor versions. An id the library itself renders
+   is fine: `@xyflow/react` gives each node `data-testid="rf__node-<element id>"` and each edge the
+   name `Edge from <id> to <id>`.
+
+A Monaco editor is located by the id its mount site passes through `@monaco-editor/react`'s
+`wrapperProps`, always ending in `-editor` (`script-editor`, `snapshot-xml-editor`,
+`session-body-before-editor`). That id is attached at mount, about 1.3 s before the editor can be
+used, so wait on `.monaco-editor[data-uri]` inside it, which appears once the model is attached
+(`chain-graph.spec.ts` reads a script this way). Counting `.monaco-editor` nodes cannot tell editors
+apart: one editor renders two.
+
+**Waiting.** No fixed sleep. Wait with a web-first assertion (`toBeVisible`, `toBeHidden`,
+`toHaveURL`, `toHaveCount`), with `expect.poll` for a value read through the API or measured in
+the page, and with `expect(...).toPass()` for a block that throws until the page settles.
+
+- Where the defect would be a missing redraw, assert the change with no reload: the tag clears in
+  place, the row leaves, the deployment badge moves on the event poll. Reload only when
+  persistence is the subject.
+- After closing a dialog or a menu, assert it `toBeHidden()` before the next step. antd motion is
+  not suppressed: measured, a dropdown settles in about 130 ms. A spec that shortens it with
+  injected CSS sets `animation-duration`, never `animation: none`: rc-motion waits for
+  `animationend`, and with no animation the element never becomes visible.
+- A control shown only while its row is hovered is clicked after `row.hover()`
+  (`chains-row-actions`, `live-exchanges-terminate`).
+- Read a computed style only after the state behind it settles. The theme cases wait for
+  `data-theme`, for the `theme-switching` class to go, and for the last `theme-variables-updated`
+  event, which an init script records, to name the mode. The contrast read also throws while a
+  `CSSTransition` runs on the element or an ancestor, and `toPass` retries it: a color read
+  mid-transition returns the old value.
+- An absence that holds while the screen is still loading is read only after the answer that
+  decides it: the testing section is hidden while `/testing-service/mode` is in flight, so the case
+  awaits `page.waitForResponse` on it before `toHaveCount(0)`.
+- A screen that looks up a record the stack writes asynchronously opens only after the case has
+  waited for that record through the API. Test Case Runs asks sessions-management once per
+  session, and a lookup before the session is written answers 404, which the guard fails.
+- `waitForLoadState("networkidle")` belongs to `routes-smoke.spec.ts` alone, where every load
+  request has to answer before the guard has seen its status.
+- `page.route` rewrites an answer to reach a state the stack cannot be switched to per case (the
+  testing service's `/mode`); `page.waitForResponse` and `page.on("request")` observe what the page
+  sent.
+
+The `ui` project pins the viewport at 1600x900. The canvas renders only the nodes inside the
+viewport once a real interaction has happened, so a graph case asserts over a chain that fits it
+(`http-echo`) or over the node it just touched. A case that needs another size calls
+`page.setViewportSize` itself. Dragging nodes and the automatic layout stay uncovered until a
+defect asks for them; adding an element from the library is a `dragTo`, because the library has
+no click-to-add. The project has no `expect` timeout of its own and no warm-up navigation: against
+the bundle, a warm `/chains` shows its first row in 1.1–6.2 s.
+
+A mutation check on `ui/src` (rule 17) costs a `vite build` each way, about a minute. Make it in the
+working tree with a backup of the file, revert it before the commit, and record in the pull request
+description what was changed and which assertion went red.
+
+### The shared corpus
+
+`specs/seed/seed.setup.ts` writes the generated axis chains into the gitignored `fixtures/axes/`, then
+imports every fixture under `fixtures/chains/`, `fixtures/axes/` and `fixtures/script/` as one
+archive, deploys them in one batch, and writes what it imported to `.e2e-corpus.json`, which is how
+the dependent projects address them. The file sits outside `test-results/`, which Playwright clears
+at the start of every run, because a corpus kept with `E2E_KEEP=1` is meant to outlive one. The three
+directories are `CORPUS_FIXTURE_DIRS` in `fixtures/templating.ts`, and they hold two layouts: a
+directory per chain, or, under `fixtures/script/`, whose chains ship no companion file, a **file**
+per chain, whose name carries the `.yaml` and is what a spec asks `seedChain` for. A fixture a spec
+creates and destroys itself is named in `SPEC_OWNED_FIXTURES` and the seed leaves it alone, because
+an import over a live id is an update and the two would fight over the same chain.
+`support/corpus.ts` is the one assembler, and every seed project calls it: a chain deployed alone
+pays the engine's deployment pickup on its own, about 2 s each against 0.49 s inside a batch.
+
+Three steps happen in an order that is not negotiable:
+
+- **Delete before importing.** The fixture documents carry fixed IDs, so an import over the last
+  run's corpus is an update and every assertion downstream would hold without anything having been
+  created.
+- **Raise the session logging level between import and deploy.** `DeploymentRuntimeProperties`
+  defaults to `SessionsLoggingLevel.OFF` and `SessionsService` writes nothing at that level, so a
+  corpus deployed without `POST /v1/chains/{id}/properties/logging` records no trace at all. The
+  properties travel with the deployment, so raising them afterwards leaves the first one silent.
+- **Gate on the route, not on the status.** `DEPLOYED` means the catalog accepted and dispatched
+  the deployment. A chain whose listener never connects reports `DEPLOYED` indefinitely, and a
+  healthy one serves seconds after the status flips, so the seed follows the status poll with a
+  poll of the routes themselves.
+
+A runtime case deploys a chain of its own, in the worker folder, only when the corpus cannot hold
+it: the chain needs IDs a seed cannot carry (a service, a specification, an operation), it would
+carry a reference the export cannot resolve (`contextServiceId`), the seed would refuse it because
+it does not go live, a shared chain would race the change the case makes, or the case undeploys it.
+Such a case builds through the builders in `support/deployable.ts` and holds what it created in
+`withBuilt` from `support/cleanup.ts`, which undeploys the chains and deletes what they use outside
+the worker folder. A describe that builds its chains once in `beforeAll` hands them to `release` in
+`afterAll` instead. After `waitForRoutes` the case calls `waitForRecording` from the same module; a
+chain with no route, like the MCP one, goes through `waitForFirstRecording` with a warm-up of its
+own. A call sent the moment a route answers can record no session (`docs/product-defects.md`), so the
+gate sends warm-up calls until one records, and fails once more of them are lost than
+`UNRECORDED_WARM_UP_LIMIT` allows.
+
+`fixtures/brokers/` is a second corpus, outside `CORPUS_FIXTURE_DIRS`, imported and deployed by the
+`brokers-seed` project rather than `seed`, because the engine's pre-deploy connectivity checks would
+stall the whole shared corpus whenever a broker is down. `support/brokers.ts` is its assembler, and
+it also creates the run-token topics, queues, exchanges, dead-letter bindings, and pub/sub topology
+each fixture needs before deploying, since nothing on either side of a broker chain declares its
+own. What it imported is written to `.e2e-brokers-corpus.json` and read back with
+`readBrokersCorpusState`.
+
+`fixtures/specifications/` holds the API documents a spec imports as a service specification
+(OpenAPI, GraphQL, AsyncAPI), read with `readSpecificationFixture`. The seed never touches them: a
+spec imports the one it needs into a group it created and deletes it again. An AsyncAPI document for
+a broker spec lives here too, never under `fixtures/brokers/`, whose every top-level entry
+`corpusFixtureNames` reads as a chain.
+
+### Reading a failure
+
+`retries: 0` also removes `on-first-retry`, the trigger trace capture is conventionally hung on, so
+`trace: "retain-on-failure"` replaces it. Three attachments go with it, and `support/diagnostics.ts`
+owns all three:
+
+- the engine's own lines for the chain under test, selected by **chain id out of the MDC**
+  (`[chain_id=…] [chain=…]`) rather than by a grep for the name, plus the unfiltered tail: a route
+  that never started logs nothing under its own id, and the reason sits in the lines around it;
+- the session JSON, and a UI link at `/chains/{chainId}/sessions/{sessionId}`, since the session
+  route is nested inside the chain in `ui/src/App.tsx` and `/sessions/{id}` alone opens nothing;
+- when the spec found no session, an attachment saying which token it waited for.
+
+`support/report.ts` runs **after** the run, loaded by `node --experimental-strip-types`, where a
+`.js` specifier pointing at a `.ts` file resolves to nothing. Its runtime imports therefore name the
+`.ts` file itself, and `allowImportingTsExtensions` in `tsconfig.json` lets `tsc` check it. Anything
+holding a `TestInfo` belongs in `diagnostics.ts`.
+
+The run header is written in `globalSetup`, the only place that survives Playwright clearing
+`test-results/` at the start of a run. A report that does not say what it tested cannot be trusted.
+
+### Residue from a previous run
+
+`e2e/README.md` describes what the sweep collects. The rules behind it:
+
+- **Ownership never comes from the shape of a token.** Every run's token has the same shape, so a
+  shape match lets a sweep delete entities that are not its to delete. `e2e/.e2e-runs.json` records
+  each run's token, pid, and start time; a run is collectable only once the process that recorded it
+  is gone. `E2E_SWEEP=never` is an opt-out, because the default has to be the safe one.
+- **A `restartWith` that outlived its run is residue nothing on disk shows.** The Compose override
+  is deleted as soon as Compose has read it, so a catalog left running
+  `CIP_EXPORT_LEGACY_FORMAT=true` passes every staleness check. `env/compose.ts` records the
+  settings in `e2e/.e2e-overrides.json` **before** the recreate that applies them and drops the
+  record after the restart that puts the committed settings back; `env/provision/compose.ts`
+  recreates whatever is still recorded. A file that will not parse is read for the service names it
+  still mentions, never as empty, because empty hands provisioning a stack it wrongly believes is
+  clean.
+- **A delete path that exists is the line between an exemption and a gap.** Audit-log rows carrying
+  the run token and secrets are exempt from the sweep because the catalog offers no delete for them.
+  Broker topology has a delete path, `teardownBrokers`, which the sweep does not reach, and that is a
+  gap.
+- **A run never names a secret after itself**, because `SecretControllerV2` has no delete.
+  `specs/api/secret-name.spec.ts` posts one committed fixture name (`SECRET_FIXTURE_NAME`),
+  `secretsCarryingRunToken` in `support/fixtures.ts` is the reading, and
+  `specs/api/v2-v3-controllers.spec.ts` fails on a non-empty answer. It stays out of `findResidue`,
+  whose list `sweepRunToken` deletes and `sweptClean` counts, since a row nothing can delete would
+  keep every run in the manifest.
+- **Sessions and endpoint mocks are swept through the `OutsideCatalog` client pair** in
+  `support/fixtures.ts`. Sessions are found with `POST /v1/sessions` filtered on `CHAIN_NAME`
+  `CONTAINS` (the chain name is the only session field carrying the run token) and removed with
+  `DELETE /v1/sessions/chains?chainIds=…`. A mock is keyed on a chain id and an element id the
+  fixture freezes, so one that outlives its case answers in place of the real endpoint on every later
+  run. Name a mock with `tokenized(run, …)`, never with `callToken()`, whose value carries no run
+  token. The clients are a parameter because `specs/schema/sweep.spec.ts` runs `sweepRunToken`
+  against a stub catalog with no stack.
+- **Test cases and test runs are deleted by the spec that creates them**, in the case's own
+  `finally`, through `withTestCases` in `support/testing-service.ts` or by hand. The sweep does not
+  collect them.
+
+### Sampling what the run costs
+
+A peak lasts seconds and is roughly twice the idle value, so a resource claim comes from a sampler
+over the run and never from a single reading. CPU is watched beside memory because it runs out
+first: the stack reached 94% of its twelve allocated cores under a load lighter than a full run
+while using 29% of its memory. The worker count is pinned for the same reason: Playwright derives it
+from the **host's** cores, which is not the number the system under test has.
+
+### Frozen fixtures
+
+Archives under `e2e/fixtures/archives/frozen/` pin import compatibility and are **never
+regenerated**. A checksum file sits beside them, so changing one means changing its checksum in the
+same commit and putting that in front of a reviewer. Regenerating the corpus from today's exporter
+turns it into a copy of today's exporter, which proves nothing.
+
+Compatibility is versioned by the migration list a document declares (`migrations: "[100, 101,
+102]"`), not by a release date. Freeze one document per migration floor.
+
+Each archive is a fixture directory holding one document, zipped into `chains/<id>/` or
+`services/<id>/` at import time, so what the checksum guards is reviewable text rather than a binary
+blob. `npm run frozen-checksums` rewrites `CHECKSUMS` after a deliberate change; running it to turn
+`specs/schema/frozen-corpus.spec.ts` green is the failure the guard exists to catch.
+
+`fixtures/services/service-roundtrip.zip` is the one archive committed as bytes, and it sits
+outside the frozen set. `specs/api/service-roundtrip.spec.ts` imports the catalog's export
+unchanged, because a re-zipped tree is not the export under test, and it lists every entry, so a
+regenerated archive shows up in review. The spec's header names the three services and how they were
+made; regenerate the archive by creating them again and exporting them with `GET /v1/export/system`.
+The extension's test workspace copies the internal service
+(`vscode-extension/src/web/test/workspace/services/3b2e9742-…`), so replace that copy in the same
+commit. The committed archive is a `qip` export (`*.qip.yaml` names, `qubership.org` `$schema`
+values), and it is the only archive the suite imports under `*.qip.yaml` names. Exporting it again writes
+the `cip` format and drops that coverage, so regenerate it only together with another `qip`-format
+case.
+
+### Related
+
+- Design and rollout: issue #710.
+- `docs/product-defects.md`: the defects this work found in the platform itself, each with the
+  `file:line` or the command that proves it. A spec that pins a defect rather than a contract says
+  so and names its entry, and every `test.fail()` case in the suite is filed there.
+- `specs/env/service-type-roundtrip.spec.ts` is the live check for the per-type service file format
+  (#553).

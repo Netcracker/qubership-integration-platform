@@ -9,9 +9,14 @@ spec:
   selector:
     matchLabels:
       app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
-  strategy: {}
+  strategy:
+    {{- toYaml .Values.strategy | nindent 4 }}
   template:
     metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         app: {{ .Release.Name }}-sessions-management-{{ .Values.global.blueGreenVersion }}
     spec:
@@ -31,11 +36,12 @@ spec:
             - -jar
             - /app/qip-sessions-management.jar
           env:
-            - name: CONSUL_ADMIN_TOKEN
-              valueFrom:
-                configMapKeyRef:
-                  key: CONSUL_ADMIN_TOKEN
-                  name: {{ .Release.Name }}-env
+            # The Service the chain names are re-resolved from. Without it the service asks for
+            # its built-in default, which no Service in this chart carries.
+            - name: CIP_INTERNAL_SERVICES_RUNTIME_CATALOG
+              value: {{ .Release.Name }}-runtime-catalog-{{ .Values.global.blueGreenVersion }}
+            - name: CONSUL_ADMIN_TOKEN_FILE
+              value: /etc/secrets/pod-secrets/consul_admin_token
             - name: CONSUL_URL
               valueFrom:
                 configMapKeyRef:
@@ -66,7 +72,10 @@ spec:
                 configMapKeyRef:
                   key: TRACING_ENABLED
                   name: {{ .Release.Name }}-env
-          image: ghcr.io/netcracker/qubership-integration-sessions-management:latest
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          image: ghcr.io/netcracker/qubership-integration-sessions-management:{{ .Values.image.tag }}
           imagePullPolicy: IfNotPresent
           livenessProbe:
             httpGet:
@@ -87,4 +96,12 @@ spec:
           ports:
             - containerPort: 8080
           resources: {}
+          volumeMounts:
+            - name: pod-secrets
+              mountPath: /etc/secrets/pod-secrets
+              readOnly: true
+      volumes:
+        - name: pod-secrets
+          secret:
+            secretName: {{ .Release.Name }}-sessions-management-pod-secrets
       restartPolicy: Always

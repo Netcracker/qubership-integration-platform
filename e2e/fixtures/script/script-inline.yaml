@@ -1,0 +1,39 @@
+id: "e2e50001-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-script-inline"
+description: "The Script element with its script written inline. The spec that owns it exports the\
+  \ chain, deletes it, and imports the original bytes, so what it proves is that the separate\
+  \ .groovy file the exporter writes carries the script text and the import reads it back."
+content:
+  labels: []
+  elements:
+  - id: "e2e50001-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-inline"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50001-0000-4000-8000-000000000003"
+    name: "Script"
+    type: "script"
+    properties:
+      # Textually unique across the corpus, and the first line is what keeps it that way. The
+      # compiled-script cache is keyed on the trimmed source alone, so two fixtures with identical
+      # text share one compiled class and a per-chain assertion can be met by another chain's
+      # compilation. Do not deduplicate these.
+      script: |-
+        // script-inline/script
+        def marker = 'script-inline'
+        exchange.getMessage().setBody('{"element":"script","source":"' + marker + '"}')
+  dependencies:
+  - from: "e2e50001-0000-4000-8000-000000000002"
+    to: "e2e50001-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -22,9 +22,9 @@ const consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {}
 
 describe("deleteChain", () => {
   const chainFileUri = {
-    path: "/workspace/chains/my-chain/my-chain.chain.qip.yaml",
-    fsPath: "/workspace/chains/my-chain/my-chain.chain.qip.yaml",
-    toString: jest.fn().mockReturnValue("/workspace/chains/my-chain/my-chain.chain.qip.yaml"),
+    path: "/workspace/chains/my-chain/my-chain.chain.cip.yaml",
+    fsPath: "/workspace/chains/my-chain/my-chain.chain.cip.yaml",
+    toString: jest.fn().mockReturnValue("/workspace/chains/my-chain/my-chain.chain.cip.yaml"),
   } as unknown as Uri;
 
   const chainFolderUri = {

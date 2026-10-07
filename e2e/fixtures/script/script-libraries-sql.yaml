@@ -1,0 +1,38 @@
+id: "e2e50010-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-script-libraries-sql"
+description: "groovy-sql reached from a script, without a database. GroovyRowResult and the Sql\
+  \ parameter constants are the module's own behavior and need no connection; a live query would\
+  \ report on PostgreSQL and the JDBC driver instead of on the Groovy module."
+content:
+  labels: []
+  elements:
+  - id: "e2e50010-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-libraries-sql"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50010-0000-4000-8000-000000000003"
+    name: "Use Sql"
+    type: "script"
+    properties:
+      script: |-
+        // script-libraries-sql/use-sql
+        // The row is built with capitalized keys and read back in two other cases, because
+        // case-insensitive lookup is what GroovyRowResult adds over the LinkedHashMap it wraps.
+        def token = exchange.getIn().getHeader('e2e-in')
+        def row = new groovy.sql.GroovyRowResult([Token: token, Count: 3])
+        exchange.getIn().setBody('{"property":"' + row.token + '","index":' + row['COUNT'] + ',"columns":' + row.size() + ',"varcharType":' + groovy.sql.Sql.VARCHAR.getType() + '}')
+  dependencies:
+  - from: "e2e50010-0000-4000-8000-000000000002"
+    to: "e2e50010-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

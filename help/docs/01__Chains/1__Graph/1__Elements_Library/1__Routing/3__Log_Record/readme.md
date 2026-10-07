@@ -13,7 +13,7 @@ Message, that has been configured within this element will be logged as a new re
 ---
 ### "Logging" Tab
 | Parameter | Mandatory | Data Type | Description                                                                                                                                                                                                                                              | Sample                                                                         |
-| --------- | :-------- | :-------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+|-----------|:----------|:----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------|
 | Log as    | M         | List      | Specifies the type of the record, that will be written to the microservice log:<br><ul><li>Error</li><li>Warning</li><li>Info</li></ul><br>ℹ️ Note: Message won't be logged if chain is deployed with a logging level higher than selected in this list. | Error                                                                          |
 | Sender    | O         | String    | Specifies a custom name of the system, that sends a request.<br>Record in the log will contain next additional item:<br>`[sender= %value%]`                                                                                                              | <ul><li>Constant text</li><li>Message with runtime variable/property</li></ul> |
 | Receiver  | O         | String    | Specifies a custom name of the system, that accepts a request.<br>Record in the log will contain next additional item:<br> `[receiver = %value%]`                                                                                                        | <ul><li>Constant text</li><li>Message with runtime variable/property</li></ul> |
@@ -22,7 +22,7 @@ Message, that has been configured within this element will be logged as a new re
 Table that allows to configure a map of parameter name and its value.
 
 | Parameter | Mandatory | Data Type | Description                                                                                                                    | Sample                                         |
-| --------- | :-------- | :-------- | ------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
+|-----------|:----------|:----------|--------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------|
 | Name      | M         | String    | Business identifier name. Basically, any additional identifier, that has a business value for the process, built by the chain. | Id                                             |
 | Value     | O         | String    | Business identifier's value. Can be a camel exchangeProperty, constant, variable, etc.                                         | ${exchangeProperty.variables["Identificator"]} |
 
@@ -48,7 +48,7 @@ Table that allows to configure a map of parameter name and its value.
 
 ### "Parameters" Tab
 | Parameter   | Mandatory | Data Type | Description                              | Sample                                |
-| ----------- | :-------- | :-------- | ---------------------------------------- | ------------------------------------- |
+|-------------|:----------|:----------|------------------------------------------|---------------------------------------|
 | Name        | M         | String    | Name of the element.                     | Log record                            |
 | Description | O         | String    | Free text field for element description. | Custom message is going to be logged. |
 

@@ -17,6 +17,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class JsonSchemaFormatTest {
+    private static final String ID_PREFIX =
+            "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/";
+    private static final String SCHEMA_FILE_SUFFIX = ".schema.yaml";
+    private static final String MODEL_DIR = "/qip-model/";
+
     private static List<Resource> schemaResources;
 
     @BeforeAll
@@ -36,8 +41,11 @@ public class JsonSchemaFormatTest {
                 assertNotNull(schemaYaml.get(field), resource.getFilename() + ": '" + field + "' field must present!")
         );
 
-        assertTrue(resource.getFilename().endsWith(".schema.yaml"), resource.getFilename() + ": Schema file name must end with .schema.yaml");
-        assertTrue(schemaYaml.get("$id").toString().endsWith(resource.getFilename()), resource.getFilename() + ": '$id' field must end with file name");
+        assertTrue(resource.getFilename().endsWith(SCHEMA_FILE_SUFFIX), resource.getFilename() + ": Schema file name must end with .schema.yaml");
+        String path = resource.getURI().getPath();
+        String relativePath = path.substring(path.lastIndexOf(MODEL_DIR) + MODEL_DIR.length());
+        String expectedId = ID_PREFIX + relativePath.substring(0, relativePath.length() - SCHEMA_FILE_SUFFIX.length());
+        assertEquals(expectedId, schemaYaml.get("$id"), resource.getFilename() + ": '$id' field must match the file path");
     }
 
     @ParameterizedTest
@@ -99,10 +107,10 @@ public class JsonSchemaFormatTest {
 
         var metaInfo = (LinkedHashMap<String, Object>) schemaYaml.get("metaInfo");
         assertNotNull(metaInfo, resource.getFilename() + ": 'metaInfo' field must present!");
-        assertEquals("Qubership Integration Platform", metaInfo.get("application"), resource.getFilename() + ": 'application' field must match!");
+        assertEquals("Cloud Integration Platform", metaInfo.get("application"), resource.getFilename() + ": 'application' field must match!");
 
         var labels = (List<String>) metaInfo.get("labels");
-        assertLinesMatch(List.of("QIP"), labels, resource.getFilename() + ": 'labels' must be [QIP]!");
+        assertLinesMatch(List.of("CIP"), labels, resource.getFilename() + ": 'labels' must be [CIP]!");
     }
 
     @ParameterizedTest
@@ -124,10 +132,10 @@ public class JsonSchemaFormatTest {
             return;
         }
 
-        boolean isTopLevelEntity = topLevelAllOfRef.equals("http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml");
+        boolean isTopLevelEntity = topLevelAllOfRef.equals(ID_PREFIX + "common-properties/top-level-entity-properties");
         if (isTopLevelEntity) {
-            String schemaName = resource.getFilename().replace(".schema.yaml", "");
-            String expectedFileExt = schemaName + ".qip";
+            String schemaName = resource.getFilename().replace(SCHEMA_FILE_SUFFIX, "");
+            String expectedFileExt = schemaName + ".cip";
             assertEquals(expectedFileExt, metaInfo.get("fileExtension"), resource.getFilename() + ": 'fileExtension' field must match!");
         }
     }

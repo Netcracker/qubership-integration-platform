@@ -1,6 +1,6 @@
 import { Table } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Flex, Button, Space, Tag, Typography } from "antd";
+import { Flex, Button, Space, Tag, Tooltip, Typography } from "antd";
 import { EngineTable } from "./EngineTable";
 import { useEngines } from "./hooks/useEngines";
 import { treeExpandIcon } from "../../table/TreeExpandIcon";
@@ -8,6 +8,7 @@ import { DomainType, EngineDomain } from "../../../api/apiTypes.ts";
 import { OverridableIcon } from "../../../icons/IconProvider.tsx";
 import { useNotificationService } from "../../../hooks/useNotificationService.tsx";
 import { api } from "../../../api/api.ts";
+import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
@@ -97,6 +98,17 @@ const DomainsTable: React.FC<Props> = ({
     [notificationsService],
   );
 
+  const confirmDeleteMicroDomain = useCallback(
+    (name: string) => {
+      confirmAndRun({
+        title: "Delete domain",
+        content: "Are you sure you want to permanently delete this domain?",
+        onOk: () => void deleteMicroDomain(name),
+      });
+    },
+    [deleteMicroDomain],
+  );
+
   const columns: ColumnsTypeWithSettings<EngineDomain> = useMemo(
     () => [
       {
@@ -112,12 +124,14 @@ const DomainsTable: React.FC<Props> = ({
             <Space size={"small"}>
               {domain.name}
               <Tag>micro</Tag>
-              <Button
-                size={"small"}
-                type={"text"}
-                icon={<OverridableIcon name="delete" />}
-                onClick={() => void deleteMicroDomain(domain.name)}
-              />
+              <Tooltip title="Delete domain">
+                <Button
+                  size={"small"}
+                  type={"text"}
+                  icon={<OverridableIcon name="delete" />}
+                  onClick={() => confirmDeleteMicroDomain(domain.name)}
+                />
+              </Tooltip>
             </Space>
           ) : (
             domain.name
@@ -143,7 +157,7 @@ const DomainsTable: React.FC<Props> = ({
         align: "right",
       },
     ],
-    [deleteMicroDomain],
+    [confirmDeleteMicroDomain],
   );
 
   const { orderedColumns, columnSettingsButton } =

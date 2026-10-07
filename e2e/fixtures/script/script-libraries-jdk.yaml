@@ -1,0 +1,41 @@
+id: "e2e50012-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-script-libraries-jdk"
+description: "The Java standard library from a script, with no Groovy module involved. A digest, a\
+  \ Base64 encoding and a Locale-pinned case change, all of which the spec recomputes on its own\
+  \ side, so the answer is checked against a value the platform did not produce."
+content:
+  labels: []
+  elements:
+  - id: "e2e50012-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-libraries-jdk"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50012-0000-4000-8000-000000000003"
+    name: "Use Jdk"
+    type: "script"
+    properties:
+      script: |-
+        // script-libraries-jdk/use-jdk
+        // The body is read as bytes, not as a String, so the digest is over what the caller sent.
+        // Locale.ROOT rather than the default: the engine's locale is not the runner's.
+        def carried = exchange.getIn().getBody(byte[].class)
+        def digest = java.security.MessageDigest.getInstance('SHA-256').digest(carried)
+        def hex = digest.collect { String.format('%02x', it) }.join('')
+        def base64 = java.util.Base64.getEncoder().encodeToString(carried)
+        def upper = new String(carried, 'UTF-8').toUpperCase(java.util.Locale.ROOT)
+        exchange.getIn().setBody('{"sha256":"' + hex + '","base64":"' + base64 + '","upper":"' + upper + '"}')
+  dependencies:
+  - from: "e2e50012-0000-4000-8000-000000000002"
+    to: "e2e50012-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

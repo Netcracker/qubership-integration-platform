@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "50235b71-6c48-43d3-abf0-b9c11ac6e81e"
 name: "Mapper"
 content:

@@ -38,7 +38,7 @@ const writeMainChainMock = fileApi.writeMainChain as jest.Mock;
 const writePropertyFileMock = fileApi.writePropertyFile as jest.Mock;
 const removeFileMock = fileApi.removeFile as jest.Mock;
 
-const fileUri = { path: "/workspace/chain-1.chain.qip.yaml" } as Uri;
+const fileUri = { path: "/workspace/chain-1.chain.cip.yaml" } as Uri;
 const chainId = "chain-1";
 
 function libraryFor(type: string) {

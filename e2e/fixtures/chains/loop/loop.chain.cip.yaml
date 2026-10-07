@@ -1,0 +1,46 @@
+---
+id: "e2e00007-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-loop"
+description: "Tier-1 fixture for the Loop element. The body counts the iterations, so a loop that\
+  \ runs the wrong number of times changes the response rather than only the trace."
+content:
+  labels: []
+  elements:
+  - id: "e2e00007-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-loop"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00007-0000-4000-8000-000000000003"
+    name: "Loop"
+    type: "loop-2"
+    properties:
+      expression: "3"
+      maxLoopIteration: 1500
+    children:
+    - id: "e2e00007-0000-4000-8000-000000000004"
+      name: "Iteration Script"
+      type: "script"
+      properties:
+        script: "exchange.setProperty('e2eLoopCount', ((exchange.getProperty('e2eLoopCount') ?: 0) as int) + 1)"
+  - id: "e2e00007-0000-4000-8000-000000000005"
+    name: "Report"
+    type: "script"
+    properties:
+      script: "exchange.getMessage().setBody('{\"iterations\":' + exchange.getProperty('e2eLoopCount') + '}')"
+  dependencies:
+  - from: "e2e00007-0000-4000-8000-000000000002"
+    to: "e2e00007-0000-4000-8000-000000000003"
+  - from: "e2e00007-0000-4000-8000-000000000003"
+    to: "e2e00007-0000-4000-8000-000000000005"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

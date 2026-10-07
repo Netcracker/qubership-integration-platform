@@ -9,11 +9,11 @@ jest.mock("../../../src/web/response/file", () => ({
 }));
 
 describe("schemaToChain", () => {
-  const fileUri = Uri.file("/workspace/chain-1.chain.qip.yaml");
+  const fileUri = Uri.file("/workspace/chain-1.chain.cip.yaml");
 
   const baseChain = (overrides: Partial<ChainSchema> = {}): ChainSchema =>
     ({
-      $schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml",
+      $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain",
       id: "chain-1",
       name: "Chain 1",
       content: { dependencies: [] },

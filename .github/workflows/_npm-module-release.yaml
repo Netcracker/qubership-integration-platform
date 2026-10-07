@@ -2,12 +2,12 @@
 # Reusable npm module release workflow.
 #
 # Model (idiomatic `npm version`): package.json `version` is the last released
-# version. On release we bump it per release-type (or the `version` override),
-# publish it, commit the bumped package.json + root lockfile, and tag the bump
-# commit (<module>-vX.Y.Z). commit-and-push.sh pushes the tag before the branch,
-# so it survives a rejected protected-branch push — the recovery sentinel: tag
-# exists => a prior run published but the bump didn't land, so recover=true skips
-# install/build/publish and only re-applies the bump.
+# version. On release we bump it per release-type, publish it, commit the bumped
+# package.json + root lockfile, and tag the bump commit (<module>-vX.Y.Z).
+# commit-and-push.sh pushes the tag before the branch, so it survives a rejected
+# protected-branch push — the recovery sentinel: tag exists => a prior run
+# published but the bump didn't land, so recover=true skips install/build/publish
+# and only re-applies the bump.
 #
 # Cascade (schemas → ui → vscode auto patch-bump) lives in the CALLER's wrapper.
 #
@@ -29,11 +29,6 @@ on:
         required: false
         type: string
         default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump the current package.json version by release-type."
-        required: false
-        type: string
-        default: ""
       scope:
         required: false
         type: string
@@ -73,8 +68,7 @@ concurrency:
 permissions: {}
 
 jobs:
-  # Preflight: bump package.json version (or use the override); recover if the
-  # tag already exists.
+  # Preflight: bump package.json version; recover if the tag already exists.
   check-version:
     runs-on: ubuntu-latest
     permissions:
@@ -99,7 +93,6 @@ jobs:
           ECOSYSTEM: npm
           MODULE: ${{ inputs.module }}
           RELEASE_TYPE: ${{ inputs.release-type }}
-          VERSION_OVERRIDE: ${{ inputs.version }}
         run: bash scripts/compute-release-version.sh
 
   # Build, publish (idempotent), then commit the bumped package.json + lockfile

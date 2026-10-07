@@ -1,0 +1,15 @@
+"A widget, and the only type the generated DTO library carries."
+type Widget {
+  id: ID!
+  name: String!
+  color: String
+}
+
+type Query {
+  widget(id: ID!): Widget
+  widgets: [Widget!]!
+}
+
+type Mutation {
+  createWidget(name: String!, color: String): Widget!
+}

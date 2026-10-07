@@ -6,7 +6,9 @@ import org.apache.camel.language.simple.SimpleLanguage;
 import org.apache.camel.model.ModelCamelContext;
 import org.apache.camel.model.RouteDefinition;
 import org.qubership.integration.platform.engine.camel.processors.LogRecordProcessor;
+import org.qubership.integration.platform.engine.model.ChainRuntimeProperties;
 import org.qubership.integration.platform.engine.model.constants.BusinessIds;
+import org.qubership.integration.platform.engine.model.logging.LogLoggingLevel;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureDefinition;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureInteraction;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotFixtureLogExpectation;
@@ -20,6 +22,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.qubership.integration.platform.engine.consul.ConsulConstants.DEFAULT_CONSUL_SETTING_KEY;
 import static org.qubership.integration.platform.engine.routes.support.SnapshotCollections.immutableMapOrEmpty;
 
 class LogCaptureSnapshotFixtureProvider implements SnapshotFixtureProvider {
@@ -84,6 +87,10 @@ class LogCaptureSnapshotFixtureProvider implements SnapshotFixtureProvider {
         @Override
         public void start() {
             recordingChainLogger.clear();
+        }
+
+        @Override
+        public void beforeRouteLoad(CamelContext camelContext) {
             MDC.remove(BusinessIds.BUSINESS_IDS);
         }
 
@@ -96,9 +103,14 @@ class LogCaptureSnapshotFixtureProvider implements SnapshotFixtureProvider {
         public void configure(CamelContext camelContext, List<RouteDefinition> routes) {
             camelContext.getGlobalOptions().put(JacksonConstants.ENABLE_TYPE_CONVERTER, Boolean.TRUE.toString());
             SimpleLanguage simpleLanguage = (SimpleLanguage) camelContext.resolveLanguage("simple");
+            ChainRuntimePropertiesService propertiesService = new ChainRuntimePropertiesService();
+            propertiesService.updateRuntimeProperties(Map.of(
+                    DEFAULT_CONSUL_SETTING_KEY,
+                    ChainRuntimeProperties.builder().logLoggingLevel(LogLoggingLevel.WARN).build()
+            ));
             SnapshotFixtureRouteScope.bind(camelContext, routes, deploymentId + ':' + fixtureId, Map.of(
                     LOG_RECORD_PROCESSOR_BEAN_NAME, new LogRecordProcessor(
-                            recordingChainLogger, simpleLanguage, new ChainRuntimePropertiesService())
+                            recordingChainLogger, simpleLanguage, propertiesService)
             ));
         }
 

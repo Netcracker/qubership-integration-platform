@@ -7,7 +7,8 @@
 # Usage: ECOSYSTEM=maven MODULE=engine RELEASE_TYPE=patch VERSION_OVERRIDE= \
 #            scripts/compute-release-version.sh
 #
-# Env: ECOSYSTEM (maven|npm|go), MODULE, RELEASE_TYPE (patch|minor|major),
+# Env: ECOSYSTEM (maven|npm|go), MODULE, RELEASE_TYPE (patch|minor|major; empty
+#      = patch, which is what a standalone dispatch sends),
 #      VERSION_OVERRIDE (explicit X.Y.Z, or empty to derive from the file),
 #      TAG_PREFIX (tag prefix when it differs from MODULE; schemas ships as both
 #      an npm package and a Maven artifact, and the two lines need distinct tags
@@ -21,8 +22,7 @@
 # <revision> itself; npm's release already updated package.json.
 #
 # ECOSYSTEM=platform reads the root aggregator pom instead of a module. That
-# number is the platform version: the drop tag, the release title, and the version
-# every backend service is released under in a wave.
+# number is the platform version: the drop tag and the release title.
 
 set -euo pipefail
 

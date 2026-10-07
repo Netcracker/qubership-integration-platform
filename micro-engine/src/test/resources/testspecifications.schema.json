@@ -257,6 +257,24 @@
         "id": {
           "$ref": "#/definitions/nonblankString"
         },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "Long",
+            "Short"
+          ]
+        },
+        "deployment": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/nonblankString"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Subject deployment for this scenario. Includes its transitive dependencies; omission loads all declared deployments."
+        },
         "endpointUri": {
           "anyOf": [
             {
@@ -301,7 +319,7 @@
               "$ref": "#/definitions/valueMap"
             }
           ],
-          "description": "Result headers. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
+          "description": "Result headers. Values use exact equality or {\"$match\": \"non-empty\"} to require a nonblank string or a collection containing one. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
         },
         "expectedAbsentHeaders": {
           "allOf": [
@@ -365,7 +383,8 @@
         }
       },
       "required": [
-        "id"
+        "id",
+        "scope"
       ],
       "allOf": [
         {
@@ -564,7 +583,7 @@
               "$ref": "#/definitions/valueMap"
             }
           ],
-          "description": "Result headers. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
+          "description": "Result headers. Values use exact equality or {\"$match\": \"non-empty\"} to require a nonblank string or a collection containing one. For HTTP, these are the received response headers; CamelHttpResponseCode holds the status."
         },
         "expectedAbsentHeaders": {
           "allOf": [
@@ -625,7 +644,7 @@
               "$ref": "#/definitions/failure"
             }
           ],
-          "description": "Exact exception type, message, and complete cause chain. Omit when execution must succeed."
+          "description": "Exception type, message, and complete cause chain, with explicit alternatives or ignored messages when needed. Omit when execution must succeed."
         }
       },
       "required": [
@@ -647,6 +666,29 @@
       }
     },
     "failure": {
+      "oneOf": [
+        {
+          "$ref": "#/definitions/singleFailure"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "anyOf": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/definitions/failure"
+              }
+            }
+          },
+          "required": [
+            "anyOf"
+          ]
+        }
+      ]
+    },
+    "singleFailure": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -658,6 +700,10 @@
             "string",
             "null"
           ]
+        },
+        "ignoreMessage": {
+          "const": true,
+          "description": "Skip message comparison for this exception only. Use instead of message."
         },
         "cause": {
           "anyOf": [
@@ -672,8 +718,19 @@
       },
       "required": [
         "type",
-        "message",
         "cause"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "message"
+          ]
+        },
+        {
+          "required": [
+            "ignoreMessage"
+          ]
+        }
       ]
     },
     "interaction": {
@@ -842,7 +899,7 @@
       "additionalProperties": false,
       "properties": {
         "delayMillis": {
-          "description": "Fixed HTTP response delay in milliseconds. Supported only by http-service-call fixtures.",
+          "description": "Fixed HTTP response delay in milliseconds. Supported by http-service-call, http-sender-http, and graphql-http fixtures.",
           "type": [
             "integer",
             "null"
@@ -923,7 +980,7 @@
         "key": {
           "anyOf": [
             {
-              "$ref": "#/definitions/nonblankString"
+              "type": "string"
             },
             {
               "type": "null"
@@ -968,7 +1025,7 @@
               "$ref": "#/definitions/failure"
             }
           ],
-          "description": "Exact exception type, message, and complete cause chain for async-flow. Omit when the captured exchange must succeed."
+          "description": "Exception type, message, and complete cause chain for async-flow, with explicit alternatives or ignored messages when needed. Omit when the captured exchange must succeed."
         }
       }
     },

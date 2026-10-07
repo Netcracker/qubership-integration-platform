@@ -109,11 +109,11 @@ System allows exporting service. There are two possible ways to export service(s
 
 ---
 
-- In CIP UI: for any Context services created, the service parameters and configuration is stored in CIP Catalog database. Please refer to [CIP Architecture](../../05__Architecture/readme.md) for common data storage overview.
+- In CIP UI: for any Context services created, the service parameters and configuration is stored in CIP Catalog database. Please refer to [CIP Architecture](../../00__Overview/3__Architecture/readme.md) for common data storage overview.
 - In CIP VSCode Extension: Context services configurations in VS Code are saved locally under a project folder or workspace directory configured by the user on file system of that machine.
 
 ## Configuration
 
 ---
 
-Environment configuration steps are fully covered by Installation Notes.
+Environment configuration steps are fully covered by Installation guide.

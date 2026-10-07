@@ -236,8 +236,7 @@ class HttpTriggerSnapshotScenarioDriverProvider implements SnapshotScenarioDrive
             URI requestUri = URI.create(
                     "http://127.0.0.1:" + startedServer.getAddress().getPort() + target.path()
             );
-            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(requestUri)
-                    .timeout(Duration.ofSeconds(10));
+            HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(requestUri);
             invocation.getHeaders().forEach((name, value) ->
                     requestBuilder.header(name, String.valueOf(value)));
             requestBuilder.method(target.method(), requestBodyPublisher(invocation));

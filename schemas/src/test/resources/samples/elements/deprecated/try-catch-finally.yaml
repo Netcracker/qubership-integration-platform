@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/try-catch-finally.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/try-catch-finally
 id: "7779ff3c-4666-4746-bf16-408010ffc8b3"
 name: "Try-Catch-Finally (deprecated)"
 type: "try-catch-finally"

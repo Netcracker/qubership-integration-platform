@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "d0dccb03-f194-42d2-8e69-68cfe7e55243"
 name: "Chain Trigger"
 content:

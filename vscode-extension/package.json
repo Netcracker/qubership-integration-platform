@@ -3,11 +3,12 @@
   "publisher": "qubership",
   "displayName": "QIP VS Code Extension",
   "description": "Qubership Integration Platform - Visual Studio Code Extension",
-  "version": "1.4.0",
+  "version": "1.5.1",
   "main": "dist/node/index.js",
   "types": "dist/web/index.d.ts",
   "files": [
     "dist",
+    "!dist/web/test",
     "configs",
     "vscode.proposed.customEditorDiffs.d.ts"
   ],
@@ -34,7 +35,7 @@
   "contributes": {
     "configurationDefaults": {
       "workbench.diffEditorAssociations": {
-        "*.chain.qip.yaml": "qip.chainFile.editor"
+        "*.chain.cip.yaml": "qip.chainFile.editor"
       }
     },
     "configuration": {
@@ -43,7 +44,7 @@
         "qipExtension.useDefaultDiffView": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Open integration chain diffs in the built-in text diff editor instead of the QIP visual diff. Toggling this updates the `workbench.diffEditorAssociations` entry for `*.chain.qip.yaml` in your user settings."
+          "markdownDescription": "Open integration chain diffs in the built-in text diff editor instead of the QIP visual diff. Toggling this updates the `workbench.diffEditorAssociations` entry for `*.chain.cip.yaml` in your user settings."
         }
       }
     },
@@ -110,7 +111,7 @@
         "displayName": "QIP Chain File Visual Editor",
         "selector": [
           {
-            "filenamePattern": "*.chain.qip.yaml"
+            "filenamePattern": "*.chain.cip.yaml"
           }
         ],
         "priority": {
@@ -123,7 +124,7 @@
         "displayName": "QIP Service File Visual Editor",
         "selector": [
           {
-            "filenamePattern": "*.service.qip.yaml"
+            "filenamePattern": "*.service.cip.yaml"
           }
         ]
       },
@@ -132,7 +133,7 @@
         "displayName": "QIP Context Service File Visual Editor",
         "selector": [
           {
-            "filenamePattern": "*.context-service.qip.yaml"
+            "filenamePattern": "*.context-service.cip.yaml"
           }
         ]
       },
@@ -141,7 +142,7 @@
         "displayName": "QIP MCP Service File Visual Editor",
         "selector": [
           {
-            "filenamePattern": "*.mcp-service.qip.yaml"
+            "filenamePattern": "*.mcp-service.cip.yaml"
           }
         ]
       }
@@ -200,8 +201,7 @@
   },
   "scripts": {
     "test": "npm run test:unit",
-    "test:integration": "npm run compile-web && vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
-    "test:integration:headless": "xvfb-run -a npm run test:integration",
+    "test:integration": "npm run compile-web && vscode-test-web --browserType=chromium --headless --quality insiders --commit c718b461a175300ec6f4949c808291d2149f3f8d --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js src/web/test/workspace",
     "test:unit": "jest -c jest.config.cjs",
     "test:unit:coverage": "jest -c jest.config.cjs --coverage",
     "prepublishOnly": "rimraf dist && npm run build",
@@ -226,6 +226,7 @@
     "@typescript-eslint/eslint-plugin": "^8.31.1",
     "@typescript-eslint/parser": "^8.31.1",
     "@vscode/test-web": "^0.0.80",
+    "ajv": "^8.20.0",
     "assert": "^2.1.0",
     "copy-webpack-plugin": "^13.0.1",
     "eslint": "^9.25.1",

@@ -1,12 +1,12 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/properties/http-call-common.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/http-call-common
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Common HTTP call properties
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   isExternalCall:
     type: boolean

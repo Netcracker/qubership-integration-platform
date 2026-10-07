@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/choice.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/choice
 id: "269245dd-a42e-4751-b321-b135b6e192d5"
 name: "Choice (deprecated)"
 type: "choice"

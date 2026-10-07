@@ -15,18 +15,18 @@ This element allows to perform specific actions against each particular header, 
 ### "Header Modification" Tab
 #### Add/Keep Headers
 | Parameter | Mandatory | Data Type | Description                                                                                                                                                       | Sample                         |
-| --------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ |
+|-----------|:----------|:----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|
 | Name      | O         | String    | Name of the header. Headers, added to the table will be kept, even if they are subjects to deletion by mask, specified in "Remove Headers".                       | x-customer-id                  |
 | Value     | O         | String    | Value of the header. It can be entered as a constant or variable. If no value is specified for a particular header in the table, it will keep its original value. | ${exchangeProperty.customerId} |
 
 #### Remove Headers
-| Parameter | Mandatory | Data Type | Description                                                                                      | Sample                                                                                                                                                                                                                                                                                                                                           |
-| --------- | :-------- | :-------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Parameter | Mandatory | Data Type | Description                                                                                                  | Sample                                                                                                                                                                                                                                                                                                                                           |
+|-----------|:----------|:----------|--------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Name      | O         | String    | Name of the headers, that shall be removed from the message. Field also accepts mask and regular expression. | <ul><li>***-number** - removes all headers, where it contains "-number" at the end</li><li>**\*** - removes all headers</li><li>**kafka.*** - remove all headers, starting with "kafka"</li><li>***id** - removes all headers that end with "id"</li><li>**^\w+-id$** - removes headers that start with single word and end with "-id"</li></ul> |
 
 ### "Parameters" Tab
 | Parameter   | Mandatory | Data Type | Description                                                | Sample                                   |
-| ----------- | :-------- | :-------- | ---------------------------------------------------------- | ---------------------------------------- |
+|-------------|:----------|:----------|------------------------------------------------------------|------------------------------------------|
 | Name        | M         | String    | Name of the element.                                       | Modify Headers                           |
 | Description | O         | String    | Free text field, that contains description of the element. | Adds new headers to the exchange object. |
 

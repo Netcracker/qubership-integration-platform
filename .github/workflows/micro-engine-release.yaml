@@ -8,7 +8,7 @@
 
 name: Micro Engine Release
 
-run-name: Micro Engine Release (${{ inputs.release-type }})
+run-name: Micro Engine Release (patch)
 
 on:
   workflow_call:
@@ -18,11 +18,6 @@ on:
         required: false
         type: string
         default: "patch"
-      version:
-        description: "Explicit release version (X.Y.Z) override. Empty = bump current <revision> by release-type."
-        required: false
-        type: string
-        default: ""
       build-docker:
         description: "Build Docker image"
         required: false
@@ -36,17 +31,9 @@ on:
     secrets:
       GH_BUMP_VERSION_APP_KEY:
         required: false
+  # Patch only: minor and major go through release-all.
   workflow_dispatch:
     inputs:
-      release-type:
-        description: "patch | minor | major"
-        type: choice
-        options:
-          - "patch"
-          - "minor"
-          - "major"
-        required: false
-        default: "patch"
       build-docker:
         description: "Build Docker image"
         required: false
@@ -69,7 +56,6 @@ jobs:
     with:
       module: micro-engine
       release-type: ${{ inputs.release-type }}
-      version: ${{ inputs.version || '' }}
       # Fixed to github: private com.netcracker.cloud deps are not on Central.
       profile: github
       build-docker: ${{ inputs.build-docker }}

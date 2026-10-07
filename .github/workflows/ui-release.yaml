@@ -9,7 +9,7 @@
 
 name: Ui Release
 
-run-name: Ui Release (${{ inputs.release-type }})
+run-name: Ui Release (patch)
 
 on:
   workflow_call:
@@ -31,17 +31,9 @@ on:
     secrets:
       GH_BUMP_VERSION_APP_KEY:
         required: false
+  # Patch only: minor and major go through release-all.
   workflow_dispatch:
     inputs:
-      release-type:
-        description: "patch | minor | major"
-        type: choice
-        options:
-          - "patch"
-          - "minor"
-          - "major"
-        required: false
-        default: "patch"
       npm-dist-tag:
         description: "NPM distribution tag"
         required: false

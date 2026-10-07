@@ -17,7 +17,7 @@ const getMainChainMock = getMainChain as jest.Mock;
 const writeMainChainMock = fileApi.writeMainChain as jest.Mock;
 
 describe("changeFolder", () => {
-  const fileUri = { path: "/workspace/test.chain.qip.yaml" } as Uri;
+  const fileUri = { path: "/workspace/test.chain.cip.yaml" } as Uri;
   const chainId = "chain-1";
 
   beforeEach(() => {

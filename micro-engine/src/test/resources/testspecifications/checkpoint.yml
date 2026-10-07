@@ -5,6 +5,7 @@ fixtures:
 
 scenarios:
   - id: "retries-failed-session-from-checkpoint"
+    scope: Short
     driver:
       provider: "http-trigger"
       parameters:
@@ -70,6 +71,7 @@ scenarios:
             expectedState: "RESTORED"
 
   - id: "skips-checkpoint-when-triggered-by-chain-call"
+    scope: Short
     endpointUri: "cip-chain:1fdf8320-5663-41b5-b121-8c7ff75b50ae"
     invocations:
       - id: "skips-checkpoint-storage"

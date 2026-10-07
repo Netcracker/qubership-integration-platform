@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/rabbitmq-sender-2.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/rabbitmq-sender-2
 id: "0c4b9885-312b-4cef-bd32-5c89e3e68d06"
 name: "RabbitMQ Sender"
 type: "rabbitmq-sender-2"

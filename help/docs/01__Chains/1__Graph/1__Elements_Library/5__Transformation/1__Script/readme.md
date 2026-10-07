@@ -20,7 +20,7 @@ For quick navigation in the code block, use search bar, accessed by clicking com
 
 ### "Parameters" Tab
 | Parameter   | Mandatory | Data Type | Description                                                                                                                         | Sample                  |
-| ----------- | :-------- | :-------- | ----------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+|-------------|:----------|:----------|-------------------------------------------------------------------------------------------------------------------------------------|-------------------------|
 | Name        | M         | String    | Name of the element.                                                                                                                | Set body                |
 | Description | O         | String    | Free text field for module description. Use for adding additional text, for example for description why and when we use the element | Script sets a new body. |
 

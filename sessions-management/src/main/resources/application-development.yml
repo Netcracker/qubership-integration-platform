@@ -14,7 +14,7 @@ spring:
       config:
         m2m:
           enabled: false
-        acl-token: ${CONSUL_ADMIN_TOKEN}
+        acl-token: ${CONSUL_ADMIN_TOKEN:}
 
 cip:
   standalone: true

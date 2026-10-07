@@ -76,11 +76,6 @@ marked with icon ![carry-out](img/carry-out.svg) on top of the table.
 ### Refresh
 To update actual list of all endpoints and related data, use ![redo](img/redo.svg) button.
 
-## Data Storage
-
----
-No specific data additionally stored.
-
 ## Configuration
 
 ---

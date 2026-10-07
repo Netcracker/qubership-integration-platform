@@ -283,7 +283,14 @@ export const ContextServiceList: React.FC = () => {
       refresh={{ onRefresh: loadServices, loading }}
       title={`Context Services`}
       icon={<OverridableIcon name={"database"} />}
-      extraActions={[filterButton, columnSettingsButton]}
+      extraActions={[
+        <span key="filter" data-testid="services-filter">
+          {filterButton}
+        </span>,
+        <span key="column-settings" data-testid="services-column-settings">
+          {columnSettingsButton}
+        </span>,
+      ]}
       serviceType={IntegrationSystemType.CONTEXT}
       onCreate={(name, description) => handleCreate(name, description)}
       onSearch={(value) => setSearchString(value)}

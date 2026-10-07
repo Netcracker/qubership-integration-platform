@@ -60,13 +60,3 @@ Sequence diagram could be exported via button **"Export"** with 3 output formats
 Select exactly two snapshots using the checkboxes and click ![diff](img/diff.svg) to open the **Chain compare** dialog.
 
 > ℹ️ **Note**: The dialog reuses the same comparison feature described in the **Compare Chains** section of [Chains](../readme.md) — the **Graph**, **Table**, and **Text** views, the color-coded element states, the **Previous change**/**Next change** navigation, and the fullscreen toggle — applied to the two selected snapshots instead of two chains.
-
-## Data Storage
-
----
-No specific storage logic available.
-
-## Configuration
-
----
-No specific configuration available.

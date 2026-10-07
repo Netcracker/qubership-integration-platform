@@ -48,10 +48,3 @@ To terminate a live exchange, locate the relevant row in the Live Exchanges tabl
 ---
 
 Live exchanges are temporary data taken from engine domain runtime processing.
-
-## Configuration
-
----
-
-No configuration option available in CIP UI.
-

@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.chain.impl.McpServiceImpl;
 import org.qubership.integration.platform.io.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.io.readers.migrations.mcp.MCPServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystemLabel;
 
@@ -38,14 +39,14 @@ import static org.mockito.Mockito.when;
 
 class MCPServiceDtoMapperTest {
 
-    private static final URI SCHEMA_URI = URI.create("http://qubership.org/schemas/product/qip/mcp-service");
+    private static final URI SCHEMA_URI = URI.create("http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service");
     private MCPServiceDtoMapper mapper;
 
     @BeforeEach
     void setUp() {
         MCPServiceImportFileMigration migration = mock(MCPServiceImportFileMigration.class);
         when(migration.getVersion()).thenReturn(1);
-        mapper = new MCPServiceDtoMapper(SCHEMA_URI, List.of(migration));
+        mapper = new MCPServiceDtoMapper(new ApplicationJsonSchemaProperties(), List.of(migration));
     }
 
     @Test

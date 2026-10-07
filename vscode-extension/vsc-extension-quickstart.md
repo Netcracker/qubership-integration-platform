@@ -29,12 +29,12 @@
 
 ## Run tests
 
-* Open the debug viewlet (`Ctrl+Shift+D` or `Cmd+Shift+D` on Mac) and from the launch configuration dropdown pick `Extension Tests`.
-* Press `F5` to run the tests in a new window with your extension loaded.
-* See the output of the test result in the debug console.
-* Make changes to `src/web/test/suite/extension.test.ts` or create new test files inside the `test/suite` folder.
-  * The provided test runner will only consider files matching the name pattern `**.test.ts`.
-  * You can create folders inside the `test` folder to structure your tests any way you want.
+* Run the integration tests with `npm run test:integration` from this folder. It opens `src/web/test/workspace` in
+  VS Code for the Web, which keeps every write in memory, and prints the results to the console.
+* Do not run them from the `Extension Tests` launch configuration: it opens no workspace folder, and a desktop host
+  would write to the tracked fixtures.
+* Add a test as a `*.test.ts` file in `src/web/test/suite`, written with `suite` and `test`.
+* `npm run test:unit` runs the Jest suite under `tests/` and beside `src/web/api-services/`.
 
 ## Go further
 

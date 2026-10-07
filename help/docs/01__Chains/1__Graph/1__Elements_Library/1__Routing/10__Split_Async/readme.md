@@ -9,14 +9,14 @@
 ---
 ### "Parameters" Tab (Split Async)
 | Parameter   | Mandatory | Data Type | Description                                | Sample                                             |
-| ----------- | :-------- | :-------- | ------------------------------------------ | -------------------------------------------------- |
+|-------------|:----------|:----------|--------------------------------------------|----------------------------------------------------|
 | Name        | M         | String    | Name of the Split Async container element. | Container of async branches                        |
 | Description | O         | String    | Free text field for element description.   | Split Async container with multiple split branches |
 
 ### "Parameters" Tab (Async Split Element)
 
 | Parameter   | Mandatory | Data Type | Description                              | Sample                       |
-| ----------- | :-------- | :-------- | ---------------------------------------- | ---------------------------- |
+|-------------|:----------|:----------|------------------------------------------|------------------------------|
 | Name        | M         | String    | Name of the Split Async element.         | Split Async branch           |
 | Description | O         | String    | Free text field for element description. | Async flow for notifications |
 

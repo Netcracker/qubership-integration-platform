@@ -82,7 +82,6 @@ public class ContextStorageProcessor implements Processor {
 
     private void processGetValue(Exchange exchange, String sessionId) throws Exception {
         String contextServiceId = exchange.getProperty(PROPERTY_CONTEXT_SERVICE_ID, String.class);
-        String contextId = Optional.ofNullable(exchange.getProperty(PROPERTY_CONTEXT_ID, String.class)).filter(id -> !id.isBlank()).orElse(sessionId);
         List<String> contextKey = Optional.ofNullable(exchange.getProperty(PROPERTY_KEYS, String.class))
                 .map(value -> List.of(value.split(",")))
                 .orElse(List.of());
@@ -91,7 +90,7 @@ public class ContextStorageProcessor implements Processor {
         boolean unwrap = (!exchange.getProperty(PROPERTY_UNWRAP).toString().isEmpty())
                 ? exchange.getProperty(PROPERTY_UNWRAP, Boolean.class)
                 : false;
-        Map<String, String> map = contextStorageService.getValue(contextServiceId, contextId, contextKey);
+        Map<String, String> map = contextStorageService.getValue(contextServiceId, sessionId, contextKey);
         switch (target) {
             case BODY -> exchange.getMessage().setBody(unwrap ? map.values().stream().findFirst().orElse(null) : map);
             case HEADER -> exchange.getMessage().setHeader(name, unwrap ? map.values().stream().findFirst().orElse(null) : map);
@@ -103,15 +102,13 @@ public class ContextStorageProcessor implements Processor {
         String contextKey = exchange.getProperty(PROPERTY_KEY, String.class);
         String contextValue = exchange.getProperty(PROPERTY_VALUE, String.class);
         String contextServiceId = exchange.getProperty(PROPERTY_CONTEXT_SERVICE_ID, String.class);
-        String contextId = Optional.ofNullable(exchange.getProperty(PROPERTY_CONTEXT_ID, String.class)).filter(id -> !id.isBlank()).orElse(sessionId);
         long ttl = exchange.getProperty(PROPERTY_TTL, Long.class);
-        contextStorageService.storeValue(contextKey, contextValue, contextServiceId, contextId, ttl);
+        contextStorageService.storeValue(contextKey, contextValue, contextServiceId, sessionId, ttl);
     }
 
     private void deleteContext(Exchange exchange, String sessionId) throws Exception {
         String contextServiceId = exchange.getProperty(PROPERTY_CONTEXT_SERVICE_ID, String.class);
-        String contextId = Optional.ofNullable(exchange.getProperty(PROPERTY_CONTEXT_ID, String.class)).filter(id -> !id.isBlank()).orElse(sessionId);
-        contextStorageService.deleteValue(contextServiceId, contextId);
+        contextStorageService.deleteValue(contextServiceId, sessionId);
     }
 
     private <T extends Enum<T>> T readEnumValue(Exchange exchange, String propertyName, Class<T> cls) {

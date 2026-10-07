@@ -1,15 +1,15 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/http-trigger.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/http-trigger
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
 title: Http Trigger
 description: HTTP Trigger provides an HTTP endpoint for consuming arriving HTTP requests.
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   type:
     type: string
@@ -17,14 +17,14 @@ properties:
   properties:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/idempotency.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/access-control-properties.schema.yaml"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/correlation-id"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/idempotency"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/access-control-properties"
       - oneOf:
           - $ref: "#/definitions/CustomEndpoint"
           - $ref: "#/definitions/ImplementedServiceEndpoint"
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/validation-failure-handler-properties.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/chain-failure-handler-properties.schema.yaml"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/validation-failure-handler-properties"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/chain-failure-handler-properties"
     properties:
       chunked:
         type: boolean
@@ -61,8 +61,8 @@ properties:
           in JSON.
       connectTimeout:
         oneOf:
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/simple-expression.schema.yaml"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/simple-expression"
         title: Connection timeout (ms)
         description: >
           Specifies connection timeout in millis (default value will be used
@@ -127,7 +127,7 @@ definitions:
         title: Service ID
       systemType:
         title: Service type
-        $ref: "http://qubership.org/schemas/product/qip/common-properties/service-type.schema.yaml"
+        $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/service-type"
       httpMethodRestrict:
         type: string
         title: Operation method

@@ -3,8 +3,9 @@
 # Module topology, declared once and sourced by the release scripts.
 #
 # The same lists also appear as literal YAML in .github/workflows — dispatch
-# `choice` options, the main-build matrix, and release-all's ALL_MODULES cannot
-# read a shell file. Those stay hand-written; keep them in step with this file.
+# `choice` options, the main-build matrix, and release-all's per-module jobs
+# cannot read a shell file. Those stay hand-written; keep them in step with this
+# file.
 #
 # Usage: . "$(dirname "$0")/modules.sh"
 #
@@ -22,11 +23,9 @@ QIP_PARENT_CHILDREN=(engine integration-build-maven-plugin integration-build-pip
 # and a reactor build resolves the development coordinate from source.
 QIP_LIBRARY_CONSUMERS=(runtime-catalog/pom.xml integration-build-maven-plugin/pom.xml)
 
-# Backend services. A full release-all wave publishes these under one version.
-QIP_BACKEND=(engine micro-engine runtime-catalog sessions-management)
-
-# Modules the release BOM reports, in output order. schemas is one row for two
-# artifacts: the npm package and the Maven artifact carry the same version.
+# Modules release-all releases and the release BOM reports, in output order.
+# schemas is one row for two artifacts: the npm package and the Maven artifact
+# carry the same version.
 QIP_BOM_MODULES=(
     engine
     micro-engine

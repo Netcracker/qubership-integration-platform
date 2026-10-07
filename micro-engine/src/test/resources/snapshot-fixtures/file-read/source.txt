@@ -1,0 +1,15 @@
+Apache Camel ™ is a versatile open-source integration framework based on known Enterprise Integration Patterns.
+
+Camel empowers you to define routing and mediation rules in a variety of domain-specific languages (DSL, such as Java, XML, and YAML). This means you get smart completion of routing rules in your IDE.
+
+Apache Camel uses URIs to work directly with any kind of transport or messaging model such as HTTP, Kafka, JMS, Netty or AWS S3, as well as pluggable Components and Data Format options. Apache Camel is a small library with minimal dependencies for easy embedding in any Java application. Apache Camel lets you work with the same API regardless which kind of transport is used — so learn the API once and you can interact with all the Components provided out-of-box.
+
+Apache Camel provides support for Bean Binding and seamless integration with popular frameworks such as Spring. Camel also has extensive support for unit testing your routes.
+
+A highly recommended video introducing Apache Camel and the concepts is a must to watch to get familiar and higher success of learning to use Camel:
+
+Enterprise Integration Patterns (EIP) | What is Apache Camel?
+
+We also highly recommend taking a look at the AI powered research of Apache Camel, which provides good technical overview and diagrams in a single wiki page:
+
+DeepWiki - Apache Camel

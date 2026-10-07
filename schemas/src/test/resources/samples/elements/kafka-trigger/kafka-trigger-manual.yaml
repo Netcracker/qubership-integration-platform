@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/kafka-trigger-2.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/kafka-trigger-2
 id: "4c00ff13-bcb2-4b31-b456-d7a0c2b07df1"
 name: "Kafka Trigger"
 type: "kafka-trigger-2"

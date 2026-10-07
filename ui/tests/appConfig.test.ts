@@ -4,6 +4,7 @@ import {
   onConfigChange,
   UserInfo,
 } from "../src/appConfig";
+import { DomainType } from "../src/api/apiTypes";
 
 describe("appConfig - documentationBaseUrl", () => {
   test("is undefined by default", () => {
@@ -126,6 +127,44 @@ describe("appConfig - onLogout", () => {
     configure({ onLogout: jest.fn() });
 
     expect(listener).toHaveBeenCalled();
+    unsubscribe();
+  });
+});
+
+describe("appConfig - domainTypes", () => {
+  test("is undefined by default", () => {
+    expect(getConfig().domainTypes).toBeUndefined();
+  });
+
+  test("can be set via configure() and notifies listeners", () => {
+    const listener = jest.fn();
+    const unsubscribe = onConfigChange(listener);
+
+    configure({ domainTypes: [DomainType.CLASSIC] });
+
+    expect(getConfig().domainTypes).toEqual([DomainType.CLASSIC]);
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ domainTypes: [DomainType.CLASSIC] }),
+    );
+    unsubscribe();
+  });
+});
+
+describe("appConfig - productionMode", () => {
+  test("is undefined by default", () => {
+    expect(getConfig().productionMode).toBeUndefined();
+  });
+
+  test("can be set via configure() and notifies listeners", () => {
+    const listener = jest.fn();
+    const unsubscribe = onConfigChange(listener);
+
+    configure({ productionMode: true });
+
+    expect(getConfig().productionMode).toBe(true);
+    expect(listener).toHaveBeenCalledWith(
+      expect.objectContaining({ productionMode: true }),
+    );
     unsubscribe();
   });
 });

@@ -58,7 +58,7 @@ spring:
       config:
         enabled: true
         prefixes: config/${NAMESPACE}
-        acl-token: ${CONSUL_ADMIN_TOKEN}
+        acl-token: ${CONSUL_ADMIN_TOKEN:}
   jpa:
     database: postgresql
     properties:
@@ -210,7 +210,7 @@ security:
 
 consul:
   url: ${CONSUL_URL:http://consul:8500}
-  token: ${CONSUL_ADMIN_TOKEN}
+  token: ${CONSUL_ADMIN_TOKEN:}
   keys:
     prefix: /config/${NAMESPACE}
     engine-config-root: /${app.prefix}-engine-configurations

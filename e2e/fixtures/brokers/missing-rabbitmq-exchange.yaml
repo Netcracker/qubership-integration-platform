@@ -1,0 +1,43 @@
+---
+id: "e2e0k003-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-missing-rabbitmq-exchange"
+description: "rabbitmq-sender-2 pointed at an exchange the brokers seed never declares. Spec-owned\
+  \ (SPEC_OWNED_FIXTURES), so it sits outside the seed's corpus scan and ensureRabbitmqTopology\
+  \ never sees it -- that is the whole premise. Imported and deployed by missing-target.spec.ts,\
+  \ which asserts PR #781's AmpqConnectionCheckAction refuses the deploy on its own passive\
+  \ exchangeDeclare check, rather than the caller getting 200/COMPLETED_NORMALLY over a message the\
+  \ broker silently discarded."
+content:
+  labels: []
+  elements:
+  - id: "e2e0k003-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-missing-rabbitmq-exchange"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e0k003-0000-4000-8000-000000000003"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      connectionSourceType: "manual"
+      addresses: "rabbitmq:5672"
+      username: "guest"
+      password: "guest"
+      exchange: "e2e-{{RUN}}-missing-rabbitmq-exchange"
+      routingKey: "e2e-{{RUN}}-missing-rabbitmq-exchange"
+      exchangePattern: "InOnly"
+      propagateContext: false
+  dependencies:
+  - from: "e2e0k003-0000-4000-8000-000000000002"
+    to: "e2e0k003-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

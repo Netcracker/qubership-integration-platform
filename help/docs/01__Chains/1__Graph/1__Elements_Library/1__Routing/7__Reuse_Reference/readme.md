@@ -10,11 +10,11 @@
 ---
 ### "Parameters" Tab
 #### Common Parameters
-| Parameter       | Mandatory | Data Type | Description                                                                               | Sample |
-| --------------- | :-------- | :-------- | ----------------------------------------------------------------------------------------- | ------ |
-| Reuse Reference | M         | List      | Specifies the [Reuse](../../1__Routing/2__Reuse/readme.md) container to be connected with. | N/A    |
-| Name        | M         | String    | Name of the element.                     | Reference         |
-| Description | O         | String    | Free text field for element description. | Validate response |
+| Parameter       | Mandatory | Data Type | Description                                                                               | Sample            |
+|-----------------|:----------|:----------|-------------------------------------------------------------------------------------------|-------------------|
+| Reuse Reference | M         | List      | Specifies the [Reuse](../../1__Routing/2__Reuse/readme.md) container to be connected with. | N/A               |
+| Name            | M         | String    | Name of the element.                                                                      | Reference         |
+| Description     | O         | String    | Free text field for element description.                                                  | Validate response |
 
 ## Constraints
 

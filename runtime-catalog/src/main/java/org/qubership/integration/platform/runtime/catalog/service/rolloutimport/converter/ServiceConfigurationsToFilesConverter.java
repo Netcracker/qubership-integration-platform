@@ -10,7 +10,6 @@ import org.qubership.integration.platform.io.readers.migrations.common.Migration
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Path;
@@ -18,13 +17,13 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.CONTEXT_SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SERVICE_YAML_NAME_POSTFIX;
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_FILE_POSTFIX;
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.SPECIFICATION_GROUP_FILE_POSTFIX;
-import static org.qubership.integration.platform.io.model.exportimport.ExportImportConstants.YAML_FILE_NAME_POSTFIX;
 import static org.qubership.integration.platform.io.readers.migrations.ImportFileMigration.IMPORT_MIGRATIONS_FIELD;
+import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.generateMainContextServiceFileExportName;
+import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.generateMainSystemFileExportName;
+import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.generateSpecificationFileExportName;
+import static org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils.generateSpecificationGroupFileExportName;
 
 @Slf4j
 @Component
@@ -33,16 +32,13 @@ public class ServiceConfigurationsToFilesConverter {
     private static final String SPECIFICATION_FILE_NAME_FIELD_KEY = "fileName";
 
     private final ObjectMapper objectMapper;
-    private final String appPrefix;
     private final List<ServiceImportFileMigration> serviceImportFileMigrations;
 
     public ServiceConfigurationsToFilesConverter(
             @Qualifier("primaryObjectMapper") ObjectMapper objectMapper,
-            @Value("${app.prefix:qip}") String appPrefix,
             List<ServiceImportFileMigration> serviceImportFileMigrations
     ) {
         this.objectMapper = objectMapper;
-        this.appPrefix = appPrefix;
         this.serviceImportFileMigrations = serviceImportFileMigrations;
     }
 
@@ -54,8 +50,8 @@ public class ServiceConfigurationsToFilesConverter {
             Map<String, String> resources
     ) throws JsonProcessingException {
         Map<Path, byte[]> files = new HashMap<>();
-        convertServices(files, serviceConfigs, SERVICE_YAML_NAME_POSTFIX);
-        convertServices(files, contextServiceConfigs, CONTEXT_SERVICE_YAML_NAME_POSTFIX);
+        convertServices(files, serviceConfigs, id -> generateMainSystemFileExportName(id, false));
+        convertServices(files, contextServiceConfigs, id -> generateMainContextServiceFileExportName(id, false));
         convertSpecGroups(files, serviceConfigs, specGroupConfigs);
         convertSpecifications(files, serviceConfigs, specGroupConfigs, specificationConfigs, resources);
         return files;
@@ -64,7 +60,7 @@ public class ServiceConfigurationsToFilesConverter {
     private void convertServices(
             Map<Path, byte[]> files,
             Map<String, RolloutImportConfigurationItem> serviceConfigs,
-            String serviceTypePostfix
+            UnaryOperator<String> fileNameBuilder
     ) throws JsonProcessingException {
         for (Map.Entry<String, RolloutImportConfigurationItem> serviceConfig : serviceConfigs.entrySet()) {
             JsonNode contentNode = serviceConfig.getValue().getContent();
@@ -77,7 +73,7 @@ public class ServiceConfigurationsToFilesConverter {
 
             String serviceId = serviceConfig.getKey();
             Path serviceDirectory = Path.of(serviceId);
-            String serviceFileName = serviceId + serviceTypePostfix + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String serviceFileName = fileNameBuilder.apply(serviceId);
             putYaml(files, serviceDirectory.resolve(serviceFileName), serviceConfig.getValue());
         }
     }
@@ -101,7 +97,7 @@ public class ServiceConfigurationsToFilesConverter {
             }
 
             Path serviceDirectory = Path.of(serviceId);
-            String specGroupFileName = specGroupId + SPECIFICATION_GROUP_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String specGroupFileName = generateSpecificationGroupFileExportName(specGroupId, false);
             putYaml(files, serviceDirectory.resolve(specGroupFileName), specGroupConfig.getValue());
         }
     }
@@ -140,7 +136,7 @@ public class ServiceConfigurationsToFilesConverter {
             }
 
             Path serviceDirectory = Path.of(serviceId);
-            String specificationFileName = specificationId + SPECIFICATION_FILE_POSTFIX + appPrefix + YAML_FILE_NAME_POSTFIX;
+            String specificationFileName = generateSpecificationFileExportName(specificationId, false);
             putYaml(files, serviceDirectory.resolve(specificationFileName), specificationConfig.getValue());
 
             List<Path> specPaths = specificationConfig.getValue().getContent().findValuesAsText(SPECIFICATION_FILE_NAME_FIELD_KEY)
