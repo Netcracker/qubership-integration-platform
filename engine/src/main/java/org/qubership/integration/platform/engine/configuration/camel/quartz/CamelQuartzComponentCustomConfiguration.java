@@ -54,7 +54,7 @@ public class CamelQuartzComponentCustomConfiguration {
         return ComponentCustomizer.builder(QuartzComponent.class)
             .build((component) -> {
                 component.setSchedulerFactory(quartzSchedulerService.getFactory());
-                component.setScheduler(quartzSchedulerService.getFactory().getScheduler());
+                component.setScheduler(quartzSchedulerService.getSchedulerProxy());
                 component.setPrefixInstanceName(false);
                 component.setEnableJmx(false);
                 component.setProperties(Map.of(THREAD_POOL_COUNT_PROP, threadPoolCount));
