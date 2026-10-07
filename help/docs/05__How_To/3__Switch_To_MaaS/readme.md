@@ -44,4 +44,4 @@ In case of MaaS, no specific connection setting data is being stored on Cloud In
 ---
 All configuration steps are done via UI components, please read "**User Interface**" section above. For detailed instructions about configuring connection settings in MaaS, please refer to specialized articles.
 
-Preparation of entities in **MaaS** (topics, queues, etc.) is described in the [article](https://github.com/Netcracker/qubership-maas/blob/main/docs/README.md).
+Preparation of entities in **MaaS** (topics, queues, etc.) is described in the [article](https://github.com/Netcracker/qubership-maas/blob/main/docs/maintenance.md).
