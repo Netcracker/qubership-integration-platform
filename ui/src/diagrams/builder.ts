@@ -15,6 +15,7 @@ import {
   SequenceDiagram,
 } from "./model.ts";
 import { api } from "../api/api.ts";
+import { parseBooleanFlag } from "../misc/boolean-utils.ts";
 
 const EMPTY_PROPERTY_STUB = "%empty_property%";
 const DEFAULT_RESPONSE_TITLE = "Response";
@@ -564,7 +565,7 @@ function getHttpSenderParticipants(
   const isExternalCall = element.properties["isExternalCall"];
   const host =
     /^https?:\/\/[^:/]+(:\\d{1,5})?/.exec(uri)?.[0] ?? EMPTY_PROPERTY_STUB;
-  const name = `${isExternalCall === undefined || isExternalCall === null || Boolean(isExternalCall) ? "External" : "Internal"} service: ${host ?? EMPTY_PROPERTY_STUB}`;
+  const name = `${parseBooleanFlag(isExternalCall, true) ? "External" : "Internal"} service: ${host ?? EMPTY_PROPERTY_STUB}`;
   return [createSimpleParticipant(name)];
 }
 
@@ -585,8 +586,11 @@ function getHttpTriggerParticipants(
   const serviceName =
     context.dependencies.serviceMap.get(serviceId)?.name ?? EMPTY_PROPERTY_STUB;
   const isManualSource = !element.properties["systemType"];
-  const isExternal = Boolean(element.properties["externalRoute"] ?? true);
-  const isPrivate = Boolean(element.properties["privateRoute"] ?? false);
+  const isExternal = parseBooleanFlag(
+    element.properties["externalRoute"],
+    true,
+  );
+  const isPrivate = parseBooleanFlag(element.properties["privateRoute"]);
   const route =
     isExternal && isPrivate
       ? "external or private"
@@ -1243,9 +1247,9 @@ function getContextStorageActions(
   const participant = getContextStorageParticipants(element, context)[0];
   const operation = (element.properties["operation"] as string) ?? "GET";
   const contextId = element.properties["contextId"] as string;
-  // Matches the engine, which also reads the string "false" as false.
-  const useCorrelationId =
-    String(element.properties["useCorrelationId"]).toLowerCase() === "true";
+  const useCorrelationId = parseBooleanFlag(
+    element.properties["useCorrelationId"],
+  );
   const message = `${operation} context ${useCorrelationId ? "(use correlation ID)" : (contextId ?? EMPTY_PROPERTY_STUB)}`;
   return [
     {
@@ -1521,8 +1525,8 @@ function getActionsForIdempotentTrigger(
       "triggerElementId"
     ];
   const chain = context.dependencies.chainMap.get(elementId);
-  const enabled = Boolean(
-    element.properties["idempotency"]?.["enabled"] ?? false,
+  const enabled = parseBooleanFlag(
+    element.properties["idempotency"]?.["enabled"],
   );
   const actionOnDuplicate = element.properties["idempotency"]?.[
     "actionOnDuplicate"

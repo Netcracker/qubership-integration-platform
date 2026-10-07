@@ -315,12 +315,13 @@ public class ElementFilterRepositoryImpl implements ElementFilterRepository {
     }
 
     private Expression<Boolean> getJsonPropertyBooleamExpression(CriteriaBuilder builder, Root<ChainElement> chainElementRoot, String propertyName) {
+        // Text, not jsonb: Postgres casts the string "false" to boolean only from text.
         return builder.function(
                 "BOOL",
                 Boolean.class,
                 builder.function(
-                        "jsonb_extract_path",
-                        Object.class,
+                        "jsonb_extract_path_text",
+                        String.class,
                         chainElementRoot.get(PROPERTIES_ATTRIBUTE),
                         builder.literal(propertyName)
                 )

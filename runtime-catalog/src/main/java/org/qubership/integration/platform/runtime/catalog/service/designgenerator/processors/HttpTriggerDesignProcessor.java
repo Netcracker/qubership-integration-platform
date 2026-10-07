@@ -35,6 +35,7 @@ import static org.qubership.integration.platform.library.model.chaindesign.Diagr
 import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.LINE_WITH_ARROW_SOLID_RIGHT;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.DEFAULT_RESPONSE_TITLE;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.EMPTY_PROPERTY_STUB;
+import static org.qubership.integration.platform.util.ElementUtils.getPropertyAsBoolean;
 
 @Component
 public class HttpTriggerDesignProcessor implements DesignProcessor {
@@ -64,8 +65,8 @@ public class HttpTriggerDesignProcessor implements DesignProcessor {
     public String getExternalParticipantName(ChainElement element) {
         Map<String, Object> properties = element.getProperties();
         IntegrationSystem system = getSystem(element);
-        boolean isExternal = (boolean) properties.getOrDefault(IS_EXTERNAL_ROUTE, true);
-        boolean isPrivate = (boolean) properties.getOrDefault(IS_PRIVATE_ROUTE, false);
+        boolean isExternal = getPropertyAsBoolean(properties, IS_EXTERNAL_ROUTE, true);
+        boolean isPrivate = getPropertyAsBoolean(properties, IS_PRIVATE_ROUTE, false);
         String message = "Unknown " + (
                     isExternal || isPrivate ? "external (via " + getRouteMessage(isExternal, isPrivate) +  " route)" : "internal")
                 + " service";

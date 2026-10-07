@@ -41,12 +41,14 @@ import { TableToolbar } from "../../table/TableToolbar.tsx";
 import { AdminToolsHeader } from "../AdminToolsHeader.tsx";
 import { confirmAndRun } from "../../../misc/confirm-utils.ts";
 import { useAccessControlFilter } from "../../../hooks/filter/useAccessControlFilter.ts";
+import { parseBooleanFlag } from "../../../misc/boolean-utils.ts";
 
 function routeTypeLabel(record: AccessControlData): string {
   const properties = record.properties as unknown as
     | AccessControlProperty
     | undefined;
-  const { externalRoute, privateRoute } = properties ?? {};
+  const externalRoute = parseBooleanFlag(properties?.externalRoute);
+  const privateRoute = parseBooleanFlag(properties?.privateRoute);
   if (externalRoute && privateRoute) return "External, Private";
   if (externalRoute) return "External";
   if (privateRoute) return "Private";
@@ -227,23 +229,8 @@ export const AccessControl: React.FC = () => {
     {
       title: "Type",
       key: "type",
-      render: (_value: unknown, record: AccessControlData) => {
-        const properties = record.properties as unknown as
-          | AccessControlProperty
-          | undefined;
-        const { externalRoute, privateRoute } = properties ?? {};
-        return (
-          <>
-            {externalRoute && privateRoute
-              ? "External, Private"
-              : externalRoute
-                ? "External"
-                : privateRoute
-                  ? "Private"
-                  : "Internal"}
-          </>
-        );
-      },
+      render: (_value: unknown, record: AccessControlData) =>
+        routeTypeLabel(record),
     },
     {
       title: "Access Control Type",
@@ -609,19 +596,7 @@ export const AccessControl: React.FC = () => {
                 )}
               </Descriptions.Item>
               <Descriptions.Item label="Type">
-                {(() => {
-                  const properties = currentRecord.properties as unknown as
-                    | AccessControlProperty
-                    | undefined;
-                  const { externalRoute, privateRoute } = properties ?? {};
-                  return externalRoute && privateRoute
-                    ? "External, Private"
-                    : externalRoute
-                      ? "External"
-                      : privateRoute
-                        ? "Private"
-                        : "Internal";
-                })()}
+                {routeTypeLabel(currentRecord)}
               </Descriptions.Item>
               <Descriptions.Item label="Access Control Type">
                 {(() => {

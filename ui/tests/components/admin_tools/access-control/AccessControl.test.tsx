@@ -411,6 +411,32 @@ describe("AccessControl - Unsaved Changes Functionality (PR #573)", () => {
     });
   });
 
+  describe("Type column", () => {
+    // The catalog stores properties without checking their types, so route flags can be strings.
+    it("shows Internal when the route flags are the string false", async () => {
+      const roles = [
+        createMockAccessControlData({
+          properties: {
+            externalRoute: "false",
+            privateRoute: "false",
+          } as never,
+        }),
+      ];
+      mockUseAccessControl.mockReturnValue({
+        ...hookResult(),
+        accessControlData: { offset: 0, roles },
+      });
+
+      render(<AccessControl />);
+
+      await waitFor(() => {
+        const row = getDataTable().querySelectorAll("tr")[1];
+        expect(row).toHaveTextContent("Internal");
+        expect(row).not.toHaveTextContent("External");
+      });
+    });
+  });
+
   describe("Redeploy Button Logic", () => {
     it("only allows redeploy for selected rows that have unsaved changes", async () => {
       const roles = [

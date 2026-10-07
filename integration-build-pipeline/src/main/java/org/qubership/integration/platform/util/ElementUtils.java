@@ -58,6 +58,12 @@ public final class ElementUtils {
             .orElse(null);
     }
 
+    // The catalog stores properties without checking their types, so a flag can arrive as "true" or "false".
+    public static boolean getPropertyAsBoolean(Map<String, Object> properties, String name, boolean defaultValue) {
+        Object value = properties.get(name);
+        return value == null ? defaultValue : Boolean.parseBoolean(String.valueOf(value));
+    }
+
     public static String buildRouteVariableName(Element element) {
         return "route-" + element.getOriginalId().orElseGet(element::getId);
     }

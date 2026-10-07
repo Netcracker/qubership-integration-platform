@@ -27,8 +27,10 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -99,6 +101,8 @@ class ElementFilterRepositoryImplTest {
         // Without the trim, " Private" would have been rejected instead of reaching this property.
         verify(criteriaBuilder).literal("externalRoute");
         verify(criteriaBuilder).literal("privateRoute");
+        // A flag stored as the string "false" is read from text: BOOL() on the jsonb value fails for a string.
+        verify(criteriaBuilder, times(2)).function(eq("jsonb_extract_path_text"), eq(String.class), any(), any());
     }
 
     private void findByType(String value) {

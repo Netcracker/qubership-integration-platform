@@ -67,10 +67,7 @@ public class RoutesGetterService {
         return snapshot.getElements().stream()
                 .filter(element -> List.of(HTTP_SENDER_COMPONENT, GRAPHQL_SENDER_COMPONENT)
                         .contains(element.getType()))
-                .filter(sender -> {
-                    Object isExternalCall = sender.getProperties().get(CamelOptions.IS_EXTERNAL_CALL);
-                    return isExternalCall == null || (boolean) isExternalCall;
-                })
+                .filter(sender -> ElementUtils.getPropertyAsBoolean(sender.getProperties(), CamelOptions.IS_EXTERNAL_CALL, true))
                 .map(sender -> {
                     try {
                         String targetURL = SimpleHttpUriUtils.extractProtocolAndDomainWithPort(ElementUtils.getPropertyAsString(sender, CamelOptions.URI));

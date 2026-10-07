@@ -1,4 +1,5 @@
 import { normalizeProtocol } from "../../../misc/protocol-utils.ts";
+import { parseBooleanFlag } from "../../../misc/boolean-utils.ts";
 import {
   toBodyFormData,
   BodyFormEntry,
@@ -123,7 +124,7 @@ const FORM_CONTEXT_FIELD_CONFIG: Record<
   // Boolean fields
   externalRoute: {
     transform: (val) =>
-      val !== undefined && val !== null ? Boolean(val) : undefined,
+      val !== undefined && val !== null ? parseBooleanFlag(val) : undefined,
   },
   synchronousGrpcCall: {
     transform: (val) =>

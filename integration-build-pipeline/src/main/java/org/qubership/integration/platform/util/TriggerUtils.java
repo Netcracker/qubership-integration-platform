@@ -120,11 +120,11 @@ public final class TriggerUtils {
     }
 
     public static boolean isExternalHttpTrigger(Element element) {
-        return (boolean) element.getProperties().getOrDefault(CamelOptions.IS_EXTERNAL_ROUTE, true);
+        return ElementUtils.getPropertyAsBoolean(element.getProperties(), CamelOptions.IS_EXTERNAL_ROUTE, true);
     }
 
     public static boolean isPrivateHttpTrigger(Element element) {
-        return (boolean) element.getProperties().getOrDefault(CamelOptions.IS_PRIVATE_ROUTE, false);
+        return ElementUtils.getPropertyAsBoolean(element.getProperties(), CamelOptions.IS_PRIVATE_ROUTE, false);
     }
 
     public static String getHttpTriggerTypeName() {

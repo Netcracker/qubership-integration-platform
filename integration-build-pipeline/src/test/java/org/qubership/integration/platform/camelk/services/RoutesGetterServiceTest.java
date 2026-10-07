@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.qubership.integration.platform.library.constants.CamelNames.HTTP_SENDER_COMPONENT;
 import static org.qubership.integration.platform.library.constants.CamelNames.SERVICE_CALL_COMPONENT;
 
 /**
@@ -108,5 +109,20 @@ class RoutesGetterServiceTest {
         assertEquals("/system/elem-b", routes.get(1).getGatewayPrefix());
         assertEquals("https://api.example.com", routes.get(0).getPath());
         assertEquals("https://api.example.com", routes.get(1).getPath());
+    }
+
+    // The string "false" used to fail with ClassCastException instead of marking an internal call.
+    @Test
+    void senderWithIsExternalCallStoredAsStringFalseGetsNoEgressRoute() {
+        Element internal = ElementBuilder.createNew().id("internal").type(HTTP_SENDER_COMPONENT)
+                .properties(Map.of(CamelOptions.URI, "http://internal:8080/a", CamelOptions.IS_EXTERNAL_CALL, "false"))
+                .build();
+        Element external = ElementBuilder.createNew().id("external").type(HTTP_SENDER_COMPONENT)
+                .properties(Map.of(CamelOptions.URI, "http://external:8080/a", CamelOptions.IS_EXTERNAL_CALL, "true"))
+                .build();
+
+        List<Route> routes = routesGetterService.getRoutes(snapshotWith(List.of(internal, external)), serviceCatalog);
+
+        assertEquals(List.of("http://external:8080"), routes.stream().map(Route::getPath).toList());
     }
 }

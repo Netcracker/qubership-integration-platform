@@ -1270,6 +1270,65 @@ describe("buildSequenceDiagram", () => {
     });
   });
 
+  describe("Flags stored as the string false", () => {
+    async function participantsAndActions(
+      triggerProperties: object,
+      step?: Element,
+    ) {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test", ...triggerProperties } as never,
+      });
+      const chain = step
+        ? makeChain([trigger, step], [{ from: "trigger-1", to: step.id }])
+        : makeChain([trigger]);
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+      return {
+        participants: diagram.participants.map((p) => p.name),
+        actions: JSON.stringify(diagram.actions),
+      };
+    }
+
+    it("should show an internal call when isExternalCall is the string false", async () => {
+      const sender = makeElement({
+        id: "sender-1",
+        type: "http-sender",
+        properties: {
+          uri: "http://host:8080/a",
+          httpMethod: "GET",
+          isExternalCall: "false",
+        } as never,
+      });
+
+      const { participants } = await participantsAndActions({}, sender);
+
+      expect(participants).toContain("Internal service: http://host");
+    });
+
+    it("should show an internal trigger when route flags are the string false", async () => {
+      const { participants } = await participantsAndActions({
+        externalRoute: "false",
+        privateRoute: "false",
+      });
+
+      expect(participants).toContain("Unknown internal service");
+    });
+
+    it("should draw no idempotency when it is enabled as the string false", async () => {
+      const { actions } = await participantsAndActions({
+        idempotency: {
+          enabled: "false",
+          actionOnDuplicate: "execute-subchain",
+          chainTriggerParameters: { triggerElementId: "called-trigger" },
+        },
+      });
+
+      expect(actions).not.toContain('"alternatives"');
+    });
+  });
+
   describe("Checkpoint", () => {
     it("should create group with trigger and checkpoint alternatives", async () => {
       const trigger = makeElement({

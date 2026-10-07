@@ -104,6 +104,17 @@ describe("ChainElementModificationContext", () => {
   describe("buildFormContextFromProperties", () => {
     const updateContext = jest.fn();
 
+    it("reads externalRoute stored as the string false as false", () => {
+      const context = buildFormContextFromProperties(
+        { externalRoute: "false" },
+        "http-trigger",
+        "chain-1",
+        updateContext,
+      );
+
+      expect(context.externalRoute).toBe(false);
+    });
+
     it("does not include operationSpecification / schemas from element properties", () => {
       // Even if someone accidentally writes these into element.properties
       // (e.g. via a legacy migration), they must not rehydrate into context

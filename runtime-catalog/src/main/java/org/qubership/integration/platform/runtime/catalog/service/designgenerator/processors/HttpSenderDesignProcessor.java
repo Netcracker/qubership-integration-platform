@@ -28,6 +28,7 @@ import java.util.Set;
 import static org.qubership.integration.platform.library.model.chaindesign.DiagramOperationType.*;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.DEFAULT_RESPONSE_TITLE;
 import static org.qubership.integration.platform.runtime.catalog.model.designgenerator.DiagramConstants.EMPTY_PROPERTY_STUB;
+import static org.qubership.integration.platform.util.ElementUtils.getPropertyAsBoolean;
 
 
 @Component
@@ -50,7 +51,7 @@ public class HttpSenderDesignProcessor implements DesignProcessor {
             host = SimpleHttpUriUtils.extractProtocolAndDomainWithPort(host);
         } catch (Exception ignored) {
         }
-        String message = element.getProperty("isExternalCall") == null || (boolean) element.getProperty("isExternalCall")
+        String message = getPropertyAsBoolean(element.getProperties(), "isExternalCall", true)
                 ? "External"
                 : "Internal";
         return message + " service: " + (host == null ? EMPTY_PROPERTY_STUB : host);

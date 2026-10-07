@@ -25,6 +25,7 @@ import org.qubership.integration.platform.library.constants.CamelOptions;
 import org.qubership.integration.platform.runtime.catalog.model.dds.TemplateChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.service.ddsgenerator.elements.ElementTemplateUtils;
+import org.qubership.integration.platform.util.ElementUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
@@ -72,7 +73,7 @@ public class HttpTriggerDDSConverter extends ElementDDSConverter {
         if (StringUtils.isEmpty(contextPath)) {
             contextPath = (String) elementProps.getOrDefault(CamelOptions.OPERATION_PATH, "");
         }
-        boolean isExternal = (boolean) elementProps.getOrDefault(CamelOptions.IS_EXTERNAL_ROUTE, true);
+        boolean isExternal = ElementUtils.getPropertyAsBoolean(elementProps, CamelOptions.IS_EXTERNAL_ROUTE, true);
         String httpMethodRestrict = (String) elementProps.get(CamelOptions.HTTP_METHOD_RESTRICT);
         List<String> allowedContentTypes = (List<String>) elementProps.get(CamelOptions.ALLOWED_CONTENT_TYPES);
         elementTemplateProps.put("endpointUri", routePrefixProvider.getRoutePrefix(isExternal) + StringUtils.strip(contextPath, "/"));
