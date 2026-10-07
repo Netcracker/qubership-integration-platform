@@ -2,14 +2,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>qip-engine</artifactId>
-
-  <name>QIP Engine</name>
-  <description>
-    Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
-    collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
-  </description>
-
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-parent-spring</artifactId>
@@ -17,26 +9,24 @@
     <relativePath>../parents/spring/pom.xml</relativePath>
   </parent>
 
-  <properties>
-    <revision>1.5.1</revision>
-    <changelist>-SNAPSHOT</changelist>
+  <artifactId>qip-engine</artifactId>
+  <version>${qip.engine.version}</version>
 
+  <name>QIP Engine</name>
+  <description>
+    Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
+    collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
+  </description>
+
+  <properties>
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
 
-    <qip.spring-internal-bom.version>1.5.1-SNAPSHOT</qip.spring-internal-bom.version>
     <netty-bom.version>4.1.110.Final</netty-bom.version>
   </properties>
 
   <dependencyManagement>
     <dependencies>
-      <dependency>
-        <groupId>org.qubership.integration.platform</groupId>
-        <artifactId>qip-spring-internal-bom</artifactId>
-        <version>${qip.spring-internal-bom.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-bom</artifactId>

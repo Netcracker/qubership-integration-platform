@@ -827,6 +827,30 @@
             </execution>
           </executions>
         </plugin>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <configuration>
+            <skip>false</skip>
+            <profiles>
+              <profile>development</profile>
+            </profiles>
+            <jvmArguments>-Xdebug -Xrunjdwp:transport=dt_socket,server=y,suspend=n,address=18085</jvmArguments>
+          </configuration>
+          <executions>
+            <execution>
+              <goals>
+                <goal>build-info</goal>
+              </goals>
+            </execution>
+            <execution>
+              <id>repackage</id>
+              <configuration>
+                <classifier>exec</classifier>
+              </configuration>
+            </execution>
+          </executions>
+        </plugin>
       </plugins>
     </pluginManagement>
   </build>
