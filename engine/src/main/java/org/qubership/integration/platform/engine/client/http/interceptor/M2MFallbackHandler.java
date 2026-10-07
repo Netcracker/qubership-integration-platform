@@ -12,6 +12,7 @@ import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.qubership.integration.platform.engine.configuration.security.SecurityConfiguration;
 
 import java.io.IOException;
+import java.net.URI;
 
 @Slf4j
 public class M2MFallbackHandler implements ExecChainHandler {
@@ -25,12 +26,21 @@ public class M2MFallbackHandler implements ExecChainHandler {
     @Override
     public ClassicHttpResponse execute(ClassicHttpRequest request, ExecChain.Scope scope, ExecChain chain)
             throws IOException, HttpException {
-        String cacheKey = UrlCache.calculateCacheKey(request.getRequestUri());
+        log.info("Show getRequestUri(): {}", request.getRequestUri());
+        log.info("Show getPath(): {}", request.getPath());
+        URI requestUri = null;
+        try {
+            requestUri = request.getUri();
+            log.info("Show getUri(): {}", requestUri);
+        } catch (Exception e) {
+            log.error("Can't fetch request URI", e);
+        }
+        String cacheKey = UrlCache.calculateCacheKey(requestUri.toString());
         if (!urlCache.containsKey(cacheKey)) {
             ClassicHttpRequest alteredRequest;
             try {
                 alteredRequest = buildRequest(request, SecurityConfiguration.getDefaultM2MToken());
-                log.info("Sending request to {} with kubernetes token", request.getRequestUri());
+                log.info("Sending request to {} with kubernetes token", requestUri);
             } catch (IllegalStateException | IllegalArgumentException e) {
                 log.warn("Error acquiring kubernetes token for m2m communication", e);
 
@@ -41,7 +51,7 @@ public class M2MFallbackHandler implements ExecChainHandler {
             ClassicHttpResponse response = chain.proceed(alteredRequest, scope);
             if (response.getCode() == 401) {
                 log.info("Failed to establish m2m connection to {} with kubernetes token. Cause: 401 Unauthorized",
-                        request.getRequestUri());
+                        requestUri);
                 response.close();
 
                 ClassicHttpRequest fallbackRequest = buildRequest(request, SecurityConfiguration.getOldM2MToken());
