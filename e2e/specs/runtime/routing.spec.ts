@@ -11,7 +11,6 @@
  * registry and no axis row.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain, elementNames, failedElements } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
@@ -19,8 +18,7 @@ import { covers } from "../../registry/covers.js";
 /** The header the branching fixtures read. `${header[e2e-branch]}` in the fixtures' predicates. */
 const BRANCH_HEADER = "e2e-branch";
 
-test("condition sends the exchange down the branch its predicate selects", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("condition sends the exchange down the branch its predicate selects", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   covers("condition");
   covers("if");
   covers("else");
@@ -58,8 +56,7 @@ test("condition sends the exchange down the branch its predicate selects", { tag
   ]);
 });
 
-test("choice, deprecated, still routes and still records its branch", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("choice, deprecated, still routes and still records its branch", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   covers("choice");
   covers("when");
   covers("otherwise");
@@ -97,8 +94,7 @@ test("choice, deprecated, still routes and still records its branch", { tag: ["@
   ]);
 });
 
-test("split runs both branches and the aggregation keys the result by split name", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("split runs both branches and the aggregation keys the result by split name", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   covers("split-2");
   covers("main-split-element-2");
   covers("split-element-2");

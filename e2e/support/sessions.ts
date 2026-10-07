@@ -333,8 +333,6 @@ export interface LookupOptions {
 export interface SessionsOptions {
   /** sessions-management's base URL; `sessionsUrl()` by default. */
   base?: string;
-  /** Changes each session a lookup returns in place, before the caller reads it. */
-  rename?: (session: RecordedSession) => void;
 }
 
 /** The session lookups, on sessions-management's own port. */
@@ -344,19 +342,10 @@ export class Sessions {
   // outside Playwright.
   private readonly api: APIRequestContext;
   private readonly base: string;
-  /** Applied to every session a lookup returns: `nameMicroSteps` in a micro case, else nothing. */
-  private readonly rename: (session: RecordedSession) => void;
 
   constructor(api: APIRequestContext, options: SessionsOptions = {}) {
     this.api = api;
     this.base = options.base ?? sessionsUrl();
-    this.rename = options.rename ?? (() => {});
-  }
-
-  /** A session as sessions-management answered it, after `rename`. */
-  private renamed(session: RecordedSession): RecordedSession {
-    this.rename(session);
-    return session;
   }
 
   /**
@@ -375,7 +364,7 @@ export class Sessions {
     const body = await response.text();
     return {
       status: response.status(),
-      session: response.ok() && body.length ? this.renamed(JSON.parse(body) as RecordedSession) : null,
+      session: response.ok() && body.length ? (JSON.parse(body) as RecordedSession) : null,
     };
   }
 
@@ -554,7 +543,7 @@ export class Sessions {
    * `byExternalId` first.
    */
   async session(sessionId: string): Promise<RecordedSession> {
-    return this.renamed(await this.call<RecordedSession>("get", `/v1/sessions/${encodeURIComponent(sessionId)}`));
+    return this.call<RecordedSession>("get", `/v1/sessions/${encodeURIComponent(sessionId)}`);
   }
 
   /** The raw answer of the same read, for the case asserting the miss. */

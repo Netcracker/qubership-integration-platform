@@ -22,7 +22,6 @@ import {
   IDEMPOTENCY_KEY_HEADER,
   PASSED_STEP,
 } from "../../fixtures/axis-generator.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { callToken } from "../../support/run.js";
 import { callChain, element, elementNames, type ExecutionStatus } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
@@ -54,8 +53,7 @@ const DUPLICATES: DuplicateCase[] = [
 
 for (const duplicate of DUPLICATES) {
   const branch = `${duplicate.axisPath}=${duplicate.value}`;
-  test(`${branch}: a repeated key ${duplicate.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-    test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+  test(`${branch}: a repeated key ${duplicate.outcome}`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
     covers("http-trigger", duplicate.axisPath, duplicate.value);
     // Every actionOnDuplicate chain enables the check.
     if (duplicate.axisPath === "idempotency/actionOnDuplicate") covers("http-trigger", "idempotency/enabled", true);
@@ -96,8 +94,7 @@ const POSITIONS = [
 
 for (const { fixture, position } of POSITIONS) {
   const branch = `${fixture.axisPath}=${fixture.value}`;
-  test(`correlationIdPosition ${position} receives the correlation id the call carries`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-    test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+  test(`correlationIdPosition ${position} receives the correlation id the call carries`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
     covers("http-trigger", "correlationIdPosition", position);
     const chain = seedChain(readCorpusState(), axisFixtureName(fixture));
     const sent = callToken("correlation");

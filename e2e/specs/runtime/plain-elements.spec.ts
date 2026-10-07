@@ -14,7 +14,7 @@
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
-import { MICRO_CONTAINER_PARENTS, MICRO_STEP_NAMES, MICRO_XSLT, MISPLACED_BRANCH_STEPS } from "../../support/known-defect.js";
+import { MICRO_CONTAINER_PARENTS, MICRO_XSLT, MISPLACED_BRANCH_STEPS, strikesAsKnown } from "../../support/known-defect.js";
 import { readUntil } from "../../support/poll.js";
 import { callChain, element, elementNames, HTTP_TRIGGER_STEPS, SESSION_TIMEOUT, trace, type RecordedSession, type Sessions, type TracedElement } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
@@ -24,8 +24,7 @@ import type { Env } from "../../env/index.js";
 /** The header both file fixtures name the file after. */
 const FILE_HEADER = "e2e-file";
 
-test("file-write then file-read: a file one chain writes, the other reads back into its response", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("file-write then file-read: a file one chain writes, the other reads back into its response", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("file-write");
   covers("file-read");
 
@@ -107,9 +106,7 @@ const BRANCHES: Record<string, { script: string; body: unknown }> = {
   "Second Async Branch": { script: "Second Async Script", body: { branch: "second" } },
 };
 
-test("split-async-2 answers from the step after it, and each async branch runs its own step", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
-  test.fail(engineKind === "micro", MICRO_CONTAINER_PARENTS.title);
+test("split-async-2 answers from the step after it, and each async branch runs its own step", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("split-async-2");
   covers("async-split-element-2");
 
@@ -127,7 +124,9 @@ test("split-async-2 answers from the step after it, and each async branch runs i
     const parent = step && (steps.find((each) => each.elementId === step.parentElement)?.elementName ?? "no parent");
     return parent === undefined || parent === branch ? [] : [`"${script}" under ${parent}`];
   });
-  expect(misplaced, `${MISPLACED_BRANCH_STEPS} ${misplaced.join(", ")}`).toEqual([]);
+  await strikesAsKnown(MICRO_CONTAINER_PARENTS, async () =>
+    expect(misplaced, `${MISPLACED_BRANCH_STEPS} ${misplaced.join(", ")}`).toEqual([]),
+  );
   expect((session.sessionElements ?? []).map((each) => each.elementName)).toEqual(["HTTP Trigger", "Split Async", "After Split"]);
 
   const split = element(session, "Split Async") as TracedElement;

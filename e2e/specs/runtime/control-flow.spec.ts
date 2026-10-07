@@ -10,7 +10,6 @@
  * by the broad `if`, or a checked exception swallowed by the runtime catch, changes only the steps.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain, type SeedChain } from "../../support/corpus.js";
 import { sleep } from "../../support/poll.js";
 import { callChain, element, elementNames, HTTP_TRIGGER_STEPS, type ExecutionStatus, type Sessions } from "../../support/sessions.js";
@@ -32,8 +31,7 @@ const CONDITIONS: ConditionCase[] = [
 ];
 
 for (const condition of CONDITIONS) {
-  test(`condition: e2e-branch ${condition.header ?? "absent"} runs the ${condition.branch} child`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-    test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+  test(`condition: e2e-branch ${condition.header ?? "absent"} runs the ${condition.branch} child`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
     covers("condition");
     covers(condition.branch === "else" ? "else" : "if");
 
@@ -70,8 +68,7 @@ const TRIES: TryCase[] = [
 ];
 
 for (const each of TRIES) {
-  test(`try-catch-finally: e2e-throw ${each.thrown} runs ${each.caught[0] ?? "no catch"} and the finally`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-    test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+  test(`try-catch-finally: e2e-throw ${each.thrown} runs ${each.caught[0] ?? "no catch"} and the finally`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
     covers("try-catch-finally-2");
     covers("try-2");
     covers("finally-2");
@@ -162,8 +159,7 @@ async function closeBreaker(request: APIRequestContext, env: Env, chain: SeedCha
 // The two fixtures differ in `slidingWindowType` alone: open at 60% over at least two calls, and
 // stay open for ten seconds. Each case closes its breaker first, so a rerun against a kept corpus
 // starts from the same state as a fresh seed.
-test("slidingWindowType=COUNT_BASED: failures far apart still open the breaker and short-circuit the next call", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("slidingWindowType=COUNT_BASED: failures far apart still open the breaker and short-circuit the next call", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("circuit-breaker-2");
   covers("circuit-breaker-configuration-2");
   covers("circuit-breaker-configuration-2", "slidingWindowType", "COUNT_BASED");
@@ -180,8 +176,7 @@ test("slidingWindowType=COUNT_BASED: failures far apart still open the breaker a
   await assertTraces(sessions, [first, second, probe]);
 });
 
-test("slidingWindowType=TIME_BASED: a failure that left the window does not count toward opening the breaker", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("slidingWindowType=TIME_BASED: a failure that left the window does not count toward opening the breaker", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("circuit-breaker-configuration-2", "slidingWindowType", "TIME_BASED");
 
   const chain = seedChain(readCorpusState(), "circuit-breaker-time-based");

@@ -351,8 +351,9 @@ right now, so a controller added to a service fails a run.
     - It is for a divergence a spec can reproduce on demand. Where no create path manufactures the
       offending state, such as an element of a type the library does not offer, the spec asserts the
       healthy contract and prints the query that finds the offender instead.
-    - A defect that only a stack holding enough data meets would turn a plain `test.fail()` red on a
-      small stack. Wrap the step that meets it in `strikesAsKnown` with a `ConditionalDefect` from
+    - A defect that only some runs meet, such as one that needs a stack holding enough data or a
+      particular thread interleaving, would turn a plain `test.fail()` red on the other runs. Wrap the
+      step that meets it in `strikesAsKnown` with a `ConditionalDefect` from
       `support/known-defect.ts`: the case becomes an expected failure only when the step throws that
       defect, and the defect's `matches` gets a case in `specs/schema/conditional-defects.spec.ts`.
 14. **A `specs/schema/` spec imports `test` and `expect` from `@playwright/test`, never from
@@ -397,13 +398,11 @@ right now, so a controller added to a service fails a run.
     `seedChain` returns the copy of the corpus that matches the project's `engineKind`. A spec may
     read `engineKind` in a micro-only pin, `test.fail(engineKind === "micro", <defect>.title)`,
     which `support/known-defect.ts` narrows to that defect, and in `engine-identity.spec.ts`, whose
-    subject is the engine kind. A case pinned for the step names reads each step the micro engine
-    named by a UUID under its chain element's name, so the rest of the case still runs on micro and
-    fails on the defect only once its body has passed. A difference between the two engines is a
-    finding: pin it with its entry in `docs/product-defects.md`, never loosen the assertion for one
-    engine. A runtime file that deploys its own chains, calls the classic engine directly, or goes
-    through the testing service is classic-only: it goes in `CLASSIC_ONLY_RUNTIME_FILES` in
-    `env/target-setup.ts`, which `runtime-micro` ignores and the report header lists.
+    subject is the engine kind. A difference between the two engines is a finding: pin it with its
+    entry in `docs/product-defects.md`, never loosen the assertion for one engine. A runtime file
+    that deploys its own chains, calls the classic engine directly, or goes through the testing
+    service is classic-only: it goes in `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`, which
+    `runtime-micro` ignores and the report header lists.
     `specs/schema/target-rules.spec.ts` checks this rule and the `support/kube.ts` half of rule 4.
 
 ### Assertions that catch a reported success
