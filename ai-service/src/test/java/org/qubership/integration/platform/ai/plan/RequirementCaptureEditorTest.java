@@ -15,10 +15,88 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKi
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.InteractionInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.SystemType;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.TransitionInput;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureEditorTest {
+
+  @Test
+  void idsChoicePreservesFolderAndSystemTypeWhileExplicitChangesReplaceThem() {
+    var base = initial();
+    var accepted = new DraftInput(base.flow(), base.facts(), base.capabilities(), base.openQuestions(),
+        new DraftSettings(null, SystemType.INTERNAL, "/Tests"));
+    var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        new DraftSettings(false, null, null));
+    var result = RequirementCaptureEditor.apply(accepted, update);
+    assertTrue(result.accepted(), result.issues().toString());
+    assertEquals(new DraftSettings(false, SystemType.INTERNAL, "/Tests"), result.draft().settings());
+    var changed = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+        new DraftSettings(null, SystemType.EXTERNAL, "/Other tests"));
+    assertEquals(new DraftSettings(false, SystemType.EXTERNAL, "/Other tests"),
+        RequirementCaptureEditor.apply(result.draft(), changed).draft().settings());
+  }
+
+  @Test
+  void unrelatedSettingsEditsPreserveIdsChoiceAndAnExplicitChangeReplacesIt() {
+    var base = initial();
+    for (Boolean choice : List.of(true, false)) {
+      var accepted = new DraftInput(base.flow(), base.facts(), base.capabilities(), base.openQuestions(),
+          new DraftSettings(choice, null));
+      var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          new DraftSettings(null, null, "/Tests"));
+      var result = RequirementCaptureEditor.apply(accepted, update);
+      assertTrue(result.accepted(), result.issues().toString());
+      assertEquals(choice, result.draft().settings().idsRequested());
+      assertEquals(base.facts(), result.draft().facts());
+      var changed = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
+          new DraftSettings(!choice, null, "/Tests"));
+      assertEquals(!choice, RequirementCaptureEditor.apply(result.draft(), changed).draft().settings().idsRequested());
+    }
+  }
+
+  @Test
+  void nestedPlacementRejectsMissingSelfAndConflictingParents() {
+    var base = initial();
+    var facts = new java.util.ArrayList<>(base.facts());
+    for (String parent : List.of("missing", "nested-work", "start")) {
+      var intent = new RequirementElementIntent("nested-work", "script",
+          RequirementElementIntent.Placement.LOCAL_NODE, "start", null, null, parent,
+          "Nested work", List.of(), List.of());
+      facts.add(new FactInput("nested-" + parent, List.of("start"), FactKind.BEHAVIOR,
+          Polarity.POSITIVE, "Run the script inside its container.", null, null, intent));
+    }
+    var result = RequirementCaptureEditor.initialize(new DraftInput(base.flow(), facts,
+        base.capabilities(), base.openQuestions(), base.settings()));
+
+    assertFalse(result.accepted());
+    assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("UNKNOWN_ELEMENT_REFERENCE")));
+    assertTrue(result.issues().stream().anyMatch(issue -> issue.code().equals("CONFLICTING_ELEMENT_INTENT")));
+  }
+
+  @Test
+  void nestedPlacementPreservesTheContainerAndItsChildFacts() {
+    var base = initial();
+    var facts = new java.util.ArrayList<>(base.facts());
+    var container = new RequirementElementIntent("reuse-work", "reuse",
+        RequirementElementIntent.Placement.LOCAL_NODE, "start", null, null, null, List.of(), List.of());
+    var child = new RequirementElementIntent("nested-work", "script",
+        RequirementElementIntent.Placement.LOCAL_NODE, "start", null, null, "reuse-work",
+        "Nested work", List.of(), List.of());
+    facts.add(new FactInput("reuse-config", List.of("start"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Create the reusable container.", null, null, container));
+    facts.add(new FactInput("nested-config", List.of("start"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+        "Run the script inside the container.", null, null, child));
+    var result = RequirementCaptureEditor.initialize(new DraftInput(base.flow(), facts,
+        base.capabilities(), base.openQuestions(), base.settings()));
+
+    assertTrue(result.accepted(), result.issues().toString());
+    assertEquals(facts, result.draft().facts());
+  }
 
   @Test
   void laterFactsCannotIntroduceConflictingNamesOrUnknownOrderReferences() {

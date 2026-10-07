@@ -68,8 +68,10 @@ const ACTION_LABELS: Record<string, string> = {
   describe_mappings: "Describe mappings",
   retry: "Retry",
   revise: "Revise",
+  "continue-repair": "Continue repair",
   "retry-creation": "Retry creation",
   "edit-requirements": "Edit requirements",
+  "rebuild-design": "Rebuild design",
   "rebuild-plan": "Rebuild plan",
   "stop-with-report": "End run and keep report",
   "restart-from-beginning": "Beginning",
@@ -114,8 +116,10 @@ const COMMAND_ACTIONS = new Set([
   "import-specification-external",
   "retry",
   "revise",
+  "continue-repair",
   "retry-creation",
   "edit-requirements",
+  "rebuild-design",
   "rebuild-plan",
   "stop-with-report",
   ...RESTART_ACTIONS,
@@ -142,8 +146,10 @@ const PRIMARY_ACTIONS = new Set([
   "pass_through",
   "retry",
   "revise",
+  "continue-repair",
   "retry-creation",
   "edit-requirements",
+  "rebuild-design",
   "rebuild-plan",
 ]);
 
@@ -421,7 +427,8 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
           title: "Creation cannot continue",
           summary:
             "Creation stopped without a question to answer. End the run or start again.",
-          preservedWork: "Your approved requirements and plan are saved.",
+          preservedWork:
+            "Your requirements and saved progress remain available.",
           technicalDetails: "",
         },
       }
@@ -469,9 +476,6 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
         .filter(Boolean)
         .join("\n")
     : "";
-  const retryDelaySeconds = recovery?.retryDelayMs
-    ? Math.ceil(recovery.retryDelayMs / 1000)
-    : 0;
   const sameTaskFooter =
     answeredAction === "stop-with-report" && onStartSameTask ? (
       <div className="ai-decision-card__same-task">
@@ -501,12 +505,6 @@ export const AiDecisionCard: React.FC<AiDecisionCardProps> = ({
         <div id={summaryId} className="ai-decision-card__recovery-summary">
           <MarkdownRenderer>{recovery.summary}</MarkdownRenderer>
           <Typography.Paragraph>{recovery.preservedWork}</Typography.Paragraph>
-          {retryDelaySeconds > 0 ? (
-            <Typography.Text type="secondary">
-              Retry in {retryDelaySeconds}{" "}
-              {retryDelaySeconds === 1 ? "second" : "seconds"}.
-            </Typography.Text>
-          ) : null}
         </div>
 
         {recoveryDetails ? (

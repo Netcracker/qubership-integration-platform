@@ -311,7 +311,8 @@ public record ChainSemanticCapture(
         @JsonProperty(required = true) String targetNodeId,
       @Description("regionId this edge belongs to; omit outside a control-flow region")
           String regionId,
-      @Description("Edge role; omit for a plain sequence edge") SemanticRouteKind routeKind,
+      @Description("Required edge role: SEQUENCE for ordinary flow; use typed routes at region boundaries")
+        @JsonProperty(required = true) SemanticRouteKind routeKind,
       @Description("branchId for CONDITION_BRANCH and SPLIT_BRANCH") String branchId,
       @Description("Branch ids that reconverge here; RECONVERGE only") List<String> branchIds,
       @Description("handlerId for CATCH_PATH") String handlerId,

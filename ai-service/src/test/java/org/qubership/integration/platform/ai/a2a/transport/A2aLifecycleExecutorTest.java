@@ -158,7 +158,7 @@ class A2aLifecycleExecutorTest {
                           new org.a2aproject.sdk.spec.TaskStatus(
                               projected.state().toSdk(), null, null))
                       .build();
-              return new A2aTaskSnapshotPersister.PersistResult(task, List.of(), List.of());
+              return new A2aTaskSnapshotPersister.PersistResult(task, List.of(), List.of(), 9L);
             });
 
     Message message =
@@ -177,6 +177,8 @@ class A2aLifecycleExecutorTest {
     AgentEmitter emitter = mock(AgentEmitter.class);
 
     executor.execute(context, emitter);
+    verify(receipts).completeDispatch("local", "local-user", "msg-1",
+        java.util.UUID.fromString("11111111-1111-1111-1111-111111111111"), 9L, 9L);
 
     verify(persister, times(1)).persistAndBuildSdkTask(any(), any(), any(), any(), any());
     verify(emitter, org.mockito.Mockito.atLeastOnce()).addTask(any());

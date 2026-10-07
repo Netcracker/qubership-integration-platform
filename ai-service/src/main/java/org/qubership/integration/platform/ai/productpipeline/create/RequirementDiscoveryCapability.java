@@ -15,6 +15,9 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
+import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore.RequirementRejection;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway;
 import org.qubership.integration.platform.ai.llm.agent.GatherRequirementsAgent;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsAgentCall;
 import org.qubership.integration.platform.ai.llm.scenario.GatherRequirementsPromptBuilder;
@@ -29,6 +32,8 @@ import org.qubership.integration.platform.ai.plan.workdocument.flow.WorkLogicalF
 import org.qubership.integration.platform.ai.plan.RequirementDiscoveryDirective;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.IdsBypass;
+import org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
@@ -62,6 +67,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private final BiFunction<String, String, Multi<ChatEvent>> gatherRunner;
   private final ConversationService conversationService;
   private final CatalogBindingMatcher catalogBindingMatcher;
+  @Inject CaptureAttemptFeedbackStore captureFeedback;
 
   @Inject
   public RequirementDiscoveryCapability(
@@ -228,6 +234,40 @@ public class RequirementDiscoveryCapability implements StageCapability {
           """.formatted(repair.findings(), repair.errorEvidence());
       draftStore.restoreAccepted(conversationId, mappingRepairDraft);
     }
+    var repair = StageRepairEvidence.from(context);
+    if (userMessage.isBlank() && repair != null
+        && RecoveryCauseCode.MISSING_BRIEF_FACTS.name().equals(repair.causeCode())) {
+      userMessage = """
+          Restore requirements omitted from the accepted draft. Call readRequirementSource to read
+          the saved author messages in order, including later corrections, then read the accepted
+          draft. Call updateRequirementDraft only for changes supported by those messages. Preserve
+          unrelated facts, IDs, flow, settings, and confirmed policy choices. Ask for clarification
+          only if the saved source leaves a required value absent or a choice unresolved. After
+          saving, finish with CONTINUE so analysis can present a new brief for approval.
+          Repair findings:
+          %s
+          %s
+          Proposed corrections:
+          %s
+          """.formatted(repair.findings(), repair.errorEvidence(),
+              context.attributes().getOrDefault(ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR, List.of()));
+    }
+    if (userMessage.isBlank() && repair != null) {
+      boolean clean = context.attributeAsString(ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR) != null;
+      userMessage = """
+          Correct the generated requirement draft using the saved author messages and accepted facts.
+          Read readRequirementSource and the current draft. Preserve confirmed choices, exact values,
+          fact IDs, flow, and unrelated requirements. A capture/schema failure is a producer error;
+          ask the author only if the saved source leaves a required value or product choice unresolved.
+          Strategy: %s
+          Cause: %s
+          Findings:
+          %s
+          %s
+          """.formatted(clean ? "Generate a complete draft in this fresh turn from the saved source."
+              : "Correct the affected capture fields from the saved evidence.",
+              repair.causeCode(), repair.findings(), repair.errorEvidence());
+    }
     // startOrResume advances the first stage before acceptInput attaches userText. LangChain4j
     // rejects blank @UserMessage, so wait for input instead of calling the gather agent.
     if (userMessage.isBlank()) {
@@ -272,6 +312,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
             captured.set(draft);
           }
         });
+      if (captureFeedback != null) {
+        captureFeedback.clearRequirement(conversationId);
+      }
       draftStore.beginTurn(conversationId, gatherMessage);
       return installed;
     };
@@ -340,6 +383,22 @@ public class RequirementDiscoveryCapability implements StageCapability {
     RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
     RequirementDraft draft =
         captured.get() != null ? captured.get() : draftStore.get(conversationId).orElse(null);
+    Optional<RequirementRejection> rejection = captureFeedback == null ? Optional.empty()
+        : captureFeedback.lastRequirementRejection(conversationId);
+    if (rejection.isPresent() && rejection.get().issues().stream()
+        .anyMatch(issue -> !"AMBIGUOUS_TARGET_FOLDER".equals(issue.code()))) {
+      var findings = rejection.get().issues().stream().map(issue ->
+          new PlanValidationFinding(
+              issue.code(), issue.path() + ": " + issue.message(), true,
+              MappingValidationDetails.empty(),
+              issue.entityId() == null || issue.entityId().isBlank() ? "requirement-draft" : issue.entityId(),
+              CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+      var cause = new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "");
+      draftStore.recordCaptureRejection(conversationId, cause.formattedFindings());
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "The generated requirement draft was rejected. Repair the reported fields and preserve the requirements.",
+          cause));
+    }
     RequirementDraft repairDraft = mappingRepairDraft(context);
     if (repairDraft != null && !preservesMappingRepair(context, repairDraft, draft)) {
       draftStore.restoreAccepted(conversationId, repairDraft);
@@ -354,7 +413,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
                 StageOutcomeClass.NEEDS_INPUT,
                 PipelineGates.tag(
                     PipelineGates.REQUIREMENT_DRAFT_READY,
-                    "Requirements are ready. Continue to planning?")));
+                    "Requirements draft saved. Continue to planning when ready.")));
       }
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));

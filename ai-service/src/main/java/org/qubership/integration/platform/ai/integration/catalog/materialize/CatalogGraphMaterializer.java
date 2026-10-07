@@ -120,6 +120,7 @@ public class CatalogGraphMaterializer {
         new LinkedHashMap<>(materializationMap.nodeIdToElementId());
     List<String> failed = new ArrayList<>();
     String error = null;
+    RuntimeException failureCause = null;
     MaterializationAttemptContext createAttempt = new MaterializationAttemptContext();
     boolean createdInAttempt = false;
 
@@ -141,7 +142,10 @@ public class CatalogGraphMaterializer {
       } catch (RuntimeException e) {
         LOG.errorf(e, "Failed to create element for node %s in chain %s", nodeId, chainId);
         failed.add(nodeId);
-        error = error == null ? e.getMessage() : error;
+        if (error == null) {
+          failureCause = e;
+        }
+        error = error == null ? Objects.toString(e.getMessage(), e.getClass().getSimpleName()) : error;
       }
     }
 
@@ -155,7 +159,8 @@ public class CatalogGraphMaterializer {
             chainId, nodeIdToElementId, createAttempt, cache);
       } catch (RuntimeException e) {
         LOG.errorf(e, "Failed to prune unclaimed generated children in chain %s", chainId);
-        error = error == null ? e.getMessage() : error;
+        failureCause = e;
+        error = error == null ? Objects.toString(e.getMessage(), e.getClass().getSimpleName()) : error;
       }
     }
 
@@ -176,7 +181,10 @@ public class CatalogGraphMaterializer {
                   List.of()),
               map);
       failed.addAll(applied.failedNodeIds().stream().filter(id -> !failed.contains(id)).toList());
-      error = error == null ? applied.firstValidationError() : error;
+      if (error == null) {
+        error = applied.firstValidationError();
+        failureCause = applied.failureCause();
+      }
     }
 
     if (!parentTransfers.isEmpty() && failed.isEmpty() && error == null) {
@@ -229,6 +237,7 @@ public class CatalogGraphMaterializer {
         createdEdges = List.copyOf(edgesToCreate);
       } else {
         error = "connections not created: " + String.join(", ", connected.failedEdgeIds());
+        failureCause = connected.failureCause();
         createdEdges =
             edgesToCreate.stream()
                 .filter(edge -> !connected.failedEdgeIds().contains(edge.edgeId()))
@@ -260,7 +269,8 @@ public class CatalogGraphMaterializer {
     }
 
     if (failed.isEmpty() && error == null) {
-      error =
+      try {
+        error =
           readBackVerifier.verify(
               chainId,
               currentGraph,
@@ -268,6 +278,10 @@ public class CatalogGraphMaterializer {
               map,
               originalMap,
               List.copyOf(written));
+      } catch (RuntimeException e) {
+        error = "Catalog read-back verification failed: " + e.getMessage();
+        failureCause = e;
+      }
     }
 
     List<String> adoptedGeneratedCatalogIds =
@@ -287,7 +301,8 @@ public class CatalogGraphMaterializer {
             recreatableEdges,
             List.copyOf(completedTransfers),
             adoptedGeneratedCatalogIds,
-            false);
+            false,
+            failureCause);
     if (result.succeeded()) {
       requireOwnership(desiredGraph, owned);
     }

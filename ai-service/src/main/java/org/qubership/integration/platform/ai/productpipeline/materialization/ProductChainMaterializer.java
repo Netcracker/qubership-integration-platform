@@ -74,7 +74,7 @@ public class ProductChainMaterializer {
         || phase == MaterializationPhase.PROPERTIES
         || phase == MaterializationPhase.CONNECTIONS) {
       appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.CHAIN, owned, null);
-      owned = applyGraph(inputs, chainId, map);
+      owned = applyGraph(inputs, executionKey, chainId, map);
       map = new LinkedHashMap<>(owned.nodeIdToElementId());
       current = appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.ELEMENTS, owned, null);
       phase = current.completedPhase();
@@ -146,7 +146,7 @@ public class ProductChainMaterializer {
   }
 
   private MaterializationMap applyGraph(
-      Inputs inputs, String chainId, Map<String, String> existingMap) {
+      Inputs inputs, String executionKey, String chainId, Map<String, String> existingMap) {
     Map<String, String> seededMap =
         seedMaterializationMapFromReadBack(inputs.graph(), chainId, existingMap);
     MaterializationMap checkpointMap =
@@ -156,9 +156,11 @@ public class ProductChainMaterializer {
     CatalogGraphMaterializeResult result =
         catalog.applyGraph(current, desired, checkpointMap).await().indefinitely();
     if (!result.succeeded()) {
+      appendCheckpoint(inputs, executionKey, chainId, MaterializationPhase.CHAIN,
+          result.materializationMap(), result.failedNodeIds().isEmpty() ? null : result.failedNodeIds().getFirst());
       throw new IllegalStateException(
           "graph materialization failed: "
-              + (result.error() == null ? result.failedNodeIds() : result.error()));
+              + (result.error() == null ? result.failedNodeIds() : result.error()), result.failureCause());
     }
     MaterializationMap owned = result.materializationMap();
     return new MaterializationMap(

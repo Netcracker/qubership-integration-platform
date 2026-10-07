@@ -2,16 +2,11 @@ package org.qubership.integration.platform.ai.productpipeline.recovery;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
-import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
-/** Projects {@link RecoveryContext} into lossless, redacted JSON for the recovery LLM turn. */
+/** Projects complete, redacted context and refuses diagnostic turns over the size budget. */
 public final class RecoveryContextProjector {
 
   public static final int CHAR_BUDGET = 100_000;
@@ -32,7 +27,16 @@ public final class RecoveryContextProjector {
       root.put("failureId", evidence.failureId());
       root.set("evidence", evidenceNode(redactedEvidence(evidence), mapper));
     }
-    root.set("approvedBrief", briefNode(context.approvedBrief(), mapper));
+    root.set("approvedBrief", mapper.valueToTree(context.approvedBrief()));
+    if (context.approvedPlanRef() != null) {
+      root.set("approvedPlanRef", mapper.valueToTree(context.approvedPlanRef()));
+      root.set("approvedPlan", mapper.valueToTree(context.approvedPlan()));
+    }
+    root.set("evidenceRefIds", mapper.valueToTree(
+        RecoveryDecisionValidator.evidenceReferenceIds(context).stream().sorted().toList()));
+    var inputs = root.putArray("authorInputs");
+    context.authorInputs().forEach(input -> inputs.addObject()
+        .put("inputId", input.inputId()).put("text", input.text()));
     if (context.rejectedArtifact() != null) {
       root.set("rejectedArtifact", mapper.valueToTree(context.rejectedArtifact()));
     }
@@ -41,77 +45,10 @@ public final class RecoveryContextProjector {
     }
 
     String inline = write(root, mapper);
-    if (inline.length() <= CHAR_BUDGET) {
-      return inline;
+    if (inline.length() > CHAR_BUDGET) {
+      throw new IllegalArgumentException("Recovery context exceeds the diagnostic character budget");
     }
-    return projectWithAttachments(context, mapper);
-  }
-
-  private static String projectWithAttachments(RecoveryContext context, ObjectMapper mapper) {
-    RecoveryEvidence evidence = context.evidence();
-    Map<String, String> attachments = new LinkedHashMap<>();
-    List<String> manifest = new ArrayList<>();
-
-    ObjectNode root = mapper.createObjectNode();
-    if (evidence != null) {
-      root.put("failureId", evidence.failureId());
-      ObjectNode evidenceNode = evidenceNode(redactedEvidence(evidence), mapper);
-      externalizeFindings(evidenceNode, attachments, manifest);
-      externalizeTechnicalFailure(evidenceNode, attachments, manifest, mapper);
-      root.set("evidence", evidenceNode);
-    }
-    root.set("approvedBrief", briefNode(context.approvedBrief(), mapper));
-    if (context.rejectedArtifact() != null) {
-      String key = "rejectedArtifact";
-      manifest.add(key);
-      attachments.put(key, write(mapper.valueToTree(context.rejectedArtifact()), mapper));
-      root.put("rejectedArtifactRef", key);
-    }
-    if (context.responseLocale() != null && !context.responseLocale().isBlank()) {
-      root.put("responseLocale", context.responseLocale().trim());
-    }
-
-    ArrayNode manifestNode = mapper.createArrayNode();
-    manifest.forEach(manifestNode::add);
-    root.set("manifest", manifestNode);
-    root.set("attachments", mapper.valueToTree(attachments));
-    return write(root, mapper);
-  }
-
-  private static void externalizeFindings(
-      ObjectNode evidenceNode, Map<String, String> attachments, List<String> manifest) {
-    if (!evidenceNode.has("findings") || !evidenceNode.get("findings").isArray()) {
-      return;
-    }
-    ArrayNode findings = (ArrayNode) evidenceNode.get("findings");
-    for (int index = 0; index < findings.size(); index++) {
-      if (!findings.get(index).isObject()) {
-        continue;
-      }
-      ObjectNode finding = (ObjectNode) findings.get(index);
-      if (!finding.has("rawValidatorJson")) {
-        continue;
-      }
-      String key = "finding-" + index;
-      manifest.add(key);
-      attachments.put(key, finding.remove("rawValidatorJson").asText());
-      finding.put("attachmentRef", key);
-    }
-  }
-
-  private static void externalizeTechnicalFailure(
-      ObjectNode evidenceNode,
-      Map<String, String> attachments,
-      List<String> manifest,
-      ObjectMapper mapper) {
-    if (!evidenceNode.has("technicalFailure") || !evidenceNode.get("technicalFailure").isObject()) {
-      return;
-    }
-    ObjectNode technical = (ObjectNode) evidenceNode.remove("technicalFailure");
-    String key = "technicalFailure";
-    manifest.add(key);
-    attachments.put(key, write(technical, mapper));
-    evidenceNode.put("technicalFailureRef", key);
+    return inline;
   }
 
   private static RecoveryEvidence redactedEvidence(RecoveryEvidence evidence) {
@@ -126,7 +63,8 @@ public final class RecoveryContextProjector {
         evidence.rejectedArtifactRefs(),
         evidence.findings(),
         redactedTechnicalFailure(evidence.technicalFailure()),
-        evidence.priorAttemptRefs());
+        evidence.priorAttemptRefs(),
+        evidence.documentRecordRefs());
   }
 
   private static TechnicalFailureRecord redactedTechnicalFailure(TechnicalFailureRecord record) {
@@ -180,16 +118,7 @@ public final class RecoveryContextProjector {
       node.set("technicalFailure", mapper.valueToTree(evidence.technicalFailure()));
     }
     node.set("priorAttemptRefs", mapper.valueToTree(evidence.priorAttemptRefs()));
-    return node;
-  }
-
-  private static ObjectNode briefNode(RequirementBrief brief, ObjectMapper mapper) {
-    ObjectNode node = mapper.createObjectNode();
-    if (brief == null) {
-      return node;
-    }
-    node.put("goal", brief.goal());
-    node.set("facts", mapper.valueToTree(brief.facts()));
+    node.set("documentRecordRefs", mapper.valueToTree(evidence.documentRecordRefs()));
     return node;
   }
 
@@ -197,7 +126,7 @@ public final class RecoveryContextProjector {
     try {
       return mapper.writeValueAsString(node);
     } catch (JsonProcessingException e) {
-      return "{}";
+      throw new IllegalStateException("Recovery context serialization failed", e);
     }
   }
 }

@@ -144,9 +144,11 @@ const RECOVERY_CATEGORIES = new Set([
   "temporary-technical-failure",
   "regeneratable-execution-failure",
   "requirement-brief-defect",
+  "design-artifact-defect",
   "plan-artifact-defect",
   "permanent-environment-failure",
   "internal-service-failure",
+  "repair-allowance-required",
   "repeated-identical-failure",
   "unclassified-failure",
 ]);

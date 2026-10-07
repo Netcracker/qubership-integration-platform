@@ -47,7 +47,7 @@ public class CompilationArtifacts {
   private final Clock clock;
 
   @Inject
-  CompilationArtifacts(S3ArtifactBlobStore blobStore, ObjectMapper objectMapper) {
+  CompilationArtifacts(ArtifactBlobStore blobStore, ObjectMapper objectMapper) {
     this(blobStore, canonicalMapper(objectMapper), Clock.systemUTC());
   }
 
@@ -372,6 +372,10 @@ public class CompilationArtifacts {
 
   public enum Kind {
     REQUIREMENT_DRAFT,
+    REQUIREMENT_CAPTURE_PROTECTION,
+    REQUIREMENT_CAPTURE_ATTEMPT,
+    REQUIREMENT_CAPTURE_FEEDBACK,
+    CAPTURE_CREDITS,
     CHAIN_PLAN_GRAPH,
     IMPLEMENTATION_PLAN,
     RUN_MANIFEST,

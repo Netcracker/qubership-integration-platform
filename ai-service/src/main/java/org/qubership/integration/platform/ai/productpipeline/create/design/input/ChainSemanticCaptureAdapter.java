@@ -135,11 +135,6 @@ public class ChainSemanticCaptureAdapter {
     List<SemanticContainment> containment = containment(capture, nodeIds);
     requireNativeDirectOutboundFactCoverage(authoritative, nodes);
     requirePositiveExecutableFactCoverage(authoritative, nodes);
-    List<String> intentErrors = validateElementIntent(authoritative, nodes, edges);
-    if (!intentErrors.isEmpty()) {
-      throw new IllegalArgumentException(String.join("\n", intentErrors));
-    }
-
     ChainSemanticRevision forIdentity =
         new ChainSemanticRevision(
             contract.semanticSchemaVersion(),
@@ -155,6 +150,10 @@ public class ChainSemanticCaptureAdapter {
             authoritative.constraints(),
             authoritative.assumptions(),
             authoritative.citations());
+    List<String> intentErrors = validateElementIntent(authoritative, forIdentity, contract);
+    if (!intentErrors.isEmpty()) {
+      throw new IllegalArgumentException(String.join("\n", intentErrors));
+    }
     String revisionId = REVISION_ID_PREFIX + canonicalizer.sha256(forIdentity).substring(0, 32);
     return new ChainSemanticRevision(
         forIdentity.schemaVersion(),
@@ -365,12 +364,23 @@ public class ChainSemanticCaptureAdapter {
   }
 
   public static List<String> validateElementIntent(
-      RequirementBrief brief, List<SemanticNode> nodes, List<SemanticExecutionEdge> edges) {
+      RequirementBrief brief, ChainSemanticRevision revision, CompilerContract contract) {
     if (brief == null) {
       return List.of();
     }
     List<String> errors = new ArrayList<>();
-    Map<String, List<String>> outgoing = adjacency(edges);
+    List<SemanticNode> nodes = revision.nodes();
+    Map<String, List<String>> outgoing = adjacency(revision.executionEdges());
+    Map<String, List<String>> children = new LinkedHashMap<>();
+    for (SemanticContainment relation : revision.containment()) {
+      children.computeIfAbsent(relation.parentNodeId(), ignored -> new ArrayList<>()).add(relation.childNodeId());
+    }
+    for (SemanticRegion region : revision.regions()) {
+      if (region.ownerNodeId() != null) {
+        children.computeIfAbsent(region.ownerNodeId(), ignored -> new ArrayList<>())
+            .addAll(region.bodyNodeIds(revision.executionEdges(), revision.regions()));
+      }
+    }
     for (RequirementFact fact : brief.facts()) {
       var intent = fact.elementIntent();
       if (intent == null || fact.polarity() != RequirementFactPolarity.POSITIVE
@@ -382,14 +392,35 @@ public class ChainSemanticCaptureAdapter {
       String nodeId = hook ? intent.ownerInteractionId() : intent.elementRef();
       List<SemanticNode> owners = nodes.stream()
           .filter(node -> node.provenance().sourceFactIds().contains(fact.sourceFactId())).toList();
-      if (owners.size() != 1 || !nodeId.equals(owners.getFirst().nodeId())
-          || hook && !(owners.getFirst() instanceof SemanticNode.ServiceCall)
-          || !hook && !intent.elementType().equals(elementType(owners.getFirst()))) {
+      SemanticNode owner = owners.stream().filter(node -> nodeId.equals(node.nodeId())).findFirst().orElse(null);
+      var elementContract = contract.elements().get(intent.elementType());
+      boolean container = !hook && elementContract != null && elementContract.runtimeDescriptor() != null
+          && elementContract.runtimeDescriptor().container();
+      boolean contributorsValid = owners.stream().allMatch(node -> nodeId.equals(node.nodeId())
+          || container && reachableWithinTransition(nodeId, node.nodeId(), children, Set.of()));
+      if (owner == null || !contributorsValid
+          || hook && !(owner instanceof SemanticNode.ServiceCall)
+          || !hook && !intent.elementType().equals(elementType(owner))) {
         errors.add("ELEMENT_INTENT_REALIZATION: fact=" + fact.sourceFactId() + " elementRef="
             + intent.elementRef() + " type=" + intent.elementType() + " placement=" + intent.placement()
             + " owner=" + intent.ownerInteractionId() + " actual=" + owners.stream().map(SemanticNode::nodeId).toList()
-            + ". Attach the fact to its required element; inline hooks belong only to their Service Call.");
+            + ". Attach the fact to its required element. Container body work may also reference it;"
+            + " unrelated nodes may not. Inline hooks belong only to their Service Call.");
         continue;
+      }
+      if (intent.parentElementRef() != null) {
+        SemanticNode parent = nodes.stream()
+            .filter(node -> intent.parentElementRef().equals(node.nodeId())).findFirst().orElse(null);
+        var parentContract = parent == null ? null : contract.elements().get(elementType(parent));
+        if (intent.placement() != Placement.LOCAL_NODE || parentContract == null
+            || parentContract.runtimeDescriptor() == null || !parentContract.runtimeDescriptor().container()
+            || nodeId.equals(intent.parentElementRef())
+            || !reachableWithinTransition(intent.parentElementRef(), nodeId, children, Set.of())) {
+          errors.add("ELEMENT_INTENT_PARENT: elementRef=" + intent.elementRef()
+              + " parent=" + intent.parentElementRef()
+              + ". Place the element inside its approved container using containment or the container region."
+              + " Preserve execution order separately; a parent reference does not require an execution edge.");
+        }
       }
       if (intent.successorElementRef() != null
           && !reachableWithinTransition(nodeId, intent.successorElementRef(), outgoing, Set.of())

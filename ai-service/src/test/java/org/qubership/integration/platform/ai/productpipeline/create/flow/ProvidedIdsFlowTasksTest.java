@@ -15,6 +15,8 @@ import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
@@ -24,6 +26,8 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipe
 import org.qubership.integration.platform.ai.productpipeline.stage.StageDecision;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.stage.StageExecutor;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 
 class ProvidedIdsFlowTasksTest {
 
@@ -40,7 +44,62 @@ class ProvidedIdsFlowTasksTest {
     when(runtime.stageExecutor()).thenReturn(executor);
     when(runtime.retryPolicy(RUN_ID, "work")).thenReturn(new RetryPolicy(3, 100L, 2.0, 250L));
     when(runtime.applyStageLifecycle(eq(RUN_ID), any())).thenReturn(Multi.createFrom().empty());
+    when(runtime.currentRunSnapshot(RUN_ID)).thenReturn(new RunSnapshot(
+        RUN_ID, "conversation-1", 5L, RunStatus.WAITING_FOR_INPUT, "work", List.of(), null, "flow-1"));
     tasks = new ProvidedIdsFlowTasks(runtime);
+  }
+
+  @Test
+  void acceptedInputReentersTheRunningStage() {
+    when(runtime.currentRunSnapshot(RUN_ID)).thenReturn(new RunSnapshot(
+        RUN_ID, "conversation-1", 5L, RunStatus.RUNNING, "requirement-discovery", List.of(), null, "flow-1"));
+
+    var next = tasks.restoreAfterInput(context().withDecision("WAIT_FOR_INPUT"));
+
+    assertEquals("CONTINUE", next.decision());
+    assertFalse(tasks.stillWaiting(context().withDecision("WAIT_FOR_INPUT")));
+    assertFalse(tasks.settled(RUN_ID));
+  }
+
+  @Test
+  void anOldSettlementCannotCloseTheStreamWhileAnAcceptedCommandIsRunning() {
+    when(runtime.currentRunSnapshot(RUN_ID)).thenReturn(new RunSnapshot(
+        RUN_ID, "conversation-1", 5L, RunStatus.WAITING_FOR_INPUT, "requirement-discovery",
+        List.of(), null, "flow-1"));
+    tasks.restoreAfterInput(context().withDecision("WAIT_FOR_INPUT"));
+    assertTrue(tasks.settled(RUN_ID));
+    when(runtime.currentRunSnapshot(RUN_ID)).thenReturn(new RunSnapshot(
+        RUN_ID, "conversation-1", 6L, RunStatus.RUNNING, "requirement-discovery",
+        List.of(), null, "flow-1"));
+
+    assertFalse(tasks.settled(RUN_ID));
+  }
+
+  @ParameterizedTest
+  @CsvSource({
+      "WAITING_FOR_INPUT,requirement-discovery,WAIT_FOR_INPUT",
+      "WAITING_FOR_APPROVAL,requirement-analysis,WAIT_FOR_REQUIREMENT_APPROVAL",
+      "WAITING_FOR_APPROVAL,design-input,WAIT_FOR_IDS_APPROVAL",
+      "WAITING_FOR_APPROVAL,design-planning,WAIT_FOR_PLAN_APPROVAL",
+      "WAITING_FOR_IMPLEMENT,design-planning,WAIT_FOR_IMPLEMENTATION",
+      "CHAIN_MATERIALIZED,materialization,STOP"
+  })
+  void staleResumePayloadCannotReleaseADurableWait(RunStatus status, String stageId, String decision) {
+    when(runtime.currentRunSnapshot(RUN_ID)).thenReturn(new RunSnapshot(
+        RUN_ID, "conversation-1", 8L, status, stageId, List.of(), null, "flow-1"));
+
+    var next = tasks.restoreAfterInput(context().withDecision("CONTINUE"));
+
+    assertEquals(decision, next.decision());
+    if (!"STOP".equals(decision)) {
+      assertTrue(tasks.stillWaiting(context().withDecision(decision)));
+    }
+    assertFalse(tasks.stillWaiting(context().withDecision("CONTINUE")));
+    if (!"WAIT_FOR_INPUT".equals(decision)) {
+      assertFalse(tasks.stillWaiting(context().withDecision("WAIT_FOR_INPUT")));
+    }
+    assertTrue(tasks.settled(RUN_ID));
+    org.mockito.Mockito.verify(executor, org.mockito.Mockito.never()).execute(any(), any());
   }
 
   @Test
@@ -123,20 +182,21 @@ class ProvidedIdsFlowTasksTest {
   @Test
   void retryDecisionsGrowWithinJitterBoundsAndClampAtTheMaximum() {
     when(runtime.currentStageId(RUN_ID)).thenReturn("work");
+    when(runtime.restoreTechnicalRetryCount(RUN_ID, "work")).thenReturn(0, 1, 2);
     when(executor.execute(RUN_ID, "work"))
         .thenReturn(
             Uni.createFrom()
                 .item(
                     new StageExecutionResult(
-                        new StageDecision.Retry("work", Duration.ofMillis(100L)), List.of())),
+                        new StageDecision.Retry("work", Duration.ofMillis(100L), true), List.of())),
             Uni.createFrom()
                 .item(
                     new StageExecutionResult(
-                        new StageDecision.Retry("work", Duration.ofMillis(100L)), List.of())),
+                        new StageDecision.Retry("work", Duration.ofMillis(100L), true), List.of())),
             Uni.createFrom()
                 .item(
                     new StageExecutionResult(
-                        new StageDecision.Retry("work", Duration.ofMillis(100L)), List.of())));
+                        new StageDecision.Retry("work", Duration.ofMillis(100L), true), List.of())));
 
     ProvidedIdsFlow.RunContext first = tasks.executeCurrentStage(context());
     ProvidedIdsFlow.RunContext second = tasks.executeCurrentStage(first);
@@ -147,6 +207,23 @@ class ProvidedIdsFlowTasksTest {
     assertTrue(delayMs(first) >= 80 && delayMs(first) <= 120);
     assertTrue(delayMs(second) >= 160 && delayMs(second) <= 240);
     assertEquals(250L, delayMs(third));
+  }
+
+  @Test
+  void producerRepairDoesNotSpendThePersistedTechnicalRetryBudget() {
+    when(runtime.currentStageId(RUN_ID)).thenReturn("work");
+    when(runtime.restoreTechnicalRetryCount(RUN_ID, "work")).thenReturn(1);
+    when(executor.execute(RUN_ID, "work")).thenReturn(Uni.createFrom().item(
+        new StageExecutionResult(new StageDecision.Retry("work", Duration.ofMillis(100L)), List.of())));
+    var input = new ProvidedIdsFlow.RunContext(
+        RUN_ID, "create-chain", "2", "manifest-sha", "CONTINUE", 1, "PT0.1S");
+
+    ProvidedIdsFlow.RunContext next = tasks.executeCurrentStage(input);
+
+    assertEquals("RETRY", next.decision());
+    assertEquals(1, next.technicalRetriesUsed());
+    assertEquals(100L, delayMs(next));
+    assertEquals(1, tasks.restoreAfterRetry(next).technicalRetriesUsed());
   }
 
   @Test
@@ -202,12 +279,13 @@ class ProvidedIdsFlowTasksTest {
   @Test
   void restoreAfterRetrySeedsThePersistedRetryCountBeforeTheNextAttempt() {
     when(runtime.currentStageId(RUN_ID)).thenReturn("work");
+    when(runtime.restoreTechnicalRetryCount(RUN_ID, "work")).thenReturn(1);
     when(executor.execute(RUN_ID, "work"))
         .thenReturn(
             Uni.createFrom()
                 .item(
                     new StageExecutionResult(
-                        new StageDecision.Retry("work", Duration.ofMillis(50L)), List.of())));
+                        new StageDecision.Retry("work", Duration.ofMillis(50L), true), List.of())));
 
     ProvidedIdsFlow.RunContext afterWait =
         tasks.restoreAfterRetry(
@@ -215,7 +293,7 @@ class ProvidedIdsFlowTasksTest {
                 RUN_ID, "create-chain", "2", "manifest-sha", "RETRY", 1, "PT0.05S"));
     tasks.executeCurrentStage(afterWait);
 
-    org.mockito.Mockito.verify(runtime).restoreTechnicalRetryCount(RUN_ID, "work", 1);
+    org.mockito.Mockito.verify(runtime).restoreTechnicalRetryCount(RUN_ID, "work");
   }
 
   private static ProvidedIdsFlow.RunContext context() {

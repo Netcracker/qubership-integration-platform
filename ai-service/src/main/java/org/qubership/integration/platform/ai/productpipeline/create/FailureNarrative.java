@@ -244,31 +244,55 @@ public final class FailureNarrative {
     return routedDiagnosis(narrative, closed, stage, typed, followUpText);
   }
 
-  /**
-   * Asks the model for a structured recovery decision. Empty when there is no agent, the run has
-   * spent its budget, the turn times out, the call fails, or the reply is blank.
-   */
-  public Optional<RecoveryDecision> recover(String runId, RecoveryContext context) {
-    if (agent == null || context == null) {
-      return Optional.empty();
+  /** Diagnostic status retains the distinction between an unusable reply and blocked transport. */
+  public enum RecoveryStatus {
+    READY, AGENT_UNAVAILABLE, PROJECTION_FAILURE, INVALID_REPLY, DIAGNOSIS_LIMIT,
+    TIMED_OUT, INTERRUPTED, TRANSIENT_PROVIDER_FAILURE, PERMANENT_PROVIDER_FAILURE,
+    PROVIDER_FAILURE, RESOURCE_REFUSAL;
+
+    public boolean permitsProducerFallback() {
+      return this == READY || this == AGENT_UNAVAILABLE || this == PROJECTION_FAILURE
+          || this == INVALID_REPLY || this == DIAGNOSIS_LIMIT;
+    }
+  }
+
+  public record RecoveryResult(RecoveryStatus status, RecoveryDecision decision, String detail) {
+    public static RecoveryResult reply(RecoveryDecision decision) {
+      return new RecoveryResult(decision == null ? RecoveryStatus.INVALID_REPLY : RecoveryStatus.READY,
+          decision, decision == null ? "Missing recovery decision." : "");
+    }
+  }
+
+  /** Retains dispatch blockers so a failed diagnosis cannot authorize another paid request. */
+  public RecoveryResult diagnoseRecovery(String runId, RecoveryContext context) {
+    if (agent == null) {
+      return new RecoveryResult(RecoveryStatus.AGENT_UNAVAILABLE, null, "Recovery agent is unavailable.");
+    }
+    if (context == null) {
+      return new RecoveryResult(RecoveryStatus.PROJECTION_FAILURE, null, "Recovery context is missing.");
     }
     String locale = normalizedLocale(context.responseLocale());
     String recoveryContextJson;
     try {
-      recoveryContextJson = RecoveryContextProjector.project(context, new ObjectMapper());
+      recoveryContextJson = RecoveryContextProjector.project(context, new ObjectMapper().findAndRegisterModules());
     } catch (RuntimeException ex) {
       LOG.warnf(ex, "Recovery context projection failed; keeping raw evidence");
-      return Optional.empty();
+      return new RecoveryResult(RecoveryStatus.PROJECTION_FAILURE, null, ex.getMessage());
     }
-    RecoveryDecision decision =
-        runTurn(
-            runId,
-            "Recovery decision",
-            () -> agent.recover(locale, recoveryContextJson));
+    if (!consumeCall(runId)) {
+      return new RecoveryResult(RecoveryStatus.DIAGNOSIS_LIMIT, null, "The diagnosis call allowance is exhausted.");
+    }
+    TurnResult<RecoveryDecision> turn = awaitTurnResult("Recovery decision",
+        () -> org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.withRun(runId,
+            () -> agent.recover(locale, recoveryContextJson)));
+    if (turn.status() != RecoveryStatus.READY) {
+      return new RecoveryResult(turn.status(), null, turn.detail());
+    }
+    RecoveryDecision decision = turn.value();
     if (decision == null || decision.causeClass() == null || decision.action() == null) {
-      return Optional.empty();
+      return new RecoveryResult(RecoveryStatus.INVALID_REPLY, null, "Recovery decision is incomplete.");
     }
-    return Optional.of(decision);
+    return RecoveryResult.reply(decision);
   }
 
   /**
@@ -448,7 +472,7 @@ public final class FailureNarrative {
           turnName, maxCallsPerRun, runId);
       return null;
     }
-    return awaitTurn(turnName, turn);
+    return awaitTurn(turnName, () -> org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.withRun(runId, turn));
   }
 
   /**
@@ -456,35 +480,68 @@ public final class FailureNarrative {
    * explanation budget; deduplication by question and evidence is the primary bound.
    */
   private <T> T runQuestionTurn(String runId, String turnName, Supplier<T> turn) {
-    return awaitTurn(turnName, turn);
+    return awaitTurn(turnName, () -> org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.withRun(runId, turn));
   }
 
   private <T> T awaitTurn(String turnName, Supplier<T> turn) {
+    return awaitTurnResult(turnName, turn).value();
+  }
+
+  private record TurnResult<T>(T value, RecoveryStatus status, String detail) {}
+
+  private <T> TurnResult<T> awaitTurnResult(String turnName, Supplier<T> turn) {
     if (timeout == null) {
-      return callOrNull(turnName, turn);
+      try {
+        return new TurnResult<>(turn.get(), RecoveryStatus.READY, "");
+      } catch (RuntimeException ex) {
+        LOG.warnf(ex, "%s LLM failed; keeping raw evidence", turnName);
+        return failedTurn(ex);
+      }
     }
     Future<T> pending = workers().submit(turn::get);
     try {
-      return pending.get(timeout.toMillis(), TimeUnit.MILLISECONDS);
+      return new TurnResult<>(pending.get(timeout.toMillis(), TimeUnit.MILLISECONDS), RecoveryStatus.READY, "");
     } catch (TimeoutException ex) {
       pending.cancel(true);
       LOG.warnf("%s timed out after %s; keeping raw evidence", turnName, timeout);
+      return new TurnResult<>(null, RecoveryStatus.TIMED_OUT, "Recovery diagnosis timed out; its transport outcome is unknown.");
     } catch (ExecutionException ex) {
       LOG.warnf(ex.getCause(), "%s LLM failed; keeping raw evidence", turnName);
+      return failedTurn(ex.getCause());
     } catch (InterruptedException ex) {
       Thread.currentThread().interrupt();
+      pending.cancel(true);
       LOG.warnf("%s was interrupted; keeping raw evidence", turnName);
+      return new TurnResult<>(null, RecoveryStatus.INTERRUPTED, "Recovery diagnosis was interrupted.");
     }
-    return null;
   }
 
-  private static <T> T callOrNull(String turnName, Supplier<T> turn) {
-    try {
-      return turn.get();
-    } catch (RuntimeException ex) {
-      LOG.warnf(ex, "%s LLM failed; keeping raw evidence", turnName);
-      return null;
+  private static <T> TurnResult<T> failedTurn(Throwable failure) {
+    if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(failure)) {
+      return new TurnResult<>(null, RecoveryStatus.PROJECTION_FAILURE, failure.getMessage());
     }
+    for (Throwable current = failure; current != null; current = current.getCause()) {
+      if (current instanceof org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted) {
+        return new TurnResult<>(null, RecoveryStatus.RESOURCE_REFUSAL, current.getMessage());
+      }
+      if (current instanceof dev.langchain4j.service.output.OutputParsingException) {
+        return new TurnResult<>(null, RecoveryStatus.INVALID_REPLY, current.getMessage());
+      }
+      if (current instanceof dev.langchain4j.exception.NonRetriableException
+          || current instanceof dev.langchain4j.exception.HttpException http
+              && http.statusCode() >= 400 && http.statusCode() < 500 && http.statusCode() != 429) {
+        return new TurnResult<>(null, RecoveryStatus.PERMANENT_PROVIDER_FAILURE, current.getMessage());
+      }
+    }
+    boolean transientFailure = org.qubership.integration.platform.ai.compiler.capture.TransientFailures.isTransient(failure)
+        || new org.qubership.integration.platform.ai.llm.ratelimit.TransientErrorClassifier().isTransient(failure);
+    if (transientFailure) {
+      return new TurnResult<>(null, RecoveryStatus.TRANSIENT_PROVIDER_FAILURE, failure.getMessage());
+    }
+    if (org.qubership.integration.platform.ai.compiler.capture.TransientFailures.isPermanentEnvironment(failure)) {
+      return new TurnResult<>(null, RecoveryStatus.PERMANENT_PROVIDER_FAILURE, failure.getMessage());
+    }
+    return new TurnResult<>(null, RecoveryStatus.PROVIDER_FAILURE, failure.getMessage());
   }
 
   /**

@@ -87,6 +87,8 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
 /** Default shared compiler DAG execution engine. */
 @ApplicationScoped
 public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEngine {
+  @Inject
+  org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget llmBudget;
 
   private static final Logger LOG = Logger.getLogger(DefaultCompilerDagExecutionEngine.class);
   private final CompilerOrchestrationService orchestration = new CompilerOrchestrationService();
@@ -272,6 +274,10 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
         toPlanningRequest(engineRequest, languageVersion, attemptId);
     CompilerExecutionSeed seed = engineRequest.effectiveSeed();
     String workspaceId = seed.workspaceId();
+    if (llmBudget != null) {
+      llmBudget.linkConversation(engineRequest.runId(), request.conversationId());
+      llmBudget.linkConversation(engineRequest.runId(), workspaceId);
+    }
     applySeed(seed);
     PinnedRunContext pinned = resolvePinnedRun(engineRequest);
     List<Reference> consumedArtifacts =

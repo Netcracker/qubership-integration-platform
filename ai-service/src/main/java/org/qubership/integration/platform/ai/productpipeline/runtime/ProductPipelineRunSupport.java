@@ -111,8 +111,15 @@ public final class ProductPipelineRunSupport {
   /** Diagnosed owner stage id from the last validation/domain/contract halt. */
   public static final String DIAGNOSED_OWNER_STAGE_ATTR = "diagnosedOwnerStageId";
 
+  public static final String RECOVERY_INVOCATION_ATTR = "recoveryProducerInvocation";
+  public static final String RECOVERY_PENDING_ATTEMPT_ATTR = "recoveryPendingAttempt";
+  public static final String RECOVERY_DIAGNOSIS_ATTR = "recoveryDiagnosisRequest";
+
   /** Raw failure evidence for the next attempt of the current unapproved stage. */
   public static final String STAGE_ERROR_CONTEXT_ATTR = "stageErrorContext";
+
+  /** Immediate stop reason, separate from the producer evidence retained for repair. */
+  public static final String CURRENT_HALT_REASON_ATTR = "currentHaltReason";
 
   /** Plain-language reason the run reopened a producer, shown above the approval that follows. */
   public static final String RECOVERY_AUTHOR_NOTE_ATTR = "recoveryAuthorNote";
@@ -170,13 +177,20 @@ public final class ProductPipelineRunSupport {
   /** Typed {@code RecoveryCauseCode} name stored with the halt. */
   public static final String STAGE_ERROR_CAUSE_CODE_ATTR = "stageErrorCauseCode";
 
+  /** Complete cause used by the recovery ledger, retained in the durable halt evidence. */
+  public static final String STAGE_ERROR_CAUSE_JSON_ATTR = "stageErrorCauseJson";
+  public static final String PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR = "producerCleanRebuildEvidenceRef";
+
   /** Catalog-resolution requested fact, when the cause carries one. */
   public static final String STAGE_ERROR_REQUESTED_FACT_ATTR = "stageErrorRequestedFact";
 
   /**
-   * Content hash of the owner's last approved candidate. Set when that stage is re-entered after a
-   * causal reopen.
+   * Producer preparing a replacement while accepted outputs remain preserved.
    */
+  public static final String RECOVERY_PREPARING_OWNER_ATTR = "recoveryPreparingOwner";
+  public static final String ACCEPTED_SOURCE_BRIEF_REF_ATTR = "acceptedSourceBriefRef";
+
+  /** Content hash of the accepted candidate before causal reopen. */
   public static final String PRIOR_CANDIDATE_ATTR = "priorCandidate";
 
   /**
@@ -226,6 +240,16 @@ public final class ProductPipelineRunSupport {
   ProductPipelineRunSupport withConversations(
       org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations) {
     this.conversations = conversations;
+    this.stageExecutor.withConversations(conversations);
+    return this;
+  }
+
+  private org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget llmBudget;
+
+  public ProductPipelineRunSupport withLlmBudget(
+      org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget budget) {
+    this.llmBudget = budget;
+    this.stageExecutor.withLlmBudget(budget);
     return this;
   }
 
@@ -444,18 +468,21 @@ public final class ProductPipelineRunSupport {
   }
 
   /**
-   * Restores the persisted technical-retry budget before Flow re-executes a stage. After restart,
-   * this count is the source of truth; the in-memory map is only a process-local cache.
+   * Restores this stage's retry count from the run journal. Flow checkpoints can lag behind a
+   * committed failure or contain the previous stage's count.
    */
-  public void restoreTechnicalRetryCount(String runId, String stageId, int used) {
+  public int restoreTechnicalRetryCount(String runId, String stageId) {
     Objects.requireNonNull(runId, "runId");
     Objects.requireNonNull(stageId, "stageId");
     String key = stageRetryKey(runId, stageId);
+    ProductPipelineRunDocument doc = requireRun(runId);
+    int used = consecutiveTechnicalRetries(runId, doc.attempts(), doc.transitions()).getOrDefault(key, 0);
     if (used <= 0) {
       technicalRetriesByStage.remove(key);
     } else {
       technicalRetriesByStage.put(key, used);
     }
+    return used;
   }
 
   /** Returns the retry policy pinned for the current stage of a run. */
@@ -983,6 +1010,10 @@ public final class ProductPipelineRunSupport {
     return requireRun(runId).run().currentStageId();
   }
 
+  public RunSnapshot currentRunSnapshot(String runId) {
+    return requireRun(runId).run();
+  }
+
   /**
    * Runtime seam for {@link SemanticRecoveryState}: run, stage, gate, stripped prompt, remaining
    * attempts. Card actions are empty; fill them from {@code ChatEvent.actionsForClarify}.
@@ -1067,8 +1098,9 @@ public final class ProductPipelineRunSupport {
   }
 
   /** Records input without selecting or running the next stage. */
-  public Multi<PipelineSignal> recordInput(AcceptInputCommand command) {
-    Objects.requireNonNull(command, "command");
+  public Multi<PipelineSignal> recordInput(AcceptInputCommand input) {
+    Objects.requireNonNull(input, "command");
+    AcceptInputCommand command = bindRepairOffer(input);
     return Multi.createFrom()
         .deferred(
             () -> {
@@ -1077,6 +1109,9 @@ public final class ProductPipelineRunSupport {
               if (doc.appliedCommand(command.commandId(), command.commandPayloadHash())
                   .isPresent()) {
                 return Multi.createFrom().empty();
+              }
+              if (PipelineGates.CONTINUE_REPAIR_ACTION.equals(PipelineGates.haltCardAction(command.text()))) {
+                return acceptRepairAllowance(doc, command);
               }
               if (doc.run().status() != RunStatus.WAITING_FOR_INPUT
                   && doc.run().status() != RunStatus.WAITING_FOR_APPROVAL) {
@@ -1116,6 +1151,84 @@ public final class ProductPipelineRunSupport {
               return interpretApprovedMappingTurnOrFallback(
                   doc, command, () -> acceptTypedInput(doc, command));
             });
+  }
+
+  /** Transport IDs do not create extra grants for the same immutable offer. */
+  public static AcceptInputCommand bindRepairOffer(AcceptInputCommand command) {
+    if (!PipelineGates.CONTINUE_REPAIR_ACTION.equals(PipelineGates.haltCardAction(command.text()))) {
+      return command;
+    }
+    return new AcceptInputCommand(command.runId(), command.text(), command.text() + ":accept-input",
+        CanonicalPayloadHash.sha256Hex(Map.of("runId", command.runId(), "offer", command.text(),
+            "targeted", 2, "clean", 2)), command.origin());
+  }
+
+  /** Reads the defect from the offered revision's saved evidence, never from client text. */
+  public static String repairOfferCommand(ProductPipelineRunDocument doc) {
+    return PipelineGates.continueRepairCommand(doc.run().runId(), doc.run().runRevision(),
+        doc.run().currentStageId() + ":" + RecoveryAttemptLedger.evidenceIdentity(repairOfferCause(doc)));
+  }
+
+  private static RecoveryCause repairOfferCause(ProductPipelineRunDocument doc) {
+    String json = doc.attempts().stream()
+        .filter(attempt -> doc.run().currentStageId().equals(attempt.stageId()))
+        .map(StageAttempt::failureEvidence).filter(Objects::nonNull)
+        .map(ProductPipelineRunSupport::readHaltEvidence)
+        .map(evidence -> evidence.get(STAGE_ERROR_CAUSE_JSON_ATTR))
+        .filter(String.class::isInstance).map(String.class::cast).filter(text -> !text.isBlank())
+        .reduce((first, second) -> second).orElse("");
+    try {
+      return HALT_EVIDENCE_JSON.readValue(json, RecoveryCause.class);
+    } catch (Exception e) {
+      throw new IllegalStateException("Cannot bind the repair offer to its persisted defect", e);
+    }
+  }
+
+  private Multi<PipelineSignal> acceptRepairAllowance(ProductPipelineRunDocument doc, AcceptInputCommand command) {
+    String prompt = latestWaitingForInputPrompt(doc);
+    if (command.origin() != InputOrigin.TRUSTED
+        || doc.run().status() != RunStatus.WAITING_FOR_INPUT
+        || !PipelineGates.RECOVERY_REPAIR_ALLOWANCE.equals(PipelineGates.gateOf(prompt).orElse(""))
+        || !command.text().equals(repairOfferCommand(doc))) {
+      return reemitHaltCard(doc);
+    }
+    if (catalogHasBeenWritten(command.runId())) {
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN);
+    }
+    if (recoveryLedger.perRunCeilingReached(doc.transitions())) {
+      return refuseWithGuard(doc, command, HaltRecoveryGuard.RUN_RECOVERY_CEILING);
+    }
+    String resourceRefusal = llmBudget == null ? null : llmBudget.refusalForNextRequest(command.runId());
+    if (resourceRefusal != null) {
+      String evidence = "LLM_RESOURCE_LIMIT: " + resourceRefusal;
+      String identity = ToolCallFingerprints.failureSignature(evidence);
+      String paused = PipelineGates.tagHaltIdentity(PipelineGates.tagRecoveryDetails(
+          PipelineGates.tag(PipelineGates.RECOVERY_RETRY_TECHNICAL,
+              resourceRefusal + " Progress is saved. Retry creation authorizes one additional model allowance."),
+          evidence, null), identity);
+      commitStatus(doc, RunStatus.WAITING_FOR_INPUT, StageStatus.WAITING_FOR_INPUT, doc.run().stages(),
+          paused, haltEvidence(attributesByRun.get(command.runId()), null, evidence),
+          command.commandId(), command.commandPayloadHash());
+      recoveryTelemetry.recordPresented(command.runId(), PipelineGates.RECOVERY_RETRY_TECHNICAL, identity, evidence);
+      return Multi.createFrom().item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), paused));
+    }
+    String owner = doc.run().currentStageId();
+    String artifact = RecoveryAttemptLedger.inputArtifactIdentity(doc, owner);
+    RecoveryAttemptKey key = recoveryLedger.key(owner, repairOfferCause(doc), artifact, doc.transitions());
+    Map<String, Object> attributes = attributesByRun.get(command.runId());
+    attributes.remove(DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    attributes.remove(DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    attributes.remove(PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    try {
+      attributes.put(RECOVERY_PENDING_ATTEMPT_ATTR, HALT_EVIDENCE_JSON.writeValueAsString(
+          Map.of("stageId", owner, "revision", doc.run().runRevision() + 1)));
+    } catch (Exception e) {
+      throw new IllegalStateException("Cannot persist the granted correction intent", e);
+    }
+    commitStatus(doc, RunStatus.RUNNING, StageStatus.RUNNING, doc.run().stages(),
+        recoveryLedger.recordGrantWithTargetedAttempt(key, artifact), haltEvidence(attributes, null),
+        command.commandId(), command.commandPayloadHash());
+    return Multi.createFrom().item(new PipelineSignal.Progress(owner, "Additional repair allowance accepted"));
   }
 
   /**
@@ -1177,12 +1290,14 @@ public final class ProductPipelineRunSupport {
           .orElse(null);
       if (revision != null) {
         var errors = org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureAdapter
-            .validateElementIntent(brief, revision.nodes(), revision.executionEdges());
+            .validateElementIntent(brief, revision,
+                new ClasspathCompilerContractRepository().require(revision.compilerContractVersion()));
         if (!errors.isEmpty()) {
           var attributes = attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
           attributes.put(STAGE_ERROR_CONTEXT_ATTR, String.join("\n", errors));
           attributes.put(STAGE_ERROR_FAILED_SKILL_ATTR, "design-input");
           attributes.put(STAGE_ERROR_CAUSE_CODE_ATTR, RecoveryCauseCode.GRAPH_STRUCTURE.name());
+          attributes.remove(STAGE_ERROR_CAUSE_JSON_ATTR);
           attributes.put(STAGE_ERROR_FINDINGS_ATTR, String.join("\n", errors));
           attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, command.text());
           if (!shouldCausalReopen(doc, "design-input", command.origin(), RecoveryAttemptLedger.ReopenInitiator.AUTHOR)) {
@@ -1205,10 +1320,31 @@ public final class ProductPipelineRunSupport {
   }
 
   private RequirementBrief approvedRequirementBrief(String runId) {
-    return artifactStore
-        .latest(runId, Kind.REQUIREMENT_BRIEF)
-        .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
-        .orElse(null);
+    Reference ref = selectedRequirementBriefReference(requireRun(runId));
+    return ref == null ? null : artifactStore.payload(artifactStore.get(runId, ref).orElseThrow(), RequirementBrief.class);
+  }
+
+  /** Selects the accepted brief or an exact source projection saved by an author command. */
+  public static Reference selectedRequirementBriefReference(ProductPipelineRunDocument doc) {
+    String projection = doc.attempts().stream().map(StageAttempt::failureEvidence).filter(Objects::nonNull)
+        .map(ProductPipelineRunSupport::readHaltEvidence)
+        .filter(evidence -> evidence.containsKey(ACCEPTED_SOURCE_BRIEF_REF_ATTR))
+        .map(evidence -> evidence.get(ACCEPTED_SOURCE_BRIEF_REF_ATTR)).filter(String.class::isInstance)
+        .map(String.class::cast).reduce((first, second) -> second).orElse("");
+    if (!projection.isBlank()) {
+      try {
+        Reference ref = HALT_EVIDENCE_JSON.readValue(projection, Reference.class);
+        if (ref.kind() != Kind.REQUIREMENT_BRIEF) { throw new IllegalStateException("Source projection must name a brief"); }
+        return ref;
+      } catch (java.io.IOException e) {
+        throw new IllegalStateException("Cannot read the accepted source brief reference", e);
+      }
+    }
+    List<Reference> refs = doc.run().stages().stream()
+        .filter(stage -> stage.status() == StageStatus.SUCCEEDED || stage.approvedArtifactId() != null)
+        .flatMap(stage -> stage.outputRefs().stream()).filter(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF)
+        .distinct().toList();
+    return refs.size() == 1 ? refs.getFirst() : null;
   }
 
   private Multi<PipelineSignal> reopenAfterApprovedMappingChange(
@@ -1228,11 +1364,8 @@ public final class ProductPipelineRunSupport {
     Map<String, Object> attributes =
         attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
     attributes.put("userText", command.text());
-    artifactStore
-        .latest(command.runId(), Kind.REQUIREMENT_BRIEF)
-        .map(Revision::contentHash)
-        .filter(hash -> hash != null && !hash.isBlank())
-        .ifPresent(hash -> attributes.put(SUPERSEDED_BRIEF_CONTENT_HASH_ATTR, hash));
+    Reference acceptedBrief = selectedRequirementBriefReference(doc);
+    if (acceptedBrief != null) { attributes.put(SUPERSEDED_BRIEF_CONTENT_HASH_ATTR, acceptedBrief.contentHash()); }
     persistCanonicalRequirementBrief(doc, command, updated);
     List<String> supersededArtifactHashes = collectSupersededDerivedArtifactHashes(command.runId());
     if (!supersededArtifactHashes.isEmpty()) {
@@ -1325,6 +1458,15 @@ public final class ProductPipelineRunSupport {
               new IllegalStateException(
                   "mapping-gap describe requires a committed RequirementBrief"));
     }
+    boolean authoredMappingOmitted = artifactStore.history(command.runId(), Kind.REQUIREMENT_DRAFT).stream()
+        .filter(revision -> revision.artifactId().equals(brief.approvedDraftReference()))
+        .map(revision -> artifactStore.payload(revision, org.qubership.integration.platform.ai.plan.RequirementDraft.class))
+        .anyMatch(draft -> org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator
+            .validateAuthoredMappings(draft, brief).isPresent());
+    if (MappingGapCoverage.uncovered(brief).isEmpty() || authoredMappingOmitted) {
+      // Reassess the stored gate before interpreting an answer as new mapping instructions.
+      return acceptTypedInput(doc, command);
+    }
     MappingTurnApplication application =
         MappingTurnProcessor.processGap(
             brief, command.text(), mappingTurnAdapter, mappingTurnTelemetry);
@@ -1337,7 +1479,7 @@ public final class ProductPipelineRunSupport {
             StageStatus.RUNNING,
             doc.run().stages(),
             "accepted input",
-            null,
+            haltEvidence(attributesByRun.get(command.runId()), null),
             command.commandId(),
             command.commandPayloadHash());
         return Multi.createFrom().empty();
@@ -1373,7 +1515,7 @@ public final class ProductPipelineRunSupport {
         StageStatus.WAITING_FOR_INPUT,
         doc.run().stages(),
         tagged,
-        null,
+        haltEvidence(attributesByRun.get(command.runId()), null),
         command.commandId(),
         command.commandPayloadHash());
     Multi<PipelineSignal> wait =
@@ -1454,6 +1596,9 @@ public final class ProductPipelineRunSupport {
         attributesByRun.computeIfAbsent(command.runId(), ignored -> new ConcurrentHashMap<>());
     attributes.put("requirementBrief", canonical);
     attributes.put("requirementBriefContentHash", revision.contentHash());
+    try {
+      attributes.put(ACCEPTED_SOURCE_BRIEF_REF_ATTR, HALT_EVIDENCE_JSON.writeValueAsString(revision.reference()));
+    } catch (java.io.IOException e) { throw new IllegalStateException("Cannot save the accepted source brief reference", e); }
     return revision;
   }
 
@@ -1492,7 +1637,7 @@ public final class ProductPipelineRunSupport {
         StageStatus.RUNNING,
         doc.run().stages(),
         "accepted input",
-        null,
+        haltEvidence(attributesByRun.get(command.runId()), null),
         command.commandId(),
         command.commandPayloadHash());
     return Multi.createFrom().empty();
@@ -1533,11 +1678,24 @@ public final class ProductPipelineRunSupport {
     return text;
   }
 
-  /**
-   * Applies a typed message that reaches the stage: it becomes the stage's user text and the run
-   * goes back to RUNNING, which re-executes the stage and, at an approval card, replaces the
-   * candidate with a revised one.
-   */
+  static boolean resourcePauseFollowedRepairOffer(ProductPipelineRunDocument doc) {
+    List<RunTransition> transitions = doc.transitions();
+    for (int i = transitions.size() - 1; i >= 0; i--) {
+      RunTransition transition = transitions.get(i);
+      if (!doc.run().currentStageId().equals(transition.stageId())
+          || transition.toStatus() != RunStatus.WAITING_FOR_INPUT) {
+        return false;
+      }
+      String gate = PipelineGates.gateOf(transition.reason()).orElse("");
+      if (PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(gate)) {
+        continue;
+      }
+      return PipelineGates.RECOVERY_REPAIR_ALLOWANCE.equals(gate);
+    }
+    return false;
+  }
+
+  /** Applies author input to the existing waiting stage. */
   private Multi<PipelineSignal> acceptTypedInput(
       ProductPipelineRunDocument doc, AcceptInputCommand command) {
     return Multi.createFrom()
@@ -1548,6 +1706,12 @@ public final class ProductPipelineRunSupport {
               boolean reviseClick = PipelineGates.REVISE_ACTION.equals(haltAction);
               boolean haltCardClick = retryClick || reviseClick;
               String haltGate = PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
+              boolean resourceGrant = retryClick && llmBudget != null
+                  && llmBudget.state(command.runId()).refusal() != null
+                  && PipelineGates.RECOVERY_RETRY_TECHNICAL.equals(haltGate);
+              if (resourceGrant && command.origin() != InputOrigin.TRUSTED) {
+                return reemitHaltCard(doc);
+              }
               recordRecoverySelection(command.runId(), haltGate, command.text());
               if (haltCardClick
                   && PipelineGates.isTerminalRecoveryGate(haltGate)) {
@@ -1563,7 +1727,7 @@ public final class ProductPipelineRunSupport {
                   && catalogHasBeenWritten(doc.run().runId())) {
                 return refuseWithGuard(doc, command, HaltRecoveryGuard.CATALOG_ALREADY_WRITTEN);
               }
-              if (retryClick) {
+              if (retryClick && !resourceGrant) {
                 HaltRecoveryGuard retryRefusal = diagnoseRetryRefusal(doc, command);
                 if (retryRefusal != null) {
                   return refuseWithGuard(doc, command, retryRefusal);
@@ -1608,7 +1772,33 @@ public final class ProductPipelineRunSupport {
                 return recordRevise(doc, command);
               }
               String reason = "accepted input";
-              if (retryClick) {
+              if (resourceGrant) {
+                String grantId = command.commandId() == null
+                    ? "resource-grant:" + doc.run().runRevision() : command.commandId();
+                llmBudget.grant(command.runId(), grantId);
+                if (resourcePauseFollowedRepairOffer(doc)) {
+                  String evidence = stringAttribute(command.runId(), STAGE_ERROR_CONTEXT_ATTR).orElse("");
+                  String identity = ToolCallFingerprints.failureSignature(evidence);
+                  String renewed = PipelineGates.tagHaltIdentity(PipelineGates.tag(PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
+                      "Model allowance accepted. Continue repair authorizes two additional targeted corrections"
+                          + " and two clean regenerations for this defect."), identity);
+                  commitStatus(doc, RunStatus.WAITING_FOR_INPUT, StageStatus.WAITING_FOR_INPUT, doc.run().stages(),
+                      renewed, haltEvidence(attributes, null, evidence), command.commandId(), command.commandPayloadHash());
+                  recoveryTelemetry.recordPresented(command.runId(), PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
+                      identity, evidence);
+                  return Multi.createFrom().item(new PipelineSignal.WaitingForInput(doc.run().currentStageId(), renewed));
+                }
+                reason = recoveryLedger.reissueUnsentAttempt(doc.transitions(), doc.run().currentStageId())
+                    .orElse("author granted an additional model allowance");
+                if (!"author granted an additional model allowance".equals(reason)) {
+                  try {
+                    attributes.put(RECOVERY_PENDING_ATTEMPT_ATTR, HALT_EVIDENCE_JSON.writeValueAsString(
+                        Map.of("stageId", doc.run().currentStageId(), "revision", doc.run().runRevision() + 1)));
+                  } catch (Exception e) {
+                    throw new IllegalStateException("Cannot restore the unsent correction intent", e);
+                  }
+                }
+              } else if (retryClick) {
                 reason = recordAttempt(doc, command);
               } else if (isClarificationWait(doc)) {
                 // The clarification card is the ask after repair budget. Retry the stage with the
@@ -1625,7 +1815,7 @@ public final class ProductPipelineRunSupport {
                   StageStatus.RUNNING,
                   doc.run().stages(),
                   reason,
-                  null,
+                  resourceGrant ? haltEvidence(attributes, null) : null,
                   command.commandId(),
                   command.commandPayloadHash());
               return Multi.createFrom().empty();
@@ -2430,7 +2620,7 @@ public final class ProductPipelineRunSupport {
     if (!isEarlierApprovedOwner(doc, owner)
         && !isCommittedIdentityMismatchOwner(doc, owner, cause)
         && !isCommittedRejectedInputOwner(doc, owner, cause)
-        && !isCommittedRequirementDraftOwner(doc, owner)) {
+        && !isCommittedRequirementDraftOwner(doc, owner, profilesByRun.get(doc.run().runId()), artifactStore)) {
       return false;
     }
     if (catalogHasBeenWritten(doc.run().runId())) {
@@ -2446,8 +2636,9 @@ public final class ProductPipelineRunSupport {
         causalReopenFailureSignature(doc.run().runId()));
   }
 
-  private boolean isCommittedRequirementDraftOwner(ProductPipelineRunDocument doc, String owner) {
-    ProductPipelineProfile profile = profilesByRun.get(doc.run().runId());
+  public static boolean isCommittedRequirementDraftOwner(
+      ProductPipelineRunDocument doc, String owner, ProductPipelineProfile profile,
+      ProductPipelineArtifactStore artifactStore) {
     if (profile == null || owner == null || owner.equals(doc.run().currentStageId())) {
       return false;
     }
@@ -2588,10 +2779,7 @@ public final class ProductPipelineRunSupport {
   }
 
   private boolean catalogHasBeenWritten(String runId) {
-    if (latestCatalogChainSnapshot(runId).isPresent()) {
-      return true;
-    }
-    return artifactStore.latest(runId, Kind.MATERIALIZATION_RESULT).isPresent();
+    return artifactStore.hasCatalogWriteEvidence(runId);
   }
 
   private String causalReopenFailureSignature(String runId) {
@@ -2617,6 +2805,14 @@ public final class ProductPipelineRunSupport {
   }
 
   private RecoveryCause currentRecoveryCause(String runId) {
+    String json = stringAttribute(runId, STAGE_ERROR_CAUSE_JSON_ATTR).orElse("");
+    if (!json.isBlank()) {
+      try {
+        return HALT_EVIDENCE_JSON.readValue(json, RecoveryCause.class);
+      } catch (Exception e) {
+        throw new IllegalStateException("Cannot restore the persisted recovery cause", e);
+      }
+    }
     String codeName = stringAttribute(runId, STAGE_ERROR_CAUSE_CODE_ATTR).orElse("");
     String findings = stringAttribute(runId, STAGE_ERROR_FINDINGS_ATTR).orElse("");
     String outcomeName = stringAttribute(runId, STAGE_ERROR_OUTCOME_ATTR).orElse("");
@@ -2668,7 +2864,9 @@ public final class ProductPipelineRunSupport {
             .filter(stage -> owner.equals(stage.stageId()))
             .findFirst()
             .orElse(null);
-    Reference prior = ownerSnapshot == null ? null : resolveReopenApprovable(ownerSnapshot);
+    Reference prior = ownerSnapshot == null ? null : ownerSnapshot.outputRefs().stream()
+        .filter(ref -> ref.artifactId().equals(ownerSnapshot.approvedArtifactId())).findFirst()
+        .orElseGet(() -> resolveReopenApprovable(ownerSnapshot));
     if (profile == null || ownerSnapshot == null || prior == null) {
       return command == null
           ? Multi.createFrom().empty()
@@ -2680,6 +2878,7 @@ public final class ProductPipelineRunSupport {
     if (currentRecoveryCause(runId).causeCode() == RecoveryCauseCode.MAPPING_CONTRACT) {
       attributesByRun.get(runId).put("mappingRepairAutomatic", Boolean.toString(command == null));
     }
+    attributesByRun.get(runId).put(RECOVERY_PREPARING_OWNER_ATTR, owner);
     Set<String> afterOwner = stageIdsAfter(profile, owner);
     List<StageSnapshot> updated = new ArrayList<>();
     for (StageSnapshot snapshot : doc.run().stages()) {
@@ -2689,20 +2888,20 @@ public final class ProductPipelineRunSupport {
                 snapshot.stageId(),
                 StageStatus.RUNNING,
                 snapshot.outputRefs(),
+                snapshot.approvedArtifactId(),
+                List.of(),
                 null,
-                snapshot.candidateReferences(),
-                snapshot.approvableReference(),
                 snapshot.candidateRevision()));
       } else if (afterOwner.contains(snapshot.stageId())) {
         updated.add(
             new StageSnapshot(
                 snapshot.stageId(),
                 StageStatus.PENDING,
+                snapshot.outputRefs(),
+                snapshot.approvedArtifactId(),
                 List.of(),
                 null,
-                List.of(),
-                null,
-                null));
+                snapshot.candidateRevision()));
       } else {
         updated.add(snapshot);
       }
@@ -2759,7 +2958,8 @@ public final class ProductPipelineRunSupport {
       }
     }
     commitMove(
-        doc, ownerStageId, updated, reason, command.commandId(), command.commandPayloadHash());
+        doc, ownerStageId, updated, reason, haltEvidence(attributesByRun.get(command.runId()), null),
+        command.commandId(), command.commandPayloadHash());
     return Multi.createFrom().empty();
   }
 
@@ -3085,7 +3285,7 @@ public final class ProductPipelineRunSupport {
                 recordSupersededBriefOnRepairApproval(command.runId(), target);
               }
               List<Reference> approvedCandidates =
-                  approvedCandidates(stage.outputRefs(), stageProfile.approval());
+                  approvedCandidates(stage.candidateReferences(), stageProfile.approval());
               boolean multiItemApproval =
                   stageProfile.approval() != null
                       && stageProfile.approval().candidateSet().size() > 1;
@@ -3131,7 +3331,7 @@ public final class ProductPipelineRunSupport {
                                 doc.run().currentStageId(),
                                 stageProfile.capabilityId())));
               }
-              List<Reference> approvedOutputs = new ArrayList<>(stage.outputRefs());
+              List<Reference> approvedOutputs = new ArrayList<>(stage.candidateReferences());
               approvedOutputs.add(approvalRevision.reference());
 
               List<StageSnapshot> updated = new ArrayList<>();
@@ -3156,6 +3356,17 @@ public final class ProductPipelineRunSupport {
               if (holdUnchangedBrief) {
                 return holdUnchangedExhaustedBrief(doc, command, updated);
               }
+              boolean promotesReplacement = currentStageId.equals(replacementApprovalStage(profile,
+                  attributesByRun.get(command.runId())));
+              String promotionEvidence = null;
+              boolean promotesSource = "requirement-analysis".equals(currentStageId);
+              if (promotesReplacement || promotesSource) {
+                if (promotesReplacement) { updated = promoteReplacement(profile, attributesByRun.get(command.runId()), updated, currentStageId); }
+                Map<String, Object> acceptedAttributes = new LinkedHashMap<>(attributesByRun.get(command.runId()));
+                if (promotesReplacement) { acceptedAttributes.put(RECOVERY_PREPARING_OWNER_ATTR, ""); }
+                if (promotesSource) { acceptedAttributes.put(ACCEPTED_SOURCE_BRIEF_REF_ATTR, ""); }
+                promotionEvidence = haltEvidence(acceptedAttributes, null);
+              }
               String correction = recordExhaustedBriefCorrection(doc, currentStageId, updated);
               ImplementationGatePolicy gate = profile.implementationGate();
               if (gate != null && currentStageId.equals(gate.afterStageId())) {
@@ -3165,9 +3376,11 @@ public final class ProductPipelineRunSupport {
                     StageStatus.SUCCEEDED,
                     updated,
                     "waiting for implement",
-                    null,
+                    promotionEvidence,
                     command.commandId(),
                     command.commandPayloadHash());
+                if (promotesReplacement) { attributesByRun.get(command.runId()).remove(RECOVERY_PREPARING_OWNER_ATTR); }
+              if (promotesSource) { attributesByRun.get(command.runId()).remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR); }
                 return Multi.createFrom()
                     .item(
                         new PipelineSignal.WaitingForImplement(
@@ -3182,9 +3395,11 @@ public final class ProductPipelineRunSupport {
                     StageStatus.SUCCEEDED,
                     updated,
                     "plan approved",
-                    null,
+                    promotionEvidence,
                     command.commandId(),
                     command.commandPayloadHash());
+                if (promotesReplacement) { attributesByRun.get(command.runId()).remove(RECOVERY_PREPARING_OWNER_ATTR); }
+              if (promotesSource) { attributesByRun.get(command.runId()).remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR); }
                 return Multi.createFrom().item(new PipelineSignal.Completed(terminalStatus));
               }
 
@@ -3198,9 +3413,11 @@ public final class ProductPipelineRunSupport {
                   StageStatus.SUCCEEDED,
                   updated,
                   correction.isEmpty() ? "approved" : correction,
-                  null,
+                  promotionEvidence,
                   command.commandId(),
                   command.commandPayloadHash());
+              if (promotesReplacement) { attributesByRun.get(command.runId()).remove(RECOVERY_PREPARING_OWNER_ATTR); }
+              if (promotesSource) { attributesByRun.get(command.runId()).remove(ACCEPTED_SOURCE_BRIEF_REF_ATTR); }
               ProductPipelineRunDocument after = requireRun(command.runId());
               commitMove(after, nextStageId, markStageRunning(after, nextStageId), "advance after approval");
               return Multi.createFrom().empty();
@@ -3240,7 +3457,7 @@ public final class ProductPipelineRunSupport {
             new StageSnapshot(
                 snapshot.stageId(),
                 StageStatus.SUCCEEDED,
-                snapshot.outputRefs(),
+                snapshot.candidateReferences(),
                 target.artifactId(),
                 snapshot.candidateReferences(),
                 target,
@@ -3400,11 +3617,28 @@ public final class ProductPipelineRunSupport {
 
   private Multi<PipelineSignal> applyContinue(
       String runId, StageDecision.Continue decision, List<PipelineSignal> signals) {
+    ProductPipelineRunDocument doc = requireRun(runId);
+    StageSnapshot completed = doc.run().stages().stream()
+        .filter(stage -> decision.stageId().equals(stage.stageId())).findFirst().orElse(null);
+    if (doc.run().status() != RunStatus.RUNNING || !decision.stageId().equals(doc.run().currentStageId())
+        || completed == null || completed.status() != StageStatus.SUCCEEDED) {
+      return Multi.createFrom().iterable(signals);
+    }
     ProductPipelineProfile profile = profilesByRun.get(runId);
     pinSemanticRevisionOf(runId, decision.stageId());
-    ProductPipelineRunDocument doc = requireRun(runId);
+    Map<String, Object> attributes = attributesByRun.get(runId);
+    boolean promote = preparingReplacement(profile, attributes, decision.stageId())
+        && replacementApprovalStage(profile, attributes).isEmpty();
+    List<StageSnapshot> selected = promote
+        ? promoteReplacement(profile, attributes, doc.run().stages(), decision.stageId()) : doc.run().stages();
     String next = nextStageId(profile, decision.stageId());
-    commitMove(doc, next, markStageRunning(doc, next), "advance after success");
+    List<StageSnapshot> advancing = selected.stream().map(stage -> next.equals(stage.stageId())
+        ? new StageSnapshot(stage.stageId(), StageStatus.RUNNING, stage.outputRefs(), stage.approvedArtifactId(),
+            stage.candidateReferences(), stage.approvableReference(), stage.candidateRevision()) : stage).toList();
+    Map<String, Object> persistedAttributes = new LinkedHashMap<>(attributes);
+    if (promote) { persistedAttributes.put(RECOVERY_PREPARING_OWNER_ATTR, ""); }
+    commitMove(doc, next, advancing, "advance after success", haltEvidence(persistedAttributes, null), null, null);
+    if (promote) { attributes.remove(RECOVERY_PREPARING_OWNER_ATTR); }
     return Multi.createFrom().iterable(signals);
   }
 
@@ -3734,8 +3968,10 @@ public final class ProductPipelineRunSupport {
     manifestsByRun.put(runId, manifest);
     Map<String, Object> attributes =
         attributesByRun.computeIfAbsent(runId, ignored -> new ConcurrentHashMap<>());
-    artifactStore
-        .latest(runId, Kind.REQUIREMENT_BRIEF)
+    Reference selectedBrief = selectedRequirementBriefReference(doc);
+    attributes.remove("requirementBrief");
+    attributes.remove("requirementBriefContentHash");
+    (selectedBrief == null ? Optional.<Revision>empty() : artifactStore.get(runId, selectedBrief))
         .ifPresent(
             revision -> {
               attributes.put(
@@ -3787,7 +4023,7 @@ public final class ProductPipelineRunSupport {
     // Rehydrate only this run's counters. Clearing the whole map would drop retries for
     // other in-memory runs that share the same runtime bean.
     technicalRetriesByStage.keySet().removeIf(key -> key.startsWith(runId + ":"));
-    technicalRetriesByStage.putAll(consecutiveTechnicalRetries(runId, doc.attempts()));
+    technicalRetriesByStage.putAll(consecutiveTechnicalRetries(runId, doc.attempts(), doc.transitions()));
     restoreHaltEvidence(doc, attributes);
   }
 
@@ -3809,13 +4045,25 @@ public final class ProductPipelineRunSupport {
         .map(ProductPipelineRunSupport::readHaltEvidence)
         .filter(evidence -> !evidence.isEmpty())
         .reduce((first, second) -> second)
-        .ifPresent(attributes::putAll);
+        .ifPresent(evidence -> evidence.forEach((key, value) -> {
+          if (!RECOVERY_PREPARING_OWNER_ATTR.equals(key) && !ACCEPTED_SOURCE_BRIEF_REF_ATTR.equals(key)) { attributes.put(key, value); }
+        }));
   }
 
-  static Map<String, Integer> consecutiveTechnicalRetries(
-      String runId, List<StageAttempt> attempts) {
+  public static Map<String, Integer> consecutiveTechnicalRetries(
+      String runId, List<StageAttempt> attempts, List<RunTransition> transitions) {
+    Map<String, Long> cycleStarts = new LinkedHashMap<>();
+    for (RunTransition transition : transitions) {
+      if (transition.fromStatus() == RunStatus.WAITING_FOR_INPUT
+          && transition.toStatus() == RunStatus.RUNNING) {
+        cycleStarts.merge(transition.stageId(), transition.toRevision(), Math::max);
+      }
+    }
     Map<String, Integer> consecutiveFailures = new LinkedHashMap<>();
     for (StageAttempt attempt : attempts) {
+      if (attempt.runRevision() < cycleStarts.getOrDefault(attempt.stageId(), 0L)) {
+        continue;
+      }
       String key = stageRetryKey(runId, attempt.stageId());
       if (attempt.outcome() == StageStatus.SUCCEEDED) {
         consecutiveFailures.remove(key);
@@ -3832,26 +4080,45 @@ public final class ProductPipelineRunSupport {
   }
 
   private static boolean isTechnicalRetryFailure(StageAttempt attempt) {
-    return attempt.outcome() == StageStatus.FAILED
-        && (attempt.failureEvidence() == null
-            || !attempt.failureEvidence().startsWith(NON_TECHNICAL_FAILURE_EVIDENCE_PREFIX));
+    if (attempt.outcome() != StageStatus.FAILED
+        || attempt.failureEvidence() != null
+            && attempt.failureEvidence().startsWith(NON_TECHNICAL_FAILURE_EVIDENCE_PREFIX)) {
+      return false;
+    }
+    Object outcome = readHaltEvidence(attempt.failureEvidence()).get(STAGE_ERROR_OUTCOME_ATTR);
+    return outcome == null || "".equals(outcome)
+        || StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE.name().equals(outcome);
   }
 
   /** Encodes halt attributes in the failure-evidence field of the matching stage attempt. */
   public static String haltEvidence(Map<String, Object> attributes, String priorCandidate) {
+    return haltEvidence(attributes, priorCandidate, null);
+  }
+
+  public static String haltEvidence(Map<String, Object> attributes, String priorCandidate, String currentReason) {
     Map<String, String> evidence = new LinkedHashMap<>();
+    if (currentReason != null && !currentReason.isBlank()) {
+      evidence.put(CURRENT_HALT_REASON_ATTR, currentReason);
+    }
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_CONTEXT_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_OUTCOME_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_FAILED_STAGE_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_FAILED_SKILL_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_FINDINGS_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_CAUSE_CODE_ATTR);
+    copyHaltAttribute(attributes, evidence, STAGE_ERROR_CAUSE_JSON_ATTR);
     copyHaltAttribute(attributes, evidence, STAGE_ERROR_REQUESTED_FACT_ATTR);
     copyHaltAttribute(attributes, evidence, DIAGNOSED_OWNER_STAGE_ATTR);
     copyHaltAttribute(attributes, evidence, RECOVERY_EVIDENCE_REF_ATTR);
+    copyHaltAttribute(attributes, evidence, RECOVERY_INVOCATION_ATTR);
+    copyHaltAttribute(attributes, evidence, RECOVERY_PENDING_ATTEMPT_ATTR);
+    copyHaltAttribute(attributes, evidence, RECOVERY_DIAGNOSIS_ATTR);
+    copyHaltAttribute(attributes, evidence, RECOVERY_PREPARING_OWNER_ATTR);
+    copyHaltAttribute(attributes, evidence, ACCEPTED_SOURCE_BRIEF_REF_ATTR);
     copyHaltAttribute(attributes, evidence, "mappingRepairAutomatic");
     copyHaltAttribute(attributes, evidence, DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
     copyHaltAttribute(attributes, evidence, DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+    copyHaltAttribute(attributes, evidence, PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
     if (priorCandidate != null && !priorCandidate.isBlank()) {
       evidence.put(PRIOR_CANDIDATE_ATTR, priorCandidate);
     }
@@ -3859,6 +4126,15 @@ public final class ProductPipelineRunSupport {
       return HALT_EVIDENCE_JSON.writeValueAsString(evidence);
     } catch (Exception e) {
       throw new IllegalStateException("cannot write halt evidence", e);
+    }
+  }
+
+  public static String recoveryCauseJson(RecoveryCause cause) {
+    try {
+      return HALT_EVIDENCE_JSON.writeValueAsString(Map.of(
+          "causeCode", cause.causeCode(), "findings", cause.findings(), "requestedFact", cause.requestedFact()));
+    } catch (Exception e) {
+      throw new IllegalStateException("Cannot persist the recovery cause", e);
     }
   }
 
@@ -3877,13 +4153,24 @@ public final class ProductPipelineRunSupport {
         STAGE_ERROR_FAILED_SKILL_ATTR,
         STAGE_ERROR_FINDINGS_ATTR,
         STAGE_ERROR_CAUSE_CODE_ATTR,
+        STAGE_ERROR_CAUSE_JSON_ATTR,
         STAGE_ERROR_REQUESTED_FACT_ATTR,
         DIAGNOSED_OWNER_STAGE_ATTR,
         RECOVERY_EVIDENCE_REF_ATTR,
+        RECOVERY_INVOCATION_ATTR,
+        RECOVERY_PENDING_ATTEMPT_ATTR,
+        RECOVERY_DIAGNOSIS_ATTR,
         DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
         DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+        PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
         PRIOR_CANDIDATE_ATTR)) {
       attributes.remove(key);
+    }
+    for (String key : List.of(RECOVERY_PREPARING_OWNER_ATTR, ACCEPTED_SOURCE_BRIEF_REF_ATTR)) {
+      attributes.remove(key);
+      doc.attempts().stream().map(StageAttempt::failureEvidence).filter(Objects::nonNull)
+          .map(ProductPipelineRunSupport::readHaltEvidence).filter(evidence -> evidence.containsKey(key))
+          .reduce((first, second) -> second).ifPresent(evidence -> attributes.put(key, evidence.get(key)));
     }
     doc.attempts().stream()
         .filter(attempt -> doc.run().currentStageId().equals(attempt.stageId()))
@@ -3892,10 +4179,12 @@ public final class ProductPipelineRunSupport {
         .map(ProductPipelineRunSupport::readHaltEvidence)
         .filter(evidence -> !evidence.isEmpty())
         .reduce((first, second) -> second)
-        .ifPresent(attributes::putAll);
+        .ifPresent(evidence -> evidence.forEach((key, value) -> {
+          if (!RECOVERY_PREPARING_OWNER_ATTR.equals(key) && !ACCEPTED_SOURCE_BRIEF_REF_ATTR.equals(key)) { attributes.put(key, value); }
+        }));
   }
 
-  private static Map<String, Object> readHaltEvidence(String evidence) {
+  public static Map<String, Object> readHaltEvidence(String evidence) {
     try {
       Map<String, String> values =
           HALT_EVIDENCE_JSON.readValue(evidence, new TypeReference<Map<String, String>>() {});
@@ -3999,13 +4288,62 @@ public final class ProductPipelineRunSupport {
             .noneMatch(ref -> ref != null && ref.matches(Kind.CHAIN_SEMANTIC_REVISION))) {
       return;
     }
-    artifactStore
-        .latest(runId, Kind.CHAIN_SEMANTIC_REVISION)
-        .map(stored -> artifactStore.payload(stored, ChainSemanticRevision.class))
-        .ifPresent(
-            revision ->
-                persistCombinedSemanticPin(
-                    runId, revision, new ClasspathCompilerContractRepository().require(CompilerContract.V1)));
+    StageSnapshot snapshot = requireRun(runId).run().stages().stream()
+        .filter(value -> stageId.equals(value.stageId())).findFirst().orElseThrow();
+    List<Reference> selected = preparingReplacement(profilesByRun.get(runId), attributesByRun.get(runId), stageId)
+        ? snapshot.candidateReferences() : snapshot.outputRefs();
+    List<Reference> revisions = selected.stream().filter(ref -> ref.kind() == Kind.CHAIN_SEMANTIC_REVISION)
+        .distinct().toList();
+    if (revisions.size() != 1) { throw new IllegalStateException("Completed stage must select one semantic revision"); }
+    Revision stored = artifactStore.get(runId, revisions.getFirst()).orElseThrow();
+    persistCombinedSemanticPin(runId, artifactStore.payload(stored, ChainSemanticRevision.class),
+        new ClasspathCompilerContractRepository().require(CompilerContract.V1));
+  }
+
+  /** Keeps accepted outputs effective until the replacement reaches its approval boundary. */
+  public static boolean preparingReplacement(ProductPipelineProfile profile, Map<String, Object> attributes,
+      String stageId) {
+    if (profile == null || attributes == null || !(attributes.get(RECOVERY_PREPARING_OWNER_ATTR) instanceof String owner)
+        || owner.isBlank()) { return false; }
+    boolean active = false;
+    for (ProfileStage stage : profile.stages()) {
+      if (owner.equals(stage.stageId())) { active = true; }
+      if (active && stageId.equals(stage.stageId())) { return true; }
+      if (active && stage.approval() != null) { return false; }
+    }
+    return false;
+  }
+
+  private static String replacementApprovalStage(ProductPipelineProfile profile, Map<String, Object> attributes) {
+    if (profile == null || attributes == null || !(attributes.get(RECOVERY_PREPARING_OWNER_ATTR) instanceof String owner)
+        || owner.isBlank()) { return ""; }
+    boolean active = false;
+    for (ProfileStage stage : profile.stages()) {
+      if (owner.equals(stage.stageId())) { active = true; }
+      if (active && stage.approval() != null) { return stage.stageId(); }
+    }
+    return "";
+  }
+
+  private static List<StageSnapshot> promoteReplacement(ProductPipelineProfile profile, Map<String, Object> attributes,
+      List<StageSnapshot> stages, String acceptedStageId) {
+    Set<String> invalidate = stageIdsAfter(profile, acceptedStageId);
+    return stages.stream().map(stage -> {
+      if (invalidate.contains(stage.stageId())) {
+        return new StageSnapshot(stage.stageId(), StageStatus.PENDING, List.of(), null);
+      }
+      if (preparingReplacement(profile, attributes, stage.stageId()) && !acceptedStageId.equals(stage.stageId())
+          && stage.status() == StageStatus.SUCCEEDED && !stage.candidateReferences().isEmpty()) {
+        return new StageSnapshot(stage.stageId(), stage.status(), stage.candidateReferences(), null,
+            stage.candidateReferences(), stage.approvableReference(), stage.candidateRevision());
+      }
+      if (acceptedStageId.equals(stage.stageId()) && stage.approvedArtifactId() == null
+          && !stage.candidateReferences().isEmpty()) {
+        return new StageSnapshot(stage.stageId(), stage.status(), stage.candidateReferences(), null,
+            stage.candidateReferences(), stage.approvableReference(), stage.candidateRevision());
+      }
+      return stage;
+    }).toList();
   }
 
   private ProfileStage stageOf(String runId, String stageId) {
@@ -4128,8 +4466,8 @@ public final class ProductPipelineRunSupport {
     if (isBriefRepairApproval(runId, stageId)) {
       return withAuthorNote(attributesByRun.get(runId), BRIEF_REPAIR_APPROVAL_PROMPT);
     }
-    return approvalPrompts.stageApprovalPrompt(
-        stageId, responseLocaleOf(runId), languageReferenceFor(runId));
+    return org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.withRun(runId,
+        () -> approvalPrompts.stageApprovalPrompt(stageId, responseLocaleOf(runId), languageReferenceFor(runId)));
   }
 
   /** Locale pinned for this run's replies; English when the manifest is not cached yet. */
@@ -4204,6 +4542,10 @@ public final class ProductPipelineRunSupport {
   }
 
   private String priorBriefHashForSupersession(String runId, Reference approvedTarget) {
+    Optional<String> effective = requireRun(runId).run().stages().stream()
+        .flatMap(stage -> stage.outputRefs().stream()).filter(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF)
+        .map(Reference::contentHash).filter(hash -> !approvedTarget.contentHash().equals(hash)).findFirst();
+    if (effective.isPresent()) { return effective.get(); }
     Map<String, Object> attributes = attributesByRun.get(runId);
     if (attributes != null) {
       Object prior = attributes.get(PRIOR_CANDIDATE_ATTR);
@@ -4211,14 +4553,12 @@ public final class ProductPipelineRunSupport {
         return text.trim();
       }
     }
-    return artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF)
-        .map(Revision::contentHash)
-        .filter(hash -> !approvedTarget.contentHash().equals(hash))
-        .orElse(null);
+    return null;
   }
 
   private String languageReferenceFor(String runId) {
-    var currentBrief = artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF);
+    Reference selected = selectedRequirementBriefReference(requireRun(runId));
+    var currentBrief = selected == null ? Optional.<Revision>empty() : artifactStore.get(runId, selected);
     if (currentBrief.isPresent()) {
       return MappingGapWait.languageReference(artifactStore.payload(currentBrief.get(), RequirementBrief.class));
     }

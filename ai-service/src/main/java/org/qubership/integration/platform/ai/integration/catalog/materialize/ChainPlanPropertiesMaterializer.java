@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -54,13 +55,14 @@ public class ChainPlanPropertiesMaterializer {
     int[] patchedCount = {0};
     List<String> failedNodeIds = new ArrayList<>();
     String[] firstValidationError = {null};
+    RuntimeException[] failureCause = {null};
 
     for (ChainPlanNode node : graph.nodes()) {
-      applyNode(map, node, patchedCount, failedNodeIds, firstValidationError);
+      applyNode(map, node, patchedCount, failedNodeIds, firstValidationError, failureCause);
     }
 
     return new PropertiesApplyResult(
-        patchedCount[0], List.copyOf(failedNodeIds), firstValidationError[0]);
+        patchedCount[0], List.copyOf(failedNodeIds), firstValidationError[0], failureCause[0]);
   }
 
   private void applyNode(
@@ -68,14 +70,14 @@ public class ChainPlanPropertiesMaterializer {
       ChainPlanNode node,
       int[] patchedCount,
       List<String> failedNodeIds,
-      String[] firstValidationError) {
+      String[] firstValidationError, RuntimeException[] failureCause) {
     String elementId = map.nodeIdToElementId().get(node.nodeId());
     if (elementId == null) {
       failedNodeIds.add(node.nodeId());
     } else if (hasPatchableContent(node)) {
       // Property-less shells (condition/else/try) still need plan labels applied so reconcile
       // matches catalog element names.
-      applyNodeProperties(map, node, elementId, patchedCount, failedNodeIds, firstValidationError);
+      applyNodeProperties(map, node, elementId, patchedCount, failedNodeIds, firstValidationError, failureCause);
     }
   }
 
@@ -97,7 +99,7 @@ public class ChainPlanPropertiesMaterializer {
       String elementId,
       int[] patchedCount,
       List<String> failedNodeIds,
-      String[] firstValidationError) {
+      String[] firstValidationError, RuntimeException[] failureCause) {
     try {
       CatalogElementResponseDto current = catalogRestClient.getElement(map.chainId(), elementId);
       Map<String, Object> patchBody = buildPatchBody(node, map);
@@ -105,12 +107,15 @@ public class ChainPlanPropertiesMaterializer {
         return;
       }
       if (patchValidatedProperties(
-          map, node, elementId, current, patchBody, firstValidationError)) {
+          map, node, elementId, current, patchBody, firstValidationError, failureCause)) {
         patchedCount[0]++;
       } else {
         failedNodeIds.add(node.nodeId());
       }
     } catch (Exception e) {
+      if (firstValidationError[0] == null) {
+        failureCause[0] = e instanceof RuntimeException runtime ? runtime : new IllegalStateException(e);
+      }
       LOG.errorf(
           e,
           "Catalog element patch failed chainId=%s elementId=%s nodeId=%s",
@@ -132,7 +137,7 @@ public class ChainPlanPropertiesMaterializer {
       String elementId,
       CatalogElementResponseDto current,
       Map<String, Object> patchBody,
-      String[] firstValidationError)
+      String[] firstValidationError, RuntimeException[] failureCause)
       throws Exception {
     ValidatedPatch validated = validatePatch(node.type(), patchBody);
     if (!validated.valid()) {
@@ -153,6 +158,9 @@ public class ChainPlanPropertiesMaterializer {
       catalogRestClient.updateElement(map.chainId(), elementId, mergedPatch);
       return true;
     } catch (CatalogNonRetryableResponseException catalogError) {
+      if (firstValidationError[0] == null) {
+        failureCause[0] = catalogError;
+      }
       rememberFirstValidationError(
           firstValidationError,
           node.nodeId(),
@@ -180,6 +188,9 @@ public class ChainPlanPropertiesMaterializer {
             "Catalog element patch read-back failed chainId=%s elementId=%s",
             map.chainId(),
             elementId);
+      }
+      if (firstValidationError[0] == null) {
+        failureCause[0] = error;
       }
       rememberFirstValidationError(
           firstValidationError,
@@ -455,6 +466,10 @@ public class ChainPlanPropertiesMaterializer {
   }
 
   public record PropertiesApplyResult(
-      int patchedCount, List<String> failedNodeIds, String firstValidationError) {
+      int patchedCount, List<String> failedNodeIds, String firstValidationError,
+      @JsonIgnore RuntimeException failureCause) {
+    public PropertiesApplyResult(int patchedCount, List<String> failedNodeIds, String firstValidationError) {
+      this(patchedCount, failedNodeIds, firstValidationError, null);
+    }
   }
 }

@@ -75,8 +75,10 @@ public class DefaultDesignProcessSkillRunner implements DesignProcessSkillRunner
                 input,
                 formatFailure,
                 repairEvidence));
-    List<String> tokens =
-        agent.chat(conversationId, userMessage).collect().asList().await().indefinitely();
+    List<String> tokens;
+    try (var ignored = org.qubership.integration.platform.ai.chat.ToolSession.open(conversationId)) {
+      tokens = agent.chat(conversationId, userMessage).collect().asList().await().indefinitely();
+    }
     StringBuilder rendered = new StringBuilder();
     for (String token : tokens) {
       rendered.append(token == null ? "" : token);

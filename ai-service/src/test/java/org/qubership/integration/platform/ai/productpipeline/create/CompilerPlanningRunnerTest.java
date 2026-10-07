@@ -7,6 +7,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import io.smallrye.mutiny.Multi;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
@@ -25,6 +26,28 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 import org.qubership.integration.platform.ai.skill.workspace.SkillWorkspace;
 
 class CompilerPlanningRunnerTest {
+
+  @Test
+  void compilerBoundaryPreservesTypedIdentityWithoutReadingTheMessage() throws Exception {
+    var mapper = new ObjectMapper();
+    for (String message : List.of("Correct this value", "The generated setting is absent")) {
+      var issueJson = mapper.createObjectNode();
+      issueJson.put("issueId", "validation-17");
+      issueJson.put("severity", "BLOCKER");
+      issueJson.put("message", message);
+      issueJson.put("findingCode", "MISSING_REQUIRED_PROPERTY");
+      issueJson.put("originRecordId", "Node/A~B");
+      issueJson.put("fieldPointer", "/properties/Topic~1A~0B");
+      var issue = mapper.treeToValue(issueJson,
+          org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue.class);
+      var result = CompilerPlanningRunner.buildValidationResult(
+          new ValidationResult(false, List.of(issue), "blocked"), List.of());
+      var finding = result.findings().getFirst();
+      assertEquals("MISSING_REQUIRED_PROPERTY", finding.code());
+      assertEquals("Node/A~B", finding.originRecordId());
+      assertEquals("/properties/Topic~1A~0B", finding.fieldPointer());
+    }
+  }
 
   @Test
   void planSeedsBriefOnlyAndNeverTouchesBundleStore() {

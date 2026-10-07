@@ -26,11 +26,23 @@ class PlanValidationFindingTest {
     assertFalse(restored.mappingDetails().isPresent());
     assertEquals("", restored.mappingDetails().targetPath());
     assertEquals("", restored.mappingDetails().consumedBriefArtifactId());
+    assertEquals("", restored.originRecordId());
+    assertEquals("", restored.fieldPointer());
   }
 
   @Test
   void threeArgumentConstructionKeepsEmptyMappingDetails() {
     PlanValidationFinding finding = new PlanValidationFinding("GAP", "missing route", true);
     assertFalse(finding.mappingDetails().isPresent());
+  }
+
+  @Test
+  void typedLocationRoundTripsWithoutChangingLegacyWireFields() throws Exception {
+    var legacy = new PlanValidationFinding("GAP", "missing route", true);
+    var legacyJson = MAPPER.valueToTree(legacy);
+    assertFalse(legacyJson.has("originRecordId"));
+    assertFalse(legacyJson.has("fieldPointer"));
+    var located = new PlanValidationFinding("GAP", "missing route", true, null, "fact-A", "/properties/route");
+    assertEquals(located, MAPPER.readValue(MAPPER.writeValueAsString(located), PlanValidationFinding.class));
   }
 }

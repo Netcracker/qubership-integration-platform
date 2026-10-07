@@ -9,9 +9,23 @@ import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitTurnBudgetExhaustedException;
 
 class TransientFailuresTest {
+
+  @ParameterizedTest
+  @MethodSource("frameworkAndFutureTimeouts")
+  void detectsFrameworkAndFutureTimeouts(Throwable timeout) {
+    assertTrue(TransientFailures.isTransient(new IllegalStateException("Operation timed out", timeout)));
+  }
+
+  private static java.util.stream.Stream<Throwable> frameworkAndFutureTimeouts() {
+    return java.util.stream.Stream.of(
+        new org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException("Catalog deadline"),
+        new java.util.concurrent.TimeoutException("Future deadline"));
+  }
 
   @Test
   void detectsTransportRateLimitAndTransientHttpFailuresInCauseChains() {

@@ -146,8 +146,10 @@ export function visibleMissingEvidence(decision: ChatDecision): string[] {
 }
 
 const RECOVERY_ACTION_IDS = new Set([
+  "continue-repair",
   "retry-creation",
   "edit-requirements",
+  "rebuild-design",
   "rebuild-plan",
   "stop-with-report",
   "restart-from-beginning",
@@ -164,6 +166,8 @@ function defaultRecoveryActions(
       return ["retry-creation", "stop-with-report"];
     case "requirement-brief-defect":
       return ["edit-requirements", "stop-with-report"];
+    case "design-artifact-defect":
+      return ["rebuild-design", "stop-with-report"];
     case "plan-artifact-defect":
       return ["rebuild-plan", "stop-with-report"];
     default:

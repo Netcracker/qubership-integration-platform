@@ -27,6 +27,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aPersistedTask;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aTaskRepository;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aProtocolConstants;
@@ -56,8 +58,11 @@ class A2aApprovalTest {
       EXPECTED_HASH.substring(0, A2aProtocolConstants.APPROVAL_TOKEN_LENGTH);
 
   @InjectMock CreateChainApplicationFacade facade;
+  @InjectMock org.qubership.integration.platform.ai.a2a.access.LocalPermitAllTaskAccessPolicy accessPolicy;
 
   @Inject A2aTaskRepository taskRepository;
+  @Inject org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository receiptRepository;
+  @Inject A2aDispatchCrashGate crashGate;
 
   private final AtomicInteger approveCalls = new AtomicInteger();
   private final AtomicInteger continueCalls = new AtomicInteger();
@@ -519,6 +524,131 @@ class A2aApprovalTest {
         .body("task.status.state", equalTo("TASK_STATE_INPUT_REQUIRED"))
         .extract()
         .path("task.id");
+  }
+
+  @ParameterizedTest
+  @CsvSource({"structured, working, complete", "text, working, complete", "structured, terminal, complete",
+      "text, terminal, complete", "structured, terminal, interrupted", "text, terminal, interrupted"})
+  void approvalReplaySurvivesTheNextStage(String format, String status, String delivery) throws Exception {
+    String taskId = createWaitingTask();
+    when(facade.approvalAlreadyApplied(any())).thenReturn(true);
+    if ("terminal".equals(status)) {
+      org.mockito.Mockito.doAnswer(invocation -> {
+        approveCalls.incrementAndGet();
+        var current = snapshot.get();
+        var after = new CreateChainExecutionSnapshot(taskId, current.runId(), CreateChainExecutionStatus.COMPLETED,
+            current.revision() + 1, null, "");
+        snapshot.set(after);
+        return Multi.createFrom().item(new CreateChainEvent.Completed(after));
+      }).when(facade).streamApprove(any());
+    }
+    String body = "text".equals(format) ? textBody(taskId, "approve " + APPROVAL_TOKEN)
+        : approveBody(taskId, EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION);
+    try {
+      if ("interrupted".equals(delivery)) { crashGate.arm(A2aDispatchCrashGate.Point.AFTER_FIRST_PERSIST); }
+      var first = given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
+          .body(body).post(URI.create("/message:send"));
+      assertEquals("interrupted".equals(delivery) ? 500 : 200, first.statusCode(), first.asString());
+    } finally { crashGate.clear(); }
+    var replay = given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
+        .body(body).post(URI.create("/message:send"));
+    assertEquals(200, replay.statusCode(), replay.asString());
+    assertEquals(taskId, replay.jsonPath().getString("task.id"));
+    assertEquals(1, approveCalls.get(), "replaying the response must not apply another approval");
+    assertEquals(0, continueCalls.get(), "an approval cannot turn into a clarification");
+    String messageId = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body).path("message").path("messageId").asText();
+    var receipt = receiptRepository.findCallerReceipt("local", "local-user", messageId).orElseThrow();
+    assertTrue(receipt.completed());
+    assertEquals(new A2aInboundMessageParser.InboundCommand.Approve(EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION, ""),
+        org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.fromJson(receipt.commandPayloadJson(),
+            A2aInboundMessageParser.InboundCommand.Approve.class));
+    assertEquals(422, post(body.replace(taskId, "another-task")).statusCode(), "the receipt cannot move to another task");
+    assertEquals(422, post(body.replace(APPROVAL_TOKEN, "0".repeat(APPROVAL_TOKEN.length()))).statusCode(),
+        "a changed approval cannot reuse the message id");
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"structured", "text"})
+  void savedApprovalRecoveryHonorsAccessAndStreamReplay(String format) throws Exception {
+    String taskId = createWaitingTask();
+    String body = "text".equals(format) ? textBody(taskId, "approve " + APPROVAL_TOKEN)
+        : approveBody(taskId, EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION);
+    org.mockito.Mockito.doThrow(new org.qubership.integration.platform.ai.a2a.access.TaskAccessDeniedException("denied"))
+        .when(accessPolicy).check(any(), org.mockito.ArgumentMatchers.eq(
+            org.qubership.integration.platform.ai.a2a.access.TaskOperation.APPROVE), any());
+    assertEquals(404, post(body).statusCode());
+    assertEquals(0, approveCalls.get());
+    String messageId = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body).path("message").path("messageId").asText();
+    assertTrue(receiptRepository.findCallerReceipt("local", "local-user", messageId).isEmpty());
+    org.mockito.Mockito.doNothing().when(accessPolicy).check(any(), any(), any());
+    org.mockito.Mockito.doAnswer(invocation -> {
+      approveCalls.incrementAndGet();
+      var current = snapshot.get();
+      var after = new CreateChainExecutionSnapshot(taskId, current.runId(), CreateChainExecutionStatus.COMPLETED,
+          current.revision() + 1, null, "");
+      snapshot.set(after);
+      return Multi.createFrom().item(new CreateChainEvent.Completed(after));
+    }).when(facade).streamApprove(any());
+    when(facade.approvalAlreadyApplied(any())).thenReturn(true);
+    try {
+      crashGate.arm(A2aDispatchCrashGate.Point.AFTER_FIRST_PERSIST);
+      assertEquals(500, post(body).statusCode());
+    } finally { crashGate.clear(); }
+    var events = A2aSseTestSupport.collectSseEvents("POST", "/message:stream", body, java.time.Duration.ofSeconds(10));
+    assertEquals(1, events.size());
+    assertEquals(taskId, events.getFirst().path("task").path("id").asText());
+    org.mockito.Mockito.doThrow(new org.qubership.integration.platform.ai.a2a.access.TaskAccessDeniedException("denied"))
+        .when(accessPolicy).check(any(), org.mockito.ArgumentMatchers.eq(
+            org.qubership.integration.platform.ai.a2a.access.TaskOperation.APPROVE), any());
+    assertEquals(404, post(body).statusCode(), "a saved receipt cannot bypass approval access");
+    assertEquals(1, approveCalls.get());
+    assertEquals(0, continueCalls.get());
+  }
+
+  @Test
+  void legacyTextReceiptStillUsesTheCurrentExactApproval() throws Exception {
+    String taskId = createWaitingTask();
+    String body = textBody(taskId, "approve " + APPROVAL_TOKEN);
+    var message = org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.fromJson(body,
+        org.a2aproject.sdk.spec.MessageSendParams.class).message();
+    var command = new A2aInboundMessageParser.InboundCommand.Approve(EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION, "");
+    receiptRepository.claimContinuation("local", "local-user", message.messageId(),
+        A2aCommandFingerprint.compute(message, command, taskId, null), A2aInboundMessageParser.KIND_APPROVE,
+        taskId, EXPECTED_REVISION);
+    var response = post(body);
+    assertEquals(200, response.statusCode(), response.asString());
+    assertEquals(1, approveCalls.get());
+    assertEquals(0, continueCalls.get());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"structured", "text"})
+  void terminalApprovalReplayRequiresAppliedCommandEvidence(String format) throws Exception {
+    String taskId = createWaitingTask();
+    String body = "text".equals(format) ? textBody(taskId, "approve " + APPROVAL_TOKEN)
+        : approveBody(taskId, EXPECTED_TYPE, EXPECTED_HASH, EXPECTED_REVISION);
+    try {
+      crashGate.arm(A2aDispatchCrashGate.Point.AFTER_CLAIM);
+      assertEquals(500, post(body).statusCode());
+    } finally { crashGate.clear(); }
+    var persisted = taskRepository.findByTaskId(taskId).orElseThrow();
+    var task = org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.fromJson(persisted.publicSnapshotJson(),
+        org.a2aproject.sdk.spec.Task.class);
+    var terminal = org.a2aproject.sdk.spec.Task.builder(task).status(new org.a2aproject.sdk.spec.TaskStatus(
+        org.a2aproject.sdk.spec.TaskState.TASK_STATE_COMPLETED, null, null)).build();
+    taskRepository.transition(taskId, new org.qubership.integration.platform.ai.a2a.persistence.A2aTaskUpdate(
+        persisted.revision(), A2aTaskState.COMPLETED,
+        org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.toJson(terminal), "[]", "[]", java.time.Instant.now()));
+    assertEquals(400, post(body).statusCode(), "terminal state alone cannot prove this approval applied");
+    assertEquals(0, approveCalls.get());
+    assertEquals(0, continueCalls.get());
+    String messageId = new com.fasterxml.jackson.databind.ObjectMapper().readTree(body).path("message").path("messageId").asText();
+    assertTrue(receiptRepository.findCallerReceipt("local", "local-user", messageId).orElseThrow().incomplete());
+  }
+
+  private static io.restassured.response.Response post(String body) {
+    return given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
+        .body(body).post(URI.create("/message:send"));
   }
 
   private static String textBody(String taskId, String text) {

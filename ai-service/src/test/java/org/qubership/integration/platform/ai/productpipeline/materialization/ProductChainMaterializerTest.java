@@ -15,6 +15,9 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -270,6 +273,59 @@ class ProductChainMaterializerTest {
                         false)));
 
     assertThrows(IllegalStateException.class, () -> materializer.resume(inputs, null));
+  }
+
+  @Test
+  void successfulBindingsSurvivePartialGraphFailureAndReconstruction() {
+    var blobs = new InMemoryArtifactBlobStore();
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var saved = new ProductPipelineArtifactStore(
+        new CompilationArtifacts(blobs, mapper, java.time.Clock.systemUTC()));
+    var importer = new ChainPlanGraphImporter(mapper, new CanonicalGraphDigest(mapper));
+    var desired = new ChainPlanGraph("1.0", new ChainSection("demo-chain", "Demo"), List.of(
+        new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+        new ChainPlanNode("script-1", "script", "Prepare", null, null, List.of()),
+        new ChainPlanNode("script-2", "script", "Verify", null, null, List.of())), List.of());
+    var input = new ProductChainMaterializer.Inputs(RUN_ID, desired, runManifest(RUN_ID), "digest");
+    var original = new MaterializationCheckpoint(1, "publication-key", "catalog-chain-1",
+        MaterializationPhase.CHAIN, new MaterializationMap("catalog-chain-1",
+        Map.of("trigger-1", "catalog-trigger-1"), Map.of(), Map.of()), null, Map.of());
+    var known = new MaterializationMap("catalog-chain-1",
+        Map.of("trigger-1", "catalog-trigger-1", "script-2", "catalog-script-a"), Map.of(), Map.of());
+    var partial = new CatalogGraphMaterializeResult(known, List.of("script-2"), List.of("script-1"),
+        "The first script was committed, but its response failed.", List.of(), List.of("script-2"),
+        Map.of(), List.of(), List.of(), List.of(), List.of(), false);
+    when(factsService.load("catalog-chain-1")).thenReturn(new ChainCatalogFacts("catalog-chain-1",
+        "demo-chain", "Demo", 1, 0, "", List.of(new ChainCatalogElement("catalog-trigger-1",
+        "http-trigger", "Trigger", null, Map.of())), List.of(), "catalog"));
+    when(catalog.applyGraph(any(), eq(desired), any()))
+        .thenReturn(io.smallrye.mutiny.Uni.createFrom().item(partial))
+        .thenAnswer(call -> io.smallrye.mutiny.Uni.createFrom().item(
+            CatalogGraphMaterializeResult.noOp(call.getArgument(2))));
+    var first = new ProductChainMaterializer(catalog, saved, factsService, importer);
+
+    assertThrows(IllegalStateException.class, () -> first.resume(input, original));
+    var reconstructed = new ProductPipelineArtifactStore(
+        new CompilationArtifacts(blobs, mapper, java.time.Clock.systemUTC()));
+    MaterializationCheckpoint retained = reconstructed.payload(
+        reconstructed.latest(RUN_ID, Kind.MATERIALIZATION_CHECKPOINT).orElseThrow(),
+        MaterializationCheckpoint.class);
+    assertEquals(known, retained.materializationMap());
+    assertEquals("publication-key", retained.executionKey());
+    assertEquals(MaterializationPhase.CHAIN, retained.completedPhase());
+
+    when(factsService.load("catalog-chain-1")).thenReturn(new ChainCatalogFacts("catalog-chain-1",
+        "demo-chain", "Demo", 3, 0, "", List.of(
+        new ChainCatalogElement("catalog-trigger-1", "http-trigger", "Trigger", null, Map.of()),
+        new ChainCatalogElement("catalog-script-z", "script", "Prepare", null, Map.of()),
+        new ChainCatalogElement("catalog-script-a", "script", "Verify", null, Map.of())),
+        List.of(), "catalog"));
+    var restarted = new ProductChainMaterializer(catalog, reconstructed, factsService, importer);
+    MaterializationResult resumed = restarted.resume(input, retained);
+    assertEquals(Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-z",
+        "script-2", "catalog-script-a"), resumed.materializationMap().nodeIdToElementId());
+    assertEquals(MaterializationPhase.READ_BACK, resumed.completedPhase());
+    verify(catalog, never()).resolveOrCreateChain(any(), any(), any(), any());
   }
 
   @Test

@@ -23,6 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
@@ -67,6 +69,8 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 class CreateChainApplicationFacadeTest {
@@ -76,6 +80,210 @@ class CreateChainApplicationFacadeTest {
   @BeforeEach
   void setUp() throws Exception {
     fixture = Fixture.create();
+  }
+
+  @Test
+  void concurrentCardClicksConsumeOneRepairOfferAndDispatchOnce() throws Exception {
+    String taskId = "task-repair-card";
+    String stage = "design-execution";
+    var cause = org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause.of(
+        org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.UNKNOWN_PROPERTY);
+    String evidence = ProductPipelineRunSupport.haltEvidence(java.util.Map.of(
+        ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR,
+        ProductPipelineRunSupport.recoveryCauseJson(cause)), null);
+    var waiting = new ProductPipelineRunDocument(
+        new RunSnapshot("run-1", taskId, 4L, RunStatus.WAITING_FOR_INPUT, stage, List.of(), null, "flow-1"),
+        List.of(new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt(
+            "attempt-1", stage, 4L, StageStatus.WAITING_FOR_INPUT, Instant.EPOCH, Instant.EPOCH, List.of(), evidence)),
+        List.of(new RunTransition(3L, 4L, RunStatus.RUNNING, RunStatus.WAITING_FOR_INPUT, stage, Instant.EPOCH,
+            PipelineGates.tag(PipelineGates.RECOVERY_REPAIR_ALLOWANCE, "Grant additional repair attempts."))), "v1");
+    var current = new AtomicReference<>(waiting);
+    ProductPipelineRunStore store = mock(ProductPipelineRunStore.class);
+    when(store.loadByConversation(taskId)).thenAnswer(ignored -> Optional.of(current.get()));
+    CreateChainOrchestrator orchestrator = mock(CreateChainOrchestrator.class);
+    var barrier = new java.util.concurrent.CyclicBarrier(2);
+    var dispatched = new AtomicInteger();
+    when(orchestrator.acceptInput(any())).thenAnswer(invocation -> {
+      var command = invocation.getArgument(0,
+          org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand.class);
+      return Multi.createFrom().deferred(() -> {
+        try {
+          barrier.await(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+          return Multi.createFrom().failure(e);
+        }
+        var history = new java.util.ArrayList<>(waiting.transitions());
+        history.add(new RunTransition(4L, 5L, RunStatus.WAITING_FOR_INPUT, RunStatus.RUNNING,
+            stage, Instant.EPOCH, "repair-grant:fixture", command.commandId(), command.commandPayloadHash()));
+        var granted = new ProductPipelineRunDocument(
+            new RunSnapshot("run-1", taskId, 5L, RunStatus.RUNNING, stage, List.of(), null, "flow-1"),
+            waiting.attempts(), history, "v2");
+        if (!current.compareAndSet(waiting, granted)) {
+          return Multi.createFrom().failure(
+              new org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionException("Concurrent grant"));
+        }
+        dispatched.incrementAndGet();
+        return Multi.createFrom().empty();
+      });
+    });
+    CreateChainApplicationFacade facade = new CreateChainApplicationFacade(
+        mock(CreateRunSelectionService.class), mock(CreateRunBindingStore.class), orchestrator,
+        store, fixture.catalog(), mock(ProductPipelineArtifactStore.class));
+    var service = new org.qubership.integration.platform.ai.chat.service.ChatDecisionService(facade,
+        mock(org.qubership.integration.platform.ai.productpipeline.facade.ApprovalQuestionStore.class), new RequirementDraftStore());
+    var command = new org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand();
+    command.setAction(PipelineGates.CONTINUE_REPAIR_ACTION);
+    command.setRevision(4L);
+    Runnable click = () -> service.apply(taskId, command).collect().asList().await().indefinitely();
+
+    java.util.concurrent.CompletableFuture.allOf(
+        java.util.concurrent.CompletableFuture.runAsync(click),
+        java.util.concurrent.CompletableFuture.runAsync(click)).get(10, java.util.concurrent.TimeUnit.SECONDS);
+    String offer = ProductPipelineRunSupport.repairOfferCommand(waiting);
+    facade.continueWithInput(new ContinueCreateChainCommand(taskId, offer, "transport-replay"))
+        .collect().asList().await().indefinitely();
+    command.setRevision(3L);
+    service.apply(taskId, command).collect().asList().await().indefinitely();
+
+    assertEquals(1, dispatched.get());
+    assertEquals(2, current.get().transitions().size());
+    var inputs = org.mockito.ArgumentCaptor.forClass(
+        org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand.class);
+    verify(orchestrator, times(2)).acceptInput(inputs.capture());
+    assertEquals(inputs.getAllValues().getFirst().commandId(), inputs.getAllValues().getLast().commandId());
+    assertEquals(inputs.getAllValues().getFirst().commandPayloadHash(), inputs.getAllValues().getLast().commandPayloadHash());
+  }
+
+  @Test
+  void committedInputRetryReachesTheOrchestratorWhileTheRunIsRunning() {
+    String taskId = "task-input-replay";
+    var current = new AtomicReference<>(new ProductPipelineRunDocument(
+        new RunSnapshot("run-1", taskId, 4L, RunStatus.WAITING_FOR_INPUT,
+            "requirement-discovery", List.of(), null, "flow-1"), List.of(), List.of(), "v1"));
+    ProductPipelineRunStore store = mock(ProductPipelineRunStore.class);
+    when(store.loadByConversation(taskId)).thenAnswer(ignored -> Optional.of(current.get()));
+    CreateChainOrchestrator orchestrator = mock(CreateChainOrchestrator.class);
+    when(orchestrator.acceptInput(any())).thenAnswer(invocation -> {
+      var command = invocation.getArgument(0,
+          org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand.class);
+      current.set(new ProductPipelineRunDocument(
+          new RunSnapshot("run-1", taskId, 5L, RunStatus.RUNNING,
+              "requirement-discovery", List.of(), null, "flow-1"), List.of(), List.of(
+          new RunTransition(4L, 5L, RunStatus.WAITING_FOR_INPUT, RunStatus.RUNNING,
+              "requirement-discovery", Instant.EPOCH, "input accepted", command.commandId(),
+              command.commandPayloadHash())), "v2"));
+      return Multi.createFrom().empty();
+    });
+    when(orchestrator.startOrResume(any())).thenReturn(Multi.createFrom().empty());
+    ProductPipelineArtifactStore artifacts = mock(ProductPipelineArtifactStore.class);
+    var revision = mock(CompilationArtifacts.Revision.class);
+    var manifest = mock(org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest.class);
+    when(artifacts.latest("run-1", Kind.RUN_MANIFEST)).thenReturn(Optional.of(revision));
+    when(artifacts.payload(revision,
+        org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest.class)).thenReturn(manifest);
+    when(manifest.profileId()).thenReturn("create-chain");
+    when(manifest.profileVersion()).thenReturn("2");
+    CreateChainApplicationFacade facade = new CreateChainApplicationFacade(
+        mock(CreateRunSelectionService.class), mock(CreateRunBindingStore.class), orchestrator,
+        store, fixture.catalog(), artifacts);
+    var command = new ContinueCreateChainCommand(taskId, "Use the supplied endpoint", "message-1");
+
+    facade.continueWithInput(command).collect().asList().await().indefinitely();
+    facade.continueWithInput(command).collect().asList().await().indefinitely();
+
+    verify(orchestrator, times(2)).acceptInput(any());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void committedApprovalRetryReachesTheOrchestrator(boolean compound) {
+    String taskId = "task-approval-replay";
+    Reference target = new Reference(Kind.REQUIREMENT_BRIEF, "brief-1", "brief-hash");
+    List<StageSnapshot> stages = List.of(new StageSnapshot("requirement-analysis",
+        StageStatus.SUCCEEDED, List.of(target), target.artifactId(), List.of(target), target, 1));
+    var current = new AtomicReference<>(new ProductPipelineRunDocument(
+        new RunSnapshot("run-1", taskId, 4L, RunStatus.WAITING_FOR_APPROVAL,
+            "requirement-analysis", stages, null, "flow-1"), List.of(), List.of(), "v1"));
+    ProductPipelineRunStore store = mock(ProductPipelineRunStore.class);
+    when(store.loadByConversation(taskId)).thenAnswer(ignored -> Optional.of(current.get()));
+    CreateChainOrchestrator orchestrator = mock(CreateChainOrchestrator.class);
+    when(orchestrator.approve(any())).thenAnswer(invocation -> {
+      var command = invocation.getArgument(0,
+          org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand.class);
+      current.set(new ProductPipelineRunDocument(
+          new RunSnapshot("run-1", taskId, 5L, RunStatus.RUNNING, "design-input", stages, null, "flow-1"),
+          List.of(), List.of(new RunTransition(4L, 5L, RunStatus.WAITING_FOR_APPROVAL, RunStatus.RUNNING,
+              "requirement-analysis", Instant.EPOCH, "approved", command.commandId(),
+              command.commandPayloadHash())), "v2"));
+      return Multi.createFrom().empty();
+    });
+    CreateChainApplicationFacade facade = new CreateChainApplicationFacade(
+        mock(CreateRunSelectionService.class), mock(CreateRunBindingStore.class), orchestrator,
+        store, fixture.catalog());
+    var command = new ApproveCreateChainArtifactCommand(taskId,
+        CreateChainPublicArtifactTypes.REQUIREMENT_BRIEF, target.contentHash(), 4L, "message-1");
+
+    if (compound) {
+      facade.streamApprove(command).collect().asList().await().indefinitely();
+      facade.streamApprove(command).collect().asList().await().indefinitely();
+    } else {
+      facade.streamApproveOnly(command).collect().asList().await().indefinitely();
+      facade.streamApproveOnly(command).collect().asList().await().indefinitely();
+    }
+
+    verify(orchestrator, times(2)).approve(any());
+  }
+
+  @Test
+  void compoundApprovalRetriesItsCommittedImplementationLeg() {
+    String taskId = "task-implementation-replay";
+    Reference target = new Reference(Kind.IMPLEMENTATION_PLAN, "plan-1", "plan-hash");
+    List<StageSnapshot> stages = List.of(new StageSnapshot("design-planning",
+        StageStatus.SUCCEEDED, List.of(target), target.artifactId(), List.of(target), target, 1));
+    var current = new AtomicReference<>(new ProductPipelineRunDocument(
+        new RunSnapshot("run-1", taskId, 4L, RunStatus.WAITING_FOR_APPROVAL,
+            "design-planning", stages, null, "flow-1"), List.of(), List.of(), "v1"));
+    ProductPipelineRunStore store = mock(ProductPipelineRunStore.class);
+    when(store.loadByConversation(taskId)).thenAnswer(ignored -> Optional.of(current.get()));
+    CreateChainOrchestrator orchestrator = mock(CreateChainOrchestrator.class);
+    when(orchestrator.approvedPlanContentHash("run-1")).thenReturn(Optional.of(target.contentHash()));
+    when(orchestrator.approve(any())).thenAnswer(invocation -> {
+      var command = invocation.getArgument(0,
+          org.qubership.integration.platform.ai.productpipeline.runtime.ApproveCommand.class);
+      current.set(new ProductPipelineRunDocument(
+          new RunSnapshot("run-1", taskId, 5L, RunStatus.WAITING_FOR_IMPLEMENT,
+              "design-planning", stages, null, "flow-1"), List.of(), List.of(
+          new RunTransition(4L, 5L, RunStatus.WAITING_FOR_APPROVAL, RunStatus.WAITING_FOR_IMPLEMENT,
+              "design-planning", Instant.EPOCH, "approved", command.commandId(),
+              command.commandPayloadHash())), "v2"));
+      return Multi.createFrom().empty();
+    });
+    var calls = new AtomicInteger();
+    when(orchestrator.implement(any())).thenAnswer(invocation -> {
+      var command = invocation.getArgument(0, ImplementCommand.class);
+      if (calls.incrementAndGet() == 1) {
+        var transitions = new java.util.ArrayList<>(current.get().transitions());
+        transitions.add(new RunTransition(5L, 6L, RunStatus.WAITING_FOR_IMPLEMENT, RunStatus.RUNNING,
+            "design-execution", Instant.EPOCH, "implement", command.commandId(), command.commandPayloadHash()));
+        current.set(new ProductPipelineRunDocument(
+            new RunSnapshot("run-1", taskId, 6L, RunStatus.RUNNING,
+                "design-execution", stages, null, "flow-1"), List.of(), transitions, "v3"));
+        return Multi.createFrom().failure(new IllegalStateException("publisher unavailable"));
+      }
+      return Multi.createFrom().empty();
+    });
+    CreateChainApplicationFacade facade = new CreateChainApplicationFacade(
+        mock(CreateRunSelectionService.class), mock(CreateRunBindingStore.class), orchestrator,
+        store, fixture.catalog());
+    var command = new ApproveCreateChainArtifactCommand(taskId,
+        CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN, target.contentHash(), 4L, "message-1");
+
+    org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+        () -> facade.streamApprove(command).collect().asList().await().indefinitely());
+    facade.streamApprove(command).collect().asList().await().indefinitely();
+
+    verify(orchestrator, times(2)).implement(any());
+    verify(orchestrator, times(1)).approve(any());
   }
 
   @Test
@@ -444,6 +652,14 @@ class CreateChainApplicationFacadeTest {
     CreateChainPendingAction.Approve pending =
         assertInstanceOf(CreateChainPendingAction.Approve.class, beforePlan.pendingAction());
     assertEquals(CreateChainPublicArtifactTypes.IMPLEMENTATION_PLAN, pending.artifactType());
+    var waitingState = facade.publicState(taskId).orElseThrow();
+    var restoredApproval = assertInstanceOf(CreateChainPendingAction.Approve.class,
+        waitingState.snapshot().pendingAction());
+    assertEquals(pending.artifactHash(), restoredApproval.artifactHash());
+    assertEquals(pending.revision(), restoredApproval.revision());
+    assertTrue(assertInstanceOf(CreateChainEvent.ArtifactReady.class, waitingState.events().getFirst())
+        .content().containsKey("planText"));
+    assertEquals(0, facade.lastImplementSubmissions().get());
 
     ApproveCreateChainOutcome outcome =
         facade.approve(
@@ -460,9 +676,31 @@ class CreateChainApplicationFacadeTest {
         "expected WORKING progress through implementation");
     assertEquals(CreateChainExecutionStatus.COMPLETED, accepted.snapshot().status());
     assertEquals(1, facade.lastImplementSubmissions().get());
+    var saved = facade.publicState(taskId).orElseThrow();
+    assertEquals(accepted.snapshot(), saved.snapshot());
+    assertEquals(accepted.events().stream().filter(CreateChainEvent.ArtifactReady.class::isInstance).toList(),
+        saved.events());
+    assertEquals(1, facade.lastImplementSubmissions().get(), "a public read must not implement again");
     assertEquals(
         RunStatus.CHAIN_MATERIALIZED,
         live.runStore().loadByConversation(taskId).orElseThrow().run().status());
+  }
+
+  @Test
+  void publicReadDoesNotInventMissingCompletionEvidence() {
+    String taskId = "missing-completion";
+    ProductPipelineRunStore store = mock(ProductPipelineRunStore.class);
+    when(store.loadByConversation(taskId)).thenReturn(Optional.of(new ProductPipelineRunDocument(
+        new RunSnapshot("run-1", taskId, 9L, RunStatus.CHAIN_MATERIALIZED, "materialization",
+            List.of(), null, "flow-1"), List.of(), List.of(), "v1")));
+    CreateChainOrchestrator orchestrator = mock(CreateChainOrchestrator.class);
+    when(orchestrator.latestCatalogChainSnapshot("run-1")).thenReturn(Optional.empty());
+    var facade = new CreateChainApplicationFacade(mock(CreateRunSelectionService.class),
+        mock(CreateRunBindingStore.class), orchestrator, store, fixture.catalog(),
+        mock(ProductPipelineArtifactStore.class));
+
+    assertTrue(facade.publicState(taskId).isEmpty());
+    verify(orchestrator, org.mockito.Mockito.never()).implement(any());
   }
 
   @Test
@@ -999,9 +1237,9 @@ class CreateChainApplicationFacadeTest {
       facade =
           draftStore == null
               ? new CreateChainApplicationFacade(
-                  selectionService, bindingStore, runtime, runStore, catalog)
+                  selectionService, bindingStore, runtime, runStore, catalog, storeFacade)
               : new CreateChainApplicationFacade(
-                  selectionService, bindingStore, runtime, runStore, catalog, draftStore);
+                  selectionService, bindingStore, runtime, runStore, catalog, storeFacade, draftStore);
     }
 
     private StageCapability discovery() {

@@ -15,6 +15,9 @@ import org.qubership.integration.platform.ai.compiler.artifact.VersionedBlob;
 /**
  * File-backed artifact store. A new instance on the same directory sees blobs written by an
  * earlier process. This is the local stand-in for the durable run-store path.
+ *
+ * <p>ponytail: one handle per process; use backend CAS tests for concurrent writers or a crash
+ * during a file write.
  */
 public final class FileCheckpointBlobStore implements ArtifactBlobStore {
 
@@ -63,14 +66,16 @@ public final class FileCheckpointBlobStore implements ArtifactBlobStore {
 
   @Override
   public Optional<byte[]> get(String key) {
-    Path file = resolve(key);
-    if (!Files.isRegularFile(file)) {
-      return Optional.empty();
-    }
-    try {
-      return Optional.of(Files.readAllBytes(file));
-    } catch (IOException failure) {
-      throw new IllegalStateException("STORE_UNAVAILABLE: cannot read " + key, failure);
+    synchronized (root) {
+      Path file = resolve(key);
+      if (!Files.isRegularFile(file)) {
+        return Optional.empty();
+      }
+      try {
+        return Optional.of(Files.readAllBytes(file));
+      } catch (IOException failure) {
+        throw new IllegalStateException("STORE_UNAVAILABLE: cannot read " + key, failure);
+      }
     }
   }
 
@@ -99,20 +104,22 @@ public final class FileCheckpointBlobStore implements ArtifactBlobStore {
 
   @Override
   public Optional<VersionedBlob> getVersioned(String key) {
-    Optional<byte[]> content = get(key);
-    if (content.isEmpty()) {
-      return Optional.empty();
-    }
-    Path versionFile = versionFile(key);
-    String version = "1";
-    if (Files.isRegularFile(versionFile)) {
-      try {
-        version = Files.readString(versionFile).trim();
-      } catch (IOException failure) {
-        throw new IllegalStateException("STORE_UNAVAILABLE: cannot read version for " + key, failure);
+    synchronized (root) {
+      Optional<byte[]> content = get(key);
+      if (content.isEmpty()) {
+        return Optional.empty();
       }
+      Path versionFile = versionFile(key);
+      String version = "1";
+      if (Files.isRegularFile(versionFile)) {
+        try {
+          version = Files.readString(versionFile).trim();
+        } catch (IOException failure) {
+          throw new IllegalStateException("STORE_UNAVAILABLE: cannot read version for " + key, failure);
+        }
+      }
+      return Optional.of(new VersionedBlob(content.get(), version));
     }
-    return Optional.of(new VersionedBlob(content.get(), version));
   }
 
   @Override

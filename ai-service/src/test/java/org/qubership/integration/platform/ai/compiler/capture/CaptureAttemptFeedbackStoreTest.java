@@ -5,9 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
+import java.time.Clock;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
+import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 
 class CaptureAttemptFeedbackStoreTest {
 
@@ -16,6 +23,30 @@ class CaptureAttemptFeedbackStoreTest {
   @BeforeEach
   void setUp() {
     store = new CaptureAttemptFeedbackStore();
+  }
+
+  @Test
+  void requirementFailureClassificationSurvivesReconstructionAndExplicitClear() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions),
+        artifacts, sessions);
+    var issues = List.of(new TypedIssue("INVALID_REQUESTED_PROPERTY", "/facts/config/property/method", "Use a supported key."));
+    first.recordClassifiedRequirementFailure("chat", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.IDENTICAL_SPAM, false, "Repeated property rejection", issues);
+
+    var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions),
+        new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+        new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+    assertTrue(restored.lastRequirementRejection("chat").isPresent());
+    assertEquals(first.lastRequirementRejection("chat"), restored.lastRequirementRejection("chat"));
+    restored.clearRequirement("chat");
+    assertTrue(new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions),
+        artifacts, sessions).lastRequirementRejection("chat").isEmpty());
+    assertEquals(2, artifacts.history(sessions.active("chat"),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_FEEDBACK).size());
   }
 
   @Test

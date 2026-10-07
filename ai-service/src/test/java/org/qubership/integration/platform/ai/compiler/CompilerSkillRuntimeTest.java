@@ -79,6 +79,9 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.EdgePatch;
 import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 import org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.skill.executor.SkillExecutionResult;
 import org.qubership.integration.platform.ai.skill.executor.SkillRunStatus;
@@ -401,7 +404,20 @@ class CompilerSkillRuntimeTest {
   @Test
   void executionRepairUsesFreshSkillMemoryWithoutChangingKnowledgeRetrieval() {
     String approvedTask = "Return the greeting from the approved HTTP entry.";
-    String repair = "\n\nRepair evidence for " + GENERATOR_ID + ":\nCONTRACT_SHAPE: INVALID_JSON";
+    String cause = "{\"causeCode\":\"GRAPH_STRUCTURE\",\"findings\":[{"
+        + "\"code\":\"GRAPH_STRUCTURE\",\"message\":\"Retain the required error scope.\","
+        + "\"blocker\":true,\"originRecordId\":\"http-trigger-1\","
+        + "\"fieldPointer\":\"/parentNodeId\"}],\"requestedFact\":\"\"}";
+    String repair = StageRepairEvidence.from(new StageExecutionContext(
+        "run-1", CONVERSATION_ID, "design-execution", "exec-2", "attempt-2", null, null,
+        List.of(), Map.of(
+            ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "validation failed",
+            ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-execution",
+            ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR, GENERATOR_ID,
+            ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR, cause)))
+        .withRejectedCandidate(greetingsGraph().withNodeProperty(
+            "http-trigger-1", "accessControlType", "rejected-candidate-value"))
+        .repairTextForSkill(GENERATOR_ID);
     when(generatorAgent.chat(eq(memoryId(GENERATOR_ID)), any()))
         .thenAnswer(invocation -> {
           putGraphPatch(GENERATOR_ID,
@@ -424,6 +440,10 @@ class CompilerSkillRuntimeTest {
     verify(generatorAgent).chat(eq(memoryId(GENERATOR_ID)), message.capture());
     assertTrue(message.getValue().contains(approvedTask));
     assertTrue(message.getValue().contains(repair));
+    assertTrue(message.getValue().contains("\"originRecordId\":\"http-trigger-1\""));
+    assertTrue(message.getValue().contains("\"fieldPointer\":\"/parentNodeId\""));
+    assertTrue(message.getValue().contains("rejected-candidate-value"));
+    assertFalse(knowledgeClient.lastContextRequest().requestText().contains("rejected-candidate-value"));
     assertEquals(approvedTask, knowledgeClient.lastContextRequest().requestText());
     verify(chatMemorySanitizer).clear(memoryId(GENERATOR_ID));
   }

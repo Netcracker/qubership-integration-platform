@@ -22,6 +22,108 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
 
 class RateLimitChatModelTest {
   @Test
+  void providerOverflowRetriesOnlyAChangedPacketAndKeepsDistinctReadsAndFailures() {
+    AppConfig config = mock(AppConfig.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    when(config.llm().transientRetry().backoffSeconds()).thenReturn("2,5,10");
+    var messages = new java.util.ArrayList<dev.langchain4j.data.message.ChatMessage>();
+    messages.add(UserMessage.from("Do not log bodies. Preserve $.Subject and the accepted NONE decision."));
+    var tool = "listCatalogOperations";
+    for (var id : java.util.List.of("page-1", "failure", "page-2", "page-1-again")) {
+      var call = dev.langchain4j.agent.tool.ToolExecutionRequest.builder().id(id).name(tool)
+          .arguments("page-2".equals(id) ? "{\"page\":2}" : "{\"page\":1}").build();
+      messages.add(dev.langchain4j.data.message.AiMessage.from(call));
+      messages.add(dev.langchain4j.data.message.ToolExecutionResultMessage.from(call,
+          "failure".equals(id) ? "{\"ok\":false,\"error\":\"keep evidence\"}" : id + " operations"));
+    }
+    var request = ChatRequest.builder().messages(messages).build();
+    var overflow = new dev.langchain4j.exception.HttpException(400,
+        "{\"error\":{\"code\":\"context_length_exceeded\"}}");
+    ChatModel sync = mock(ChatModel.class);
+    StreamingChatModel stream = mock(StreamingChatModel.class);
+    var defaults = DefaultChatRequestParameters.builder().maxOutputTokens(100).build();
+    when(sync.defaultRequestParameters()).thenReturn(defaults);
+    when(stream.defaultRequestParameters()).thenReturn(defaults);
+    when(sync.chat(any(ChatRequest.class))).thenThrow(overflow);
+    org.mockito.Mockito.doAnswer(call -> {
+      ((StreamingChatResponseHandler) call.getArgument(1)).onError(overflow); return null;
+    }).when(stream).chat(any(ChatRequest.class), any(StreamingChatResponseHandler.class));
+    assertThrows(dev.langchain4j.exception.HttpException.class, () -> new RateLimitChatModel(sync, config,
+        seconds -> {}, new RateLimitErrorClassifier(), new RateLimitWaitPolicy()).chat(request));
+    var handler = mock(StreamingChatResponseHandler.class);
+    new RateLimitStreamingChatModel(stream, config, seconds -> {}, new RateLimitErrorClassifier(),
+        new RateLimitWaitPolicy()).chat(request, handler);
+    verify(handler).onError(overflow);
+    var sent = org.mockito.ArgumentCaptor.forClass(ChatRequest.class);
+    verify(sync, org.mockito.Mockito.times(2)).chat(sent.capture());
+    verify(stream, org.mockito.Mockito.times(2)).chat(sent.capture(), any(StreamingChatResponseHandler.class));
+    for (int i : java.util.List.of(1, 3)) {
+      ChatRequest rebuilt = sent.getAllValues().get(i);
+      assertEquals(messages.getFirst(), rebuilt.messages().getFirst());
+      assertEquals(messages.get(4), rebuilt.messages().get(4));
+      assertEquals(messages.get(6), rebuilt.messages().get(6));
+      assertEquals(messages.getLast(), rebuilt.messages().getLast());
+      org.junit.jupiter.api.Assertions.assertNotEquals(messages.get(2), rebuilt.messages().get(2));
+    }
+    org.junit.jupiter.api.Assertions.assertNotEquals(sent.getAllValues().get(0).messages(),
+        sent.getAllValues().get(1).messages());
+    org.mockito.Mockito.reset(sync);
+    when(sync.defaultRequestParameters()).thenReturn(defaults);
+    when(sync.chat(any(ChatRequest.class))).thenThrow(overflow);
+    assertThrows(dev.langchain4j.exception.HttpException.class, () -> new RateLimitChatModel(sync, config,
+        seconds -> {}, new RateLimitErrorClassifier(), new RateLimitWaitPolicy())
+        .chat(ChatRequest.builder().messages(messages.getFirst()).build()));
+    verify(sync).chat(any(ChatRequest.class));
+  }
+
+  @Test
+  void overflowRebuildKeepsSourcesAndLatestReadWithoutDuplicatingOldResults() {
+    AppConfig config = mock(AppConfig.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    when(config.llm().contextTokens()).thenReturn(4000);
+    when(config.llm().contextHeadroomTokens()).thenReturn(128);
+    var first = dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
+        .id("read-1").name("readRequirementDraft").arguments("{}").build();
+    var second = dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
+        .id("read-2").name("readRequirementDraft").arguments("{}").build();
+    String source = "Keep accessControlType=NONE after confirmation. Do not log bodies. Literal: $.Subject.";
+    String latest = "{\"accepted\":\"" + source + "\"}";
+    var old = dev.langchain4j.data.message.ToolExecutionResultMessage.from(first, "old words ".repeat(4000));
+    var request = ChatRequest.builder().messages(
+        dev.langchain4j.data.message.SystemMessage.from("Preserve accepted facts and exact source."),
+        UserMessage.from(source), dev.langchain4j.data.message.AiMessage.from(first), old,
+        UserMessage.from("Keep the unrelated facts and change the name to Task"),
+        dev.langchain4j.data.message.AiMessage.from(second),
+        dev.langchain4j.data.message.ToolExecutionResultMessage.from(second, latest))
+        .parameters(DefaultChatRequestParameters.builder().maxOutputTokens(1000).build()).build();
+    var prepared = new LlmRequestBudget(config).prepare(request);
+    assertEquals(source, ((UserMessage) prepared.messages().get(1)).singleText());
+    assertEquals(request.messages().get(4), prepared.messages().get(4));
+    var replaced = (dev.langchain4j.data.message.ToolExecutionResultMessage) prepared.messages().get(3);
+    assertEquals(first.id(), replaced.id());
+    org.junit.jupiter.api.Assertions.assertTrue(replaced.text().contains("read-2"));
+    assertEquals(latest, ((dev.langchain4j.data.message.ToolExecutionResultMessage)
+        prepared.messages().getLast()).text());
+    assertEquals(old, request.messages().get(3));
+  }
+
+  @Test
+  void providerContextOverflowUsesStructuredErrorCode() {
+    var overflow = new dev.langchain4j.exception.HttpException(400,
+        "{\"error\":{\"code\":\"context_length_exceeded\",\"message\":\"Provider refused input\"}}");
+    org.junit.jupiter.api.Assertions.assertTrue(LlmRequestBudget.isOverflow(overflow));
+    org.junit.jupiter.api.Assertions.assertFalse(LlmRequestBudget.isOverflow(
+        new dev.langchain4j.exception.HttpException(400,
+            "{\"error\":{\"code\":\"invalid_request_error\",\"message\":\"context_length_exceeded\"}}")));
+    org.junit.jupiter.api.Assertions.assertFalse(LlmRequestBudget.isOverflow(
+        new dev.langchain4j.exception.HttpException(400, "null")));
+    for (String body : java.util.List.of("", "   ")) {
+      org.junit.jupiter.api.Assertions.assertFalse(LlmRequestBudget.isOverflow(
+          new dev.langchain4j.exception.HttpException(400, body)));
+    }
+    org.junit.jupiter.api.Assertions.assertFalse(LlmRequestBudget.isOverflow(
+        new dev.langchain4j.exception.HttpException(400, null)));
+  }
+
+  @Test
   void oversizedRequiredInputNeverReachesEitherProvider() {
     AppConfig config = mock(AppConfig.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
     when(config.llm().contextTokens()).thenReturn(10000);

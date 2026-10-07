@@ -61,6 +61,25 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
+import org.qubership.integration.platform.ai.plan.RequirementCaptureInput;
+import org.qubership.integration.platform.ai.plan.RequirementCaptureProjection;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
+import org.qubership.integration.platform.ai.productpipeline.runtime.CreateChainTestOrchestrator;
+import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
+import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+
 class RequirementAnalysisCapabilityTest {
 
   @Test
@@ -115,7 +134,7 @@ class RequirementAnalysisCapabilityTest {
   }
 
   @Test
-  void unresolvedRequiredMappingKeepsBriefInNeedsInput() {
+  void unresolvedGeneratedMappingRequestsProducerRepair() {
     RequirementDraft approved = RequirementFactFixtures.greetingsApprovedDraft();
     RequirementBrief brief =
         coveringBrief(approved, "Greetings HTTP script")
@@ -140,8 +159,80 @@ class RequirementAnalysisCapabilityTest {
             ctx -> brief);
 
     CapabilitySignal.Completed completed = run(capability, approved);
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.outcome().outcomeClass());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.outcome().outcomeClass());
     assertTrue(completed.outcome().message().contains("$.personId"));
+    assertEquals(org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.MISSING_BRIEF_FACTS,
+        completed.outcome().recoveryCause().causeCode());
+    assertEquals(brief, completed.outcome().candidates().getFirst().payload());
+  }
+
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void generatedMappingDefectRepairsInTheSameRun(boolean omittedIntent) {
+    var input = new RequirementCaptureInput.DraftInput(
+        new RequirementCaptureInput.FlowInput(List.of(
+            new RequirementCaptureInput.InteractionInput("http-in", Direction.INBOUND, "Caller", "POST /input", null, null, null),
+            new RequirementCaptureInput.InteractionInput("http-out", Direction.OUTBOUND, "https://example.com/tasks", "POST", null, null, null)),
+            List.of(new RequirementCaptureInput.TransitionInput("http-in", "http-out"))),
+        List.of(new RequirementCaptureInput.FactInput("goal", List.of(), RequirementCaptureInput.FactKind.GOAL,
+                RequirementCaptureInput.Polarity.POSITIVE, "Create a task."),
+            new RequirementCaptureInput.FactInput("subject-map", List.of("http-in", "http-out"),
+            RequirementCaptureInput.FactKind.FIELD_MAPPING, RequirementCaptureInput.Polarity.POSITIVE,
+            "Map subject to Subject.", new RequirementCaptureInput.FieldMappingInput("http-in", "$.subject", "http-out", "$.Subject", null))),
+        List.of(new RequirementCaptureInput.CapabilityInput("http-in", "http-trigger", RequirementCaptureInput.HttpMode.CUSTOM,
+                RequirementCaptureInput.HttpMethod.POST, "/input", null, null, null),
+            new RequirementCaptureInput.CapabilityInput("http-out", "http-sender", null,
+                RequirementCaptureInput.HttpMethod.POST, "https://example.com/tasks", null, null, null)),
+        List.of(), new RequirementCaptureInput.DraftSettings(false, null));
+    var approved = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+    assertTrue(approved.readyForPlan(), approved.readinessError().orElse(""));
+    var good = coveringBrief(approved, "Create a task").withMappingIntents(List.of(new MappingIntent(
+        "subject-map", "http-in", MappingPort.OUTPUT, "http-out", MappingPort.REQUEST,
+        List.of(new MappingIntentRule("$.subject", "$.Subject", null, MappingRuleStatus.USER_DEFINED)))));
+    var bad = omittedIntent ? good.withMappingIntents(List.of()) : good.withMappingIntents(List.of(new MappingIntent(
+        "subject-map", "http-in", MappingPort.OUTPUT, "http-out", MappingPort.REQUEST,
+        List.of(new MappingIntentRule("", "$.Subject", null, MappingRuleStatus.UNRESOLVED)))));
+    var calls = new AtomicInteger();
+    var knowledge = knowledgeWithMandatoryObjects();
+    var analysis = new RequirementAnalysisCapability(knowledge, knowledge,
+        new org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator(),
+        ctx -> calls.incrementAndGet() == 1 ? bad : good);
+    StageCapability discovery = new StageCapability() {
+      public String capabilityId() { return "test-draft"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+            List.of(new ArtifactCandidate(CompilationArtifacts.Kind.REQUIREMENT_DRAFT, approved, List.of())), "draft ready", null)));
+      }
+    };
+    var profile = new ProductPipelineProfile(1, "analysis-repair", "1", List.of(), List.of(
+        new ProfileStage("requirement-discovery", "test-draft", List.of(),
+            List.of(new ArtifactTypeRef("requirement-draft", 2)), null, null, new RetryPolicy(0, 1L)),
+        new ProfileStage("requirement-analysis", "requirement-analysis", List.of(new ArtifactTypeRef("requirement-draft", 2)),
+            List.of(new ArtifactTypeRef("requirement-brief", 1)), null, null, new RetryPolicy(0, 1L))),
+        new TerminalPolicy("requirement-analysis", "PLAN_APPROVED"), List.of("test-draft", "requirement-analysis"));
+    var mapper = new ObjectMapper().registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+    var blobs = new InMemoryArtifactBlobStore();
+    var clock = java.time.Clock.systemUTC();
+    var artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
+    var runs = new ProductPipelineRunStore(blobs, mapper, clock);
+    var support = ProductPipelineRunSupport.builder(runs, artifacts, new StageCapabilityRegistry(List.of(discovery, analysis)), clock)
+        .mappingRepairCaptureValidator(new MappingRepairCaptureValidator(artifacts, mapper,
+            mock(org.qubership.integration.platform.ai.plan.mapping.schema.OperationSchemaLoader.class))).build();
+    var runtime = new CreateChainTestOrchestrator(support, runs);
+    runtime.startOrResume(new StartOrResumeCommand("conv-generated-mapping", "run-generated-mapping", profile,
+        new RunManifest("run-generated-mapping", null, List.of(), "product", profile.profileId(), profile.profileVersion(), "profile-hash",
+            "baseline", "hash", List.of(), "closure-hash", knowledge.identity().packageRef(), "2026.1", List.of(), null)))
+        .collect().asList().await().indefinitely();
+    var run = runs.load("run-generated-mapping").orElseThrow();
+    assertEquals(RunStatus.PLAN_APPROVED, run.run().status());
+    assertEquals(2, calls.get());
+    assertEquals("conv-generated-mapping", run.run().conversationId());
+    assertTrue(run.attempts().stream().anyMatch(attempt -> attempt.outcome()
+        == org.qubership.integration.platform.ai.productpipeline.store.StageStatus.FAILED));
+    var brief = artifacts.payload(artifacts.latest("run-generated-mapping", CompilationArtifacts.Kind.REQUIREMENT_BRIEF).orElseThrow(), RequirementBrief.class);
+    assertEquals("$.subject", brief.mappingIntents().getFirst().rules().getFirst().sourcePath());
+    assertEquals("$.Subject", brief.mappingIntents().getFirst().rules().getFirst().targetPath());
   }
 
   @Test
@@ -1192,7 +1283,7 @@ class RequirementAnalysisCapabilityTest {
                   "group-1", "spec-1", "op-" + interactionId, "http", "POST", "/" + interactionId,
                   "catalog", Instant.EPOCH, "test"));
     }
-    assertTrue(approved.readyForPlan());
+    assertTrue(approved.readyForPlan(), approved.readinessError().orElse(""));
     MappingIntent request =
         new MappingIntent(
             "request", "http-in", MappingPort.OUTPUT, "create-task", MappingPort.REQUEST,

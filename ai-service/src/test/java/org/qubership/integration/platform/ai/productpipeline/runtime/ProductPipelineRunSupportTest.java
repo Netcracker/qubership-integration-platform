@@ -42,10 +42,50 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
 class ProductPipelineRunSupportTest {
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"", "requirement-discovery"})
+  void aStageLocalHaltCannotResurrectOrReplaceTheGlobalPreparationOwner(String effectiveOwner) {
+    var old = ProductPipelineRunSupport.haltEvidence(Map.of(
+        ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR, "design-input",
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Old rejected semantic capture"), null);
+    var doc = new ProductPipelineRunDocument(new RunSnapshot("run-1", "conv-1", 3L, RunStatus.RUNNING,
+        "design-input", List.of(), null), List.of(new StageAttempt("old", "design-input", 1L,
+            StageStatus.FAILED, Instant.EPOCH, Instant.EPOCH, List.of(), old)), List.of(), "v3");
+    var attributes = new HashMap<String, Object>();
+    attributes.put(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR, effectiveOwner);
+    ProductPipelineRunSupport.overlayHaltEvidenceForStage(doc, "design-input", attributes);
+    assertEquals(effectiveOwner, attributes.get(ProductPipelineRunSupport.RECOVERY_PREPARING_OWNER_ATTR));
+    assertEquals("Old rejected semantic capture", attributes.get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"same-defect", "other-stage", "consumed-offer"})
+  void aResourceAllowanceCannotRenewAConsumedOfferOrAnEarlierStagesOffer(String scenario) {
+    String stage = "design-planning";
+    var transitions = new java.util.ArrayList<RunTransition>();
+    transitions.add(new RunTransition(1L, 2L, RunStatus.RUNNING, RunStatus.WAITING_FOR_INPUT,
+        "other-stage".equals(scenario) ? "design-input" : stage, java.time.Instant.EPOCH,
+        org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.tag(
+            org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.RECOVERY_REPAIR_ALLOWANCE, "Grant repair")));
+    if ("consumed-offer".equals(scenario)) {
+      transitions.add(new RunTransition(2L, 3L, RunStatus.WAITING_FOR_INPUT, RunStatus.RUNNING,
+          stage, java.time.Instant.EPOCH, "repair-grant:targeted:fixture"));
+    }
+    transitions.add(new RunTransition(3L, 4L, RunStatus.RUNNING, RunStatus.WAITING_FOR_INPUT,
+        stage, java.time.Instant.EPOCH,
+        org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.tag(
+            org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.RECOVERY_RETRY_TECHNICAL, "Model resources spent")));
+    var doc = new ProductPipelineRunDocument(new RunSnapshot("run-1", "conv-1", 4L,
+        RunStatus.WAITING_FOR_INPUT, stage, List.of(), null), List.of(), transitions, "v4");
+
+    assertEquals("same-defect".equals(scenario), ProductPipelineRunSupport.resourcePauseFollowedRepairOffer(doc));
+  }
 
   private static final Instant FIXED = Instant.parse("2026-08-25T00:00:00Z");
 
@@ -135,7 +175,7 @@ class ProductPipelineRunSupportTest {
 
     assertEquals(
         Map.of("run-1:planning", 2, "run-1:analysis", 1),
-        ProductPipelineRunSupport.consecutiveTechnicalRetries("run-1", attempts));
+        ProductPipelineRunSupport.consecutiveTechnicalRetries("run-1", attempts, List.of()));
   }
 
   @Test

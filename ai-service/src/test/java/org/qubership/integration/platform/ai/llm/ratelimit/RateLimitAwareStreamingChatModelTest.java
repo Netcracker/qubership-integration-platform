@@ -82,6 +82,78 @@ class RateLimitAwareStreamingChatModelTest {
     assertNull(outer.completeResponse);
   }
 
+  @Test
+  void thinkingAndCompletedToolCallsAlsoPreventTransportReplay() {
+    for (boolean thinking : List.of(true, false)) {
+      FakeStreamingChatModel delegate = new FakeStreamingChatModel();
+      var sleeper = new RateLimitAwareChatModelTest.RecordingSleeper();
+      var model = new RateLimitAwareStreamingChatModel(delegate, classifier, policy, sleeper, true, 3, events::add);
+      CapturingHandler outer = new CapturingHandler();
+      model.chat(request, outer);
+      if (thinking) {
+        delegate.handlers.getFirst().onPartialThinking(
+            new dev.langchain4j.model.chat.response.PartialThinking("reasoning"));
+      } else {
+        delegate.handlers.getFirst().onCompleteToolCall(
+            new dev.langchain4j.model.chat.response.CompleteToolCall(0,
+                dev.langchain4j.agent.tool.ToolExecutionRequest.builder()
+                    .id("capture-1").name("captureRequirementDraft").arguments("{}").build()));
+      }
+      var failure = new RateLimitException("rate_limit_exceeded");
+      delegate.handlers.getFirst().onError(failure);
+      assertEquals(1, delegate.chatCallCount);
+      assertTrue(sleeper.sleptSeconds.isEmpty());
+      assertSame(failure, outer.error);
+    }
+  }
+
+  @Test
+  void terminalFailureCannotOvertakeAnInFlightOutputCallback() throws Exception {
+    var delegate = new FakeStreamingChatModel();
+    var model = new RateLimitAwareStreamingChatModel(delegate, classifier, policy,
+        seconds -> {}, false, 0, events::add);
+    var started = new java.util.concurrent.CountDownLatch(1);
+    var release = new java.util.concurrent.CountDownLatch(1);
+    var callbackDone = new java.util.concurrent.atomic.AtomicBoolean();
+    var terminal = new java.util.concurrent.CompletableFuture<Boolean>();
+    model.chat(request, new StreamingChatResponseHandler() {
+      public void onPartialResponse(String text) {
+        started.countDown();
+        try { release.await(2, java.util.concurrent.TimeUnit.SECONDS); }
+        catch (InterruptedException interrupted) { throw new AssertionError(interrupted); }
+        callbackDone.set(true);
+      }
+      public void onCompleteResponse(ChatResponse response) {}
+      public void onError(Throwable failure) { terminal.complete(callbackDone.get()); }
+    });
+    var observer = delegate.handlers.getFirst();
+    Thread callback = Thread.ofVirtual().start(() -> observer.onPartialResponse("tool output"));
+    assertTrue(started.await(2, java.util.concurrent.TimeUnit.SECONDS));
+    Thread error = Thread.ofVirtual().start(() -> observer.onError(new IllegalStateException("deadline")));
+    try { error.join(100); }
+    finally { release.countDown(); }
+    callback.join(2000);
+    error.join(2000);
+    assertTrue(terminal.get(2, java.util.concurrent.TimeUnit.SECONDS), "Output finishes before the terminal callback");
+  }
+
+  @Test
+  void providerCancellationFailureStillDeliversTheResourcePause() {
+    var delegate = new FakeStreamingChatModel();
+    var model = new RateLimitAwareStreamingChatModel(delegate, classifier, policy, seconds -> {}, false, 0, events::add);
+    CapturingHandler outer = new CapturingHandler();
+    model.chat(request, outer);
+    var handle = org.mockito.Mockito.mock(dev.langchain4j.model.chat.response.StreamingHandle.class);
+    org.mockito.Mockito.doThrow(new IllegalStateException("Cancellation unavailable")).when(handle).cancel();
+    var observer = delegate.handlers.getFirst();
+    observer.onPartialResponse(new dev.langchain4j.model.chat.response.PartialResponse("response"),
+        new dev.langchain4j.model.chat.response.PartialResponseContext(handle));
+    var failure = new LlmRunBudget.Exhausted("Active time exhausted");
+    org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> observer.onError(failure));
+    assertSame(failure, outer.error);
+    org.mockito.Mockito.verify(handle).cancel();
+  }
+
   static final class FakeStreamingChatModel implements StreamingChatModel {
 
     final List<StreamingChatResponseHandler> handlers = new ArrayList<>();

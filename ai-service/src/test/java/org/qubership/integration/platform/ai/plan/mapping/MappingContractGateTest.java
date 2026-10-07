@@ -8,6 +8,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
+import org.qubership.integration.platform.ai.productpipeline.runtime.RecoveryAttemptLedger;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
 import org.qubership.integration.platform.ai.plan.mapping.schema.JsonSchemaMappingContractFactory;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
@@ -32,6 +36,24 @@ class MappingContractGateTest {
   private static final MappingContract SOURCE = contractFrom(ORDER_SCHEMA);
 
   private static final MappingContract TARGET = contractFrom(ORDER_SCHEMA);
+
+  @ParameterizedTest
+  @EnumSource(value = MappingFindingCode.class, names = {"MAPPING_UNKNOWN_TARGET", "MAPPING_INVALID_SOURCE"})
+  void mappingFindingsKeepTheirTypedFieldIdentityWhenWordingAndOtherFieldsChange(MappingFindingCode code) {
+    var original = new MappingRuleFinding(code, "The field is absent.", true, "mapping-A",
+        "source", MappingPort.OUTPUT, "target", MappingPort.REQUEST, "$.sourceA", "$.targetA",
+        "", "", "", "");
+    var reworded = new MappingRuleFinding(code, "Correct this mapping field.", true, "mapping-A",
+        "source", MappingPort.OUTPUT, "target", MappingPort.REQUEST,
+        code == MappingFindingCode.MAPPING_INVALID_SOURCE ? "$.sourceA" : "$.sourceB",
+        code == MappingFindingCode.MAPPING_INVALID_SOURCE ? "$.targetB" : "$.targetA", "", "", "", "");
+    var first = MappingContractGate.toPlanFinding(original, null, null, "brief-a", "hash-a");
+    var changed = MappingContractGate.toPlanFinding(reworded, null, null, "brief-b", "hash-b");
+    assertEquals("mapping-A", first.originRecordId());
+    assertEquals(code == MappingFindingCode.MAPPING_INVALID_SOURCE ? "$.sourceA" : "$.targetA", first.fieldPointer());
+    assertEquals(RecoveryAttemptLedger.evidenceIdentity(RecoveryCause.mappingContract(List.of(first))),
+        RecoveryAttemptLedger.evidenceIdentity(RecoveryCause.mappingContract(List.of(changed))));
+  }
 
   private static MappingContract contractFrom(String schema) {
     try {

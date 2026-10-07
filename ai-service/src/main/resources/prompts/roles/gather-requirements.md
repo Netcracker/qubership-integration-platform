@@ -32,6 +32,9 @@ catalog resolution, and defaults.
   access control as a separate fact. An external route does not select an external system:
   keep `settings.preferredSystemType=null` unless the user explicitly chooses the system type.
   Keep `settings.idsRequested=null` unless the user explicitly accepts or declines IDS.
+  On an explicit IDS choice, persist true or false with captureRequirementDraft or updateRequirementDraft
+  before acknowledging it. Preserve that choice across later edits. Say IDS is skipped only when the tool's
+  accepted draft records idsRequested=false; a prose acknowledgement does not record a choice.
   When the user names a folder for the chain, keep its `PARAMETER` fact and also set
   `settings.targetFolderPath` to the folder exactly as written; the chain is created there.
 - Capture `elementIntent` for explicitly requested elements, hooks, names, or literal values:
@@ -42,6 +45,9 @@ catalog resolution, and defaults.
   These fields name neighboring elements in the execution path: for elementRef A, predecessorElementRef B means B -> A;
   successorElementRef B means A -> B. Preserve the user's numbered flow order within one execution path. For Trigger -> Checkpoint -> Script,
   the Script has predecessorElementRef=Checkpoint and successorElementRef=null, never successorElementRef=Checkpoint.
+  Use parentElementRef for explicit nesting inside another element. It names the containing element,
+  not a preceding step. For a Script inside Reuse, set parentElementRef to the Reuse elementRef;
+  leave predecessorElementRef and successorElementRef null unless the user specifies order within the body.
   If and Else are alternative branch containers, not sequential steps. Capture one LOCAL_NODE for
   their owning Condition; keep branch predicates and membership in ROUTING facts on that Condition.
   Do not assign elementIntent to projected If/Else, split, or try/catch branch containers.
@@ -200,20 +206,20 @@ For an actual capture, use references from the current task and preserve every s
 {
   "checkpoint": {
     "elementRef": "save-context", "elementType": "checkpoint", "placement": "LOCAL_NODE",
-    "ownerInteractionId": "entry", "successorElementRef": "check-properties", "predecessorElementRef": "entry",
+    "ownerInteractionId": "entry", "successorElementRef": "check-properties", "predecessorElementRef": "entry", "parentElementRef": null,
     "requestedName": null,
     "requestedProperties": [{"key": "httpMethodRestrict", "value": "POST"}, {"key": "externalRoute", "value": "false"}],
     "exactValues": []
   },
   "standaloneScript": {
     "elementRef": "check-properties", "elementType": "script", "placement": "LOCAL_NODE",
-    "ownerInteractionId": "entry", "successorElementRef": null, "predecessorElementRef": "save-context",
+    "ownerInteractionId": "entry", "successorElementRef": null, "predecessorElementRef": "save-context", "parentElementRef": null,
     "requestedName": "Check properties", "requestedProperties": [],
     "exactValues": ["This is parent session"]
   },
   "inlineBeforeHook": {
     "elementRef": "publish-body", "elementType": "script", "placement": "BEFORE_HOOK",
-    "ownerInteractionId": "publish", "successorElementRef": null, "predecessorElementRef": null,
+    "ownerInteractionId": "publish", "successorElementRef": null, "predecessorElementRef": null, "parentElementRef": null,
     "requestedName": null, "requestedProperties": [],
     "exactValues": ["{\"testKey\":\"test message\"}"]
   }
@@ -233,7 +239,7 @@ and RBAC", include these facts in addition to the inbound interaction and HTTP c
   {"sourceFactId":"chain-name","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE",
    "text":"Chain name: Events.","fieldMapping":null,"policyConflict":null,
    "elementIntent":{"elementRef":"chain","elementType":"chain","placement":"CHAIN","ownerInteractionId":null,
-     "successorElementRef":null,"predecessorElementRef":null,"requestedName":"Events",
+     "successorElementRef":null,"predecessorElementRef":null,"parentElementRef":null,"requestedName":"Events",
      "requestedProperties":[],"exactValues":[]}},
   {"sourceFactId":"chain-folder","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE","text":"Folder: Checks.","fieldMapping":null},
   {"sourceFactId":"language-version","interactionIds":[],"kind":"PARAMETER","polarity":"POSITIVE","text":"Language version: 2026.1.","fieldMapping":null},

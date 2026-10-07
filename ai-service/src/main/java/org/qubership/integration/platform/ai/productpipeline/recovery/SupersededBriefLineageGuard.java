@@ -56,30 +56,34 @@ public final class SupersededBriefLineageGuard {
 
   public static Optional<String> originatingBriefHash(
       ProductPipelineArtifactStore store, String runId, Revision revision) {
+    return originatingBriefRevision(store, runId, revision).map(Revision::contentHash);
+  }
+
+  /** Resolves one exact brief on the selected artifact's input lineage. */
+  public static Optional<Revision> originatingBriefRevision(
+      ProductPipelineArtifactStore store, String runId, Revision revision) {
     Objects.requireNonNull(store, "store");
-    if (runId == null || runId.isBlank() || revision == null) {
-      return Optional.empty();
-    }
+    if (runId == null || runId.isBlank() || revision == null) { return Optional.empty(); }
     ArrayDeque<Revision> queue = new ArrayDeque<>();
-    Set<String> visited = new HashSet<>();
+    Set<Reference> visited = new HashSet<>();
+    java.util.Map<Reference, Revision> briefs = new java.util.LinkedHashMap<>();
     queue.addLast(revision);
     while (!queue.isEmpty()) {
       Revision current = queue.removeFirst();
-      String visitKey = current.kind() + ":" + current.artifactId();
-      if (!visited.add(visitKey)) {
+      if (!visited.add(current.reference())) { continue; }
+      if (current.kind() == Kind.REQUIREMENT_BRIEF) {
+        briefs.put(current.reference(), current);
         continue;
       }
       for (Reference input : current.inputs()) {
-        if (input == null || input.kind() == null) {
-          continue;
-        }
-        if (input.kind() == Kind.REQUIREMENT_BRIEF) {
-          return Optional.of(input.contentHash());
-        }
-        store.get(runId, input).ifPresent(queue::addLast);
+        if (input == null || input.kind() == null) { continue; }
+        Revision stored = store.get(runId, input).orElseThrow(() ->
+            new IllegalStateException("Compile input lineage is unavailable: " + input.artifactId()));
+        queue.addLast(stored);
       }
     }
-    return Optional.empty();
+    if (briefs.size() > 1) { throw new IllegalStateException("Compile inputs name multiple requirement briefs"); }
+    return briefs.values().stream().findFirst();
   }
 
   public static boolean isSupersededCompileInput(

@@ -63,7 +63,7 @@ public class CompilerSecurityValidator {
           && fact.interactionIds().equals(List.of(node.nodeId()))
           && !conflict.selectedValue().equals(propertyValue(node, "accessControlType"));
     })) {
-      issues.add(blocker(counter++, node.nodeId(),
+      issues.add(blocker(counter++, node.nodeId(), "accessControlType", "security-policy-confirmed",
           "External route access control differs from the confirmed user choice",
           "Apply the confirmed accessControlType from the approved policy fact"));
       return counter;
@@ -79,7 +79,7 @@ public class CompilerSecurityValidator {
       issues.add(
           blocker(
               counter++,
-              node.nodeId(),
+              node.nodeId(), "accessControlType", "security-policy-choice",
               "External route requires accessControlType=RBAC or a confirmed user choice",
               "Explain the corporate RBAC recommendation and ask whether to retain the requested value or use RBAC"));
       return counter;
@@ -89,7 +89,7 @@ public class CompilerSecurityValidator {
       issues.add(
           blocker(
               counter++,
-              node.nodeId(),
+              node.nodeId(), "roles", "security-role-list",
               "External route RBAC requires a non-empty roles list",
               "Configure one or more explicit RBAC roles"));
       return counter;
@@ -98,7 +98,7 @@ public class CompilerSecurityValidator {
       issues.add(
           blocker(
               counter++,
-              node.nodeId(),
+              node.nodeId(), "roles", "security-role-list",
               "External route RBAC roles must not include wildcard role",
               "Replace wildcard with explicit roles"));
     }
@@ -140,7 +140,7 @@ public class CompilerSecurityValidator {
       issues.add(
           blocker(
               counter++,
-              node.nodeId(),
+              node.nodeId(), property.key(), "security-credential-literal",
               "Literal credential material is forbidden for key '" + property.key() + "'",
               "Use secured variable reference format #{NAME}"));
     }
@@ -183,7 +183,7 @@ public class CompilerSecurityValidator {
   }
 
   private static ValidationIssue blocker(
-      int counter, String nodeId, String message, String suggestedFix) {
+      int counter, String nodeId, String propertyKey, String findingCode, String message, String suggestedFix) {
     return new ValidationIssue(
         "security-" + counter,
         ValidationSeverity.BLOCKER,
@@ -191,7 +191,7 @@ public class CompilerSecurityValidator {
         OWNER,
         nodeId == null ? List.of() : List.of(nodeId),
         List.of(),
-        suggestedFix);
+        suggestedFix, findingCode, nodeId, "/properties/" + propertyKey);
   }
 
   private static String trim(String value) {

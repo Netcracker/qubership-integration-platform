@@ -70,7 +70,7 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     validateMappings(revision, brief, index, errors);
     validateScriptOwnership(revision, index, brief, errors);
     errors.addAll(org.qubership.integration.platform.ai.productpipeline.create.design.input.ChainSemanticCaptureAdapter
-        .validateElementIntent(brief, revision.nodes(), revision.executionEdges()));
+        .validateElementIntent(brief, revision, contract));
     validateBindingPolicy(revision, brief, errors);
     if (!errors.isEmpty()) {
       throw new IllegalArgumentException(
@@ -837,6 +837,13 @@ public class DefaultChainSemanticRevisionValidator implements ChainSemanticRevis
     Map<String, String> parentByChild = new LinkedHashMap<>();
     for (SemanticContainment relation : revision.containment()) {
       parentByChild.put(relation.childNodeId(), relation.parentNodeId());
+    }
+    for (SemanticRegion region : revision.regions()) {
+      if (region.ownerNodeId() != null) {
+        for (String member : region.bodyNodeIds(revision.executionEdges(), revision.regions())) {
+          parentByChild.putIfAbsent(member, region.ownerNodeId());
+        }
+      }
     }
     for (SemanticNode node : revision.nodes()) {
       if (!(node instanceof SemanticNode.ServiceCall call)) {

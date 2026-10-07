@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.recovery;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -18,6 +19,48 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBr
 class RecoveryContextProjectorTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
+
+  @Test
+  void projectionKeepsEverySourceMessageInOrderWithoutSerializingInputTimestamps() throws Exception {
+    var inputs = List.of(
+        new org.qubership.integration.platform.ai.productpipeline.artifact.UserInput("first", "conversation-source",
+            "Use POST /orders", java.time.Instant.EPOCH),
+        new org.qubership.integration.platform.ai.productpipeline.artifact.UserInput("second", "conversation-source",
+            "Change the URL to /orders-v2", java.time.Instant.now()));
+    var context = new RecoveryContext(null, sampleBrief(), null, "en", inputs);
+    var root = MAPPER.readTree(RecoveryContextProjector.project(context, MAPPER));
+    assertEquals(2, root.path("authorInputs").size());
+    assertEquals("Use POST /orders", root.at("/authorInputs/0/text").asText());
+    assertEquals("second", root.at("/authorInputs/1/inputId").asText());
+    assertEquals("Change the URL to /orders-v2", root.at("/authorInputs/1/text").asText());
+  }
+
+  @Test
+  void projectionKeepsAuthoredInputsConstraintsAndDraftText() throws Exception {
+    var brief = new RequirementBrief("Goal", List.of("Original event"), List.of("Preserve ordering"),
+        List.of(), List.of(), "summary", "draft-1", "Full author instruction", List.of());
+    var context = new RecoveryContext(null, brief, null, "en");
+    var root = MAPPER.readTree(RecoveryContextProjector.project(context, MAPPER));
+    assertEquals(MAPPER.valueToTree(brief), root.path("approvedBrief"));
+  }
+
+  @Test
+  void oversizedContextIsRefusedBeforeAnotherModelCallWithoutLosingSavedData() {
+    var artifact = java.util.Map.of("script", "x".repeat(RecoveryContextProjector.CHAR_BUDGET));
+    var context = new RecoveryContext(null, sampleBrief(), artifact, "en");
+    assertThrows(IllegalArgumentException.class, () -> RecoveryContextProjector.project(context, MAPPER));
+    assertEquals(artifact, context.rejectedArtifact());
+  }
+
+  @Test
+  void projectionRetainsDocumentRecordReferences() throws Exception {
+    var evidence = new RecoveryEvidence(1, "failure-1", "CONTRACT_SHAPE", "design-execution", "planning",
+        null, null, List.of(), List.of(), null, List.of(), List.of("record-A", "record-B"));
+    var root = MAPPER.readTree(RecoveryContextProjector.project(
+        new RecoveryContext(evidence, sampleBrief(), null, "en"), MAPPER));
+    assertEquals(MAPPER.valueToTree(evidence.documentRecordRefs()),
+        root.path("evidence").path("documentRecordRefs"));
+  }
 
   @Test
   void projectorJsonContainsFailureIdFindingsAndApprovedBrief() throws Exception {
@@ -129,7 +172,7 @@ class RecoveryContextProjectorTest {
     RecoveryEvidence evidence = sampleEvidence(finding, technical);
     RecoveryContext context = new RecoveryContext(evidence, sampleBrief(), null, "en");
 
-    RecoveryContextProjector.project(context, MAPPER);
+    assertThrows(IllegalArgumentException.class, () -> RecoveryContextProjector.project(context, MAPPER));
 
     assertEquals(secret, evidence.technicalFailure().exceptionMessage());
     assertEquals(largeJson, evidence.findings().getFirst().rawValidatorJson());
@@ -188,8 +231,7 @@ class RecoveryContextProjectorTest {
   }
 
   @Test
-  void oversizedEvidenceUsesManifestAndAttachmentsWithoutDroppingValidatorDetails()
-      throws Exception {
+  void oversizedEvidenceUsesTheFallbackWithoutChangingStoredValidatorDetails() {
     String validatorJson = "{\"valid\":false,\"payload\":\"" + "z".repeat(120_000) + "\"}";
     SemanticFinding finding =
         new SemanticFinding(
@@ -208,14 +250,8 @@ class RecoveryContextProjectorTest {
     RecoveryContext context =
         new RecoveryContext(sampleEvidence(finding, null), sampleBrief(), null, "en");
 
-    JsonNode root = MAPPER.readTree(RecoveryContextProjector.project(context, MAPPER));
-
-    assertTrue(root.path("manifest").isArray());
-    assertFalse(root.path("manifest").isEmpty());
-    String attachmentKey = root.path("manifest").get(0).asText();
-    assertEquals(validatorJson, root.path("attachments").path(attachmentKey).asText());
-    assertEquals(attachmentKey, root.path("evidence").path("findings").get(0).path("attachmentRef").asText());
-    assertTrue(root.path("evidence").path("findings").get(0).path("rawValidatorJson").isMissingNode());
+    assertThrows(IllegalArgumentException.class, () -> RecoveryContextProjector.project(context, MAPPER));
+    assertEquals(validatorJson, context.evidence().findings().getFirst().rawValidatorJson());
   }
 
   private static RecoveryEvidence sampleEvidence(

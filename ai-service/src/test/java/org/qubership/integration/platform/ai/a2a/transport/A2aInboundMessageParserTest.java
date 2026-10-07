@@ -166,6 +166,15 @@ class A2aInboundMessageParserTest {
     assertTrue(error.getMessage().contains("artifactType"));
   }
 
+  @Test
+  void corruptSavedApprovalFailsClosed() {
+    var receipt = new org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageReceipt(
+        "task", "fingerprint", org.qubership.integration.platform.ai.a2a.persistence.A2aReceiptProcessingState.CLAIMED,
+        null, null, A2aInboundMessageParser.KIND_APPROVE, 3L, "{broken");
+    assertThrows(IllegalStateException.class, () -> A2aInboundMessageParser.resolveSavedCommand(
+        new InboundCommand.ClarifyText("approve token"), receipt));
+  }
+
   private static Message textMessage(String text) {
     return Message.builder()
         .role(Message.Role.ROLE_USER)

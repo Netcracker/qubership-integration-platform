@@ -56,6 +56,8 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCo
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticEntryPoint;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticExecutionEdge;
@@ -223,10 +225,20 @@ class CompilerDagExecutionEngineTest {
         SkillArtifactType.CHAIN_STRUCTURE, "seed",
         new SkillArtifactPayload.ChainStructurePayload(
             new ChainStructure(graphForAssembly(), List.of(), List.of()))));
-    StageRepairEvidence repair = new StageRepairEvidence(
-        "CONTRACT_FAILURE", "design-execution", "INVALID_JSON: capture failed",
-        "Rejected response " + "CIP:GEN-000059,".repeat(4000), "", "evidence-1",
-        List.of(), "cip-pattern-selector", "CONTRACT_SHAPE");
+    String cause = "{\"causeCode\":\"SECURITY_POLICY\",\"findings\":[{"
+        + "\"code\":\"security-1\",\"message\":\"Use the confirmed access policy.\","
+        + "\"blocker\":true,\"originRecordId\":\"http-trigger\","
+        + "\"fieldPointer\":\"/properties/accessControlType\"}],\"requestedFact\":\"\"}";
+    StageRepairEvidence repair = StageRepairEvidence.from(new StageExecutionContext(
+        "run-1", conversationId, "design-execution", "exec-2", "attempt-2", null, null,
+        List.of(), Map.of(
+            ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+            "Rejected response " + "CIP:GEN-000059,".repeat(4000),
+            ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-execution",
+            ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "security-1: Use the confirmed access policy.",
+            ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR, cause)))
+        .withRejectedCandidate(graphForAssembly().withNodeProperty(
+            graphForAssembly().nodes().getFirst().nodeId(), "accessControlType", "rejected-candidate-value"));
     CompilerDagExecutionRequest request = new CompilerDagExecutionRequest(
         "run-1", conversationId, manifestFor(dag), brief(), null, dag,
         List.of(), List.of(), null, repair);
@@ -236,7 +248,11 @@ class CompilerDagExecutionEngineTest {
 
     assertEquals(StageOutcomeClass.SUCCEEDED, result.outcomeClass());
     assertFalse(received.get().effectiveUserText().contains("Rejected response"));
-    assertTrue(received.get().repairEvidence().contains("INVALID_JSON"));
+    assertTrue(received.get().repairEvidence().contains("\"originRecordId\":\"http-trigger\""));
+    assertTrue(received.get().repairEvidence().contains("\"fieldPointer\":\"/properties/accessControlType\""));
+    assertTrue(received.get().repairEvidence().contains("rejected-candidate-value"));
+    assertTrue(received.get().repairEvidence().contains("did not attribute"));
+    assertFalse(received.get().effectiveUserText().contains("rejected-candidate-value"));
     assertFalse(received.get().repairEvidence().contains("CIP:GEN-000059"));
   }
 

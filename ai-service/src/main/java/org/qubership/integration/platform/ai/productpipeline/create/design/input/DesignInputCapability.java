@@ -21,6 +21,8 @@ import org.qubership.integration.platform.ai.llm.agent.ChainSemanticDesignAgent;
 import org.qubership.integration.platform.ai.llm.qute.QuteUserMessageEscaping;
 import org.qubership.integration.platform.ai.logging.AiTraceLog;
 import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementBriefCoverageValidator;
 import org.qubership.integration.platform.ai.plan.RequirementFactKind;
 import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.plan.RequirementFlowValidator;
@@ -176,6 +178,14 @@ public class DesignInputCapability implements StageCapability {
               List.of("entry point " + blankEntryPoint + " has no capabilityKey")));
     }
     List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
+    var approvedDraft = context.attributes().get("approvedDraft");
+    var omittedMapping = approvedDraft instanceof RequirementDraft draft
+        ? RequirementBriefCoverageValidator.validateAuthoredMappings(draft, brief)
+        : java.util.Optional.<String>empty();
+    if (omittedMapping.isPresent()) {
+      return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          omittedMapping.get(), RecoveryCause.missingBriefFacts(List.of(omittedMapping.get())));
+    }
     if (MappingGapCoverage.shouldAsk(uncovered)) {
       String tagged =
           PipelineGates.tag(
@@ -403,12 +413,25 @@ public class DesignInputCapability implements StageCapability {
          at nodeId equal to the capability sourceFactId. Reference those ids from edges. Do not\
          add another operation with the same elementType. You may list that nodeId under\
          operations to attach every applicable BEHAVIOR sourceFactId; the server keeps one node.\
-         The server initially attaches each anchor's primary fact. Keep local script facts\
+         The server initially attaches each anchor's primary fact. Keep LOCAL_NODE script facts\
          on script nodes separate from external interaction anchors, combining consecutive\
          processing as described above. Do not invent\
          the chain-call trigger UUID; gathering already stored it on the capability path.""");
     if (repairSection != null && !repairSection.isBlank()) {
       prompt.append(repairSection);
+    }
+    for (RequirementFact fact : brief.facts()) {
+      var intent = fact.elementIntent();
+      if (fact.polarity() != RequirementFactPolarity.POSITIVE || intent == null
+          || intent.placement() != org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK
+              && intent.placement() != org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.AFTER_HOOK) {
+        continue;
+      }
+      prompt.append("\nInline hook assignment: sourceFactId=").append(fact.sourceFactId())
+          .append(" belongs in sourceFactIds of the service-call operation nodeId=")
+          .append(intent.ownerInteractionId()).append(" (placement=").append(intent.placement())
+          .append("). Hook elementRef=").append(intent.elementRef())
+          .append(" is not an operation nodeId or an edge endpoint. Do not add a Script for this hook.");
     }
     return prompt.toString();
   }
@@ -424,9 +447,8 @@ public class DesignInputCapability implements StageCapability {
       extra.append("\n\nAuthor correction:\n").append(repair.haltFollowUpText().trim());
     }
     extra.append(
-        "\nRebuild the topology so this rejection cannot recur. When a container is below its"
-            + " minimum child count, add the missing child operation and parent it under that"
-            + " container. Call captureChainSemanticRevision once.");
+        "\nRebuild the topology so this rejection cannot recur. Preserve the approved element"
+            + " placements. Call captureChainSemanticRevision once.");
     return extra.toString();
   }
 

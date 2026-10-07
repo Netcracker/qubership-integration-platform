@@ -112,6 +112,39 @@ class MappingGapResumeTest {
     runtime = new CreateChainTestOrchestrator(support, runStore);
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"pass_through", DESCRIBE_PROSE})
+  void canonicalMappingProjectionReachesTheConsumerWithoutItsOldApproval(String answer) {
+    profile = new ProductPipelineProfile(profile.schemaVersion(), profile.profileId(), "2", profile.runInputs(),
+        profile.stages(), profile.terminal(), profile.dependencyRoots(), profile.compilerPipeline(), profile.implementationGate());
+    waitAtMappingGap();
+    type(answer);
+    var selected = ProductPipelineRunSupport.selectedRequirementBriefReference(run());
+    var consumed = new java.util.concurrent.atomic.AtomicReference<List<org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference>>();
+    StageCapability consumer = new StageCapability() {
+      @Override public String capabilityId() { return "design-input"; }
+      @Override public Multi<CapabilitySignal> execute(
+          org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext context) {
+        consumed.set(context.inputRefs());
+        return Multi.createFrom().item(new CapabilitySignal.Completed(
+            StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Consumer input captured")));
+      }
+    };
+    var restored = ProductPipelineRunSupport.builder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(analysisCapability(), consumer, planningCapability())), clock).build();
+    restored.restoreForExternalWorkflow(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
+        .collect().asList().await().indefinitely();
+    new CreateChainTestOrchestrator(restored, runStore).executeStage(RUN_ID, "design-input")
+        .collect().asList().await().indefinitely();
+    assertTrue(consumed.get().contains(selected));
+    var semantic = artifactStore.append(new AppendCommand(RUN_ID, Kind.CHAIN_SEMANTIC_REVISION,
+        org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision.CURRENT_SCHEMA_VERSION, "design-input", "1",
+        org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures.linearOrders(),
+        consumed.get(), null, provenance()));
+    assertEquals(selected, org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard
+        .originatingBriefRevision(artifactStore, RUN_ID, semantic).orElseThrow().reference());
+  }
+
   @Test
   void passThroughSkipsUncoveredHopsAndLeavesWithoutMappingRows() {
     waitAtMappingGap();
@@ -717,7 +750,9 @@ class MappingGapResumeTest {
             "Uncovered flow transitions",
             "ref",
             "draft",
-            List.of())
+            List.of(
+                mappingRequest("task-start", "create-task"),
+                mappingRequest("create-task", "task-result")))
         .withFlow(
             new RequirementFlow(
                 List.of(
@@ -729,6 +764,82 @@ class MappingGapResumeTest {
                 List.of(
                     new Transition("task-start", "create-task"),
                     new Transition("create-task", "task-result"))));
+  }
+
+  private static org.qubership.integration.platform.ai.plan.RequirementFact mappingRequest(String source, String target) {
+    return new org.qubership.integration.platform.ai.plan.RequirementFact("mapping-" + target,
+        org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.FIELD_MAPPING, "",
+        "Adapt the fields on this transition.", "", "", "", "", "", "", List.of(source, target));
+  }
+
+  @Test
+  void unsupportedMappingGateResumesWithoutChangingTheAcceptedBrief() {
+    var brief = uncoveredBrief().withFacts(List.of());
+    support = ProductPipelineRunSupport.builder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(
+            new ScriptedCapability("requirement-analysis", new StageOutcome(StageOutcomeClass.CANDIDATE,
+                List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, brief, List.of())), "brief ready", null)),
+            new ScriptedCapability("design-input", StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+                PipelineGates.tag(PipelineGates.MAPPING_GAP, "Missing mapping"))), planningCapability())), clock)
+        .mappingTurnAdapter((current, message) -> {
+          throw new AssertionError("An unsupported gate must be reassessed before mapping interpretation.");
+        }).build();
+    runtime = new CreateChainTestOrchestrator(support, runStore);
+    waitAtMappingGap();
+    var approved = artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow();
+    var approval = artifactStore.latest(RUN_ID, Kind.APPROVAL_RECORD).orElseThrow();
+
+    type("The complete body is already specified. Continue using the accepted requirements.");
+
+    assertEquals(RunStatus.RUNNING, run().run().status());
+    assertEquals("design-input", run().run().currentStageId());
+    assertEquals(approved, artifactStore.latest(RUN_ID, Kind.REQUIREMENT_BRIEF).orElseThrow());
+    assertEquals(approval, artifactStore.latest(RUN_ID, Kind.APPROVAL_RECORD).orElseThrow());
+    assertEquals(brief, storedBrief());
+    assertFalse(storedBrief().skippedTransitions().size() > 0);
+  }
+
+  @Test
+  void savedMappingGateWithAnOmittedAuthoredRuleResumesForProducerRepair() {
+    var input = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        null, List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+            "mapping-create-task", List.of("task-start", "create-task"),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.FIELD_MAPPING,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
+            "Map name to Subject.",
+            new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
+                "task-start", "$.name", "create-task", "$.Subject", null))), List.of(), List.of(), null);
+    var draft = new org.qubership.integration.platform.ai.plan.RequirementDraft(true, "Map name to Subject.",
+        org.qubership.integration.platform.ai.plan.DraftDecision.READY_FOR_PLAN, List.of(),
+        "test", "1", "hash", null, false, List.of(), false, null, false,
+        uncoveredBrief().flow(), List.of(), null, input);
+    var draftRevision = artifactStore.append(new AppendCommand(RUN_ID, Kind.REQUIREMENT_DRAFT, "1",
+        "test", "1", draft, List.of(), null, provenance()));
+    var template = uncoveredBrief();
+    var brief = new RequirementBrief(template.goal(), template.inputs(), template.constraints(),
+        template.assumptions(), template.citations(), template.summary(), draftRevision.artifactId(),
+        template.approvedDraftText(), template.facts(), template.entryPoints(), template.serviceCalls(),
+        template.requirements(), List.of(), template.flow(), template.catalogBindings(), List.of());
+    support = ProductPipelineRunSupport.builder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(
+            new ScriptedCapability("requirement-analysis", new StageOutcome(StageOutcomeClass.CANDIDATE,
+                List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, brief, List.of())), "brief ready", null)),
+            new ScriptedCapability("design-input", StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+                PipelineGates.tag(PipelineGates.MAPPING_GAP, "Missing mapping"))), planningCapability())), clock)
+        .mappingTurnAdapter((current, message) -> {
+          throw new AssertionError("A supplied mapping must resume the producer instead of asking for it again.");
+        }).build();
+    runtime = new CreateChainTestOrchestrator(support, runStore);
+    waitAtMappingGap();
+    var approval = artifactStore.latest(RUN_ID, Kind.APPROVAL_RECORD).orElseThrow();
+
+    type("The mapping is already supplied. Continue.");
+
+    assertEquals(RunStatus.RUNNING, run().run().status());
+    assertEquals("design-input", run().run().currentStageId());
+    assertEquals(approval, artifactStore.latest(RUN_ID, Kind.APPROVAL_RECORD).orElseThrow());
+    assertEquals(brief, storedBrief());
   }
 
   private static RequirementBrief identityAutoBrief() {

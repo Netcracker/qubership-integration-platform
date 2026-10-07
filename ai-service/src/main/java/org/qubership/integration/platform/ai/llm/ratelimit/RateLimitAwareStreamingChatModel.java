@@ -23,6 +23,13 @@ import java.util.function.Consumer;
 import org.jboss.logging.Logger;
 
 public final class RateLimitAwareStreamingChatModel implements StreamingChatModel {
+  // ponytail: providers may ignore cancellation; retain the reservation for an unknown outcome.
+  private static final java.util.concurrent.ScheduledExecutorService DEADLINES =
+      java.util.concurrent.Executors.newSingleThreadScheduledExecutor(action -> {
+        Thread thread = new Thread(action, "model-deadlines");
+        thread.setDaemon(true);
+        return thread;
+      });
 
   private static final Logger LOG = Logger.getLogger(RateLimitAwareStreamingChatModel.class);
 
@@ -37,6 +44,16 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
   private final boolean transientEnabled;
   private final int transientMaxAttempts;
   private final Consumer<RateLimitAwareChatModel.BackoffEvent> onBackoff;
+  private LlmRunBudget runBudget;
+  private String runId;
+  private LlmRequestBudget requestBudget;
+
+  RateLimitAwareStreamingChatModel withRunBudget(LlmRunBudget budget, String runId, LlmRequestBudget requests) {
+    this.runBudget = budget;
+    this.runId = runId;
+    this.requestBudget = requests;
+    return this;
+  }
 
   public RateLimitAwareStreamingChatModel(
       StreamingChatModel delegate,
@@ -87,23 +104,36 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
 
   @Override
   public void chat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
-    if (!rateLimitEnabled && !transientEnabled) {
-      delegate.chat(chatRequest, handler);
-      return;
-    }
-    chatWithRetry(chatRequest, handler, 0, 0);
+    chatWithRetry(chatRequest, handler, 0, 0, false);
   }
 
   private void chatWithRetry(
       ChatRequest chatRequest,
       StreamingChatResponseHandler handler,
       int rateLimitAttempt,
-      int transientAttempt) {
+      int transientAttempt, boolean contextRebuilt) {
     AtomicBoolean tokensStarted = new AtomicBoolean(false);
-    delegate.chat(
-        chatRequest,
-        observingHandler(
-            handler, chatRequest, rateLimitAttempt, transientAttempt, tokensStarted));
+    var ticket = runBudget == null ? null : runBudget.reserve(runId,
+        requestBudget.estimateInputTokens(chatRequest),
+        chatRequest.maxOutputTokens() == null ? 8192 : chatRequest.maxOutputTokens());
+    var deadline = new java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>>();
+    var observer = observingHandler(handler, chatRequest, rateLimitAttempt, transientAttempt,
+        tokensStarted, contextRebuilt, ticket, deadline);
+    if (ticket != null) { scheduleDeadline(ticket, observer, deadline); }
+    try { delegate.chat(chatRequest, observer); }
+    catch (RuntimeException failure) { observer.onError(failure); }
+  }
+
+  private void scheduleDeadline(LlmRunBudget.Ticket ticket, StreamingChatResponseHandler observer,
+      java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>> deadline) {
+    deadline.set(DEADLINES.schedule(() -> Thread.ofVirtual().start(() -> {
+      try {
+        if (!runBudget.state(ticket.runId()).active().containsKey(ticket.id())) { return; }
+        var failure = runBudget.expire(ticket);
+        if (failure != null) { observer.onError(failure); }
+        else { scheduleDeadline(ticket, observer, deadline); }
+      } catch (RuntimeException failure) { observer.onError(failure); }
+    }), runBudget.checkDelayMillis(ticket), java.util.concurrent.TimeUnit.MILLISECONDS));
   }
 
   private StreamingChatResponseHandler observingHandler(
@@ -111,58 +141,98 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
       ChatRequest chatRequest,
       int rateLimitAttempt,
       int transientAttempt,
-      AtomicBoolean tokensStarted) {
+      AtomicBoolean tokensStarted, boolean contextRebuilt, LlmRunBudget.Ticket ticket,
+      java.util.concurrent.atomic.AtomicReference<java.util.concurrent.ScheduledFuture<?>> deadline) {
+    AtomicBoolean completed = new AtomicBoolean();
+    var handle = new java.util.concurrent.atomic.AtomicReference<dev.langchain4j.model.chat.response.StreamingHandle>();
     return new StreamingChatResponseHandler() {
 
       @Override
-      public void onPartialResponse(String partialResponse) {
+      public synchronized void onPartialResponse(String partialResponse) {
+        if (completed.get()) { return; }
         tokensStarted.set(true);
-        handler.onPartialResponse(partialResponse);
+        forward(() -> handler.onPartialResponse(partialResponse));
       }
 
       @Override
-      public void onPartialResponse(PartialResponse partialResponse, PartialResponseContext context) {
+      public synchronized void onPartialResponse(PartialResponse partialResponse, PartialResponseContext context) {
+        handle.set(context.streamingHandle());
+        if (completed.get()) { cancel(context.streamingHandle()); return; }
         tokensStarted.set(true);
-        handler.onPartialResponse(partialResponse, context);
+        forward(() -> handler.onPartialResponse(partialResponse, context));
       }
 
       @Override
-      public void onPartialThinking(PartialThinking partialThinking) {
-        handler.onPartialThinking(partialThinking);
-      }
-
-      @Override
-      public void onPartialThinking(PartialThinking partialThinking, PartialThinkingContext context) {
-        handler.onPartialThinking(partialThinking, context);
-      }
-
-      @Override
-      public void onPartialToolCall(PartialToolCall partialToolCall) {
+      public synchronized void onPartialThinking(PartialThinking partialThinking) {
+        if (completed.get()) { return; }
         tokensStarted.set(true);
-        handler.onPartialToolCall(partialToolCall);
+        forward(() -> handler.onPartialThinking(partialThinking));
       }
 
       @Override
-      public void onPartialToolCall(PartialToolCall partialToolCall, PartialToolCallContext context) {
+      public synchronized void onPartialThinking(PartialThinking partialThinking, PartialThinkingContext context) {
+        handle.set(context.streamingHandle());
+        if (completed.get()) { cancel(context.streamingHandle()); return; }
         tokensStarted.set(true);
-        handler.onPartialToolCall(partialToolCall, context);
+        forward(() -> handler.onPartialThinking(partialThinking, context));
       }
 
       @Override
-      public void onCompleteToolCall(CompleteToolCall completeToolCall) {
-        handler.onCompleteToolCall(completeToolCall);
+      public synchronized void onPartialToolCall(PartialToolCall partialToolCall) {
+        if (completed.get()) { return; }
+        tokensStarted.set(true);
+        forward(() -> handler.onPartialToolCall(partialToolCall));
       }
 
       @Override
-      public void onCompleteResponse(ChatResponse completeResponse) {
-        handler.onCompleteResponse(completeResponse);
+      public synchronized void onPartialToolCall(PartialToolCall partialToolCall, PartialToolCallContext context) {
+        handle.set(context.streamingHandle());
+        if (completed.get()) { cancel(context.streamingHandle()); return; }
+        tokensStarted.set(true);
+        forward(() -> handler.onPartialToolCall(partialToolCall, context));
       }
 
       @Override
-      public void onError(Throwable error) {
-        if (tokensStarted.get()) {
-          handler.onError(error);
+      public synchronized void onCompleteToolCall(CompleteToolCall completeToolCall) {
+        if (completed.get()) { return; }
+        tokensStarted.set(true);
+        forward(() -> handler.onCompleteToolCall(completeToolCall));
+      }
+
+      @Override
+      public synchronized void onCompleteResponse(ChatResponse completeResponse) {
+        if (!completed.compareAndSet(false, true)) {
+          if (runBudget != null) { runBudget.complete(ticket, null); }
           return;
+        }
+        if (deadline.get() != null) { deadline.get().cancel(false); }
+        try {
+          if (runBudget != null) { runBudget.complete(ticket, completeResponse == null ? null : completeResponse.tokenUsage()); }
+        } catch (RuntimeException failure) { forward(() -> handler.onError(failure)); return; }
+        forward(() -> handler.onCompleteResponse(completeResponse));
+      }
+
+      @Override
+      public synchronized void onError(Throwable error) {
+        if (!completed.compareAndSet(false, true)) {
+          if (runBudget != null && !(error instanceof LlmRunBudget.Exhausted)) { runBudget.complete(ticket, null); }
+          return;
+        }
+        if (deadline.get() != null) { deadline.get().cancel(false); }
+        if (error instanceof LlmRunBudget.Exhausted && handle.get() != null) { cancel(handle.get()); }
+        try {
+          if (runBudget != null && !(error instanceof LlmRunBudget.Exhausted)) { runBudget.complete(ticket, null); }
+        } catch (RuntimeException failure) { forward(() -> handler.onError(failure)); return; }
+        if (tokensStarted.get()) {
+          forward(() -> handler.onError(error));
+          return;
+        }
+        if (!contextRebuilt && requestBudget != null && LlmRequestBudget.isOverflow(error)) {
+          ChatRequest rebuilt = requestBudget.rebuild(chatRequest);
+          if (!rebuilt.messages().equals(chatRequest.messages())) {
+            retry(requestBudget.prepare(rebuilt), handler, rateLimitAttempt, transientAttempt, true);
+            return;
+          }
         }
         if (rateLimitEnabled
             && rateLimitClassifier.isRateLimit(error)
@@ -172,7 +242,7 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
                   rateLimitClassifier.extractWait(error), rateLimitAttempt);
           onBackoff.accept(new RateLimitAwareChatModel.BackoffEvent(rateLimitAttempt + 1, waitSeconds));
           sleeper.sleepSeconds(waitSeconds);
-          chatWithRetry(chatRequest, handler, rateLimitAttempt + 1, transientAttempt);
+          retry(chatRequest, handler, rateLimitAttempt + 1, transientAttempt, contextRebuilt);
           return;
         }
         if (transientEnabled
@@ -186,12 +256,28 @@ public final class RateLimitAwareStreamingChatModel implements StreamingChatMode
               waitSeconds,
               rootMessage(error));
           sleeper.sleepSeconds(waitSeconds);
-          chatWithRetry(chatRequest, handler, rateLimitAttempt, transientAttempt + 1);
+          retry(chatRequest, handler, rateLimitAttempt, transientAttempt + 1, contextRebuilt);
           return;
         }
-        handler.onError(error);
+        forward(() -> handler.onError(error));
       }
     };
+  }
+
+  private void retry(ChatRequest request, StreamingChatResponseHandler handler,
+      int rateLimitAttempt, int transientAttempt, boolean contextRebuilt) {
+    try { chatWithRetry(request, handler, rateLimitAttempt, transientAttempt, contextRebuilt); }
+    catch (RuntimeException failure) { forward(() -> handler.onError(failure)); }
+  }
+
+  private void forward(Runnable callback) {
+    if (runId == null) { callback.run(); }
+    else { LlmRunBudget.withRun(runId, () -> { callback.run(); return null; }); }
+  }
+
+  private static void cancel(dev.langchain4j.model.chat.response.StreamingHandle handle) {
+    try { handle.cancel(); }
+    catch (RuntimeException failure) { LOG.warn("Model transport cancellation failed", failure); }
   }
 
   private static String rootMessage(Throwable error) {

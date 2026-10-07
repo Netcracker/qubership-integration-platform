@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CanonicalPayloadHash;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -63,6 +65,8 @@ public final class PipelineGates {
 
   /** The same blocker returned after recovery without material progress. */
   public static final String RECOVERY_REPEATED = "recovery-repeated";
+  public static final String RECOVERY_REPAIR_ALLOWANCE = "recovery-repair-allowance";
+  public static final String CONTINUE_REPAIR_ACTION = "continue-repair";
 
   /** A halt the product could not classify into a recoverable route. */
   public static final String RECOVERY_UNCLASSIFIED = "recovery-unclassified";
@@ -139,10 +143,19 @@ public final class PipelineGates {
       return "";
     }
     String head = attachmentSeparatedHead(text.trim());
+    if (CONTINUE_REPAIR_ACTION.equals(head) || head.startsWith(CONTINUE_REPAIR_ACTION + ":")) {
+      return CONTINUE_REPAIR_ACTION;
+    }
     if (RETRY_ACTION.equals(head) || REVISE_ACTION.equals(head)) {
       return head;
     }
     return "";
+  }
+
+  /** Binds the run, revision, scoped defect, and two additional credits per strategy. */
+  public static String continueRepairCommand(String runId, long revision, String defectId) {
+    return CONTINUE_REPAIR_ACTION + ":" + CanonicalPayloadHash.sha256Hex(Map.of(
+        "runId", runId, "revision", revision, "defect", defectId, "targeted", 2, "clean", 2));
   }
 
   /** Text before a leftover inlined-attachment `---` divider; the whole string when none. */
@@ -188,6 +201,7 @@ public final class PipelineGates {
         || RECOVERY_ENVIRONMENT.equals(gateId)
         || RECOVERY_INTERNAL.equals(gateId)
         || RECOVERY_REPEATED.equals(gateId)
+        || RECOVERY_REPAIR_ALLOWANCE.equals(gateId)
         || RECOVERY_UNCLASSIFIED.equals(gateId);
   }
 

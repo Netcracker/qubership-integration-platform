@@ -187,6 +187,10 @@ public final class RequirementBriefText {
       if (fact.elementIntent() != null) {
         var intent = fact.elementIntent();
         body.append(" elementIntent=").append(intent);
+        if (intent.parentElementRef() != null) {
+          body.append(" requiredContainment=").append(intent.parentElementRef())
+              .append(" contains ").append(intent.elementRef());
+        }
         if (intent.predecessorElementRef() != null) {
           body.append(" requiredExecutionOrder=").append(intent.predecessorElementRef())
               .append(" -> ").append(intent.elementRef());

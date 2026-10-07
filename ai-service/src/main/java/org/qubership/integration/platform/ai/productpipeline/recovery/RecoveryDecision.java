@@ -11,7 +11,15 @@ public record RecoveryDecision(
     RecoveryAction action,
     List<ProposedBriefChange> proposedBriefChanges,
     String question,
-    String userSummary) {
+    String userSummary,
+    AuthorQuestionEvidence authorQuestionEvidence) {
+
+  public RecoveryDecision(
+      RecoveryCauseClass causeClass, Reference faultArtifactRef, List<String> evidenceRefs,
+      RecoveryAction action, List<ProposedBriefChange> proposedBriefChanges, String question,
+      String userSummary) {
+    this(causeClass, faultArtifactRef, evidenceRefs, action, proposedBriefChanges, question, userSummary, null);
+  }
 
   public RecoveryDecision {
     evidenceRefs = evidenceRefs == null ? List.of() : List.copyOf(evidenceRefs);

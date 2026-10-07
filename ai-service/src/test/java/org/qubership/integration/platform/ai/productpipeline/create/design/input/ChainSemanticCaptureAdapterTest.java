@@ -73,14 +73,14 @@ class ChainSemanticCaptureAdapterTest {
     wrong.set(0, new SemanticNode.Trigger(trigger.nodeId(), trigger.capabilityKey(),
         new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(
             List.of("trigger-1", "checkpoint-config"))));
-    assertFalse(ChainSemanticCaptureAdapter.validateElementIntent(brief, wrong, revision.executionEdges()).isEmpty());
+    assertFalse(elementIntentErrors(brief, wrong, revision.executionEdges()).isEmpty());
     List<SemanticNode> valid = new ArrayList<>(revision.nodes());
     valid.add(new SemanticNode.Operation("checkpoint", "checkpoint",
         new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(List.of("checkpoint-config"))));
     List<SemanticExecutionEdge> edges = List.of(
         new SemanticExecutionEdge("e1", "http-in", "checkpoint", null, null, null),
         new SemanticExecutionEdge("e2", "checkpoint", "op-shared", null, null, null));
-    assertTrue(ChainSemanticCaptureAdapter.validateElementIntent(brief, valid, edges).isEmpty());
+    assertTrue(elementIntentErrors(brief, valid, edges).isEmpty());
 
     var hook = new org.qubership.integration.platform.ai.plan.RequirementElementIntent(
         "before-call", "script", org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK,
@@ -92,10 +92,18 @@ class ChainSemanticCaptureAdapterTest {
     brief = mapper.treeToValue(body, RequirementBrief.class);
     var call = new SemanticNode.ServiceCall("call-1", "call-1", "getOrder",
         new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(List.of("before-script")));
-    assertTrue(ChainSemanticCaptureAdapter.validateElementIntent(brief, List.of(call), List.of()).isEmpty());
+    assertTrue(elementIntentErrors(brief, List.of(call), List.of()).isEmpty());
     var duplicate = new SemanticNode.Operation("set-body", "script",
         new org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticProvenance(List.of("before-script")));
-    assertFalse(ChainSemanticCaptureAdapter.validateElementIntent(brief, List.of(call, duplicate), List.of()).isEmpty());
+    assertFalse(elementIntentErrors(brief, List.of(call, duplicate), List.of()).isEmpty());
+  }
+
+  private static List<String> elementIntentErrors(RequirementBrief brief, List<SemanticNode> nodes,
+      List<SemanticExecutionEdge> edges) {
+    var revision = new ChainSemanticRevision(ChainSemanticRevision.CURRENT_SCHEMA_VERSION, "test-revision",
+        "test-chain", CONTRACT.contractVersion(), List.of(), nodes, List.of(), edges, List.of(), List.of(),
+        List.of(), List.of(), List.of());
+    return ChainSemanticCaptureAdapter.validateElementIntent(brief, revision, CONTRACT);
   }
 
   private static final CompilerContract CONTRACT =

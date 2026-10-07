@@ -45,6 +45,10 @@ public final class RequirementBriefCoverageValidator {
     if (projectedRoleError.isPresent()) {
       return projectedRoleError;
     }
+    Optional<String> authoredMappingError = validateAuthoredMappings(approvedDraft, brief);
+    if (authoredMappingError.isPresent()) {
+      return authoredMappingError;
+    }
     // Catalog import may promote a draft to READY_FOR_PLAN before gather
     // distilled explicit facts — typically when the turn only captured an APIHub candidate.
     // Fact coverage is then a no-op: there are no sourceFactId values to pin or mismatch.
@@ -171,6 +175,39 @@ public final class RequirementBriefCoverageValidator {
   public static Optional<String> validateMappingStructure(RequirementBrief brief) {
     Objects.requireNonNull(brief, "brief");
     return validateMappingRoles(brief);
+  }
+
+  /** Supplied field rules belong to the brief producer, not a repeated author question. */
+  public static Optional<String> validateAuthoredMappings(RequirementDraft draft, RequirementBrief brief) {
+    if (draft.authoredDraft() == null || draft.authoredDraft().facts() == null) {
+      return Optional.empty();
+    }
+    for (var fact : draft.authoredDraft().facts()) {
+      var mapping = fact.fieldMapping();
+      if (fact.kind() != RequirementCaptureInput.FactKind.FIELD_MAPPING
+          || fact.polarity() != RequirementCaptureInput.Polarity.POSITIVE || mapping == null) {
+        continue;
+      }
+      if (brief.skippedTransitions().stream().anyMatch(transition ->
+          transition.sourceInteractionId().equals(mapping.sourceInteractionId())
+              && transition.targetInteractionId().equals(mapping.targetInteractionId()))) {
+        continue;
+      }
+      if (Objects.equals(mapping.sourcePath(), mapping.targetPath())
+          && (mapping.expression() == null || mapping.expression().isBlank())) {
+        continue;
+      }
+      boolean realized = brief.mappingIntents().stream().anyMatch(intent ->
+          intent.sourceRef().equals(mapping.sourceInteractionId())
+              && intent.targetRef().equals(mapping.targetInteractionId())
+              && intent.rules().stream().anyMatch(rule ->
+                  Objects.equals(rule.targetPath(), mapping.targetPath())));
+      if (!realized) {
+        return Optional.of("Requirement brief omitted the supplied mapping for sourceFactId="
+            + fact.sourceFactId() + ", targetPath=" + mapping.targetPath());
+      }
+    }
+    return Optional.empty();
   }
 
   /**

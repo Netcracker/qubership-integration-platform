@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -19,6 +20,7 @@ import org.a2aproject.sdk.spec.Message;
 import org.a2aproject.sdk.spec.Task;
 import org.a2aproject.sdk.spec.TaskStatus;
 import org.a2aproject.sdk.spec.TextPart;
+import org.a2aproject.sdk.spec.InvalidParamsError;
 import org.qubership.integration.platform.ai.a2a.access.CallerContext;
 import org.qubership.integration.platform.ai.a2a.artifacts.CreateChainA2aArtifactMapper;
 import org.qubership.integration.platform.ai.a2a.artifacts.CreateChainPublicArtifact;
@@ -29,6 +31,7 @@ import org.qubership.integration.platform.ai.a2a.persistence.A2aTaskTransitionRe
 import org.qubership.integration.platform.ai.a2a.persistence.A2aTaskUpdate;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.a2a.transport.CreateChainA2aStateMapper.ProjectedTask;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 
 /**
  * Persists the public A2A Task snapshot before the HTTP response returns.
@@ -45,6 +48,9 @@ public class A2aTaskSnapshotPersister {
   private final A2aTaskRepository taskRepository;
   private final A2aPersistedSnapshotHook snapshotHook;
   private final ObjectMapper objectMapper;
+  private final Instance<CreateChainApplicationFacade> facade;
+  private static final String RUN_ID = "qipRunId";
+  private static final String RUN_REVISION = "qipRunRevision";
   private final java.util.concurrent.atomic.AtomicInteger loadDurableCalls =
       new java.util.concurrent.atomic.AtomicInteger();
 
@@ -52,10 +58,12 @@ public class A2aTaskSnapshotPersister {
   public A2aTaskSnapshotPersister(
       A2aTaskRepository taskRepository,
       A2aPersistedSnapshotHook snapshotHook,
-      ObjectMapper objectMapper) {
+      ObjectMapper objectMapper,
+      Instance<CreateChainApplicationFacade> facade) {
     this.taskRepository = Objects.requireNonNull(taskRepository, "taskRepository");
     this.snapshotHook = Objects.requireNonNull(snapshotHook, "snapshotHook");
     this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+    this.facade = Objects.requireNonNull(facade, "facade");
   }
 
   /** Test seam: number of coordinated durable reads since the last reset. */
@@ -82,6 +90,24 @@ public class A2aTaskSnapshotPersister {
     history = history == null ? List.of() : List.copyOf(history);
 
     Optional<A2aPersistedTask> existing = taskRepository.findByTaskId(taskId);
+    return persist(taskId, contextId, caller, projected, history, existing);
+  }
+
+  private PersistResult persist(String taskId, String contextId, CallerContext caller,
+      ProjectedTask projected, List<Message> history, Optional<A2aPersistedTask> existing) {
+    if (existing.isPresent()) {
+      A2aPersistedTask row = existing.get();
+      Task current = deserialize(row);
+      Map<String, Object> cursor = current.metadata() == null ? Map.of() : current.metadata();
+      boolean sameRun = projected.snapshot().runId().equals(cursor.get(RUN_ID));
+      if ((sameRun && cursor.get(RUN_REVISION) instanceof Number revision
+              && revision.longValue() > projected.snapshot().revision())
+          || (sameRun && current.status().state().isFinal() && row.state() != projected.state())
+          || (!sameRun && facade.get().snapshot(taskId)
+              .filter(snapshot -> !snapshot.runId().equals(projected.snapshot().runId())).isPresent())) {
+        throw A2aProtocolErrorMapper.staleTransition(new A2aTaskTransitionResult.StaleRevision(row));
+      }
+    }
     List<CreateChainPublicArtifact> previouslyCommitted =
         existing.map(row -> readArtifacts(row.artifactMetadataJson())).orElse(List.of());
     List<CreateChainPublicArtifact> merged =
@@ -156,17 +182,40 @@ public class A2aTaskSnapshotPersister {
   /** Loads the durable Task snapshot together with its JDBC revision. */
   public Optional<DurableSnapshot> loadDurable(String taskId) {
     loadDurableCalls.incrementAndGet();
-    return taskRepository
-        .findByTaskId(taskId)
-        .map(
-            row -> {
-              try {
-                Task task = JsonUtil.fromJson(row.publicSnapshotJson(), Task.class);
-                return new DurableSnapshot(task, row.revision());
-              } catch (Exception e) {
-                throw new IllegalStateException("Unable to deserialize Task snapshot", e);
-              }
-            });
+    return taskRepository.findByTaskId(taskId).map(row -> {
+      Task task = deserialize(row);
+      var saved = facade.get().publicState(taskId);
+      if (saved.isEmpty()) {
+        return new DurableSnapshot(task, row.revision());
+      }
+      var state = saved.get();
+      ProjectedTask projected = CreateChainA2aStateMapper.project(state.snapshot(), state.events());
+      Map<String, Object> cursor = task.metadata() == null ? Map.of() : task.metadata();
+      if (state.snapshot().runId().equals(cursor.get(RUN_ID))
+          && cursor.get(RUN_REVISION) instanceof Number revision
+          && revision.longValue() >= state.snapshot().revision()
+          && CreateChainA2aArtifactMapper.newlyCommitted(readArtifacts(row.artifactMetadataJson()),
+              projected.artifacts()).isEmpty()) {
+        return new DurableSnapshot(task, row.revision());
+      }
+      try {
+        PersistResult result = persist(taskId, row.contextId(), new CallerContext(row.tenantId(), row.subjectId()),
+            projected, task.history() == null ? List.of() : task.history(), Optional.of(row));
+        return new DurableSnapshot(result.task(), result.durableRevision());
+      } catch (InvalidParamsError stale) {
+        // Keep the CAS winner; another read can project a later runtime revision.
+        A2aPersistedTask current = taskRepository.findByTaskId(taskId).orElseThrow();
+        return new DurableSnapshot(deserialize(current), current.revision());
+      }
+    });
+  }
+
+  private static Task deserialize(A2aPersistedTask row) {
+    try {
+      return JsonUtil.fromJson(row.publicSnapshotJson(), Task.class);
+    } catch (Exception e) {
+      throw new IllegalStateException("Unable to deserialize Task snapshot", e);
+    }
   }
 
   private Task toSdkTask(
@@ -178,6 +227,7 @@ public class A2aTaskSnapshotPersister {
         .status(new TaskStatus(projected.state().toSdk(), statusMessage, null))
         .artifacts(CreateChainA2aArtifactMapper.toSdkArtifacts(projected.artifacts()))
         .history(history)
+        .metadata(Map.of(RUN_ID, projected.snapshot().runId(), RUN_REVISION, projected.snapshot().revision()))
         .build();
   }
 

@@ -98,6 +98,20 @@ class CompilerPlanValidatorTest {
   }
 
   @Test
+  void compilerPlanCopyKeepsTheMaterializationFieldIdentity() {
+    var original = validHttpGraph();
+    var body = original.nodes().get(1);
+    var incomplete = new ChainPlanGraph(original.schemaVersion(), original.chain(),
+        List.of(original.nodes().getFirst(), new ChainPlanNode(body.nodeId(), body.type(), body.label(),
+            body.parentNodeId(), body.order(), List.of())), original.edges());
+    var issue = validator.validate(new PlanGraphValidationInput(incomplete)).issues().stream()
+        .filter(candidate -> "MISSING_REQUIRED_PROPERTY".equals(candidate.findingCode()))
+        .findFirst().orElseThrow();
+    assertEquals("n2", issue.originRecordId());
+    assertEquals("/properties/script", issue.fieldPointer());
+  }
+
+  @Test
   void failsWhenNoTrigger() {
     ValidationResult result =
         validator.validate(

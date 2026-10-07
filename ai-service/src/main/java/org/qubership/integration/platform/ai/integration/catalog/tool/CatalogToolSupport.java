@@ -136,4 +136,8 @@ public class CatalogToolSupport {
       return obj.toString();
     }
   }
+
+  com.fasterxml.jackson.databind.node.ObjectNode createObjectNode() {
+    return objectMapper.createObjectNode();
+  }
 }

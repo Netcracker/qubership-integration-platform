@@ -25,6 +25,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.planning.DesignPlanProjector;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingRuleStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -158,10 +159,16 @@ class MappingTurnProcessorTest {
 
   @Test
   void typedTransitionCoverageUsesMappingIntentsNotDocumentPhrases() {
+    RequirementBrief requested = rockyBrief().withMappingIntents(List.of(
+        new MappingIntent("request", "task-start", MappingPort.OUTPUT,
+            "create-task", MappingPort.REQUEST, List.of()),
+        new MappingIntent("response", "create-task", MappingPort.RESPONSE,
+            "task-result", MappingPort.REQUEST, List.of())));
     RequirementBrief mapped = process(rockyBrief(), PARAPHRASE, fixtureAdapter()).brief();
 
     assertTrue(MappingGapCoverage.uncovered(mapped).isEmpty());
-    assertEquals(2, MappingGapCoverage.uncovered(rockyBrief()).size());
+    assertEquals(2, MappingGapCoverage.uncovered(requested).size());
+    assertTrue(MappingGapCoverage.uncovered(rockyBrief()).isEmpty());
   }
 
   @Test
@@ -316,9 +323,8 @@ class MappingTurnProcessorTest {
 
   @Test
   void queryDoesNotReopenTheBriefOrInvalidateAPlan() {
-    RequirementBrief brief =
-        MappingGapCoverage.skipUncovered(
-            process(rockyBrief(), REQUEST_ONLY, fixtureAdapter()).brief());
+    RequirementBrief brief = process(rockyBrief(), REQUEST_ONLY, fixtureAdapter()).brief()
+        .withSkippedTransitions(List.of(new Transition("create-task", "task-result")));
     DesignExecutionPlan plan = planDependingOn("map-task-start-to-create-task");
     MappingTurnAdapter adapter =
         (current, message) ->

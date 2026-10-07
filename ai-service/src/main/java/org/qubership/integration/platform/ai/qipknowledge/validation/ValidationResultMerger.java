@@ -16,7 +16,7 @@ public final class ValidationResultMerger {
     Objects.requireNonNull(deterministic, "deterministic");
 
     List<ValidationIssue> merged = new ArrayList<>();
-    Set<String> seen = new LinkedHashSet<>();
+    Set<List<Object>> seen = new LinkedHashSet<>();
     appendUnique(merged, seen, sanitizeCapturedIssues(captured.issues()));
     appendUnique(merged, seen, deterministic.issues());
 
@@ -60,11 +60,11 @@ public final class ValidationResultMerger {
         issue.ownerCapabilityId(),
         issue.affectedNodeIds(),
         issue.ruleRefs(),
-        issue.suggestedFix());
+        issue.suggestedFix(), issue.findingCode(), issue.originRecordId(), issue.fieldPointer());
   }
 
   private static void appendUnique(
-      List<ValidationIssue> merged, Set<String> seen, List<ValidationIssue> issues) {
+      List<ValidationIssue> merged, Set<List<Object>> seen, List<ValidationIssue> issues) {
     if (issues == null) {
       return;
     }
@@ -72,19 +72,20 @@ public final class ValidationResultMerger {
       if (issue == null) {
         continue;
       }
-      String key = dedupeKey(issue);
+      List<Object> key = dedupeKey(issue);
       if (seen.add(key)) {
         merged.add(issue);
       }
     }
   }
 
-  private static String dedupeKey(ValidationIssue issue) {
+  private static List<Object> dedupeKey(ValidationIssue issue) {
     String owner = issue.ownerCapabilityId() != null ? issue.ownerCapabilityId() : "";
     String message = issue.message() != null ? issue.message() : "";
-    String nodes =
-        issue.affectedNodeIds() != null ? String.join(",", issue.affectedNodeIds()) : "";
-    return owner + "|" + message + "|" + nodes;
+    return List.of(Objects.toString(issue.severity(), ""), owner, message,
+        issue.affectedNodeIds() == null ? List.of() : issue.affectedNodeIds(),
+        Objects.toString(issue.findingCode(), ""), Objects.toString(issue.originRecordId(), ""),
+        Objects.toString(issue.fieldPointer(), ""));
   }
 
   private static String buildSummary(

@@ -26,6 +26,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -87,6 +89,81 @@ class ProvidedIdsFlowOrchestratorTest {
     verify(runSupport, never()).recordInput(any());
     verify(runSupport, never()).restoreForExternalWorkflow(command);
     verify(runStore, never()).commit(anyLong(), any());
+  }
+
+  @Test
+  void cancellationAfterInputCommitStillPublishesTheAcceptedCommand() throws Exception {
+    AcceptInputCommand command = new AcceptInputCommand(RUN_ID, "Use the supplied endpoint");
+    when(runStore.load(RUN_ID)).thenReturn(Optional.of(
+        document(RunStatus.WAITING_FOR_INPUT, "requirement-discovery", "flow-1")));
+    CountDownLatch committed = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    CountDownLatch published = new CountDownLatch(1);
+    when(runSupport.recordInput(command)).thenReturn(Multi.createFrom().<PipelineSignal>deferred(() -> {
+      when(runStore.load(RUN_ID)).thenReturn(Optional.of(
+          document(RunStatus.RUNNING, "requirement-discovery", "flow-1")));
+      committed.countDown();
+      try {
+        if (!release.await(5, TimeUnit.SECONDS)) {
+          throw new IllegalStateException("input commit fixture was not released");
+        }
+      } catch (InterruptedException failure) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException(failure);
+      }
+      return Multi.createFrom().empty();
+    }).runSubscriptionOn(io.smallrye.mutiny.infrastructure.Infrastructure.getDefaultWorkerPool()));
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(publisher.publish(any(CloudEvent.class))).thenAnswer(invocation -> {
+      published.countDown();
+      return CompletableFuture.completedFuture(null);
+    });
+    when(application.eventPublishers()).thenReturn(List.of(publisher));
+    when(tasks.settled(RUN_ID)).thenReturn(true);
+    when(tasks.drainSignals(RUN_ID)).thenReturn(List.of());
+
+    var observer = orchestrator.acceptInput(command).subscribe().with(signal -> {}, failure -> {});
+    try {
+      assertTrue(committed.await(5, TimeUnit.SECONDS), "input must commit before disconnecting");
+      observer.cancel();
+    } finally {
+      release.countDown();
+    }
+
+    assertTrue(published.await(2, TimeUnit.SECONDS), "committed input must resume the same Flow instance");
+    ArgumentCaptor<CloudEvent> event = ArgumentCaptor.forClass(CloudEvent.class);
+    verify(publisher).publish(event.capture());
+    assertEquals(ProvidedIdsFlow.INPUT_EVENT_TYPE, event.getValue().getType());
+    assertEquals("flow-1", event.getValue().getExtension("flowinstanceid"));
+  }
+
+  @Test
+  void failedInputPublicationCanResumeWithTheSameCommand() {
+    AcceptInputCommand command =
+        new AcceptInputCommand(RUN_ID, "Use the supplied endpoint", "cmd-input-1", "hash-input-1");
+    var current = new java.util.concurrent.atomic.AtomicReference<>(
+        document(RunStatus.WAITING_FOR_INPUT, "requirement-discovery", "flow-1"));
+    when(runStore.load(RUN_ID)).thenAnswer(ignored -> Optional.of(current.get()));
+    when(runSupport.recordInput(command)).thenReturn(Multi.createFrom().deferred(() -> {
+      current.set(documentWithCommand(RunStatus.RUNNING, "requirement-discovery", "flow-1",
+          command.commandId(), command.commandPayloadHash()));
+      return Multi.createFrom().empty();
+    }));
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(publisher.publish(any(CloudEvent.class)))
+        .thenReturn(CompletableFuture.failedFuture(new IllegalStateException("publisher unavailable")),
+            CompletableFuture.completedFuture(null));
+    when(application.eventPublishers()).thenReturn(List.of(publisher));
+    when(tasks.settled(RUN_ID)).thenReturn(true);
+    when(tasks.drainSignals(RUN_ID)).thenReturn(List.of());
+
+    assertThrows(RuntimeException.class,
+        () -> orchestrator.acceptInput(command).collect().asList().await().indefinitely());
+    assertTrue(current.get().appliedCommand(command.commandId(), command.commandPayloadHash()).isPresent());
+    orchestrator.acceptInput(command).collect().asList().await().indefinitely();
+
+    verify(publisher, times(2)).publish(any(CloudEvent.class));
+    verify(flow, never()).instance(any());
   }
 
   @Test
@@ -321,6 +398,40 @@ class ProvidedIdsFlowOrchestratorTest {
         .verify(runStore)
         .replaceConversationBinding(CONVERSATION_ID, "child-run", RUN_ID);
     verify(tasks, never()).drainSignals("child-run");
+  }
+
+  @Test
+  void twoSubscriptionsToTheSameRepairOfferPublishOnlyItsCommittedGrant() {
+    String offer = "continue-repair:bound-defect";
+    AcceptInputCommand first = ProductPipelineRunSupport.bindRepairOffer(
+        new AcceptInputCommand(RUN_ID, offer, "transport-1", "hash-1"));
+    AcceptInputCommand second = new AcceptInputCommand(RUN_ID, offer, "transport-2", "hash-2");
+    when(runStore.load(RUN_ID)).thenReturn(Optional.of(
+        document(RunStatus.WAITING_FOR_INPUT, "design-execution", "flow-1")));
+    var commits = new java.util.concurrent.atomic.AtomicInteger();
+    when(runSupport.recordInput(first)).thenReturn(Multi.createFrom().deferred(() -> {
+      if (commits.incrementAndGet() > 1) {
+        return Multi.createFrom().empty();
+      }
+      when(runStore.load(RUN_ID)).thenReturn(Optional.of(documentWithCommand(
+          RunStatus.RUNNING, "design-execution", "flow-1", first.commandId(), first.commandPayloadHash())));
+      return Multi.createFrom().item(new PipelineSignal.Progress("design-execution", "Allowance accepted"));
+    }));
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(publisher.publish(any(CloudEvent.class))).thenReturn(CompletableFuture.completedFuture(null));
+    when(application.eventPublishers()).thenReturn(List.of(publisher));
+    when(tasks.settled(RUN_ID)).thenReturn(true);
+    when(tasks.drainSignals(RUN_ID)).thenReturn(List.of());
+
+    Multi<PipelineSignal> accepted = orchestrator.acceptInput(first);
+    Multi<PipelineSignal> duplicate = orchestrator.acceptInput(second);
+    accepted.collect().asList().await().indefinitely();
+    duplicate.collect().asList().await().indefinitely();
+    orchestrator.acceptInput(second).collect().asList().await().indefinitely();
+
+    verify(publisher, times(1)).publish(any(CloudEvent.class));
+    verify(runSupport, times(2)).recordInput(first);
+    assertEquals(2, commits.get());
   }
 
   @Test
@@ -659,7 +770,7 @@ class ProvidedIdsFlowOrchestratorTest {
   }
 
   @Test
-  void duplicateApprovalOnBoundInstanceDoesNotPublishAnotherEvent() {
+  void committedApprovalResendsItsEventToTheBoundInstance() {
     ApproveCommand command = mock(ApproveCommand.class);
     when(command.runId()).thenReturn(RUN_ID);
     when(command.commandId()).thenReturn("cmd-approve-1");
@@ -673,12 +784,13 @@ class ProvidedIdsFlowOrchestratorTest {
     when(publisher.publish(any(CloudEvent.class)))
         .thenReturn(CompletableFuture.completedFuture(null));
     when(application.eventPublishers()).thenReturn(List.of(publisher));
+    when(tasks.settled(RUN_ID)).thenReturn(true);
     when(tasks.drainSignals(RUN_ID)).thenReturn(List.of());
 
     orchestrator.approve(command).collect().asList().await().indefinitely();
 
     verify(runSupport).recordApprove(command);
-    verify(publisher, never()).publish(any(CloudEvent.class));
+    verify(publisher).publish(any(CloudEvent.class));
     verify(flow, never()).startInstance(any());
   }
 

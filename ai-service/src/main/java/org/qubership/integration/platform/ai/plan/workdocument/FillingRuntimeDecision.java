@@ -14,7 +14,7 @@ public final class FillingRuntimeDecision {
 
   public static long retryDelayMs(RetryPolicy policy) {
     long configured = policy == null ? 0L : policy.defaultDelayMs();
-    return new StageDecision.Retry("filling", Duration.ofMillis(Math.max(configured, 0L)))
+    return new StageDecision.Retry("filling", Duration.ofMillis(Math.max(configured, 0L)), true)
         .delay()
         .toMillis();
   }
