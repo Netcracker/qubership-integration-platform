@@ -188,7 +188,7 @@ Concept is being supported by [set of elements](../../01__Chains/1__Graph/readme
 
 ---
 
-Please refer to  [CIP Architecture](../../05__Architecture/readme.md) for global data storage information.
+Please refer to  [CIP Architecture](../../3__Architecture/readme.md) for global data storage information.
 
 ## Configuration
 
