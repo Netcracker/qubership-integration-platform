@@ -18,21 +18,33 @@ package org.qubership.integration.platform.engine.service.externallibrary;
 
 import groovy.lang.Script;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.camel.CamelContext;
 import org.apache.camel.language.groovy.GroovyLanguage;
-import org.qubership.integration.platform.engine.events.ExternalLibrariesUpdatedEvent;
-import org.springframework.context.event.EventListener;
-import org.springframework.stereotype.Component;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
-@Component("groovy")
 public class GroovyLanguageWithResettableCache extends GroovyLanguage {
+    public static final String NAME = "groovy";
+
     public GroovyLanguageWithResettableCache() {
         super();
+    }
+
+    // A stopping context clears the script cache of every language it resolved, so each context gets its own
+    public static GroovyLanguageWithResettableCache bindTo(CamelContext context) {
+        GroovyLanguageWithResettableCache language = new GroovyLanguageWithResettableCache();
+        context.getRegistry().bind(NAME, language);
+        return language;
+    }
+
+    // Empty once the context has stopped, because the stop empties its registry
+    public static Optional<GroovyLanguageWithResettableCache> of(CamelContext context) {
+        return Optional.ofNullable(context.getRegistry().lookupByNameAndType(NAME, GroovyLanguageWithResettableCache.class));
     }
 
     public void resetScriptCache() {
@@ -66,12 +78,5 @@ public class GroovyLanguageWithResettableCache extends GroovyLanguage {
         Method method = this.getClass().getSuperclass().getDeclaredMethod("addScriptToCache", String.class, Class.class);
         method.setAccessible(true);
         method.invoke(this, key, scriptClass);
-    }
-
-    @EventListener
-    public void onExternalLibrariesUpdated(ExternalLibrariesUpdatedEvent event) {
-        if (!event.isInitialUpdate()) {
-            resetScriptCache();
-        }
     }
 }
