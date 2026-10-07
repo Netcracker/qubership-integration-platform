@@ -89,7 +89,7 @@ public class HttpSenderDependencyBinder extends ElementProcessingAction {
             if (isKubernetesM2MEnabled(elementProperties)) {
                 log.info("Kubernetes m2m enabled. Adding m2m fallback interceptor");
                 clientBuilder.addExecInterceptorAfter(
-                        ChainElement.CONNECT.name(), "m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
+                        ChainElement.PROTOCOL.name(), "m2m-fallback-interceptor", new M2MFallbackHandler(m2mUrlCache));
             }
             log.info("M2M fallback interceptor: {}", m2mFallbackEnabled);
             log.info("M2M on element: {}", Boolean.parseBoolean(elementProperties.getProperties().get(ChainProperties.M2M)));
