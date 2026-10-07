@@ -134,7 +134,7 @@ class ContextStorageProcessorTest {
     }
 
     @Test
-    void shouldUseExplicitContextIdForGetWhenProvided() throws Exception {
+    void shouldGetValueUnderCorrelationIdWhenContextIdIsAlsoSet() throws Exception {
         Map<String, String> storedValues = Map.of("customerId", "C-100500");
 
         exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
@@ -148,13 +148,51 @@ class ContextStorageProcessorTest {
 
         when(contextStorageService.getValue(
                 CONTEXT_SERVICE_ID_VALUE,
-                CONTEXT_ID_VALUE,
+                CORRELATION_ID_VALUE,
                 List.of("customerId")
         )).thenReturn(storedValues);
 
         processor.process(exchange);
 
         assertEquals(storedValues, exchange.getMessage().getBody());
+    }
+
+    @Test
+    void shouldStoreValueUnderCorrelationIdWhenContextIdIsAlsoSet() throws Exception {
+        exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
+        exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
+        exchange.setProperty(PROPERTY_CONTEXT_ID, CONTEXT_ID_VALUE);
+        exchange.setProperty(PROPERTY_CONTEXT_SERVICE_ID, CONTEXT_SERVICE_ID_VALUE);
+        exchange.setProperty(PROPERTY_OPERATION, "SET");
+        exchange.setProperty(PROPERTY_KEY, CONTEXT_KEY);
+        exchange.setProperty(PROPERTY_VALUE, CONTEXT_VALUE);
+        exchange.setProperty(PROPERTY_TTL, 300L);
+
+        processor.process(exchange);
+
+        verify(contextStorageService).storeValue(
+                CONTEXT_KEY,
+                CONTEXT_VALUE,
+                CONTEXT_SERVICE_ID_VALUE,
+                CORRELATION_ID_VALUE,
+                300L
+        );
+    }
+
+    @Test
+    void shouldDeleteContextUnderCorrelationIdWhenContextIdIsAlsoSet() throws Exception {
+        exchange.setProperty(PROPERTY_USE_CORRELATION_ID, true);
+        exchange.setProperty(CORRELATION_ID, CORRELATION_ID_VALUE);
+        exchange.setProperty(PROPERTY_CONTEXT_ID, CONTEXT_ID_VALUE);
+        exchange.setProperty(PROPERTY_CONTEXT_SERVICE_ID, CONTEXT_SERVICE_ID_VALUE);
+        exchange.setProperty(PROPERTY_OPERATION, "DELETE");
+
+        processor.process(exchange);
+
+        verify(contextStorageService).deleteValue(
+                CONTEXT_SERVICE_ID_VALUE,
+                CORRELATION_ID_VALUE
+        );
     }
 
     @Test
