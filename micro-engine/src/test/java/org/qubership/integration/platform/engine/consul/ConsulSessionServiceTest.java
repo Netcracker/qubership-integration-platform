@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.consul;
 
+import io.quarkus.runtime.ShutdownEvent;
 import io.smallrye.mutiny.Uni;
 import io.vertx.ext.consul.Session;
 import io.vertx.ext.consul.SessionBehavior;
@@ -17,14 +18,19 @@ import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CountDownLatch;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -329,6 +335,82 @@ class ConsulSessionServiceTest {
     private static RuntimeException vertxSessionNotFoundError(String sessionId) {
         return new RuntimeException(
                 "Status message: 'Not Found'. Body: 'Session id '" + sessionId + "' not found' ");
+    }
+
+    @Test
+    void shouldDestroyActiveSessionOnShutdown() {
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(Uni.createFrom().item(FIRST_SESSION_ID));
+        when(consulClient.destroySession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().voidItem());
+        service.getOrCreateSession();
+
+        service.destroySessionOnShutdown(new ShutdownEvent());
+
+        verify(consulClient).destroySession(FIRST_SESSION_ID);
+    }
+
+    @Test
+    void shouldSkipDestroyOnShutdownWhenNoSession() {
+        service.destroySessionOnShutdown(new ShutdownEvent());
+
+        verify(consulClient, never()).destroySession(anyString());
+    }
+
+    @Test
+    void shouldNotThrowOnShutdownWhenDestroyFails() {
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(Uni.createFrom().item(FIRST_SESSION_ID));
+        when(consulClient.destroySession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().failure(new RuntimeException("connection refused")));
+        service.getOrCreateSession();
+
+        service.destroySessionOnShutdown(new ShutdownEvent());
+
+        verify(consulClient).destroySession(FIRST_SESSION_ID);
+    }
+
+    @Test
+    void shouldStopWaitingOnShutdownWhenConsulDoesNotAnswer() {
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(Uni.createFrom().item(FIRST_SESSION_ID));
+        CompletableFuture<Void> consulAnswer = new CompletableFuture<>();
+        when(consulClient.destroySession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().completionStage(consulAnswer));
+        service.getOrCreateSession();
+
+        try {
+            assertTimeoutPreemptively(Duration.ofSeconds(10),
+                    () -> service.destroySessionOnShutdown(new ShutdownEvent()));
+        } finally {
+            consulAnswer.complete(null);
+        }
+    }
+
+    @Test
+    void shouldStopWaitingOnShutdownWhileRenewalHoldsTheLock() throws InterruptedException {
+        when(consulClient.createSessionWithOptions(any(SessionOptions.class)))
+                .thenReturn(Uni.createFrom().item(FIRST_SESSION_ID));
+        CountDownLatch renewalStarted = new CountDownLatch(1);
+        CompletableFuture<Session> consulAnswer = new CompletableFuture<>();
+        when(consulClient.renewSession(FIRST_SESSION_ID)).thenAnswer(invocation -> {
+            renewalStarted.countDown();
+            return Uni.createFrom().completionStage(consulAnswer);
+        });
+        lenient().when(consulClient.destroySession(FIRST_SESSION_ID))
+                .thenReturn(Uni.createFrom().voidItem());
+        service.getOrCreateSession();
+        Thread renewal = new Thread(service::createOrRenewSession);
+        renewal.start();
+        renewalStarted.await();
+
+        try {
+            assertTimeoutPreemptively(Duration.ofSeconds(10),
+                    () -> service.destroySessionOnShutdown(new ShutdownEvent()));
+        } finally {
+            consulAnswer.complete(new Session());
+            renewal.join();
+        }
     }
 
     private void useShortConsulAwaitTimeout() {
