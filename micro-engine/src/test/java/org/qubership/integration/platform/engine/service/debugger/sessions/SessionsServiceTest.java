@@ -671,11 +671,13 @@ class SessionsServiceTest {
     }
 
     @Test
-    void shouldLogStepElementBeforeWithSnapshotStepIdUsesElementNameAndStepsPeek() {
+    void shouldLogStepElementBeforeWithSnapshotStepIdUsesElementNameAndWireTapParent() {
         String snapshotElementId = "11111111-1111-1111-1111-111111111111";
         String originalId = "22222222-2222-2222-2222-222222222222";
+        String asyncSplitSnapshotId = "33333333-3333-3333-3333-333333333333";
         Exchange exchange = exchange();
         writer.putSessionToCache(session());
+        elementExecutionMap(exchange).put(asyncSplitSnapshotId, "async-split-session-element");
         @SuppressWarnings("unchecked")
         ArrayDeque<String> steps = (ArrayDeque<String>) exchange.getProperty(Properties.STEPS);
         steps.push("parent-step-id");
@@ -691,17 +693,50 @@ class SessionsServiceTest {
                 .build();
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
-            // wire tap parent ids are original ids, while the execution map is keyed by snapshot ids
             metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, snapshotElementId, WireTapInfo.class))
-                    .thenReturn(Optional.of(WireTapInfo.builder().parentIds(List.of("async-split-original-id")).build()));
+                    .thenReturn(Optional.of(WireTapInfo.builder().parentIds(List.of(asyncSplitSnapshotId)).build()));
 
             sessionsService.logSessionStepElementBefore(exchange, SESSION_ID, ELEMENT_ID, snapshotElementId, stepInfo);
         }
 
         SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
         assertEquals("HTTP Sender", element.getElementName());
-        assertEquals("parent-step-id", element.getParentElementId());
+        assertEquals("async-split-session-element", element.getParentElementId());
         assertEquals(originalId, element.getChainElementId());
+    }
+
+    @Test
+    void shouldLogStepElementBeforeWithSnapshotStepIdUsesParentContainerFromExecutionMap() {
+        String snapshotElementId = "11111111-1111-1111-1111-111111111111";
+        String containerSnapshotId = "33333333-3333-3333-3333-333333333333";
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        elementExecutionMap(exchange).put(containerSnapshotId, "container-session-element");
+        @SuppressWarnings("unchecked")
+        ArrayDeque<String> steps = (ArrayDeque<String>) exchange.getProperty(Properties.STEPS);
+        steps.push("parent-step-id");
+        TestPayload payload = payload("step-body", Map.of("h", "v"), Map.of("c", "v"), Map.of());
+        when(extractor.extractPayload(exchange)).thenReturn(payload);
+        stubPayloadJson(payload, "step-json", "step-json", "step-json");
+        ElementInfo stepInfo = ElementInfo.builder()
+                .id("22222222-2222-2222-2222-222222222222")
+                .snapshotElementId(snapshotElementId)
+                .name("Try")
+                .type(ChainElementType.TRY_2.getText())
+                .chainId(CHAIN_ID)
+                .parentId(containerSnapshotId)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, snapshotElementId, WireTapInfo.class))
+                    .thenReturn(Optional.empty());
+
+            sessionsService.logSessionStepElementBefore(exchange, SESSION_ID, ELEMENT_ID, snapshotElementId, stepInfo);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        assertEquals("Try", element.getElementName());
+        assertEquals("container-session-element", element.getParentElementId());
     }
 
     @Test

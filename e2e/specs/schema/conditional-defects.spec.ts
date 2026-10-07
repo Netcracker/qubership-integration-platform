@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { MICRO_CONTAINER_PARENTS, MISPLACED_BRANCH_STEPS, SESSION_SEARCH_HEADER_LIMIT } from "../../support/known-defect.js";
+import { SESSION_SEARCH_HEADER_LIMIT } from "../../support/known-defect.js";
 
 // The message the k8s run recorded for #985, cut to the part the narrowing reads.
 const RECORDED =
@@ -17,11 +17,4 @@ test("the session search pin leaves any other 502 a real failure", { tag: ["@inf
   const refused = RECORDED.replace("reset reason: protocol error", "reset reason: connection failure");
   expect(SESSION_SEARCH_HEADER_LIMIT.matches(refused)).toBe(false);
   expect(SESSION_SEARCH_HEADER_LIMIT.matches("answered 503: Service Unavailable")).toBe(false);
-});
-
-test("the container-parents pin recognizes a misplaced async branch step and nothing else", { tag: ["@infra", "@tier1"] }, () => {
-  const misplaced = `Error: ${MISPLACED_BRANCH_STEPS} "First Async Script" under Split Async\n\nexpect(received).toEqual(expected) // deep equality`;
-  const slow = "Error: the answer waited for the sleeping branch\n\nexpect(received).toBeLessThan(expected)\n\nExpected: < 3000\nReceived:   3204";
-  expect(MICRO_CONTAINER_PARENTS.matches(misplaced)).toBe(true);
-  expect(MICRO_CONTAINER_PARENTS.matches(slow)).toBe(false);
 });
