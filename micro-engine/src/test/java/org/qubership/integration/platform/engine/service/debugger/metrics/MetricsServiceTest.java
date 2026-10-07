@@ -193,6 +193,26 @@ class MetricsServiceTest {
     }
 
     @Test
+    void shouldSkipServiceCallResponsePayloadSizeWhenProtocolIsNotHttp() {
+        Exchange exchange = exchangeWithContentLength(32);
+        ChainExecutionContext context = chainExecutionContext(ChainElementType.SERVICE_CALL);
+        ServiceCallInfo serviceCallInfo = ServiceCallInfo.builder()
+                .protocol(ChainProperties.OPERATION_PROTOCOL_TYPE_KAFKA)
+                .build();
+        when(metricsStore.isMetricsEnabled()).thenReturn(true);
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, SNAPSHOT_ELEMENT_ID, ServiceCallInfo.class))
+                    .thenReturn(serviceCallInfo);
+
+            metricsService.processElementFinishMetrics(exchange, context, false);
+        }
+
+        verify(metricsStore).isMetricsEnabled();
+        verifyNoMoreInteractions(metricsStore);
+    }
+
+    @Test
     void shouldRecordFallbackForMainCircuitBreakerWhenMainBranchFailsWithoutFallback() {
         Exchange exchange = MockExchanges.defaultExchange();
         exchange.setProperty(Properties.CIRCUIT_BREAKER_HAS_FALLBACK, false);
