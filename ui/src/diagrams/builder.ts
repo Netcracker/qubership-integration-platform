@@ -1,5 +1,6 @@
 import {
   Chain,
+  ContextSystem,
   DiagramMode,
   Element,
   Environment,
@@ -114,6 +115,7 @@ const ELEMENT_ACTIONS_GETTERS: Record<string, TriggerActionsGetter> = {
 
 type ChainDependencies = {
   serviceMap: Map<string, IntegrationSystem>; // service ID -> service
+  contextServiceMap: Map<string, ContextSystem>; // context service ID -> context service
   environmentMap: Map<string, Environment>; // environment ID -> environments
   chainMap: Map<string, Chain>; // element ID -> chain
 };
@@ -308,6 +310,7 @@ function createBuildContext(
       serviceMap: new Map<string, IntegrationSystem>(),
       chainMap: new Map<string, Chain>(),
       environmentMap: new Map<string, Environment>(),
+      contextServiceMap: new Map<string, ContextSystem>(),
     },
   };
 }
@@ -358,6 +361,16 @@ async function loadChainDependencies(
     await Promise.all(serviceIds.map(async (id) => api.getEnvironments(id)))
   ).flatMap((e) => e);
 
+  const contextServiceIds = Array.from(context.elementMap.values())
+    .map((element) => element.properties["contextServiceId"] as string)
+    .filter((id) => !!id);
+  // A missing context service is shown by its ID.
+  const contextServices = await Promise.all(
+    contextServiceIds.map(async (id) =>
+      api.getContextService(id).catch(() => undefined),
+    ),
+  );
+
   return {
     chainMap,
     serviceMap: new Map<string, IntegrationSystem>(
@@ -365,6 +378,9 @@ async function loadChainDependencies(
     ),
     environmentMap: new Map<string, Environment>(
       environments.map((e) => [e.id, e]),
+    ),
+    contextServiceMap: new Map<string, ContextSystem>(
+      contextServices.filter((s) => !!s).map((s) => [s.id, s]),
     ),
   };
 }
@@ -421,12 +437,22 @@ function getSftpParticipants(
 
 function getContextStorageParticipants(
   element: Element,
-  _context: DiagramBuildContext,
+  context: DiagramBuildContext,
 ): Participant[] {
-  const contextServiceId =
-    (element.properties["contextServiceId"] as string) ?? EMPTY_PROPERTY_STUB;
+  const contextServiceId = element.properties["contextServiceId"] as string;
+  if (!contextServiceId) {
+    return [
+      createSimpleParticipant(
+        `Context storage service: ${EMPTY_PROPERTY_STUB}`,
+      ),
+    ];
+  }
+  const service = context.dependencies.contextServiceMap.get(contextServiceId);
   return [
-    createSimpleParticipant(`Context storage service: ${contextServiceId}`),
+    {
+      id: contextServiceId,
+      name: `Context storage service: ${service?.name ?? contextServiceId}`,
+    },
   ];
 }
 
@@ -1217,9 +1243,9 @@ function getContextStorageActions(
   const participant = getContextStorageParticipants(element, context)[0];
   const operation = (element.properties["operation"] as string) ?? "GET";
   const contextId = element.properties["contextId"] as string;
-  const useCorrelationId = Boolean(
-    (element.properties["useCorrelationId"] as string) ?? false,
-  );
+  // Matches the engine, which also reads the string "false" as false.
+  const useCorrelationId =
+    String(element.properties["useCorrelationId"]).toLowerCase() === "true";
   const message = `${operation} context ${useCorrelationId ? "(use correlation ID)" : (contextId ?? EMPTY_PROPERTY_STUB)}`;
   return [
     {

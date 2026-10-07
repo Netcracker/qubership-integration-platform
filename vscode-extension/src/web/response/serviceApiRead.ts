@@ -76,7 +76,15 @@ export async function getContextService(
   serviceFileUri: Uri,
   serviceId: string,
 ): Promise<ContextSystem> {
-  let service = await fileApi.getContextService(serviceFileUri, serviceId);
+  // A chain asks for the context services its elements use, which live in their own files.
+  const ext = getExtensionsForUri(serviceFileUri);
+  const contextServiceFileUri = serviceFileUri.path.endsWith(ext.contextService)
+    ? serviceFileUri
+    : await fileApi.findFileById(serviceId, ext.contextService);
+  let service = await fileApi.getContextService(
+    contextServiceFileUri,
+    serviceId,
+  );
 
   return {
     id: service.id,
