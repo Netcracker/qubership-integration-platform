@@ -8,13 +8,11 @@
  * **id**, not its name: with the name there, the snapshot build fails with "Unable to find header".
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain, element, elementNames } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 
-test("a script replaces the body and the trace names the step that did it", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script replaces the body and the trace names the step that did it", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   covers("script");
 
   const chain = seedChain(readCorpusState(), "script");
@@ -32,8 +30,7 @@ test("a script replaces the body and the trace names the step that did it", { ta
   expect(element(session, "Script")?.bodyAfter).toContain('"ran":true');
 });
 
-test("a mapper writes its constant into the header and the body it targets", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a mapper writes its constant into the header and the body it targets", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   covers("mapper-2");
 
   const chain = seedChain(readCorpusState(), "mapper");
@@ -49,8 +46,7 @@ test("a mapper writes its constant into the header and the body it targets", { t
   expect(elementNames(session)).toEqual(["HTTP Trigger", "Validate Request", "Mapper"]);
 });
 
-test("the exchange context survives every hop of a chain", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("the exchange context survives every hop of a chain", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "context-propagation");
 
   const call = await callChain(request, env.chainUrl(chain.contextPath), {

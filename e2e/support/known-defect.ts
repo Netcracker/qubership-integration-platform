@@ -22,8 +22,6 @@
  */
 import { test } from "@playwright/test";
 import type { APIResponse, TestInfo } from "@playwright/test";
-import { UUID, UUID_TEXT } from "./absent.js";
-import { trace, type RecordedSession } from "./sessions.js";
 
 /**
  * Fails the running `test.fail()` case for real, because what it saw is not the defect it pins.
@@ -70,7 +68,7 @@ export async function onlyTheKnownStatus(
 
 /**
  * A micro-engine difference that many cases share, pinned by its `title` as the `test.fail()`
- * description: `test.fail(engineKind === "micro", MICRO_STEP_NAMES.title)`.
+ * description: `test.fail(engineKind === "micro", MICRO_XSLT.title)`.
  *
  * A body cannot narrow such a case the way the functions above do, because the assertion that meets
  * the defect differs from case to case. The `knownDefects` fixture narrows it after the body instead:
@@ -80,44 +78,6 @@ export interface MicroDefect {
   title: string;
   matches(message: string): boolean;
 }
-
-const ADDED_UUID_LINE = new RegExp(`^\\+\\s+"${UUID_TEXT}",?$`);
-const REMOVED_NAME_LINE = /^-\s+"[^"]+",?$/;
-
-/** The opening of the report `settleMicroDefects` fails a pinned case with. */
-const RENAMED_STEPS = "the micro engine named these steps by a UUID in the session:";
-
-/**
- * Whether a `toEqual` diff over step names changes nothing but names into UUIDs: as many removed
- * lines as added ones, each removed line a name, and each added line a UUID.
- *
- * A step the micro engine dropped, added, reordered, or named differently leaves a line that fails
- * one of those conditions.
- */
-function onlyUuidsForNames(message: string): boolean {
-  const lines = message.split("\n");
-  const expected = lines.map((line) => /^- Expected\s+-\s+(\d+)$/.exec(line.trim())).find(Boolean);
-  const received = lines.map((line) => /^\+ Received\s+\+\s+(\d+)$/.exec(line.trim())).find(Boolean);
-  if (!expected || !received || expected[1] !== received[1]) return false;
-  const body = lines.filter((line) => !/^[-+] (Expected|Received)\s/.test(line.trim()));
-  const removed = body.filter((line) => line.startsWith("-"));
-  const added = body.filter((line) => line.startsWith("+"));
-  const count = Number(expected[1]);
-  return (
-    count > 0 &&
-    removed.length === count &&
-    added.length === count &&
-    removed.every((line) => REMOVED_NAME_LINE.test(line)) &&
-    added.every((line) => ADDED_UUID_LINE.test(line))
-  );
-}
-
-/** docs/product-defects.md, "The micro engine names a wrapped step by a UUID in the session". */
-export const MICRO_STEP_NAMES: MicroDefect = {
-  title: "the micro engine names a wrapped step by a UUID in the session (docs/product-defects.md)",
-  matches: (message) =>
-    message.replace(/^Error: /, "").startsWith(RENAMED_STEPS) || onlyUuidsForNames(message),
-};
 
 /** docs/product-defects.md, "The micro engine has no xslt component". */
 export const MICRO_XSLT: MicroDefect = {
@@ -162,69 +122,22 @@ export async function strikesAsKnown<T>(defect: ConditionalDefect, step: () => P
   }
 }
 
-const MICRO_DEFECTS = [MICRO_STEP_NAMES, MICRO_XSLT];
+const MICRO_DEFECTS = [MICRO_XSLT];
 
 function pinnedWith(testInfo: TestInfo, defect: MicroDefect): boolean {
   return testInfo.annotations.some((each) => each.type === "fail" && each.description === defect.title);
 }
 
-/** A step the micro engine named by a UUID, and the name its chain element carries. */
-export interface RenamedStep {
-  uuid: string;
-  name: string;
-}
-
 /**
- * Gives each step of `session` that the micro engine named by a UUID the name of its chain
- * element, and appends each rename to `renamed` for `settleMicroDefects`.
- *
- * Only in a case pinned with `MICRO_STEP_NAMES`, so the rest of that case asserts on the names the
- * classic engine records, and the case still fails on the defect once its body has passed. A case
- * without the pin reads the session as the engine wrote it.
- */
-export function nameMicroSteps(
-  testInfo: TestInfo,
-  session: RecordedSession,
-  names: ReadonlyMap<string, string>,
-  renamed: RenamedStep[],
-): void {
-  if (!pinnedWith(testInfo, MICRO_STEP_NAMES)) return;
-  for (const step of trace(session)) {
-    const name = step.chainElementId === null ? undefined : names.get(step.chainElementId);
-    if (name !== undefined && UUID.test(step.elementName)) {
-      renamed.push({ uuid: step.elementName, name });
-      step.elementName = name;
-    }
-  }
-}
-
-/**
- * Settles a case pinned with a `MicroDefect` once its body has run.
- *
- * A case whose steps `nameMicroSteps` renamed, and whose body raised nothing, fails here on the
- * step-name defect. Otherwise an error that no pinned defect `matches` turns the case back into a
- * real failure. A case that passes needs nothing: Playwright already reports an expected failure
- * that passed.
- */
-export function settleMicroDefects(testInfo: TestInfo, renamed: readonly RenamedStep[]): void {
-  if (testInfo.expectedStatus !== "failed") return;
-  if (renamed.length > 0 && testInfo.errors.length === 0 && pinnedWith(testInfo, MICRO_STEP_NAMES)) {
-    const unique = [...new Map(renamed.map((each) => [each.uuid, each])).values()];
-    throw new Error(
-      `${RENAMED_STEPS} ${unique.map((each) => `"${each.name}" as ${each.uuid}`).join(", ")}`,
-    );
-  }
-  narrowToMicroDefects(testInfo);
-}
-
-/**
- * Turns a case pinned with a `MicroDefect` back into a real failure when an error it raised is not
- * one the defect `matches`.
+ * Settles a case pinned with a `MicroDefect` once its body has run: an error that no pinned defect
+ * `matches` turns the case back into a real failure. A case that passes needs nothing: Playwright
+ * already reports an expected failure that passed.
  *
  * A case whose body reached a `test.fail()` of its own narrows itself, through `notTheKnownDefect`,
  * because its errors from there on belong to that pin.
  */
-function narrowToMicroDefects(testInfo: TestInfo): void {
+export function settleMicroDefects(testInfo: TestInfo): void {
+  if (testInfo.expectedStatus !== "failed") return;
   const pinned = MICRO_DEFECTS.filter((defect) => pinnedWith(testInfo, defect));
   if (pinned.length === 0) return;
   const titles = MICRO_DEFECTS.map((defect) => defect.title);

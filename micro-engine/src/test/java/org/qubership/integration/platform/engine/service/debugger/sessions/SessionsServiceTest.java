@@ -671,6 +671,40 @@ class SessionsServiceTest {
     }
 
     @Test
+    void shouldLogStepElementBeforeWithSnapshotStepIdUsesElementNameAndStepsPeek() {
+        String snapshotElementId = "11111111-1111-1111-1111-111111111111";
+        String originalId = "22222222-2222-2222-2222-222222222222";
+        Exchange exchange = exchange();
+        writer.putSessionToCache(session());
+        @SuppressWarnings("unchecked")
+        ArrayDeque<String> steps = (ArrayDeque<String>) exchange.getProperty(Properties.STEPS);
+        steps.push("parent-step-id");
+        TestPayload payload = payload("step-body", Map.of("h", "v"), Map.of("c", "v"), Map.of());
+        when(extractor.extractPayload(exchange)).thenReturn(payload);
+        stubPayloadJson(payload, "step-json", "step-json", "step-json");
+        ElementInfo stepInfo = ElementInfo.builder()
+                .id(originalId)
+                .snapshotElementId(snapshotElementId)
+                .name("HTTP Sender")
+                .type(ChainElementType.HTTP_SENDER.getText())
+                .chainId(CHAIN_ID)
+                .build();
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            // wire tap parent ids are original ids, while the execution map is keyed by snapshot ids
+            metadataUtil.when(() -> MetadataUtil.lookupBeanForElement(exchange, snapshotElementId, WireTapInfo.class))
+                    .thenReturn(Optional.of(WireTapInfo.builder().parentIds(List.of("async-split-original-id")).build()));
+
+            sessionsService.logSessionStepElementBefore(exchange, SESSION_ID, ELEMENT_ID, snapshotElementId, stepInfo);
+        }
+
+        SessionElementElastic element = writer.getSessionElementFromCache(SESSION_ID, ELEMENT_ID);
+        assertEquals("HTTP Sender", element.getElementName());
+        assertEquals("parent-step-id", element.getParentElementId());
+        assertEquals(originalId, element.getChainElementId());
+    }
+
+    @Test
     void shouldLogStepElementBeforeWithNonUuidStepIdUsesStepsPeek() {
         String stepId = "custom-step";
         Exchange exchange = exchange();

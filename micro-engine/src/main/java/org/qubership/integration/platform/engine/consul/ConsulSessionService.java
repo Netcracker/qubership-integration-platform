@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.consul;
 
+import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.scheduler.Scheduled;
 import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
@@ -8,12 +9,15 @@ import io.vertx.ext.consul.SessionOptions;
 import io.vertx.mutiny.core.eventbus.EventBus;
 import io.vertx.mutiny.ext.consul.ConsulClient;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Duration;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static java.util.Objects.isNull;
@@ -29,6 +33,7 @@ public class ConsulSessionService {
     private static final SessionBehavior SESSION_BEHAVIOR = SessionBehavior.DELETE;
     private static final long SESSION_TTL = 60;
     private static final long CONSUL_AWAIT_BUFFER_MS = 1_000;
+    private static final long SESSION_DESTROY_TIMEOUT_SECONDS = 2;
 
     @ConfigProperty(name = "consul.connectTimeout")
     int consulConnectTimeout;
@@ -62,6 +67,25 @@ public class ConsulSessionService {
     )
     public void createOrRenewSession() {
         doCreateOrRenewSession();
+    }
+
+    // With SessionBehavior.DELETE, Consul deletes the engines-state key with the session. The bound
+    // also covers waiting for a renewal that holds the lock, so an unreachable Consul cannot hold the
+    // shutdown. The catch keeps a failure here from skipping the ShutdownEvent observers after this one.
+    void destroySessionOnShutdown(@Observes ShutdownEvent event) {
+        try {
+            CompletableFuture.runAsync(this::deleteActiveSession)
+                    .orTimeout(SESSION_DESTROY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                    .join();
+        } catch (Exception e) {
+            log.warn("Failed to delete consul session on shutdown", e);
+        }
+    }
+
+    private synchronized void deleteActiveSession() {
+        if (nonNull(sessionId)) {
+            deleteSession(sessionId);
+        }
     }
 
     private synchronized void doCreateOrRenewSession() {
