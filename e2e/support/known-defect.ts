@@ -130,12 +130,6 @@ export const MICRO_XSLT: MicroDefect = {
 /** The opening of the message the split-async case fails with when a branch step has the wrong parent. */
 export const MISPLACED_BRANCH_STEPS = "a step of an async branch is recorded under another parent:";
 
-/** docs/product-defects.md, "The micro engine records a step inside a container with no parent". */
-export const MICRO_CONTAINER_PARENTS: MicroDefect = {
-  title: "the micro engine records a step inside a container with no parent (docs/product-defects.md)",
-  matches: (message) => message.replace(/^Error: /, "").startsWith(MISPLACED_BRANCH_STEPS),
-};
-
 /**
  * A defect a case meets only on some stacks, because it depends on how much data the stack holds, so
  * the case cannot carry a plain `test.fail()`: on a small stack it passes, and the annotation would
@@ -168,7 +162,7 @@ export async function strikesAsKnown<T>(defect: ConditionalDefect, step: () => P
   }
 }
 
-const MICRO_DEFECTS = [MICRO_STEP_NAMES, MICRO_XSLT, MICRO_CONTAINER_PARENTS];
+const MICRO_DEFECTS = [MICRO_STEP_NAMES, MICRO_XSLT];
 
 function pinnedWith(testInfo: TestInfo, defect: MicroDefect): boolean {
   return testInfo.annotations.some((each) => each.type === "fail" && each.description === defect.title);

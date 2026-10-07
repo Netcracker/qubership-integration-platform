@@ -6,10 +6,8 @@
 import { test, expect } from "@playwright/test";
 import type { TestInfo } from "@playwright/test";
 import {
-  MICRO_CONTAINER_PARENTS,
   MICRO_STEP_NAMES,
   MICRO_XSLT,
-  MISPLACED_BRANCH_STEPS,
   nameMicroSteps,
   settleMicroDefects,
   type RenamedStep,
@@ -93,15 +91,6 @@ test("a case pinned for both defects stays expected while each error matches one
   const both = [MICRO_STEP_NAMES.title, MICRO_XSLT.title];
   expect(narrowed(both, [UUID_STEP_DIFF, XSLT_500])).toBe("failed");
   expect(narrowed(both, [UUID_STEP_DIFF, OTHER_500])).toBe("passed");
-});
-
-test("a split-async case pinned for the container parents fails for real on anything but a misplaced step", { tag: ["@infra", "@tier1"] }, () => {
-  const pins = [MICRO_STEP_NAMES.title, MICRO_CONTAINER_PARENTS.title];
-  const misplaced = `Error: ${MISPLACED_BRANCH_STEPS} "First Async Script" under Split Async\n\nexpect(received).toEqual(expected) // deep equality`;
-  const slow = "Error: the answer waited for the sleeping branch\n\nexpect(received).toBeLessThan(expected)\n\nExpected: < 3000\nReceived:   3204";
-  expect(narrowed(pins, [misplaced])).toBe("failed");
-  expect(narrowed(pins, [slow])).toBe("passed");
-  expect(narrowed([MICRO_STEP_NAMES.title], [misplaced])).toBe("passed");
 });
 
 test("a test.fail case pinned for anything else is left to narrow itself", { tag: ["@infra", "@tier1"] }, () => {
