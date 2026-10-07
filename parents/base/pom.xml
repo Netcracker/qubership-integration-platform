@@ -40,6 +40,38 @@
     <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
+    <qip.checkstyle.revision>0.0.3</qip.checkstyle.revision>
+    <qip.checkstyle.changelist></qip.checkstyle.changelist>
+    <qip.checkstyle.version>${qip.checkstyle.revision}${qip.checkstyle.changelist}</qip.checkstyle.version>
+
+    <qip.schemas.revision>${revision}</qip.schemas.revision>
+    <qip.schemas.changelist>${changelist}</qip.schemas.changelist>
+    <qip.schemas.version>${qip.schemas.revision}${qip.schemas.changelist}</qip.schemas.version>
+
+    <qip.micro-engine.revision>${revision}</qip.micro-engine.revision>
+    <qip.micro-engine.changelist>${changelist}</qip.micro-engine.changelist>
+    <qip.micro-engine.version>${qip.micro-engine.revision}${qip.micro-engine.changelist}</qip.micro-engine.version>
+
+    <qip.integration-build-pipeline.revision>${revision}</qip.integration-build-pipeline.revision>
+    <qip.integration-build-pipeline.changelist>${changelist}</qip.integration-build-pipeline.changelist>
+    <qip.integration-build-pipeline.version>${qip.integration-build-pipeline.revision}${qip.integration-build-pipeline.changelist}</qip.integration-build-pipeline.version>
+
+    <qip.integration-build-maven-plugin.revision>${revision}</qip.integration-build-maven-plugin.revision>
+    <qip.integration-build-maven-plugin.changelist>${changelist}</qip.integration-build-maven-plugin.changelist>
+    <qip.integration-build-maven-plugin.version>${qip.integration-build-maven-plugin.revision}${qip.integration-build-maven-plugin.changelist}</qip.integration-build-maven-plugin.version>
+
+    <qip.engine.revision>${revision}</qip.engine.revision>
+    <qip.engine.changelist>${changelist}</qip.engine.changelist>
+    <qip.engine.version>${qip.engine.revision}${qip.engine.changelist}</qip.engine.version>
+
+    <qip.runtime-catalog.revision>${revision}</qip.runtime-catalog.revision>
+    <qip.runtime-catalog.changelist>${changelist}</qip.runtime-catalog.changelist>
+    <qip.runtime-catalog.version>${qip.runtime-catalog.revision}${qip.runtime-catalog.changelist}</qip.runtime-catalog.version>
+
+    <qip.sessions-management.revision>${revision}</qip.sessions-management.revision>
+    <qip.sessions-management.changelist>${changelist}</qip.sessions-management.changelist>
+    <qip.sessions-management.version>${qip.sessions-management.revision}${qip.sessions-management.changelist}</qip.sessions-management.version>
+
     <java.version>21</java.version>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

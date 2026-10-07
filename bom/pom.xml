@@ -1,29 +1,37 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
+
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
-    <artifactId>qip-parent-spring</artifactId>
+    <artifactId>qip-parent-base</artifactId>
     <version>1.5.1-SNAPSHOT</version>
-    <relativePath>../../../parents/spring/pom.xml</relativePath>
+    <relativePath>../parents/base/pom.xml</relativePath>
   </parent>
 
-  <artifactId>qip-spring-external-bom</artifactId>
+  <artifactId>qip-bom</artifactId>
   <packaging>pom</packaging>
 
-  <name>QIP External BOM - Spring Boot</name>
-  <description>External BOM for Spring Boot based QIP modules.</description>
-
-  <properties>
-    <qip.integration-build-pipeline.version>1.5.1-SNAPSHOT</qip.integration-build-pipeline.version>
-    <qip.integration-build-maven-plugin.version>1.5.1-SNAPSHOT</qip.integration-build-maven-plugin.version>
-    <qip.engine.version>1.5.1-SNAPSHOT</qip.engine.version>
-    <qip.runtime-catalog.version>1.5.1-SNAPSHOT</qip.runtime-catalog.version>
-    <qip.sessions-management.version>1.5.1-SNAPSHOT</qip.sessions-management.version>
-  </properties>
+  <name>QIP BOM</name>
+  <description>QIP External BOM</description>
 
   <dependencyManagement>
     <dependencies>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-schemas</artifactId>
+        <version>${qip.schemas.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-checkstyle</artifactId>
+        <version>${qip.checkstyle.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-micro-engine</artifactId>
+        <version>${qip.micro-engine.version}</version>
+      </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-integration-build-pipeline</artifactId>

@@ -17,7 +17,7 @@
 
   <modules>
     <module>parents</module>
-    <module>boms</module>
+    <module>bom</module>
     <module>checkstyle</module>
     <module>schemas</module>
     <module>integration-build-pipeline</module>

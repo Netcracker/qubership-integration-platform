@@ -1,37 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.qubership.integration.platform</groupId>
+    <artifactId>qip-parent-spring</artifactId>
+    <version>1.5.1-SNAPSHOT</version>
+    <relativePath>../parents/spring/pom.xml</relativePath>
+  </parent>
+
   <artifactId>qip-sessions-management</artifactId>
+  <version>${qip.sessions-management.version}</version>
 
   <name>QIP Sessions Management</name>
   <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
 
-  <parent>
-      <groupId>org.qubership.integration.platform</groupId>
-      <artifactId>qip-parent-spring</artifactId>
-      <version>1.5.1-SNAPSHOT</version>
-      <relativePath>../parents/spring/pom.xml</relativePath>
-  </parent>
-
-  <properties>
-    <revision>1.5.1</revision>
-    <changelist>-SNAPSHOT</changelist>
-  </properties>
-
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.qubership.integration.platform</groupId>
-        <artifactId>qip-spring-internal-bom</artifactId>
-        <version>${project.parent.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
   <dependencies>
     <!-- Cloud Core dependencies -->
-
     <dependency>
       <groupId>com.netcracker.cloud</groupId>
       <artifactId>dbaas-client-opensearch-starter</artifactId>

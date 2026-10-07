@@ -11,6 +11,7 @@
   </parent>
 
   <artifactId>qip-schemas</artifactId>
+  <version>${qip.schemas.version}</version>
 
   <name>QIP Schemas</name>
   <description>Schemas definition for QIP</description>

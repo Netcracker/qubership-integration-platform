@@ -3,13 +3,6 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>qip-micro-engine</artifactId>
-
-  <name>QIP Micro Engine</name>
-  <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
-    collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
-  </description>
-
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-parent-quarkus</artifactId>
@@ -17,10 +10,15 @@
     <relativePath>../parents/quarkus/pom.xml</relativePath>
   </parent>
 
-  <properties>
-    <revision>1.5.1</revision>
-    <changelist>-SNAPSHOT</changelist>
+  <artifactId>qip-micro-engine</artifactId>
+  <version>${qip.micro-engine.version}</version>
 
+  <name>QIP Micro Engine</name>
+  <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
+    collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
+  </description>
+
+  <properties>
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
 
@@ -35,18 +33,6 @@
       ${project.basedir}/target/site/jacoco-aggregate/jacoco.xml
     </sonar.coverage.jacoco.xmlReportPaths>
   </properties>
-
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.qubership.integration.platform</groupId>
-        <artifactId>qip-quarkus-internal-bom</artifactId>
-        <version>${project.parent.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
 
   <dependencies>
     <dependency>

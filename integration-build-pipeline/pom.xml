@@ -1,20 +1,6 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
-  <artifactId>qip-integration-build-pipeline</artifactId>
-
-  <!-- Between releases the working tree is a SNAPSHOT, so the coordinate never names bytes that a published
-       release already claims. The revision property below holds the last released version (bump-before),
-       which makes 1.2.3-SNAPSHOT the in-development successor of 1.2.3. runtime-catalog pins that revision and
-       appends the same changelist, so a reactor build resolves this module from source. A release passes
-       -Dchangelist= on both sides and publishes the bare version. -->
-
-  <packaging>jar</packaging>
-
-  <name>QIP Integration Build Pipeline</name>
-  <description>Reads QIP integration chains and services into a domain model and generates Apache Camel DSL.</description>
-
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-parent-spring</artifactId>
@@ -22,22 +8,12 @@
     <relativePath>../parents/spring/pom.xml</relativePath>
   </parent>
 
-  <properties>
-    <revision>1.5.1</revision>
-    <changelist>-SNAPSHOT</changelist>
-  </properties>
+  <artifactId>qip-integration-build-pipeline</artifactId>
+  <version>${qip.integration-build-pipeline.version}</version>
+  <packaging>jar</packaging>
 
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.qubership.integration.platform</groupId>
-        <artifactId>qip-spring-internal-bom</artifactId>
-        <version>${project.parent.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
+  <name>QIP Integration Build Pipeline</name>
+  <description>Reads QIP integration chains and services into a domain model and generates Apache Camel DSL.</description>
 
   <dependencies>
     <dependency>
