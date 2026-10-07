@@ -66,10 +66,10 @@ Please, refer to the respective articles for more details.
 
 ---
 
-Please refer to [CIP Architecture](../../00__Overview/3__Architecture/cip_architecture.md) for global data storage information.
+Please refer to [CIP Architecture](../../00__Overview/3__Architecture/readme.md) for global data storage information.
 
 ## Configuration
 
 ---
 
-Global configuration steps are fully covered via environment parameters (before installation). For chain configuration or specific elements setup steps (including Role-based access control of endpoints for HTTP Trigger), please refer to the guide [Set Up Chain Availability Access Control](../../05__How_To/2__Set_Up_Chain_Availability_Via_Access_Control/access_control.md).
+Global configuration steps are fully covered via environment parameters (before installation). For chain configuration or specific elements setup steps (including Role-based access control of endpoints for HTTP Trigger), please refer to the guide [Set Up Chain Availability Access Control](../../05__How_To/2__Set_Up_Chain_Availability_Via_Access_Control/readme.md).

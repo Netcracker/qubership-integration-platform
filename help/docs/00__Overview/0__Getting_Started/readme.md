@@ -18,13 +18,13 @@ the parts of the product you use every day, and every other page in the document
 
 | Term                                                      | Meaning                                                                                                                                               |
 |-----------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [Chain](../4__Glossary/glossary.md#chain)                 | An integration configuration made of Apache Camel (or customized) modules, intended to perform one particular integration task.                       |
-| [Element](../4__Glossary/glossary.md#element)             | A single building block inside a chain — a trigger, a transformation, a sender, a container. You drag elements onto the graph from the library panel. |
-| [Snapshot](../4__Glossary/glossary.md#snapshot)           | A chain state captured at a particular moment. Snapshots are what you deploy; a chain cannot be deployed in an intermediate state.                    |
-| [Deployment](../4__Glossary/glossary.md#deployment)       | A snapshot placed onto a specific engine domain. Until a chain is deployed, nothing can trigger it.                                                   |
-| [Engine domain](../4__Glossary/glossary.md#engine-domain) | A Kubernetes deployment holding one or more engine pods. A chain deployed on a domain runs on every engine pod in that domain.                        |
+| [Chain](../4__Glossary/readme.md#chain)                 | An integration configuration made of Apache Camel (or customized) modules, intended to perform one particular integration task.                       |
+| [Element](../4__Glossary/readme.md#element)             | A single building block inside a chain — a trigger, a transformation, a sender, a container. You drag elements onto the graph from the library panel. |
+| [Snapshot](../4__Glossary/readme.md#snapshot)           | A chain state captured at a particular moment. Snapshots are what you deploy; a chain cannot be deployed in an intermediate state.                    |
+| [Deployment](../4__Glossary/readme.md#deployment)       | A snapshot placed onto a specific engine domain. Until a chain is deployed, nothing can trigger it.                                                   |
+| [Engine domain](../4__Glossary/readme.md#engine-domain) | A Kubernetes deployment holding one or more engine pods. A chain deployed on a domain runs on every engine pod in that domain.                        |
 
-The [Glossary](../4__Glossary/glossary.md) covers the rest of the vocabulary.
+The [Glossary](../4__Glossary/readme.md) covers the rest of the vocabulary.
 
 ## How a Chain Reaches an Engine
 
@@ -57,23 +57,23 @@ enter a **Name**, then click **"Submit"** (or press **`Ctrl+Enter`**). Select **
 straight to the new chain.
 
 **Labels**, **Description**, and the **"Extended Description"** tab are optional. See
-[Chains](../../01__Chains/chains.md) for the full dialog.
+[Chains](../../01__Chains/readme.md) for the full dialog.
 
 ### 2. Add an HTTP Trigger
 
-Click the chain name in the table to open its [Graph](../../01__Chains/1__Graph/graph.md) — the blueprint-like
+Click the chain name in the table to open its [Graph](../../01__Chains/1__Graph/readme.md) — the blueprint-like
 canvas where you assemble the chain.
 
 Find **HTTP Trigger** in the left library panel and drag it onto the graph. Double-click it to open its
 configuration, then on the **"Endpoint"** tab select the **"Custom"** URI source and fill in **URI**, for example
 `/routes/myChain`. **HTTP Methods** is optional: leave it empty and every method can trigger the chain.
 
-See [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/http_trigger.md) for the
+See [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md) for the
 remaining tabs — request validation, failure response mapping, idempotency, and access control.
 
 ### 3. Add a Transformation
 
-Drag a [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/script.md) element onto the
+Drag a [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/readme.md) element onto the
 graph, then connect it to the trigger: drop one element onto the other, or hover over the white dot on the trigger's
 right border and drag a connection line to the Script.
 
@@ -85,7 +85,7 @@ exchange.getMessage().setBody("Body")
 ```
 
 For field-by-field mapping between two schemas, use the
-[Mapper](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/2__Mapper/mapper.md) element instead.
+[Mapper](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/2__Mapper/readme.md) element instead.
 
 ### 4. Create a Snapshot
 
@@ -95,7 +95,7 @@ snapshot yet.
 
 Open the **"Snapshots"** tab and click ![plus](../../01__Chains/2__Snapshots/img/plus.svg). If the graph is valid,
 the snapshot is created and named **V1**; later snapshots increment the number. See
-[Snapshots](../../01__Chains/2__Snapshots/snapshots.md) for renaming, reverting, and comparing versions.
+[Snapshots](../../01__Chains/2__Snapshots/readme.md) for renaming, reverting, and comparing versions.
 
 ### 5. Deploy to an Engine Domain
 
@@ -103,7 +103,7 @@ Open the **"Deployments"** tab and click **"Create deployment"**. Fill in:
 
 - **Domains** — one or more engine domains to deploy the snapshot on. Select an existing domain, or type a name that
   does not exist yet to deploy on a new **Micro** domain. See
-  [Domains](../../03__Admin_Tools/1__Domains/domains.md) for the difference between **Classic** and **Micro**.
+  [Domains](../../03__Admin_Tools/1__Domains/readme.md) for the difference between **Classic** and **Micro**.
 - **Snapshot** — the version to deploy. Pick **V1**.
 
 Click **"Deploy"**. The **Status** column moves from **_Progressing_** to **_Deployed_** once every requested engine
@@ -140,34 +140,34 @@ Click an element name to inspect what it did: the **Body** tab shows the payload
 headers the chain received.
 
 > ℹ️ **Note:** Session records are populated according to the logging level set for the chain. If the **"Sessions"**
-> tab stays empty, check the chain's [Logging](../../01__Chains/5__Logging/logging.md) tab — **Sessions logging
+> tab stays empty, check the chain's [Logging](../../01__Chains/5__Logging/readme.md) tab — **Sessions logging
 > level** of **Off** records nothing.
 
-See [Sessions](../../01__Chains/4__Sessions/sessions.md) for searching, exporting, and retrying sessions.
+See [Sessions](../../01__Chains/4__Sessions/readme.md) for searching, exporting, and retrying sessions.
 
 ## Where to Go Next
 
 ---
 
 **Building integrations.** Work through the element library from
-[Graph](../../01__Chains/1__Graph/graph.md) — triggers, senders, routing, transformation, and grouping. Read
-[Apache Camel Context Concept](../1__Apache_Camel_Context_Concept/apache_camel_context_concept.md) to understand
+[Graph](../../01__Chains/1__Graph/readme.md) — triggers, senders, routing, transformation, and grouping. Read
+[Apache Camel Context Concept](../1__Apache_Camel_Context_Concept/readme.md) to understand
 what the Exchange object carries between elements. When a chain has to call a real system, register it under
-[Services](../../02__Services/services.md) first.
+[Services](../../02__Services/readme.md) first.
 
-**Recurring tasks.** [How To](../../05__How_To/how_to.md) collects the discrete procedures: restricting a chain by
+**Recurring tasks.** [How To](../../05__How_To/readme.md) collects the discrete procedures: restricting a chain by
 access control, switching connection management to MaaS, retrying a session from the middle.
 
-**Administering the platform.** [Admin Tools](../../03__Admin_Tools/admin_tools.md) covers domains,
-[variables](../../03__Admin_Tools/2__Variables/variables.md), audit, import instructions, and access control.
-[Observability](../../06__Observability/observability.md) covers the logs and metrics the platform produces,
-[Troubleshooting](../../07__Troubleshooting/troubleshooting.md) maps symptoms to likely causes, and
-[Features](../../08__Features/features.md) documents system properties, token processing, retention, and
+**Administering the platform.** [Admin Tools](../../03__Admin_Tools/readme.md) covers domains,
+[variables](../../03__Admin_Tools/2__Variables/readme.md), audit, import instructions, and access control.
+[Observability](../../06__Observability/readme.md) covers the logs and metrics the platform produces,
+[Troubleshooting](../../07__Troubleshooting/readme.md) maps symptoms to likely causes, and
+[Features](../../08__Features/readme.md) documents system properties, token processing, retention, and
 multitenancy.
 
-**Understanding the platform.** [Architecture](../3__Architecture/cip_architecture.md) maps the components and says
-where each kind of data lives. [Token Processing](../../08__Features/2__Token_Processing/token_processing.md) explains how
+**Understanding the platform.** [Architecture](../3__Architecture/readme.md) maps the components and says
+where each kind of data lives. [Token Processing](../../08__Features/2__Token_Processing/readme.md) explains how
 authentication tokens travel through a chain.
 
-**Handling sensitive data.** Configure [Masking](../../01__Chains/6__Masking/masking.md) before a chain starts
+**Handling sensitive data.** Configure [Masking](../../01__Chains/6__Masking/readme.md) before a chain starts
 logging payloads that contain credentials or personal data.

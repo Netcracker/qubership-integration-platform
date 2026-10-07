@@ -54,7 +54,7 @@ The 3rd diagram shows process of session retry by support team from *Checkpoint 
 
 ---
 
-Retry session from the middle can be triggered by event to dedicated Kafka topic (see [Retry events from DPT (via Kafka)](../6__Retry_Events_From_DPT_Via_Kafka/retry_events_from_dpt_via_kafka.md)) the particular endpoint or via session tab (under the [chain], and [Sessions](../../03__Admin_Tools/5__Sessions/readme.md).
+Retry session from the middle can be triggered by event to dedicated Kafka topic (see [Retry events from DPT (via Kafka)](../6__Retry_Events_From_DPT_Via_Kafka/readme.md)) the particular endpoint or via session tab (under the [chain], and [Sessions](../../03__Admin_Tools/5__Sessions/readme.md).
 
 > ℹ️
 > When retrying a failed session (via  [Retry events from DPT (via Kafka)](../6__Retry_Events_From_DPT_Via_Kafka/readme.md)) or a [specific endpoint]), you can ensure idempotent behavior by using the `"x-idempotency-key"` header. A retry request with a unique header value will be logged (processed) under the original session in the UI. Any duplicate retry request that carries an identical `"x-idempotency-key"` will not be processes.
@@ -79,6 +79,6 @@ CIP operates with the next data types:
 
 To configure the retry session in the middle, the next steps should be done:
 
-1. Set environment variables before CIP installation to configure cleanup policy for checkpoints and error session. Details are available in [Retention setting](../../08__Features/3__Retention_Settings/retention_settings.md).
-2. After CIP installation add [Checkpoint](../../01__Chains/1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/checkpoint.md) to the chain graph and deploy chain.
+1. Set environment variables before CIP installation to configure cleanup policy for checkpoints and error session. Details are available in [Retention setting](../../08__Features/3__Retention_Settings/readme.md).
+2. After CIP installation add [Checkpoint](../../01__Chains/1__Graph/1__Elements_Library/3__Composite_Triggers/1__Checkpoint/readme.md) to the chain graph and deploy chain.
 3. Set access role **ROLE\_CIP\_SESSION\_RETRY** for the API consumer**.**

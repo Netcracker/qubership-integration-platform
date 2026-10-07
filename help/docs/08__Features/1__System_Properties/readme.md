@@ -32,7 +32,7 @@ systemProperty_<nameInCamelCase>
 
 ---
 
-Routing elements, such as [Condition](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/5__Condition/condition.md) and [Try-Catch-Finally](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/9__Try-Catch-Finally/try-catch-finally.md) receive most of the benefits from having mentioned properties, as it is now possible to refer to property values building an advanced logic (e.g. via [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/script.md) or built-in expression fields).
+Routing elements, such as [Condition](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/5__Condition/readme.md) and [Try-Catch-Finally](../../01__Chains/1__Graph/1__Elements_Library/1__Routing/9__Try-Catch-Finally/readme.md) receive most of the benefits from having mentioned properties, as it is now possible to refer to property values building an advanced logic (e.g. via [Script](../../01__Chains/1__Graph/1__Elements_Library/5__Transformation/1__Script/readme.md) or built-in expression fields).
 
 As an example, user may need to prohibit the request processing for any environment state except of "Active", so [Condition] element containing the **"IF"** sub-element with the code below will identify the applicable state and then route to the next steps:
 

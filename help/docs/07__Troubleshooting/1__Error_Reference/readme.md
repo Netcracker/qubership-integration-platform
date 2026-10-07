@@ -19,7 +19,7 @@ Also, for REST APIs, that are exposed via gateway, error handling of the gateway
 
 ![Error handling](img/error_handling_logic.svg)
 
-Errors that surface in the CIP user interface are covered separately, in [Troubleshooting](../troubleshooting.md).
+Errors that surface in the CIP user interface are covered separately, in [Troubleshooting](../readme.md).
 
 ### General Logic
 
@@ -260,4 +260,3 @@ Mentioned APIs are exposed for external (within CLOUD) usage, hence initiation i
 ---
 
 During the processing, errors might be logged, according to the [Logging] article, hence some log data might be also stored.
-

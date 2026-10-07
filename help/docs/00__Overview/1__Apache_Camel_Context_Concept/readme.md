@@ -45,9 +45,9 @@ as most of the available functionality is wrapped up into human-understandable e
 
 There are multiple chain elements, that have very specific ways of processing context data. Those specifics are described in the next respective sections.
 
-This concept applies to every chain, as described in the [Chains](../../01__Chains/chains.md) article. The elements that
-support it are documented individually in the [Elements Library](../../01__Chains/1__Graph/graph.md), including their user
-interface. For global data storage information, refer to [CIP Architecture](../3__Architecture/cip_architecture.md).
+This concept applies to every chain, as described in the [Chains](../../01__Chains/readme.md) article. The elements that
+support it are documented individually in the [Elements Library](../../01__Chains/1__Graph/readme.md), including their user
+interface. For global data storage information, refer to [CIP Architecture](../3__Architecture/readme.md).
 
 ### Split
 Diagram below shows how context data is being managed by **Split** element:

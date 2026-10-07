@@ -8,14 +8,14 @@ chain produces, and the metrics the engine exposes. This section is written for 
 engineers.
 
 Use it to answer "what happened, and where is the record of it". When you already have a symptom and want the likely
-cause, start from [Troubleshooting](../07__Troubleshooting/troubleshooting.md) instead. The parameters that control
-how long the records are kept live in [Features](../08__Features/features.md).
+cause, start from [Troubleshooting](../07__Troubleshooting/readme.md) instead. The parameters that control
+how long the records are kept live in [Features](../08__Features/readme.md).
 
 ## Topics
 
 ---
 
-- [Platform Logging](1__Platform_Logging/logging.md) - the log types the platform produces - microservice, session,
+- [Platform Logging](1__Platform_Logging/readme.md) - the log types the platform produces - microservice, session,
   DPT, audit, and tracing - with their formats, levels, and destinations.
-- [Metrics & Session Monitoring](2__Metrics_And_Session_Monitoring/metrics_and_session_monitoring.md) - the metrics
+- [Metrics & Session Monitoring](2__Metrics_And_Session_Monitoring/readme.md) - the metrics
   exposed by the engine and the labels attached to them.

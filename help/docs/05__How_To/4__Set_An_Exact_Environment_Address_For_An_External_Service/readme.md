@@ -13,7 +13,7 @@ Before service is being exported, all environments with address shall be pre-con
 3. Add a unique label to each of your environment. It could be done via Editing the environment card ( check for "Labels" combo-box)
 4. At this point, you can export the service(s) for future import.
 
-Now, when you are importing external services via [Deployment Process](../../01__Chains/3__Deployments/deployments.md), you can use **deployLabel** parameter in the request's body to specify the exact label (added as part of the preparation steps) of the environment you want to deploy the service to.
+Now, when you are importing external services via [Deployment Process](../../01__Chains/3__Deployments/readme.md), you can use **deployLabel** parameter in the request's body to specify the exact label (added as part of the preparation steps) of the environment you want to deploy the service to.
 
 ![activate_environment](img/label_env_activate.svg)
 
