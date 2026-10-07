@@ -83,8 +83,6 @@
     <mapstruct.version>1.5.5.Final</mapstruct.version>
     <protobuf-java.version>4.33.2</protobuf-java.version>
 
-    <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
-
     <!-- Common plugin versions -->
     <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
     <jacoco.plugin.version>0.8.15</jacoco.plugin.version>
@@ -296,7 +294,7 @@
             <dependency>
               <groupId>org.qubership.integration.platform</groupId>
               <artifactId>qip-checkstyle</artifactId>
-              <version>${qip-checkstyle-revision}</version>
+              <version>${qip.checkstyle.version}</version>
             </dependency>
           </dependencies>
           <configuration>
