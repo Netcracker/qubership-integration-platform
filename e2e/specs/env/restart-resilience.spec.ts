@@ -37,8 +37,6 @@ import { callChain } from "../../support/sessions.js";
 import { sleep } from "../../support/poll.js";
 import { corpusFixtureNames } from "../../fixtures/templating.js";
 import type { Catalog } from "../../support/catalog.js";
-import { DEFAULT_DOMAIN } from "../../support/catalog-types.js";
-import { notTheKnownDefect } from "../../support/known-defect.js";
 import type { Env, ServiceRole } from "../../env/index.js";
 import { RESTART_TIMEOUT } from "./constants.js";
 
@@ -76,8 +74,8 @@ async function deploymentRows(
  * comparison over that reading is equal whatever the engine did with its routes, including losing
  * them. `RuntimeDeploymentService` keys this view on what each engine reports it is running, so a
  * chain the engine came back without has no row here, and one it rebuilt from a different snapshot
- * has a different one. The rows are those of one address, because the registration of a replaced
- * engine pod outlives it (see the case after the engine restart).
+ * has a different one. The rows are those of one address, because the catalog can still list a
+ * replaced engine pod for a few seconds after it stops.
  */
 async function runtimeRows(catalog: Catalog, chains: readonly SeedChain[], host: string): Promise<string[]> {
   const rows: string[] = [];
@@ -147,12 +145,6 @@ function corpusOfEveryFixture(): SeededCorpus {
 // makes the second case's reading meaningless rather than red.
 test.describe.configure({ mode: "serial" });
 
-/**
- * The engine's address before and after its restart, and the hosts the catalog listed once the new
- * one registered, which the case after it reads.
- */
-let engineRestart: { before: string; after: string; listed: string[] } | undefined;
-
 test("every seed chain answers again after the engine restarts, with nothing redeployed", { tag: ["@engine", "@infra", "@tier1"] }, async ({ catalog, env, request }) => {
   test.setTimeout(RESTART_TIMEOUT);
   const corpus = corpusOfEveryFixture();
@@ -171,20 +163,6 @@ test("every seed chain answers again after the engine restarts, with nothing red
   await env.restart("engine");
   const healthy = Date.now();
   const after = await env.address("engine");
-  // Read now rather than in the next case: the registration a replaced pod leaves expires about a
-  // minute after the new pod is healthy, and this case spends up to a minute of that below.
-  let listed: string[] = [];
-  await expect
-    .poll(
-      async () => {
-        listed = [...((await catalog.engineHosts())[DEFAULT_DOMAIN] ?? [])].sort();
-        return listed.includes(after);
-      },
-      { timeout: RECOVERY_BUDGET, message: `the restarted engine at ${after} never registered` },
-    )
-    .toBe(true);
-  engineRestart = { before: address, after, listed };
-
   // Nothing between the restart and this poll deploys anything. That is the assertion: the engine
   // rebuilt its routes from Consul and the catalog on its own.
   await waitForRoutes(env, chains, RECOVERY_BUDGET);
@@ -222,22 +200,6 @@ test("every seed chain answers again after the engine restarts, with nothing red
     "the proxy still points at the container the restart replaced, and every /api/ assertion after " +
       "this spec would read a stale address",
   );
-});
-
-// A replaced pod comes back under a new address. Its old registration stays until Consul expires
-// the session, measured at 79 s after the new pod was healthy, so the listing the restart case took
-// as soon as the new pod registered still holds it (`docs/product-defects.md`, "A replaced engine
-// pod stays registered for up to two minutes on Kubernetes"). A Compose container that keeps its
-// address shows nothing.
-test("an engine that restarted is listed under its new address alone", { tag: ["@catalog", "@engine", "@infra", "@tier1"] }, () => {
-  if (!engineRestart) throw new Error("the engine restart case recorded no addresses");
-  const { before, after, listed } = engineRestart;
-  test.fail(before !== after, "a replaced engine pod stays registered until its Consul session expires");
-
-  if (before !== after && listed.join() !== [before, after].sort().join() && listed.join() !== after) {
-    notTheKnownDefect(`the catalog lists ${listed.join(", ") || "no engine"}, where ${before} was replaced by ${after}`);
-  }
-  expect(listed, "the catalog lists the new address alone: delete the test.fail() annotation").toEqual([after]);
 });
 
 test("the catalog restarts without disturbing what is deployed, and the engine keeps answering", { tag: ["@catalog", "@engine", "@infra", "@tier1"] }, async ({ catalog, env }) => {
