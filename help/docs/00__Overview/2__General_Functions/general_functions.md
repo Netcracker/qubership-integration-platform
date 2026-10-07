@@ -68,7 +68,7 @@ Project root (git/SVN root, not included in zip-archive)
 ```
 
 Each service directory holds one of the three service files, depending on the service type.
-Each yaml configuration file declares its schema in the `$schema` field:
+Each YAML configuration file declares its schema in the `$schema` field:
 `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/<type>`, where `<type>` is `chain`,
 `service`, `context-service`, `mcp-service`, `specification-group`, or `specification`.
 

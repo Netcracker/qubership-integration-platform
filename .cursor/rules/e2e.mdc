@@ -658,7 +658,7 @@ made; regenerate the archive by creating them again and exporting them with `GET
 The extension's test workspace copies the internal service
 (`vscode-extension/src/web/test/workspace/services/3b2e9742-…`), so replace that copy in the same
 commit. The committed archive is a `qip` export (`*.qip.yaml` names, `qubership.org` `$schema`
-values), and it is the only archive the suite imports under `*.qip.yaml` names. A re-export writes
+values), and it is the only archive the suite imports under `*.qip.yaml` names. Exporting it again writes
 the `cip` format and drops that coverage, so regenerate it only together with another `qip`-format
 case.
 

@@ -88,7 +88,12 @@ The extension provides offline visual editors for `.chain.cip.yaml` and `.servic
 
 `*.qip.yaml` files from earlier versions do not open in the extension. Rename them to `*.cip.yaml`.
 
-If a workspace `.config.qip.yaml` has a `configs.qip` block, delete the block so the embedded `cip` defaults apply. To keep custom settings, move them to `configs.cip`, then change each `extensions` value to end in `.cip.yaml` and each `schemaUrls` value to the matching URI in `vscode-extension/configs/default.config.cip.yaml`. A block the extension saved holds the old extensions and schema URLs as literal values, and a `configs.cip` block in the workspace file replaces the embedded default as a whole. Moved unchanged, the block makes the extension create `*.qip.yaml` files that declare the old `$schema`, and its editors do not open them.
+If a workspace `.config.qip.yaml` has a `configs.qip` block, delete the block so the embedded `cip` defaults apply.
+To keep custom settings, move them to `configs.cip`, then change each `extensions` value to end in `.cip.yaml` and
+each `schemaUrls` value to the matching URI in `vscode-extension/configs/default.config.cip.yaml`.
+A block the extension saved holds the old extensions and schema URLs as literal values, and a `configs.cip` block in
+the workspace file replaces the embedded default as a whole. Moved unchanged, the block makes the extension create
+`*.qip.yaml` files that declare the old `$schema`, and its editors do not open them.
 
 ```bash
 npm install                                           # if not done already
