@@ -17,7 +17,7 @@
   <version>1.5.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
-  <name>QIP Parent BOM - Spring Boot</name>
+  <name>QIP Parent POM - Spring Boot</name>
 
   <url>https://github.com/Netcracker/qubership-integration-platform</url>
 
