@@ -171,7 +171,6 @@ Diagram below shows how context data is being managed by **Circuit Breaker** ele
 |---|---------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1 | Context data always goes through ***Circuit Breaker Configuration*** sub-element. On the diagram above, there is a fallback happened during processing. |
 | 2 | ***On Fallback*** container receives context data and processes through the chain part, configured within this container.                               |
-<<<<<<<< HEAD:help/docs/00__Overview/1__Apache_Camel_Context_Concept/readme.md
 
 ## Process Initialization
 

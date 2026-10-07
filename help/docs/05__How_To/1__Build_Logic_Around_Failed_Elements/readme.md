@@ -36,7 +36,6 @@ exchange.getMessage().setBody("Element with id " + exchange.getProperty("failed-
 ---
 
 Values for **failed-element-name** and **failed-element-id** properties are stored in Camel context.
-<<<<<<<< HEAD:help/docs/05__How_To/1__Build_Logic_Around_Failed_Elements/readme.md
 
 ## Configuration
 
