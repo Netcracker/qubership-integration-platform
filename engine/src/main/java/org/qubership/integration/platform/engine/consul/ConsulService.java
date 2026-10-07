@@ -19,6 +19,7 @@ package org.qubership.integration.platform.engine.consul;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PreDestroy;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -38,6 +39,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 @Slf4j
@@ -49,6 +52,7 @@ public class ConsulService {
     public static final String SESSION_TTL_STRING = "60s";
     private static final String WAIT_TIMEOUT_STRING = "20s";
     public static final String SESSION_BEHAVIOR = "delete";
+    private static final long SESSION_DESTROY_TIMEOUT_SECONDS = 2;
     public static final String LOCALDEV_NODE_ID = UUID.randomUUID().toString();
 
     public static final String DEFAULT_CONSUL_SETTING_KEY = "default-settings";
@@ -153,6 +157,22 @@ public class ConsulService {
             } else {
                 log.error("Failed to create consul session", e);
             }
+        }
+    }
+
+    // With behavior=delete, Consul deletes the engines-state key with the session. The bound also
+    // covers waiting for a renewal that holds the lock, so an unreachable Consul cannot hold the
+    // shutdown for the client's 25 s timeout.
+    @PreDestroy
+    public void destroySession() {
+        CompletableFuture.runAsync(this::deleteActiveSession)
+                .orTimeout(SESSION_DESTROY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .join();
+    }
+
+    private synchronized void deleteActiveSession() {
+        if (activeSessionId != null) {
+            client.deleteSession(activeSessionId);
         }
     }
 
