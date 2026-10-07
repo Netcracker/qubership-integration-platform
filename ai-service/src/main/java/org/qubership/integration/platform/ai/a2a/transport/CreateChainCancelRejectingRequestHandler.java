@@ -38,9 +38,11 @@ import org.qubership.integration.platform.ai.a2a.access.TaskAccessPolicy;
 import org.qubership.integration.platform.ai.a2a.access.TaskIdentity;
 import org.qubership.integration.platform.ai.a2a.access.TaskOperation;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageReceipt;
+import org.qubership.integration.platform.ai.a2a.persistence.A2aDispatchAcquisition;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
 import org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState;
 import org.qubership.integration.platform.ai.a2a.transport.A2aInboundMessageParser.InboundCommand;
+import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
 
 /**
  * Replaces {@link DefaultRequestHandler} for durable Get Task, cancel rejection without state
@@ -61,6 +63,7 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
   private final A2aFeatureGate featureGate;
   private final A2aMessageReceiptRepository receiptRepository;
   private final TaskStore taskStore;
+  private final CreateChainApplicationFacade facade;
   private final java.util.concurrent.atomic.AtomicReference<Runnable> afterRegisterHook =
       new java.util.concurrent.atomic.AtomicReference<>();
 
@@ -78,7 +81,8 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
       TaskAccessPolicy accessPolicy,
       TaskEventHub eventHub,
       A2aFeatureGate featureGate,
-      A2aMessageReceiptRepository receiptRepository) {
+      A2aMessageReceiptRepository receiptRepository,
+      CreateChainApplicationFacade facade) {
     super(
         agentExecutor,
         taskStore,
@@ -94,6 +98,7 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
     this.featureGate = featureGate;
     this.receiptRepository = receiptRepository;
     this.taskStore = taskStore;
+    this.facade = facade;
   }
 
   /** Test seam: runs once after eager slot registration and before the durable snapshot read. */
@@ -118,7 +123,7 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
     params = bound.params();
     boolean dispatched = false;
     try {
-      Optional<Task> recovered = recoverLostInitialResponse(params, bound.holder());
+      Optional<Task> recovered = recoverMessageResponse(params, bound.holder());
       if (recovered.isPresent()) {
         return recovered.get();
       }
@@ -142,7 +147,7 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
     params = bound.params();
     boolean dispatched = false;
     try {
-      Optional<Task> recovered = recoverLostInitialResponse(params, bound.holder());
+      Optional<Task> recovered = recoverMessageResponse(params, bound.holder());
       if (recovered.isPresent()) {
         return Multi.createFrom().item(recovered.get());
       }
@@ -318,23 +323,53 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
   }
 
   /**
-   * When the client retries an initial Message without {@code taskId} after a lost response, return
-   * the durable Task bound to the caller-scoped {@code messageId}. A different command fingerprint
-   * is an idempotency conflict.
+   * Returns the saved response for the same caller-scoped message. An incomplete terminal receipt
+   * also requires exact command application evidence; status alone cannot prove dispatch.
    */
-  private Optional<Task> recoverLostInitialResponse(
+  private Optional<Task> recoverMessageResponse(
       MessageSendParams params, A2aClientCorrelationCarrier.Holder clientIds) throws A2AError {
     Message message = params.message();
-    if (message == null || message.taskId() != null || message.messageId() == null) {
+    if (message == null || message.messageId() == null) {
       return Optional.empty();
     }
-    Optional<A2aCallerMessageReceipt> receipt = findMatchingInitialReceipt(message, clientIds);
+    Optional<A2aCallerMessageReceipt> receipt = findMatchingReceipt(message, clientIds);
     if (receipt.isEmpty()) {
       return Optional.empty();
     }
+    CallerContext caller = callerContextProvider.current();
+    InboundCommand command = A2aInboundMessageParser.resolveSavedCommand(
+        A2aInboundMessageParser.parse(message), receipt.get());
+    try {
+      accessPolicy.check(caller, command instanceof InboundCommand.Approve ? TaskOperation.APPROVE : TaskOperation.CONTINUE,
+          new TaskIdentity(receipt.get().taskId(), message.contextId()));
+    } catch (TaskAccessDeniedException denied) {
+      throw A2aProtocolErrorMapper.fromAccessDenied(denied);
+    }
     if (receipt.get().incomplete()) {
-      // Incomplete receipts must re-enter the executor rather than return a stale snapshot.
-      return Optional.empty();
+      var durable = snapshotPersister.loadDurable(receipt.get().taskId());
+      if (durable.isEmpty() || !isTerminal(durable.get().task())) {
+        return Optional.empty();
+      }
+      String commandId = A2aCommandId.derive(caller.tenantId(), caller.subjectId(), message.messageId());
+      boolean applied = command instanceof InboundCommand.ClarifyText clarify
+          ? facade.inputAlreadyApplied(receipt.get().taskId(), commandId, clarify.text())
+          : command instanceof InboundCommand.Approve approve && facade.approvalAlreadyApplied(
+              new org.qubership.integration.platform.ai.productpipeline.create.facade.ApproveCreateChainArtifactCommand(
+                  receipt.get().taskId(), approve.artifactType(), approve.artifactHash(), approve.revision(), commandId));
+      if (!applied) { return Optional.empty(); }
+      // The command committed before the response did. Finalize under the existing lease protocol;
+      // a live owner can finish its receipt while this retry returns the same committed result.
+      var acquired = receiptRepository.acquireDispatch(caller.tenantId(), caller.subjectId(), message.messageId());
+      if (acquired.result() == A2aDispatchAcquisition.Result.ACQUIRED) {
+        try {
+          receiptRepository.completeDispatch(caller.tenantId(), caller.subjectId(), message.messageId(),
+              acquired.ownerToken(), durable.get().revision(), durable.get().revision());
+        } catch (RuntimeException failure) {
+          receiptRepository.releaseDispatch(caller.tenantId(), caller.subjectId(), message.messageId(), acquired.ownerToken());
+          throw failure;
+        }
+      }
+      return Optional.of(durable.get().task());
     }
     return snapshotPersister.loadSdkTask(receipt.get().taskId());
   }
@@ -349,7 +384,7 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
     if (message == null || message.taskId() != null || message.messageId() == null) {
       return params;
     }
-    Optional<A2aCallerMessageReceipt> receipt = findMatchingInitialReceipt(message, clientIds);
+    Optional<A2aCallerMessageReceipt> receipt = findMatchingReceipt(message, clientIds);
     if (receipt.isEmpty() || !receipt.get().incomplete()) {
       return params;
     }
@@ -362,7 +397,7 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
         .build();
   }
 
-  private Optional<A2aCallerMessageReceipt> findMatchingInitialReceipt(
+  private Optional<A2aCallerMessageReceipt> findMatchingReceipt(
       Message message, A2aClientCorrelationCarrier.Holder clientIds) throws A2AError {
     CallerContext caller = callerContextProvider.current();
     Optional<A2aCallerMessageReceipt> receipt =
@@ -371,7 +406,15 @@ public class CreateChainCancelRejectingRequestHandler extends DefaultRequestHand
     if (receipt.isEmpty()) {
       return Optional.empty();
     }
-    InboundCommand command = A2aInboundMessageParser.parse(message);
+    InboundCommand parsed = A2aInboundMessageParser.parse(message);
+    if (parsed instanceof InboundCommand.ClarifyText
+        && A2aInboundMessageParser.KIND_APPROVE.equals(receipt.get().commandKind())
+        && receipt.get().commandPayloadJson() == null) {
+      // Older token receipts have no resolved payload. Let the executor validate the current
+      // exact gate; the handler cannot reconstruct a past approval from the text alone.
+      return Optional.empty();
+    }
+    InboundCommand command = A2aInboundMessageParser.resolveSavedCommand(parsed, receipt.get());
     String fingerprint =
         A2aCommandFingerprint.compute(
             message, command, clientIds.taskId(), clientIds.contextId());

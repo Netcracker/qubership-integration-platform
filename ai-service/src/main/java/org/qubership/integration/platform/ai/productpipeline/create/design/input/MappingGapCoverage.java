@@ -2,27 +2,30 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.inpu
 
 import java.util.ArrayList;
 import java.util.List;
+import org.qubership.integration.platform.ai.plan.RequirementFactKind;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition;
 
 /**
- * Coverage of approved flow transitions on the mapping-gap card. Each hop is mapped, skipped, or
- * uncovered. The card lists uncovered hops only.
+ * Coverage of requested field adaptations. Execution edges without an adaptation request do not
+ * establish missing author input.
  */
 public final class MappingGapCoverage {
 
   public enum State {
     MAPPED,
     SKIPPED,
+    NOT_REQUESTED,
     UNCOVERED
   }
 
   private MappingGapCoverage() {}
 
   /**
-   * Transitions that are neither mapped nor skipped. Mapped requires a mapping intent with at least
-   * one rule. Skipped is an explicit skip record on the brief.
+   * Requested adaptations that are neither mapped nor explicitly skipped. Body construction in a
+   * script or hook remains owned by its approved element intent.
    */
   public static List<Transition> uncovered(RequirementBrief brief) {
     return brief.flow().transitions().stream()
@@ -37,7 +40,20 @@ public final class MappingGapCoverage {
     if (skipped(transition, brief.skippedTransitions())) {
       return State.SKIPPED;
     }
+    if (!requested(brief, transition)) {
+      return State.NOT_REQUESTED;
+    }
     return State.UNCOVERED;
+  }
+
+  private static boolean requested(RequirementBrief brief, Transition transition) {
+    return brief.mappingIntents().stream().anyMatch(intent ->
+        sameHop(transition, intent.sourceRef(), intent.targetRef()))
+        || brief.facts().stream().anyMatch(fact ->
+            fact.kind() == RequirementFactKind.FIELD_MAPPING
+                && fact.polarity() == RequirementFactPolarity.POSITIVE
+                && fact.interactionIds().contains(transition.sourceInteractionId())
+                && fact.interactionIds().contains(transition.targetInteractionId()));
   }
 
   /** True while any approved hop is still uncovered. Hash confirmation is not coverage. */

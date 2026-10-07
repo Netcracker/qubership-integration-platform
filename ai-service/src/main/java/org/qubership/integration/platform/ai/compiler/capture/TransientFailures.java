@@ -27,6 +27,8 @@ public final class TransientFailures {
       if (current instanceof ConnectException
           || current instanceof SocketTimeoutException
           || current instanceof HttpTimeoutException
+          || current instanceof java.util.concurrent.TimeoutException
+          || current instanceof org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException
           || current instanceof RateLimitException
           || current instanceof RateLimitTurnBudgetExhaustedException) {
         return true;

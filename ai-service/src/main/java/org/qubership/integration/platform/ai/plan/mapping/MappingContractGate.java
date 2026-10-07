@@ -103,7 +103,9 @@ public final class MappingContractGate {
             schemaProvenance(target),
             finding.expectedContract(),
             finding.observed());
-    return new PlanValidationFinding(finding.code().name(), finding.message(), true, details);
+    return new PlanValidationFinding(finding.code().name(), finding.message(), true, details,
+        finding.mappingIntentId(), finding.code() == MappingFindingCode.MAPPING_INVALID_SOURCE
+            ? finding.sourcePath() : finding.targetPath());
   }
 
   private static String schemaOwner(MappingSchemaSide side) {

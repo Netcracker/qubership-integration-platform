@@ -56,6 +56,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.SemanticFixtures;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
@@ -115,6 +116,212 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             new org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifestBuilder(
                 new org.qubership.integration.platform.ai.compiler.plan.GeneratorReadinessEvaluator(),
                 (catalog, intentRequest, intentBrief) -> ""));
+  }
+
+  @Test
+  void aCommittedSemanticCannotUseADifferentCommittedBrief() {
+    persistRun();
+    storeBrief(protectedBrief());
+    Reference otherBrief = appendRepairArtifact(Kind.REQUIREMENT_BRIEF, ordersBriefWith(List.of()), List.of());
+    Reference wrongSemantic = appendRepairArtifact(Kind.CHAIN_SEMANTIC_REVISION, sampleRevision(), List.of(otherBrief));
+    var doc = runStore.load(RUN_ID).orElseThrow();
+    long revision = doc.run().runRevision();
+    var stages = doc.run().stages().stream().map(stage -> "design-input".equals(stage.stageId())
+        ? new org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot(stage.stageId(),
+            org.qubership.integration.platform.ai.productpipeline.store.StageStatus.SUCCEEDED, List.of(wrongSemantic), null)
+        : stage).toList();
+    runStore.commit(revision, new org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit(
+        RUN_ID, revision, RunStatus.RUNNING, "design-execution", stages,
+        new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt("mismatched-lineage",
+            "design-execution", revision + 1, org.qubership.integration.platform.ai.productpipeline.store.StageStatus.RUNNING,
+            FIXED, FIXED, List.of(), null),
+        new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(revision, revision + 1,
+            RunStatus.RUNNING, RunStatus.RUNNING, "design-execution", FIXED, "Committed mismatched fixture lineage")));
+    IllegalStateException failure = assertThrows(IllegalStateException.class, () -> runner.execute(
+        samplePlan(), sampleRevision(), List.of(sampleBinding()), sampleManifest(), "attempt-mismatch", (skill, status) -> {}));
+    assertTrue(failure.getMessage().contains("brief lineage"), failure.getMessage());
+    org.mockito.Mockito.verifyNoInteractions(engine);
+  }
+
+  @Test
+  void anUnapprovedNewerBriefCannotReplaceTheCommittedCompilerInput() {
+    persistRun();
+    storeBrief(protectedBrief());
+    storeBrief(ordersBriefWith(List.of()));
+    runner.execute(samplePlan(), sampleRevision(), List.of(sampleBinding()), sampleManifest(),
+        "orphan-brief-control", (skillId, status) -> {});
+    assertEquals(protectedBrief().facts(), capturedRequest.get().requirementBrief().facts());
+  }
+
+  @Test
+  void partialProgressUsesOnlyAProtectedCandidateWithComparableValidationCoverage() {
+    persistRun();
+    storeBrief(protectedBrief());
+    List<Reference> inputs = List.of(
+        appendRepairArtifact(Kind.CHAIN_SEMANTIC_REVISION, sampleRevision(), List.of()),
+        appendRepairArtifact(Kind.DESIGN_EXECUTION_PLAN, samplePlan(), List.of()),
+        appendRepairArtifact(Kind.IMPLEMENTATION_PLAN, Map.of("approved", true), List.of()));
+    var oldA = new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+        "INVALID_METHOD", "Invalid method", true, org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails.empty(),
+        "trigger-http", "/properties/httpMethod");
+    var oldB = new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+        "INVALID_PROPERTY", "Invalid property", true, org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails.empty(),
+        "node-call", "/properties/operationId");
+    var newC = new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+        "INVALID_SCRIPT", "Invalid script", true, org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails.empty(),
+        "node-call", "/properties/before.script");
+    ChainPlanGraph prior = protectedGraph("preserved-partial-input");
+    Reference priorGraph = appendRepairArtifact(Kind.CHAIN_PLAN_GRAPH, prior, inputs);
+    Reference priorEvidence = repairObservation(priorGraph, prior, inputs, List.of(oldA, oldB), List.of(), "element-validator");
+
+    for (String scenario : List.of("new-defect", "same-findings", "lost-value", "changed-coverage")) {
+      ChainPlanGraph current = protectedGraph("new-partial-input");
+      if ("lost-value".equals(scenario)) {
+        current = current.withNodeProperty("trigger-http", "httpUri", "/obsolete");
+      }
+      Reference currentGraph = appendRepairArtifact(Kind.CHAIN_PLAN_GRAPH, current, inputs);
+      Reference currentEvidence = repairObservation(currentGraph, current, inputs,
+          "same-findings".equals(scenario) ? List.of(oldA, oldB) : List.of(oldB, newC), List.of(priorEvidence),
+          "changed-coverage".equals(scenario) ? "different-validator" : "element-validator");
+      StageRepairEvidence repair = new StageRepairEvidence("VALIDATION_FAILURE", "design-execution",
+          "Retained or newly observed validation findings", "validation failed", "", currentEvidence.contentHash(), List.of(currentGraph));
+
+      runner.execute(samplePlan(), sampleRevision(), List.of(sampleBinding()), sampleManifest(),
+          "partial-" + scenario, repair, current, (skillId, status) -> {});
+
+      boolean improved = "new-defect".equals(scenario);
+      var selected = capturedRequest.get().repairEvidence();
+      assertTrue(selected.diagnosticText().contains(improved ? "new-partial-input" : "preserved-partial-input"), scenario);
+      assertEquals(improved ? currentGraph : priorGraph, selected.priorOutput(Kind.CHAIN_PLAN_GRAPH).orElseThrow());
+      assertFalse(capturedRequest.get().effectiveSeed().seedText().contains("partial-input"));
+      assertEquals(protectedBrief().facts(), capturedRequest.get().requirementBrief().facts());
+    }
+    ChainPlanGraph stalled = protectedGraph("no-progress-input");
+    Reference stalledRef = appendRepairArtifact(Kind.CHAIN_PLAN_GRAPH, stalled, inputs);
+    Reference stalledEvidence = repairObservation(stalledRef, stalled, inputs, List.of(oldA, oldB),
+        List.of(priorEvidence), "element-validator");
+    ChainPlanGraph regressed = protectedGraph("regressed-input")
+        .withNodeProperty("trigger-http", "httpUri", "/obsolete");
+    Reference regressedRef = appendRepairArtifact(Kind.CHAIN_PLAN_GRAPH, regressed, inputs);
+    Reference regressedEvidence = repairObservation(regressedRef, regressed, inputs, List.of(oldB, newC),
+        List.of(priorEvidence, stalledEvidence), "element-validator");
+    runner.execute(samplePlan(), sampleRevision(), List.of(sampleBinding()), sampleManifest(),
+        "partial-history", new StageRepairEvidence("VALIDATION_FAILURE", "design-execution",
+            "Partial history", "validation failed", "", regressedEvidence.contentHash(), List.of(regressedRef)),
+        regressed, (skillId, status) -> {});
+    assertEquals(priorGraph, capturedRequest.get().repairEvidence().priorOutput(Kind.CHAIN_PLAN_GRAPH).orElseThrow());
+    Reference sameGraph = appendRepairArtifact(Kind.CHAIN_PLAN_GRAPH, prior, inputs);
+    Reference lesserCoverage = repairObservation(sameGraph, prior, inputs, List.of(oldA, oldB),
+        List.of(priorEvidence), "different-validator");
+    ChainPlanGraph improvement = protectedGraph("different-coverage-input");
+    Reference improvementRef = appendRepairArtifact(Kind.CHAIN_PLAN_GRAPH, improvement, inputs);
+    Reference improvementEvidence = repairObservation(improvementRef, improvement, inputs, List.of(oldB, newC),
+        List.of(priorEvidence, lesserCoverage), "different-validator");
+    runner.execute(samplePlan(), sampleRevision(), List.of(sampleBinding()), sampleManifest(),
+        "partial-coverage", new StageRepairEvidence("VALIDATION_FAILURE", "design-execution",
+            "Coverage history", "validation failed", "", improvementEvidence.contentHash(), List.of(improvementRef)),
+        improvement, (skillId, status) -> {});
+    assertEquals(priorGraph, capturedRequest.get().repairEvidence().priorOutput(Kind.CHAIN_PLAN_GRAPH).orElseThrow());
+  }
+
+  private Reference repairObservation(Reference graphRef, ChainPlanGraph graph, List<Reference> inputs,
+      List<org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding> findings,
+      List<Reference> prior, String validator) {
+    Reference bundle = appendRepairArtifact(Kind.COMPILER_VALIDATION_BUNDLE,
+        new CompilerValidationBundle(1, new org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest(
+            new ObjectMapper()).sha256(graph), List.of(new CompilerValidationPass(validator,
+            new ValidationResult(false, List.of(), "Rejected candidate")))), inputs);
+    Reference report = appendRepairArtifact(Kind.PLAN_VALIDATION_RESULT,
+        new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult(findings), inputs);
+    return appendRepairArtifact(Kind.RECOVERY_EVIDENCE,
+        new org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidence(1,
+            java.util.UUID.randomUUID().toString(), "VALIDATION_BLOCKER", "design-execution", "design-execution",
+            null, inputs.getFirst(), List.of(graphRef, bundle, report), List.of(), null, prior), inputs);
+  }
+
+  private Reference appendRepairArtifact(Kind kind, Object payload, List<Reference> inputs) {
+    return artifactStore.append(new AppendCommand(RUN_ID, kind,
+        kind == Kind.CHAIN_SEMANTIC_REVISION ? ChainSemanticRevision.CURRENT_SCHEMA_VERSION : "1",
+        "design-execution", "1", payload, inputs, null,
+        new ArtifactProvenance(RUN_ID, "design-execution", "create-chain", "2", "profile-sha", "design-execution", "1", "closure"))).reference();
+  }
+
+  @Test
+  void aRejectedGraphCannotEraseProtectedRequirementsFromTheNextRepairInput() {
+    persistRun();
+    storeBrief(protectedBrief());
+    ChainPlanGraph complete = protectedGraph("candidate-to-discard");
+    for (String loss : List.of("structure", "value", "name", "hook", "hook-body")) {
+      ChainPlanGraph rejected = switch (loss) {
+        case "structure" -> new ChainPlanGraph(complete.schemaVersion(), complete.chain(),
+            List.of(complete.nodes().getFirst()), List.of());
+        case "value" -> complete.withNodeProperty("trigger-http", "httpUri", "/obsolete");
+        case "hook" -> complete.withNodeProperty("node-call", "before", "[]");
+        case "hook-body" -> complete.withNodeProperty("node-call", "before", "{\"type\":\"script\",\"script\":\"return\"}");
+        default -> new ChainPlanGraph(complete.schemaVersion(), complete.chain(), complete.nodes().stream()
+            .map(node -> node.nodeId().equals("trigger-http") ? new ChainPlanNode(node.nodeId(), node.type(),
+                "Changed requested name", node.parentNodeId(), node.order(), node.properties()) : node).toList(), complete.edges());
+      };
+      StageRepairEvidence repair = new StageRepairEvidence("VALIDATION_FAILURE", "design-execution",
+          "Invalid generated property.", "validation failed", "");
+
+      runner.execute(samplePlan(), sampleRevision(), List.of(sampleBinding()), sampleManifest(),
+          "repair-" + loss, repair, rejected, (skillId, status) -> {});
+
+      assertFalse(capturedRequest.get().repairEvidence().diagnosticText().contains("candidate-to-discard"), loss);
+      assertEquals(protectedBrief().facts(), capturedRequest.get().requirementBrief().facts());
+    }
+  }
+
+  private static RequirementBrief protectedBrief() {
+    var element = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("trigger-http", "http-trigger",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.ANCHOR,
+        null, null, null, "Orders API", List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("httpUri", "/orders-v2")), List.of());
+    var hook = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("hook-before", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK,
+        "node-call", null, null, null, List.of(), List.of("/orders-v2"));
+    var facts = List.of(element, hook).stream().map(intent -> new org.qubership.integration.platform.ai.plan.RequirementFact(
+        intent.elementRef(), org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+        org.qubership.integration.platform.ai.plan.RequirementFactKind.PARAMETER, "", "Preserve author values", "", "", "", "", "", "",
+        List.of("trigger-http"), null, intent)).toList();
+    return ordersBriefWith(List.of()).withFacts(facts);
+  }
+
+  private static ChainPlanGraph protectedGraph(String marker) {
+    return new ChainPlanGraph("1.0", new ChainSection("Orders", "Orders"),
+        List.of(new ChainPlanNode("trigger-http", "http-trigger", "Orders API", null, null, List.of()),
+            new ChainPlanNode("node-call", "service-call", "Create order", null, null, List.of())),
+        List.of(new org.qubership.integration.platform.ai.plan.model.ChainPlanEdge("edge-1", "trigger-http", "node-call", null)))
+        .withNodeProperty("trigger-http", "httpUri", "/orders-v2")
+        .withNodeProperty("node-call", "operationId", marker)
+        .withNodeProperty("node-call", "before", "{\"type\":\"script\",\"script\":\"exchange.message.body = '/orders-v2'\"}");
+  }
+
+  @Test
+  void theRealEngineRequestKeepsTheRejectedGraphSeparateFromApprovedInputs() {
+    persistRun();
+    storeBrief(ordersBriefWith(List.of()));
+    ChainPlanGraph rejected = protectedGraph("prior-rejected-graph")
+        .withNodeProperty("trigger-http",
+            "accessControlType", "rejected-candidate-value");
+    StageRepairEvidence repair = new StageRepairEvidence(
+        "VALIDATION_FAILURE", "design-execution", "SECURITY_POLICY: Use the confirmed policy.",
+        "validation failed", "", "evidence-exact", List.of(), "cip-security-generator",
+        "SECURITY_POLICY");
+
+    runner.execute(samplePlan(), sampleRevision(), List.of(sampleBinding()), sampleManifest(),
+        "repair-1", repair, rejected, (skillId, status) -> {});
+
+    CompilerDagExecutionRequest request = capturedRequest.get();
+    assertTrue(request.repairEvidence().repairTextForSkill("cip-security-generator")
+        .contains("rejected-candidate-value"));
+    assertFalse(request.effectiveSeed().seedText().contains("rejected-candidate-value"));
+    ChainPlanGraph seeded = ((SkillArtifactPayload.ChainPlanGraphPayload)
+        request.effectiveSeed().artifacts().stream()
+            .filter(artifact -> artifact.type() == SkillArtifactType.CHAIN_PLAN_GRAPH)
+            .findFirst().orElseThrow().payload()).graph();
+    assertEquals(successfulEngineResult().graph(), seeded);
+    assertEquals("", request.repairEvidence().repairTextForSkill("cip-naming-generator"));
   }
 
   @Test
@@ -247,8 +454,8 @@ class DefaultApprovedCompilerExecutionRunnerTest {
             "node-call",
             MappingPort.REQUEST,
             List.of(new MappingIntentRule("id", "customerId", null)));
-    storeBrief(ordersBriefWith(List.of(liveIntent)));
     persistRun();
+    storeBrief(ordersBriefWith(List.of(liveIntent)), SemanticFixtures.linearOrdersWithMapping());
 
     runner.execute(
         samplePlan(),
@@ -268,6 +475,7 @@ class DefaultApprovedCompilerExecutionRunnerTest {
 
   @Test
   void executeAcceptsAPlaceholderFoldedCanonicalBrief() {
+    persistRun();
     MappingIntent approved =
         new MappingIntent(
             "map-init",
@@ -287,10 +495,9 @@ class DefaultApprovedCompilerExecutionRunnerTest {
     RequirementBrief canonical =
         RequirementBriefProjector.canonicalizeMappingIntents(
             ordersBriefWith(List.of(approved, placeholder)));
-    storeBrief(canonical);
-    persistRun();
     ChainSemanticRevision revision =
         SemanticFixtures.withoutMappingBodies(SemanticFixtures.linearOrdersWithMapping());
+    storeBrief(canonical, revision);
 
     runner.execute(
         samplePlan(),
@@ -376,7 +583,11 @@ class DefaultApprovedCompilerExecutionRunnerTest {
   }
 
   private void storeBrief(RequirementBrief brief) {
-    artifactStore.append(
+    storeBrief(brief, sampleRevision());
+  }
+
+  private void storeBrief(RequirementBrief brief, ChainSemanticRevision semantic) {
+    var stored = artifactStore.append(
         new AppendCommand(
             RUN_ID,
             Kind.REQUIREMENT_BRIEF,
@@ -395,6 +606,26 @@ class DefaultApprovedCompilerExecutionRunnerTest {
                 "requirement-analysis",
                 "1",
                 "closure")));
+    var doc = runStore.load(RUN_ID).orElseThrow();
+    if (doc.run().stages().stream().noneMatch(stage -> "requirement-analysis".equals(stage.stageId()))) {
+      Reference semanticRef = appendRepairArtifact(Kind.CHAIN_SEMANTIC_REVISION, semantic, List.of(stored.reference()));
+      long revision = doc.run().runRevision();
+      runStore.commit(revision, new org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit(
+          RUN_ID, revision, RunStatus.RUNNING, "design-execution", List.of(
+              new org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot("requirement-analysis",
+                  org.qubership.integration.platform.ai.productpipeline.store.StageStatus.SUCCEEDED,
+                  List.of(stored.reference()), stored.artifactId()),
+              new org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot("design-input",
+                  org.qubership.integration.platform.ai.productpipeline.store.StageStatus.SUCCEEDED, List.of(semanticRef), null),
+              new org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot("design-execution",
+                  org.qubership.integration.platform.ai.productpipeline.store.StageStatus.RUNNING, List.of(), null)),
+          new org.qubership.integration.platform.ai.productpipeline.store.StageAttempt(
+              "fixture-brief-commit", "design-execution", revision + 1,
+              org.qubership.integration.platform.ai.productpipeline.store.StageStatus.RUNNING,
+              FIXED, FIXED, List.of(), null),
+          new org.qubership.integration.platform.ai.productpipeline.store.RunTransition(revision, revision + 1,
+              RunStatus.RUNNING, RunStatus.RUNNING, "design-execution", FIXED, "Committed fixture brief")));
+    }
   }
 
   private void persistRun() {

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.time.Clock;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
@@ -39,12 +41,42 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import io.smallrye.mutiny.Multi;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
+import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageCapabilityRegistry;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
+import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
+import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
+import org.qubership.integration.platform.ai.productpipeline.profile.ArtifactTypeRef;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProfileStage;
+import org.qubership.integration.platform.ai.productpipeline.profile.RetryPolicy;
+import org.qubership.integration.platform.ai.productpipeline.profile.TerminalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.productpipeline.runtime.StartOrResumeCommand;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
+import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
+import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.runtime.AcceptInputCommand;
+import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
 
 /**
  * Ticket 03: persist one create-chain Flow instance, restore it from PostgreSQL, and resume the
@@ -61,6 +93,222 @@ class DurableCreateChainFlowInstanceIT {
   @Inject DataSource dataSource;
   @Inject PersistenceInstanceHandlers persistenceHandlers;
   @InjectMock ProvidedIdsFlowTasks tasks;
+
+  @BeforeEach
+  void keepScriptedWaitsActive() {
+    when(tasks.stillWaiting(any())).thenReturn(true);
+  }
+
+  @Test
+  void realDiscoveryTasksRecoverTemporaryFailuresInTheSamePersistedFlow() throws Exception {
+    String runId = "discovery-technical-retry-" + UUID.randomUUID();
+    String source = "Keep endpoint /orders and literal customerRef unchanged.";
+    AtomicInteger calls = new AtomicInteger();
+    StageCapability discovery = new StageCapability() {
+      @Override public String capabilityId() { return "discovery-fixture"; }
+      @Override public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        if (context.attributeAsString("userText") == null) {
+          return Multi.createFrom().item(new CapabilitySignal.Completed(
+              StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Provide the source requirements.")));
+        }
+        assertEquals(source, context.attributeAsString("userText"));
+        if (calls.incrementAndGet() <= 2) {
+          return Multi.createFrom().failure(new java.net.ConnectException("Connection refused"));
+        }
+        return Multi.createFrom().item(new CapabilitySignal.Completed(
+            StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Discovery committed.")));
+      }
+    };
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var store = new ProductPipelineRunStore(blobs, mapper, Clock.systemUTC());
+    var artifacts = new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()));
+    var input = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "discovery-recovery", "1", List.of(input), List.of(
+        new ProfileStage("requirement-discovery", discovery.capabilityId(), List.of(input), List.of(),
+            null, null, new RetryPolicy(2, 50L))),
+        new TerminalPolicy("requirement-discovery", "PLAN_APPROVED"), List.of(discovery.capabilityId()));
+    var support = ProductPipelineRunSupport.builder(store, artifacts,
+        new StageCapabilityRegistry(List.of(discovery)), Clock.systemUTC()).build();
+    var manifest = new RunManifest(runId, null, List.of(), "product", profile.profileId(), profile.profileVersion(),
+        "profile", "baseline", "baseline", List.of(), "closure",
+        new KnowledgePackageRef("fixture", "1", "1", "checksum", "CERTIFIED", "certificate"),
+        "2026.1", List.of(input), null);
+    var actualTasks = new ProvidedIdsFlowTasks(support);
+    when(tasks.stillWaiting(any())).thenAnswer(invocation -> actualTasks.stillWaiting(invocation.getArgument(0)));
+    when(tasks.executeCurrentStage(any())).thenAnswer(invocation -> actualTasks.executeCurrentStage(invocation.getArgument(0)));
+    when(tasks.restoreAfterInput(any())).thenAnswer(invocation -> actualTasks.restoreAfterInput(invocation.getArgument(0)));
+    when(tasks.restoreAfterRetry(any())).thenAnswer(invocation -> actualTasks.restoreAfterRetry(invocation.getArgument(0)));
+    WorkflowInstance instance = flow.instance(new ProvidedIdsFlow.RunContext(
+        runId, profile.profileId(), profile.profileVersion(), manifest.profileDigest(), null));
+    support.bootstrap(new StartOrResumeCommand(runId, runId, profile, manifest), instance.id());
+    instance.start();
+    waitUntil("opening input wait must persist", () -> instance.status() == WorkflowStatus.WAITING);
+    assertTrue(persistedInstanceExists(instance.id()));
+    waitQuietly(Duration.ofMillis(200));
+    support.recordInput(new AcceptInputCommand(runId, source)).collect().asList().await().indefinitely();
+    long inputRevision = store.load(runId).orElseThrow().run().runRevision();
+    publish(resumeEvent(ProvidedIdsFlow.INPUT_EVENT_TYPE, instance.id(), runId, "CONTINUE"));
+    waitUntil("technical retries must complete without author input", () -> instance.status() == WorkflowStatus.COMPLETED);
+
+    var completed = store.load(runId).orElseThrow();
+    assertEquals(3, calls.get());
+    assertEquals(instance.id(), completed.run().flowInstanceId());
+    assertEquals(RunStatus.PLAN_APPROVED, completed.run().status());
+    assertEquals(2, completed.attempts().stream().filter(attempt -> attempt.failureEvidence() != null).count());
+    assertTrue(completed.transitions().stream().filter(transition -> transition.toRevision() > inputRevision)
+        .noneMatch(transition -> transition.toStatus() == RunStatus.WAITING_FOR_INPUT));
+    long cleanupDeadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+    while (countPersistedInstances(instance.id()) != 0 && System.nanoTime() < cleanupDeadline) {
+      waitQuietly(Duration.ofMillis(25));
+    }
+    assertEquals(0, countPersistedInstances(instance.id()), "completed Flow persistence must be cleaned up");
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void publicationFailureResumesTheSameFlowAndPreservesItsNextGate(boolean deliveredBeforeFailure)
+      throws Exception {
+    String runId = "publication-failure-" + UUID.randomUUID();
+    var current = new java.util.concurrent.atomic.AtomicReference<ProductPipelineRunDocument>();
+    ProductPipelineRunStore store = mock(ProductPipelineRunStore.class);
+    ProductPipelineRunSupport support = mock(ProductPipelineRunSupport.class);
+    when(store.load(runId)).thenAnswer(ignored -> Optional.of(current.get()));
+    when(support.currentRunSnapshot(runId)).thenAnswer(ignored -> current.get().run());
+    ProvidedIdsFlowTasks restoring = new ProvidedIdsFlowTasks(support);
+    AtomicInteger executions = new AtomicInteger();
+    AtomicInteger restorations = new AtomicInteger();
+    when(tasks.executeCurrentStage(any())).thenAnswer(invocation -> {
+      ProvidedIdsFlow.RunContext context = invocation.getArgument(0);
+      if (executions.incrementAndGet() == 1) {
+        return context.withDecision("WAIT_FOR_INPUT");
+      }
+      var before = current.get();
+      current.set(new ProductPipelineRunDocument(
+          new RunSnapshot(runId, runId, 6L, RunStatus.WAITING_FOR_APPROVAL,
+              "design-planning", List.of(), null, before.run().flowInstanceId()),
+          List.of(), before.transitions(), "v3"));
+      return context.withDecision("WAIT_FOR_PLAN_APPROVAL");
+    });
+    when(tasks.restoreAfterInput(any())).thenAnswer(invocation -> {
+      restorations.incrementAndGet();
+      return restoring.restoreAfterInput(invocation.getArgument(0));
+    });
+    when(tasks.settled(runId)).thenAnswer(ignored -> executions.get() >= 2);
+    when(tasks.drainSignals(runId)).thenReturn(List.of());
+    WorkflowInstance instance = flow.instance(new ProvidedIdsFlow.RunContext(
+        runId, "create-chain", "2", "manifest-sha", null));
+    current.set(new ProductPipelineRunDocument(
+        new RunSnapshot(runId, runId, 4L, RunStatus.WAITING_FOR_INPUT,
+            "requirement-discovery", List.of(), null, instance.id()), List.of(), List.of(), "v1"));
+    instance.start();
+    waitUntil("opening input wait must persist", () -> instance.status() == WorkflowStatus.WAITING);
+    waitQuietly(Duration.ofMillis(200));
+
+    var command = new AcceptInputCommand(runId, "Use the supplied endpoint", "message-1", "input-hash");
+    when(support.recordInput(command)).thenReturn(Multi.createFrom().deferred(() -> {
+      if (current.get().appliedCommand(command.commandId(), command.commandPayloadHash()).isEmpty()) {
+        current.set(new ProductPipelineRunDocument(
+            new RunSnapshot(runId, runId, 5L, RunStatus.RUNNING,
+                "requirement-discovery", List.of(), null, instance.id()), List.of(), List.of(
+            new RunTransition(4L, 5L, RunStatus.WAITING_FOR_INPUT, RunStatus.RUNNING,
+                "requirement-discovery", java.time.Instant.EPOCH, "input accepted",
+                command.commandId(), command.commandPayloadHash())), "v2"));
+      }
+      return Multi.createFrom().empty();
+    }));
+    AtomicBoolean failFirst = new AtomicBoolean(true);
+    WorkflowApplication dispatchApplication = mock(WorkflowApplication.class);
+    EventPublisher publisher = mock(EventPublisher.class);
+    when(publisher.publish(any(CloudEvent.class))).thenAnswer(invocation -> {
+      CloudEvent event = invocation.getArgument(0);
+      boolean fail = failFirst.getAndSet(false);
+      if (fail && !deliveredBeforeFailure) {
+        return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("publisher unavailable"));
+      }
+      publish(event);
+      return fail
+          ? java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("publication acknowledgment lost"))
+          : java.util.concurrent.CompletableFuture.completedFuture(null);
+    });
+    when(dispatchApplication.eventPublishers()).thenReturn(List.of(publisher));
+    var first = new ProvidedIdsFlowOrchestrator(support, store, flow, tasks, dispatchApplication);
+
+    org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+        () -> first.acceptInput(command).collect().asList().await().indefinitely());
+    assertTrue(current.get().appliedCommand(command.commandId(), command.commandPayloadHash()).isPresent());
+    var resumed = new ProvidedIdsFlowOrchestrator(support, store, flow, tasks, dispatchApplication);
+    resumed.acceptInput(command).collect().asList().await().indefinitely();
+    waitUntil("resumed work must reach its next approval", () -> executions.get() == 2
+        && instance.status() == WorkflowStatus.WAITING);
+    assertEquals(instance.id(), current.get().run().flowInstanceId());
+    assertTrue(persistedInstanceExists(instance.id()));
+
+    int restoredBefore = restorations.get();
+    publish(resumeEvent(ProvidedIdsFlow.INPUT_EVENT_TYPE, instance.id(), runId, "CONTINUE"));
+    waitUntil("stale event must return to the same gate", () -> restorations.get() > restoredBefore
+        && instance.status() == WorkflowStatus.WAITING);
+    assertEquals(2, executions.get());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, current.get().run().status());
+  }
+
+  @Test
+  void chatCancellationDoesNotInterruptAcceptedStageWork() throws Exception {
+    CountDownLatch entered = new CountDownLatch(1);
+    CountDownLatch release = new CountDownLatch(1);
+    CountDownLatch finished = new CountDownLatch(1);
+    AtomicBoolean interrupted = new AtomicBoolean();
+    when(tasks.executeCurrentStage(any())).thenAnswer(invocation -> {
+      ProvidedIdsFlow.RunContext context = invocation.getArgument(0);
+      entered.countDown();
+      try {
+        if (!release.await(10, TimeUnit.SECONDS)) {
+          throw new IllegalStateException("stage fixture was not released");
+        }
+        return context.withDecision("WAIT_FOR_INPUT");
+      } catch (InterruptedException failure) {
+        interrupted.set(true);
+        throw failure;
+      } finally {
+        finished.countDown();
+      }
+    });
+    String runId = "observer-cancellation-" + UUID.randomUUID();
+    WorkflowInstance instance = flow.instance(new ProvidedIdsFlow.RunContext(
+        runId, "create-chain", "2", "manifest-sha", null));
+    ProvidedIdsFlow boundFlow = mock(ProvidedIdsFlow.class);
+    when(boundFlow.instance(any(ProvidedIdsFlow.RunContext.class))).thenReturn(instance);
+    ProductPipelineRunStore store = mock(ProductPipelineRunStore.class);
+    ProductPipelineRunSupport support = mock(ProductPipelineRunSupport.class);
+    StartOrResumeCommand command = mock(StartOrResumeCommand.class);
+    ProductPipelineProfile profile = mock(ProductPipelineProfile.class);
+    RunManifest manifest = mock(RunManifest.class);
+    when(command.conversationId()).thenReturn(runId);
+    when(command.runId()).thenReturn(runId);
+    when(command.profile()).thenReturn(profile);
+    when(command.runManifest()).thenReturn(manifest);
+    when(profile.profileId()).thenReturn("create-chain");
+    when(profile.profileVersion()).thenReturn("2");
+    when(manifest.profileDigest()).thenReturn("manifest-sha");
+    when(store.loadByConversation(runId)).thenReturn(Optional.empty());
+    when(support.restoreForExternalWorkflow(command)).thenReturn(Multi.createFrom().empty());
+    ProvidedIdsFlowOrchestrator orchestrator = new ProvidedIdsFlowOrchestrator(
+        support, store, boundFlow, tasks, application);
+
+    var observer = orchestrator.startOrResume(command).subscribe().with(signal -> {}, failure -> {});
+    try {
+      assertTrue(entered.await(10, TimeUnit.SECONDS), "stage must start before cancellation");
+      observer.cancel();
+    } finally {
+      release.countDown();
+    }
+    assertTrue(finished.await(10, TimeUnit.SECONDS), "accepted work must finish");
+    waitUntil("accepted Flow work must settle", () -> instance.status() == WorkflowStatus.WAITING
+        || instance.status() == WorkflowStatus.FAULTED);
+    assertFalse(interrupted.get(), "observer cancellation must not interrupt stage work");
+    assertEquals(WorkflowStatus.WAITING, instance.status());
+    assertTrue(persistedInstanceExists(instance.id()));
+  }
 
   @Test
   void restartFlowWaitsForActivationBeforeExecutingAStage() throws Exception {

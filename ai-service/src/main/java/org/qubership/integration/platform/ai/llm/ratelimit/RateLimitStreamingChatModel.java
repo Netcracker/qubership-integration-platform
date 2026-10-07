@@ -31,6 +31,12 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
   private final TransientErrorClassifier transientClassifier;
   private final RateLimitWaitPolicy policy;
   private final TransientWaitPolicy transientPolicy;
+  private LlmRunBudget runBudget;
+
+  RateLimitStreamingChatModel withRunBudget(LlmRunBudget budget) {
+    this.runBudget = budget;
+    return this;
+  }
 
   RateLimitStreamingChatModel(
       StreamingChatModel delegate,
@@ -97,7 +103,7 @@ public class RateLimitStreamingChatModel implements StreamingChatModel {
             rateLimitMaxAttempts,
             transientEnabled,
             transientMaxAttempts,
-            onBackoff);
+            onBackoff).withRunBudget(runBudget, runBudget == null ? null : runBudget.currentRun(), requestBudget);
     rateLimited.chat(
         requestWithDefaults, RateLimitSinkSupport.completionAwareHandler(handler, backoffInCall));
   }

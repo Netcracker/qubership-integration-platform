@@ -103,18 +103,35 @@ is stale until the user accepts the new one.
 _Avoid_: go back one step, retry previous stage, silent rewrite of an approved plan
 
 **Repair candidate**:
-The replacement artifact produced after diagnosis, shown on a Decision card. The pipeline does not
-continue on that artifact until the user accepts the new binding.
-_Avoid_: auto-approved fix, in-place edit of an approved plan
+An artifact proposed to correct a rejected chain-construction result. Replacing an approved brief or
+plan requires renewed approval; repairing generated properties, scripts, or a graph within those inputs is automatic.
+_Avoid_: silent approval of a replacement brief or plan, in-place edit of an approved plan
+
+**Repair attempt**:
+A bounded invocation of a chain-artifact producer to correct a rejected result after initial generation.
+Targeted correction and clean regeneration are separate strategies for the same logical defect.
+_Avoid_: a new defect for the same rejection after a context reset, original generation as a repair attempt
+
+**Repair progress**:
+Resolution of a rejected chain requirement or contract finding while preserving effective requirements
+and previously verified structure. A partially repaired candidate can be the next repair input before it is valid for promotion.
+_Avoid_: a smaller finding count as proof of progress, a newly observed defect as proof of a new regression
+
+**Recovery allowance**:
+Additional bounded correction credit explicitly granted by the author for an existing construction run.
+It preserves spent attempts and saved progress and does not change requirements or approve replacement artifacts.
+_Avoid_: resetting recovery history, starting a new conversation to obtain correction credit
 
 **Owner diagnosis**:
-For domain and contract failures, the runtime still traces defective inputs through earlier
-producers. Validation failures use a structured `RecoveryDecision` instead: the agent returns the
-decision, Java validates it and resolves the referenced artifact to its producer, and the author
-never selects an internal stage. When more than one producer stays plausible, the run ends on a
-diagnostic report. Stage ids stay in technical details; they are never buttons or selectable
-recovery values.
+A proposed attribution of a rejected chain artifact to its responsible producer. Artifact provenance
+identifies its producer; the claim that this artifact caused a downstream failure can remain a hypothesis.
 _Avoid_: previous-approval heuristic, unconstrained LLM blame, owner-choice stage cards
+
+**Recovery diagnosis**:
+A structured hypothesis about why a chain artifact was rejected and which producer can correct it.
+A specific diagnosis can justify preparing a bounded repair candidate; it does not authorize replacing
+accepted requirements or approvals.
+_Avoid_: proven root cause for an unverified hypothesis, permission to rewrite the chain
 
 **Recoverable halt**:
 A pause that keeps the run inside the product pipeline. User recovery actions are semantic

@@ -15,6 +15,7 @@ import org.qubership.integration.platform.ai.catalog.binding.McpSystemCatalogBin
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.pipeline.CompilerPipelineDependency;
@@ -22,7 +23,11 @@ import org.qubership.integration.platform.ai.compiler.plan.GeneratorPlanManifest
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorDescriptor;
 import org.qubership.integration.platform.ai.compiler.policy.CompilerGeneratorReadiness;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.plan.ChainPlanGraphValidator;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerRunPin;
+import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationBundle;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryEvidence;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerDag;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ResolvedCompilerNode;
@@ -37,6 +42,8 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.seman
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunDocument;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
+import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerQualityValidator;
 import org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspace;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifact;
 import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload;
@@ -69,8 +76,9 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
   private final CompositionCatalogBinder compositionBinder;
   private final McpSystemCatalogBinder mcpSystemCatalogBinder;
   private final GeneratorPlanManifestBuilder manifestBuilder;
+  private final ChainPlanGraphValidator graphValidator;
+  private final CanonicalGraphDigest graphDigest;
 
-  @Inject
   @SuppressWarnings("java:S107")
   public DefaultApprovedCompilerExecutionRunner(
       CompilerDagExecutionEngine engine,
@@ -81,6 +89,19 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       CompositionCatalogBinder compositionBinder,
       McpSystemCatalogBinder mcpSystemCatalogBinder,
       GeneratorPlanManifestBuilder manifestBuilder) {
+    this(engine, runStore, artifactStore, graphCompiler, contractRepository, compositionBinder,
+        mcpSystemCatalogBinder, manifestBuilder, new ChainPlanGraphValidator(null),
+        new CanonicalGraphDigest(new com.fasterxml.jackson.databind.ObjectMapper()));
+  }
+
+  @Inject
+  @SuppressWarnings("java:S107")
+  public DefaultApprovedCompilerExecutionRunner(
+      CompilerDagExecutionEngine engine, ProductPipelineRunStore runStore,
+      ProductPipelineArtifactStore artifactStore, ChainSemanticGraphCompiler graphCompiler,
+      CompilerContractRepository contractRepository, CompositionCatalogBinder compositionBinder,
+      McpSystemCatalogBinder mcpSystemCatalogBinder, GeneratorPlanManifestBuilder manifestBuilder,
+      ChainPlanGraphValidator graphValidator, CanonicalGraphDigest graphDigest) {
     this.engine = Objects.requireNonNull(engine, "engine");
     this.runStore = Objects.requireNonNull(runStore, "runStore");
     this.artifactStore = Objects.requireNonNull(artifactStore, "artifactStore");
@@ -90,6 +111,8 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     this.mcpSystemCatalogBinder =
         Objects.requireNonNull(mcpSystemCatalogBinder, "mcpSystemCatalogBinder");
     this.manifestBuilder = Objects.requireNonNull(manifestBuilder, "manifestBuilder");
+    this.graphValidator = Objects.requireNonNull(graphValidator, "graphValidator");
+    this.graphDigest = Objects.requireNonNull(graphDigest, "graphDigest");
   }
 
   @Override
@@ -109,7 +132,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
       throw new IllegalStateException(
           "Approved design plan does not match the approved semantic revision");
     }
-    Revision storedBriefRevision = loadStoredBriefRevision(runManifest.runId());
+    Revision storedBriefRevision = loadStoredBriefRevision(runManifest.runId(), revision);
     if (storedBriefRevision == null) {
       throw new IllegalStateException(
           "design-execution requires a committed RequirementBrief");
@@ -192,11 +215,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     graph = compositionBinder.bind(graph, storedBrief);
     graph = mcpSystemCatalogBinder.bind(graph, storedBrief);
     RequirementBrief brief =
-        DesignExecutionBriefFactory.build(
-            storedBrief,
-            revision,
-            repairEvidence,
-            priorGraph);
+        DesignExecutionBriefFactory.build(storedBrief, revision);
     CompilerExecutionSeed seed =
         CompilerExecutionSeed.forCreate(conversationId, brief, revision, graph, resolvedBindings);
     InMemorySkillWorkspace workspace = new InMemorySkillWorkspace(conversationId);
@@ -214,6 +233,7 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
     seed = seed.with(SkillArtifact.of(SkillArtifactType.GENERATOR_PLAN_MANIFEST,
         CompilerExecutionSeed.SEMANTIC_COMPILER_PRODUCER,
         new SkillArtifactPayload.GeneratorPlanManifestPayload(readiness.manifest())));
+    RepairInput repairInput = selectRepairGraph(runManifest.runId(), repairEvidence, priorGraph, contract, revision, storedBrief);
     CompilerDagExecutionRequest request =
         new CompilerDagExecutionRequest(
             runManifest.runId(),
@@ -225,12 +245,163 @@ public class DefaultApprovedCompilerExecutionRunner implements ApprovedCompilerE
             approvedOwningSkillIds,
             List.of(storedBriefRef),
             seed,
-            repairEvidence);
+            repairEvidence == null ? null : repairEvidence.withRepairInput(repairInput.graph(), repairInput.reference()));
     return engine.execute(request, attemptId, progress).await().indefinitely();
   }
 
-  private Revision loadStoredBriefRevision(String runId) {
-    return artifactStore.latest(runId, Kind.REQUIREMENT_BRIEF).orElse(null);
+  private record RepairInput(ChainPlanGraph graph, Reference reference) {}
+
+  private RepairInput selectRepairGraph(String runId, StageRepairEvidence repair, ChainPlanGraph current,
+      CompilerContract contract, ChainSemanticRevision semantic, RequirementBrief brief) {
+    if (current == null || repair == null) {
+      return new RepairInput(null, null);
+    }
+    boolean safe = preservesApprovedInputs(current, contract, semantic, brief);
+    Revision currentRevision = repair.priorOutput(Kind.CHAIN_PLAN_GRAPH)
+        .flatMap(ref -> artifactStore.get(runId, ref)).orElse(null);
+    if (currentRevision == null) {
+      return new RepairInput(safe ? current : null, null);
+    }
+    if (!current.equals(artifactStore.payload(currentRevision, ChainPlanGraph.class))) {
+      return new RepairInput(null, null);
+    }
+    RecoveryEvidence evidence = artifactStore.history(runId, Kind.RECOVERY_EVIDENCE).stream()
+        .filter(stored -> stored.contentHash().equals(repair.recoveryEvidenceRef()))
+        .map(stored -> artifactStore.payload(stored, RecoveryEvidence.class)).findFirst().orElse(null);
+    if (evidence == null || !Objects.equals(evidence.observingStageId(), repair.failedStageId())
+        || !evidence.rejectedArtifactRefs().contains(currentRevision.reference())) {
+      return new RepairInput(safe ? current : null, safe ? currentRevision.reference() : null);
+    }
+    List<Reference> history = evidence.priorAttemptRefs();
+    RepairInput selected = null;
+    RecoveryEvidence selectedEvidence = null;
+    for (Reference observed : history) {
+      if (observed.kind() != Kind.RECOVERY_EVIDENCE) {
+        continue;
+      }
+      RecoveryEvidence previous = artifactStore.get(runId, observed)
+          .map(stored -> artifactStore.payload(stored, RecoveryEvidence.class)).orElse(null);
+      if (previous == null || !evidence.observingStageId().equals(previous.observingStageId())) {
+        continue;
+      }
+      Revision prior = selectedRevision(runId, previous, Kind.CHAIN_PLAN_GRAPH);
+      if (prior == null || !StageRepairEvidence.matchesCompileInputs(prior, currentRevision.inputs())) {
+        continue;
+      }
+      ChainPlanGraph graph = artifactStore.payload(prior, ChainPlanGraph.class);
+      if (!preservesApprovedInputs(graph, contract, semantic, brief)) {
+        continue;
+      }
+      if (selected == null || !graph.equals(selected.graph())
+          && resolvesCoveredFinding(runId, previous, graph, selectedEvidence, selected.graph(), currentRevision.inputs())) {
+        selected = new RepairInput(graph, prior.reference());
+        selectedEvidence = previous;
+      }
+    }
+    if (selected != null) {
+      return safe && (current.equals(selected.graph())
+          || resolvesCoveredFinding(runId, evidence, current, selectedEvidence, selected.graph(), currentRevision.inputs()))
+          ? new RepairInput(current, currentRevision.reference()) : selected;
+    }
+    return new RepairInput(safe ? current : null, safe ? currentRevision.reference() : null);
+  }
+
+  private boolean preservesApprovedInputs(ChainPlanGraph graph, CompilerContract contract,
+      ChainSemanticRevision semantic, RequirementBrief brief) {
+    try {
+      graphValidator.validate(graph, contract, semantic);
+      return CompilerQualityValidator.validateApprovedValues(graph, brief).isEmpty();
+    } catch (IllegalArgumentException | IllegalStateException rejected) {
+      return false;
+    }
+  }
+
+  private Revision selectedRevision(String runId, RecoveryEvidence evidence, Kind kind) {
+    List<Reference> refs = evidence.rejectedArtifactRefs().stream().filter(ref -> ref.kind() == kind).toList();
+    return refs.size() == 1 ? artifactStore.get(runId, refs.getFirst()).orElse(null) : null;
+  }
+
+  private boolean resolvesCoveredFinding(String runId, RecoveryEvidence currentEvidence, ChainPlanGraph current,
+      RecoveryEvidence priorEvidence, ChainPlanGraph prior, List<Reference> inputs) {
+    Revision currentBundleRef = selectedRevision(runId, currentEvidence, Kind.COMPILER_VALIDATION_BUNDLE);
+    Revision priorBundleRef = selectedRevision(runId, priorEvidence, Kind.COMPILER_VALIDATION_BUNDLE);
+    Revision currentFindingsRef = selectedRevision(runId, currentEvidence, Kind.PLAN_VALIDATION_RESULT);
+    Revision priorFindingsRef = selectedRevision(runId, priorEvidence, Kind.PLAN_VALIDATION_RESULT);
+    if (currentBundleRef == null || priorBundleRef == null || currentFindingsRef == null || priorFindingsRef == null) {
+      return false;
+    }
+    if (List.of(currentBundleRef, priorBundleRef, currentFindingsRef, priorFindingsRef).stream()
+        .anyMatch(ref -> !StageRepairEvidence.matchesCompileInputs(ref, inputs))) {
+      return false;
+    }
+    CompilerValidationBundle currentBundle = artifactStore.payload(currentBundleRef, CompilerValidationBundle.class);
+    CompilerValidationBundle priorBundle = artifactStore.payload(priorBundleRef, CompilerValidationBundle.class);
+    if (priorBundle.passes().isEmpty()
+        || java.util.stream.Stream.concat(currentBundle.passes().stream(), priorBundle.passes().stream())
+            .anyMatch(pass -> pass.result() == null || pass.validatorSkillId() == null || pass.validatorSkillId().isBlank())
+        || !graphDigest.sha256(current).equals(currentBundle.graphDigest())
+        || !graphDigest.sha256(prior).equals(priorBundle.graphDigest())
+        || !currentBundle.passes().stream().map(pass -> pass.validatorSkillId()).collect(java.util.stream.Collectors.toSet())
+            .containsAll(priorBundle.passes().stream().map(pass -> pass.validatorSkillId()).toList())) {
+      return false;
+    }
+    Set<String> currentFindings = locatedFindings(artifactStore.payload(currentFindingsRef, PlanValidationResult.class));
+    PlanValidationResult priorReport = artifactStore.payload(priorFindingsRef, PlanValidationResult.class);
+    Set<String> priorFindings = locatedFindings(priorReport);
+    if (currentFindings == null || priorFindings == null
+        || priorFindings.stream().noneMatch(key -> !currentFindings.contains(key))) {
+      return false;
+    }
+    var delta = org.qubership.integration.platform.ai.chain.edit.CanonicalGraphDiff.between(
+        prior, current, "repair-input-comparison", "design-execution", "Check protected repair scope");
+    return prior.chain().equals(current.chain()) && delta.nodePatches().isEmpty() && delta.edgePatches().isEmpty()
+        && delta.propertyPatches().stream().allMatch(patch -> priorReport.findings().stream()
+            .filter(finding -> finding.blocker() && finding.originRecordId().equals(patch.targetNodeId()))
+            .anyMatch(finding -> {
+              String property = "/properties/" + patch.property().key();
+              return finding.fieldPointer().equals(property) || finding.fieldPointer().startsWith(property + ".")
+                  || finding.fieldPointer().startsWith(property + "/");
+            }));
+  }
+
+  private static Set<String> locatedFindings(PlanValidationResult result) {
+    Set<String> keys = new LinkedHashSet<>();
+    for (var finding : result.findings()) {
+      if (!finding.blocker()) {
+        continue;
+      }
+      if (finding.originRecordId().isBlank() || finding.fieldPointer().isBlank()) {
+        return null;
+      }
+      keys.add(org.qubership.integration.platform.ai.productpipeline.runtime.RecoveryAttemptLedger.evidenceIdentity(
+          new org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause(
+              org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.VALIDATION_BLOCKER,
+              List.of(finding), "")));
+    }
+    return keys;
+  }
+
+  private Revision loadStoredBriefRevision(String runId, ChainSemanticRevision semantic) {
+    ProductPipelineRunDocument doc = runStore.load(runId).orElseThrow();
+    Reference brief = org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+        .selectedRequirementBriefReference(doc);
+    if (brief == null) { return null; }
+    List<Reference> semantics = doc.run().stages().stream()
+        .filter(stage -> stage.status() == org.qubership.integration.platform.ai.productpipeline.store.StageStatus.SUCCEEDED)
+        .flatMap(stage -> stage.outputRefs().stream()).filter(ref -> ref.kind() == Kind.CHAIN_SEMANTIC_REVISION)
+        .distinct().toList();
+    if (semantics.size() != 1) { throw new IllegalStateException("Execution must select one committed semantic revision"); }
+    Revision selected = artifactStore.get(runId, semantics.getFirst()).orElseThrow();
+    if (!semantic.equals(artifactStore.payload(selected, ChainSemanticRevision.class))) {
+      throw new IllegalStateException("Execution semantic payload differs from its committed revision");
+    }
+    Revision lineageBrief = org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard
+        .originatingBriefRevision(artifactStore, runId, selected).orElseThrow(() ->
+            new IllegalStateException("Execution semantic brief lineage is unavailable"));
+    if (!brief.equals(lineageBrief.reference())) {
+      throw new IllegalStateException("Execution semantic brief lineage differs from the committed brief");
+    }
+    return lineageBrief;
   }
 
   private String resolveConversationId(String runId) {

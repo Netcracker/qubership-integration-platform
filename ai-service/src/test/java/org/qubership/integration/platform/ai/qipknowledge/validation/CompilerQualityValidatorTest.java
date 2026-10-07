@@ -17,6 +17,40 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.NamingManifes
 class CompilerQualityValidatorTest {
 
   @Test
+  void approvedInlineHooksCannotBeOmittedOrReplacedByStandaloneScripts() {
+    var requirements = mock(MaterializationRequirementsValidator.class);
+    when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
+    var validator = new CompilerQualityValidator(requirements);
+    for (var placement : List.of(
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK,
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.AFTER_HOOK)) {
+      String key = placement.name().startsWith("BEFORE") ? "before" : "after";
+      var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("call-hook", "script",
+          placement, "call", null, null, null, List.of(), List.of());
+      var fact = new org.qubership.integration.platform.ai.plan.RequirementFact("hook",
+          org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+          org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Run the inline script.",
+          "", "", "", "", "", "", List.of("call"), null, intent);
+      var brief = new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief("goal", List.of(),
+          List.of(), List.of(), List.of(), "summary", "ref", "source", List.of(fact), List.of());
+      var nodes = new java.util.ArrayList<>(graph().nodes());
+      nodes.add(new ChainPlanNode("call", "service-call", "Call", null, null, List.of()));
+      var candidate = new ChainPlanGraph("1.0", graph().chain(), nodes, List.of());
+      for (String value : List.of("null", "{}", "[]", "{\"type\":\"none\"}",
+          "{\"type\":\"script\",\"script\":\"\"}", "invalid")) {
+        var result = validator.validate(null, candidate.withNodeProperty("call", key, value), brief);
+        assertFalse(result.valid(), key + "=" + value);
+        assertTrue(result.issues().stream().anyMatch(issue ->
+            "cip-service-call-generator".equals(issue.ownerCapabilityId())
+                && ("/properties/" + key + ".script").equals(issue.fieldPointer())));
+      }
+      String hook = "{\"type\":\"script\",\"script\":\"exchange.message.body = '{}'\"}";
+      var complete = candidate.withNodeProperty("call", key, "after".equals(key) ? "[" + hook + "]" : hook);
+      assertTrue(validator.validate(null, complete, brief).valid());
+    }
+  }
+
+  @Test
   void approvedNamesCannotBeParaphrasedInTheAssembledGraph() {
     var requirements = mock(MaterializationRequirementsValidator.class);
     when(requirements.validate(org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
@@ -62,7 +96,7 @@ class CompilerQualityValidatorTest {
                     "cip-structure-generator",
                     List.of("script"),
                     List.of(),
-                    "fix")));
+                    "fix", "MISSING_REQUIRED_PROPERTY", "script", "/properties/script")));
     CompilerQualityValidator validator = new CompilerQualityValidator(requirements);
 
     ValidationResult result =
@@ -72,6 +106,9 @@ class CompilerQualityValidatorTest {
 
     assertFalse(result.valid());
     assertTrue(result.issues().stream().anyMatch(issue -> issue.severity() == ValidationSeverity.BLOCKER));
+    assertTrue(result.issues().stream().anyMatch(issue ->
+        "MISSING_REQUIRED_PROPERTY".equals(issue.findingCode())
+            && "script".equals(issue.originRecordId()) && "/properties/script".equals(issue.fieldPointer())));
   }
 
   @Test

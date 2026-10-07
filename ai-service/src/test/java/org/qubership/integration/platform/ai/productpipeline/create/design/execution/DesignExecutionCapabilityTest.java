@@ -362,6 +362,19 @@ class DesignExecutionCapabilityTest {
   }
 
   @Test
+  void executionContextRefusalsKeepTechnicalClassificationAndOverflowEvidence() {
+    for (RuntimeException failure : List.of(
+        new org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.Overflow("local packet"),
+        new dev.langchain4j.exception.HttpException(400, "{\"error\":{\"code\":\"context_length_exceeded\"}}"))) {
+      when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any())).thenThrow(failure);
+      StageOutcome outcome = execute(List.of(idsRef, revisionRef, reportRef, planRef, implementationRef,
+          manifestRef, idsApprovalRef, implementationApprovalRef));
+      assertEquals(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, outcome.outcomeClass());
+      assertTrue(outcome.recoveryCause().findings().stream().anyMatch(finding -> "LLM_CONTEXT_OVERFLOW".equals(finding.code())));
+    }
+  }
+
+  @Test
   void toolArgumentsFailureIsRetryableTechnicalNotContract() {
     when(bindingAdapter.resolve(eq(CONVERSATION_ID), eq(revision), anyList(), any()))
         .thenThrow(
@@ -581,7 +594,7 @@ class DesignExecutionCapabilityTest {
             new ChainSection("chain-1", "Chain"),
             List.of(new ChainPlanNode("trigger", "http-trigger", "Trigger", null, null, List.of())),
             List.of());
-    append(Kind.CHAIN_PLAN_GRAPH, "1", priorGraph);
+    Reference priorRef = append(Kind.CHAIN_PLAN_GRAPH, "1", priorGraph, standardInputRefs());
     when(runner.execute(
             eq(approvedPlan),
             eq(revision),
@@ -594,6 +607,7 @@ class DesignExecutionCapabilityTest {
         .thenReturn(successfulEngineResult());
 
     Map<String, Object> repairAttributes = new HashMap<>();
+    repairAttributes.put(StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR, List.of(priorRef));
     repairAttributes.put(
         org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
             .STAGE_ERROR_CONTEXT_ATTR,
@@ -639,7 +653,7 @@ class DesignExecutionCapabilityTest {
   @Test
   void repairTurnReadsTheGraphOfTheHaltedAttemptRatherThanTheLatestInTheRun() {
     ChainPlanGraph haltedGraph = graphWithTrigger("halted-trigger");
-    Reference haltedRef = append(Kind.CHAIN_PLAN_GRAPH, "1", haltedGraph);
+    Reference haltedRef = append(Kind.CHAIN_PLAN_GRAPH, "1", haltedGraph, standardInputRefs());
     // Appended afterwards, so a lookup by kind alone would hand the runner this one instead.
     ChainPlanGraph laterGraph = graphWithTrigger("later-trigger");
     append(Kind.CHAIN_PLAN_GRAPH, "1", laterGraph);
@@ -683,6 +697,39 @@ class DesignExecutionCapabilityTest {
         new ChainSection("chain-1", "Chain"),
         List.of(new ChainPlanNode(nodeId, "http-trigger", "Trigger", null, null, List.of())),
         List.of());
+  }
+
+  @Test
+  void aRepairWithoutCapturedOutputIgnoresAnOrphanGraph() {
+    var orphan = graphWithTrigger("orphan-trigger");
+    append(Kind.CHAIN_PLAN_GRAPH, "1", orphan);
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), eq("attempt-1"),
+        any(StageRepairEvidence.class), org.mockito.ArgumentMatchers.isNull(), any()))
+        .thenReturn(successfulEngineResult());
+    var outcome = execute(standardInputRefs(), Map.of(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+        "Execution failed before graph capture."));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, outcome.outcomeClass());
+    verify(runner).execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), eq("attempt-1"),
+        any(StageRepairEvidence.class), org.mockito.ArgumentMatchers.isNull(), any());
+    verify(runner, never()).execute(any(), any(), anyList(), any(), any(), any(), eq(orphan), any());
+  }
+
+  @Test
+  void anExplicitRepairGraphWithDifferentApprovedInputsIsRejected() {
+    var stale = graphWithTrigger("stale-trigger");
+    var oldRevision = append(Kind.CHAIN_SEMANTIC_REVISION, revision.schemaVersion(), revision);
+    var staleRef = append(Kind.CHAIN_PLAN_GRAPH, "1", stale,
+        List.of(implementationRef, planRef, oldRevision));
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), eq("attempt-1"),
+        any(StageRepairEvidence.class), org.mockito.ArgumentMatchers.isNull(), any()))
+        .thenReturn(successfulEngineResult());
+    var outcome = execute(standardInputRefs(), Map.of(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
+        "Execution rejected a graph.", StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR, List.of(staleRef)));
+
+    assertEquals(StageOutcomeClass.SUCCEEDED, outcome.outcomeClass());
+    verify(runner).execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), eq("attempt-1"),
+        any(StageRepairEvidence.class), org.mockito.ArgumentMatchers.isNull(), any());
   }
 
   private StageOutcome execute(List<Reference> inputRefs) {
@@ -731,6 +778,10 @@ class DesignExecutionCapabilityTest {
   }
 
   private Reference append(Kind kind, String schemaVersion, Object payload) {
+    return append(kind, schemaVersion, payload, List.of());
+  }
+
+  private Reference append(Kind kind, String schemaVersion, Object payload, List<Reference> inputs) {
     Revision revision =
         artifactStore.append(
             new AppendCommand(
@@ -740,7 +791,7 @@ class DesignExecutionCapabilityTest {
                 "test-producer",
                 "1",
                 payload,
-                List.of(),
+                inputs,
                 null,
                 provenance()));
     return revision.reference();

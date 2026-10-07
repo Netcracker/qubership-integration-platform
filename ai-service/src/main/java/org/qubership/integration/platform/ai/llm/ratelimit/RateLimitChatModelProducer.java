@@ -34,6 +34,7 @@ public class RateLimitChatModelProducer {
   private final StreamingChatModel upstreamStreamingChatModel;
   private final RateLimitErrorClassifier classifier = new RateLimitErrorClassifier();
   private final RateLimitWaitPolicy policy = new RateLimitWaitPolicy();
+  @Inject LlmRunBudget runBudget;
 
   @Inject
   RateLimitChatModelProducer(
@@ -71,13 +72,13 @@ public class RateLimitChatModelProducer {
   @ApplicationScoped
   RateLimitChatModel rateLimitChatModel() {
     return new RateLimitChatModel(
-        upstreamChatModel, appConfig, sleeper, classifier, policy);
+        upstreamChatModel, appConfig, sleeper, classifier, policy).withRunBudget(runBudget);
   }
 
   @Produces
   @ApplicationScoped
   RateLimitStreamingChatModel rateLimitStreamingChatModel() {
     return new RateLimitStreamingChatModel(
-        upstreamStreamingChatModel, appConfig, sleeper, classifier, policy);
+        upstreamStreamingChatModel, appConfig, sleeper, classifier, policy).withRunBudget(runBudget);
   }
 }

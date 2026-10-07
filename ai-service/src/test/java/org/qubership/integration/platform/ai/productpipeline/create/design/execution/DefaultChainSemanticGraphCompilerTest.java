@@ -612,6 +612,62 @@ class DefaultChainSemanticGraphCompilerTest {
   }
 
   @Test
+  void projectsRegionOnlyServiceCallUnderTryAndKeepsWrapperContinuationOutside() {
+    ChainSemanticRevision base = withoutContainment(errorScopeRevision());
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes().stream().map(node ->
+        node.nodeId().equals("try-body")
+            ? (SemanticNode) new SemanticNode.ServiceCall("try-body", "try-body", "getOrder",
+                org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.ERROR_SCOPE,
+                node.provenance())
+            : node).toList());
+    nodes.add(new SemanticNode.Operation("after-scope", "script",
+        new SemanticProvenance(List.of("after-scope-behavior"))));
+    List<SemanticExecutionEdge> edges = new ArrayList<>(base.executionEdges());
+    edges.add(sequence("scope-continuation", "try-catch-1", "after-scope", null));
+    ChainSemanticRevision candidate = new ChainSemanticRevision(base.schemaVersion(), base.revisionId(),
+        base.chainIdentity(), base.compilerContractVersion(), base.entryPoints(), nodes, base.regions(),
+        edges, base.containment(), base.mappingIntents(), base.constraints(), base.assumptions(), base.citations());
+
+    ChainPlanGraph graph = compiler.compile(candidate, CONTRACT, List.of(binding("try-body")));
+
+    assertEquals("try-catch-1-try", node(graph, "try-body").parentNodeId());
+    assertNull(node(graph, "after-scope").parentNodeId());
+    assertEquals("try-catch-1", edge(graph, "scope-continuation").fromNodeId());
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, candidate);
+  }
+
+  @Test
+  void projectsNestedLoopContinuationInsideTheOuterTryShell() {
+    ChainSemanticRevision base = withoutContainment(errorScopeRevision());
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes().stream().map(node ->
+        node.nodeId().equals("try-body")
+            ? (SemanticNode) new SemanticNode.Operation("try-body", "loop-2", node.provenance())
+            : node).toList());
+    nodes.add(new SemanticNode.Operation("loop-work", "script", new SemanticProvenance(List.of("loop-work"))));
+    nodes.add(new SemanticNode.ServiceCall("after-loop", "after-loop", "getOrder",
+        org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFailureMode.ERROR_SCOPE,
+        new SemanticProvenance(List.of())));
+    List<SemanticRegion> regions = new ArrayList<>(base.regions());
+    regions.add(new SemanticRegion.Loop("loop-region", "try-body", "loop-work", List.of("loop-work"),
+        "after-loop", new LoopPolicy(LoopMode.DO_WHILE, "false", 1)));
+    List<SemanticExecutionEdge> edges = new ArrayList<>(base.executionEdges());
+    edges.add(new SemanticExecutionEdge("loop-entry", "try-body", "loop-work", "loop-region",
+        new SemanticRoute.LoopBody(), null));
+    edges.add(new SemanticExecutionEdge("loop-exit", "loop-work", "after-loop", "loop-region",
+        new SemanticRoute.LoopExit(), null));
+    ChainSemanticRevision candidate = new ChainSemanticRevision(base.schemaVersion(), base.revisionId(),
+        base.chainIdentity(), base.compilerContractVersion(), base.entryPoints(), nodes, regions,
+        edges, base.containment(), base.mappingIntents(), base.constraints(), base.assumptions(), base.citations());
+
+    ChainPlanGraph graph = compiler.compile(candidate, CONTRACT, List.of(binding("after-loop")));
+
+    assertEquals("try-body", node(graph, "loop-work").parentNodeId());
+    assertEquals("try-catch-1-try", node(graph, "after-loop").parentNodeId());
+    assertEquals("try-body", edge(graph, "loop-exit").fromNodeId());
+    new ChainPlanGraphValidator(schemaService).validate(graph, CONTRACT, candidate);
+  }
+
+  @Test
   void stampsExceptionAndPriorityWhenHandlerEntryIsCatch2() {
     ChainPlanGraph graph = compiler.compile(errorScopeRevision("catch-2"), CONTRACT, List.of());
 

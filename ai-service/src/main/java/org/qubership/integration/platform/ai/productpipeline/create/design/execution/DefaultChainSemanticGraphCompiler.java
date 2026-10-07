@@ -185,21 +185,25 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
         shellNodeId != null && !shellNodeId.equals(edge.targetNodeId())
             ? shellNodeId
             : edge.sourceNodeId();
-    String sourceRoot = outermostAncestor(sourceNodeId, parentByChild);
-    String targetRoot = outermostAncestor(edge.targetNodeId(), parentByChild);
-    if (!sourceNodeId.equals(sourceRoot) && !sourceRoot.equals(targetRoot)) {
-      sourceNodeId = sourceRoot;
-    }
+    sourceNodeId = sourceAtTargetBoundary(sourceNodeId, edge.targetNodeId(), parentByChild);
     return new ChainPlanEdge(edge.edgeId(), sourceNodeId, edge.targetNodeId(), scopeNodeId);
   }
 
-  private static String outermostAncestor(
-      String nodeId, Map<String, String> parentByChild) {
+  private static String sourceAtTargetBoundary(
+      String nodeId, String targetNodeId, Map<String, String> parentByChild) {
+    Set<String> targetAncestors = new LinkedHashSet<>();
+    String target = targetNodeId;
+    while (target != null && !target.isBlank()) {
+      if (!targetAncestors.add(target)) {
+        throw new IllegalArgumentException("Structural containment cycle at node: " + targetNodeId);
+      }
+      target = parentByChild.get(target);
+    }
     String current = nodeId;
     Set<String> visited = new LinkedHashSet<>();
     while (visited.add(current)) {
       String parent = parentByChild.get(current);
-      if (parent == null || parent.isBlank()) {
+      if (parent == null || parent.isBlank() || targetAncestors.contains(parent)) {
         return current;
       }
       current = parent;
@@ -300,13 +304,8 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
     List<ChainPlanEdge> shellEntryEdges = new ArrayList<>();
     Map<String, String> shellByEdgeId = new LinkedHashMap<>();
     Set<String> reservedIds = new LinkedHashSet<>(nodesById.keySet());
-    Set<String> regionOwnerIds = new LinkedHashSet<>();
-    for (SemanticRegion region : revision.regions()) {
-      String ownerNodeId = ownerNodeId(region);
-      if (ownerNodeId != null) {
-        regionOwnerIds.add(ownerNodeId);
-      }
-    }
+    Map<String, List<String>> regionContinuations =
+        SemanticRegion.continuationsByOwner(revision.regions(), revision.executionEdges());
     for (SemanticRegion region : revision.regions()) {
       switch (region) {
         case SemanticRegion.Condition condition -> {
@@ -348,7 +347,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
                 revision.executionEdges(),
                 shellNodeId,
                 parentByChild,
-                regionOwnerIds);
+                regionContinuations);
             mapConditionBranchEdge(
                 revision.executionEdges(),
                 condition.regionId(),
@@ -401,7 +400,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
                 revision.executionEdges(),
                 shellNodeId,
                 parentByChild,
-                regionOwnerIds);
+                regionContinuations);
             mapSplitBranchEdge(
                 revision.executionEdges(),
                 split.regionId(),
@@ -417,7 +416,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
                 revision.executionEdges(),
                 loop.ownerNodeId(),
                 parentByChild,
-                regionOwnerIds);
+                regionContinuations);
         default -> {
           // Other region kinds do not need structural projection here.
         }
@@ -436,7 +435,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
           revision.executionEdges(),
           tryShellId,
           parentByChild,
-          regionOwnerIds);
+          regionContinuations);
       mapBranchEdge(revision.executionEdges(), scope.regionId(), SemanticRoute.TryPath.class, null, tryShellId,
           shellByEdgeId);
 
@@ -467,7 +466,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
             revision.executionEdges(),
             catchShellId,
             parentByChild,
-            regionOwnerIds);
+            regionContinuations);
         if (catchShellId.equals(handler.entryNodeId())) {
           addProperty(extraByNode, catchShellId, "exception", handler.exceptionClass());
           addProperty(extraByNode, catchShellId, "priority", Integer.toString(priority));
@@ -500,7 +499,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
             revision.executionEdges(),
             finallyShellId,
             parentByChild,
-            regionOwnerIds);
+            regionContinuations);
         mapBranchEdge(
             revision.executionEdges(),
             scope.regionId(),
@@ -569,7 +568,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       List<SemanticExecutionEdge> edges,
       String shellNodeId,
       Map<String, String> parentByChild,
-      Set<String> regionOwnerIds) {
+      Map<String, List<String>> regionContinuations) {
     Set<String> exits = Set.copyOf(exitNodeIds);
     Set<String> visited = new LinkedHashSet<>();
     List<String> pending = new ArrayList<>();
@@ -582,7 +581,11 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
       if (!nodeId.equals(shellNodeId)) {
         parentByChild.put(nodeId, shellNodeId);
       }
-      if (exits.contains(nodeId) || regionOwnerIds.contains(nodeId)) {
+      if (exits.contains(nodeId)) {
+        continue;
+      }
+      if (regionContinuations.containsKey(nodeId)) {
+        pending.addAll(regionContinuations.get(nodeId));
         continue;
       }
       for (SemanticExecutionEdge edge : edges) {

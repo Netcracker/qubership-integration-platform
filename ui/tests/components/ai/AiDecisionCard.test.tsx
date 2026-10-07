@@ -480,6 +480,51 @@ describe("AiDecisionCard", () => {
     expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
+  it("should display the finite repair allowance and submit its command", () => {
+    const onAnswer = jest.fn();
+    const onSubmitClarification = jest.fn();
+    const decision = buildDecision({
+      kind: "clarify",
+      revision: 19,
+      question:
+        "Automatic repair credit is spent. Continue with two corrections and two clean attempts?",
+      actions: ["continue-repair", "stop-with-report"],
+      recovery: {
+        category: "repair-allowance-required",
+        title: "Repair paused",
+        summary:
+          "Automatic repair credit is spent. Continue repair grants two targeted corrections and two clean regenerations. Existing request, token, time, and run limits still apply.",
+        preservedWork: "Your approved plan is saved.",
+        technicalDetails:
+          "Unresolved: contextPath. Targeted: 2 spent; clean: 2 spent.",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    });
+    render(
+      <AiDecisionCard
+        decision={decision}
+        onAnswer={onAnswer}
+        onSubmitClarification={onSubmitClarification}
+      />,
+    );
+    const proceed = screen.getByRole("button", { name: "Continue repair" });
+    expect(proceed.className).toContain("ant-btn-primary");
+    fireEvent.click(proceed);
+    expect(onAnswer).toHaveBeenCalledWith("continue-repair", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        /Continue repair grants two targeted corrections and two clean regenerations/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /Existing request, token, time, and run limits still apply/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("should render a contextual retry with collapsed technical details and semantic actions", () => {
     const onAnswer = jest.fn();
     const decision = buildDecision({
@@ -505,7 +550,7 @@ describe("AiDecisionCard", () => {
     expect(
       screen.getByText("Your approved requirements and plan are saved."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Retry in 2 seconds.")).toBeInTheDocument();
+    expect(screen.queryByText("Retry in 2 seconds.")).not.toBeInTheDocument();
     const details = screen.getByText("Technical details").closest("details");
     expect(details).not.toHaveAttribute("open");
 
@@ -716,6 +761,31 @@ describe("AiDecisionCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("edit-requirements", "");
     expect(
       screen.getByRole("button", { name: "End run and keep report" }),
+    ).toBeInTheDocument();
+  });
+
+  it("should offer a typed design rebuild after a rejected topology", () => {
+    const onAnswer = jest.fn();
+    render(
+      <AiDecisionCard
+        decision={buildDecision({
+          kind: "clarify",
+          question: "Restore the approved inline hook.",
+          actions: ["rebuild-design", "stop-with-report"],
+          recovery: {
+            category: "design-artifact-defect",
+            title: "The design cannot be used",
+            summary: "Restore the approved inline hook.",
+            preservedWork: "Your approved requirements stay unchanged.",
+          },
+        })}
+        onAnswer={onAnswer}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Rebuild design" }));
+    expect(onAnswer).toHaveBeenCalledWith("rebuild-design", "");
+    expect(
+      screen.getByText("Your approved requirements stay unchanged."),
     ).toBeInTheDocument();
   });
 

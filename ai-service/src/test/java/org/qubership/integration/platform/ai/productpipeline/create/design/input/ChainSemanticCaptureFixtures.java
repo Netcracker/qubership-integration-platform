@@ -246,6 +246,18 @@ final class ChainSemanticCaptureFixtures {
     return RequirementBriefProjector.project(rockyBriefCandidate()).withMappingIntents(List.of());
   }
 
+  static RequirementBrief rockyBriefWithRequestedMappings() {
+    RequirementBrief brief = rockyBrief();
+    var facts = new java.util.ArrayList<>(brief.facts());
+    for (var transition : brief.flow().transitions()) {
+      facts.add(new RequirementFact("mapping-" + transition.targetInteractionId(),
+          RequirementFactPolarity.POSITIVE, RequirementFactKind.FIELD_MAPPING, "",
+          "Adapt the fields on this transition.", "", "", "", "", "", "",
+          List.of(transition.sourceInteractionId(), transition.targetInteractionId())));
+    }
+    return brief.withFacts(facts);
+  }
+
   /** Same Rocky flow with the create-task response to task-result request mapping kept. */
   static RequirementBrief rockyBriefWithMapping() {
     return RequirementBriefProjector.project(rockyBriefCandidate());

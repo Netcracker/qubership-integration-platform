@@ -13,7 +13,8 @@ public record A2aCallerMessageReceipt(
     Long lastTaskRevision,
     Long responseTaskRevision,
     String commandKind,
-    Long preconditionRevision) {
+    Long preconditionRevision,
+    String commandPayloadJson) {
 
   public A2aCallerMessageReceipt {
     if (taskId == null || taskId.isBlank()) {
@@ -31,6 +32,13 @@ public record A2aCallerMessageReceipt(
   public boolean incomplete() {
     return processingState == A2aReceiptProcessingState.CLAIMED
         || processingState == A2aReceiptProcessingState.DISPATCHING;
+  }
+
+  public A2aCallerMessageReceipt(String taskId, String commandFingerprint,
+      A2aReceiptProcessingState processingState, Long lastTaskRevision, Long responseTaskRevision,
+      String commandKind, Long preconditionRevision) {
+    this(taskId, commandFingerprint, processingState, lastTaskRevision, responseTaskRevision,
+        commandKind, preconditionRevision, null);
   }
 
   /** Compatibility constructor for completed receipts without revision metadata. */

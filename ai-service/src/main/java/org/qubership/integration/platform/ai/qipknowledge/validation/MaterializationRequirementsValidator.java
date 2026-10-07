@@ -19,6 +19,9 @@ import org.qubership.integration.platform.ai.compiler.contract.CompilerContractR
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement;
+import org.qubership.integration.platform.ai.plan.RequirementFact;
+import org.qubership.integration.platform.ai.plan.RequirementFactPolarity;
 
 /**
  * Validates required materialization properties from {@link CompilerContract.ElementContract}.
@@ -104,6 +107,59 @@ public class MaterializationRequirementsValidator {
     }
   }
 
+  public static List<ValidationIssue> validateRequestedHooks(
+      ChainPlanGraph graph, List<RequirementFact> facts) {
+    List<ValidationIssue> issues = new ArrayList<>();
+    for (var fact : facts) {
+      var intent = fact.elementIntent();
+      if (intent == null || fact.polarity() != RequirementFactPolarity.POSITIVE
+          || intent.placement() != Placement.BEFORE_HOOK && intent.placement() != Placement.AFTER_HOOK) {
+        continue;
+      }
+      String key = intent.placement() == Placement.BEFORE_HOOK ? "before" : "after";
+      var owner = graph.nodes().stream().filter(node -> node.nodeId().equals(intent.ownerInteractionId()))
+          .findFirst().orElse(null);
+      boolean implemented = owner != null && owner.properties().stream()
+          .filter(property -> key.equals(property.key()))
+          .anyMatch(property -> hasExecutableScriptHook(property.value(), intent));
+      if (!implemented) {
+        issues.add(new ValidationIssue("requested-hook-" + fact.sourceFactId(), ValidationSeverity.BLOCKER,
+            "Node '" + intent.ownerInteractionId() + "' is missing the approved inline " + key
+                + " script (sourceFactId=" + fact.sourceFactId() + ").",
+            "cip-service-call-generator", List.of(intent.ownerInteractionId()), List.of(),
+            "Implement this fact in the owner's native " + key + " hook with a complete Groovy script and its approved values."
+                + " A standalone Script does not satisfy this hook.",
+            "MISSING_REQUIRED_PROPERTY", intent.ownerInteractionId(), "/properties/" + key + ".script"));
+      }
+    }
+    return List.copyOf(issues);
+  }
+
+  private static boolean hasExecutableScriptHook(String value) {
+    return hasExecutableScriptHook(value, null);
+  }
+
+  private static boolean hasExecutableScriptHook(String value,
+      org.qubership.integration.platform.ai.plan.RequirementElementIntent intent) {
+    try {
+      JsonNode hooks = MAPPER.readTree(value);
+      if (hooks != null) {
+        for (JsonNode hook : hooks.isArray() ? hooks : List.of(hooks)) {
+          if ("script".equals(hook.path("type").asText())
+              && ScriptBodyPromptRedaction.isPresentScriptBody(hook.path("script").asText(null))
+              && (intent == null || intent.exactValues().stream().allMatch(hook.path("script").asText()::contains)
+                  && intent.requestedProperties().stream().allMatch(property ->
+                      Objects.equals(property.value(), hook.path(property.key()).asText(null))))) {
+            return true;
+          }
+        }
+      }
+    } catch (JsonProcessingException | IllegalArgumentException error) {
+      return false;
+    }
+    return false;
+  }
+
   private static boolean hasNonBlankProperty(ChainPlanNode node, String propertyKey) {
     if (node.properties() == null) {
       return false;
@@ -165,7 +221,10 @@ public class MaterializationRequirementsValidator {
         owner,
         List.of(node.nodeId()),
         List.of(),
-        suggestedFix);
+        suggestedFix,
+        "MISSING_REQUIRED_PROPERTY",
+        node.nodeId(),
+        "/properties/" + propertyKey.replace("~", "~0").replace("/", "~1"));
   }
 
   private static String normalizeType(String type) {

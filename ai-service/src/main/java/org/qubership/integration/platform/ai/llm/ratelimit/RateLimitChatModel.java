@@ -31,6 +31,12 @@ public class RateLimitChatModel implements ChatModel {
   private final TransientErrorClassifier transientClassifier;
   private final RateLimitWaitPolicy policy;
   private final TransientWaitPolicy transientPolicy;
+  private LlmRunBudget runBudget;
+
+  RateLimitChatModel withRunBudget(LlmRunBudget budget) {
+    this.runBudget = budget;
+    return this;
+  }
 
   RateLimitChatModel(
       ChatModel delegate,
@@ -95,7 +101,7 @@ public class RateLimitChatModel implements ChatModel {
             rateLimitMaxAttempts,
             transientEnabled,
             transientMaxAttempts,
-            onBackoff);
+            onBackoff).withRunBudget(runBudget, runBudget == null ? null : runBudget.currentRun(), requestBudget);
     ChatResponse response = rateLimited.chat(guarded);
     RateLimitSinkSupport.completeIfBackoffOccurred(backoffInCall);
     return response;

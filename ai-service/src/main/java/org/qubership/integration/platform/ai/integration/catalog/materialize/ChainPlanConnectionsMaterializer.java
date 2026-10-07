@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ public class ChainPlanConnectionsMaterializer {
     int createdCount = 0;
     List<String> failedEdgeIds = new ArrayList<>();
     boolean listDependenciesFailed = false;
+    RuntimeException failureCause = null;
     Set<String> existing = new HashSet<>();
     try {
       existing.addAll(
@@ -50,6 +52,7 @@ public class ChainPlanConnectionsMaterializer {
               catalogRestClient.listDependencies(map.chainId())));
     } catch (Exception e) {
       listDependenciesFailed = true;
+      failureCause = e instanceof RuntimeException runtime ? runtime : new IllegalStateException(e);
       LOG.warnf(e, "listDependencies failed chainId=%s", map.chainId());
     }
 
@@ -77,13 +80,16 @@ public class ChainPlanConnectionsMaterializer {
             existing.add(edgeKey);
             createdCount++;
           } catch (Exception e) {
+            if (failedEdgeIds.isEmpty()) {
+              failureCause = e instanceof RuntimeException runtime ? runtime : new IllegalStateException(e);
+            }
             failedEdgeIds.add(edge.edgeId());
           }
         }
       }
     }
 
-    return new ConnectionsApplyResult(createdCount, List.copyOf(failedEdgeIds));
+    return new ConnectionsApplyResult(createdCount, List.copyOf(failedEdgeIds), failureCause);
   }
 
   /**
@@ -160,6 +166,10 @@ public class ChainPlanConnectionsMaterializer {
     }
   }
 
-  public record ConnectionsApplyResult(int createdCount, List<String> failedEdgeIds) {
+  public record ConnectionsApplyResult(
+      int createdCount, List<String> failedEdgeIds, @JsonIgnore RuntimeException failureCause) {
+    public ConnectionsApplyResult(int createdCount, List<String> failedEdgeIds) {
+      this(createdCount, failedEdgeIds, null);
+    }
   }
 }

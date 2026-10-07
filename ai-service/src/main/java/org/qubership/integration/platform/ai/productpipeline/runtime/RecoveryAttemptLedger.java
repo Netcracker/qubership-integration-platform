@@ -4,9 +4,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.TreeMap;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
@@ -29,7 +29,12 @@ public final class RecoveryAttemptLedger {
   public static final String AUTOMATIC_REOPEN_REASON_PREFIX = "automatic-reopen:";
   public static final String CORRECTION_REASON_PREFIX = "recovery-correction:";
   public static final String CLEAN_REBUILD_REASON_PREFIX = "recovery-clean-rebuild:";
-  public static final int MAX_CLEAN_REBUILDS_PER_DEFECT = 1;
+  public static final String UNSENT_ATTEMPT_REASON_PREFIX = "recovery-not-dispatched:";
+  public static final String SETTLED_ATTEMPT_REASON_PREFIX = "recovery-dispatched:";
+  public static final String GRANT_REASON_PREFIX = "repair-grant:";
+  public static final String GRANT_TARGETED_REASON_PREFIX = GRANT_REASON_PREFIX + "targeted:";
+  public static final int ADDITIONAL_ATTEMPTS_PER_STRATEGY = 2;
+  public static final int MAX_CLEAN_REBUILDS_PER_DEFECT = 2;
 
   /**
    * Absolute per-run backstop. Same default as {@code
@@ -55,12 +60,17 @@ public final class RecoveryAttemptLedger {
    * Per-key limits and the absolute per-run ceiling. Values come from {@code qip.ai.create.*};
    * {@link #defaults()} matches the constants already in the runtime.
    */
-  public record Limits(int maxSemanticRepairs, int maxCausalReopens, int perRunCeiling) {
+  public record Limits(int maxSemanticRepairs, int maxCausalReopens, int perRunCeiling, int maxCleanRebuilds) {
+
+    public Limits(int maxSemanticRepairs, int maxCausalReopens, int perRunCeiling) {
+      this(maxSemanticRepairs, maxCausalReopens, perRunCeiling, MAX_CLEAN_REBUILDS_PER_DEFECT);
+    }
 
     public Limits {
       maxSemanticRepairs = Math.max(0, maxSemanticRepairs);
       maxCausalReopens = Math.max(0, maxCausalReopens);
       perRunCeiling = Math.max(0, perRunCeiling);
+      maxCleanRebuilds = Math.max(0, maxCleanRebuilds);
     }
 
     public static Limits defaults() {
@@ -72,6 +82,7 @@ public final class RecoveryAttemptLedger {
   }
 
   private static final char FIELD = '\u0000';
+  private static final String FINDING_ID_PREFIX = "finding:";
 
   private final Limits limits;
 
@@ -132,15 +143,18 @@ public final class RecoveryAttemptLedger {
   public static String evidenceIdentity(RecoveryCause cause) {
     RecoveryCause typed = cause == null ? RecoveryCause.of(RecoveryCauseCode.VALIDATION_BLOCKER) : cause;
     StringBuilder canonical = new StringBuilder();
-    List<PlanValidationFinding> findings = new ArrayList<>(typed.findings());
-    findings.sort(
-        Comparator.comparing((PlanValidationFinding f) -> nvl(f.code()))
-            .thenComparing(f -> nvl(f.message())));
-    for (PlanValidationFinding finding : findings) {
-      canonical.append(nvl(finding.code())).append(FIELD).append(nvl(finding.message())).append('\n');
+    for (String identity : typed.findings().stream().map(RecoveryAttemptLedger::findingIdentity).sorted().toList()) {
+      canonical.append(identity).append('\n');
     }
     canonical.append(FIELD).append(nvl(typed.requestedFact()));
     return sha256Hex(canonical.toString());
+  }
+
+  private static String findingIdentity(PlanValidationFinding finding) {
+    if (!finding.originRecordId().isBlank() || !finding.fieldPointer().isBlank()) {
+      return finding.code() + FIELD + "location" + FIELD + finding.originRecordId() + FIELD + finding.fieldPointer();
+    }
+    return finding.code() + FIELD + finding.message();
   }
 
   /**
@@ -189,7 +203,19 @@ public final class RecoveryAttemptLedger {
     int epoch =
         correctionEpoch(
             transitions, ownerStageId, typed.causeCode(), evidenceId, inputArtifactIdentity);
-    return new RecoveryAttemptKey(ownerStageId, typed.causeCode(), evidenceId, epoch);
+    var findingKeys = new TreeMap<String, RecoveryAttemptKey>();
+    if (!typed.findings().isEmpty()) {
+      List<PlanValidationFinding> blockers = typed.findings().stream().filter(PlanValidationFinding::blocker).toList();
+      for (PlanValidationFinding finding : blockers.isEmpty() ? typed.findings() : blockers) {
+        String identity = FINDING_ID_PREFIX
+            + evidenceIdentity(new RecoveryCause(typed.causeCode(), List.of(finding), typed.requestedFact()));
+        RecoveryCauseCode memberCause = RecoveryCauseCode.VALIDATION_BLOCKER;
+        findingKeys.put(identity, new RecoveryAttemptKey(ownerStageId, memberCause, identity,
+            correctionEpoch(transitions, ownerStageId, memberCause, identity, inputArtifactIdentity)));
+      }
+    }
+    return new RecoveryAttemptKey(ownerStageId, typed.causeCode(), evidenceId, epoch,
+        List.copyOf(findingKeys.values()));
   }
 
   /**
@@ -216,6 +242,9 @@ public final class RecoveryAttemptLedger {
     if (key == null) {
       return false;
     }
+    if (key.findingKeys().stream().anyMatch(member -> correctionAdvancesEpoch(transitions, member, inputArtifactIdentity))) {
+      return true;
+    }
     List<String> seen =
         observedArtifacts(transitions, key.ownerStageId(), key.causeCode(), key.evidenceIdentity());
     String current = artifactToken(inputArtifactIdentity);
@@ -227,7 +256,7 @@ public final class RecoveryAttemptLedger {
     if (key == null || ceilingReached(transitions)) {
       return false;
     }
-    return repairsUsed(transitions, key, origin) < limits.maxSemanticRepairs();
+    return targetedRemaining(transitions, key, origin) > 0;
   }
 
   public String recordRepair(RecoveryAttemptKey key, String inputArtifactIdentity) {
@@ -238,11 +267,95 @@ public final class RecoveryAttemptLedger {
         + payload(key, nvl(inputArtifactIdentity));
   }
 
-  /** A clean rebuild has its own one-shot budget and does not consume the local repair budget. */
+  /** Clean regeneration has separate credit and does not consume targeted correction credit. */
   public boolean mayCleanRebuild(List<RunTransition> transitions, RecoveryAttemptKey key) {
     return key != null
         && !ceilingReached(transitions)
-        && cleanRebuildsUsed(transitions, key) < MAX_CLEAN_REBUILDS_PER_DEFECT;
+        && cleanRemaining(transitions, key) > 0;
+  }
+
+  public String recordGrant(RecoveryAttemptKey key, String inputArtifactIdentity) {
+    return GRANT_REASON_PREFIX + payload(key, inputArtifactIdentity);
+  }
+
+  /** The accepted offer and its first correction intent share one atomic journal receipt. */
+  public String recordGrantWithTargetedAttempt(RecoveryAttemptKey key, String inputArtifactIdentity) {
+    return GRANT_TARGETED_REASON_PREFIX + payload(key, inputArtifactIdentity);
+  }
+
+  /** Restores only the unsent intent immediately preceding this stage's resource wait. */
+  public java.util.Optional<String> reissueUnsentAttempt(List<RunTransition> transitions, String stageId) {
+    for (int i = transitions.size() - 1; i >= 0; i--) {
+      RunTransition transition = transitions.get(i);
+      if (!stageId.equals(transition.stageId())) {
+        break;
+      }
+      String reason = transition.reason() == null ? "" : transition.reason();
+      if (reason.startsWith(UNSENT_ATTEMPT_REASON_PREFIX)) {
+        String revision = reason.substring(UNSENT_ATTEMPT_REASON_PREFIX.length());
+        return transitions.stream().filter(intent -> revision.equals(Long.toString(intent.toRevision()))
+                && stageId.equals(intent.stageId()) && parse(intent.reason()) != null)
+            .map(RunTransition::reason).map(original -> original.startsWith(GRANT_TARGETED_REASON_PREFIX)
+                ? ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX
+                    + original.substring(GRANT_TARGETED_REASON_PREFIX.length()) : original).findFirst();
+      }
+      if (transition.toStatus() != org.qubership.integration.platform.ai.productpipeline.store.RunStatus.WAITING_FOR_INPUT) {
+        break;
+      }
+    }
+    return java.util.Optional.empty();
+  }
+
+  private int targetedRemaining(List<RunTransition> transitions, RecoveryAttemptKey key, InputOrigin origin) {
+    if (!key.findingKeys().isEmpty()) {
+      return Math.max(0, key.findingKeys().stream()
+          .mapToInt(member -> targetedRemaining(transitions, member, origin)).max().orElse(0)
+          - aggregateDebitsWithoutMembers(transitions, key, false, origin));
+    }
+    return Math.max(0, limits.maxSemanticRepairs() + grantedAttempts(transitions, key) - repairsUsed(transitions, key, origin));
+  }
+
+  private int cleanRemaining(List<RunTransition> transitions, RecoveryAttemptKey key) {
+    if (!key.findingKeys().isEmpty()) {
+      return Math.max(0, key.findingKeys().stream().mapToInt(member -> cleanRemaining(transitions, member)).max().orElse(0)
+          - aggregateDebitsWithoutMembers(transitions, key, true, InputOrigin.ABSENT));
+    }
+    return Math.max(0, limits.maxCleanRebuilds() + grantedAttempts(transitions, key) - cleanRebuildsUsed(transitions, key));
+  }
+
+  private int aggregateDebitsWithoutMembers(
+      List<RunTransition> transitions, RecoveryAttemptKey key, boolean clean, InputOrigin origin) {
+    var aggregate = new RecoveryAttemptKey(key.ownerStageId(), key.causeCode(), key.evidenceIdentity(), key.correctionEpoch());
+    return (int) dispatchedTransitions(transitions).stream().filter(transition -> {
+      String reason = transition.reason();
+      if (reason == null || !(clean ? reason.startsWith(CLEAN_REBUILD_REASON_PREFIX)
+          : reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX))) {
+        return false;
+      }
+      Parsed parsed = parse(reason);
+      return parsed != null && parsed.findingKeys().isEmpty() && matchesDefect(parsed, aggregate)
+          && (!InputOrigin.of(origin).isTrusted() || matchedEpoch(parsed, aggregate) == aggregate.correctionEpoch());
+    }).count();
+  }
+
+  private int grantedAttempts(List<RunTransition> transitions, RecoveryAttemptKey key) {
+    if (transitions == null || key == null) {
+      return 0;
+    }
+    int grants = 0;
+    for (RunTransition transition : transitions) {
+      String reason = transition == null ? null : transition.reason();
+      if (reason == null || !reason.startsWith(GRANT_REASON_PREFIX)) {
+        continue;
+      }
+      Parsed parsed = parse(reason);
+      if (parsed != null && matchesDefect(parsed, key) && matchedEpoch(parsed, key) == key.correctionEpoch()) {
+        grants++;
+      }
+    }
+    int memberMinimum = key.findingKeys().stream()
+        .mapToInt(member -> grantedAttempts(transitions, member)).min().orElse(0);
+    return Math.max(grants * ADDITIONAL_ATTEMPTS_PER_STRATEGY, memberMinimum);
   }
 
   public String recordCleanRebuild(RecoveryAttemptKey key, String inputArtifactIdentity) {
@@ -299,6 +412,11 @@ public final class RecoveryAttemptLedger {
     if (key == null || transitions == null) {
       return false;
     }
+    List<RecoveryAttemptKey> members = key.findingKeys();
+    if (!members.isEmpty()
+        && members.stream().allMatch(member -> ownerAlreadyReopened(transitions, member, legacyFailureSignature))) {
+      return true;
+    }
     String legacy =
         ProductPipelineRunSupport.causalReopenReason(key.ownerStageId(), nvl(legacyFailureSignature));
     for (RunTransition transition : transitions) {
@@ -312,9 +430,7 @@ public final class RecoveryAttemptLedger {
       Parsed parsed = parse(reason);
       if (parsed != null
           && parsed.reopen
-          && key.ownerStageId().equals(parsed.ownerStageId)
-          && key.causeCode() == parsed.causeCode
-          && key.evidenceIdentity().equals(parsed.evidenceIdentity)) {
+          && matchesDefect(parsed, key)) {
         return true;
       }
     }
@@ -329,6 +445,11 @@ public final class RecoveryAttemptLedger {
       List<RunTransition> transitions, RecoveryAttemptKey key, String legacyFailureSignature) {
     if (key == null || transitions == null) {
       return false;
+    }
+    List<RecoveryAttemptKey> members = key.findingKeys();
+    if (!members.isEmpty()
+        && members.stream().allMatch(member -> automaticReopenRecorded(transitions, member, legacyFailureSignature))) {
+      return true;
     }
     String legacy =
         ProductPipelineRunSupport.causalReopenReason(key.ownerStageId(), nvl(legacyFailureSignature));
@@ -345,9 +466,7 @@ public final class RecoveryAttemptLedger {
       }
       Parsed parsed = parse(reason);
       if (parsed != null
-          && key.ownerStageId().equals(parsed.ownerStageId)
-          && key.causeCode() == parsed.causeCode
-          && key.evidenceIdentity().equals(parsed.evidenceIdentity)) {
+          && matchesDefect(parsed, key)) {
         return true;
       }
     }
@@ -360,8 +479,9 @@ public final class RecoveryAttemptLedger {
       return SemanticRecoveryState.RemainingAttempts.none();
     }
     return new SemanticRecoveryState.RemainingAttempts(
-        Math.max(0, limits.maxSemanticRepairs() - repairsUsed(transitions, key, origin)),
-        Math.max(0, limits.maxCausalReopens() - automaticReopensUsed(transitions, key, origin)));
+        targetedRemaining(transitions, key, origin),
+        Math.max(0, limits.maxCausalReopens() - automaticReopensUsed(transitions, key, origin)),
+        cleanRemaining(transitions, key));
   }
 
   public static boolean isReopenReason(String reason) {
@@ -380,10 +500,11 @@ public final class RecoveryAttemptLedger {
     }
     boolean trusted = InputOrigin.of(origin).isTrusted();
     int used = 0;
-    for (RunTransition transition : transitions) {
+    for (RunTransition transition : dispatchedTransitions(transitions)) {
       String reason = transition == null ? null : transition.reason();
       if (reason == null
-          || !reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)) {
+          || !reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)
+              && !reason.startsWith(GRANT_TARGETED_REASON_PREFIX)) {
         continue;
       }
       Parsed parsed = parse(reason);
@@ -396,12 +517,14 @@ public final class RecoveryAttemptLedger {
       if (!matchesDefect(parsed, key)) {
         continue;
       }
-      if (trusted && parsed.correctionEpoch != key.correctionEpoch()) {
+      if (trusted && matchedEpoch(parsed, key) != key.correctionEpoch()) {
         continue;
       }
       used++;
     }
-    return used;
+    int memberMinimum = key.findingKeys().stream()
+        .mapToInt(member -> repairsUsed(transitions, member, origin)).min().orElse(0);
+    return Math.max(used, memberMinimum);
   }
 
   private int automaticReopensUsed(
@@ -429,12 +552,14 @@ public final class RecoveryAttemptLedger {
       if (parsed == null || !matchesDefect(parsed, key)) {
         continue;
       }
-      if (trusted && parsed.correctionEpoch != key.correctionEpoch()) {
+      if (trusted && matchedEpoch(parsed, key) != key.correctionEpoch()) {
         continue;
       }
       used++;
     }
-    return used;
+    int memberMinimum = key.findingKeys().stream()
+        .mapToInt(member -> automaticReopensUsed(transitions, member, origin)).min().orElse(0);
+    return Math.max(used, memberMinimum);
   }
 
   /** True when the absolute per-run recovery ceiling is spent. */
@@ -447,12 +572,13 @@ public final class RecoveryAttemptLedger {
       return true;
     }
     int spent = 0;
-    for (RunTransition transition : transitions) {
+    for (RunTransition transition : dispatchedTransitions(transitions)) {
       String reason = transition == null ? null : transition.reason();
       if (reason == null) {
         continue;
       }
       if (reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)
+          || reason.startsWith(GRANT_TARGETED_REASON_PREFIX)
           || reason.startsWith(CLEAN_REBUILD_REASON_PREFIX)
           || reason.startsWith(TECHNICAL_RETRY_REASON_PREFIX)
           || isReopenReason(reason)) {
@@ -498,13 +624,13 @@ public final class RecoveryAttemptLedger {
     return used;
   }
 
-  private int cleanRebuildsUsed(
+  public int cleanRebuildsUsed(
       List<RunTransition> transitions, RecoveryAttemptKey key) {
     if (transitions == null) {
       return 0;
     }
     int used = 0;
-    for (RunTransition transition : transitions) {
+    for (RunTransition transition : dispatchedTransitions(transitions)) {
       String reason = transition == null ? null : transition.reason();
       if (reason == null || !reason.startsWith(CLEAN_REBUILD_REASON_PREFIX)) {
         continue;
@@ -514,7 +640,19 @@ public final class RecoveryAttemptLedger {
         used++;
       }
     }
-    return used;
+    int memberMinimum = key.findingKeys().stream()
+        .mapToInt(member -> cleanRebuildsUsed(transitions, member)).min().orElse(0);
+    return Math.max(used, memberMinimum);
+  }
+
+  private static List<RunTransition> dispatchedTransitions(List<RunTransition> transitions) {
+    var unsent = transitions.stream().filter(java.util.Objects::nonNull)
+        .map(RunTransition::reason).filter(java.util.Objects::nonNull)
+        .filter(reason -> reason.startsWith(UNSENT_ATTEMPT_REASON_PREFIX))
+        .map(reason -> reason.substring(UNSENT_ATTEMPT_REASON_PREFIX.length()))
+        .collect(java.util.stream.Collectors.toSet());
+    return transitions.stream().filter(transition -> transition == null
+        || !unsent.contains(Long.toString(transition.toRevision()))).toList();
   }
 
   private List<String> observedArtifacts(
@@ -527,13 +665,12 @@ public final class RecoveryAttemptLedger {
       return seen;
     }
     String owner = ownerStageId == null ? "" : ownerStageId;
+    RecoveryAttemptKey key = new RecoveryAttemptKey(owner, causeCode, evidenceIdentity, 0);
     for (RunTransition transition : transitions) {
       Parsed parsed = transition == null ? null : parse(transition.reason());
       if (parsed == null
           || parsed.artifactIdentity.isEmpty()
-          || !owner.equals(parsed.ownerStageId)
-          || causeCode != parsed.causeCode
-          || !evidenceIdentity.equals(parsed.evidenceIdentity)) {
+          || !matchesDefect(parsed, key)) {
         continue;
       }
       if (!seen.contains(parsed.artifactIdentity)) {
@@ -544,13 +681,31 @@ public final class RecoveryAttemptLedger {
   }
 
   private static boolean matchesDefect(Parsed parsed, RecoveryAttemptKey key) {
+    var stored = new RecoveryAttemptKey(parsed.ownerStageId, parsed.causeCode, parsed.evidenceIdentity, parsed.correctionEpoch);
     return key.ownerStageId().equals(parsed.ownerStageId)
-        && key.causeCode() == parsed.causeCode
-        && key.evidenceIdentity().equals(parsed.evidenceIdentity);
+        && (sameDefect(stored, key) || parsed.findingKeys.stream().anyMatch(member -> sameDefect(member, key)));
+  }
+
+  private static int matchedEpoch(Parsed parsed, RecoveryAttemptKey key) {
+    return parsed.findingKeys.stream().filter(member -> sameDefect(member, key))
+        .mapToInt(RecoveryAttemptKey::correctionEpoch).findFirst().orElse(parsed.correctionEpoch);
+  }
+
+  private static boolean sameDefect(RecoveryAttemptKey left, RecoveryAttemptKey right) {
+    if (isFindingKey(left) || isFindingKey(right)) {
+      String leftHash = isFindingKey(left) ? left.evidenceIdentity().substring(FINDING_ID_PREFIX.length()) : left.evidenceIdentity();
+      String rightHash = isFindingKey(right) ? right.evidenceIdentity().substring(FINDING_ID_PREFIX.length()) : right.evidenceIdentity();
+      return leftHash.equals(rightHash);
+    }
+    return left.causeCode() == right.causeCode() && left.evidenceIdentity().equals(right.evidenceIdentity());
+  }
+
+  private static boolean isFindingKey(RecoveryAttemptKey key) {
+    return key.causeCode() == RecoveryCauseCode.VALIDATION_BLOCKER && key.evidenceIdentity().startsWith(FINDING_ID_PREFIX);
   }
 
   private String payload(RecoveryAttemptKey key, String artifactIdentity) {
-    return key.ownerStageId()
+    String payload = key.ownerStageId()
         + FIELD
         + key.causeCode().name()
         + FIELD
@@ -559,6 +714,18 @@ public final class RecoveryAttemptLedger {
         + artifactToken(artifactIdentity)
         + FIELD
         + key.correctionEpoch();
+    if (key.findingKeys().isEmpty()) {
+      return payload;
+    }
+    StringBuilder members = new StringBuilder();
+    for (RecoveryAttemptKey member : key.findingKeys()) {
+      if (!members.isEmpty()) {
+        members.append(FIELD);
+      }
+      members.append(member.causeCode().name()).append(FIELD).append(member.evidenceIdentity())
+          .append(FIELD).append(member.correctionEpoch());
+    }
+    return payload + FIELD + members;
   }
 
   private static String artifactToken(String inputArtifactIdentity) {
@@ -582,6 +749,10 @@ public final class RecoveryAttemptLedger {
       rest = reason.substring(CORRECTION_REASON_PREFIX.length());
     } else if (reason.startsWith(CLEAN_REBUILD_REASON_PREFIX)) {
       rest = reason.substring(CLEAN_REBUILD_REASON_PREFIX.length());
+    } else if (reason.startsWith(GRANT_TARGETED_REASON_PREFIX)) {
+      rest = reason.substring(GRANT_TARGETED_REASON_PREFIX.length());
+    } else if (reason.startsWith(GRANT_REASON_PREFIX)) {
+      rest = reason.substring(GRANT_REASON_PREFIX.length());
     } else if (reason.startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)) {
       rest = reason.substring(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX.length());
     } else if (reason.startsWith(TECHNICAL_RETRY_REASON_PREFIX)) {
@@ -592,7 +763,7 @@ public final class RecoveryAttemptLedger {
     if (rest.indexOf(FIELD) < 0) {
       return null;
     }
-    String[] fields = split(rest, 5);
+    String[] fields = split(rest, 6);
     if (fields.length < 4) {
       return null;
     }
@@ -610,7 +781,29 @@ public final class RecoveryAttemptLedger {
         epoch = 0;
       }
     }
-    return new Parsed(reopen, fields[0], causeCode, fields[2], fields[3], epoch);
+    return new Parsed(reopen, fields[0], causeCode, fields[2], fields[3], epoch,
+        fields.length < 6 ? List.of() : parseFindingKeys(fields[0], fields[5]));
+  }
+
+  private static List<RecoveryAttemptKey> parseFindingKeys(String owner, String payload) {
+    String[] fields = split(payload, Integer.MAX_VALUE);
+    if (fields.length % 3 != 0) {
+      throw new IllegalStateException("Invalid persisted recovery finding budgets.");
+    }
+    var keys = new TreeMap<String, RecoveryAttemptKey>();
+    for (int i = 0; i < fields.length; i += 3) {
+      try {
+        RecoveryCauseCode causeCode = RecoveryCauseCode.valueOf(fields[i]);
+        int epoch = Integer.parseInt(fields[i + 2]);
+        if (fields[i + 1].isEmpty() || epoch < 0
+            || keys.putIfAbsent(fields[i + 1], new RecoveryAttemptKey(owner, causeCode, fields[i + 1], epoch)) != null) {
+          throw new IllegalArgumentException("Invalid finding budget identity or epoch.");
+        }
+      } catch (IllegalArgumentException e) {
+        throw new IllegalStateException("Invalid persisted recovery finding budgets.", e);
+      }
+    }
+    return List.copyOf(keys.values());
   }
 
   private static String[] split(String rest, int limit) {
@@ -675,5 +868,6 @@ public final class RecoveryAttemptLedger {
       RecoveryCauseCode causeCode,
       String evidenceIdentity,
       String artifactIdentity,
-      int correctionEpoch) {}
+      int correctionEpoch,
+      List<RecoveryAttemptKey> findingKeys) {}
 }

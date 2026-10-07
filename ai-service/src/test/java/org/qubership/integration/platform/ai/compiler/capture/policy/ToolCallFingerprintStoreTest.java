@@ -7,12 +7,48 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.time.Clock;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 
 class ToolCallFingerprintStoreTest {
 
-  private final ObjectMapper mapper = new ObjectMapper();
+  private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
   private final ToolCallFingerprintStore store = new ToolCallFingerprintStore(mapper);
+
+  @Test
+  void reconstructedStoreRetainsCreditsUntilAnExplicitReset() {
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new ToolCallFingerprintStore(mapper, artifacts, sessions);
+    first.consumeSoftCredit("conv", "defect-a");
+
+    var restored = new ToolCallFingerprintStore(mapper,
+        new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+        new CompilationSessions(blobs, mapper, Clock.systemUTC()));
+    assertEquals(true, restored.softCreditUsed("conv", "defect-a"));
+    assertEquals(false, restored.softCreditUsed("conv", "defect-b"));
+    assertEquals(1, restored.softCreditsUsed("conv"));
+    restored.clear("conv");
+    assertEquals(0, new ToolCallFingerprintStore(mapper, artifacts, sessions).softCreditsUsed("conv"));
+    assertEquals(2, artifacts.history(sessions.active("conv"), CompilationArtifacts.Kind.CAPTURE_CREDITS).size());
+  }
+
+  @Test
+  void startingAnotherCompilationDoesNotInheritOldCaptureCredits() {
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new ToolCallFingerprintStore(mapper, artifacts, sessions);
+    first.consumeSoftCredit("conv", "defect-a");
+    String before = sessions.active("conv");
+    sessions.startNew("conv");
+    assertEquals(false, first.softCreditUsed("conv", "defect-a"));
+    assertEquals(1, artifacts.history(before, CompilationArtifacts.Kind.CAPTURE_CREDITS).size());
+  }
 
   @Test
   void identicalNormalizedArgsShareFingerprint() {

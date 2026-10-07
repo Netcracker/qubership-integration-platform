@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.integration.catalog.materialize;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -22,6 +23,8 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -180,6 +183,100 @@ class CatalogGraphMaterializerTest {
 
     verify(spyMaterializer, org.mockito.Mockito.atLeast(2))
         .apply(eq(CHAIN_ID), any(), any(), any());
+  }
+
+  @Test
+  void createTransportFailureReachesProductRecoveryWithItsCause() {
+    ChainPlanGraph desired = twoNodeGraph();
+    var transport = new jakarta.ws.rs.ServiceUnavailableException("Response failed after commit.");
+    when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
+        .thenReturn("catalog-trigger-1").thenThrow(transport);
+    CatalogChainPublicationService publication = mock(CatalogChainPublicationService.class);
+    when(publication.resolveOrCreate(any(), any(), any(), any())).thenReturn(CHAIN_ID);
+    var observed = spy(materializer);
+    var responses = new ArrayList<CatalogGraphMaterializeResult>();
+    org.mockito.Mockito.doAnswer(call -> {
+      var result = (CatalogGraphMaterializeResult) call.callRealMethod();
+      responses.add(result);
+      return result;
+    }).when(observed).apply(any(), any(), any(), any());
+    var gateway = new CatalogMutationGateway(observed, mock(ApiHubSpecificationImportService.class),
+        publication, mock(UploadedSpecAutoImporter.class));
+    ChainCatalogFactsService productFacts = mock(ChainCatalogFactsService.class);
+    when(productFacts.load(CHAIN_ID)).thenReturn(new ChainCatalogFacts(CHAIN_ID, "demo-chain", "Demo",
+        0, 0, "", List.of(), List.of(), "catalog"));
+    var mapper = new ObjectMapper();
+    var product = new ProductChainMaterializer(gateway, mock(ProductPipelineArtifactStore.class),
+        productFacts, new ChainPlanGraphImporter(mapper, new CanonicalGraphDigest(mapper)));
+
+    var failure = assertThrows(IllegalStateException.class, () -> product.resume(
+        new ProductChainMaterializer.Inputs("run-1", desired, runManifest(), "digest"), null));
+    assertTrue(org.qubership.integration.platform.ai.compiler.capture.TransientFailures.isTransient(failure),
+        "The existing recovery classifier must receive the original HTTP 503 cause.");
+    assertEquals(transport, failure.getCause());
+    var publicJson = mapper.valueToTree(responses.getFirst());
+    assertFalse(publicJson.has("failureCause"));
+    assertEquals(responses.getFirst().materializationMap(),
+        mapper.convertValue(publicJson, CatalogGraphMaterializeResult.class).materializationMap());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"property-read", "property-patch", "dependency-read", "dependency-create", "read-back"})
+  void transportFailureFromPropertiesAndConnectionsKeepsItsRecoveryClassification(String operation) {
+    var transport = new jakarta.ws.rs.ServiceUnavailableException("Catalog temporarily unavailable.");
+    var schema = mock(org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService.class);
+    lenient().when(schema.allowedPatchPropertyKeys(any())).thenReturn(Set.of());
+    lenient().when(schema.validateElementPatch(any(), any())).thenReturn("{\"valid\":true}");
+    lenient().when(catalogRestClient.getElement(any(), any())).thenReturn(new CatalogElementResponseDto());
+    lenient().when(catalogRestClient.listDependencies(any())).thenReturn(List.of());
+    switch (operation) {
+      case "property-read" -> when(catalogRestClient.getElement(any(), any())).thenThrow(transport);
+      case "property-patch" -> when(catalogRestClient.updateElement(any(), any(), any())).thenThrow(transport);
+      case "dependency-read" -> when(catalogRestClient.listDependencies(any())).thenThrow(transport);
+      case "dependency-create" -> when(catalogRestClient.createConnection(any(), any())).thenThrow(transport);
+      default -> when(factsService.load(CHAIN_ID)).thenThrow(transport);
+    }
+    var mapper = new ObjectMapper();
+    var importer = new ChainPlanGraphImporter(mapper, new CanonicalGraphDigest(mapper));
+    var real = new CatalogGraphMaterializer(new ChainPlanPropertiesMaterializer(catalogRestClient, schema, mapper),
+        skeletonMaterializer, new ChainPlanConnectionsMaterializer(catalogRestClient), removalsMaterializer,
+        catalogRestClient, descriptorLoader, new CatalogGraphReadBackVerifier(factsService, importer));
+    var desired = new ChainPlanGraph("1.0", section(), List.of(
+        new ChainPlanNode("trigger-1", "http-trigger", "Trigger", null, null, List.of()),
+        new ChainPlanNode("script-1", "script", "Script", null, null, List.of())),
+        List.of(new ChainPlanEdge("edge-1", "trigger-1", "script-1", null)));
+    var owners = new MaterializationMap(CHAIN_ID,
+        Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of());
+
+    var result = real.apply(CHAIN_ID, CatalogGraphMaterializer.emptyCurrent(desired), desired, owners);
+
+    assertFalse(result.succeeded());
+    assertEquals(transport, result.failureCause());
+    assertTrue(org.qubership.integration.platform.ai.compiler.capture.TransientFailures.isTransient(
+        new IllegalStateException(result.error(), result.failureCause())));
+    assertEquals(owners.nodeIdToElementId(), result.materializationMap().nodeIdToElementId());
+    verify(factsService, org.mockito.Mockito.times("read-back".equals(operation) ? 1 : 0)).load(CHAIN_ID);
+  }
+
+  @Test
+  void containerCompletionFailureWithoutMessageRemainsRejectedAfterJsonRoundTrip() {
+    ChainPlanGraph desired = twoNodeGraph();
+    when(skeletonMaterializer.materializeElement(any(), any(), eq(CHAIN_ID), any(), any()))
+        .thenReturn("catalog-trigger-1", "catalog-script-1");
+    org.mockito.Mockito.doThrow(new IllegalStateException()).when(skeletonMaterializer)
+        .finishCreatedContainers(eq(CHAIN_ID), any(), any(), any());
+    var owners = new MaterializationMap(CHAIN_ID,
+        Map.of("trigger-1", "catalog-trigger-1", "script-1", "catalog-script-1"), Map.of(), Map.of());
+    lenient().when(factsService.load(CHAIN_ID)).thenReturn(new ChainCatalogFacts(CHAIN_ID,
+        desired.chain().name(), desired.chain().description(), 2, 1, "",
+        factsElements(desired, owners), factsDependencies(desired, owners), "catalog"));
+    var result = materializer.apply(CHAIN_ID, CatalogGraphMaterializer.emptyCurrent(desired), desired,
+        new MaterializationMap(CHAIN_ID, Map.of(), Map.of(), Map.of()));
+
+    assertFalse(result.succeeded());
+    verify(factsService, org.mockito.Mockito.never()).load(CHAIN_ID);
+    var mapper = new ObjectMapper();
+    assertFalse(mapper.convertValue(mapper.valueToTree(result), CatalogGraphMaterializeResult.class).succeeded());
   }
 
   @Test

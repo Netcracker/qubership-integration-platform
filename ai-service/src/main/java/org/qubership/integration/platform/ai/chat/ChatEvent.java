@@ -676,6 +676,8 @@ public sealed interface ChatEvent {
           List.of(REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_REBUILD_PLAN ->
           List.of(REBUILD_PLAN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
+      case PipelineGates.RECOVERY_REPAIR_ALLOWANCE ->
+          List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION);
       case PipelineGates.RECOVERY_ENVIRONMENT,
               PipelineGates.RECOVERY_INTERNAL,
               PipelineGates.RECOVERY_REPEATED,
@@ -705,6 +707,7 @@ public sealed interface ChatEvent {
       case PipelineGates.RECOVERY_ENVIRONMENT -> "permanent-environment-failure";
       case PipelineGates.RECOVERY_INTERNAL -> "internal-service-failure";
       case PipelineGates.RECOVERY_REPEATED -> "repeated-identical-failure";
+      case PipelineGates.RECOVERY_REPAIR_ALLOWANCE -> "repair-allowance-required";
       case PipelineGates.RECOVERY_UNCLASSIFIED -> "unclassified-failure";
       default -> null;
     };
@@ -721,11 +724,11 @@ public sealed interface ChatEvent {
     switch (gate) {
       case PipelineGates.RECOVERY_RETRY_TECHNICAL -> {
         title = "Creation paused temporarily";
-        preservedWork = "Your approved requirements and plan are saved.";
+        preservedWork = "Your requirements and saved progress remain available.";
       }
       case PipelineGates.RECOVERY_REGENERATE_EXECUTION -> {
         title = "Creation output needs regeneration";
-        preservedWork = "Your approved requirements and plan are saved.";
+        preservedWork = "Your requirements and saved progress remain available.";
       }
       case PipelineGates.RECOVERY_REVISE_BRIEF -> {
         title = "Requirements need correction";
@@ -741,19 +744,23 @@ public sealed interface ChatEvent {
       }
       case PipelineGates.RECOVERY_ENVIRONMENT -> {
         title = "Creation cannot continue here";
-        preservedWork = "Your approved requirements and plan are saved.";
+        preservedWork = "Your requirements and saved progress remain available.";
       }
       case PipelineGates.RECOVERY_INTERNAL -> {
         title = "Creation hit an internal problem";
-        preservedWork = "Your approved requirements and plan are saved.";
+        preservedWork = "Your requirements and saved progress remain available.";
       }
       case PipelineGates.RECOVERY_REPEATED -> {
         title = "The same problem came back";
-        preservedWork = "Your approved requirements and plan are saved.";
+        preservedWork = "Your requirements and saved progress remain available.";
+      }
+      case PipelineGates.RECOVERY_REPAIR_ALLOWANCE -> {
+        title = "Additional repair allowance needed";
+        preservedWork = "Your requirements, approvals, and saved progress remain available.";
       }
       default -> {
         title = "Creation cannot continue";
-        preservedWork = "Your approved requirements and plan are saved.";
+        preservedWork = "Your requirements and saved progress remain available.";
       }
     }
     return new RecoveryPresentation(

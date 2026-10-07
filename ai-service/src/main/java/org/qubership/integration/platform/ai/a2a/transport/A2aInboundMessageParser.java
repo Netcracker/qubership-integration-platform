@@ -165,6 +165,29 @@ public final class A2aInboundMessageParser {
   public static final String KIND_CONTINUE_CLARIFY = "continue-clarify";
   public static final String KIND_APPROVE = "approve";
 
+  /** Reuses the approval bound at claim time; the caller must still verify the full fingerprint. */
+  static InboundCommand resolveSavedCommand(InboundCommand command,
+      org.qubership.integration.platform.ai.a2a.persistence.A2aCallerMessageReceipt receipt) {
+    if (!(command instanceof InboundCommand.ClarifyText) || receipt == null
+        || !KIND_APPROVE.equals(receipt.commandKind()) || receipt.commandPayloadJson() == null) {
+      return command;
+    }
+    try {
+      return org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.fromJson(receipt.commandPayloadJson(), InboundCommand.Approve.class);
+    } catch (Exception failure) {
+      throw new IllegalStateException("Saved approval command is invalid", failure);
+    }
+  }
+
+  static String commandPayload(InboundCommand command) {
+    if (!(command instanceof InboundCommand.Approve)) { return null; }
+    try {
+      return org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.toJson(command);
+    } catch (Exception failure) {
+      throw new IllegalStateException("Unable to persist the resolved approval command", failure);
+    }
+  }
+
   /**
    * Labels the receipt with the resumable facade command kind.
    *

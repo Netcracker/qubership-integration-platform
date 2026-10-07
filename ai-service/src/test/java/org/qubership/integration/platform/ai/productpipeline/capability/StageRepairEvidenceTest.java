@@ -13,6 +13,26 @@ import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipe
 class StageRepairEvidenceTest {
 
   @Test
+  void typedOriginAndFieldReachTheCorrectingProducer() {
+    String cause = "{\"causeCode\":\"SECURITY_POLICY\",\"findings\":[{"
+        + "\"code\":\"security-1\",\"message\":\"Use the confirmed access policy.\","
+        + "\"blocker\":true,\"originRecordId\":\"http-trigger\","
+        + "\"fieldPointer\":\"/properties/accessControlType\"}],\"requestedFact\":\"\"}";
+    StageRepairEvidence evidence = StageRepairEvidence.from(contextWithAttributes(Map.of(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "validation failed",
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-execution",
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR, "cip-security-generator",
+        ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, "security-1: Use the confirmed access policy.",
+        ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR, cause)));
+
+    String producerRequest = evidence.repairTextForSkill("cip-security-generator");
+
+    assertTrue(producerRequest.contains("\"originRecordId\":\"http-trigger\""));
+    assertTrue(producerRequest.contains("\"fieldPointer\":\"/properties/accessControlType\""));
+    assertEquals("", evidence.repairTextForSkill("cip-transformation-generator"));
+  }
+
+  @Test
   void firstTurnIsNotARepairAndCarriesNoEvidence() {
     StageExecutionContext context = contextWithAttributes(Map.of());
 

@@ -50,12 +50,47 @@ public class CompilerQualityValidator {
               issue.ownerCapabilityId(),
               issue.affectedNodeIds(),
               issue.ruleRefs(),
-              issue.suggestedFix()));
+              issue.suggestedFix(),
+              issue.findingCode(),
+              issue.originRecordId(),
+              issue.fieldPointer()));
     }
 
     counter = validateNamingManifest(namingManifest, issues, counter);
     validateGraphProperties(graph, issues, counter);
+    issues.addAll(validateApprovedValues(graph, brief));
+
+    boolean valid = issues.stream().noneMatch(issue -> issue.severity() == ValidationSeverity.BLOCKER);
+    return new ValidationResult(
+        valid,
+        List.copyOf(issues),
+        valid
+            ? "quality validation passed"
+            : "quality validation failed with "
+                + issues.stream().filter(issue -> issue.severity() == ValidationSeverity.BLOCKER).count()
+                + " blocker(s)");
+  }
+
+  /** Checks protected author values without requiring unrelated generated properties to be valid. */
+  public static List<ValidationIssue> validateApprovedValues(ChainPlanGraph graph,
+      org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief brief) {
+    List<ValidationIssue> issues = new ArrayList<>();
     if (brief != null && graph != null) {
+      issues.addAll(MaterializationRequirementsValidator.validateRequestedHooks(graph, brief.facts()));
+      java.util.stream.Stream.concat(brief.facts().stream(), brief.requirements().stream())
+          .filter(fact -> fact.policyConflict() != null && fact.policyConflict().decision() != null)
+          .forEach(fact -> fact.interactionIds().forEach(id -> {
+            var policy = fact.policyConflict();
+            var node = graph.nodes().stream().filter(value -> id.equals(value.nodeId())).findFirst().orElse(null);
+            boolean matches = node != null && node.properties().stream().anyMatch(property ->
+                policy.propertyKey().equals(property.key()) && policy.selectedValue().equals(property.value()));
+            if (!matches) {
+              issues.add(new ValidationIssue("confirmed-policy", ValidationSeverity.BLOCKER,
+                  "Graph changed a confirmed author policy choice.", OWNER, List.of(id), List.of(),
+                  "Restore the confirmed value.", "security-policy-confirmed", id,
+                  "/properties/" + policy.propertyKey()));
+            }
+          }));
       try {
         if (!graph.equals(RequestedElementValues.apply(graph, brief.facts()))) {
           issues.add(new ValidationIssue("requested-values", ValidationSeverity.BLOCKER,
@@ -68,15 +103,7 @@ public class CompilerQualityValidator {
       }
     }
 
-    boolean valid = issues.stream().noneMatch(issue -> issue.severity() == ValidationSeverity.BLOCKER);
-    return new ValidationResult(
-        valid,
-        List.copyOf(issues),
-        valid
-            ? "quality validation passed"
-            : "quality validation failed with "
-                + issues.stream().filter(issue -> issue.severity() == ValidationSeverity.BLOCKER).count()
-                + " blocker(s)");
+    return List.copyOf(issues);
   }
 
   private static int validateNamingManifest(

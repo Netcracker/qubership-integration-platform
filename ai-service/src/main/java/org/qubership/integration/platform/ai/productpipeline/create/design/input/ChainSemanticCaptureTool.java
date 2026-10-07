@@ -96,6 +96,10 @@ public class ChainSemanticCaptureTool {
       executable work. The server creates branch containers. A requested Split with three Script
       branches uses one split-2 owner, three script operations, and three branch metadata entries.
       Leave containment empty for those branches; connect the owner to their work with SPLIT_BRANCH.
+      For a synchronous split, connect each branch exit to the declared continuation with RECONVERGE
+      and its branchIds. For try/catch/finally, use errorScopeRegions and TRY_PATH, CATCH_PATH,
+      and FINALLY_PATH from the owner to each branch entry. CATCH_PATH names the declared handlerId.
+      Region metadata defines branch membership; leave containment empty for that work.
       Do not pass conversationId. The server binds capture to the current design session.
       Copy sourceFactIds and mappingIntentId from the approved requirement brief. Do not mint
       occurrence ids. External interaction anchors are server-owned. Reference these node ids
@@ -112,7 +116,9 @@ public class ChainSemanticCaptureTool {
       under the list that matches its kind; omit the region lists when the chain is linear.
       Each operations item requires nodeId and elementType, for example
       {"nodeId":"approved-processing-id","elementType":"script","sourceFactIds":["approved-fact-id"]}.
-      Each edge requires sourceNodeId and targetNodeId. For a region, fill its owner and
+      Each edge requires sourceNodeId, targetNodeId, and routeKind. Use SEQUENCE for ordinary flow.
+      Every scoped edge also names its regionId and the branch or handler where applicable.
+      For a region, fill its owner and
       branch/body entry fields from the actual topology; a regionId alone is insufficient.
       Submit one candidate per runtime attempt, then finish the turn. If rejected, return
       the findings; the runtime supplies them on a bounded regeneration attempt.""",

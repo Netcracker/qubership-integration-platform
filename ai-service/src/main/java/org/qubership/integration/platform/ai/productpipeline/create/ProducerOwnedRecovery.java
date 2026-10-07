@@ -48,7 +48,7 @@ public final class ProducerOwnedRecovery {
       int semanticRepairsUsed,
       int maxSemanticRepairs,
       Optional<String> diagnosedOwner,
-      Optional<String> consumedBriefProducerStageId) {
+      Optional<String> consumedBriefProducerStageId, boolean unresolvedAuthorChoice) {
 
     public Request {
       failedStageId = failedStageId == null ? "" : failedStageId;
@@ -59,6 +59,13 @@ public final class ProducerOwnedRecovery {
           consumedBriefProducerStageId == null
               ? Optional.empty()
               : consumedBriefProducerStageId.filter(stageId -> !stageId.isBlank());
+    }
+
+    public Request(String failedStageId, StageOutcomeClass outcomeClass, RecoveryCause cause,
+        List<OwnerCandidate> candidates, boolean catalogWritten, int semanticRepairsUsed, int maxSemanticRepairs,
+        Optional<String> diagnosedOwner, Optional<String> consumedBriefProducerStageId) {
+      this(failedStageId, outcomeClass, cause, candidates, catalogWritten, semanticRepairsUsed,
+          maxSemanticRepairs, diagnosedOwner, consumedBriefProducerStageId, false);
     }
 
     public Request(
@@ -105,6 +112,22 @@ public final class ProducerOwnedRecovery {
 
   private ProducerOwnedRecovery() { }
 
+  /** Missing diagnosis can retry a proved output invocation, never infer an upstream owner. */
+  public static boolean permitsCurrentOutputRepair(
+      StageOutcomeClass outcome, RecoveryCause cause, boolean invocationProved,
+      boolean pinnedInputsAvailable, boolean unresolvedAuthorChoice, boolean catalogWritten) {
+    if (!invocationProved || !pinnedInputsAvailable || unresolvedAuthorChoice || catalogWritten
+        || outcome != StageOutcomeClass.CONTRACT_FAILURE && outcome != StageOutcomeClass.VALIDATION_FAILURE) {
+      return false;
+    }
+    return cause != null && !cause.isKnownBriefDefect()
+        && cause.causeCode() != RecoveryCauseCode.MISSING_MANDATORY_INPUT
+        && cause.causeCode() != RecoveryCauseCode.CATALOG_RESOLUTION
+        && cause.causeCode() != RecoveryCauseCode.INTERNAL
+        && cause.causeCode() != RecoveryCauseCode.POLICY_FAILURE
+        && cause.causeCode() != RecoveryCauseCode.DOMAIN_FAILURE;
+  }
+
   /** Picks the producer-owned recovery action for this rejection. */
   public static Route route(final Request request) {
     String failed = request.failedStageId();
@@ -144,7 +167,7 @@ public final class ProducerOwnedRecovery {
       return new Route(Action.ASK_CLARIFICATION, failed, cause.requestedFact());
     }
     if (!request.catalogWritten()
-        && asksForMissingValue(cause)
+        && request.unresolvedAuthorChoice() && cause.causeCode() == RecoveryCauseCode.SECURITY_POLICY
         && request.semanticRepairsUsed() < Math.max(request.maxSemanticRepairs(), 0)) {
       return new Route(Action.ASK_CLARIFICATION, failed, missingValueFact(cause));
     }
@@ -179,14 +202,20 @@ public final class ProducerOwnedRecovery {
     return new Route(action, producer.isBlank() ? failed : producer);
   }
 
-  /**
-   * A required value the author has not supplied. The clarification uses the finding text, which
-   * already names the property.
-   */
-  private static boolean asksForMissingValue(final RecoveryCause cause) {
-    RecoveryCauseCode code = cause.causeCode();
-    return code == RecoveryCauseCode.SECURITY_POLICY
-        || code == RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
+  /** Consultation requires the exact unresolved company rule, interaction, and property. */
+  public static boolean requiresPolicyConsultation(
+      org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief brief, RecoveryCause cause) {
+    if (brief == null || cause == null || cause.causeCode() != RecoveryCauseCode.SECURITY_POLICY) { return false; }
+    return java.util.stream.Stream.concat(brief.facts().stream(), brief.requirements().stream()).anyMatch(fact -> {
+      var policy = fact.policyConflict();
+      return fact.polarity() == org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE
+          && policy != null && policy.decision() == null
+          && org.qubership.integration.platform.ai.qipknowledge.validation.CompilerSecurityValidator.EXTERNAL_RBAC_POLICY
+              .equals(policy.policyId())
+          && "accessControlType".equals(policy.propertyKey()) && cause.findings().stream().anyMatch(finding ->
+              "security-policy-choice".equals(finding.code()) && fact.interactionIds().contains(finding.originRecordId())
+                  && "/properties/accessControlType".equals(finding.fieldPointer()));
+    });
   }
 
   private static String missingValueFact(final RecoveryCause cause) {

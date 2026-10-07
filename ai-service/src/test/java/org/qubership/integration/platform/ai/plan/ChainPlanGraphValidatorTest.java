@@ -662,6 +662,14 @@ class ChainPlanGraphValidatorTest {
   }
 
   @Test
+  void semanticEdgeIdsCannotHideChangedExecutionEndpoints() {
+    ChainSemanticRevision revision = conditionRevision();
+    ChainPlanGraph redirected = replaceEdge(compiledConditionGraph(), "edge-false-join",
+        new ChainPlanEdge("edge-false-join", "script-false", "script-true", null));
+    assertThrows(IllegalStateException.class, () -> validator.validate(redirected, CONTRACT, revision));
+  }
+
+  @Test
   void rejectsExecutionCycle() {
     ChainPlanGraph cyclic =
         replaceEdge(

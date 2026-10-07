@@ -30,6 +30,16 @@ public final class RateLimitAwareChatModel implements ChatModel {
   private final boolean transientEnabled;
   private final int transientMaxAttempts;
   private final Consumer<BackoffEvent> onBackoff;
+  private LlmRunBudget runBudget;
+  private String runId;
+  private LlmRequestBudget requestBudget;
+
+  RateLimitAwareChatModel withRunBudget(LlmRunBudget budget, String runId, LlmRequestBudget requests) {
+    this.runBudget = budget;
+    this.runId = runId;
+    this.requestBudget = requests;
+    return this;
+  }
 
   public RateLimitAwareChatModel(
       ChatModel delegate,
@@ -80,15 +90,31 @@ public final class RateLimitAwareChatModel implements ChatModel {
 
   @Override
   public ChatResponse chat(ChatRequest chatRequest) {
-    if (!rateLimitEnabled && !transientEnabled) {
-      return delegate.chat(chatRequest);
-    }
     int rateLimitAttempt = 0;
     int transientAttempt = 0;
+    boolean contextRebuilt = false;
     while (true) {
+      var ticket = runBudget == null ? null : runBudget.reserve(runId,
+          requestBudget.estimateInputTokens(chatRequest),
+          chatRequest.maxOutputTokens() == null ? 8192 : chatRequest.maxOutputTokens());
       try {
-        return delegate.chat(chatRequest);
+        ChatRequest sent = chatRequest;
+        ChatResponse response = runBudget == null ? delegate.chat(sent)
+            : runBudget.invoke(ticket, () -> {
+              ChatResponse completed = delegate.chat(sent);
+              runBudget.complete(ticket, completed == null ? null : completed.tokenUsage());
+              return completed;
+            });
+        return response;
       } catch (RuntimeException error) {
+        if (!contextRebuilt && requestBudget != null && LlmRequestBudget.isOverflow(error)) {
+          ChatRequest rebuilt = requestBudget.rebuild(chatRequest);
+          if (!rebuilt.messages().equals(chatRequest.messages())) {
+            chatRequest = requestBudget.prepare(rebuilt);
+            contextRebuilt = true;
+            continue;
+          }
+        }
         if (rateLimitEnabled
             && rateLimitClassifier.isRateLimit(error)
             && rateLimitPolicy.shouldRetry(rateLimitAttempt, rateLimitMaxAttempts)) {

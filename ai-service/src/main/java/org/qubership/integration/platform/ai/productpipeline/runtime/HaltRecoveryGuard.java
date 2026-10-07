@@ -10,7 +10,8 @@ public enum HaltRecoveryGuard {
   CATALOG_ALREADY_WRITTEN("The catalog has already been written, so this run cannot reopen an earlier stage."),
   NARRATIVE_EXPLANATION_BUDGET("Explanation budget is spent."),
   MAX_SEMANTIC_REPAIRS("Repair attempts for this defect are spent."),
-  TECHNICAL_RETRY("Retrying the same attempt cannot succeed."),
+  RUN_RECOVERY_CEILING("The run's recovery allowance is spent."),
+  TECHNICAL_RETRY("Technical retry allowance is spent."),
   REPEATED_FAILURE_THRESHOLD("The same failure has repeated enough times that retry is no longer offered."),
   BLANK_OR_UNAPPROVED_OWNER("No approved earlier owner can take this defect."),
   MISSING_PROFILE_OR_PRIOR_CANDIDATE("The owning stage has no profile or prior candidate to reopen."),
@@ -34,6 +35,8 @@ public enum HaltRecoveryGuard {
         remaining == null ? SemanticRecoveryState.RemainingAttempts.none() : remaining;
     return " Repairs remaining: "
         + value.semanticRepairsRemaining()
+        + ". Clean regenerations remaining: "
+        + value.cleanRebuildsRemaining()
         + ". Automatic reopens remaining: "
         + value.causalReopensRemaining()
         + ".";

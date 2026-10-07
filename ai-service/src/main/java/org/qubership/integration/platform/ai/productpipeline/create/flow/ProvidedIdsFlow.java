@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.util.Objects;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfile;
 import org.qubership.integration.platform.ai.productpipeline.profile.ProductPipelineProfileCatalog;
+import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 
 /** One persisted create-chain Flow instance per product run. */
 @ApplicationScoped
@@ -81,32 +82,37 @@ public class ProvidedIdsFlow extends Flow {
                 caseOf(RunContext::waitForRetry, RunContext.class).then("waitForRetry"),
                 caseOf(RunContext::reenterStage, RunContext.class).then("executeStage"),
                 caseDefault(FlowDirectiveEnum.END)),
-            listen("waitForInput", correlatedOne(INPUT_EVENT_TYPE)),
+            listen("waitForInput", correlatedOne(INPUT_EVENT_TYPE))
+                .when(tasks::stillWaiting, RunContext.class),
             function("restoreAfterInput", tasks::restoreAfterInput, Object.class),
             switchCase(
                 "afterInput",
                 caseOf(RunContext::always, RunContext.class).then(TASK_ROUTE_DECISION),
                 caseDefault(FlowDirectiveEnum.END)),
             listen(
-                "waitForRequirementApproval", correlatedAny(APPROVAL_EVENT_TYPE, INPUT_EVENT_TYPE)),
+                "waitForRequirementApproval", correlatedAny(APPROVAL_EVENT_TYPE, INPUT_EVENT_TYPE))
+                .when(tasks::stillWaiting, RunContext.class),
             function("restoreAfterRequirementApproval", tasks::restoreAfterInput, Object.class),
             switchCase(
                 "afterRequirementApproval",
                 caseOf(RunContext::always, RunContext.class).then(TASK_ROUTE_DECISION),
                 caseDefault(FlowDirectiveEnum.END)),
-            listen("waitForIdsApproval", correlatedAny(APPROVAL_EVENT_TYPE, INPUT_EVENT_TYPE)),
+            listen("waitForIdsApproval", correlatedAny(APPROVAL_EVENT_TYPE, INPUT_EVENT_TYPE))
+                .when(tasks::stillWaiting, RunContext.class),
             function("restoreAfterIdsApproval", tasks::restoreAfterInput, Object.class),
             switchCase(
                 "afterIdsApproval",
                 caseOf(RunContext::always, RunContext.class).then(TASK_ROUTE_DECISION),
                 caseDefault(FlowDirectiveEnum.END)),
-            listen("waitForPlanApproval", correlatedAny(APPROVAL_EVENT_TYPE, INPUT_EVENT_TYPE)),
+            listen("waitForPlanApproval", correlatedAny(APPROVAL_EVENT_TYPE, INPUT_EVENT_TYPE))
+                .when(tasks::stillWaiting, RunContext.class),
             function("restoreAfterPlanApproval", tasks::restoreAfterInput, Object.class),
             switchCase(
                 "afterPlanApproval",
                 caseOf(RunContext::always, RunContext.class).then(TASK_ROUTE_DECISION),
                 caseDefault(FlowDirectiveEnum.END)),
-            listen("waitForImplementation", correlatedOne(IMPLEMENT_EVENT_TYPE)),
+            listen("waitForImplementation", correlatedOne(IMPLEMENT_EVENT_TYPE))
+                .when(tasks::stillWaiting, RunContext.class),
             function("restoreAfterImplementation", tasks::restoreAfterInput, Object.class),
             switchCase(
                 "afterImplementation",
@@ -123,6 +129,21 @@ public class ProvidedIdsFlow extends Flow {
 
   boolean ownsStage(String stageId) {
     return profile.stages().stream().anyMatch(stage -> stage.stageId().equals(stageId));
+  }
+
+  static String decisionFrom(RunSnapshot run) {
+    return switch (run.status()) {
+      case RUNNING -> "CONTINUE";
+      case WAITING_FOR_INPUT -> "WAIT_FOR_INPUT";
+      case WAITING_FOR_IMPLEMENT -> "WAIT_FOR_IMPLEMENTATION";
+      case WAITING_FOR_APPROVAL -> switch (run.currentStageId()) {
+        case "requirement-analysis" -> "WAIT_FOR_REQUIREMENT_APPROVAL";
+        case "design-input" -> "WAIT_FOR_IDS_APPROVAL";
+        case "design-planning" -> "WAIT_FOR_PLAN_APPROVAL";
+        default -> "STOP";
+      };
+      default -> "STOP";
+    };
   }
 
   private static FuncListenSpec correlatedOne(String eventType) {

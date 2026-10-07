@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -49,6 +50,24 @@ class PipelineSignalLiveSinkTest {
     PipelineSignalLiveSink.bind(RUN_ID, signal -> {});
     assertTrue(PipelineSignalLiveSink.isBound(RUN_ID));
     PipelineSignalLiveSink.unbind(RUN_ID);
+    assertFalse(PipelineSignalLiveSink.isBound(RUN_ID));
+  }
+
+  @Test
+  void finishingAnOlderCommandDoesNotDetachTheNewObserver() {
+    Consumer<PipelineSignal> old = signal -> {};
+    List<PipelineSignal> received = new ArrayList<>();
+    Consumer<PipelineSignal> current = received::add;
+    PipelineSignalLiveSink.bind(RUN_ID, old);
+    PipelineSignalLiveSink.bind(RUN_ID, current);
+
+    PipelineSignalLiveSink.unbind(RUN_ID, old);
+    PipelineSignal signal = new PipelineSignal.Progress("materialization", "Continuing saved work");
+    PipelineSignalLiveSink.emit(RUN_ID, signal);
+
+    assertEquals(List.of(signal), received);
+    assertTrue(PipelineSignalLiveSink.isBound(RUN_ID));
+    PipelineSignalLiveSink.unbind(RUN_ID, current);
     assertFalse(PipelineSignalLiveSink.isBound(RUN_ID));
   }
 }

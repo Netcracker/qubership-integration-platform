@@ -193,8 +193,6 @@ class MappingApprovalImpactTest {
 
   @Test
   void reminderOfAnApprovedMissingLocalElementReopensItsSemanticProducer() throws Exception {
-    useFourStageRuntime();
-    waitAtPlanningApproval();
     var mapper = new ObjectMapper().registerModule(new JavaTimeModule());
     var json = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.valueToTree(mappedBrief());
     var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("checkpoint", "checkpoint",
@@ -205,18 +203,32 @@ class MappingApprovalImpactTest {
         org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "", "Save context.", "", "", "", "", "", "",
         List.of("task-start"), null, intent);
     json.set("facts", mapper.valueToTree(List.of(fact)));
-    append(Kind.REQUIREMENT_BRIEF, "1", mapper.treeToValue(json, RequirementBrief.class));
+    useFourStageRuntime(mapper.treeToValue(json, RequirementBrief.class));
+    waitAtPlanningApproval();
     String briefHash = committedHash(Kind.REQUIREMENT_BRIEF);
     var oldApproval = snapshot("planning").approvableReference();
+    var acceptedPlanningOutputs = snapshot("planning").outputRefs();
     mappingAdapter = (brief, message) -> new MappingTurnResult.StructuralReminder(List.of("checkpoint"));
     type("The approved Checkpoint must remain before the Script.");
     assertEquals("design-input", run().run().currentStageId());
     assertEquals(StageStatus.PENDING, snapshot("planning").status());
-    assertTrue(snapshot("planning").outputRefs().isEmpty());
+    assertEquals(acceptedPlanningOutputs, snapshot("planning").outputRefs());
     assertNotEquals(oldApproval, snapshot("planning").approvableReference());
     assertEquals(briefHash, committedHash(Kind.REQUIREMENT_BRIEF));
     assertTrue(support.runAttributes(RUN_ID).get(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR)
         .toString().contains("ELEMENT_INTENT_REALIZATION"));
+  }
+
+  @Test
+  void mappingTurnIgnoresANewerUnapprovedBrief() {
+    waitAtPlanningApproval();
+    var selected = new java.util.concurrent.atomic.AtomicReference<RequirementBrief>();
+    mappingAdapter = (brief, message) -> { selected.set(brief); return queryAdapter().interpret(brief, message); };
+    append(Kind.REQUIREMENT_BRIEF, "1", new RequirementBrief("Unapproved projection", List.of(), List.of(),
+        List.of(), List.of(), "Do not select this candidate"));
+    type("Show current mapping");
+    assertEquals(mappedBrief(), selected.get());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
   }
 
   @Test
@@ -305,6 +317,10 @@ class MappingApprovalImpactTest {
   }
 
   private void useFourStageRuntime() {
+    useFourStageRuntime(mappedBrief());
+  }
+
+  private void useFourStageRuntime(RequirementBrief approvedBrief) {
     profile = fourStageProfile();
     support =
         ProductPipelineRunSupport.builder(
@@ -312,7 +328,7 @@ class MappingApprovalImpactTest {
                 artifactStore,
                 new StageCapabilityRegistry(
                     List.of(
-                        analysisCapability(),
+                        analysisCapability(approvedBrief),
                         designInputCapability(),
                         planningCapability(),
                         executionCapability())),
@@ -425,11 +441,15 @@ class MappingApprovalImpactTest {
   }
 
   private static StageCapability analysisCapability() {
+    return analysisCapability(mappedBrief());
+  }
+
+  private static StageCapability analysisCapability(RequirementBrief brief) {
     return new ScriptedCapability(
         "requirement-analysis",
         new StageOutcome(
             StageOutcomeClass.CANDIDATE,
-            List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, mappedBrief(), List.of())),
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF, brief, List.of())),
             "brief ready",
             null));
   }

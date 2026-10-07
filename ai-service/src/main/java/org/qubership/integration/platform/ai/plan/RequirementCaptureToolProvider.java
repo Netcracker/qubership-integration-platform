@@ -130,14 +130,14 @@ public class RequirementCaptureToolProvider implements ToolProvider {
       JsonNode input = parse(arguments);
       Issue issue = check(input, parameters, "");
       if (issue != null) {
-        return tools.rejectArguments(toolName, issue);
+        return tools.rejectArguments(toolName, arguments, issue);
       }
       return action.apply(mapper.treeToValue(input.get(field), type));
     } catch (JsonProcessingException error) {
-      return tools.rejectArguments(toolName, new Issue(
+      return tools.rejectArguments(toolName, arguments, new Issue(
           jsonErrorCode(error), "/", null, "Send one valid JSON argument object."));
     } catch (IOException error) {
-      return tools.rejectArguments(toolName, new Issue(
+      return tools.rejectArguments(toolName, arguments, new Issue(
           "INVALID_JSON", "/", null, "Send one valid JSON argument object."));
     }
   }
@@ -146,9 +146,9 @@ public class RequirementCaptureToolProvider implements ToolProvider {
     try {
       Issue issue = check(parse(arguments), parameters, "");
       return issue == null ? tools.readRequirementDraft()
-          : tools.rejectArguments("readRequirementDraft", issue);
+          : tools.rejectArguments("readRequirementDraft", arguments, issue);
     } catch (IOException error) {
-      return tools.rejectArguments("readRequirementDraft", new Issue(
+      return tools.rejectArguments("readRequirementDraft", arguments, new Issue(
           jsonErrorCode(error), "/", null, "Send an empty JSON object."));
     }
   }

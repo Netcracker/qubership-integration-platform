@@ -18,6 +18,22 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 class RequirementBriefTextTest {
 
   @Test
+  void nestedMembershipIsKeptSeparateFromExecutionOrder() throws Exception {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("nested", "script",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        "entry", null, null, "reuse-work", "Nested work", List.of(), List.of());
+    var fact = new RequirementFact("nested-fact", RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", "Run the script inside Reuse.", "", "", "", "", "", "", List.of("entry"), null, intent);
+    String text = RequirementBriefText.formatFacts(List.of(fact));
+    assertTrue(text.contains("requiredContainment=reuse-work contains nested"));
+    assertFalse(text.contains("requiredExecutionOrder="));
+    var json = objectMapper.valueToTree(intent);
+    assertEquals(intent, objectMapper.treeToValue(json, intent.getClass()));
+    ((com.fasterxml.jackson.databind.node.ObjectNode) json).remove("parentElementRef");
+    assertEquals(null, objectMapper.treeToValue(json, intent.getClass()).parentElementRef());
+  }
+
+  @Test
   void relativeOrderIsRenderedAsADirectedExecutionPath() {
     var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent("verify", "script",
         org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,

@@ -70,6 +70,7 @@ public interface CatalogRestClient {
 
   @POST
   @Path("/v1/chains")
+  @Retry(maxRetries = 0)
   ChainDto createChain(CatalogCreateChainRequest body);
 
   @GET
@@ -233,6 +234,7 @@ public interface CatalogRestClient {
 
   @POST
   @Path("/v1/chains/{chainId}/elements")
+  @Retry(maxRetries = 0)
   ChainDiffDto createElement(
       @PathParam("chainId") String chainId, CatalogCreateElementRequest body);
 

@@ -6,7 +6,7 @@ import io.quarkiverse.langchain4j.ModelName;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitChatModelProducer;
 
-/** Removes the extension's legacy top-k default from Anthropic chat requests. */
+/** Removes legacy sampling defaults and leaves transport retries to the accounting wrapper. */
 @ApplicationScoped
 @ModelName(RateLimitChatModelProducer.ANTHROPIC_UPSTREAM_MODEL_NAME)
 public class AnthropicChatSamplingCustomizer
@@ -15,5 +15,7 @@ public class AnthropicChatSamplingCustomizer
   @Override
   public void customize(AnthropicChatModel.AnthropicChatModelBuilder builder) {
     builder.topK(null);
+    // The extension requires a positive config value, but the SDK accepts zero retries.
+    builder.maxRetries(0);
   }
 }

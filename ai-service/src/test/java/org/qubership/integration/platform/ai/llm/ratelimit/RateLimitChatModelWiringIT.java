@@ -34,6 +34,24 @@ class RateLimitChatModelWiringIT {
 
   @Inject ChatModel chatModel;
   @Inject StreamingChatModel streamingChatModel;
+  @Inject LlmRunBudget budget;
+  @Inject org.qubership.integration.platform.ai.configuration.AppConfig config;
+  @io.quarkus.test.InjectMock org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore blobs;
+
+  @org.junit.jupiter.api.BeforeEach
+  void useLocalAccountingStorage() {
+    var local = new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore();
+    org.mockito.Mockito.doAnswer(call -> { local.put(call.getArgument(0), call.getArgument(1)); return null; })
+        .when(blobs).put(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.when(blobs.get(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(call -> local.get(call.getArgument(0)));
+    org.mockito.Mockito.when(blobs.getVersioned(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(call -> local.getVersioned(call.getArgument(0)));
+    org.mockito.Mockito.doAnswer(call -> {
+      local.putIfVersion(call.getArgument(0), call.getArgument(1), call.getArgument(2)); return null;
+    }).when(blobs).putIfVersion(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.nullable(String.class));
+  }
 
   @Inject
   @ModelName(RateLimitChatModelProducer.OPENAI_UPSTREAM_MODEL_NAME)
@@ -154,5 +172,25 @@ class RateLimitChatModelWiringIT {
     assertThrows(
         IllegalArgumentException.class,
         () -> RateLimitChatModelProducer.useAnthropic("unknown", "https://example.com/"));
+  }
+
+  @Test
+  void injectedWrappersRefuseTheSameRunBeforeEitherNamedProviderDispatches() {
+    String runId = "budget-wiring-" + java.util.UUID.randomUUID();
+    String conversation = runId + "-compiler-workspace";
+    budget.linkConversation(runId, conversation);
+    for (long i = 0; i < config.llm().maxRequestsPerRun(); i++) {
+      var ticket = budget.reserve(runId, 1, 1);
+      budget.complete(ticket, new dev.langchain4j.model.output.TokenUsage(1, 1));
+    }
+    var request = dev.langchain4j.model.chat.request.ChatRequest.builder()
+        .messages(dev.langchain4j.data.message.UserMessage.from("Saved requirements stay unchanged.")).build();
+    try (var ignored = org.qubership.integration.platform.ai.chat.ToolSession.open(conversation)) {
+      assertThrows(LlmRunBudget.Exhausted.class, () -> chatModel.chat(request));
+      assertThrows(LlmRunBudget.Exhausted.class, () -> streamingChatModel.chat(request,
+          org.mockito.Mockito.mock(dev.langchain4j.model.chat.response.StreamingChatResponseHandler.class)));
+    }
+    assertEquals(config.llm().maxRequestsPerRun(), budget.state(runId).requests());
+    assertNotNull(budget.state(runId).refusal());
   }
 }

@@ -113,7 +113,8 @@ public class CompilerPlanValidator {
               materializationIssue.ownerCapabilityId(),
               materializationIssue.affectedNodeIds(),
               materializationIssue.ruleRefs(),
-              materializationIssue.suggestedFix()));
+              materializationIssue.suggestedFix(), materializationIssue.findingCode(),
+              materializationIssue.originRecordId(), materializationIssue.fieldPointer()));
     }
 
     for (ValidationIssue mappingIssue :
@@ -126,7 +127,8 @@ public class CompilerPlanValidator {
               mappingIssue.ownerCapabilityId(),
               mappingIssue.affectedNodeIds(),
               mappingIssue.ruleRefs(),
-              mappingIssue.suggestedFix()));
+              mappingIssue.suggestedFix(), mappingIssue.findingCode(),
+              mappingIssue.originRecordId(), mappingIssue.fieldPointer()));
     }
 
     return result(issues);

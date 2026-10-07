@@ -51,6 +51,8 @@ import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
  */
 @ApplicationScoped
 public class DesignPlanningCapability implements StageCapability {
+  @Inject
+  org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget llmBudget;
 
   private static final Logger LOG = Logger.getLogger(DesignPlanningCapability.class);
 
@@ -197,12 +199,14 @@ public class DesignPlanningCapability implements StageCapability {
               pinnedSkillHash,
               repairEvidenceText);
       if (typedPlanner != null) {
+        if (llmBudget != null) { llmBudget.linkConversation(context.runId(), plannerRequest.conversationId()); }
         TypedCipDesignPlannerAdapter.Result result =
             typedPlanner.plan(plannerRequest, release, revision, brief, pin);
         contract = result.contract();
         report = reportRenderer.render(contract);
         projection = projector.project(contract, report, revision, pin, brief);
       } else {
+        if (llmBudget != null) { llmBudget.linkConversation(context.runId(), plannerRequest.conversationId()); }
         report = legacyPlanner.plan(plannerRequest);
         projection = projector.project(report, revision, pin, brief);
         contract = legacyContract(report, projection, revision, pin);
@@ -246,6 +250,11 @@ public class DesignPlanningCapability implements StageCapability {
           projection,
           ex.recoveryCause());
     } catch (RuntimeException ex) {
+      if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(ex)) {
+        StageOutcome technical = StageOutcome.technicalFailure(ex);
+        return haltedSignal(technical.outcomeClass(), technical.message(), contract, report, projection,
+            technical.recoveryCause());
+      }
       return haltedSignal(
           TransientFailures.isTransient(ex)
               ? StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE

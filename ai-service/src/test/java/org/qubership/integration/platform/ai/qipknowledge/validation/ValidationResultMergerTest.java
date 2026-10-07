@@ -6,10 +6,43 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
 import org.qubership.integration.platform.ai.qipknowledge.knowledge.QipKnowledgeRefType;
 
 class ValidationResultMergerTest {
+
+  @Test
+  void separatorCharactersCannotMergeDifferentOwnersOrNodeLists() {
+    var first = new ValidationIssue("first", ValidationSeverity.BLOCKER, "part|value",
+        "owner", List.of("a,b", "c"), List.of(), "Correct the first issue");
+    var otherOwner = new ValidationIssue("other-owner", ValidationSeverity.BLOCKER, "value",
+        "owner|part", first.affectedNodeIds(), List.of(), "Correct the other owner");
+    var otherNodes = new ValidationIssue("other-nodes", ValidationSeverity.BLOCKER, first.message(),
+        first.ownerCapabilityId(), List.of("a", "b,c"), List.of(), "Correct the other nodes");
+    var merged = ValidationResultMerger.merge(new ValidationResult(true, List.of(), "empty"),
+        new ValidationResult(false, List.of(first, otherOwner, otherNodes), "blocked"));
+    assertEquals(List.of(first, otherOwner, otherNodes), merged.issues());
+  }
+
+  @ParameterizedTest
+  @EnumSource(value = ValidationSeverity.class, names = {"WARNING", "BLOCKER"})
+  void capturedAdviceCannotHideAnIdenticalDeterministicBlocker(ValidationSeverity capturedSeverity) {
+    var capturedIssue = new ValidationIssue("captured-1", capturedSeverity,
+        "Missing script body", "cip-script-generator", List.of("script-1"), List.of(), "Add script");
+    var deterministicIssue = new ValidationIssue("materialization-1", ValidationSeverity.BLOCKER,
+        capturedIssue.message(), capturedIssue.ownerCapabilityId(), capturedIssue.affectedNodeIds(),
+        List.of(), "Add the complete script");
+
+    var merged = ValidationResultMerger.merge(
+        new ValidationResult(false, List.of(capturedIssue), "advice"),
+        new ValidationResult(false, List.of(deterministicIssue), "blocked"));
+
+    assertFalse(merged.valid());
+    assertTrue(merged.hasBlockingIssues());
+    assertTrue(merged.issues().contains(deterministicIssue));
+  }
 
   @Test
   void mergesDeterministicBlockersIntoCapturedValidReport() {

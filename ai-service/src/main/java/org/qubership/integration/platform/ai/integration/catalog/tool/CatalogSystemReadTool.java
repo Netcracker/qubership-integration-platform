@@ -269,7 +269,7 @@ public class CatalogSystemReadTool {
           CatalogToolResult.CODE_INVALID_ARGUMENT, "offset is outside the operation list.",
           "Use nextOffset from the previous response, or 0 for a new listing.");
     }
-    ObjectNode result = support.objectMapper.createObjectNode();
+    ObjectNode result = support.createObjectNode();
     result.put("ok", true);
     result.put("tool", CatalogSystemToolNames.OPS);
     result.put("message", LISTING_IS_NOT_A_BINDING);
@@ -301,7 +301,7 @@ public class CatalogSystemReadTool {
   }
 
   private ObjectNode operationSummary(CatalogRestClient.OperationDto operation) {
-    ObjectNode summary = support.objectMapper.createObjectNode();
+    ObjectNode summary = support.createObjectNode();
     summary.put("id", operation.id());
     summary.put("name", operation.name());
     summary.put("method", operation.method());

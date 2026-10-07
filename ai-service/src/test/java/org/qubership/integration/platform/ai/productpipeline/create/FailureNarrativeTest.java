@@ -876,6 +876,36 @@ class FailureNarrativeTest {
   }
 
   @Test
+  void recoveryProjectsApprovedCatalogBindingsWithObservationTime() {
+    var decision = sampleRecoveryDecision();
+    var agent = FakeFailureNarrativeAgent.narrates("unused").recoverReturns(decision);
+    var original = sampleRecoveryContext();
+    var binding = new org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint(
+        "3", "call", "call", "create", "system", "group", "specification", "operation",
+        "http", "POST", "/items", "1", java.time.Instant.EPOCH, "catalog-evidence");
+    var context = new RecoveryContext(original.evidence(), original.approvedBrief().withCatalogBindings(List.of(binding)),
+        null, "en");
+    assertTrue(new FailureNarrative(agent).diagnoseRecovery("run-1", context).decision() != null);
+    assertTrue(agent.lastRecoveryContextJson.get().contains("observedAt"));
+  }
+
+  @Test
+  void oversizedRecoveryContextUsesTheExistingFallbackWithoutSpendingAModelCall() {
+    var decision = sampleRecoveryDecision();
+    var agent = FakeFailureNarrativeAgent.narrates("unused").recoverReturns(decision);
+    var narrative = new FailureNarrative(agent, 1, null);
+    var original = sampleRecoveryContext();
+    var oversizedBrief = original.approvedBrief().withApprovedDraftText("x".repeat(120_000));
+    var context = new RecoveryContext(original.evidence(), oversizedBrief, null, "en");
+
+    assertTrue(narrative.diagnoseRecovery("run-1", context).decision() == null);
+    assertEquals(0, agent.calls.get());
+    assertEquals(oversizedBrief, context.approvedBrief());
+    assertTrue(narrative.diagnoseRecovery("run-1", original).decision() != null);
+    assertEquals(1, agent.calls.get());
+  }
+
+  @Test
   void recoverIsEmptyWhenTheTurnFails() {
     RecoveryDecision decision = sampleRecoveryDecision();
     assertTrue(
@@ -889,9 +919,42 @@ class FailureNarrativeTest {
             .isEmpty());
   }
 
+  @Test
+  void structuredDiagnosisRetainsTheFailureStatus() {
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    var narrative = new FailureNarrative(agent);
+    assertEquals(FailureNarrative.RecoveryStatus.AGENT_UNAVAILABLE,
+        new FailureNarrative().diagnoseRecovery("run", sampleRecoveryContext()).status());
+    assertEquals(FailureNarrative.RecoveryStatus.DIAGNOSIS_LIMIT,
+        new FailureNarrative(agent, 0, null).diagnoseRecovery("run", sampleRecoveryContext()).status());
+    assertEquals(FailureNarrative.RecoveryStatus.PROJECTION_FAILURE,
+        narrative.diagnoseRecovery("run", null).status());
+    assertEquals(FailureNarrative.RecoveryStatus.INVALID_REPLY,
+        narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString())).thenThrow(new dev.langchain4j.exception.AuthenticationException("Invalid credential"));
+    assertEquals(FailureNarrative.RecoveryStatus.PERMANENT_PROVIDER_FAILURE,
+        narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
+    org.mockito.Mockito.doThrow(new org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.Exhausted("No request credit"))
+        .when(agent).recover(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+    assertEquals(FailureNarrative.RecoveryStatus.RESOURCE_REFUSAL,
+        narrative.diagnoseRecovery("run", sampleRecoveryContext()).status());
+  }
+
+  @Test
+  void aHandshakeWrappingATimeoutRemainsATransientDiagnosisFailure() {
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    var handshake = new javax.net.ssl.SSLHandshakeException("Handshake interrupted");
+    handshake.initCause(new java.net.SocketTimeoutException("Connection timed out"));
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString())).thenThrow(new IllegalStateException(handshake));
+    assertEquals(FailureNarrative.RecoveryStatus.TRANSIENT_PROVIDER_FAILURE,
+        new FailureNarrative(agent).diagnoseRecovery("run", sampleRecoveryContext()).status());
+  }
+
   private static Optional<RecoveryDecision> recover(
       FailureNarrative narrative, String runId, RecoveryDecision ignored) {
-    return narrative.recover(runId, sampleRecoveryContext());
+    return Optional.ofNullable(narrative.diagnoseRecovery(runId, sampleRecoveryContext()).decision());
   }
 
   private static RecoveryContext sampleRecoveryContext() {

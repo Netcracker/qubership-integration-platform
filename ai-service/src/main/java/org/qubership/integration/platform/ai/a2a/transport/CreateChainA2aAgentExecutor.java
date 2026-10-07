@@ -237,11 +237,20 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
 
     Optional<CreateChainExecutionSnapshot> priorSnapshot =
         isNew ? Optional.empty() : facade.snapshot(taskId);
+    var savedReceipt = receiptRepository.findCallerReceipt(caller.tenantId(), caller.subjectId(), message.messageId());
+    command = A2aInboundMessageParser.resolveSavedCommand(command, savedReceipt.orElse(null));
     // The receipt, the fingerprint, and the resume evidence are all keyed by command kind, so a
     // text approval has to become an approve command here, before the claim, rather than while
     // dispatching.
     if (!activateExactApproval(context)) {
       command = resolveTextApproval(command, priorSnapshot);
+    }
+    if (command instanceof InboundCommand.Approve && operation != TaskOperation.APPROVE && !isNew) {
+      try {
+        accessPolicy.check(caller, TaskOperation.APPROVE, new TaskIdentity(taskId, contextId));
+      } catch (TaskAccessDeniedException denied) {
+        throw A2aProtocolErrorMapper.fromAccessDenied(denied);
+      }
     }
 
     A2aClientCorrelationCarrier.Holder clientIds =
@@ -278,7 +287,8 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
                 fingerprint,
                 commandKind,
                 taskId,
-                preconditionRevision);
+                preconditionRevision,
+                A2aInboundMessageParser.commandPayload(command));
       }
 
       if (claim instanceof A2aCallerMessageClaimResult.FingerprintConflict conflict) {
@@ -329,7 +339,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
         renewLease(caller, message.messageId(), acquisition.ownerToken());
         ensureOwnership(ownershipLost);
 
-        ProjectedTask projected =
+        PersistResult persisted =
             dispatchIncremental(
                 taskId,
                 contextId,
@@ -345,8 +355,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
                 commandId);
 
         ensureOwnership(ownershipLost);
-        long revision =
-            projected.snapshot() == null ? 1L : Math.max(1L, projected.snapshot().revision());
+        long revision = persisted.durableRevision();
         receiptRepository.completeDispatch(
             caller.tenantId(),
             caller.subjectId(),
@@ -547,7 +556,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
         null);
   }
 
-  private ProjectedTask dispatchIncremental(
+  private PersistResult dispatchIncremental(
       String taskId,
       String contextId,
       CallerContext caller,
@@ -573,7 +582,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
         null);
   }
 
-  private ProjectedTask dispatchIncremental(
+  private PersistResult dispatchIncremental(
       String taskId,
       String contextId,
       CallerContext caller,
@@ -630,7 +639,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
           PersistResult persisted =
               persister.persistAndBuildSdkTask(taskId, contextId, caller, projected, history);
           emitProjected(emitter, persisted, projected, false, true);
-          return projected;
+          return persisted;
         }
         throw A2aProtocolErrorMapper.fromApproveOutcome(outcome);
       }
@@ -718,7 +727,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     throw A2aProtocolErrorMapper.malformedStructuredData("Unsupported inbound command");
   }
 
-  private ProjectedTask consumeFacadeEvents(
+  private PersistResult consumeFacadeEvents(
       String taskId,
       String contextId,
       CallerContext caller,
@@ -743,7 +752,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
         new java.util.concurrent.atomic.AtomicReference<>());
   }
 
-  private ProjectedTask consumeFacadeEvents(
+  private PersistResult consumeFacadeEvents(
       String taskId,
       String contextId,
       CallerContext caller,
@@ -758,7 +767,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
           facadeSubscription)
       throws A2AError {
     List<CreateChainEvent> seen = new ArrayList<>();
-    AtomicReference<ProjectedTask> last = new AtomicReference<>();
+    AtomicReference<PersistResult> last = new AtomicReference<>();
     AtomicInteger emitCount = new AtomicInteger();
     AtomicInteger persistCount = new AtomicInteger();
     AtomicReference<Boolean> workingEmitted = new AtomicReference<>(false);
@@ -866,7 +875,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
                 && !TaskEventHub.closesStream(lastEmittedState.get());
         emitProjected(emitter, persisted, projected, emitAsNew, emitStatus);
         lastEmittedState.set(projected.state());
-        last.set(projected);
+        last.set(persisted);
         if (persists == 1) {
           checkCrash(A2aDispatchCrashGate.Point.AFTER_FIRST_PERSIST);
         }
@@ -915,19 +924,19 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
       throw new DispatchOwnershipLostException("Dispatch ownership lost during active execution");
     }
 
-    ProjectedTask projected = last.get();
-    if (projected == null) {
+    PersistResult persisted = last.get();
+    if (persisted == null) {
       ensureOwnership(ownershipLost);
       CreateChainExecutionSnapshot snapshot =
           facade
               .snapshot(taskId)
               .orElseThrow(() -> new IllegalStateException("missing snapshot after empty Multi"));
-      projected = CreateChainA2aStateMapper.project(snapshot, seen);
-      PersistResult persisted =
+      ProjectedTask projected = CreateChainA2aStateMapper.project(snapshot, seen);
+      persisted =
           persister.persistAndBuildSdkTask(taskId, contextId, caller, projected, history);
       emitProjected(emitter, persisted, projected, isNew, true);
     }
-    return projected;
+    return persisted;
   }
 
   private static CreateChainExecutionSnapshot snapshotFromEvents(
@@ -967,7 +976,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
    * <p>An open stream carries no error frame, and input the agent cannot act on is not an execution
    * failure. The Task stays interrupted with the reason attached, so the caller can answer again.
    */
-  private ProjectedTask refuseAndKeepWaiting(
+  private PersistResult refuseAndKeepWaiting(
       String taskId,
       String contextId,
       CallerContext caller,
@@ -979,7 +988,7 @@ public final class CreateChainA2aAgentExecutor implements AgentExecutor {
     PersistResult persisted =
         persister.persistAndBuildSdkTask(taskId, contextId, caller, projected, history);
     emitProjected(emitter, persisted, projected, false, true);
-    return projected;
+    return persisted;
   }
 
   /**

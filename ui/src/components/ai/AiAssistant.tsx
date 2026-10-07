@@ -170,6 +170,7 @@ export const AiAssistant: React.FC = () => {
   const inputRef = React.useRef<TextAreaRef | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const sendInProgressRef = useRef(false);
+  const decisionReconciliationGenerationRef = useRef(0);
 
   const {
     scrollContainerRef,
@@ -328,6 +329,7 @@ export const AiAssistant: React.FC = () => {
       // Never project a durable gate onto an in-flight turn: startOrResume can leave a silent
       // WAITING_FOR_INPUT that openGate would otherwise paint as a clarify card while skills run.
       if (sendInProgressRef.current) return;
+      const generation = ++decisionReconciliationGenerationRef.current;
       let serverDecision: ChatDecision | null;
       try {
         serverDecision = await fetchOpenDecision(conversationId);
@@ -335,7 +337,11 @@ export const AiAssistant: React.FC = () => {
         console.warn("[AiAssistant] Failed to reconcile open decision", err);
         return;
       }
-      if (sendInProgressRef.current) return;
+      if (
+        sendInProgressRef.current ||
+        generation !== decisionReconciliationGenerationRef.current
+      )
+        return;
       const session = sessionStore.getSession(sessionId);
       if (!session) return;
       const reconciled = reconcileDecisionMessages(
@@ -351,12 +357,12 @@ export const AiAssistant: React.FC = () => {
   // Reconcile on mount (for the session the store restores) and whenever the
   // active session switches to one the server tracks a conversation for.
   useEffect(() => {
-    if (!currentSessionId) return;
+    if (!open || !currentSessionId) return;
     const conversationId =
       sessionStore.getSession(currentSessionId)?.conversationId;
     if (!conversationId) return;
     void reconcileOpenDecision(conversationId, currentSessionId);
-  }, [currentSessionId, sessionStore, reconcileOpenDecision]);
+  }, [open, currentSessionId, sessionStore, reconcileOpenDecision]);
 
   // ---------------------------------------------------------------------------
   // Chain context refresh
@@ -709,6 +715,7 @@ export const AiAssistant: React.FC = () => {
         );
         return;
       }
+      ++decisionReconciliationGenerationRef.current;
       sendInProgressRef.current = true;
 
       let aiProvider: AiModelProvider | null = null;
@@ -849,6 +856,10 @@ export const AiAssistant: React.FC = () => {
         setIsStreaming(false);
         abortControllerRef.current = null;
         sendInProgressRef.current = false;
+        await reconcileOpenDecision(
+          sessionStore.getSession(sessionId)?.conversationId,
+          sessionId,
+        );
       }
     },
     [
@@ -857,6 +868,7 @@ export const AiAssistant: React.FC = () => {
       refreshSessions,
       runStreamingChat,
       runChatWithProgress,
+      reconcileOpenDecision,
     ],
   );
 

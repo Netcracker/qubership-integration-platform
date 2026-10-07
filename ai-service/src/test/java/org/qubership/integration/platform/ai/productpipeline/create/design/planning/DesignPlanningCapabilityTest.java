@@ -277,6 +277,24 @@ class DesignPlanningCapabilityTest {
   }
 
   @Test
+  void plannerContextRefusalsKeepTechnicalClassificationAndOverflowEvidence() {
+    for (RuntimeException failure : List.of(
+        new org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.Overflow("local packet"),
+        new dev.langchain4j.exception.HttpException(400, "{\"error\":{\"code\":\"context_length_exceeded\"}}"))) {
+      var planner = new CipDesignPlannerAdapter(
+          (conversationId, skillId, input, formatFailure, repairEvidence, pinnedSkillHash) -> { throw failure; },
+          new CipDesignPlannerReportParser());
+      var capability = new DesignPlanningCapability(planner, new DesignPlanProjector(),
+          new DesignImplementationPlanRenderer(), artifactStore);
+      StageOutcome outcome = capability.execute(sampleContext()).collect().asList().await().indefinitely().stream()
+          .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+          .findFirst().orElseThrow().outcome();
+      assertEquals(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, outcome.outcomeClass());
+      assertTrue(outcome.recoveryCause().findings().stream().anyMatch(finding -> "LLM_CONTEXT_OVERFLOW".equals(finding.code())));
+    }
+  }
+
+  @Test
   void cleanRebuildRetainsDiagnosisInAFreshPlannerConversation() {
     AtomicReference<Optional<String>> seenRepairEvidence = new AtomicReference<>();
     AtomicReference<String> seenConversation = new AtomicReference<>();

@@ -251,6 +251,24 @@ describe("HttpAiModelProvider streamChat() request body", () => {
     expect(body.decision).toEqual({ action: "request-changes", comment: "" });
   });
 
+  it("should bind Continue repair to the current revision and the same conversation", async () => {
+    const fetchMock = mockEmptyStreamResponse();
+    const provider = new HttpAiModelProvider("https://ai.example.com");
+    await provider.streamChat(
+      {
+        conversationId: "conversation-recovery-1",
+        messages: buildMessages(),
+        decision: { action: "continue-repair", revision: 19 },
+      },
+      () => {},
+    );
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(body.conversationId).toBe("conversation-recovery-1");
+    expect(body.decision).toEqual({ action: "continue-repair", revision: 19 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("should drop IMPLEMENT_CHAIN on the SSE POST when a chain is open", async () => {
     const fetchMock = mockEmptyStreamResponse();
     const provider = new HttpAiModelProvider("https://ai.example.com");

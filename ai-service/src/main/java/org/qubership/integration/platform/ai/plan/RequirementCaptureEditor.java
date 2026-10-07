@@ -157,7 +157,14 @@ public final class RequirementCaptureEditor {
             facts,
             capabilities,
             questions,
-            update.settings() == null ? accepted.settings() : update.settings());
+            update.settings() == null ? accepted.settings()
+                : new RequirementCaptureInput.DraftSettings(
+                    update.settings().idsRequested() == null
+                        ? accepted.settings().idsRequested() : update.settings().idsRequested(),
+                    update.settings().preferredSystemType() == null
+                        ? accepted.settings().preferredSystemType() : update.settings().preferredSystemType(),
+                    update.settings().targetFolderPath() == null
+                        ? accepted.settings().targetFolderPath() : update.settings().targetFolderPath()));
     issues.addAll(validate(candidate));
     issues.addAll(validatePolicyResponses(accepted, candidate, fact -> true));
     return new EditResult(
@@ -654,9 +661,15 @@ public final class RequirementCaptureEditor {
             "An inline hook is script behavior on its owner, without a display name or standalone properties.");
       }
       if (chain && (intent.ownerInteractionId() != null || !intent.requestedProperties().isEmpty()
-          || intent.successorElementRef() != null || intent.predecessorElementRef() != null)) {
+          || intent.successorElementRef() != null || intent.predecessorElementRef() != null
+          || intent.parentElementRef() != null)) {
         add(issues, "INVALID_CHAIN_INTENT", path, fact.sourceFactId(),
             "Chain intent records the exact chain name and has no element owner or configuration.");
+      }
+      if (intent.parentElementRef() != null
+          && intent.placement() != RequirementElementIntent.Placement.LOCAL_NODE) {
+        add(issues, "INVALID_ELEMENT_PARENT", path + "/parentElementRef", fact.sourceFactId(),
+            "Only a local element may request a containing element; anchors and inline hooks keep their existing owner.");
       }
       if (chain && conflictingValue(chainName, intent.requestedName())) {
         add(issues, "CONFLICTING_ELEMENT_INTENT", path, fact.sourceFactId(),
@@ -672,6 +685,7 @@ public final class RequirementCaptureEditor {
           || conflictingValue(prior.requestedName(), intent.requestedName())
           || conflictingValue(prior.successorElementRef(), intent.successorElementRef())
           || conflictingValue(prior.predecessorElementRef(), intent.predecessorElementRef())
+          || conflictingValue(prior.parentElementRef(), intent.parentElementRef())
           || prior.requestedProperties().stream().anyMatch(property -> intent.requestedProperties().stream()
               .anyMatch(other -> property != null && other != null && property.key().equals(other.key())
                   && !Objects.equals(property.value(), other.value()))))) {
@@ -681,7 +695,8 @@ public final class RequirementCaptureEditor {
       priors.add(intent);
     }
     for (var intent : intents.values().stream().flatMap(List::stream).toList()) {
-      for (String ref : new String[] {intent.successorElementRef(), intent.predecessorElementRef()}) {
+      for (String ref : new String[] {
+          intent.successorElementRef(), intent.predecessorElementRef(), intent.parentElementRef()}) {
         if (ref != null && (!intents.containsKey(ref) && !interactions.contains(ref)
             || ref.equals(intent.elementRef()))) {
           add(issues, "UNKNOWN_ELEMENT_REFERENCE", "/draft/facts/elementIntent", intent.elementRef(),

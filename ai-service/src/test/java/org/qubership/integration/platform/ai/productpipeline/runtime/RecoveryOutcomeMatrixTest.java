@@ -128,8 +128,14 @@ class RecoveryOutcomeMatrixTest {
 
   @Test
   void unclassifiedHaltOffersOnlyEndRun() {
-    haltSingleStage(
-        StageOutcomeClass.VALIDATION_FAILURE, "invalid plan", new RetryPolicy(0, 1L));
+    var profile = retryProfile("work", "fail-cap", new RetryPolicy(0, 1L), "PLAN_APPROVED");
+    var unsupported = capability("fail-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "Unsupported runtime element",
+            org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause.of(
+                org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.DOMAIN_FAILURE)))));
+    var runtime = newRuntime(new FailureNarrative(), profile, unsupported);
+    startAndRecordInput(runtime, profile);
+    execute(runtime, "work");
 
     RecoveryOutcomeTelemetry.Event presented = presented();
     assertEquals("unclassified-failure", presented.category());
@@ -153,17 +159,7 @@ class RecoveryOutcomeMatrixTest {
     ProductPipelineProfile profile =
         retryProfile("work", "fail-cap", new RetryPolicy(1, 1L), "PLAN_APPROVED");
     startAndRecordInput(runtime, profile);
-    var first = execute(runtime, "work");
-    if (first.decision() instanceof StageDecision.Retry) {
-      runtime
-          .support()
-          .applyStageLifecycle(RUN_ID, first)
-          .collect()
-          .asList()
-          .await()
-          .indefinitely();
-      execute(runtime, "work");
-    }
+    exhaustAutomaticCorrections(runtime, "work");
 
     RecoveryOutcomeTelemetry.Event presented = presented();
     assertEquals("repeated-identical-failure", presented.category());
@@ -247,15 +243,11 @@ class RecoveryOutcomeMatrixTest {
             designInputContractShapeFailure());
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
-    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-input").decision());
-    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "design-input").decision());
-    execute(runtime, "design-input");
+    exhaustAutomaticCorrections(runtime, "design-input");
 
     RecoveryOutcomeTelemetry.Event presented = presented();
-    assertEquals("design-artifact-defect", presented.category());
-    assertEquals(
-        List.of(ChatEvent.REBUILD_DESIGN_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
-        presented.offeredActions());
+    assertEquals("repair-allowance-required", presented.category());
+    assertEquals(List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), presented.offeredActions());
     assertFalse(presented.offeredActions().contains("submit"));
     assertFalse(presented.offeredActions().contains("design-input"));
     endRun(runtime);
@@ -265,7 +257,7 @@ class RecoveryOutcomeMatrixTest {
   }
 
   @Test
-  void regeneratableExecutionOffersRetryCreation() {
+  void regeneratableExecutionRetriesBeforeOfferingAuthorActions() {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
     CreateChainTestOrchestrator runtime =
@@ -279,13 +271,11 @@ class RecoveryOutcomeMatrixTest {
     approveStage(runtime, "requirement-analysis");
     approveStage(runtime, "design-planning");
     agent.recoverRegenerates(Kind.PLAN_VALIDATION_RESULT, "Regenerate the rejected artifact.");
-    execute(runtime, "design-execution");
+    exhaustAutomaticCorrections(runtime, "design-execution");
 
     RecoveryOutcomeTelemetry.Event presented = presented();
-    assertEquals("regeneratable-execution-failure", presented.category());
-    assertEquals(
-        List.of(ChatEvent.RETRY_CREATION_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION),
-        presented.offeredActions());
+    assertEquals("repair-allowance-required", presented.category());
+    assertEquals(List.of(PipelineGates.CONTINUE_REPAIR_ACTION, PipelineGates.STOP_WITH_REPORT_ACTION), presented.offeredActions());
     assertFalse(presented.offeredActions().contains("design-execution"));
     endRun(runtime);
     assertEquals(
@@ -508,6 +498,17 @@ class RecoveryOutcomeMatrixTest {
         .asList()
         .await()
         .indefinitely();
+  }
+
+  private void exhaustAutomaticCorrections(CreateChainTestOrchestrator runtime, String stageId) {
+    for (int invocation = 0; invocation < 5; invocation++) {
+      var result = execute(runtime, stageId);
+      if (result.decision() instanceof StageDecision.WaitForInput) { return; }
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      assertTrue(telemetry.events().stream().noneMatch(event -> RecoveryOutcomeTelemetry.KIND_PRESENTED.equals(event.kind())));
+      runtime.support().applyStageLifecycle(RUN_ID, result).collect().asList().await().indefinitely();
+    }
+    org.junit.jupiter.api.Assertions.fail("Repair allowance must pause after the original invocation and four corrections");
   }
 
   private RecoveryOutcomeTelemetry.Event presented() {

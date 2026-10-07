@@ -32,10 +32,14 @@ public record SemanticRecoveryState(
   }
 
   /** Remaining automatic recovery attempts for this defect, sourced from the recovery attempt ledger. */
-  public record RemainingAttempts(int semanticRepairsRemaining, int causalReopensRemaining) {
+  public record RemainingAttempts(int semanticRepairsRemaining, int causalReopensRemaining, int cleanRebuildsRemaining) {
+
+    public RemainingAttempts(int semanticRepairsRemaining, int causalReopensRemaining) {
+      this(semanticRepairsRemaining, causalReopensRemaining, 0);
+    }
 
     public static RemainingAttempts none() {
-      return new RemainingAttempts(0, 0);
+      return new RemainingAttempts(0, 0, 0);
     }
   }
 

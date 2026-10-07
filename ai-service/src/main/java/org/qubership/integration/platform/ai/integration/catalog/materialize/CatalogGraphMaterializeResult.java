@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.ai.integration.catalog.materialize;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -18,7 +19,26 @@ public record CatalogGraphMaterializeResult(
     List<ChainPlanEdge> recreatableEdges,
     List<CompletedTransfer> completedTransfers,
     List<String> adoptedGeneratedCatalogIds,
-    boolean noOp) {
+    boolean noOp,
+    @JsonIgnore RuntimeException failureCause) {
+
+  public CatalogGraphMaterializeResult(
+      MaterializationMap materializationMap,
+      List<String> changedNodeIds,
+      List<String> failedNodeIds,
+      String error,
+      List<String> removedElementIds,
+      List<String> createdNodeIds,
+      Map<String, Set<String>> changedKeysByNodeId,
+      List<ChainPlanEdge> createdEdges,
+      List<ChainPlanEdge> recreatableEdges,
+      List<CompletedTransfer> completedTransfers,
+      List<String> adoptedGeneratedCatalogIds,
+      boolean noOp) {
+    this(materializationMap, changedNodeIds, failedNodeIds, error, removedElementIds, createdNodeIds,
+        changedKeysByNodeId, createdEdges, recreatableEdges, completedTransfers, adoptedGeneratedCatalogIds,
+        noOp, null);
+  }
 
   public CatalogGraphMaterializeResult {
     changedNodeIds = changedNodeIds == null ? List.of() : List.copyOf(changedNodeIds);

@@ -265,7 +265,8 @@ class MappingQueryLookupTest {
   }
 
   private static RequirementBrief requestMappedAndResponseSkippedBrief() {
-    return MappingGapCoverage.skipUncovered(requestOnlyRockyBrief());
+    return requestOnlyRockyBrief()
+        .withSkippedTransitions(List.of(new Transition("create-task", "task-result")));
   }
 
   private static RequirementBrief briefWithUnresolvedStatus() {

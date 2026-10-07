@@ -37,8 +37,12 @@ class ChainSemanticDesignAgentTest {
   @ParameterizedTest
   @ValueSource(strings = {"Chain semantic revision captured.", "Invalid revision: missing region"})
   void captureReturnsToTheRuntimeWithoutAnotherModelCall(String captureResult) throws Exception {
-    String arguments = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(
-        java.util.Map.of("capture", ChainSemanticCaptureFixtures.rockyCapture()));
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+    var capture = mapper.valueToTree(ChainSemanticCaptureFixtures.rockyCapture());
+    for (var edge : capture.path("edges")) {
+      ((com.fasterxml.jackson.databind.node.ObjectNode) edge).put("routeKind", "SEQUENCE");
+    }
+    String arguments = mapper.writeValueAsString(java.util.Map.of("capture", capture));
     AtomicInteger calls = new AtomicInteger();
     when(model.supportedCapabilities()).thenReturn(Set.of(
         dev.langchain4j.model.chat.Capability.RESPONSE_FORMAT_JSON_SCHEMA));

@@ -68,8 +68,7 @@ public class ProvidedIdsFlowTasks {
     }
     runSupport.ensureDurablePinsLoaded(input.runId());
     String stageId = runSupport.currentStageId(input.runId());
-    int used = input.technicalRetriesUsed() == null ? 0 : input.technicalRetriesUsed();
-    runSupport.restoreTechnicalRetryCount(input.runId(), stageId, used);
+    int used = runSupport.restoreTechnicalRetryCount(input.runId(), stageId);
     StageExecutionResult result;
     List<PipelineSignal> lifecycle;
     try {
@@ -99,11 +98,18 @@ public class ProvidedIdsFlowTasks {
 
   public ProvidedIdsFlow.RunContext restoreAfterInput(Object payload) {
     ProvidedIdsFlow.RunContext restored = restoreContext(payload);
-    String decision = restored.decision() == null ? CONTINUE : restored.decision();
+    // An event may arrive again after the run reaches a later human gate.
+    String decision = ProvidedIdsFlow.decisionFrom(runSupport.currentRunSnapshot(restored.runId()));
     ProvidedIdsFlow.RunContext next = restored.withDecision(decision);
     contextByRun.put(next.runId(), next);
     markSettled(next.runId(), decision);
     return next;
+  }
+
+  /** A saved listen is stale when an accepted command has already advanced the run. */
+  public boolean stillWaiting(ProvidedIdsFlow.RunContext input) {
+    return input.decision().equals(
+        ProvidedIdsFlow.decisionFrom(runSupport.currentRunSnapshot(input.runId())));
   }
 
   /** Releases a prepared child only after its conversation-pointer CAS succeeds. */
@@ -142,7 +148,9 @@ public class ProvidedIdsFlowTasks {
   }
 
   boolean settled(String runId) {
-    return settledRuns.containsKey(runId);
+    return settledRuns.containsKey(runId)
+        && runSupport.currentRunSnapshot(runId).status()
+            != org.qubership.integration.platform.ai.productpipeline.store.RunStatus.RUNNING;
   }
 
   private void markSettled(String runId, String decision) {
@@ -249,8 +257,10 @@ public class ProvidedIdsFlowTasks {
       RetryPolicy retryPolicy) {
     if (decision instanceof StageDecision.Retry retry) {
       return input.withRetry(
-          Duration.ofMillis(nextDelayMs(retry.delay().toMillis(), retryPolicy, usedBeforeAttempt)),
-          usedBeforeAttempt + 1);
+          retry.technicalRetry()
+              ? Duration.ofMillis(nextDelayMs(retry.delay().toMillis(), retryPolicy, usedBeforeAttempt))
+              : retry.delay(),
+          usedBeforeAttempt + (retry.technicalRetry() ? 1 : 0));
     }
     return input.withDecision(decisionName(decision));
   }

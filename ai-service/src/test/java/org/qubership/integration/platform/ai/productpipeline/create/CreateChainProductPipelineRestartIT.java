@@ -313,6 +313,30 @@ class CreateChainProductPipelineRestartIT {
     assertEquals(0, elementCreates.get());
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = MaterializationPhase.class,
+      names = {"ELEMENTS", "READ_BACK", "RECONCILE", "COMPLETE"})
+  void everyResumedCompletionPhaseRejectsUnapprovedCatalogExecution(MaterializationPhase phase) {
+    seedElementsCheckpoint(phase);
+    var expected = matchingFacts();
+    var elements = new java.util.ArrayList<>(expected.elements());
+    elements.add(new ChainCatalogElement("unapproved-script", "script", "Unapproved", null, Map.of()));
+    var dependencies = new java.util.ArrayList<>(expected.dependencies());
+    dependencies.add(new ChainCatalogDependency("catalog-script-1", "unapproved-script"));
+    when(factsService.load("catalog-chain-1")).thenReturn(new ChainCatalogFacts(expected.chainId(),
+        expected.chainName(), expected.chainDescription(), elements.size(), dependencies.size(), "",
+        elements, dependencies, expected.lifecycleStatus()));
+    var prepared = appendHappyPathInputs();
+    var outcome = completed(materializationCapability().execute(materializationContext(prepared))).outcome();
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, outcome.outcomeClass());
+    var reconcile = outcome.candidates().stream().filter(candidate -> candidate.kind() == Kind.RECONCILE_RESULT)
+        .map(candidate -> (ReconcileResult) candidate.payload()).findFirst().orElseThrow();
+    assertTrue(reconcile.chainMismatches().contains("unexpectedElement:unapproved-script"));
+    assertTrue(reconcile.chainMismatches().contains("unexpectedDependency:catalog-script-1->unapproved-script"));
+    verify(catalog, never()).resolveOrCreateChain(anyString(), anyString(), any(), any());
+    verify(catalog, never()).applyGraph(any(), any(), any());
+  }
+
   @Test
   void resumesFromNodeIdOnlyCheckpointAndRebuildsOwnershipOnApply() {
     stubCatalogHappyPath();
@@ -473,6 +497,10 @@ class CreateChainProductPipelineRestartIT {
   }
 
   private void seedElementsCheckpoint() {
+    seedElementsCheckpoint(MaterializationPhase.ELEMENTS);
+  }
+
+  private void seedElementsCheckpoint(MaterializationPhase phase) {
     MaterializationMap map =
         new MaterializationMap(
             "catalog-chain-1",
@@ -485,7 +513,7 @@ class CreateChainProductPipelineRestartIT {
             MaterializationCapability.CAPABILITY_ID,
             "1",
             new MaterializationCheckpoint(
-                1, RUN_ID, "catalog-chain-1", MaterializationPhase.ELEMENTS, map, null, Map.of()),
+                1, RUN_ID, "catalog-chain-1", phase, map, null, Map.of()),
             List.of(),
             null,
             provenance()));
@@ -618,7 +646,7 @@ class CreateChainProductPipelineRestartIT {
                 "script-1",
                 "script",
                 "Script",
-                "trigger-1",
+                null,
                 null,
                 List.of(new PlanProperty("script", "return 200")))),
         List.of(new ChainPlanEdge("edge-1", "trigger-1", "script-1", null)));
@@ -638,7 +666,7 @@ class CreateChainProductPipelineRestartIT {
                 "catalog-script-1",
                 "script",
                 "Script",
-                "catalog-trigger-1",
+                null,
                 Map.of("script", "return 200"))),
         List.of(new ChainCatalogDependency("catalog-trigger-1", "catalog-script-1")),
         "built_in_catalog");

@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,6 +15,8 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationArchive;
+import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
@@ -22,6 +25,65 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementServiceCall;
 
 class RequirementDraftStoreLifecycleTest {
+
+  @Test
+  void failedProtectionWriteCanRetryWithoutLosingItsFacts() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = org.mockito.Mockito.spy(new InMemoryArtifactBlobStore());
+    var failOnce = new java.util.concurrent.atomic.AtomicBoolean(true);
+    org.mockito.Mockito.doAnswer(invocation -> {
+      byte[] content = invocation.getArgument(1);
+      var value = mapper.readTree(content);
+      if (value.path("kind").asText().equals("REQUIREMENT_CAPTURE_PROTECTION") && failOnce.getAndSet(false)) {
+        throw new IllegalStateException("protection write unavailable");
+      }
+      return invocation.callRealMethod();
+    }).when(blobs).put(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    var first = runtime(blobs).store();
+    String text = "Create one task.";
+    first.beginTurn("chat", text);
+    var fact = new RequirementCaptureInput.FactInput("goal", List.of(),
+        RequirementCaptureInput.FactKind.GOAL, RequirementCaptureInput.Polarity.POSITIVE, text);
+
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+        () -> first.rememberRejectedCaptureFacts("chat", List.of(fact)));
+    first.rememberRejectedCaptureFacts("chat", List.of(fact));
+    var restored = runtime(blobs).store();
+    restored.beginTurn("chat", text);
+
+    assertEquals(List.of(fact), restored.rejectedCaptureFacts("chat"));
+  }
+
+  @Test
+  void authorSourceIdentityKeepsRepairProtectionAndDistinguishesIdenticalNewMessages() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = org.mockito.Mockito.mock(ConversationService.class);
+    org.mockito.Mockito.when(conversations.archive()).thenReturn(archive);
+    var store = new RequirementDraftStore(new CompilationArtifacts(blobs, mapper, Clock.systemUTC()),
+        new CompilationSessions(blobs, mapper, Clock.systemUTC()), conversations);
+    String authorText = "Create one task.";
+    var input = archive.beginInput("chat", authorText, null);
+    archive.resolveInput("chat", input, authorText);
+    store.beginTurn("chat", authorText);
+    var fact = new RequirementCaptureInput.FactInput("goal", List.of(),
+        RequirementCaptureInput.FactKind.GOAL, RequirementCaptureInput.Polarity.POSITIVE, authorText);
+    store.rememberRejectedCaptureFacts("chat", List.of(fact));
+    store.markCaptured("chat");
+
+    store.beginTurn("chat", "Repair the generated draft.");
+
+    assertEquals(List.of(fact), store.rejectedCaptureFacts("chat"));
+    assertTrue(store.wasCapturedThisTurn("chat"));
+
+    var next = archive.beginInput("chat", authorText, null);
+    archive.resolveInput("chat", next, authorText);
+    store.beginTurn("chat", authorText);
+
+    assertTrue(store.rejectedCaptureFacts("chat").isEmpty());
+    assertFalse(store.wasCapturedThisTurn("chat"));
+  }
 
   @Test
   void beginTurnKeepsCaptureRejectionUntilPutOrClear() {

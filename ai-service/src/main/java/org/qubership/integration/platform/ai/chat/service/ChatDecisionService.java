@@ -475,6 +475,14 @@ public class ChatDecisionService {
       return openGateEvents(conversationId);
     }
     String pipelineAction = toPipelineAction(action);
+    if (PipelineGates.CONTINUE_REPAIR_ACTION.equals(action)) {
+      Optional<String> offer = facade.pendingRepairOffer(conversationId, open.get().revision());
+      if (offer.isEmpty()) {
+        return openGateEvents(conversationId);
+      }
+      pipelineAction = offer.get();
+    }
+    String boundAction = pipelineAction;
     return projectWithOpenGate(
             conversationId,
             facade.continueWithInput(
@@ -486,7 +494,7 @@ public class ChatDecisionService {
         .onCompletion()
         .ifEmpty()
         .switchTo(
-            () -> Multi.createFrom().item(ChatEvent.token(haltResumeProgress(pipelineAction))));
+            () -> Multi.createFrom().item(ChatEvent.token(haltResumeProgress(boundAction))));
   }
 
   /**

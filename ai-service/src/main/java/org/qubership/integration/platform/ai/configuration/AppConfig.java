@@ -158,8 +158,13 @@ public interface AppConfig {
 
     /** Automatic semantic repairs allowed for one attempt key. */
     @WithName("max-semantic-repairs")
-    @WithDefault("1")
+    @WithDefault("2")
     int maxSemanticRepairs();
+
+    /** Clean regenerations allowed after targeted correction credit is spent. */
+    @WithName("max-clean-rebuilds")
+    @WithDefault("2")
+    int maxCleanRebuilds();
 
     /** Automatic causal reopens allowed for one attempt key. */
     @WithName("max-causal-reopens")
@@ -305,6 +310,15 @@ public interface AppConfig {
   }
 
   interface LlmConfig {
+    @WithDefault("128")
+    int maxRequestsPerRun();
+
+    @WithDefault("2000000")
+    long maxTokensPerRun();
+
+    @WithDefault("PT15M")
+    java.time.Duration maxActiveTimePerRun();
+
     @WithDefault("131072")
     int contextTokens();
 

@@ -907,6 +907,9 @@ public class ChainPlanGraphValidator {
         errors.add("semantic edge " + edge.edgeId() + " is not represented");
       } else if (count > 1) {
         errors.add("semantic edge " + edge.edgeId() + " is represented more than once");
+      } else if (graph.edges().stream().filter(candidate -> edge.edgeId().equals(candidate.edgeId()))
+          .anyMatch(candidate -> !Objects.equals(edge.targetNodeId(), candidate.toNodeId()))) {
+        errors.add("semantic edge " + edge.edgeId() + " targets a different node");
       }
     }
   }

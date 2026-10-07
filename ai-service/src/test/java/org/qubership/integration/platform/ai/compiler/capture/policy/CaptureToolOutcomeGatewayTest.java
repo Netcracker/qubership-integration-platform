@@ -228,6 +228,49 @@ class CaptureToolOutcomeGatewayTest {
   }
 
   @Test
+  void requirementIssueWordingDoesNotResetItsBudget() {
+    String path = "/draft/facts/http-config/elementIntent/requestedProperties/method";
+    assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(
+        new CaptureToolOutcomeGateway.TypedIssue("INVALID_REQUESTED_PROPERTY", path, "Use a supported key."))));
+    assertTrue(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(
+        new CaptureToolOutcomeGateway.TypedIssue("INVALID_REQUESTED_PROPERTY", path, "Correct this property."))));
+  }
+
+  @Test
+  void structuredRequirementIssuesPreserveDistinctFactIds() {
+    var first = new CaptureToolOutcomeGateway.TypedIssue("INVALID_REQUESTED_PROPERTY",
+        "/draft/facts/fact-a/elementIntent/requestedProperties/method");
+    var second = new CaptureToolOutcomeGateway.TypedIssue("INVALID_REQUESTED_PROPERTY",
+        "/draft/facts/fact-A/elementIntent/requestedProperties/method");
+    assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(first)));
+    assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(second)));
+    assertTrue(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(second)));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"456", "draft", "flow", "changes"})
+  void numericAndWrapperNamedPropertyKeysKeepSeparateCredits(String propertyKey) {
+    String prefix = "/draft/facts/factA/elementIntent/requestedProperties/";
+    var first = new CaptureToolOutcomeGateway.TypedIssue("INVALID_REQUESTED_PROPERTY", prefix + "123", "", "factA");
+    var second = new CaptureToolOutcomeGateway.TypedIssue("INVALID_REQUESTED_PROPERTY", prefix + propertyKey, "", "factA");
+    assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(first)));
+    assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(second)));
+    assertTrue(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(second)));
+  }
+
+  @Test
+  void propertySpecificRequirementIssuesKeepIndependentCredits() {
+    var method = new CaptureToolOutcomeGateway.TypedIssue("INVALID_REQUESTED_PROPERTY",
+        "/draft/facts/http-config/elementIntent/requestedProperties/method");
+    var route = new CaptureToolOutcomeGateway.TypedIssue("INVALID_REQUESTED_PROPERTY",
+        "/draft/facts/http-config/elementIntent/requestedProperties/route");
+    assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(method)));
+    assertFalse(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(route)));
+    assertTrue(gateway.repeatedRequirementIssue("conv-1", "scope-1", List.of(route)));
+    assertEquals(2, fingerprintStore.softCreditsUsed("conv-1"));
+  }
+
+  @Test
   void requirementIssuesKeepTheirCreditAcrossEditsAndArrayPositions() {
     List<CaptureToolOutcomeGateway.TypedIssue> initial = List.of(
         new CaptureToolOutcomeGateway.TypedIssue(

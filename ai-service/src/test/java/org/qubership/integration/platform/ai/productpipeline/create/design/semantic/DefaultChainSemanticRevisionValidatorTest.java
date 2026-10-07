@@ -18,6 +18,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.ai.compiler.contract.ClasspathCompilerContractRepository;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.BriefMappingValidator;
@@ -38,6 +39,53 @@ class DefaultChainSemanticRevisionValidatorTest {
 
   private final ChainSemanticRevisionValidator validator =
       new DefaultChainSemanticRevisionValidator();
+
+  @Test
+  void containerProvenanceCanDescribeItsOwnBranchWork() {
+    ChainSemanticRevision base = syncSplitRevision();
+    var provenance = new SemanticProvenance(List.of("split-config"));
+    List<SemanticNode> nodes = base.nodes().stream().map(node -> switch (node) {
+      case SemanticNode.Operation operation when operation.nodeId().equals("split-1") ->
+          new SemanticNode.Operation(operation.nodeId(), operation.elementType(), provenance);
+      case SemanticNode.ServiceCall call -> new SemanticNode.ServiceCall(
+          call.nodeId(), call.serviceCallId(), call.operation(), call.failureMode(), provenance);
+      default -> node;
+    }).toList();
+    ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), List.of(), base.mappingIntents());
+    RequirementBrief brief = briefWithFact(splitConfigurationFact());
+
+    assertDoesNotThrow(() -> validator.validate(candidate, CONTRACT, brief));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {true, false})
+  void containerFactStillRequiresItsNamedOwnerAndRejectsUnrelatedContributors(boolean omitOwner) {
+    ChainSemanticRevision base = syncSplitRevision();
+    var provenance = new SemanticProvenance(List.of("split-config"));
+    List<SemanticNode> nodes = base.nodes().stream().map(node -> {
+      if (node instanceof SemanticNode.Operation operation
+          && (omitOwner ? operation.nodeId().equals("after-split")
+              : operation.nodeId().equals("split-1") || operation.nodeId().equals("after-split"))) {
+        return (SemanticNode) new SemanticNode.Operation(operation.nodeId(), operation.elementType(), provenance);
+      }
+      return node;
+    }).toList();
+    ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), base.containment(), base.mappingIntents());
+
+    var error = assertThrows(IllegalArgumentException.class,
+        () -> validator.validate(candidate, CONTRACT, briefWithFact(splitConfigurationFact())));
+    assertTrue(error.getMessage().contains("ELEMENT_INTENT_REALIZATION"), error.getMessage());
+  }
+
+  private static RequirementFact splitConfigurationFact() {
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent(
+        "split-1", "split-2", org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        null, null, null, "Split work", List.of(), List.of());
+    return new RequirementFact("split-config", RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", "Run both branches in a Split.", "", "", "", "", "", "", List.of(), null, intent);
+  }
 
   @ParameterizedTest(name = "{0}")
   @MethodSource("contractFailures")
@@ -208,6 +256,34 @@ class DefaultChainSemanticRevisionValidatorTest {
   @Test
   void acceptsStandaloneReuseSubtree() {
     assertDoesNotThrow(() -> validate(reuseRevision(true, false)));
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"reuse-container", "after-reuse", "missing-container"})
+  void nestedIntentRequiresItsDeclaredContainerWithoutAnExecutionEdge(String parentRef) {
+    ChainSemanticRevision base = reuseRevision(true, false);
+    List<SemanticNode> nodes = base.nodes().stream().map(node ->
+        node.nodeId().equals("reuse-body")
+            ? (SemanticNode) new SemanticNode.Operation("reuse-body", "header-modification",
+                new SemanticProvenance(List.of("nested-work")))
+            : node).toList();
+    ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), base.containment(), base.mappingIntents());
+    var intent = new org.qubership.integration.platform.ai.plan.RequirementElementIntent(
+        "reuse-body", "header-modification",
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE,
+        null, null, null, parentRef, "Nested work", List.of(), List.of());
+    var fact = new RequirementFact("nested-work", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.BEHAVIOR, "", "Perform the work inside Reuse.", "", "", "", "", "", "",
+        List.of(), null, intent);
+
+    if (parentRef.equals("reuse-container")) {
+      assertDoesNotThrow(() -> validator.validate(candidate, CONTRACT, briefWithFact(fact)));
+    } else {
+      var error = assertThrows(IllegalArgumentException.class,
+          () -> validator.validate(candidate, CONTRACT, briefWithFact(fact)));
+      assertTrue(error.getMessage().contains("ELEMENT_INTENT_PARENT"), error.getMessage());
+    }
   }
 
   @Test
@@ -444,6 +520,91 @@ class DefaultChainSemanticRevisionValidatorTest {
         assertThrows(IllegalArgumentException.class, () -> validate(revision));
 
     assertTrue(error.getMessage().contains("is not inside an ErrorScope try path"), error.getMessage());
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"ERROR_SCOPE", "INLINE_RESPONSE"})
+  void checksServiceCallFailureModeUsingDeclaredRegionMembership(String mode) {
+    ChainSemanticRevision base = errorScopeRevision("catch-all");
+    List<SemanticNode> nodes = base.nodes().stream().map(node ->
+        node.nodeId().equals("try-body")
+            ? (SemanticNode) new SemanticNode.ServiceCall("try-body", "call-1", "getOrder",
+                ServiceCallFailureMode.valueOf(mode), node.provenance())
+            : node).toList();
+    ChainSemanticRevision candidate = copy(base, base.entryPoints(), nodes, base.regions(),
+        base.executionEdges(), List.of(), base.mappingIntents());
+
+    if (ServiceCallFailureMode.ERROR_SCOPE.name().equals(mode)) {
+      assertDoesNotThrow(() -> validate(candidate));
+    } else {
+      IllegalArgumentException error = assertThrows(IllegalArgumentException.class, () -> validate(candidate));
+      assertTrue(error.getMessage().contains("is inside an ErrorScope but uses failureMode=INLINE_RESPONSE"),
+          error.getMessage());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void nestedRegionMembershipPreservesErrorScopeAncestryAfterASequenceStep(boolean callAfterLoop) {
+    ChainSemanticRevision base = errorScopeRevision("catch-all");
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(new SemanticNode.Operation("repeat", "loop-2", new SemanticProvenance(List.of())));
+    nodes.add(new SemanticNode.ServiceCall("nested-call", "call-1", "getOrder",
+        callAfterLoop ? ServiceCallFailureMode.PROPAGATE : ServiceCallFailureMode.ERROR_SCOPE,
+        new SemanticProvenance(List.of())));
+    nodes.add(callAfterLoop
+        ? new SemanticNode.ServiceCall("after-loop", "call-2", "getOrder",
+            ServiceCallFailureMode.ERROR_SCOPE, new SemanticProvenance(List.of()))
+        : new SemanticNode.Operation("after-loop", "script", new SemanticProvenance(List.of())));
+    List<SemanticRegion> regions = new ArrayList<>(base.regions());
+    regions.add(new SemanticRegion.Loop("loop-region", "repeat", "nested-call", List.of("nested-call"),
+        "after-loop", new LoopPolicy(LoopMode.DO_WHILE, "false", 1)));
+    List<SemanticExecutionEdge> edges = new ArrayList<>(base.executionEdges());
+    edges.add(sequence("to-repeat", "try-body", "repeat", null, null));
+    edges.add(new SemanticExecutionEdge("repeat-body", "repeat", "nested-call", "loop-region",
+        new SemanticRoute.LoopBody(), null));
+    edges.add(new SemanticExecutionEdge("repeat-exit", "nested-call", "after-loop", "loop-region",
+        new SemanticRoute.LoopExit(), null));
+
+    assertDoesNotThrow(() -> validate(copy(base, base.entryPoints(), nodes, regions, edges,
+        List.of(), base.mappingIntents())));
+  }
+
+  @Test
+  void errorScopeContinuationDoesNotInheritTheWrapperMembership() {
+    ChainSemanticRevision base = errorScopeRevision("catch-all");
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(new SemanticNode.ServiceCall("after-scope", "call-1", "getOrder",
+        ServiceCallFailureMode.ERROR_SCOPE, new SemanticProvenance(List.of())));
+    List<SemanticExecutionEdge> edges = new ArrayList<>(base.executionEdges());
+    edges.add(sequence("scope-continuation", "try-catch-1", "after-scope", null, null));
+
+    IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+        () -> validate(copy(base, base.entryPoints(), nodes, base.regions(), edges,
+            List.of(), base.mappingIntents())));
+    assertTrue(error.getMessage().contains("is not inside an ErrorScope try path"), error.getMessage());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void selfOwnedRetryPreservesOuterScopeInEitherRegionOrder(boolean retryFirst) {
+    ChainSemanticRevision base = errorScopeRevision("catch-all");
+    List<SemanticNode> nodes = new ArrayList<>(base.nodes());
+    nodes.add(new SemanticNode.ServiceCall("retry-call", "call-1", "getOrder",
+        ServiceCallFailureMode.ERROR_SCOPE, new SemanticProvenance(List.of())));
+    nodes.add(new SemanticNode.ServiceCall("after-retry", "call-2", "getOrder",
+        ServiceCallFailureMode.ERROR_SCOPE, new SemanticProvenance(List.of())));
+    SemanticRegion retry = new SemanticRegion.Retry("retry-region", "retry-call", "retry-call",
+        List.of("retry-call"), "after-retry", new RetryPolicy(3, 5000));
+    List<SemanticRegion> regions = new ArrayList<>(base.regions());
+    regions.add(retryFirst ? 0 : regions.size(), retry);
+    List<SemanticExecutionEdge> edges = new ArrayList<>(base.executionEdges());
+    edges.add(new SemanticExecutionEdge("retry-exit", "retry-call", "after-retry", "retry-region",
+        new SemanticRoute.RetryExhausted(), null));
+    edges.add(sequence("to-retry", "try-body", "retry-call", null, null));
+
+    assertDoesNotThrow(() -> validate(copy(base, base.entryPoints(), nodes, regions, edges,
+        List.of(), base.mappingIntents())));
   }
 
   @Test
