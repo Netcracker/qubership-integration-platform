@@ -5,7 +5,7 @@ export type QipSchemaType =
   | "CHAIN";
 
 export const CONF_MODEL_BASE_URL =
-  "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/";
+  "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/"; // NOSONAR - JSON Schema identifier, never fetched
 
 export const QIP_SCHEMA_URLS = {
   SPECIFICATION: `${CONF_MODEL_BASE_URL}specification`,
