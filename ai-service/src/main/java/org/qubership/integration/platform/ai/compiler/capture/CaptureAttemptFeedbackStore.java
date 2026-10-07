@@ -10,25 +10,43 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
 import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass;
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprintStore;
+import org.qubership.integration.platform.ai.compiler.capture.policy.CaptureToolOutcomeGateway.TypedIssue;
 
-/** In-memory store of the last capture failure per conversation (and capability for patches). */
+/** Stores capture feedback; requirement failures restore from immutable compiler artifacts. */
 @ApplicationScoped
 public class CaptureAttemptFeedbackStore {
 
   private static final Duration DEFAULT_CACHE_IDLE_TIMEOUT = Duration.ofHours(1);
 
   private final ConcurrentMap<String, CaptureAttemptFeedback> planFailures;
-  private final ConcurrentMap<String, CaptureAttemptFeedback> requirementFailures;
+  private final ConcurrentMap<String, RequirementRejection> requirementFailures;
   private final ConcurrentMap<String, String> planFailureFingerprints;
   private final ConcurrentMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>> patchFailures;
   private final ConcurrentMap<String, ConcurrentHashMap<String, CaptureAttemptFeedback>> validationFailures;
   private final ToolCallFingerprintStore fingerprintStore;
+  private final CompilationArtifacts artifacts;
+  private final CompilationSessions sessions;
 
   @Inject
+  public CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore, AppConfig appConfig,
+      CompilationArtifacts artifacts, CompilationSessions sessions) {
+    this(fingerprintStore, appConfig.capture().feedbackCacheIdleTimeout(), artifacts, sessions);
+  }
+
   public CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore, AppConfig appConfig) {
     this(fingerprintStore, appConfig.capture().feedbackCacheIdleTimeout());
+  }
+
+  public CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore,
+      CompilationArtifacts artifacts, CompilationSessions sessions) {
+    this(fingerprintStore, DEFAULT_CACHE_IDLE_TIMEOUT, artifacts, sessions);
   }
 
   public CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore) {
@@ -36,7 +54,14 @@ public class CaptureAttemptFeedbackStore {
   }
 
   CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore, Duration cacheIdleTimeout) {
+    this(fingerprintStore, cacheIdleTimeout, null, null);
+  }
+
+  private CaptureAttemptFeedbackStore(ToolCallFingerprintStore fingerprintStore, Duration cacheIdleTimeout,
+      CompilationArtifacts artifacts, CompilationSessions sessions) {
     this.fingerprintStore = fingerprintStore;
+    this.artifacts = artifacts;
+    this.sessions = sessions;
     this.planFailures = idleCache(cacheIdleTimeout);
     this.requirementFailures = idleCache(cacheIdleTimeout);
     this.planFailureFingerprints = idleCache(cacheIdleTimeout);
@@ -115,23 +140,57 @@ public class CaptureAttemptFeedbackStore {
       CaptureFailureKind kind,
       CaptureFailureClass failureClass,
       boolean outerAllowed,
-      String summary) {
+      String summary,
+      List<TypedIssue> issues) {
     if (conversationId == null || conversationId.isBlank()) {
       return;
     }
-    requirementFailures.put(conversationId,
-        new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed));
+    var rejection = new RequirementRejection(new CaptureAttemptFeedback(kind, summary, failureClass, outerAllowed),
+        List.copyOf(issues));
+    saveRequirementFeedback(conversationId, rejection);
+    requirementFailures.put(conversationId, rejection);
   }
 
   public Optional<CaptureAttemptFeedback> lastRequirementFailure(String conversationId) {
+    return lastRequirementRejection(conversationId).map(RequirementRejection::feedback);
+  }
+
+  public record RequirementRejection(CaptureAttemptFeedback feedback, List<TypedIssue> issues) {}
+
+  public Optional<RequirementRejection> lastRequirementRejection(String conversationId) {
+    if (conversationId == null || conversationId.isBlank()) {
+      return Optional.empty();
+    }
+    if (artifacts != null) {
+      return sessions.current(conversationId)
+          .flatMap(link -> artifacts.latest(link.compilationId(), Kind.REQUIREMENT_CAPTURE_FEEDBACK))
+          .map(revision -> artifacts.payload(revision, RequirementFeedback.class))
+          .map(RequirementFeedback::rejection);
+    }
     return Optional.ofNullable(requirementFailures.get(conversationId));
   }
 
   public void clearRequirement(String conversationId) {
     if (conversationId != null) {
+      if (artifacts != null && lastRequirementRejection(conversationId).isPresent()) {
+        saveRequirementFeedback(conversationId, null);
+      }
       requirementFailures.remove(conversationId);
     }
   }
+
+  private void saveRequirementFeedback(String conversationId, RequirementRejection rejection) {
+    if (artifacts == null) {
+      return;
+    }
+    String compilationId = sessions.active(conversationId);
+    var previous = artifacts.latest(compilationId, Kind.REQUIREMENT_CAPTURE_FEEDBACK);
+    artifacts.append(new AppendCommand(compilationId, Kind.REQUIREMENT_CAPTURE_FEEDBACK, "1",
+        "requirement-capture-feedback", "1", new RequirementFeedback(rejection), List.of(),
+        previous.map(Revision::artifactId).orElse(null)));
+  }
+
+  public record RequirementFeedback(RequirementRejection rejection) {}
 
   public void recordClassifiedPlanFailure(
       String conversationId,
@@ -337,7 +396,7 @@ public class CaptureAttemptFeedbackStore {
       return;
     }
     planFailures.remove(conversationId);
-    requirementFailures.remove(conversationId);
+    clearRequirement(conversationId);
     planFailureFingerprints.remove(conversationId);
     patchFailures.remove(conversationId);
     validationFailures.remove(conversationId);

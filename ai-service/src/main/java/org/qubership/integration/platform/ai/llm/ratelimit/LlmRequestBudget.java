@@ -2,6 +2,13 @@ package org.qubership.integration.platform.ai.llm.ratelimit;
 
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.request.DefaultChatRequestParameters;
+import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.ToolExecutionResultMessage;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.memory.QipJtokkitTokenCountEstimator;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
@@ -9,6 +16,10 @@ import org.qubership.integration.platform.ai.configuration.AppConfig;
 /** Checks complete model requests before transport retries can send them. */
 public final class LlmRequestBudget {
   private static final Logger LOG = Logger.getLogger(LlmRequestBudget.class);
+  private static final com.fasterxml.jackson.databind.ObjectMapper JSON = new com.fasterxml.jackson.databind.ObjectMapper();
+  private static final Set<String> REPLACEABLE_READS = Set.of("readRequirementDraft",
+      "searchCatalogSystems", "getApiSpecifications", "listCatalogOperations", "describeBoundOperation",
+      "describeElementPatchSchema", "describeElementProperty");
   public static final class Overflow extends IllegalArgumentException {
     public Overflow(String message) { super(message); }
   }
@@ -16,6 +27,16 @@ public final class LlmRequestBudget {
   public static boolean isOverflow(Throwable failure) {
     for (Throwable current = failure; current != null; current = current.getCause()) {
       if (current instanceof Overflow) { return true; }
+      if (current instanceof dev.langchain4j.exception.HttpException http
+          && (http.statusCode() == 400 || http.statusCode() == 413)) {
+        if (http.getMessage() == null) { continue; }
+        try {
+          var error = JSON.readTree(http.getMessage()).path("error");
+          if ("context_length_exceeded".equals(error.path("code").asText())) { return true; }
+        } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
+          // An unstructured provider error does not establish context overflow.
+        }
+      }
       if (current == current.getCause()) { break; }
     }
     return false;
@@ -41,6 +62,10 @@ public final class LlmRequestBudget {
     boolean analysis = tools != null && tools.stream().anyMatch(tool ->
         "captureRequirementBrief".equals(tool.name())
             && tool.parameters().properties().containsKey("capture"));
+    if (parameters.maxOutputTokens() == null) {
+      parameters = parameters.overrideWith(DefaultChatRequestParameters.builder().maxOutputTokens(8192).build());
+      request = request.toBuilder().parameters(parameters).build();
+    }
     if (analysis) {
       int ceiling = positive(config.analysisOutputTokens(), 4096);
       Integer existing = parameters.maxOutputTokens();
@@ -48,11 +73,15 @@ public final class LlmRequestBudget {
           .maxOutputTokens(existing == null ? ceiling : Math.min(existing, ceiling)).build());
       request = request.toBuilder().parameters(parameters).build();
     }
-    String packet = request.messages().toString() + "\n" + tools + "\n" + parameters.responseFormat();
-    // ponytail: CL100K estimates differ from provider tokenizers; reserve headroom before sending.
-    int inputTokens = estimator.estimateTokenCountInText(packet);
     int outputTokens = parameters.maxOutputTokens() == null ? 8192 : parameters.maxOutputTokens();
     int allowance = positive(config.contextTokens(), 131072);
+    if ((long) estimateInputTokens(request) + outputTokens
+        + positive(config.contextHeadroomTokens(), 8192) > allowance) {
+      request = rebuild(request);
+    }
+    String packet = packet(request);
+    // ponytail: CL100K estimates differ from provider tokenizers; reserve headroom before sending.
+    int inputTokens = estimator.estimateTokenCountInText(packet);
     long reserved = (long) inputTokens + outputTokens
         + positive(config.contextHeadroomTokens(), 8192);
     String hash = hash(packet);
@@ -63,6 +92,56 @@ public final class LlmRequestBudget {
           + inputTokens + ", output=" + outputTokens + ", context=" + allowance + ", hash=" + hash);
     }
     return request;
+  }
+
+  int estimateInputTokens(ChatRequest request) {
+    return estimator.estimateTokenCountInText(packet(request));
+  }
+
+  private static String packet(ChatRequest request) {
+    return request.messages() + "\n" + request.parameters().toolSpecifications()
+        + "\n" + request.parameters().responseFormat();
+  }
+
+  /** Retains the latest successful read for the same tool and exact arguments. Sources stay intact. */
+  ChatRequest rebuild(ChatRequest request) {
+    Map<String, String> keysByCall = new HashMap<>();
+    Map<String, ToolExecutionResultMessage> latest = new HashMap<>();
+    for (ChatMessage message : request.messages()) {
+      if (message instanceof AiMessage ai && ai.hasToolExecutionRequests()) {
+        for (var call : ai.toolExecutionRequests()) {
+          if (REPLACEABLE_READS.contains(call.name())) {
+            keysByCall.put(call.id(), call.name() + "\u0000" + call.arguments());
+          }
+        }
+      } else if (message instanceof ToolExecutionResultMessage result
+          && keysByCall.containsKey(result.id()) && successfulRead(result)) {
+        latest.put(keysByCall.get(result.id()), result);
+      }
+    }
+    var messages = new ArrayList<ChatMessage>(request.messages());
+    for (int i = 0; i < messages.size(); i++) {
+      if (!(messages.get(i) instanceof ToolExecutionResultMessage result)
+          || !successfulRead(result)) { continue; }
+      var replacement = latest.get(keysByCall.get(result.id()));
+      if (replacement == null || replacement == result) { continue; }
+      var marker = JSON.createObjectNode();
+      marker.put("supersededByToolResultId", replacement.id());
+      marker.put("instruction", "Use the later result for the same read. Author sources remain unchanged.");
+      messages.set(i, ToolExecutionResultMessage.builder().id(result.id()).toolName(result.toolName())
+          .text(marker.toString()).isError(result.isError()).attributes(result.attributes()).build());
+    }
+    return request.toBuilder().messages(messages).build();
+  }
+
+  private static boolean successfulRead(ToolExecutionResultMessage result) {
+    if (Boolean.TRUE.equals(result.isError())) { return false; }
+    try {
+      var value = JSON.readTree(result.text());
+      return value == null || !value.path("ok").isBoolean() || value.path("ok").asBoolean();
+    } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
+      return true;
+    }
   }
 
   static String hash(String packet) {

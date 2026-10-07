@@ -3,6 +3,11 @@ package org.qubership.integration.platform.ai.productpipeline.create.design.sema
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import java.util.List;
+import java.util.ArrayDeque;
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignArtifacts;
 
 /**
@@ -33,6 +38,105 @@ public sealed interface SemanticRegion
   String regionId();
 
   SemanticRegionKind kind();
+
+  default String ownerNodeId() {
+    return null;
+  }
+
+  /** Body work skips nested branch bodies and resumes at their declared continuation. */
+  default Set<String> bodyNodeIds(List<SemanticExecutionEdge> edges, List<SemanticRegion> regions) {
+    Map<String, List<String>> continuations = continuationsByOwner(regions, edges);
+    Set<String> entries = new LinkedHashSet<>();
+    Set<String> exits = new LinkedHashSet<>();
+    Set<String> outside = new LinkedHashSet<>();
+    switch (this) {
+      case Sequence ignored -> { return Set.of(); }
+      case Condition condition -> {
+        condition.branches().forEach(branch -> {
+          entries.add(branch.entryNodeId());
+          exits.addAll(branch.exitNodeIds());
+        });
+        outside.add(condition.reconvergenceNodeId());
+      }
+      case Split split -> {
+        split.branches().forEach(branch -> {
+          entries.add(branch.entryNodeId());
+          exits.addAll(branch.exitNodeIds());
+        });
+        outside.add(split.reconvergenceNodeId());
+      }
+      case Loop loop -> {
+        entries.add(loop.bodyEntryNodeId());
+        exits.addAll(loop.bodyExitNodeIds());
+        outside.add(loop.exitNodeId());
+      }
+      case Retry retry -> {
+        entries.add(retry.bodyEntryNodeId());
+        exits.addAll(retry.bodyExitNodeIds());
+        outside.add(retry.exhaustedNodeId());
+      }
+      case ErrorScope scope -> {
+        entries.add(scope.tryEntryNodeId());
+        if (scope.finallyEntryNodeId() != null) {
+          entries.add(scope.finallyEntryNodeId());
+        }
+        scope.handlers().forEach(handler -> {
+          entries.add(handler.entryNodeId());
+          exits.addAll(handler.exitNodeIds());
+        });
+        exits.addAll(scope.exitNodeIds());
+      }
+    }
+    Set<String> members = new LinkedHashSet<>();
+    ArrayDeque<String> pending = new ArrayDeque<>(entries);
+    while (!pending.isEmpty()) {
+      String nodeId = pending.removeFirst();
+      if (outside.contains(nodeId) || !members.add(nodeId) || exits.contains(nodeId)) {
+        continue;
+      }
+      if (continuations.containsKey(nodeId)) {
+        pending.addAll(continuations.get(nodeId));
+        continue;
+      }
+      for (SemanticExecutionEdge edge : edges) {
+        if (nodeId.equals(edge.sourceNodeId()) && edge.route() instanceof SemanticRoute.Sequence) {
+          pending.add(edge.targetNodeId());
+        }
+      }
+    }
+    members.remove(ownerNodeId());
+    return Set.copyOf(members);
+  }
+
+  /** A nested region's continuation belongs to its enclosing branch, not its own body. */
+  static Map<String, List<String>> continuationsByOwner(
+      List<SemanticRegion> regions, List<SemanticExecutionEdge> edges) {
+    Map<String, List<String>> continuations = new LinkedHashMap<>();
+    for (SemanticRegion region : regions) {
+      String owner = region.ownerNodeId();
+      if (owner == null) {
+        continue;
+      }
+      Set<String> targets = new LinkedHashSet<>();
+      String declared = switch (region) {
+        case Condition condition -> condition.reconvergenceNodeId();
+        case Split split -> split.mode() == SplitMode.SYNC ? split.reconvergenceNodeId() : null;
+        case Loop loop -> loop.exitNodeId();
+        case Retry retry -> retry.exhaustedNodeId();
+        default -> null;
+      };
+      if (declared != null) {
+        targets.add(declared);
+      }
+      for (SemanticExecutionEdge edge : edges) {
+        if (owner.equals(edge.sourceNodeId()) && edge.route() instanceof SemanticRoute.Sequence) {
+          targets.add(edge.targetNodeId());
+        }
+      }
+      continuations.put(owner, List.copyOf(targets));
+    }
+    return Map.copyOf(continuations);
+  }
 
   record Sequence(String regionId, SemanticRegionKind kind, List<String> memberNodeIds)
       implements SemanticRegion {

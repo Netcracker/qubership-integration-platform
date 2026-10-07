@@ -10,16 +10,15 @@ import io.serverlessworkflow.impl.events.EventPublisher;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
-import io.smallrye.mutiny.subscription.Cancellable;
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.productpipeline.create.orchestration.CreateChainOrchestrator;
@@ -235,18 +234,25 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
   }
 
   @Override
-  public Multi<PipelineSignal> acceptInput(AcceptInputCommand command) {
+  public Multi<PipelineSignal> acceptInput(AcceptInputCommand input) {
+    AcceptInputCommand command = ProductPipelineRunSupport.bindRepairOffer(input);
     ProductPipelineRunDocument document = requireRun(command.runId());
     rejectUnboundManualRun(document);
     boolean alreadyApplied =
         document.appliedCommand(command.commandId(), command.commandPayloadHash()).isPresent();
+    if (alreadyApplied && org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.CONTINUE_REPAIR_ACTION
+        .equals(org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.haltCardAction(command.text()))) {
+      return Multi.createFrom().empty();
+    }
     return resumeBoundInstance(
         runSupport.recordInput(command),
         command.runId(),
         document.run().flowInstanceId(),
         alreadyApplied,
         ProvidedIdsFlow.INPUT_EVENT_TYPE,
-        RunStatus.WAITING_FOR_INPUT);
+        RunStatus.WAITING_FOR_INPUT,
+        org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.CONTINUE_REPAIR_ACTION.equals(
+            org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates.haltCardAction(command.text())));
   }
 
   @Override
@@ -261,7 +267,7 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
         document.run().flowInstanceId(),
         alreadyApplied,
         ProvidedIdsFlow.APPROVAL_EVENT_TYPE,
-        RunStatus.WAITING_FOR_APPROVAL);
+        RunStatus.WAITING_FOR_APPROVAL, false);
   }
 
   @Override
@@ -276,7 +282,7 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
         document.run().flowInstanceId(),
         alreadyApplied,
         ProvidedIdsFlow.IMPLEMENT_EVENT_TYPE,
-        RunStatus.WAITING_FOR_IMPLEMENT);
+        RunStatus.WAITING_FOR_IMPLEMENT, false);
   }
 
   @Override
@@ -320,98 +326,89 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
       String flowInstanceId,
       boolean alreadyApplied,
       String eventType,
-      RunStatus waitingStatus) {
-    return recorded
-        .onCompletion()
-        .switchTo(
-            () ->
-                streamWhileSettling(
-                    runId,
-                    () -> {
-                      ProductPipelineRunDocument afterRecord =
-                          runStore.load(runId).orElseThrow();
-                      if (afterRecord.run().status() == waitingStatus) {
-                        return tasks.drainSignals(runId);
-                      }
-                      if (alreadyApplied && afterRecord.run().status() != waitingStatus) {
-                        return tasks.drainSignals(runId);
-                      }
-                      publishCorrelatedEvent(
-                          eventType, flowInstanceId, contextFrom(afterRecord));
-                      waitUntil(
-                          "create-chain Flow instance " + flowInstanceId + " must resume",
-                          () -> tasks.settled(runId));
-                      return tasks.drainSignals(runId);
-                    }));
+      RunStatus waitingStatus,
+      boolean requireAcceptedGrant) {
+    return streamWhileSettling(
+        runId,
+        () -> {
+          List<PipelineSignal> recordedSignals = recorded
+              .onItem()
+              .invoke(signal -> PipelineSignalLiveSink.emit(runId, signal))
+              .collect()
+              .asList()
+              .await()
+              .indefinitely();
+          if (requireAcceptedGrant && recordedSignals.stream().noneMatch(PipelineSignal.Progress.class::isInstance)) {
+            return List.of();
+          }
+          ProductPipelineRunDocument afterRecord = runStore.load(runId).orElseThrow();
+          if (afterRecord.run().status() == waitingStatus && !alreadyApplied) {
+            return tasks.drainSignals(runId);
+          }
+          publishCorrelatedEvent(eventType, flowInstanceId, contextFrom(afterRecord));
+          // Applied commands can already be at another wait whose listener ignores this event.
+          if (!alreadyApplied || afterRecord.run().status() == RunStatus.RUNNING) {
+            waitUntil(
+                "create-chain Flow instance " + flowInstanceId + " must resume",
+                () -> tasks.settled(runId));
+          }
+          return tasks.drainSignals(runId);
+        });
   }
 
   /**
    * Emits {@link PipelineSignalLiveSink} rows while Flow is still blocked in {@code waitUntil},
    * then appends the drained remainder so terminal waits/completions still arrive.
    *
-   * <p>Cancelling the chat subscription interrupts the wait and unbinds the live sink so later
-   * rows do not hit a disposed emitter.
+   * <p>Disconnecting detaches the observer. Accepted command recording and dispatch continue on
+   * the server, so closing a chat cannot strand a committed command before its resume event.
    */
   private Multi<PipelineSignal> streamWhileSettling(
       String runId, Supplier<List<PipelineSignal>> waitThenDrain) {
     return Multi.createFrom()
         .emitter(
             emitter -> {
-              AtomicReference<Thread> worker = new AtomicReference<>();
-              AtomicReference<Cancellable> subscription = new AtomicReference<>();
-              emitter.onTermination(
-                  () -> {
-                    Thread running = worker.get();
-                    if (running != null) {
-                      running.interrupt();
+              Consumer<PipelineSignal> observer =
+                  signal -> {
+                    if (!emitter.isCancelled()) {
+                      emitter.emit(signal);
                     }
-                    Cancellable cancellable = subscription.get();
-                    if (cancellable != null) {
-                      cancellable.cancel();
-                    }
-                    PipelineSignalLiveSink.unbind(runId);
-                  });
-              subscription.set(
-                  Uni.createFrom()
-                      .item(
-                          () -> {
-                            worker.set(Thread.currentThread());
-                            PipelineSignalLiveSink.bind(
-                                runId,
-                                signal -> {
-                                  if (!emitter.isCancelled()) {
-                                    emitter.emit(signal);
-                                  }
-                                });
-                            try {
-                              return waitThenDrain.get();
-                            } finally {
-                              worker.set(null);
-                              PipelineSignalLiveSink.unbind(runId);
-                            }
-                          })
-                      .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                      .subscribe()
-                      .with(
-                          drained -> {
+                  };
+              emitter.onTermination(() -> PipelineSignalLiveSink.unbind(runId, observer));
+              Uni.createFrom()
+                  .item(
+                      () -> {
+                        if (!emitter.isCancelled()) {
+                          PipelineSignalLiveSink.bind(runId, observer);
+                        }
+                        try {
+                          return waitThenDrain.get();
+                        } finally {
+                          PipelineSignalLiveSink.unbind(runId, observer);
+                        }
+                      })
+                  .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                  .subscribe()
+                  .with(
+                      drained -> {
+                        if (emitter.isCancelled()) {
+                          return;
+                        }
+                        if (drained != null) {
+                          for (PipelineSignal signal : drained) {
                             if (emitter.isCancelled()) {
                               return;
                             }
-                            if (drained != null) {
-                              for (PipelineSignal signal : drained) {
-                                if (emitter.isCancelled()) {
-                                  return;
-                                }
-                                emitter.emit(signal);
-                              }
-                            }
-                            emitter.complete();
-                          },
-                          failure -> {
-                            if (!emitter.isCancelled()) {
-                              emitter.fail(failure);
-                            }
-                          }));
+                            emitter.emit(signal);
+                          }
+                        }
+                        emitter.complete();
+                      },
+                      failure -> {
+                        if (!emitter.isCancelled()) {
+                          emitter.fail(failure);
+                        }
+                      });
             });
   }
 
@@ -444,29 +441,7 @@ public final class ProvidedIdsFlowOrchestrator implements CreateChainOrchestrato
 
   private static ProvidedIdsFlow.RunContext contextFrom(ProductPipelineRunDocument document) {
     return new ProvidedIdsFlow.RunContext(
-        document.run().runId(), null, null, null, decisionFrom(document));
-  }
-
-  private static String decisionFrom(ProductPipelineRunDocument document) {
-    return switch (document.run().status()) {
-      case WAITING_FOR_IMPLEMENT -> "WAIT_FOR_IMPLEMENTATION";
-      case WAITING_FOR_APPROVAL -> approvalDecision(document.run().currentStageId());
-      case WAITING_FOR_INPUT -> "WAIT_FOR_INPUT";
-      default -> "CONTINUE";
-    };
-  }
-
-  private static String approvalDecision(String stageId) {
-    if ("requirement-analysis".equals(stageId)) {
-      return "WAIT_FOR_REQUIREMENT_APPROVAL";
-    }
-    if ("design-input".equals(stageId)) {
-      return "WAIT_FOR_IDS_APPROVAL";
-    }
-    if ("design-planning".equals(stageId)) {
-      return "WAIT_FOR_PLAN_APPROVAL";
-    }
-    return "CONTINUE";
+        document.run().runId(), null, null, null, ProvidedIdsFlow.decisionFrom(document.run()));
   }
 
   private static void waitUntil(String message, BooleanSupplier condition) {

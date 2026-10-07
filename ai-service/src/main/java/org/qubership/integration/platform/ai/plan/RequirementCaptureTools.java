@@ -96,7 +96,7 @@ public class RequirementCaptureTools {
       Never send complete, decision, assembledText, catalog bindings, or revision references.
       """)
   public String captureRequirementDraft(@P("Authored requirement snapshot") DraftInput draft) {
-    return traced("captureRequirementDraft", () -> {
+    return traced("captureRequirementDraft", draft, () -> {
       String conversationId = ToolSession.resolveConversationId();
       synchronized (store) {
         RequirementDraft previous = store.get(conversationId).orElse(null);
@@ -140,7 +140,7 @@ public class RequirementCaptureTools {
       A rejected edit retains the accepted draft and bindings.
       """)
   public String updateRequirementDraft(@P("Focused edits to the accepted draft") DraftUpdate changes) {
-    return traced("updateRequirementDraft", () -> {
+    return traced("updateRequirementDraft", changes, () -> {
       String conversationId = ToolSession.resolveConversationId();
       synchronized (store) {
         RequirementDraft previous = store.get(conversationId).orElse(null);
@@ -216,25 +216,26 @@ public class RequirementCaptureTools {
 
   @Tool("Read the complete accepted requirements, resolution state, defaults, and remaining work.")
   public String readRequirementDraft() {
-    return traced("readRequirementDraft", () -> {
-      String conversationId = ToolSession.resolveConversationId();
-      synchronized (store) {
-        RequirementDraft current = store.get(conversationId).orElse(null);
-        if (current == null || current.authoredDraft() == null) {
-          return view(current, true, false, List.of());
-        }
-        List<CatalogBindingHint> bindings = legacyBindingAdapter.canonicalBindings(
-            current.authoredDraft(), current, conversationId);
-        if (!bindings.equals(current.catalogBindings())) {
-          RequirementDraft refreshed = RequirementCaptureProjection.toDraft(
-              current.authoredDraft(), current, bindings,
-              current.sourceSkillVersion(), current.sourceSkillHash());
-          store.put(conversationId, refreshed);
-          current = refreshed;
-        }
-        return view(current, true, false, List.of());
+    return traced("readRequirementDraft", () ->
+        view(refreshCatalogBindings(ToolSession.resolveConversationId()), true, false, List.of()));
+  }
+
+  private RequirementDraft refreshCatalogBindings(String conversationId) {
+    synchronized (store) {
+      RequirementDraft current = store.get(conversationId).orElse(null);
+      if (current == null || current.authoredDraft() == null) {
+        return current;
       }
-    });
+      List<CatalogBindingHint> bindings = legacyBindingAdapter.canonicalBindings(
+          current.authoredDraft(), current, conversationId);
+      if (!bindings.equals(current.catalogBindings())) {
+        current = RequirementCaptureProjection.toDraft(
+            current.authoredDraft(), current, bindings,
+            current.sourceSkillVersion(), current.sourceSkillHash());
+        store.put(conversationId, current);
+      }
+      return current;
+    }
   }
 
   @Tool("""
@@ -246,7 +247,7 @@ public class RequirementCaptureTools {
   public String finishRequirementDiscoveryTurn(
       @P("STAY for discussion; CONTINUE for an authorized next step")
           RequirementDiscoveryDirective directive) {
-    return traced("finishRequirementDiscoveryTurn", () -> {
+    return traced("finishRequirementDiscoveryTurn", directive, () -> {
       String conversationId = ToolSession.resolveConversationId();
       if (feedbackStore.lastRequirementFailure(conversationId)
           .filter(failure -> failure.failureClass() == CaptureFailureClass.IDENTICAL_SPAM)
@@ -261,13 +262,13 @@ public class RequirementCaptureTools {
             List.of(new Issue("INVALID_ENUM", "/directive", null,
                 "Use STAY or CONTINUE.")));
       }
-      RequirementDraft current = store.get(conversationId).orElse(null);
+      RequirementDraft current = refreshCatalogBindings(conversationId);
       if (directive == RequirementDiscoveryDirective.CONTINUE) {
         Optional<String> refusal = continueRefusal(current);
         if (refusal.isPresent()) {
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
           return view(current, false, false, List.of(new Issue(
-              "CONTINUATION_NOT_AUTHORIZED", "/directive", null, refusal.get())), false);
+              "CONTINUATION_NOT_AUTHORIZED", "/directive", null, refusal.get())));
         }
       }
       store.finishTurn(conversationId, directive);
@@ -373,9 +374,12 @@ public class RequirementCaptureTools {
         var keys = elementSchemas.allowedPatchPropertyKeys(intent.elementType());
         var used = new java.util.HashSet<String>();
         for (var property : intent.requestedProperties()) {
+          String propertyPath = path + "/requestedProperties"
+              + (property == null || property.key() == null ? ""
+                  : "/" + property.key().replace("~", "~0").replace("/", "~1"));
           if (property == null || !keys.contains(property.key()) || !used.add(property.key())
               || property.key().endsWith("Id") && property.key().startsWith("integration")) {
-            issues.add(new Issue("INVALID_REQUESTED_PROPERTY", path, fact.sourceFactId(),
+            issues.add(new Issue("INVALID_REQUESTED_PROPERTY", propertyPath, fact.sourceFactId(),
                 "Use unique runtime property keys: " + String.join(", ", new java.util.TreeSet<>(keys))
                     + ". Catalog identity belongs to the resolver. Correct the key or encoding without dropping"
                     + " the author setting."
@@ -386,7 +390,7 @@ public class RequirementCaptureTools {
             elementSchemas.validateCapturePropertyValue(intent.elementType(), property.key(),
                 mapper.valueToTree(elementSchemas.coercePatchPropertyValue(
                     intent.elementType(), property.key(), property.value())))
-                .ifPresent(error -> issues.add(new Issue("INVALID_REQUESTED_PROPERTY", path,
+                .ifPresent(error -> issues.add(new Issue("INVALID_REQUESTED_PROPERTY", propertyPath,
                     fact.sourceFactId(), error)));
           }
         }
@@ -418,7 +422,10 @@ public class RequirementCaptureTools {
 
   private RequirementCaptureResult view(
       RequirementDraft draft, boolean accepted, boolean changed, List<Issue> issues) {
-    return view(draft, accepted, changed, issues, true);
+    Reference reference = store.latestRevision(ToolSession.resolveConversationId())
+        .map(revision -> revision.reference()).orElse(null);
+    return RequirementCaptureResult.view(
+        draft, reference, accepted, changed, issues, store.turnDirective(ToolSession.resolveConversationId()));
   }
 
   private List<Issue> withPreservedFacts(List<Issue> issues, List<FactInput> facts) {
@@ -431,29 +438,28 @@ public class RequirementCaptureTools {
         .toList();
   }
 
-  private RequirementCaptureResult view(
-      RequirementDraft draft, boolean accepted, boolean changed, List<Issue> issues,
-      boolean recordRejection) {
+  private RequirementCaptureResult recordOutcome(String toolName, Object arguments, RequirementCaptureResult result) {
     String conversationId = ToolSession.resolveConversationId();
-    if (!accepted && recordRejection) {
+    store.recordCaptureOutcome(conversationId, toolName, arguments, result);
+    if (!result.accepted() && result.issues().stream()
+        .noneMatch(issue -> "CONTINUATION_NOT_AUTHORIZED".equals(issue.code()))) {
       store.recordCaptureAttempt(conversationId, false);
       String scope = store.captureMutationScope(conversationId);
       boolean repeated = outcomeGateway.repeatedRequirementIssue(
-          conversationId, scope, issues.stream()
+          conversationId, scope, result.issues().stream()
               .map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
-                  issue.code(), issue.path())).toList());
+                  issue.code(), issue.path(), issue.message(), issue.entityId())).toList());
       if (repeated) {
         store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
-        List<Issue> terminal = new ArrayList<>(issues);
-        terminal.add(new Issue("REPEATED_REJECTION", "/", null,
+        List<RequirementCaptureResult.CaptureIssue> terminal = new ArrayList<>(result.issues());
+        terminal.add(new RequirementCaptureResult.CaptureIssue("REPEATED_REJECTION", "/", null, null,
             "The same requirement issue was rejected again. Stop automatic repair."));
-        issues = List.copyOf(terminal);
+        return new RequirementCaptureResult(false, result.changed(), result.revision(), result.readiness(),
+            RequirementCaptureResult.NextAction.STOP, List.copyOf(terminal), result.pendingWork(), result.draft(),
+            result.resolutions(), result.defaults());
       }
     }
-    Reference reference = store.latestRevision(ToolSession.resolveConversationId())
-        .map(revision -> revision.reference()).orElse(null);
-    return RequirementCaptureResult.view(
-        draft, reference, accepted, changed, issues, store.turnDirective(conversationId));
+    return result;
   }
 
   private String encode(RequirementCaptureResult result) {
@@ -464,18 +470,26 @@ public class RequirementCaptureTools {
     }
   }
 
-  String rejectArguments(String toolName, Issue issue) {
-    return traced(toolName, () -> view(
+  String rejectArguments(String toolName, String arguments, Issue issue) {
+    return traced(toolName, arguments, () -> view(
         store.get(ToolSession.resolveConversationId()).orElse(null),
         false, false, List.of(issue)));
   }
 
   private String traced(String toolName, Supplier<RequirementCaptureResult> action) {
+    return traced(toolName, null, action);
+  }
+
+  private String traced(String toolName, Object arguments, Supplier<RequirementCaptureResult> action) {
     String conversationId = ToolSession.resolveConversationId();
     long started = System.currentTimeMillis();
     ToolTraceLog.logToolInvoke(LOG, toolName, conversationId, "structured arguments");
     try {
-      RequirementCaptureResult result = action.get();
+      RequirementCaptureResult result;
+      synchronized (store) {
+        store.captureMutationScope(conversationId);
+        result = recordOutcome(toolName, arguments, action.get());
+      }
       String encoded = encode(result);
       String summary = "accepted=" + result.accepted() + " changed=" + result.changed()
           + " readiness=" + result.readiness() + " issues="

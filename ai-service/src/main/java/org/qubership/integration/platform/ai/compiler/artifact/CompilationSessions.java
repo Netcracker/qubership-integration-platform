@@ -27,7 +27,7 @@ public class CompilationSessions {
   private final Clock clock;
 
   @Inject
-  CompilationSessions(S3ArtifactBlobStore blobStore, ObjectMapper objectMapper) {
+  CompilationSessions(ArtifactBlobStore blobStore, ObjectMapper objectMapper) {
     this(blobStore, objectMapper, Clock.systemUTC());
   }
 

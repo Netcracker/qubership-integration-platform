@@ -16,6 +16,21 @@ class ValidationArtifactTest {
   private final ObjectMapper objectMapper = new ObjectMapper();
 
   @Test
+  void typedIssueMetadataRoundTripsAndLegacyPayloadsKeepTheirShape() throws Exception {
+    var typed = new ValidationIssue("counter-1", ValidationSeverity.BLOCKER, "Check this value",
+        "validator", List.of("Node/A"), List.of(), "Correct it", "CONTRACT_SHAPE", "Node/A",
+        "/properties/Topic~1A~0B");
+    assertEquals(typed, objectMapper.readValue(objectMapper.writeValueAsString(typed), ValidationIssue.class));
+    var legacy = new ValidationIssue("counter-1", ValidationSeverity.BLOCKER, "Check this value",
+        "validator", List.of("Node/A"), List.of(), "Correct it");
+    var legacyJson = objectMapper.valueToTree(legacy);
+    assertFalse(legacyJson.has("findingCode"));
+    assertFalse(legacyJson.has("originRecordId"));
+    assertFalse(legacyJson.has("fieldPointer"));
+    assertEquals(legacy, objectMapper.treeToValue(legacyJson, ValidationIssue.class));
+  }
+
+  @Test
   void roundTripsValidationIssue() throws Exception {
     QipKnowledgePackVersion version = new QipKnowledgePackVersion("v1_0_1", "v1_0_1");
     ValidationIssue original =

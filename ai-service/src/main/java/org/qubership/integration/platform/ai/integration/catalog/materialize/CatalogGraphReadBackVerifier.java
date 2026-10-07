@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.imports.ImportedChainPlan;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
@@ -24,8 +23,6 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
  */
 @ApplicationScoped
 public class CatalogGraphReadBackVerifier {
-
-  private static final Logger LOG = Logger.getLogger(CatalogGraphReadBackVerifier.class);
 
   private final ChainCatalogFactsService factsService;
   private final ChainPlanGraphImporter graphImporter;
@@ -54,14 +51,8 @@ public class CatalogGraphReadBackVerifier {
     Objects.requireNonNull(originalMap, "originalMap");
     Objects.requireNonNull(createdNodeIds, "createdNodeIds");
 
-    ImportedChainPlan imported;
-    try {
-      ChainCatalogFacts facts = factsService.load(chainId);
-      imported = graphImporter.importChain(facts);
-    } catch (RuntimeException e) {
-      LOG.errorf(e, "Catalog read-back import failed for chain %s", chainId);
-      return "Catalog read-back verification failed: " + e.getMessage();
-    }
+    ChainCatalogFacts facts = factsService.load(chainId);
+    ImportedChainPlan imported = graphImporter.importChain(facts);
 
     ChainPlanGraph importedGraph = imported.graph();
     Map<String, ChainPlanNode> importedById = indexNodes(importedGraph);

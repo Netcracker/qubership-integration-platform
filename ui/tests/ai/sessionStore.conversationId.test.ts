@@ -53,7 +53,9 @@ describe("ChatSessionStore conversationId (A1)", () => {
 
     jest.resetModules();
     const remounted = await loadStore();
-    expect(remounted.getSession(sessionId)?.conversationId).toBe(conversationId);
+    expect(remounted.getSession(sessionId)?.conversationId).toBe(
+      conversationId,
+    );
     expect(remounted.ensureConversationId(sessionId)).toBe(conversationId);
   });
 
@@ -62,5 +64,137 @@ describe("ChatSessionStore conversationId (A1)", () => {
     expect(() => store.ensureConversationId("missing-session")).toThrow(
       /Chat session not found/,
     );
+  });
+
+  it("preserves a new chat when another tab saves its cached history", async () => {
+    const firstTab = await loadStore();
+    const older = firstTab.createSession();
+    jest.resetModules();
+    const secondTab = await loadStore();
+    secondTab.getAllSessions();
+
+    const newer = firstTab.createSession();
+    const conversationId = firstTab.ensureConversationId(newer.id);
+    secondTab.updateSessionTitle(older.id, "Updated in another tab");
+
+    jest.resetModules();
+    const reloaded = await loadStore();
+    expect(reloaded.getSession(newer.id)?.conversationId).toBe(conversationId);
+    expect(reloaded.getSession(older.id)?.title).toBe("Updated in another tab");
+  });
+
+  it("merges a buffered message save with a chat created in another tab", async () => {
+    jest.useFakeTimers();
+    try {
+      const firstTab = await loadStore();
+      const older = firstTab.createSession();
+      jest.resetModules();
+      const secondTab = await loadStore();
+      secondTab.getAllSessions();
+      firstTab.updateSessionMessages(older.id, [
+        { id: "message-1", role: "user", content: "Keep my requirements" },
+      ]);
+      const newer = secondTab.createSession();
+      jest.advanceTimersByTime(500);
+
+      jest.resetModules();
+      const reloaded = await loadStore();
+      expect(reloaded.getSession(newer.id)).not.toBeNull();
+      expect(reloaded.getSession(older.id)?.messages[0].content).toBe(
+        "Keep my requirements",
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("does not restore a deleted chat when a stale tab saves another chat", async () => {
+    const firstTab = await loadStore();
+    const deleted = firstTab.createSession();
+    const retained = firstTab.createSession();
+    jest.resetModules();
+    const secondTab = await loadStore();
+    secondTab.getAllSessions();
+    const newer = firstTab.createSession();
+    secondTab.deleteSession(deleted.id);
+    firstTab.updateSessionTitle(retained.id, "Retained chat");
+
+    jest.resetModules();
+    const reloaded = await loadStore();
+    expect(reloaded.getSession(deleted.id)).toBeNull();
+    expect(reloaded.getSession(newer.id)).not.toBeNull();
+    expect(reloaded.getSession(retained.id)?.title).toBe("Retained chat");
+  });
+
+  it("reloads history after another tab changes storage", async () => {
+    const firstTab = await loadStore();
+    firstTab.getAllSessions();
+    jest.resetModules();
+    const secondTab = await loadStore();
+    const newer = secondTab.createSession();
+    window.dispatchEvent(
+      new StorageEvent("storage", { key: "qip_ai_chat_sessions" }),
+    );
+    expect(firstTab.getSession(newer.id)).not.toBeNull();
+  });
+
+  it.each([false, true])(
+    "does not overwrite another tab's conversation identity or deletion (deleted=%s)",
+    async (deleted) => {
+      jest.useFakeTimers();
+      try {
+        const firstTab = await loadStore();
+        const session = firstTab.createSession();
+        jest.resetModules();
+        const secondTab = await loadStore();
+        secondTab.getAllSessions();
+        firstTab.updateSessionMessages(session.id, [
+          { id: "message-1", role: "user", content: "Keep my requirements" },
+        ]);
+        const conversationId = secondTab.ensureConversationId(session.id);
+        if (deleted) {
+          secondTab.deleteSession(session.id);
+        }
+        jest.advanceTimersByTime(500);
+
+        jest.resetModules();
+        const reloaded = await loadStore();
+        if (deleted) {
+          expect(reloaded.getSession(session.id)).toBeNull();
+        } else {
+          expect(reloaded.getSession(session.id)?.conversationId).toBe(
+            conversationId,
+          );
+          expect(reloaded.getSession(session.id)?.messages[0].content).toBe(
+            "Keep my requirements",
+          );
+        }
+      } finally {
+        jest.useRealTimers();
+      }
+    },
+  );
+
+  it("uses the persisted conversation identity before a buffered save completes", async () => {
+    jest.useFakeTimers();
+    try {
+      const firstTab = await loadStore();
+      const session = firstTab.createSession();
+      jest.resetModules();
+      const secondTab = await loadStore();
+      secondTab.getAllSessions();
+      firstTab.updateSessionMessages(session.id, [
+        { id: "message-1", role: "user", content: "Keep my requirements" },
+      ]);
+      const conversationId = secondTab.ensureConversationId(session.id);
+      expect(firstTab.ensureConversationId(session.id)).toBe(conversationId);
+      secondTab.deleteSession(session.id);
+      expect(() => firstTab.ensureConversationId(session.id)).toThrow(
+        "Chat session not found",
+      );
+      jest.advanceTimersByTime(500);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

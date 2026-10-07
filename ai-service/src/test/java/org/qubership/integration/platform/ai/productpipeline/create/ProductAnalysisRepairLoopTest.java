@@ -14,12 +14,14 @@ import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.artifact.TestArtifactBlobStoreProducer;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureKey;
 import org.qubership.integration.platform.ai.compiler.capture.CaptureRepairRunner;
@@ -30,6 +32,7 @@ import org.qubership.integration.platform.ai.llm.ratelimit.RateLimitStreamingCha
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 @QuarkusTest
+@TestProfile(TestArtifactBlobStoreProducer.Profile.class)
 class ProductAnalysisRepairLoopTest {
 
   private static final String CHAT = "analysis-repair-loop-test";

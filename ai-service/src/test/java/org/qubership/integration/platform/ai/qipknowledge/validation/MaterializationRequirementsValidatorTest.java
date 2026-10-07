@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -131,6 +132,10 @@ class MaterializationRequirementsValidatorTest {
     assertFalse(issues.get(0).message().isBlank());
     assertEquals("cip-routing-generator", issues.get(0).ownerCapabilityId());
     assertTrue(issues.get(0).message().contains("condition"));
+    var json = new ObjectMapper().valueToTree(issues.get(0));
+    assertEquals("MISSING_REQUIRED_PROPERTY", json.path("findingCode").asText());
+    assertEquals("if-1", json.path("originRecordId").asText());
+    assertEquals("/properties/condition", json.path("fieldPointer").asText());
   }
 
   @Test

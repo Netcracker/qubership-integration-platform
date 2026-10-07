@@ -17,6 +17,16 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 class ChatEventActionsCaptureTest {
 
   @Test
+  void technicalPauseDoesNotClaimThatAnApprovedPlanExists() {
+    var pending = new CreateChainPendingAction.Clarify(
+        "Creation paused.", List.of(), PipelineGates.RECOVERY_RETRY_TECHNICAL);
+    var decision = (ChatEvent.Decision) ChatEvent.decision(pending, 1, pending.reason(), null);
+    assertEquals("Your requirements and saved progress remain available.", decision.recovery().preservedWork());
+    assertFalse(decision.recovery().preservedWork().contains("approved"));
+    assertFalse(decision.recovery().preservedWork().contains("plan"));
+  }
+
+  @Test
   void actionsForClarifyFillsTheFacadeSeamOfSemanticRecoveryState() {
     SemanticRecoveryState runtime =
         SemanticRecoveryState.captureRuntime(

@@ -141,10 +141,7 @@ class RequirementBriefCoverageValidatorTest {
 
     assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
     List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
-    assertEquals(2, uncovered.size());
-    assertTrue(
-        MappingGapCoverage.readableEdges(uncovered)
-            .contains("task-start -> create-task"));
+    assertTrue(uncovered.isEmpty(), "Prose without a captured mapping request does not create a gap.");
   }
 
   @Test
@@ -213,7 +210,7 @@ class RequirementBriefCoverageValidatorTest {
 
     assertTrue(error.isEmpty(), () -> "unexpected: " + error.orElse(""));
     List<String> uncovered = MappingGapCoverage.readableEdges(MappingGapCoverage.uncovered(brief));
-    assertEquals(List.of("create-task -> task-result"), uncovered);
+    assertTrue(uncovered.isEmpty(), "The other transition has no captured adaptation request.");
   }
 
   @Test

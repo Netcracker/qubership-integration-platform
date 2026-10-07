@@ -19,11 +19,22 @@ import org.qubership.integration.platform.ai.compiler.capture.CaptureValidationE
  * <p>The soft budget is keyed by the normalized rejection text, not by the payload that caused it.
  * A generator answering a rejection re-emits its whole capture, so payload identity handed out a
  * fresh credit on every attempt and never escalated to IDENTICAL_SPAM.
+ * Structured requirement issues use their exact code and logical path instead of rejection prose.
  */
 @ApplicationScoped
 public class CaptureToolOutcomeGateway {
 
-  public record TypedIssue(String code, String path) {}
+  public record TypedIssue(String code, String path, String message,
+      @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+      String entityId) {
+    public TypedIssue(String code, String path, String message) {
+      this(code, path, message, null);
+    }
+
+    public TypedIssue(String code, String path) {
+      this(code, path, "");
+    }
+  }
 
   /** Applies the shared soft-credit policy to each structured requirement issue. */
   public boolean repeatedRequirementIssue(
@@ -31,21 +42,22 @@ public class CaptureToolOutcomeGateway {
     boolean repeated = false;
     List<String> fingerprints = new ArrayList<>();
     List<String> identities = new ArrayList<>();
+    var consumed = fingerprintStore.softFingerprints(conversationId);
     for (TypedIssue issue : issues) {
-      String identity = issue.code() + ":" + logicalRequirementPath(issue.path());
+      String logicalPath = logicalRequirementPath(issue.path());
+      String identity = issue.code() + ":" + logicalPath
+          + (issue.entityId() == null ? "" : ":" + issue.entityId());
       identities.add(identity);
-      String fingerprint = fingerprintStore.failureFingerprint(
-          "requirement-capture", mutationScope, identity);
+      String fingerprint = fingerprintStore.fingerprint(
+          "requirement-capture", mutationScope, new TypedIssue(issue.code(), logicalPath, "", issue.entityId()));
       CaptureFailureDecision decision = policy.decide(
           CaptureFailureClass.CORRECTABLE,
-          CaptureAttemptState.forFingerprint(
-              fingerprintStore.softCreditUsed(conversationId, fingerprint)), identity);
+          CaptureAttemptState.forFingerprint(consumed.contains(fingerprint)), identity);
       repeated |= decision.failureClass() == CaptureFailureClass.IDENTICAL_SPAM;
       fingerprints.add(fingerprint);
     }
     if (!repeated) {
-      fingerprints.forEach(fingerprint ->
-          fingerprintStore.consumeSoftCredit(conversationId, fingerprint));
+      fingerprintStore.consumeSoftCredits(conversationId, fingerprints);
     }
     boolean argumentError = issues.stream().anyMatch(issue ->
         List.of("INVALID_JSON", "DUPLICATE_JSON_KEY", "MISSING_FIELD",
@@ -56,20 +68,34 @@ public class CaptureToolOutcomeGateway {
         argumentError ? CaptureFailureKind.TOOL_ARGUMENTS : CaptureFailureKind.VALIDATION,
         repeated ? CaptureFailureClass.IDENTICAL_SPAM : CaptureFailureClass.CORRECTABLE,
         !repeated && !argumentError,
-        String.join(", ", identities));
+        String.join(", ", identities), issues);
     return repeated;
   }
 
-  static String logicalRequirementPath(String path) {
+  /** Removes tool wrappers and array positions while preserving named records and fields. */
+  public static String logicalRequirementPath(String path) {
     if (path == null || path.isBlank() || "/".equals(path)) {
       return "";
     }
     String[] parts = path.split("/");
     StringBuilder logical = new StringBuilder();
-    for (String part : parts) {
-      if (part.isEmpty() || "draft".equals(part) || "changes".equals(part)
-          || "flow".equals(part)
-          || part.chars().allMatch(Character::isDigit)) {
+    boolean propertyPath = false;
+    boolean arrayPosition = false;
+    for (int i = 0; i < parts.length; i++) {
+      String part = parts[i];
+      if (part.isEmpty()) {
+        continue;
+      }
+      if (propertyPath) {
+        logical.append('/').append(part);
+        continue;
+      }
+      if ((i == 1 && ("draft".equals(part) || "changes".equals(part)))
+          || ("flow".equals(part) && (i == 1 || i == 2 && "draft".equals(parts[1])))) {
+        continue;
+      }
+      if (arrayPosition && part.chars().allMatch(Character::isDigit)) {
+        arrayPosition = false;
         continue;
       }
       String normalized = switch (part) {
@@ -82,6 +108,8 @@ public class CaptureToolOutcomeGateway {
         default -> part;
       };
       logical.append('/').append(normalized);
+      propertyPath = "requestedProperties".equals(part);
+      arrayPosition = normalized.endsWith("[]");
     }
     return logical.toString();
   }

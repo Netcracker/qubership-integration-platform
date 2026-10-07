@@ -44,6 +44,7 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
+import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.SkillActivitySupport;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
@@ -546,7 +547,10 @@ public class RequirementAnalysisCapability implements StageCapability {
     var unresolvedMapping = BriefMappingValidator.unresolvedRequiredMessage(brief);
     if (unresolvedMapping.isPresent()) {
       return new CapabilitySignal.Completed(
-          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, unresolvedMapping.get()));
+          new StageOutcome(StageOutcomeClass.CONTRACT_FAILURE,
+              List.of(new ArtifactCandidate(CompilationArtifacts.Kind.REQUIREMENT_BRIEF, brief, context.inputRefs())),
+              unresolvedMapping.get(), null,
+              RecoveryCause.missingBriefFacts(List.of(unresolvedMapping.get()))));
     }
     var mappingMechanismClarification =
         brief.mappingIntents().stream()
@@ -560,9 +564,10 @@ public class RequirementAnalysisCapability implements StageCapability {
     var coverageError = coverageValidator.validate(approved, brief);
     if (coverageError.isPresent()) {
       return new CapabilitySignal.Completed(
-          StageOutcome.of(
-              StageOutcomeClass.CONTRACT_FAILURE,
-              "Requirement brief coverage failed: " + coverageError.get()));
+          new StageOutcome(StageOutcomeClass.CONTRACT_FAILURE,
+              List.of(new ArtifactCandidate(CompilationArtifacts.Kind.REQUIREMENT_BRIEF, brief, context.inputRefs())),
+              "Requirement brief coverage failed: " + coverageError.get(), null,
+              RecoveryCause.missingBriefFacts(List.of(coverageError.get()))));
     }
     // Workspace seed is planning text only — never conversation history.
     String seeded =

@@ -24,6 +24,24 @@ class CatalogSystemReadToolBoundOperationTest {
   private CatalogSystemReadTool readTool;
 
   @Test
+  void operationListingUsesTheSupportMethodInsteadOfItsProxyFields() throws Exception {
+    ObjectMapper mapper = new ObjectMapper();
+    CatalogOperationsLookupService lookup = mock(CatalogOperationsLookupService.class);
+    CatalogToolSupport support = mock(CatalogToolSupport.class);
+    when(support.createObjectNode()).thenAnswer(ignored -> mapper.createObjectNode());
+    when(lookup.validateSpecificationIdForOperations("chat", "spec-1"))
+        .thenReturn(java.util.Optional.empty());
+    when(lookup.listOperations("chat", "spec-1", "sys-1")).thenReturn(List.of(
+        new CatalogRestClient.OperationDto("op-1", "Publish", "publish", "topic", "spec-1")));
+    CatalogSystemReadTool tool = new CatalogSystemReadTool(catalogRestClient, lookup, support);
+
+    var json = mapper.readTree(tool.listCatalogOperationsJson("chat", "spec-1", "sys-1", null));
+
+    assertEquals("op-1", json.path("data").get(0).path("id").asText());
+    assertTrue(json.path("complete").asBoolean());
+  }
+
+  @Test
   void operationListingOmitsSchemasAndKeepsCompleteTypedOperations() throws Exception {
     ObjectMapper mapper = new ObjectMapper();
     CatalogOperationsLookupService lookup = mock(CatalogOperationsLookupService.class);

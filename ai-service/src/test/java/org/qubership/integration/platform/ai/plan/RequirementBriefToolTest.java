@@ -142,8 +142,9 @@ class RequirementBriefToolTest {
     assertTrue(getBrief("conv-brief").isPresent());
   }
 
-  @Test
-  void pinsApprovedDraftTextWhenCaptureContainsParaphrase() {
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void pinsApprovedDraftTextWhenCaptureContainsParaphrase(boolean changedFactMeaning) {
     RequirementDraftStore draftStore = new RequirementDraftStore();
     RequirementDraft approved =
         org.qubership.integration.platform.ai.productpipeline.create.RequirementFactFixtures
@@ -160,6 +161,17 @@ class RequirementBriefToolTest {
     org.jboss.logmanager.MDC.put(
         org.qubership.integration.platform.ai.chat.ChatMdc.CONVERSATION_ID, "conv-brief");
 
+    var proposedFacts = new java.util.ArrayList<>(approved.facts());
+    if (changedFactMeaning) {
+      var mapper = new ObjectMapper();
+      com.fasterxml.jackson.databind.node.ObjectNode altered = mapper.valueToTree(proposedFacts.getFirst());
+      altered.put("text", "Create an additional outbound call.");
+      altered.put("kind", "BEHAVIOR");
+      altered.set("interactionIds", mapper.valueToTree(List.of("unapproved-interaction")));
+      proposedFacts.set(0, mapper.convertValue(altered, RequirementFact.class));
+      assertEquals(approved.facts().getFirst().sourceFactId(), proposedFacts.getFirst().sourceFactId());
+    }
+
     String result =
         tool.captureRequirementBrief(
             new RequirementBriefCapture(
@@ -170,12 +182,13 @@ class RequirementBriefToolTest {
                 "summary only",
                 null,
                 "paraphrased draft that is not the pinned planning text",
-                approved.facts(),
+                proposedFacts,
                 java.util.List.of()));
 
     assertTrue(result.contains("Requirement brief captured"), result);
     RequirementBrief stored = getBrief("conv-brief").orElseThrow();
     assertEquals(approved.planningText(), stored.approvedDraftText());
+    assertEquals(approved.facts(), stored.facts());
     assertTrue(feedbackStore.lastPlanFailure("conv-brief").isEmpty());
   }
 

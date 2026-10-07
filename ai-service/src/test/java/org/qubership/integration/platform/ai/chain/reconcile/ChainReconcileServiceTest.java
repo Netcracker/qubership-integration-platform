@@ -23,6 +23,30 @@ class ChainReconcileServiceTest {
 
   private ChainReconcileService service;
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"element", "dependency"})
+  void extraCatalogElementsOrDependenciesCannotPassCompletionVerification(String extra) {
+    var plan = new ChainPlanGraph("1.0", new ChainSection("demo", null), List.of(
+        new ChainPlanNode("first", "script", "First", null, null, List.of()),
+        new ChainPlanNode("second", "script", "Second", null, null, List.of())), List.of());
+    var map = new MaterializationMap("chain-1", Map.of("first", "el-1", "second", "el-2"),
+        Map.of(), Map.of());
+    var elements = new java.util.ArrayList<>(List.of(
+        new ChainCatalogElement("el-1", "script", "First", null, Map.of()),
+        new ChainCatalogElement("el-2", "script", "Second", null, Map.of())));
+    if ("element".equals(extra)) {
+      elements.add(new ChainCatalogElement("el-unrelated", "script", "Unrelated", null, Map.of()));
+    }
+    var dependencies = "dependency".equals(extra)
+        ? List.of(new ChainCatalogDependency("el-2", "el-1"))
+        : List.<ChainCatalogDependency>of();
+    var facts = new ChainCatalogFacts("chain-1", "demo", "", elements.size(), dependencies.size(), "",
+        elements, dependencies, "built_in_catalog");
+    var result = service.compare(plan, map, facts);
+    assertFalse(result.matches(), result.summary());
+    assertTrue(result.chainMismatches().stream().anyMatch(mismatch -> mismatch.startsWith("unexpected")));
+  }
+
   @BeforeEach
   void setUp() {
     service = new ChainReconcileService();

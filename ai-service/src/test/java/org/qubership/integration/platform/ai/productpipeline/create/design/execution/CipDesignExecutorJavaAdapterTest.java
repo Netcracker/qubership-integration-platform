@@ -100,6 +100,7 @@ class CipDesignExecutorJavaAdapterTest {
 
   private Reference idsRef;
   private Reference revisionRef;
+  private Reference briefRef;
   private Reference reportRef;
   private Reference planRef;
   private Reference implementationRef;
@@ -133,6 +134,8 @@ class CipDesignExecutorJavaAdapterTest {
     bindings = List.of(sampleBinding());
     report = new DesignPlanReport("1", "# plan\n");
 
+    briefRef = append(Kind.REQUIREMENT_BRIEF, "1", new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+        "Orders", List.of(), List.of(), List.of(), List.of(), "Orders", "draft-ref", "source", List.of(), List.of()));
     idsRef = append(Kind.IDS_DOCUMENT, "1", sampleIds());
     revisionRef =
         append(Kind.CHAIN_SEMANTIC_REVISION, ChainSemanticRevision.CURRENT_SCHEMA_VERSION, revision);
@@ -516,6 +519,49 @@ class CipDesignExecutorJavaAdapterTest {
   }
 
   @Test
+  void lateValidationIdentifiesItsExecutedProducerForRepair() {
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    com.fasterxml.jackson.databind.node.ObjectNode manifestJson = mapper.valueToTree(manifest);
+    var dagNodes = (com.fasterxml.jackson.databind.node.ArrayNode)
+        manifestJson.path("compilerRunPin").path("resolvedDag").path("nodes");
+    var validator = ((com.fasterxml.jackson.databind.node.ObjectNode) dagNodes.get(0)).deepCopy();
+    validator.put("skillId", "cip-quality-validator");
+    validator.put("compilerPhase", "Validation");
+    validator.put("executionMode", "JAVA_ADAPTER");
+    dagNodes.add(validator);
+    manifest = mapper.convertValue(manifestJson, RunManifest.class);
+    var issue = new ValidationIssue("missing-path", ValidationSeverity.BLOCKER,
+        "Missing approved context path", "cip-trigger-generator", List.of("trigger"),
+        List.of(), "Restore contextPath", "MISSING_REQUIRED_PROPERTY", "trigger", "/properties/contextPath");
+    var validatorIssue = new ValidationIssue("validator", ValidationSeverity.BLOCKER,
+        "Additional validation failed", "cip-quality-validator", List.of(), List.of(), "Review graph");
+    var unrelatedIssue = new ValidationIssue("unrelated", ValidationSeverity.BLOCKER,
+        "Unexecuted owner", "cip-script-generator", List.of(), List.of(), "Review graph");
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any()))
+        .thenAnswer(invocation -> {
+          java.util.function.BiConsumer<String, String> progress = invocation.getArgument(4);
+          progress.accept("cip-quality-validator", "running");
+          progress.accept("cip-quality-validator", "completed");
+          return engineResult(List.of("cip-trigger-generator", "cip-quality-validator"),
+              new CompilerValidationBundle(1, "graph-digest", List.of(
+                  new CompilerValidationPass("cip-quality-validator",
+                      new ValidationResult(false, List.of(validatorIssue, unrelatedIssue, issue), "missing path")))));
+        });
+    List<String> progress = new ArrayList<>();
+
+    ExecutionResult result = adapter.executeAfterApproval(baseInputs(),
+        (skill, status) -> progress.add(skill + ":" + status));
+
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, result.outcomeClass());
+    assertEquals(List.of("cip-quality-validator:running", "cip-quality-validator:completed",
+        "cip-trigger-generator:running", "cip-trigger-generator:error"), progress);
+    assertTrue(result.recoveryCause().findings().stream()
+        .anyMatch(finding -> "/properties/contextPath".equals(finding.fieldPointer())
+            && "MISSING_REQUIRED_PROPERTY".equals(finding.code())));
+    assertTrue(result.message().contains("Restore contextPath"));
+  }
+
+  @Test
   void phase5ValidationFailureDoesNotEmitValidatedBundle() {
     when(planValidator.validate(any(PlanGraphValidationInput.class)))
         .thenReturn(
@@ -547,6 +593,10 @@ class CipDesignExecutorJavaAdapterTest {
         result.candidates().stream()
             .anyMatch(candidate -> candidate.kind() == Kind.CHAIN_PLAN_GRAPH),
         "a retry cannot correct a step it is not shown");
+    var graph = result.candidates().stream().filter(candidate -> candidate.kind() == Kind.CHAIN_PLAN_GRAPH)
+        .findFirst().orElseThrow();
+    assertTrue(graph.inputs().containsAll(List.of(baseInputs().implementationPlanRef(),
+        baseInputs().planRef(), baseInputs().revisionRef())));
   }
 
   @Test
@@ -662,6 +712,58 @@ class CipDesignExecutorJavaAdapterTest {
                 .isEmpty());
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(strings = {"before-checkpoint", "after-checkpoint", "after-return"})
+  void phase6ResumesAfterItsFinalCheckpointOrResultDeliveryFails(String failurePoint) {
+    var phase5 = adapter.executeAfterApproval(baseInputs());
+    var request = phase5.candidates().stream().filter(candidate -> candidate.kind() == Kind.MATERIALIZATION_REQUEST)
+        .map(candidate -> (MaterializationRequest) candidate.payload()).findFirst().orElseThrow();
+    var snapshot = append(Kind.CATALOG_CHAIN_SNAPSHOT, "1", Map.of("chainId", "catalog-chain-1"));
+    var reconcile = append(Kind.RECONCILE_RESULT, "1",
+        new org.qubership.integration.platform.ai.skill.orchestration.ReconcileResult(
+            true, List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), "ok"));
+    var materialized = new MaterializationResult(1, "catalog-chain-1",
+        new org.qubership.integration.platform.ai.integration.catalog.materialize.MaterializationMap(
+            "catalog-chain-1", Map.of("trigger", "el-1"), Map.of(), Map.of()),
+        request.graphDigest(), MaterializationPhase.COMPLETE).withCatalogEvidence(snapshot, reconcile);
+    var failingStore = org.mockito.Mockito.spy(artifactStore);
+    var failOnce = new java.util.concurrent.atomic.AtomicBoolean(true);
+    org.mockito.Mockito.doAnswer(call -> {
+      var command = (CompilationArtifacts.AppendCommand) call.getArgument(0);
+      if (command.kind() == Kind.DESIGN_EXECUTION_CHECKPOINT && failOnce.getAndSet(false)
+          && !"after-return".equals(failurePoint)) {
+        if ("after-checkpoint".equals(failurePoint)) {
+          call.callRealMethod();
+        }
+        throw new IllegalStateException("Final checkpoint acknowledgment unavailable");
+      }
+      return call.callRealMethod();
+    }).when(failingStore).append(any(CompilationArtifacts.AppendCommand.class));
+    var interrupted = new CipDesignExecutorJavaAdapter(runner, bindingAdapter, failingStore, planValidator);
+    if ("after-return".equals(failurePoint)) {
+      assertEquals(StageOutcomeClass.SUCCEEDED,
+          interrupted.completePhase6(RUN_ID, request, materialized, snapshot, reconcile).outcomeClass());
+    } else {
+      org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+          () -> interrupted.completePhase6(RUN_ID, request, materialized, snapshot, reconcile));
+    }
+    var restored = new CipDesignExecutorJavaAdapter(runner, bindingAdapter, artifactStore, planValidator);
+    var renewedSnapshot = append(Kind.CATALOG_CHAIN_SNAPSHOT, "1", Map.of("chainId", "catalog-chain-1"));
+    var renewedReconcile = append(Kind.RECONCILE_RESULT, "1", artifactStore.payload(
+        artifactStore.get(RUN_ID, reconcile).orElseThrow(),
+        org.qubership.integration.platform.ai.skill.orchestration.ReconcileResult.class));
+    var resumed = restored.completePhase6(RUN_ID, request,
+        materialized.withCatalogEvidence(renewedSnapshot, renewedReconcile), renewedSnapshot, renewedReconcile);
+    assertEquals(StageOutcomeClass.SUCCEEDED, resumed.outcomeClass(), resumed.message());
+    assertEquals(DesignExecutionPhase.COMPLETE, resumed.checkpoint().phase());
+    assertEquals(1, resumed.checkpoint().completedSteps().stream()
+        .filter(step -> "phase-6".equals(step.stepId())).count());
+    var wrongChain = new MaterializationResult(1, "unrelated-chain", materialized.materializationMap(),
+        request.graphDigest(), MaterializationPhase.COMPLETE);
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE,
+        restored.completePhase6(RUN_ID, request, wrongChain, renewedSnapshot, renewedReconcile).outcomeClass());
+  }
+
   @Test
   void repairTurnRoutesHaltEvidenceAndPriorGraphToTheRunner() {
     StageRepairEvidence repairEvidence =
@@ -748,7 +850,7 @@ class CipDesignExecutorJavaAdapterTest {
                 "test-producer",
                 "1",
                 payload,
-                List.of(),
+                kind == Kind.CHAIN_SEMANTIC_REVISION ? List.of(briefRef) : List.of(),
                 null,
                 new ArtifactProvenance(
                     RUN_ID,

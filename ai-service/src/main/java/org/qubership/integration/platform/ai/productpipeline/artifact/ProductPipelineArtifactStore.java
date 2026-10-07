@@ -41,6 +41,19 @@ public final class ProductPipelineArtifactStore {
     return artifacts.history(compilationId, kind);
   }
 
+  /** Includes partial catalog writes and unresolved element delivery when guarding upstream edits. */
+  public boolean hasCatalogWriteEvidence(String runId) {
+    return latest(runId, Kind.MATERIALIZATION_RESULT).isPresent()
+        || latest(runId, Kind.CATALOG_CHAIN_SNAPSHOT).isPresent()
+        || latest(runId, Kind.MATERIALIZATION_CHECKPOINT)
+            .map(revision -> payload(revision,
+                org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationCheckpoint.class))
+            .map(checkpoint -> (checkpoint.chainId() != null && !checkpoint.chainId().isBlank())
+                || !checkpoint.materializationMap().nodeIdToElementId().isEmpty()
+                || (checkpoint.pendingNodeId() != null && !checkpoint.pendingNodeId().isBlank()))
+            .orElse(false);
+  }
+
   /**
    * Finds an existing {@link Kind#GRAPH_PATCH_ARTIFACT} revision whose payload {@code
    * invocationKey} matches.

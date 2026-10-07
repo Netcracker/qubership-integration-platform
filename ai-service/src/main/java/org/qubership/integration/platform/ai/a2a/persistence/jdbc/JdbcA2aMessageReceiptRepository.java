@@ -58,15 +58,15 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
       INSERT INTO a2a_caller_message_receipts
           (tenant_id, subject_id, message_id, task_id, received_at, command_fingerprint,
            processing_state, fingerprint_version, command_kind, precondition_revision,
-           command_descriptor, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'CLAIMED', ?, ?, ?, ?, ?)
+           command_descriptor, updated_at, command_payload_json)
+      VALUES (?, ?, ?, ?, ?, ?, 'CLAIMED', ?, ?, ?, ?, ?, ?)
       ON CONFLICT DO NOTHING
       """;
 
   private static final String FIND_CALLER_RECEIPT_SQL =
       """
       SELECT task_id, command_fingerprint, processing_state, last_task_revision,
-             response_task_revision, command_kind, precondition_revision
+             response_task_revision, command_kind, precondition_revision, command_payload_json
       FROM a2a_caller_message_receipts
       WHERE tenant_id = ? AND subject_id = ? AND message_id = ?
       """;
@@ -246,6 +246,7 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
                 commandFingerprint,
                 commandKind,
                 null,
+                null,
                 now);
         if (claimed != 1) {
           connection.rollback();
@@ -309,6 +310,14 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
       String commandKind,
       String taskId,
       Long preconditionRevision) {
+    return claimContinuation(tenantId, subjectId, messageId, commandFingerprint, commandKind,
+        taskId, preconditionRevision, null);
+  }
+
+  @Override
+  public A2aCallerMessageClaimResult claimContinuation(
+      String tenantId, String subjectId, String messageId, String commandFingerprint,
+      String commandKind, String taskId, Long preconditionRevision, String commandPayloadJson) {
     Objects.requireNonNull(tenantId, "tenantId");
     Objects.requireNonNull(subjectId, "subjectId");
     Objects.requireNonNull(messageId, "messageId");
@@ -328,6 +337,7 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
                 commandFingerprint,
                 commandKind,
                 preconditionRevision,
+                commandPayloadJson,
                 now);
         if (claimed != 1) {
           connection.rollback();
@@ -555,6 +565,7 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
       String commandFingerprint,
       String commandKind,
       Long preconditionRevision,
+      String commandPayloadJson,
       Instant now)
       throws SQLException {
     try (PreparedStatement statement = connection.prepareStatement(CLAIM_CALLER_SQL)) {
@@ -576,6 +587,7 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
           org.qubership.integration.platform.ai.a2a.transport.A2aCommandId.derive(
               tenantId, subjectId, messageId));
       statement.setTimestamp(11, Timestamp.from(now));
+      setNullableString(statement, 12, commandPayloadJson);
       return statement.executeUpdate();
     }
   }
@@ -653,7 +665,8 @@ public class JdbcA2aMessageReceiptRepository implements A2aMessageReceiptReposit
                 lastRevision,
                 responseRevision,
                 resultSet.getString("command_kind"),
-                (Long) resultSet.getObject("precondition_revision")));
+                (Long) resultSet.getObject("precondition_revision"),
+                resultSet.getString("command_payload_json")));
       }
     }
   }

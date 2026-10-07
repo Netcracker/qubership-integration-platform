@@ -176,12 +176,12 @@ class DesignInputCapabilityTest {
   }
 
   @Test
-  void uncoveredRockyBriefWaitsForMappingGapWithoutCapture() {
+  void requestedAdaptationsWaitForMappingGapWithoutCapture() {
     DesignInputCapability capability = capturingCapability();
     StageOutcome prepared =
         outcome(
             capability,
-            context("design-input", Map.of("requirementBrief", ChainSemanticCaptureFixtures.rockyBrief())));
+            context("design-input", Map.of("requirementBrief", ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings())));
     assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
     assertTrue(prepared.candidates().isEmpty());
     assertEquals(PipelineGates.MAPPING_GAP, PipelineGates.gateOf(prepared.message()).orElse(""));
@@ -211,7 +211,7 @@ class DesignInputCapabilityTest {
 
   @Test
   void passThroughConfirmationDoesNotCloseTheGate() {
-    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBrief();
+    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings();
     MappingGapPassThroughConfirmation confirmation =
         new MappingGapPassThroughConfirmation(
             "sha-rocky",
@@ -230,6 +230,21 @@ class DesignInputCapabilityTest {
                     "requirementBriefContentHash", "sha-rocky")));
     assertEquals(StageOutcomeClass.NEEDS_INPUT, prepared.outcomeClass());
     assertEquals(PipelineGates.MAPPING_GAP, PipelineGates.gateOf(prepared.message()).orElse(""));
+  }
+
+  @Test
+  void inlineHookPromptPinsTheFactToItsCallAfterRepairFeedback() {
+    var brief = ChainSemanticCaptureFixtures.approvedBrief();
+    var facts = new java.util.ArrayList<>(brief.facts());
+    facts.add(new RequirementFact("before-hook", RequirementFactPolarity.POSITIVE, RequirementFactKind.BEHAVIOR,
+        "", "Set the body before the call.", "", "", "", "", "", "", List.of("call-1"), null,
+        new org.qubership.integration.platform.ai.plan.RequirementElementIntent("prepare-body", "script",
+            org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK,
+            "call-1", null, null, null, List.of(), List.of("{body}"))));
+    var prompt = DesignInputCapability.authoringPrompt(brief.withFacts(facts), CONTRACT, "\nRepair rejected topology.");
+    assertTrue(prompt.indexOf("Inline hook assignment: sourceFactId=before-hook") > prompt.indexOf("Repair rejected topology."));
+    assertTrue(prompt.contains("service-call operation nodeId=call-1"));
+    assertTrue(prompt.contains("Hook elementRef=prepare-body is not an operation nodeId or an edge endpoint"));
   }
 
   @Test
@@ -527,7 +542,7 @@ class DesignInputCapabilityTest {
     assertTrue(prompt.contains(rejection));
     assertTrue(prompt.contains("Treat onTaskResult as a Kafka produce, not a trigger"));
     assertTrue(prompt.contains("Rebuild the topology so this rejection cannot recur"));
-    assertTrue(prompt.contains("minimum child count"));
+    assertTrue(prompt.contains("Preserve the approved element placements"));
     assertFalse(prompt.contains("OM to Salesforce WFM original request"));
   }
 

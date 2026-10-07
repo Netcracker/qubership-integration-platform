@@ -16,6 +16,7 @@ import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCall
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.AppendCommand;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.compiler.pipeline.CompilerNodeExecutionMode;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.plan.ImplementationPlan;
 import org.qubership.integration.platform.ai.plan.mapping.MappingContractBlockedException;
@@ -46,6 +47,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.design.model
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.DesignExecutionResult;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
+import org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.OrderedGraphPatches;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
@@ -56,6 +58,8 @@ import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPol
 import org.qubership.integration.platform.ai.qipknowledge.validation.CompilerPlanValidator;
 import org.qubership.integration.platform.ai.qipknowledge.validation.PlanGraphValidationInput;
 import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationIssue;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationSeverity;
 
 /**
  * Java adapter for {@code cip-design-executor}. Owns Phase 5 through
@@ -113,7 +117,8 @@ public class CipDesignExecutorJavaAdapter {
     }
     DesignExecutionCheckpoint prior =
         artifactStore.payload(checkpointRevision.get(), DesignExecutionCheckpoint.class);
-    if (prior == null || prior.phase() != DesignExecutionPhase.WAITING_FOR_MATERIALIZATION) {
+    if (prior == null || (prior.phase() != DesignExecutionPhase.WAITING_FOR_MATERIALIZATION
+        && prior.phase() != DesignExecutionPhase.COMPLETE)) {
       return ExecutionResult.failure(
           StageOutcomeClass.VALIDATION_FAILURE,
           "design execution checkpoint must be WAITING_FOR_MATERIALIZATION");
@@ -134,6 +139,9 @@ public class CipDesignExecutorJavaAdapter {
       return ExecutionResult.failure(
           StageOutcomeClass.VALIDATION_FAILURE,
           "materialization result must reach COMPLETE before Phase 6");
+    }
+    if (prior.phase() == DesignExecutionPhase.COMPLETE) {
+      return replayPhase6(runId, request, materializationResult, checkpointRevision.get(), prior);
     }
 
     List<Reference> evidenceInputs =
@@ -211,6 +219,48 @@ public class CipDesignExecutorJavaAdapter {
                 Kind.DESIGN_EXECUTION_RESULT, designExecutionResult, evidenceInputs),
             new ArtifactCandidate(
                 Kind.DESIGN_EXECUTION_CHECKPOINT, completeCheckpoint, evidenceInputs)));
+  }
+
+  private ExecutionResult replayPhase6(
+      String runId, MaterializationRequest request, MaterializationResult current,
+      Revision checkpointRevision, DesignExecutionCheckpoint checkpoint) {
+    var steps = checkpoint.completedSteps().stream().filter(step -> "phase-6".equals(step.stepId())).toList();
+    if (steps.size() != 1 || !checkpointRevision.inputs().containsAll(List.of(request.approvalRef(),
+        request.designPlanReportRef(), request.designExecutionPlanRef(), request.validatedExecutionBundleRef()))) {
+      return ExecutionResult.failure(StageOutcomeClass.VALIDATION_FAILURE, "Phase 6 replay has no matching request proof");
+    }
+    var step = steps.getFirst();
+    if (step.outputRefs().size() != 3 || !step.outputHashes().equals(
+        step.outputRefs().stream().map(Reference::contentHash).toList())
+        || step.outputRefs().get(0).kind() != Kind.MATERIALIZATION_RESULT
+        || step.outputRefs().get(1).kind() != Kind.DESIGN_EXECUTION_RESULT
+        || step.outputRefs().get(2).kind() != Kind.RECONCILE_RESULT) {
+      return ExecutionResult.failure(StageOutcomeClass.VALIDATION_FAILURE, "Phase 6 replay output proof is invalid");
+    }
+    var storedMaterialization = artifactStore.get(runId, step.outputRefs().get(0)).orElseThrow();
+    var materialized = artifactStore.payload(storedMaterialization, MaterializationResult.class);
+    var storedExecution = artifactStore.get(runId, step.outputRefs().get(1)).orElseThrow();
+    var execution = artifactStore.payload(storedExecution, DesignExecutionResult.class);
+    var storedReconcile = artifactStore.get(runId, step.outputRefs().get(2)).orElseThrow();
+    if (!Objects.equals(materialized.chainId(), current.chainId())
+        || !Objects.equals(materialized.materializationMap(), current.materializationMap())
+        || !Objects.equals(materialized.approvedGraphDigest(), current.approvedGraphDigest())
+        || !Objects.equals(request.graphDigest(), current.approvedGraphDigest())
+        || materialized.completedPhase() != MaterializationPhase.COMPLETE
+        || !Objects.equals(execution.approvalRef(), request.approvalRef())
+        || !Objects.equals(execution.designPlanReportHash(), request.designPlanReportRef().contentHash())
+        || !Objects.equals(execution.designExecutionPlanHash(), request.designExecutionPlanRef().contentHash())
+        || !Objects.equals(execution.materializationResultRef(), storedMaterialization.reference())
+        || !Objects.equals(execution.reconcileRef(), storedReconcile.reference())
+        || !DesignExecutionPhase.COMPLETE.name().equals(execution.outcome())
+        || !artifactStore.payload(storedReconcile,
+            org.qubership.integration.platform.ai.skill.orchestration.ReconcileResult.class).matches()) {
+      return ExecutionResult.failure(StageOutcomeClass.VALIDATION_FAILURE, "Phase 6 replay differs from the saved result");
+    }
+    return new ExecutionResult(StageOutcomeClass.SUCCEEDED, "design execution completion restored", checkpoint,
+        List.of(new ArtifactCandidate(Kind.MATERIALIZATION_RESULT, materialized, storedMaterialization.inputs()),
+            new ArtifactCandidate(Kind.DESIGN_EXECUTION_RESULT, execution, storedExecution.inputs()),
+            new ArtifactCandidate(Kind.DESIGN_EXECUTION_CHECKPOINT, checkpoint, checkpointRevision.inputs())));
   }
 
   private static List<DesignExecutionCheckpoint.CompletedStep> appendCompletedStep(
@@ -345,7 +395,7 @@ public class CipDesignExecutorJavaAdapter {
       return ExecutionResult.failure(StageOutcomeClass.CONTRACT_FAILURE, outsideClosure);
     }
 
-    return emitValidatedBundle(inputs, bindings, engineResult);
+    return emitValidatedBundle(inputs, bindings, engineResult, progress);
   }
 
   private String verifyPreconditions(ExecutionInputs inputs) {
@@ -472,7 +522,8 @@ public class CipDesignExecutorJavaAdapter {
   private ExecutionResult emitValidatedBundle(
       ExecutionInputs inputs,
       List<ResolvedServiceCallBinding> bindings,
-      CompilerDagExecutionResult engineResult) {
+      CompilerDagExecutionResult engineResult,
+      BiConsumer<String, String> progress) {
     ChainPlanGraph graph = engineResult.graph();
     GraphAssemblyResult assembly = engineResult.assemblyResult();
     CompilerValidationBundle compilerBundle = engineResult.validationBundle();
@@ -485,15 +536,44 @@ public class CipDesignExecutorJavaAdapter {
           StageOutcomeClass.VALIDATION_FAILURE,
           "compiler validation bundle is required for Phase 5 validation");
     }
+    List<Reference> evidenceInputs =
+        List.of(
+            inputs.approvalRef(),
+            inputs.reportRef(),
+            inputs.planRef(),
+            inputs.revisionRef(),
+            inputs.idsRef(),
+            inputs.implementationPlanRef(),
+            inputs.runManifestRef());
 
     ValidationResult freshPlanValidation =
         planValidator.validate(
-            new PlanGraphValidationInput(graph, briefMappingIntents(inputs.runId())));
+            new PlanGraphValidationInput(graph, briefMappingIntents(inputs)));
     PlanValidationResult planValidation =
         mergeCompilerBundleFindings(
             CompilerPlanningRunner.buildValidationResult(freshPlanValidation, List.of()),
             compilerBundle);
     if (!compilerBundle.approvalEligible() || !planValidation.approvalEligible()) {
+      List<ValidationIssue> issues = new ArrayList<>(freshPlanValidation.issues());
+      for (var pass : compilerBundle.passes()) {
+        if (pass != null && pass.result() != null && pass.result().issues() != null) {
+          issues.addAll(pass.result().issues());
+        }
+      }
+      issues.stream()
+          .filter(issue -> issue != null && issue.severity() == ValidationSeverity.BLOCKER)
+          .map(ValidationIssue::ownerCapabilityId)
+          .filter(owner -> owner != null && !owner.isBlank())
+          .filter(engineResult.executedSkillIds()::contains)
+          .filter(owner -> inputs.runManifest().compilerRunPin().resolvedDag().nodes().stream()
+              .anyMatch(node -> owner.equals(node.skillId())
+                  && node.executionMode() == CompilerNodeExecutionMode.LLM_SKILL))
+          .findFirst()
+          .ifPresent(owner -> {
+            // Late validation must identify the producer whose output needs repair.
+            progress.accept(owner, "running");
+            progress.accept(owner, "error");
+          });
       // The rejected graph goes out with the findings. The runtime keeps it against the halted
       // attempt without approving it, which is how the retry gets the steps it must correct
       // instead of rebuilding the chain from nothing.
@@ -502,10 +582,10 @@ public class CipDesignExecutorJavaAdapter {
           formatValidationFailureMessage(planValidation),
           null,
           List.of(
-              new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of()),
-              new ArtifactCandidate(Kind.PLAN_VALIDATION_RESULT, planValidation, List.of()),
+              new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, evidenceInputs),
+              new ArtifactCandidate(Kind.PLAN_VALIDATION_RESULT, planValidation, evidenceInputs),
               new ArtifactCandidate(
-                  Kind.COMPILER_VALIDATION_BUNDLE, compilerBundle, List.of())),
+                  Kind.COMPILER_VALIDATION_BUNDLE, compilerBundle, evidenceInputs)),
           RecoveryCause.fromFindings(
               planValidation.findings(), StageOutcomeClass.VALIDATION_FAILURE));
     }
@@ -521,16 +601,6 @@ public class CipDesignExecutorJavaAdapter {
             assembly == null || assembly.orderedPatchReferences() == null
                 ? "[]"
                 : assembly.orderedPatchReferences().toString());
-
-    List<Reference> evidenceInputs =
-        List.of(
-            inputs.approvalRef(),
-            inputs.reportRef(),
-            inputs.planRef(),
-            inputs.revisionRef(),
-            inputs.idsRef(),
-            inputs.implementationPlanRef(),
-            inputs.runManifestRef());
 
     ApiOperationBindings apiBindings =
         new ApiOperationBindings(
@@ -776,12 +846,11 @@ public class CipDesignExecutorJavaAdapter {
         .map(revision -> artifactStore.payload(revision, type));
   }
 
-  private List<MappingIntent> briefMappingIntents(String runId) {
-    return artifactStore
-        .latest(runId, Kind.REQUIREMENT_BRIEF)
-        .map(revision -> artifactStore.payload(revision, RequirementBrief.class))
-        .map(RequirementBrief::mappingIntents)
-        .orElse(List.of());
+  private List<MappingIntent> briefMappingIntents(ExecutionInputs inputs) {
+    Revision semantic = artifactStore.get(inputs.runId(), inputs.revisionRef()).orElseThrow();
+    Revision brief = SupersededBriefLineageGuard.originatingBriefRevision(artifactStore, inputs.runId(), semantic)
+        .orElseThrow(() -> new IllegalStateException("Approved semantic revision has no requirement brief lineage"));
+    return artifactStore.payload(brief, RequirementBrief.class).mappingIntents();
   }
 
   private static ArtifactProvenance provenance(ExecutionInputs inputs) {

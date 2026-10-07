@@ -204,14 +204,33 @@ Context: {recoveryContextJson}
 
 Return RecoveryDecision only. causeClass is BRIEF_DEFECT, DERIVATION_DEFECT, TECHNICAL_FAILURE, \
 or UNCLASSIFIED. action must match the cause table: BRIEF_DEFECT may REVISE_BRIEF or ASK_USER; \
-DERIVATION_DEFECT may REGENERATE_ARTIFACT, ASK_USER, or PARK; TECHNICAL_FAILURE may RETRY_OPERATION \
-or PARK; UNCLASSIFIED parks. faultArtifactRef is an artifact or operation, never a stage id. Cite \
-evidenceRefs from the context, including attachmentRef keys when findings are externalized. When \
-manifest is present, read every listed attachment from the attachments map before deciding. \
+DERIVATION_DEFECT may REGENERATE_ARTIFACT or PARK; TECHNICAL_FAILURE may RETRY_OPERATION \
+or PARK; UNCLASSIFIED parks. faultArtifactRef is an artifact or operation, never a stage id. For \
+DERIVATION_DEFECT, select the rejected output from evidence.rejectedArtifactRefs. approvedPlan is \
+a committed input, not a rejected output; target approvedPlanRef only when findings demonstrate a \
+defect in that plan. A failure before output capture does not establish a plan defect. \
+Cite evidenceRefs only from context.evidenceRefIds. \
 userSummary has no stage ids; state what failed and what must change in the artifact supported \
 by the evidence. Attribute a defect to the requirements only when the context establishes a missing \
 or contradictory requirement. A rejected output alone does not establish a brief defect. \
-ASK_USER question is one product decision. If you cannot cite \
+Before ASK_USER, read every authorInputs entry in order, the approved brief, schemaDefaults, \
+and persisted policyConflict decisions. Later author corrections supersede earlier values. \
+If an answer is present only in the source, repair the requirement projection; do not ask again. \
+Use REVISE_BRIEF with proposedBriefChanges that restore the source value, authorDecisionRequired=false, \
+and evidenceRefs citing the supporting authorInputs inputId. A new author choice cannot use that flag. \
+ASK_USER requires authorQuestionEvidence: interactionId, propertyKey, kind (MISSING_VALUE, \
+CONFLICTING_VALUES, POLICY_CHOICE or CATALOG_CHOICE), and reviewedInputIds containing every \
+authorInputs inputId. Never claim source review when source input is unavailable. Use the exact \
+interaction or element ID and property key. A known value or applicable schema default prevents \
+MISSING_VALUE. CONFLICTING_VALUES requires unresolved different values for the same scoped key. \
+POLICY_CHOICE requires an unanswered persisted policyConflict; honor KEEP_REQUESTED and \
+USE_RECOMMENDED. A generated policy violation after a confirmed choice is a derivation defect. \
+CATALOG_CHOICE requires actual catalog ambiguity and no approved binding for that interaction. \
+For example, POST in an earlier author input or approved endpoint answers an httpMethod question: \
+repair the generated method or the projection, rather than ASK_USER. An unanswered saved NONE \
+versus RBAC policy conflict requires asking which choice to keep; do not silently replace NONE. \
+Repair invalid \
+generated fields and topology from the approved input; do not ask the author to correct them. If you cannot cite \
 evidence, return UNCLASSIFIED and PARK. A design-planning CONTRACT_FAILURE such as a missing \
 mappingIntentId token or missing trigger step is a DERIVATION_DEFECT of DESIGN_PLAN_REPORT: \
 REGENERATE_ARTIFACT. Do not REVISE_BRIEF for a planner report format or coverage error.

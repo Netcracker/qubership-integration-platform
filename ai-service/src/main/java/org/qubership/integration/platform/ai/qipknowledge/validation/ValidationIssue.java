@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.qipknowledge.validation;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.QipKnowledgeCitation;
 import java.util.List;
 
@@ -13,4 +14,15 @@ public record ValidationIssue(
     String ownerCapabilityId,
     List<String> affectedNodeIds,
     List<QipKnowledgeCitation> ruleRefs,
-    String suggestedFix) {}
+    String suggestedFix,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) String findingCode,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) String originRecordId,
+    @JsonInclude(JsonInclude.Include.NON_EMPTY) String fieldPointer) {
+
+  public ValidationIssue(
+      String issueId, ValidationSeverity severity, String message, String ownerCapabilityId,
+      List<String> affectedNodeIds, List<QipKnowledgeCitation> ruleRefs, String suggestedFix) {
+    this(issueId, severity, message, ownerCapabilityId, affectedNodeIds, ruleRefs, suggestedFix,
+        null, null, null);
+  }
+}

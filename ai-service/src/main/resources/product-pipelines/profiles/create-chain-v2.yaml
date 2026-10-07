@@ -16,7 +16,7 @@ stages:
     capabilityId: design-input
     consumes: [{ type: user-input, schemaVersion: 1 }]
     produces: []
-    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+    retry: { maxTechnicalRetries: 2, defaultDelayMs: 1000 }
   - stageId: requirement-discovery
     capabilityId: requirement-discovery
     consumes:
@@ -27,7 +27,7 @@ stages:
       - { type: catalog-binding-hint, schemaVersion: 1 }
       # Present when the author declined the specification; the IDS then stays out of chat.
       - { type: ids-bypass, schemaVersion: 1 }
-    retry: { maxTechnicalRetries: 0, defaultDelayMs: 1000 }
+    retry: { maxTechnicalRetries: 2, defaultDelayMs: 1000 }
   - stageId: uploaded-spec-import
     capabilityId: auto-uploaded-spec-import
     consumes: [{ type: requirement-draft, schemaVersion: 2 }]
@@ -53,14 +53,14 @@ stages:
       - { type: requirement-draft, schemaVersion: 2 }
     produces: [{ type: requirement-brief, schemaVersion: 1 }]
     approval: { artifact: { type: requirement-brief, schemaVersion: 1 } }
-    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+    retry: { maxTechnicalRetries: 2, defaultDelayMs: 1000 }
   - stageId: design-input
     capabilityId: design-input
     consumes: [{ type: requirement-brief, schemaVersion: 1 }]
     produces:
       - { type: chain-semantic-revision, schemaVersion: 1 }
       - { type: ids-document, schemaVersion: 1 }
-    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+    retry: { maxTechnicalRetries: 2, defaultDelayMs: 1000 }
   - stageId: design-planning
     capabilityId: design-planning
     consumes:
@@ -83,7 +83,7 @@ stages:
         - { type: design-plan-report, schemaVersion: 1 }
         - { type: design-execution-plan, schemaVersion: 1 }
         - { type: implementation-plan, schemaVersion: 2 }
-    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+    retry: { maxTechnicalRetries: 2, defaultDelayMs: 1000 }
   - stageId: design-execution
     capabilityId: design-execution
     consumes:
@@ -109,7 +109,7 @@ stages:
       - { type: validated-execution-bundle, schemaVersion: 1 }
       - { type: materialization-request, schemaVersion: 1 }
       - { type: design-execution-checkpoint, schemaVersion: 1 }
-    retry: { maxTechnicalRetries: 1, defaultDelayMs: 1000 }
+    retry: { maxTechnicalRetries: 2, defaultDelayMs: 1000 }
   - stageId: materialization
     capabilityId: materialization
     consumes:

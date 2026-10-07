@@ -29,6 +29,13 @@ public final class PipelineSignalLiveSink {
     BY_RUN.remove(runId.trim());
   }
 
+  /** Detaches this observer without clearing a later connection for the same run. */
+  public static void unbind(String runId, Consumer<PipelineSignal> observer) {
+    if (runId != null && !runId.isBlank() && observer != null) {
+      BY_RUN.remove(runId.trim(), observer);
+    }
+  }
+
   public static boolean isBound(String runId) {
     if (runId == null || runId.isBlank()) {
       return false;

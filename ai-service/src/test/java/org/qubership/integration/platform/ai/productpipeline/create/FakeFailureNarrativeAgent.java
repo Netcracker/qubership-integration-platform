@@ -378,7 +378,8 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
       return null;
     }
     try {
-      JsonNode refs = CONTEXT_MAPPER.readTree(recoveryContextJson).path("evidence").path("rejectedArtifactRefs");
+      JsonNode context = CONTEXT_MAPPER.readTree(recoveryContextJson);
+      JsonNode refs = context.path("evidence").path("rejectedArtifactRefs");
       if (!refs.isArray()) {
         return null;
       }
@@ -387,6 +388,11 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
           return new Reference(
               faultKind, ref.path("artifactId").asText(), ref.path("contentHash").asText());
         }
+      }
+      JsonNode approvedPlan = context.path("approvedPlanRef");
+      if (faultKind.name().equals(approvedPlan.path("kind").asText())) {
+        return new Reference(faultKind, approvedPlan.path("artifactId").asText(),
+            approvedPlan.path("contentHash").asText());
       }
     } catch (Exception ignored) {
       return null;

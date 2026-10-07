@@ -85,7 +85,7 @@ public final class RecoveryExecutor {
         failedStage == null || failedStage.retry() == null
             ? 0L
             : failedStage.retry().defaultDelayMs();
-    return new StageDecision.Retry(stageId, Duration.ofMillis(Math.max(delayMs, 0L)));
+    return new StageDecision.Retry(stageId, Duration.ofMillis(Math.max(delayMs, 0L)), true);
   }
 
   /**

@@ -15,8 +15,39 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class MappingGapCoverageTest {
 
   @Test
-  void rockyBriefWithNoIntentsHasTwoUncoveredTransitions() {
+  void executionEdgesWithoutFieldAdaptationDoNotAskForMapping() {
     RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBrief();
+    assertTrue(MappingGapCoverage.uncovered(brief).isEmpty());
+    assertEquals(MappingGapCoverage.State.NOT_REQUESTED,
+        MappingGapCoverage.state(brief, brief.flow().transitions().getFirst()));
+    assertTrue(brief.skippedTransitions().isEmpty());
+  }
+
+  @Test
+  void localBodyWriterDoesNotCreateAnAdaptationRequestOrCoverAnotherRequestedMapping() {
+    for (var placement : List.of(
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.BEFORE_HOOK,
+        org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.LOCAL_NODE)) {
+      var brief = ChainSemanticCaptureFixtures.rockyBrief();
+      var body = new org.qubership.integration.platform.ai.plan.RequirementFact("body",
+          org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+          org.qubership.integration.platform.ai.plan.RequirementFactKind.BEHAVIOR, "",
+          "Set the complete request body to the constant JSON.", "", "", "", "", "", "",
+          List.of("create-task"), null,
+          new org.qubership.integration.platform.ai.plan.RequirementElementIntent("body-script", "script",
+              placement, "create-task", null, null, "Set body", List.of(), List.of("{\"testKey\":\"test message\"}")));
+      brief = brief.withFacts(List.of(body));
+      assertTrue(MappingGapCoverage.uncovered(brief).isEmpty());
+      var requested = ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings();
+      var facts = new java.util.ArrayList<>(requested.facts());
+      facts.add(body);
+      assertEquals(2, MappingGapCoverage.uncovered(requested.withFacts(facts)).size());
+    }
+  }
+
+  @Test
+  void requestedAdaptationsWithoutIntentsHaveTwoUncoveredTransitions() {
+    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings();
     List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
     assertEquals(2, uncovered.size());
     assertTrue(MappingGapCoverage.shouldAsk(uncovered));
@@ -31,8 +62,8 @@ class MappingGapCoverageTest {
   }
 
   @Test
-  void emptyIntentsWithNoSkipLeaveEveryHopUncovered() {
-    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBrief();
+  void requestedAdaptationsWithoutIntentsOrSkipRemainUncovered() {
+    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings();
     assertTrue(brief.mappingIntents().isEmpty());
     assertTrue(brief.skippedTransitions().isEmpty());
     assertEquals(2, MappingGapCoverage.uncovered(brief).size());
@@ -41,7 +72,7 @@ class MappingGapCoverageTest {
   @Test
   void intentWithAtLeastOneRuleIsMapped() {
     RequirementBrief brief =
-        ChainSemanticCaptureFixtures.rockyBrief()
+        ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings()
             .withMappingIntents(
                 List.of(
                     new MappingIntent(
@@ -63,7 +94,7 @@ class MappingGapCoverageTest {
   @Test
   void emptyRuleIntentIsNotMapped() {
     RequirementBrief brief =
-        ChainSemanticCaptureFixtures.rockyBrief()
+        ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings()
             .withMappingIntents(
                 List.of(
                     new MappingIntent(
@@ -79,7 +110,7 @@ class MappingGapCoverageTest {
   @Test
   void skipRecordsRemoveHopsFromUncoveredWithoutMappingRows() {
     RequirementBrief skipped =
-        MappingGapCoverage.skipUncovered(ChainSemanticCaptureFixtures.rockyBrief());
+        MappingGapCoverage.skipUncovered(ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings());
     assertTrue(skipped.mappingIntents().isEmpty());
     assertEquals(2, skipped.skippedTransitions().size());
     assertTrue(MappingGapCoverage.uncovered(skipped).isEmpty());
@@ -92,7 +123,7 @@ class MappingGapCoverageTest {
   @Test
   void skipUncoveredLeavesMappedHopsAndSkipsOnlyTheRemainder() {
     RequirementBrief mappedFirst =
-        ChainSemanticCaptureFixtures.rockyBrief()
+        ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings()
             .withMappingIntents(
                 List.of(
                     new MappingIntent(
@@ -112,7 +143,7 @@ class MappingGapCoverageTest {
 
   @Test
   void confirmationDoesNotCoverUncoveredHops() {
-    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBrief();
+    RequirementBrief brief = ChainSemanticCaptureFixtures.rockyBriefWithRequestedMappings();
     List<Transition> uncovered = MappingGapCoverage.uncovered(brief);
     MappingGapPassThroughConfirmation confirmation =
         new MappingGapPassThroughConfirmation(

@@ -16,9 +16,25 @@ public record RequirementElementIntent(
     @JsonAlias("afterElementRef")
     @NullableCaptureValue(description = "The preceding element: this element executes after the predecessor. For elementRef A and"
         + " predecessorElementRef B, the required order is B -> A. Null when unspecified or when the elements belong to alternative branches.") String predecessorElementRef,
+    @NullableCaptureValue(description = "The containing elementRef when this element is explicitly nested inside a container."
+        + " This is structural membership, not execution order. Null when unspecified.") String parentElementRef,
     @NullableCaptureValue String requestedName,
     List<PlanProperty> requestedProperties,
     List<String> exactValues) {
+
+  public RequirementElementIntent(
+      String elementRef,
+      String elementType,
+      Placement placement,
+      String ownerInteractionId,
+      String successorElementRef,
+      String predecessorElementRef,
+      String requestedName,
+      List<PlanProperty> requestedProperties,
+      List<String> exactValues) {
+    this(elementRef, elementType, placement, ownerInteractionId, successorElementRef,
+        predecessorElementRef, null, requestedName, requestedProperties, exactValues);
+  }
 
   public enum Placement { ANCHOR, LOCAL_NODE, BEFORE_HOOK, AFTER_HOOK, CHAIN }
 }

@@ -252,8 +252,9 @@ public class CreateProductPipelineCoordinator {
   private ChatEvent creationDecision(String conversationId, ProductPipelineRunDocument doc) {
     String hash = facade.pendingCreationHash(conversationId).orElse("");
     String question =
-        approvalPrompts.implementContinuationPrompt(
-            facade.responseLocale(conversationId), languageReference(doc));
+        org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget.withRun(doc.run().runId(),
+            () -> approvalPrompts.implementContinuationPrompt(
+                facade.responseLocale(conversationId), languageReference(doc)));
     if (!hash.isBlank() && approvalQuestions != null) {
       approvalQuestions.save(conversationId, hash, question);
     }

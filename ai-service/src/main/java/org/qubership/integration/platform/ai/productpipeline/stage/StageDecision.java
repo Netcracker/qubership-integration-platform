@@ -39,7 +39,11 @@ public sealed interface StageDecision {
     }
   }
 
-  record Retry(String stageId, Duration delay) implements StageDecision {
+  record Retry(String stageId, Duration delay, boolean technicalRetry) implements StageDecision {
+
+    public Retry(String stageId, Duration delay) {
+      this(stageId, delay, false);
+    }
 
     public Retry {
       delay = delay == null ? Duration.ZERO : delay;

@@ -135,7 +135,7 @@ class OneBriefLogTipTest {
   }
 
   @Test
-  void mappingGapThenRecaptureThenExecuteDoesNotHaltOnLiveMappingMismatch() {
+  void mappingGapThenUnapprovedRecaptureKeepsTheAcceptedProjectionThroughExecution() {
     waitAtMappingGap();
     type(DESCRIBE_PROSE);
     RequirementBrief gapBrief = storedBrief();
@@ -147,9 +147,10 @@ class OneBriefLogTipTest {
     RequirementBrief recaptured = storedBrief();
     assertEquals("Recaptured OM to Salesforce WFM", recaptured.goal());
     assertEquals("$.title", firstSourcePath(recaptured));
-    assertEquals("Recaptured OM to Salesforce WFM", capturedDesignBrief.get().goal());
-    assertEquals("$.title", firstSourcePath(capturedDesignBrief.get()));
-    assertNotEquals(firstSourcePath(gapBrief), firstSourcePath(capturedDesignBrief.get()));
+    assertEquals("OM to Salesforce WFM", capturedDesignBrief.get().goal());
+    assertEquals("$.name", firstSourcePath(capturedDesignBrief.get()));
+    assertEquals(firstSourcePath(gapBrief), firstSourcePath(capturedDesignBrief.get()));
+    assertNotEquals(firstSourcePath(recaptured), firstSourcePath(capturedDesignBrief.get()));
     assertFalse(
         run()
             .transitions()
@@ -177,7 +178,7 @@ class OneBriefLogTipTest {
   }
 
   @Test
-  void restoreWithEmptyAttributesLoadsTheLogTip() {
+  void restoreWithEmptyAttributesLoadsTheAcceptedProjection() {
     waitAtMappingGap();
     type(DESCRIBE_PROSE);
     appendRecapturedBrief();
@@ -195,12 +196,12 @@ class OneBriefLogTipTest {
 
     RequirementBrief hydrated =
         (RequirementBrief) restored.runAttributes(RUN_ID).get("requirementBrief");
-    assertEquals("Recaptured OM to Salesforce WFM", hydrated.goal());
-    assertEquals("$.title", firstSourcePath(hydrated));
+    assertEquals("OM to Salesforce WFM", hydrated.goal());
+    assertEquals("$.name", firstSourcePath(hydrated));
   }
 
   @Test
-  void restoreReplacesAStickyInMemoryBriefWithTheLogTip() {
+  void restoreIgnoresANewerUnapprovedBrief() {
     waitAtMappingGap();
     type(DESCRIBE_PROSE);
     appendRecapturedBrief();
@@ -214,7 +215,7 @@ class OneBriefLogTipTest {
 
     RequirementBrief hydrated =
         (RequirementBrief) support.runAttributes(RUN_ID).get("requirementBrief");
-    assertEquals("Recaptured OM to Salesforce WFM", hydrated.goal());
+    assertEquals("OM to Salesforce WFM", hydrated.goal());
   }
 
   private void captureThroughExecute() {
@@ -613,7 +614,15 @@ class OneBriefLogTipTest {
             "Uncovered flow transitions",
             "ref",
             "draft",
-            List.of())
+            List.of(
+                new org.qubership.integration.platform.ai.plan.RequirementFact("map-request-1",
+                    org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+                    org.qubership.integration.platform.ai.plan.RequirementFactKind.FIELD_MAPPING, "", "Map the request fields.",
+                    "", "", "", "", "", "", List.of("task-start", "create-task")),
+                new org.qubership.integration.platform.ai.plan.RequirementFact("map-request-2",
+                    org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+                    org.qubership.integration.platform.ai.plan.RequirementFactKind.FIELD_MAPPING, "", "Map the result fields.",
+                    "", "", "", "", "", "", List.of("create-task", "task-result"))))
         .withFlow(mappedFlow());
   }
 
@@ -680,7 +689,7 @@ class OneBriefLogTipTest {
     return new ProductPipelineProfile(
         1,
         "test-one-brief-log-tip",
-        "1",
+        "2",
         List.of(userInput),
         List.of(
             new ProfileStage(

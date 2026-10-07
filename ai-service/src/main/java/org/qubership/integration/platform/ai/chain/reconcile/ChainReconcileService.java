@@ -42,6 +42,7 @@ public class ChainReconcileService {
     Map<String, String> nodeMap =
         map != null && map.nodeIdToElementId() != null ? map.nodeIdToElementId() : Map.of();
     Set<String> catalogElementIds = catalogElementIds(facts);
+    Set<String> expectedElementIds = new HashSet<>();
 
     if (plan != null && plan.chain() != null) {
       String expectedName = blankToNull(plan.chain().name());
@@ -62,6 +63,7 @@ public class ChainReconcileService {
           missingElementIds.add(nodeId);
           continue;
         }
+        expectedElementIds.add(elementId);
         if (!catalogElementIds.contains(elementId)) {
           missingElementIds.add(nodeId + "->" + elementId);
           continue;
@@ -80,11 +82,14 @@ public class ChainReconcileService {
         checkParentMismatch(node, elementId, nodeMap, facts, parentMismatches);
         checkPropertyMismatches(node, element, nodeMap, propertyMismatches);
       }
+      catalogElementIds.stream().filter(id -> !expectedElementIds.contains(id)).sorted()
+          .forEach(id -> chainMismatches.add("unexpectedElement:" + id));
     }
 
     if (plan != null && plan.edges() != null) {
       Map<String, ChainPlanNode> nodesById = nodesById(plan);
       Set<String> depKeys = dependencyKeys(facts);
+      Set<String> expectedDepKeys = new HashSet<>();
       for (ChainPlanEdge edge : plan.edges()) {
         if (edge.fromNodeId() == null || edge.toNodeId() == null) {
           continue;
@@ -99,10 +104,13 @@ public class ChainReconcileService {
           missingConnections.add(edge.fromNodeId() + "->" + edge.toNodeId());
           continue;
         }
+        expectedDepKeys.add(depKey(fromId, toId));
         if (!depKeys.contains(depKey(fromId, toId))) {
           missingConnections.add(edge.fromNodeId() + "->" + edge.toNodeId());
         }
       }
+      depKeys.stream().filter(key -> !expectedDepKeys.contains(key)).sorted()
+          .forEach(key -> chainMismatches.add("unexpectedDependency:" + key));
     }
 
     boolean matches =

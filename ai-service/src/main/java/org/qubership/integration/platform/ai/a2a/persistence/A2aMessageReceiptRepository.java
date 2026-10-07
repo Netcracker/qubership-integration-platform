@@ -61,6 +61,11 @@ public interface A2aMessageReceiptRepository {
       String taskId,
       Long preconditionRevision);
 
+  /** Atomically records the resolved command payload with the continuation claim. */
+  A2aCallerMessageClaimResult claimContinuation(
+      String tenantId, String subjectId, String messageId, String commandFingerprint,
+      String commandKind, String taskId, Long preconditionRevision, String commandPayloadJson);
+
   /**
    * Transitions {@code CLAIMED} → {@code DISPATCHING} for the receipt. Returns {@code false} when
    * another owner already holds dispatch or the receipt is already {@code COMPLETED}.

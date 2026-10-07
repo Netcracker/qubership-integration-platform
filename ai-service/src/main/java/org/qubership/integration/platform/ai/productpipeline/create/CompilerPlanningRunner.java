@@ -263,12 +263,11 @@ public class CompilerPlanningRunner {
           if (issue == null || issue.severity() != ValidationSeverity.BLOCKER) {
             continue;
           }
-          // Prefer structural property codes; otherwise keep the validator issueId (e.g. security-1)
-          // so owner remapping can classify policy findings. Unknown-property and missing-required
-          // messages get a typed cause code at this boundary.
-          String propertyCode = propertyFindingCode(issue.message());
+          // Legacy validator reports still use message-based codes.
+          boolean hasTypedCode = issue.findingCode() != null && !issue.findingCode().isBlank();
+          String propertyCode = hasTypedCode ? null : propertyFindingCode(issue.message());
           String issueId = issue.issueId() == null ? "" : issue.issueId().trim();
-          String code = typedFindingCode(issue.message(), propertyCode, issueId);
+          String code = hasTypedCode ? issue.findingCode() : typedFindingCode(issue.message(), propertyCode, issueId);
           String message =
               propertyCode != null
                   ? propertyCode
@@ -279,7 +278,8 @@ public class CompilerPlanningRunner {
                       ? "compiler validation blocker"
                       : issue.message();
           findings.add(
-              new PlanValidationFinding(code, withCorrectiveEvidence(message, issue), true));
+              new PlanValidationFinding(code, withCorrectiveEvidence(message, issue), true, null,
+                  issue.originRecordId(), issue.fieldPointer()));
         }
       }
       if (!compilerValidation.valid()

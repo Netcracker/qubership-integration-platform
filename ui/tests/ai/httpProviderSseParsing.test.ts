@@ -76,6 +76,30 @@ describe("parseCipSseBlock", () => {
     ]);
   });
 
+  it("keeps finite repair allowance metadata on SSE and reconnect decisions", () => {
+    const payload = {
+      id: "repair-1",
+      kind: "clarify",
+      question: "Continue repair?",
+      revision: 19,
+      actions: ["continue-repair", "stop-with-report"],
+      recovery: {
+        category: "repair-allowance-required",
+        title: "Repair paused",
+        summary: "Credit is spent.",
+        preservedWork: "Approved work is saved.",
+        technicalDetails: "2 targeted and 2 clean attempts spent.",
+        runId: "run-1",
+        failedStageId: "design-execution",
+      },
+    };
+    const wire = JSON.stringify(payload);
+    const chunks = parseCipSseBlock(`event: decision\ndata: ${wire}\n`);
+    expect(chunks[0]?.decision?.recovery).toEqual(payload.recovery);
+    expect(chunks[0]?.decision?.actions).toEqual(payload.actions);
+    expect(parseDecisionPayload(wire)?.recovery).toEqual(payload.recovery);
+  });
+
   it("parses contextual recovery metadata without deriving it from the summary", () => {
     const chunks = parseCipSseBlock(
       'event: decision\ndata: {"id":"clarify:7","kind":"clarify","question":"The provider paused requests.",' +
@@ -121,6 +145,34 @@ describe("parseCipSseBlock", () => {
       runId: "run-1",
       failedStageId: "planning",
     });
+  });
+
+  it("keeps the design recovery action and presentation", () => {
+    const chunks = parseCipSseBlock(
+      "event: decision\ndata: " +
+        JSON.stringify({
+          id: "clarify:23",
+          kind: "clarify",
+          question: "Restore the inline hook.",
+          revision: 23,
+          actions: ["rebuild-design", "stop-with-report"],
+          recovery: {
+            category: "design-artifact-defect",
+            title: "The design cannot be used",
+            summary: "Restore the inline hook.",
+            preservedWork: "Your approved requirements stay unchanged.",
+            technicalDetails: null,
+            retryDelayMs: null,
+            runId: "run-1",
+            failedStageId: "design-input",
+          },
+        }) +
+        "\n",
+    );
+    expect(chunks[0]?.decision?.recovery?.category).toBe(
+      "design-artifact-defect",
+    );
+    expect(chunks[0]?.decision?.actions).toContain("rebuild-design");
   });
 
   it("parses a plan-artifact defect without treating stage ids as actions", () => {

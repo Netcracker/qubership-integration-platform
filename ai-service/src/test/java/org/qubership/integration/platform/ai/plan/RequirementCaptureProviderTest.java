@@ -19,7 +19,11 @@ import dev.langchain4j.service.tool.ToolProviderResult;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Clock;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationSessions;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput;
@@ -30,6 +34,27 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polari
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureProviderTest {
+
+  @Test
+  void malformedToolArgumentsRemainIntactWithTheirTypedRejection() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var store = new RequirementDraftStore(artifacts, sessions);
+    var provider = new RequirementCaptureToolProvider(
+        new RequirementCaptureTools(store, mock(RequirementDraftTool.class), mapper), mapper).provideTools(null);
+    String chat = "raw-rejection-" + UUID.randomUUID();
+    String arguments = "{\"draft\": {}, \"draft\": {\"sentinel\": \"preserve this entire rejected input\"}}";
+    var output = provider.toolExecutorByName("captureRequirementDraft").execute(
+        ToolExecutionRequest.builder().id("1").name("captureRequirementDraft").arguments(arguments).build(), chat);
+    assertEquals("DUPLICATE_JSON_KEY", mapper.readTree(output).path("issues").get(0).path("code").asText());
+    var attempt = artifacts.latest(sessions.active(chat),
+        CompilationArtifacts.Kind.REQUIREMENT_CAPTURE_ATTEMPT).orElseThrow().payload();
+    assertEquals(arguments, attempt.path("arguments").asText());
+    assertEquals("DUPLICATE_JSON_KEY", attempt.path("issues").get(0).path("code").asText());
+    assertTrue(store.get(chat).isEmpty());
+  }
 
   @Test
   void nullableRequiredFieldsWorkThroughTheProvider() throws Exception {

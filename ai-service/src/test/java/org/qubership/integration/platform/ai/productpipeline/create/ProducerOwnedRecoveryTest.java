@@ -444,7 +444,14 @@ class ProducerOwnedRecoveryTest {
   }
 
   @Test
-  void aMissingRequiredValueAsksUsingTheFindingText() {
+  void aSecurityCauseAloneDoesNotEstablishAnUnansweredPolicyChoice() {
+    var selected = route("design-execution", RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY),
+        EXECUTION_CANDIDATES, false, 0, Optional.empty());
+    assertEquals(ProducerOwnedRecovery.Action.REPAIR_CURRENT, selected.action());
+  }
+
+  @Test
+  void generatedSecurityAndMissingPropertyDefectsRepairWithoutInventingAuthorChoices() {
     PlanValidationFinding roles =
         new PlanValidationFinding(
             "security-2", "External route RBAC requires a non-empty roles list", true);
@@ -471,11 +478,12 @@ class ProducerOwnedRecoveryTest {
             0,
             Optional.empty());
 
-    assertEquals(ProducerOwnedRecovery.Action.ASK_CLARIFICATION, security.action());
+    assertEquals(ProducerOwnedRecovery.Action.REPAIR_CURRENT, security.action());
     assertEquals("design-execution", security.producerStageId());
-    assertTrue(security.requestedFact().contains(roles.message()));
-    assertEquals(ProducerOwnedRecovery.Action.ASK_CLARIFICATION, property.action());
-    assertTrue(property.requestedFact().contains(retry.message()));
+    assertTrue(security.requestedFact().isEmpty());
+    assertEquals(ProducerOwnedRecovery.Action.REPAIR_CURRENT, property.action());
+    assertEquals("design-execution", property.producerStageId());
+    assertTrue(property.requestedFact().isEmpty());
   }
 
   @Test

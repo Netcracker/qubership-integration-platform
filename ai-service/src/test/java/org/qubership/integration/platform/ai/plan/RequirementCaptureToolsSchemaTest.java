@@ -33,7 +33,7 @@ class RequirementCaptureToolsSchemaTest {
     Set<String> fields = new java.util.LinkedHashSet<>();
     collect(capture, capture.definitions(), fields);
     assertTrue(fields.containsAll(Set.of("fieldMapping", "sourceInteractionId",
-        "sourcePath", "targetInteractionId", "targetPath", "expression")),
+        "sourcePath", "targetInteractionId", "targetPath", "expression", "parentElementRef")),
         fields.toString());
   }
 

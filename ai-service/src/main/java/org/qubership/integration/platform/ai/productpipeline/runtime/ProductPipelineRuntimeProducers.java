@@ -68,6 +68,8 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 /** CDI producers for the durable product-pipeline runtime graph. */
 @ApplicationScoped
 public class ProductPipelineRuntimeProducers {
+  @jakarta.inject.Inject
+  org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget llmRunBudget;
 
   private static final String MATERIALIZATION_CAPABILITY_ID = "materialization";
 
@@ -203,11 +205,12 @@ public class ProductPipelineRuntimeProducers {
                 new RecoveryAttemptLedger.Limits(
                     appConfig.create().maxSemanticRepairs(),
                     appConfig.create().maxCausalReopens(),
-                    appConfig.create().recoveryAttemptCeiling())),
+                    appConfig.create().recoveryAttemptCeiling(),
+                    appConfig.create().maxCleanRebuilds())),
             recoveryTelemetry,
             mappingTurnInterpreter,
             mappingTurnTelemetry,
-            mappingRepairCaptureValidator).withConversations(conversations);
+            mappingRepairCaptureValidator).withConversations(conversations).withLlmBudget(llmRunBudget);
   }
 
   @Produces

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -1338,6 +1339,35 @@ class ChatDecisionServiceTest {
     assertEquals("clarify", decision.kind());
     assertEquals(narrative, decision.reason());
     assertEquals(List.of(PipelineGates.RETRY_ACTION), decision.actions());
+  }
+
+  @Test
+  void additionalRepairClicksCarryTheSameOfferDespiteFreshTransportIds() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    when(facade.snapshot("conv-repair"))
+        .thenReturn(Optional.of(new CreateChainExecutionSnapshot("conv-repair", "run-repair",
+            CreateChainExecutionStatus.INPUT_REQUIRED, 6L,
+            new CreateChainPendingAction.Clarify("Grant two corrections per strategy.", List.of(),
+                PipelineGates.RECOVERY_REPAIR_ALLOWANCE, "Invalid generated value.", null,
+                "run-repair", "design-execution"), "")));
+    when(facade.continueWithInput(any())).thenReturn(Multi.createFrom().empty());
+    when(facade.pendingRepairOffer("conv-repair", 6L)).thenReturn(Optional.of("continue-repair:bound-defect"));
+    var service = new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    ChatDecisionCommand command = command(PipelineGates.CONTINUE_REPAIR_ACTION, null, null, null);
+    command.setRevision(6L);
+    for (int click = 0; click < 2; click++) {
+      service.apply("conv-repair", command).collect().asList().await().indefinitely();
+    }
+    ArgumentCaptor<ContinueCreateChainCommand> inputs = ArgumentCaptor.forClass(ContinueCreateChainCommand.class);
+    verify(facade, times(2)).continueWithInput(inputs.capture());
+    assertEquals("continue-repair:bound-defect",
+        inputs.getAllValues().getFirst().clarificationText());
+    assertEquals(inputs.getAllValues().getFirst().clarificationText(),
+        inputs.getAllValues().getLast().clarificationText());
+    assertFalse(inputs.getAllValues().getFirst().commandId().equals(inputs.getAllValues().getLast().commandId()));
+    command.setRevision(5L);
+    service.apply("conv-repair", command).collect().asList().await().indefinitely();
+    verify(facade, times(2)).continueWithInput(any());
   }
 
   @Test

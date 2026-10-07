@@ -8,6 +8,9 @@ For elementRef A, predecessorElementRef B means B executes before A: the require
 For elementRef A, successorElementRef B means A executes before B: the required path is A -> B.
 Follow requiredExecutionOrder from the brief when constructing edges. Reordering the operations
 array does not change execution; edges determine the path. Preserve these constraints during repair.
+For parentElementRef B, place the element inside B through containment or B's region. Preserve
+requiredContainment from the brief. Reuse body membership has no execution edge from its parent;
+only predecessorElementRef and successorElementRef request execution order.
 An ANCHOR keeps its interaction node. BEFORE_HOOK and AFTER_HOOK facts belong only to the
 owning Service Call anchor; they cannot justify a standalone Script. A requested Checkpoint
 is a separate OPERATION with elementType=checkpoint, even though it calls no external actor.
@@ -41,7 +44,7 @@ an inline before-call script, capture the call's provenance and a direct executi
     "operations": [
       {"nodeId": "call", "elementType": "service-call", "sourceFactIds": ["prepare-body"]}
     ],
-    "edges": [{"sourceNodeId": "entry", "targetNodeId": "call"}]
+    "edges": [{"sourceNodeId": "entry", "targetNodeId": "call", "routeKind": "SEQUENCE"}]
   }
 }
 ```
@@ -92,10 +95,10 @@ and `response-fields`, and mapping intent IDs `entry-to-call-request` and `call-
       {"nodeId": "build-result", "elementType": "script", "sourceFactIds": ["assemble-result", "response-fields", "failure-fields"]}
     ],
     "edges": [
-      {"sourceNodeId": "entry", "targetNodeId": "prepare-request"},
-      {"sourceNodeId": "prepare-request", "targetNodeId": "call", "mappingIntentId": "entry-to-call-request"},
-      {"sourceNodeId": "call", "targetNodeId": "build-result"},
-      {"sourceNodeId": "build-result", "targetNodeId": "deliver", "mappingIntentId": "call-to-deliver-request"}
+      {"sourceNodeId": "entry", "targetNodeId": "prepare-request", "routeKind": "SEQUENCE"},
+      {"sourceNodeId": "prepare-request", "targetNodeId": "call", "mappingIntentId": "entry-to-call-request", "routeKind": "SEQUENCE"},
+      {"sourceNodeId": "call", "targetNodeId": "build-result", "routeKind": "SEQUENCE"},
+      {"sourceNodeId": "build-result", "targetNodeId": "deliver", "mappingIntentId": "call-to-deliver-request", "routeKind": "SEQUENCE"}
     ]
   }
 }
@@ -144,7 +147,7 @@ and the Else branch contains a requested error-response Script. Both branches en
       ]
     }],
     "edges": [
-      {"sourceNodeId": "inbound", "targetNodeId": "choose"},
+      {"sourceNodeId": "inbound", "targetNodeId": "choose", "routeKind": "SEQUENCE"},
       {"sourceNodeId": "choose", "targetNodeId": "call", "regionId": "choice", "routeKind": "CONDITION_BRANCH", "branchId": "valid"},
       {"sourceNodeId": "choose", "targetNodeId": "reject", "regionId": "choice", "routeKind": "CONDITION_BRANCH", "branchId": "invalid"}
     ]
@@ -187,9 +190,9 @@ The supplied anchors are `inbound` and `call`; replace IDs and facts with the ap
       "branches": [{"branchId": "background", "order": 0, "entryNodeId": "call", "exitNodeIds": ["call"]}]
     }],
     "edges": [
-      {"sourceNodeId": "inbound", "targetNodeId": "split"},
+      {"sourceNodeId": "inbound", "targetNodeId": "split", "routeKind": "SEQUENCE"},
       {"sourceNodeId": "split", "targetNodeId": "call", "regionId": "async-region", "routeKind": "SPLIT_BRANCH", "branchId": "background"},
-      {"sourceNodeId": "split", "targetNodeId": "continue"}
+      {"sourceNodeId": "split", "targetNodeId": "continue", "routeKind": "SEQUENCE"}
     ]
   }
 }
@@ -219,7 +222,7 @@ Do not add a no-op Script to create a branch entry; the server creates the branc
       "reconvergenceNodeId": "check-result"
     }],
     "edges": [
-      {"sourceNodeId": "inbound", "targetNodeId": "split"},
+      {"sourceNodeId": "inbound", "targetNodeId": "split", "routeKind": "SEQUENCE"},
       {"sourceNodeId": "split", "targetNodeId": "left-work", "regionId": "split-region", "routeKind": "SPLIT_BRANCH", "branchId": "left-branch"},
       {"sourceNodeId": "split", "targetNodeId": "right-work", "regionId": "split-region", "routeKind": "SPLIT_BRANCH", "branchId": "right-branch"},
       {"sourceNodeId": "left-work", "targetNodeId": "check-result", "regionId": "split-region", "routeKind": "RECONVERGE", "branchIds": ["left-branch"]},
@@ -262,7 +265,7 @@ Replace the example ids and expression with values from the supplied brief.
       "loopMode": "DO_WHILE", "loopExpression": "$\{header.more} == \"true\""
     }],
     "edges": [
-      {"sourceNodeId": "inbound", "targetNodeId": "repeat"},
+      {"sourceNodeId": "inbound", "targetNodeId": "repeat", "routeKind": "SEQUENCE"},
       {"sourceNodeId": "repeat", "targetNodeId": "work", "regionId": "repeat-region", "routeKind": "LOOP_BODY"},
       {"sourceNodeId": "work", "targetNodeId": "after", "regionId": "repeat-region", "routeKind": "LOOP_EXIT"}
     ]
@@ -271,7 +274,7 @@ Replace the example ids and expression with values from the supplied brief.
 ```
 
 Connect the nodes with `edges`. An edge carries `sourceNodeId`, `targetNodeId`, an optional
-`regionId`, and a `routeKind`. Omit `routeKind` for a plain sequence edge. Put every mapping from
+`regionId`, and a required `routeKind`. Use `SEQUENCE` for a plain sequence edge. Put every mapping from
 the brief on exactly one edge through `mappingIntentId`, and keep a `mapper-2` or `script` node next
 to that edge. If both ends of a mapped edge are scripts, the source script owns the mapping.
 For combined retention and request mapping, use `entry -> prepare-request -> call` and put
@@ -291,6 +294,44 @@ after the complete error scope from the wrapper with a plain sequence edge outsi
 The finally path ends at its last explicitly requested finally operation. A following verification script
 is not a finally member: exclude it from the region's `exitNodeIds` and connect the wrapper directly to it.
 For example, a Finally script that sets a property and a later Check values script remain separate.
+Declare try, catch, and finally membership only in `errorScopeRegions`; omit containment for their work.
+The server projects the native `try-2`, `catch-2`, and `finally-2` containers.
+Example with the supplied HTTP anchor `http-in`, three requested branch scripts, and a later verification script.
+Replace all names and fact IDs with the approved values. The verification script remains outside the scope.
+
+```json
+{
+  "capture": {
+    "chainIdentity": "Example try catch finally",
+    "operations": [
+      {"nodeId": "scope", "elementType": "try-catch-finally-2", "sourceFactIds": ["scope-policy"]},
+      {"nodeId": "try-work", "elementType": "script", "sourceFactIds": ["try-work"]},
+      {"nodeId": "catch-work", "elementType": "script", "sourceFactIds": ["catch-work"]},
+      {"nodeId": "finally-work", "elementType": "script", "sourceFactIds": ["finally-work"]},
+      {"nodeId": "verify", "elementType": "script", "sourceFactIds": ["verification"]}
+    ],
+    "errorScopeRegions": [{
+      "regionId": "scope-region", "ownerNodeId": "scope", "tryEntryNodeId": "try-work",
+      "handlers": [{
+        "handlerId": "catch-exception", "exceptionClass": "java.lang.Exception",
+        "entryNodeId": "catch-work", "exitNodeIds": ["catch-work"]
+      }],
+      "finallyEntryNodeId": "finally-work", "exitNodeIds": ["finally-work"]
+    }],
+    "edges": [
+      {"sourceNodeId": "http-in", "targetNodeId": "scope", "routeKind": "SEQUENCE"},
+      {"sourceNodeId": "scope", "targetNodeId": "try-work", "routeKind": "TRY_PATH", "regionId": "scope-region"},
+      {
+        "sourceNodeId": "scope", "targetNodeId": "catch-work", "routeKind": "CATCH_PATH",
+        "regionId": "scope-region", "handlerId": "catch-exception"
+      },
+      {"sourceNodeId": "scope", "targetNodeId": "finally-work", "routeKind": "FINALLY_PATH", "regionId": "scope-region"},
+      {"sourceNodeId": "scope", "targetNodeId": "verify", "routeKind": "SEQUENCE"}
+    ]
+  }
+}
+```
+
 Do not merge ordinary paths by giving a node multiple incoming edges: supported branch reconvergence
 uses `RECONVERGE` with the owning region and branch ids. Plain sequence edges outside a region need no region id.
 

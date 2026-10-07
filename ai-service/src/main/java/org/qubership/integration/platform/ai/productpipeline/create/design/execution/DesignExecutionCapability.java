@@ -216,6 +216,9 @@ public class DesignExecutionCapability implements StageCapability {
               null,
               result.recoveryCause()));
     } catch (RuntimeException ex) {
+      if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(ex)) {
+        return completedSignal(StageOutcome.technicalFailure(ex));
+      }
       if (ex instanceof ChainPlanGraphValidator.GraphStructureViolation) {
         return completedSignal(
             StageOutcome.of(
@@ -367,7 +370,8 @@ public class DesignExecutionCapability implements StageCapability {
     // returns null then, and there is no prior graph to reach for.
     StageRepairEvidence repairEvidence = StageRepairEvidence.from(context);
     ChainPlanGraph priorGraph =
-        repairEvidence == null ? null : loadPriorGraph(context, repairEvidence);
+        repairEvidence == null || StageRepairEvidence.isCleanExecutionRebuild(context, repairEvidence)
+            ? null : loadPriorGraph(context, repairEvidence);
 
     ExecutionInputs inputs =
         new ExecutionInputs(
@@ -396,17 +400,16 @@ public class DesignExecutionCapability implements StageCapability {
 
   /**
    * The graph the repair turn compares against: the one the halted attempt of this stage assembled,
-   * so a stage failing on its first pass has something to correct. Falls back to the latest graph in
-   * the run when the halted attempt recorded none, which is the graph of an earlier successful pass.
+   * so a stage failing on its first pass has something to correct. An attempt without captured
+   * output has no prior graph.
    */
   private ChainPlanGraph loadPriorGraph(
       StageExecutionContext context, StageRepairEvidence repairEvidence) {
     Optional<Revision> revision =
         repairEvidence
             .priorOutput(Kind.CHAIN_PLAN_GRAPH)
-            .flatMap(ref -> artifactStore.get(context.runId(), ref))
-            .or(() -> artifactStore.latest(context.runId(), Kind.CHAIN_PLAN_GRAPH));
-    if (revision.isEmpty()) {
+            .flatMap(ref -> artifactStore.get(context.runId(), ref));
+    if (revision.isEmpty() || !StageRepairEvidence.matchesCompileInputs(revision.get(), context.inputRefs())) {
       return null;
     }
     if (SupersededBriefLineageGuard.isSupersededCompileInput(

@@ -202,8 +202,34 @@ public class CreateChainApplicationFacade {
     Objects.requireNonNull(command, "command");
     String taskId = command.taskId();
     selectionService.selectOrCreate(taskId);
+    if (PipelineGates.CONTINUE_REPAIR_ACTION.equals(PipelineGates.haltCardAction(command.clarificationText()))) {
+      return Multi.createFrom().deferred(() -> {
+        ProductPipelineRunDocument doc = runStore.loadByConversation(taskId).orElseThrow();
+        AcceptInputCommand input = org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+            .bindRepairOffer(acceptInput(doc.run().runId(), command.clarificationText(), command.commandId(), command.origin()));
+        if (doc.appliedCommand(input.commandId(), input.commandPayloadHash()).isPresent()
+            || doc.run().status() != RunStatus.WAITING_FOR_INPUT
+            || !PipelineGates.RECOVERY_REPAIR_ALLOWANCE.equals(
+                PipelineGates.gateOf(latestWaitingForInputReason(doc)).orElse(""))
+            || !command.clarificationText().equals(
+                org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.repairOfferCommand(doc))) {
+          return Multi.createFrom().empty();
+        }
+        return mapSignals(taskId, runtime.acceptInput(input))
+            .onFailure(org.qubership.integration.platform.ai.compiler.artifact.StaleBlobVersionException.class)
+            .recoverWithMulti(() -> Multi.createFrom().empty());
+      });
+    }
     return continueExisting(
         taskId, command.clarificationText(), command.commandId(), command.origin());
+  }
+
+  public Optional<String> pendingRepairOffer(String taskId, long revision) {
+    return runStore.loadByConversation(taskId)
+        .filter(doc -> doc.run().runRevision() == revision && doc.run().status() == RunStatus.WAITING_FOR_INPUT)
+        .filter(doc -> PipelineGates.RECOVERY_REPAIR_ALLOWANCE.equals(
+            PipelineGates.gateOf(latestWaitingForInputReason(doc)).orElse("")))
+        .map(org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport::repairOfferCommand);
   }
 
   /** Response locale pinned from the conversation's first CREATE prompt. */
@@ -478,10 +504,13 @@ public class CreateChainApplicationFacade {
         runStore
             .loadByConversation(taskId)
             .orElseThrow(() -> new IllegalStateException("no run for taskId " + taskId));
-    // Durable evidence first: the approve step may already have applied before a crash, in which
-    // case the compound command resumes at its implement step instead of re-approving.
+    // The durable command can precede event delivery. Replay its current leg through the same Flow.
     if (approveAlreadyApplied(doc, command)) {
-      return resumeAfterApprove(taskId, command);
+      if (implementAlreadyApplied(doc, command)) {
+        return resumeAfterApprove(taskId, command);
+      }
+      return replayApproval(doc, command)
+          .onCompletion().switchTo(() -> resumeAfterApprove(taskId, command));
     }
     if (doc.run().status() == RunStatus.WAITING_FOR_IMPLEMENT) {
       return streamBlockedRecovery(taskId, doc, command);
@@ -514,11 +543,7 @@ public class CreateChainApplicationFacade {
             .loadByConversation(taskId)
             .orElseThrow(() -> new IllegalStateException("no run for taskId " + taskId));
     if (approveAlreadyApplied(doc, command)) {
-      LOG.infof(
-          "approve already applied, nothing to stream: taskId=%s, runId=%s, stageId=%s,"
-              + " artifactHash=%s",
-          taskId, doc.run().runId(), doc.run().currentStageId(), command.artifactHash());
-      return Multi.createFrom().empty();
+      return replayApproval(doc, command);
     }
     if (doc.run().status() == RunStatus.WAITING_FOR_IMPLEMENT) {
       return streamBlockedRecovery(taskId, doc, command);
@@ -593,6 +618,10 @@ public class CreateChainApplicationFacade {
   private Multi<CreateChainEvent> resumeAfterApprove(
       String taskId, ApproveCreateChainArtifactCommand command) {
     ProductPipelineRunDocument after = runStore.loadByConversation(taskId).orElseThrow();
+    if (implementAlreadyApplied(after, command)) {
+      return mapSignals(taskId, runtime.implement(implementStep(after.run().runId(),
+          command.artifactHash(), command.revision(), command.commandId())));
+    }
     if (after.run().status() != RunStatus.WAITING_FOR_IMPLEMENT) {
       return Multi.createFrom().empty();
     }
@@ -734,6 +763,41 @@ public class CreateChainApplicationFacade {
     return runStore.loadByConversation(taskId).map(doc -> snapshotOf(taskId, doc));
   }
 
+  /** Reads public state from committed evidence without dispatching a command or running a stage. */
+  public Optional<PublicState> publicState(String taskId) {
+    Objects.requireNonNull(taskId, "taskId");
+    return runStore.loadByConversation(taskId).flatMap(doc -> {
+      CreateChainExecutionSnapshot snapshot = snapshotOf(taskId, doc);
+      List<CreateChainEvent> events = new ArrayList<>();
+      if (snapshot.status() == CreateChainExecutionStatus.COMPLETED) {
+        Optional<CreateChainEvent.ArtifactReady> result = materializationArtifact(taskId, doc);
+        if (result.isEmpty()) {
+          return Optional.empty();
+        }
+        events.add(result.get());
+      } else if (snapshot.pendingAction() instanceof CreateChainPendingAction.Approve approve) {
+        Reference candidate = doc.run().status() == RunStatus.WAITING_FOR_IMPLEMENT
+            ? resolvePlanEvidence(doc).orElseThrow() : approvableReference(doc);
+        Map<String, Object> content = resolveApprovalContent(doc.run().runId(), candidate);
+        if (candidate.kind() == Kind.REQUIREMENT_BRIEF
+            && !content.containsKey("summary") && !content.containsKey("goal")) {
+          return Optional.empty();
+        }
+        String prompt = doc.run().status() == RunStatus.WAITING_FOR_IMPLEMENT ? approve.prompt() : doc.transitions().stream()
+            .filter(transition -> transition.toStatus() == RunStatus.WAITING_FOR_APPROVAL)
+            .reduce((a, b) -> b).map(transition -> publicPrompt(transition.reason())).orElse(approve.prompt());
+        snapshot = new CreateChainExecutionSnapshot(taskId, snapshot.runId(), snapshot.status(),
+            snapshot.revision(), new CreateChainPendingAction.Approve(approve.artifactType(),
+                approve.artifactHash(), approve.revision(), prompt), snapshot.failureMessage());
+        events.add(new CreateChainEvent.ArtifactReady(approve.artifactType(), candidate.artifactId(),
+            approve.artifactHash(), approve.revision(), content));
+      }
+      return Optional.of(new PublicState(snapshot, List.copyOf(events)));
+    });
+  }
+
+  public record PublicState(CreateChainExecutionSnapshot snapshot, List<CreateChainEvent> events) {}
+
   /**
    * Package-visible helper for tests that count internal implement submissions.
    *
@@ -752,6 +816,9 @@ public class CreateChainApplicationFacade {
             .loadByConversation(taskId)
             .orElseThrow(() -> new IllegalStateException("no run for taskId " + taskId));
     RunStatus status = doc.run().status();
+    if (status == RunStatus.RUNNING && inputAlreadyApplied(taskId, commandId, text)) {
+      return mapSignals(taskId, runtime.acceptInput(acceptInput(doc.run().runId(), text, commandId, origin)));
+    }
     if (status == RunStatus.WAITING_FOR_IMPLEMENT) {
       return Multi.createFrom()
           .item(
@@ -1119,6 +1186,24 @@ public class CreateChainApplicationFacade {
   private static boolean approveAlreadyApplied(
       ProductPipelineRunDocument doc, ApproveCreateChainArtifactCommand command) {
     return doc.appliedCommand(approveStepId(command), approvePayloadHash(command)).isPresent();
+  }
+
+  private Multi<CreateChainEvent> replayApproval(
+      ProductPipelineRunDocument doc, ApproveCreateChainArtifactCommand command) {
+    Reference target = doc.run().stages().stream()
+        .flatMap(stage -> stage.candidateReferences().stream())
+        .filter(ref -> ref.kind() == CreateChainPublicArtifactTypes.toKind(command.artifactType()).orElse(null))
+        .filter(ref -> command.artifactHash().equals(ref.contentHash()))
+        .findFirst()
+        .orElseThrow(() -> new IllegalStateException("Applied approval has no retained candidate reference"));
+    return mapSignals(command.taskId(), runtime.approve(
+        approveStep(doc.run().runId(), target, command.revision(), command)));
+  }
+
+  private static boolean implementAlreadyApplied(
+      ProductPipelineRunDocument doc, ApproveCreateChainArtifactCommand command) {
+    return doc.appliedCommand(stepId(command.commandId(), "implement"),
+        payloadHash(Map.of("approvedPlanContentHash", command.artifactHash()))).isPresent();
   }
 
   /** Builds the {@code implement} step of an approval or blocked-recovery command. */

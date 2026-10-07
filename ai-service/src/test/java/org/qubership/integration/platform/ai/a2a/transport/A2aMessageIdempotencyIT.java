@@ -22,6 +22,9 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aMessageReceiptRepository;
 import org.qubership.integration.platform.ai.a2a.persistence.A2aTaskRepository;
 import org.qubership.integration.platform.ai.productpipeline.create.facade.CreateChainApplicationFacade;
@@ -36,6 +39,7 @@ import org.qubership.integration.platform.ai.productpipeline.create.facade.Start
 class A2aMessageIdempotencyIT {
 
   @InjectMock CreateChainApplicationFacade facade;
+  @InjectMock org.qubership.integration.platform.ai.a2a.access.LocalPermitAllTaskAccessPolicy accessPolicy;
 
   @Inject A2aTaskRepository taskRepository;
 
@@ -565,5 +569,63 @@ class A2aMessageIdempotencyIT {
         receiptRepository.findTaskIdForCallerMessage("local", "local-user", messageId).isEmpty());
     assertTrue(taskRepository.findByTaskId(messageId).isEmpty());
     assertEquals(0, startCalls.get());
+  }
+
+  @ParameterizedTest
+  @MethodSource("terminalReceiptCases")
+  void incompleteTerminalReceiptRequiresExactCommandEvidence(
+      boolean applied, boolean owned, boolean streaming, boolean denied) throws Exception {
+    String messageId = UUID.randomUUID().toString();
+    String taskId = "receipt-" + UUID.randomUUID();
+    var message = org.a2aproject.sdk.spec.Message.builder().messageId(messageId)
+        .role(org.a2aproject.sdk.spec.Message.Role.ROLE_USER)
+        .parts(List.of(new org.a2aproject.sdk.spec.TextPart("saved input"))).build();
+    var command = A2aInboundMessageParser.parse(message);
+    var task = org.a2aproject.sdk.spec.Task.builder().id(taskId).contextId(taskId)
+        .status(new org.a2aproject.sdk.spec.TaskStatus(org.a2aproject.sdk.spec.TaskState.TASK_STATE_WORKING, null, null))
+        .history(List.of(message)).build();
+    String workingJson = org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.toJson(task);
+    receiptRepository.claimInitialWithWorkingTask("local", "local-user", messageId,
+        A2aCommandFingerprint.compute(message, command), A2aInboundMessageParser.commandKind(command, true),
+        new org.qubership.integration.platform.ai.a2a.persistence.A2aTaskCreate(taskId, taskId, taskId,
+            org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState.WORKING, "local", "local-user",
+            workingJson, "[]", "[]", null));
+    String completedJson = org.a2aproject.sdk.jsonrpc.common.json.JsonUtil.toJson(
+        org.a2aproject.sdk.spec.Task.builder(task)
+            .status(new org.a2aproject.sdk.spec.TaskStatus(org.a2aproject.sdk.spec.TaskState.TASK_STATE_COMPLETED, null, null))
+            .build());
+    taskRepository.transition(taskId, new org.qubership.integration.platform.ai.a2a.persistence.A2aTaskUpdate(1L,
+        org.qubership.integration.platform.ai.a2a.protocol.A2aTaskState.COMPLETED,
+        completedJson, "[]", "[]", java.time.Instant.now()));
+    when(facade.inputAlreadyApplied(taskId, A2aCommandId.derive("local", "local-user", messageId), "saved input"))
+        .thenReturn(applied);
+    var owner = owned ? receiptRepository.acquireDispatch("local", "local-user", messageId).ownerToken() : null;
+    if (denied) {
+      org.mockito.Mockito.doThrow(new org.qubership.integration.platform.ai.a2a.access.TaskAccessDeniedException("denied"))
+          .when(accessPolicy).check(any(), any(), any());
+    }
+
+    String body = A2aSseTestSupport.textMessageBody(messageId, null, "saved input");
+    if (streaming) {
+      var events = A2aSseTestSupport.collectSseEvents("POST", "/message:stream", body, java.time.Duration.ofSeconds(10));
+      assertEquals(1, events.size());
+      assertEquals(taskId, events.getFirst().path("task").path("id").asText());
+    } else {
+      given().urlEncodingEnabled(false).header("A2A-Version", "1.0").contentType(ContentType.JSON)
+          .body(body).post(URI.create("/message:send")).then().statusCode(denied ? 404 : applied ? 200 : 400);
+    }
+    assertEquals(applied && !owned && !denied,
+        receiptRepository.findCallerReceipt("local", "local-user", messageId).orElseThrow().completed());
+    if (owned) {
+      assertTrue(receiptRepository.renewDispatch("local", "local-user", messageId, owner), "a replay cannot steal a live lease");
+      receiptRepository.releaseDispatch("local", "local-user", messageId, owner);
+    }
+    assertEquals(2L, taskRepository.findByTaskId(taskId).orElseThrow().revision());
+    assertEquals(0, startCalls.get());
+  }
+
+  static java.util.stream.Stream<Arguments> terminalReceiptCases() {
+    return java.util.stream.Stream.of(Arguments.of(false, false, false, false), Arguments.of(true, false, false, false),
+        Arguments.of(true, true, false, false), Arguments.of(true, false, true, false), Arguments.of(true, false, false, true));
   }
 }

@@ -91,6 +91,31 @@ class ChainSemanticCaptureSchemaTest {
   }
 
   @Test
+  void generatedSchemaRequiresAnExplicitRouteKindOnEveryEdge() {
+    JsonObjectSchema prepared = org.qubership.integration.platform.ai.plan.RequirementCaptureSchemas
+        .specification(createInfo().toolSpecification()).parameters();
+    JsonObjectSchema capture = (JsonObjectSchema) prepared.properties().get(parameterName());
+    JsonArraySchema edges = (JsonArraySchema) capture.properties().get("edges");
+    JsonObjectSchema edge = (JsonObjectSchema) edges.items();
+    assertTrue(edge.required().contains("routeKind"), edge.required().toString());
+  }
+
+  @Test
+  void boundaryRejectsAnEdgeWithoutItsRouteKind() {
+    ProductCapabilityCaptureContext.bindDesign(
+        "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
+    String arguments = linearArguments(ChainSemanticCaptureFixtures.SERVICE_CALL_NODE_ID, "")
+        .replace("\"targetNodeId\": \"op-shared\", \"routeKind\": \"SEQUENCE\"",
+            "\"targetNodeId\": \"op-shared\"");
+
+    String result = executeThroughFactory(arguments);
+
+    assertTrue(result.contains("MISSING_FIELD"), result);
+    assertTrue(result.contains("/capture/edges/0/routeKind"), result);
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+  }
+
+  @Test
   void generatedMapperAcceptsACaptureWithoutServerOwnedFields() {
     ProductCapabilityCaptureContext.bindDesign(
         "run-1", "conv-1", ChainSemanticCaptureFixtures.approvedBrief(), payload -> {});
@@ -196,7 +221,7 @@ class ChainSemanticCaptureSchemaTest {
   }
 
   /**
-   * The capture arrives with no region lists, no containment, no order, and no route kind, which
+   * The capture arrives with no region lists, no containment, and no order, which
    * proves the mapper accepts an absent optional field instead of rejecting the call.
    */
   private static String linearArguments(String callNodeId, String unknownFields) {
@@ -205,8 +230,8 @@ class ChainSemanticCaptureSchemaTest {
           "chainIdentity": "chain-orders",
           %s"operations": [{"nodeId": "op-shared", "elementType": "script"}],
           "edges": [
-            {"sourceNodeId": "http-in", "targetNodeId": "op-shared"},
-            {"sourceNodeId": "op-shared", "targetNodeId": "%s"}
+            {"sourceNodeId": "http-in", "targetNodeId": "op-shared", "routeKind": "SEQUENCE"},
+            {"sourceNodeId": "op-shared", "targetNodeId": "%s", "routeKind": "SEQUENCE"}
           ]
         }}
         """

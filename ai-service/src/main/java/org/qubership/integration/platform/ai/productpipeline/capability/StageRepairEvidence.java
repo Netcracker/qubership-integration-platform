@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.capability;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -7,7 +9,10 @@ import java.util.Optional;
 import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailures;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Kind;
 import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Reference;
+import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifacts.Revision;
 import org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryContextProjector;
 
 /**
  * Halt evidence available to a capability re-entering after a recoverable halt: the outcome class,
@@ -30,7 +35,11 @@ public record StageRepairEvidence(
     String recoveryEvidenceRef,
     List<Reference> priorOutputRefs,
     String failedSkillId,
-    String causeCode) {
+    String causeCode,
+    String typedCauseJson,
+    String rejectedCandidateJson) {
+
+  private static final ObjectMapper JSON = new ObjectMapper();
 
   /**
    * Attribute holding what the halted attempt of the stage now running produced. The runtime
@@ -43,6 +52,16 @@ public record StageRepairEvidence(
     priorOutputRefs = priorOutputRefs == null ? List.of() : List.copyOf(priorOutputRefs);
     failedSkillId = failedSkillId == null ? "" : failedSkillId;
     causeCode = causeCode == null ? "" : causeCode;
+    typedCauseJson = typedCauseJson == null ? "" : typedCauseJson;
+    rejectedCandidateJson = rejectedCandidateJson == null ? "" : rejectedCandidateJson;
+  }
+
+  public StageRepairEvidence(
+      String outcomeClass, String failedStageId, String findings, String errorEvidence,
+      String haltFollowUpText, String recoveryEvidenceRef, List<Reference> priorOutputRefs,
+      String failedSkillId, String causeCode) {
+    this(outcomeClass, failedStageId, findings, errorEvidence, haltFollowUpText,
+        recoveryEvidenceRef, priorOutputRefs, failedSkillId, causeCode, "", "");
   }
 
   public StageRepairEvidence(
@@ -122,7 +141,31 @@ public record StageRepairEvidence(
         context.attributeAsString(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR),
         priorOutputRefs(context),
         context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR),
-        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR));
+        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR),
+        context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR),
+        "");
+  }
+
+  /** Attaches an exact, lineage-checked candidate without putting it in the approved compiler seed. */
+  public StageRepairEvidence withRejectedCandidate(ChainPlanGraph candidate) {
+    return withRepairInput(candidate, null);
+  }
+
+  public StageRepairEvidence withRepairInput(ChainPlanGraph candidate, Reference selectedGraph) {
+    List<Reference> selectedRefs = priorOutputRefs;
+    if (selectedGraph != null) {
+      var refs = new java.util.ArrayList<>(priorOutputRefs.stream()
+          .filter(ref -> ref.kind() != Kind.CHAIN_PLAN_GRAPH).toList());
+      refs.add(selectedGraph);
+      selectedRefs = List.copyOf(refs);
+    }
+    try {
+      return new StageRepairEvidence(outcomeClass, failedStageId, findings, errorEvidence,
+          haltFollowUpText, recoveryEvidenceRef, selectedRefs, failedSkillId, causeCode,
+          typedCauseJson, candidate == null ? "" : JSON.writeValueAsString(candidate));
+    } catch (JsonProcessingException e) {
+      throw new IllegalStateException("Cannot project the rejected repair candidate", e);
+    }
   }
 
   /** Diagnostic fields for a model turn. Complete raw error text stays in the halt evidence. */
@@ -145,14 +188,23 @@ public record StageRepairEvidence(
     if (recoveryEvidenceRef != null && !recoveryEvidenceRef.isBlank()) {
       text.append("- recoveryEvidenceRef: ").append(recoveryEvidenceRef).append('\n');
     }
-    text.append("Raw rejected output is retained in the halt evidence and is excluded from this request.\n");
-    return text.toString();
+    if (!typedCauseJson.isBlank()) {
+      text.append("- typedCause: ").append(typedCauseJson).append('\n');
+    }
+    if (!rejectedCandidateJson.isBlank()) {
+      text.append("- rejectedCandidate (unapproved repair context): ")
+          .append(rejectedCandidateJson).append('\n');
+    }
+    text.append(rejectedCandidateJson.isBlank()
+        ? "Raw rejected output is retained in the halt evidence and is excluded from this request.\n"
+        : "Raw transport output stays in the halt evidence and is excluded from this request.\n");
+    return bounded(text.toString());
   }
 
-  /** Only the compiler skill recorded as failing receives the execution repair diagnosis. */
+  /** An attributed failure reaches its owner; unscoped final validation reaches the approved stage producers. */
   public String repairTextForSkill(String skillId) {
     if (!"design-execution".equals(failedStageId) || !hasEvidence()
-        || failedSkillId.isBlank() || !failedSkillId.equals(skillId)) {
+        || (!failedSkillId.isBlank() && !failedSkillId.equals(skillId))) {
       return "";
     }
     StringBuilder text = new StringBuilder("\n\nRepair evidence for ")
@@ -160,14 +212,24 @@ public record StageRepairEvidence(
     if (haltFollowUpText != null && !haltFollowUpText.isBlank()) {
       text.append("Author follow-up:\n").append(haltFollowUpText).append('\n');
     }
-    return text.append("Correct this producer's output while preserving the approved requirements.\n")
-        .toString();
+    if (failedSkillId.isBlank()) {
+      text.append("The final validator did not attribute this failure to an individual skill.\n");
+    }
+    return bounded(text.append("Correct only output you own while preserving the approved requirements and other producers' output.\n")
+        .toString());
+  }
+
+  private static String bounded(String text) {
+    if (text.length() > RecoveryContextProjector.CHAR_BUDGET) {
+      throw new IllegalArgumentException("Producer repair context exceeds the diagnostic character budget");
+    }
+    return text;
   }
 
   /** True when there is enough evidence to act on: formatted findings or raw error text. */
   public boolean hasEvidence() {
     return (errorEvidence != null && !errorEvidence.isBlank())
-        || (findings != null && !findings.isBlank());
+        || (findings != null && !findings.isBlank()) || !typedCauseJson.isBlank();
   }
 
   /** True only for the recovery evidence that received the one-shot clean rebuild budget. */
@@ -186,6 +248,12 @@ public record StageRepairEvidence(
         context,
         evidence,
         ProductPipelineRunSupport.DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
+  }
+
+  public static boolean isCleanExecutionRebuild(
+      StageExecutionContext context, StageRepairEvidence evidence) {
+    return isCleanRebuild(context, evidence,
+        ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR);
   }
 
   private static boolean isCleanRebuild(
@@ -208,6 +276,14 @@ public record StageRepairEvidence(
     return priorOutputRefs.stream()
         .filter(ref -> ref != null && ref.kind() == kind)
         .reduce((first, second) -> second);
+  }
+
+  public static boolean matchesCompileInputs(Revision graph, List<Reference> inputRefs) {
+    return graph != null && inputRefs != null && inputRefs.stream()
+        .filter(ref -> switch (ref.kind()) {
+          case CHAIN_SEMANTIC_REVISION, DESIGN_EXECUTION_PLAN, IMPLEMENTATION_PLAN -> true;
+          default -> false;
+        }).allMatch(graph.inputs()::contains);
   }
 
   private static List<Reference> priorOutputRefs(StageExecutionContext context) {

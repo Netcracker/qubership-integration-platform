@@ -863,7 +863,8 @@ class ChainPlanPropertiesMaterializerTest {
     CatalogElementResponseDto unchanged = element("Old", Map.of("script", "old"));
     when(catalogRestClient.getElement("chain-1", "el-1"))
         .thenReturn(unchanged, unchanged);
-    doThrow(new TimeoutException("PATCH timed out with internal host details"))
+    var timeout = new TimeoutException("PATCH timed out with internal host details");
+    doThrow(timeout)
         .when(catalogRestClient)
         .updateElement(eq("chain-1"), eq("el-1"), anyMap());
 
@@ -873,6 +874,10 @@ class ChainPlanPropertiesMaterializerTest {
     assertEquals(List.of("n1"), result.failedNodeIds());
     assertTrue(result.firstValidationError().contains("read-back did not confirm"));
     assertTrue(!result.firstValidationError().contains("internal host details"));
+    assertEquals(timeout, result.failureCause());
+    assertFalse(objectMapper.valueToTree(result).has("failureCause"));
+    assertTrue(org.qubership.integration.platform.ai.compiler.capture.TransientFailures.isTransient(
+        new IllegalStateException(result.firstValidationError(), result.failureCause())));
   }
 
   @Test
