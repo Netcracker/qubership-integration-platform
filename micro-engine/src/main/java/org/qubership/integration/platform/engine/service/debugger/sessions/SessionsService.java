@@ -42,6 +42,7 @@ import org.qubership.integration.platform.engine.service.debugger.ChainRuntimePr
 import org.qubership.integration.platform.engine.service.debugger.util.DebuggerUtils;
 import org.qubership.integration.platform.engine.service.debugger.util.PayloadExtractor;
 import org.qubership.integration.platform.engine.util.ExchangeUtil;
+import org.qubership.integration.platform.engine.util.IdentifierUtils;
 import org.qubership.integration.platform.engine.util.InjectUtil;
 
 import java.time.Duration;
@@ -236,10 +237,12 @@ public class SessionsService {
                     },
                     () -> sessionElement.setParentElementId(extractParentId(exchange, sessionId, elementInfo))
             );
-            sessionElement.setElementName(elementInfo.getName());
         } else {
             sessionElement.setParentElementId(
                 (String) exchange.getProperty(Properties.STEPS, Deque.class).peek());
+        }
+        if (IdentifierUtils.isValidUUID(stepName)) {
+            sessionElement.setElementName(elementInfo.getName());
         }
         return sessionElement;
     }

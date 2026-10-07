@@ -7,8 +7,8 @@
  * be read as text, a row that looks up its columns without regard to case — so a case that passes
  * says the jar is on the classpath, and not merely that the JDK class under it exists.
  *
- * Every case also runs under `runtime-micro`, pinned for the step-name defect only. #747 closed by
- * aligning the module sets, so the four modules micro used to lack are a classpath fact on both.
+ * Every case also runs under `runtime-micro`. #747 closed by aligning the module sets, so the four
+ * modules micro used to lack are a classpath fact on both.
  * The micro engine resolves `groovy` and `groovy-xml` at 4.0.29 and the other modules at 4.0.30,
  * where the classic engine resolves all of them at 4.0.30. That was measured, and no case here
  * disagrees because of it.
@@ -18,14 +18,12 @@
  */
 import { createHash } from "node:crypto";
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
 import { callChain, element, elementNames, HTTP_TRIGGER_STEPS } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 
-test("a script parses the request with JsonSlurper and answers with JsonOutput", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script parses the request with JsonSlurper and answers with JsonOutput", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("script");
 
   const chain = seedChain(readCorpusState(), "script-libraries-json.yaml");
@@ -49,8 +47,7 @@ test("a script parses the request with JsonSlurper and answers with JsonOutput",
   expect(element(session, "Write Json")?.bodyBefore).toContain(token);
 });
 
-test("a script reads one document through XmlSlurper and through XmlParser", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script reads one document through XmlSlurper and through XmlParser", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-libraries-xml.yaml");
   const token = callToken("xml");
   const call = await callChain(request, env.chainUrl(chain.contextPath), {
@@ -73,8 +70,7 @@ test("a script reads one document through XmlSlurper and through XmlParser", { t
   expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Slurp Xml", "Parse Xml"]);
 });
 
-test("a script reaches groovy-datetime's extensions on java.time", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script reaches groovy-datetime's extensions on java.time", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-libraries-datetime.yaml");
   const call = await callChain(request, env.chainUrl(chain.contextPath), { data: {} });
 
@@ -91,8 +87,7 @@ test("a script reaches groovy-datetime's extensions on java.time", { tag: ["@eng
   expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Use Datetime"]);
 });
 
-test("a script reaches groovy-nio's extensions on java.nio.file.Path", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script reaches groovy-nio's extensions on java.nio.file.Path", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-libraries-nio.yaml");
   const token = callToken("nio");
   const call = await callChain(request, env.chainUrl(chain.contextPath), {
@@ -115,8 +110,7 @@ test("a script reaches groovy-nio's extensions on java.nio.file.Path", { tag: ["
   expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Use Nio"]);
 });
 
-test("a script reaches groovy-sql without a database", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script reaches groovy-sql without a database", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-libraries-sql.yaml");
   const token = callToken("sql");
   const call = await callChain(request, env.chainUrl(chain.contextPath), {
@@ -138,8 +132,7 @@ test("a script reaches groovy-sql without a database", { tag: ["@engine", "@sess
   expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Use Sql"]);
 });
 
-test("a script asks JSR-223 for a second Groovy engine and evaluates in it", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script asks JSR-223 for a second Groovy engine and evaluates in it", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-libraries-jsr223.yaml");
   const token = callToken("jsr");
   const call = await callChain(request, env.chainUrl(chain.contextPath), {
@@ -161,8 +154,7 @@ test("a script asks JSR-223 for a second Groovy engine and evaluates in it", { t
   expect(elementNames(session)).toEqual([...HTTP_TRIGGER_STEPS, "Use Jsr223"]);
 });
 
-test("a script reaches the Java standard library with no Groovy module involved", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script reaches the Java standard library with no Groovy module involved", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-libraries-jdk.yaml");
   const token = callToken("jdk");
   const call = await callChain(request, env.chainUrl(chain.contextPath), {

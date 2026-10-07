@@ -13,7 +13,6 @@
  * `OFF` default ten invocations across four chains recorded zero sessions.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
 import { callChain, element, elementNames, HTTP_TRIGGER_STEPS } from "../../support/sessions.js";
@@ -22,8 +21,7 @@ import { covers } from "../../registry/covers.js";
 /** The body chain's steps, in order, after the two the trigger records. */
 const LADDER = ["Return Only", "Read Inbound", "As Bytes", "As Stream", "As Map", "As List", "Report"];
 
-test("a script reads and writes the body as a stream, a String, bytes, a Map and a List", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script reads and writes the body as a stream, a String, bytes, a Map and a List", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("script");
 
   const chain = seedChain(readCorpusState(), "script-exchange-body.yaml");
@@ -59,8 +57,7 @@ test("a script reads and writes the body as a stream, a String, bytes, a Map and
   expect(element(session, "Return Only")?.bodyAfter).toBe(text);
 });
 
-test("a script sees a request that carries no body, and a body it sets to null reaches the caller as nothing", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script sees a request that carries no body, and a body it sets to null reaches the caller as nothing", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-exchange-null-body.yaml");
 
   // No `data` at all, which is the null-in half: the chain is called the way a caller with nothing
@@ -92,8 +89,7 @@ test("a script sees a request that carries no body, and a body it sets to null r
   expect(readNull?.bodyBefore ?? null).toBeNull();
 });
 
-test("a script reads a header, adds headers, and removes one, and the step after it sees all three", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script reads a header, adds headers, and removes one, and the step after it sees all three", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-exchange-headers.yaml");
   const sent = callToken("header");
 
@@ -128,8 +124,7 @@ test("a script reads a header, adds headers, and removes one, and the step after
   expect(changed?.headersAfter?.["e2e-remove-me"]).toBeUndefined();
 });
 
-test("an exchange property a script sets is read back by a later element", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("an exchange property a script sets is read back by a later element", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-exchange-properties.yaml");
   const sent = callToken("property");
 

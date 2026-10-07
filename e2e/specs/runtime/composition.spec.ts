@@ -7,7 +7,6 @@
  * other chain" an assertion rather than an inference from the body.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain, elementNames, failedElements } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
@@ -22,8 +21,7 @@ import { ABSENT_UUID } from "../../support/absent.js";
 const RETRY_PROBE_SESSION = "route-probe";
 
 
-test("a chain call reaches the other chain's trigger and its step lands in the caller's trace", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a chain call reaches the other chain's trigger and its step lands in the caller's trace", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   covers("chain-call-2");
   covers("chain-trigger-2");
 
@@ -57,8 +55,7 @@ test("a chain call reaches the other chain's trigger and its step lands in the c
   expect(JSON.parse(await direct.response.text())).toEqual({ called: "http" });
 });
 
-test("a reuse reference runs the reused block and comes back to the calling flow", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a reuse reference runs the reused block and comes back to the calling flow", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   covers("reuse");
   covers("reuse-reference");
 
@@ -81,8 +78,7 @@ test("a reuse reference runs the reused block and comes back to the calling flow
   ]);
 });
 
-test("a checkpoint runs in the flow, and deploying it registers its retry route", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a checkpoint runs in the flow, and deploying it registers its retry route", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   covers("checkpoint");
 
   const chain = seedChain(readCorpusState(), "checkpoint");

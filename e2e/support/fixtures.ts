@@ -52,7 +52,7 @@ import {
   type RunRecord,
 } from "./run.js";
 import { attachDiagnostics, beginDiagnostics } from "./diagnostics.js";
-import { nameMicroSteps, settleMicroDefects, type RenamedStep } from "./known-defect.js";
+import { settleMicroDefects } from "./known-defect.js";
 import { Sessions } from "./sessions.js";
 import { Engine } from "./engine.js";
 import type { EngineKind, Env } from "../env/index.js";
@@ -77,11 +77,8 @@ interface TestFixtures {
    * diagnostics is a spec that fails without them on the day they matter.
    */
   diagnostics: void;
-  /**
-   * The steps `nameMicroSteps` renamed in this case. Once the body has run, the case is settled on
-   * the `MicroDefect` it is pinned with.
-   */
-  knownDefects: RenamedStep[];
+  /** Once the body has run, settles the case on the `MicroDefect` it is pinned with. */
+  knownDefects: void;
   /**
    * The session lookup, over the same `request` context the spec's own calls go through.
    *
@@ -164,25 +161,14 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   knownDefects: [
     // eslint-disable-next-line no-empty-pattern
     async ({}, use, testInfo) => {
-      const renamed: RenamedStep[] = [];
-      await use(renamed);
-      settleMicroDefects(testInfo, renamed);
+      await use();
+      settleMicroDefects(testInfo);
     },
     { auto: true },
   ],
 
-  sessions: async ({ request, engineKind, knownDefects }, use, testInfo) => {
-    if (engineKind !== "micro") {
-      await use(new Sessions(request));
-      return;
-    }
-    // Imported here: `support/corpus.ts` imports this module.
-    const names = await (await import("./corpus.js")).microElementNames();
-    await use(
-      new Sessions(request, {
-        rename: (session) => nameMicroSteps(testInfo, session, names, knownDefects),
-      }),
-    );
+  sessions: async ({ request }, use) => {
+    await use(new Sessions(request));
   },
 
   run: [
