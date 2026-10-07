@@ -10,6 +10,31 @@
   <name>QIP Parent POMs Aggregator</name>
   <description>Aggregator for QIP parent POMs</description>
 
+  <url>https://github.com/Netcracker/qubership-integration-platform</url>
+
+  <scm>
+    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
+    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
+    <url>https://github.com/Netcracker/qubership-integration-platform</url>
+    <tag>HEAD</tag>
+  </scm>
+
+  <licenses>
+    <license>
+      <name>Apache License, Version 2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+    </license>
+  </licenses>
+
+  <developers>
+    <developer>
+      <name>Netcracker</name>
+      <email>opensourcegroup@netcracker.com</email>
+      <organization>Netcracker Technology</organization>
+      <organizationUrl>https://www.netcracker.com</organizationUrl>
+    </developer>
+  </developers>
+
   <modules>
     <module>base</module>
     <module>quarkus</module>

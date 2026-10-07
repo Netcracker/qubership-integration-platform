@@ -25,6 +25,7 @@
     <generated-resources>target/generated-sources/resources</generated-resources>
 
     <qip.spring-internal-bom.version>1.5.1-SNAPSHOT</qip.spring-internal-bom.version>
+    <netty-bom.version>4.1.110.Final</netty-bom.version>
   </properties>
 
   <dependencyManagement>
@@ -33,6 +34,13 @@
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-spring-internal-bom</artifactId>
         <version>${qip.spring-internal-bom.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-bom</artifactId>
+        <version>${netty-bom.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>

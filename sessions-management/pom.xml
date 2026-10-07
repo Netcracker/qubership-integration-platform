@@ -16,8 +16,6 @@
   <properties>
     <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
-
-    <qip.spring-internal-bom.version>1.5.1-SNAPSHOT</qip.spring-internal-bom.version>
   </properties>
 
   <dependencyManagement>
@@ -25,7 +23,7 @@
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-spring-internal-bom</artifactId>
-        <version>${qip.spring-internal-bom.version}</version>
+        <version>${project.parent.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>

@@ -21,8 +21,8 @@
     <changelist>-SNAPSHOT</changelist>
 
     <qip-integration-build-pipeline.version>1.5.1-SNAPSHOT</qip-integration-build-pipeline.version>
-    <qip.spring-internal-bom.version>1.5.1-SNAPSHOT</qip.spring-internal-bom.version>
 
+    <okhttp-bom.version>5.3.2</okhttp-bom.version>
   </properties>
 
   <dependencyManagement>
@@ -30,7 +30,7 @@
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-spring-internal-bom</artifactId>
-        <version>${qip.spring-internal-bom.version}</version>
+        <version>${project.parent.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -38,6 +38,13 @@
         <groupId>${project.parent.groupId}</groupId>
         <artifactId>qip-integration-build-pipeline</artifactId>
         <version>${qip-integration-build-pipeline.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.squareup.okhttp3</groupId>
+        <artifactId>okhttp-bom</artifactId>
+        <version>${okhttp-bom.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
       </dependency>
     </dependencies>
   </dependencyManagement>

@@ -15,10 +15,6 @@
   <name>QIP Schemas</name>
   <description>Schemas definition for QIP</description>
 
-  <properties>
-    <qip-checkstyle-revision>0.0.3</qip-checkstyle-revision>
-  </properties>
-
   <profiles>
     <profile>
       <id>central</id>

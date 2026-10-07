@@ -15,7 +15,7 @@
   <description>QIP external BOM for checkstyle and schemas</description>
 
   <properties>
-    <qip.schemas.version>1.0.2-SNAPSHOT</qip.schemas.version>
+    <qip.schemas.version>1.5.1-SNAPSHOT</qip.schemas.version>
     <qip.checkstyle.version>0.0.3</qip.checkstyle.version>
   </properties>
 

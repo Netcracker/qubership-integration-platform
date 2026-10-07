@@ -27,8 +27,6 @@
     <compiler-plugin.version>3.14.0</compiler-plugin.version>
     <maven.compiler.release>21</maven.compiler.release>
 
-    <qip.quarkus-internal-bom.version>1.5.1-SNAPSHOT</qip.quarkus-internal-bom.version>
-
     <skipITs>true</skipITs>
     <wiremock.version>3.13.2</wiremock.version>
     <quarkiverse.loggingjson.version>3.5.0</quarkiverse.loggingjson.version>
@@ -43,7 +41,7 @@
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-quarkus-internal-bom</artifactId>
-        <version>${qip.quarkus-internal-bom.version}</version>
+        <version>${project.parent.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -659,6 +657,10 @@
             </goals>
           </execution>
         </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.jacoco</groupId>
+        <artifactId>jacoco-maven-plugin</artifactId>
       </plugin>
     </plugins>
   </build>

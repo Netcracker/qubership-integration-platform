@@ -27,13 +27,11 @@
     <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
     <flexmark.version>0.64.8</flexmark.version>
     <google-guava.version>33.4.0-jre</google-guava.version>
-    <graphql-java.version>21.5</graphql-java.version>
     <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
     <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
     <handlebars.version>4.3.1</handlebars.version>
     <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
     <jackson.version>2.19.4</jackson.version>
-    <jakarta.ws.rs-api.version>4.0.0</jakarta.ws.rs-api.version>
     <jandex.version>3.4.0</jandex.version>
     <jose4j.version>0.9.6</jose4j.version>
     <json-filter.version>4.0.1</json-filter.version>
@@ -42,11 +40,9 @@
     <logback-gelf.version>5.0.1</logback-gelf.version>
     <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
     <lz4-java.version>1.11.1</lz4-java.version>
-    <okhttp-bom.version>5.3.2</okhttp-bom.version>
     <okio.version>3.16.4</okio.version>
     <opensearch.version>2.14.0</opensearch.version>
     <plexus-utils.version>3.6.1</plexus-utils.version>
-    <postgresql.version>42.7.11</postgresql.version>
     <reflections.version>0.10.2</reflections.version>
     <snappy-java.version>1.1.10.8</snappy-java.version>
     <soa-model-core.version>1.6.4</soa-model-core.version>
@@ -74,13 +70,6 @@
 
   <dependencyManagement>
     <dependencies>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-bom</artifactId>
-        <version>4.1.110.Final</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
       <dependency>
         <groupId>io.grpc</groupId>
         <artifactId>grpc-bom</artifactId>
@@ -117,23 +106,9 @@
         <scope>import</scope>
       </dependency>
       <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-dependencies</artifactId>
-        <version>${spring-boot.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
         <groupId>com.fasterxml.jackson</groupId>
         <artifactId>jackson-bom</artifactId>
         <version>${jackson.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>com.squareup.okhttp3</groupId>
-        <artifactId>okhttp-bom</artifactId>
-        <version>${okhttp-bom.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
