@@ -35,12 +35,24 @@ function loadDocumentationConfig() {
   }
 }
 
-function copySourceToDest(sourceDir, dest) {
+function copySourceToDest(sourceDir, dest, exclude = []) {
   if (fs.existsSync(dest)) {
     fs.rmSync(dest, { recursive: true, force: true });
   }
   fs.mkdirSync(dest, { recursive: true });
-  fs.cpSync(sourceDir, dest, { recursive: true });
+  fs.cpSync(sourceDir, dest, {
+    recursive: true,
+    filter: (src) => {
+      // Patterns see "/"-separated paths relative to the source root on every OS.
+      const relativePath = path.relative(sourceDir, src).replaceAll("\\", "/");
+      return (
+        relativePath === "" ||
+        !exclude.some((pattern) =>
+          path.posix.matchesGlob(relativePath, pattern),
+        )
+      );
+    },
+  });
   console.log(`[Documentation] Copied to ${dest}`);
 }
 
@@ -73,7 +85,7 @@ function fetchFromNpm(config, dest) {
       throw new Error(`Source path not found in package: ${sourceDir}`);
     }
 
-    copySourceToDest(sourceDir, dest);
+    copySourceToDest(sourceDir, dest, config.exclude);
   } finally {
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -108,7 +120,7 @@ function fetchFromGit(config, dest) {
       throw new Error(`Source path not found in repository: ${sourceDir}`);
     }
 
-    copySourceToDest(sourceDir, dest);
+    copySourceToDest(sourceDir, dest, config.exclude);
   } finally {
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
@@ -130,7 +142,7 @@ function fetchFromLocal(config, dest) {
   }
 
   console.log(`[Documentation] Copying from local: ${sourceDir}`);
-  copySourceToDest(sourceDir, dest);
+  copySourceToDest(sourceDir, dest, config.exclude);
 }
 
 function fetchDocumentation(config, dest) {
@@ -215,6 +227,14 @@ function main() {
   const dest = config.destination || "public/doc";
 
   try {
+    const { exclude = [] } = config;
+    if (
+      !Array.isArray(exclude) ||
+      !exclude.every((pattern) => typeof pattern === "string")
+    ) {
+      throw new Error('"exclude" must be an array of glob pattern strings');
+    }
+
     console.log(`[Documentation] Fetching from source: ${config.source}`);
     fetchDocumentation(config, dest);
 
