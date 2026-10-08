@@ -124,6 +124,7 @@ describe("new files under the embedded default config", () => {
       `/workspace/${result!.chainId}/${result!.chainId}.chain.cip.yaml`,
     );
     expect(document.$schema).toBe(`${SCHEMA}/chain`);
+    expect(document.content).toEqual({});
   });
 
   it.each([
@@ -143,6 +144,8 @@ describe("new files under the embedded default config", () => {
         `/workspace/${result!.serviceId}/${result!.serviceId}${suffix}`,
       );
       expect(document.$schema).toBe(`${SCHEMA}/${schema}`);
+      expect(document.content).not.toHaveProperty("migrations");
+      expect(document.content).not.toHaveProperty("protocol");
     },
   );
 });
