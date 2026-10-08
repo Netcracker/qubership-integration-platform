@@ -111,11 +111,10 @@ public class MetricsService {
             String elementName = chainExecutionContext.getElementInfo().getName();
             String elementType = chainExecutionContext.getElementInfo().getType();
 
-            String parentId = chainExecutionContext.getElementInfo().getParentId();
-            String parentName = Optional.ofNullable(parentId)
-                    .map(id -> MetadataUtil.getBeanForElement(exchange, id, ElementInfo.class))
-                    .map(ElementInfo::getName)
-                    .orElse("");
+            Optional<ElementInfo> parentInfo = Optional.ofNullable(chainExecutionContext.getElementInfo().getParentId())
+                    .map(id -> MetadataUtil.getBeanForElement(exchange, id, ElementInfo.class));
+            String parentId = parentInfo.map(ElementInfo::getId).orElse(null);
+            String parentName = parentInfo.map(ElementInfo::getName).orElse("");
 
             ChainElementType chainElementType = chainExecutionContext.getElementType();
 

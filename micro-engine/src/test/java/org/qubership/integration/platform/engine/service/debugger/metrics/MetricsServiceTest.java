@@ -36,6 +36,7 @@ class MetricsServiceTest {
     private static final String ELEMENT_ID = "element-id";
     private static final String ELEMENT_NAME = "Element name";
     private static final String PARENT_ID = "parent-id";
+    private static final String PARENT_SNAPSHOT_ID = "parent-snapshot-id";
     private static final String PARENT_NAME = "Parent name";
     private static final String SNAPSHOT_NAME = "Snapshot name";
 
@@ -170,14 +171,14 @@ class MetricsServiceTest {
         exchange.setProperty(Properties.CIRCUIT_BREAKER_HAS_FALLBACK, false);
         ChainExecutionContext context = chainExecutionContext(
                 ChainElementType.CIRCUIT_BREAKER_MAIN_ELEMENT,
-            PARENT_ID,
+            PARENT_SNAPSHOT_ID,
                 CamelNames.MAIN_BRANCH_CB_STEP_PREFIX
         );
         ElementInfo parentElementInfo = elementInfo(ChainElementType.CIRCUIT_BREAKER, PARENT_ID, PARENT_NAME, null);
         when(metricsStore.isMetricsEnabled()).thenReturn(true);
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
-            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, PARENT_ID, ElementInfo.class))
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, PARENT_SNAPSHOT_ID, ElementInfo.class))
                     .thenReturn(parentElementInfo);
 
             metricsService.processElementFinishMetrics(exchange, context, true);
@@ -191,14 +192,14 @@ class MetricsServiceTest {
         Exchange exchange = MockExchanges.defaultExchange();
         ChainExecutionContext context = chainExecutionContext(
                 ChainElementType.CIRCUIT_BREAKER_FALLBACK,
-            PARENT_ID,
+            PARENT_SNAPSHOT_ID,
                 "Fallback"
         );
         ElementInfo parentElementInfo = elementInfo(ChainElementType.CIRCUIT_BREAKER, PARENT_ID, PARENT_NAME, null);
         when(metricsStore.isMetricsEnabled()).thenReturn(true);
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
-            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, PARENT_ID, ElementInfo.class))
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, PARENT_SNAPSHOT_ID, ElementInfo.class))
                     .thenReturn(parentElementInfo);
 
             metricsService.processElementFinishMetrics(exchange, context, false);
