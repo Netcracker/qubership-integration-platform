@@ -14,7 +14,7 @@
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
-import { MICRO_CONTAINER_PARENTS, MICRO_XSLT, MISPLACED_BRANCH_STEPS, strikesAsKnown } from "../../support/known-defect.js";
+import { MICRO_CONTAINER_PARENTS, MISPLACED_BRANCH_STEPS, strikesAsKnown } from "../../support/known-defect.js";
 import { readUntil } from "../../support/poll.js";
 import { callChain, element, elementNames, HTTP_TRIGGER_STEPS, SESSION_TIMEOUT, trace, type RecordedSession, type Sessions, type TracedElement } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
@@ -58,26 +58,16 @@ const BEFORE_XSLT = [...HTTP_TRIGGER_STEPS, "Keep Request", "Write Stylesheet", 
 /** One call through the XSLT fixture, with an order id only this call sends. */
 async function transform(request: APIRequestContext, env: Env, sessions: Sessions): Promise<RecordedSession> {
   const id = callToken("order");
-  const since = new Date(Date.now() - 1_000).toISOString();
   const call = await callChain(request, env.chainUrl(seedChain(readCorpusState(), "xslt").contextPath), {
     headers: { "Content-Type": "application/xml" },
     data: `<order id="${id}"/>`,
   });
-  // A failed call names the endpoint the engine could not resolve, so the micro pin can tell the
-  // missing component's 500 from another one. The response body is the request echoed back.
-  const unresolved =
-    call.response.status() === 200
-      ? ""
-      : ((await env.engineLogs(since))
-          .split("\n")
-          .find((line) => line.includes("No endpoint could be found for: xslt:")) ?? "no unresolved xslt endpoint in the engine log");
-  expect(call.response.status(), `the xslt chain failed: ${unresolved}`).toBe(200);
+  expect(call.response.status()).toBe(200);
   expect(await call.response.text()).toBe(`transformed ${id}`);
   return sessions.byExternalId(call.token, { elements: 5 });
 }
 
-test("xslt transforms the body with a stylesheet read off the engine's file system", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_XSLT.title);
+test("xslt transforms the body with a stylesheet read off the engine's file system", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("xslt");
 
   const session = await transform(request, env, sessions);
@@ -85,8 +75,7 @@ test("xslt transforms the body with a stylesheet read off the engine's file syst
   expect(elementNames(session).filter((name) => name !== "XSLT")).toEqual(BEFORE_XSLT);
 });
 
-test("xslt: the transformation step is recorded in the trace", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_XSLT.title);
+test("xslt: the transformation step is recorded in the trace", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const session = await transform(request, env, sessions);
   // Read until the step arrives, so a step indexed after the others is not taken for a missing one.
   const names = await readUntil(

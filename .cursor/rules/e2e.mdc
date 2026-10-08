@@ -393,13 +393,13 @@ right now, so a controller added to a service fails a run.
     `sftp-trigger-2`, and `quartz-scheduler` correlate through `POST /v1/sessions/chains/{chainId}`
     filtered on the window the spec opened, then `GET /v1/sessions/{sessionId}` for the element
     trace.
-20. **A runtime spec reads `engineKind` in two places only.** `specs/runtime/` runs twice on `k8s`,
+20. **A runtime spec reads `engineKind` in one place only.** `specs/runtime/` runs twice on `k8s`,
     as `runtime` against the classic engine and as `runtime-micro` against the micro engine, and
-    `seedChain` returns the copy of the corpus that matches the project's `engineKind`. A spec may
-    read `engineKind` in a micro-only pin, `test.fail(engineKind === "micro", <defect>.title)`,
-    which `support/known-defect.ts` narrows to that defect, and in `engine-identity.spec.ts`, whose
-    subject is the engine kind. A difference between the two engines is a finding: pin it with its
-    entry in `docs/product-defects.md`, never loosen the assertion for one engine. A runtime file
+    `seedChain` returns the copy of the corpus that matches the project's `engineKind`. Only
+    `engine-identity.spec.ts` reads `engineKind`, because its subject is the engine kind. A
+    difference between the two engines is a finding, and only the run on one engine meets it: pin
+    it with `strikesAsKnown` and a `ConditionalDefect` (rule 13), record it in
+    `docs/product-defects.md`, and never loosen the assertion for one engine. A runtime file
     that deploys its own chains, calls the classic engine directly, or goes through the testing
     service is classic-only: it goes in `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`, which
     `runtime-micro` ignores and the report header lists.
