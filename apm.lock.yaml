@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-10-07T14:54:02.301937+00:00'
+generated_at: '2026-10-07T18:08:47.616109+00:00'
 apm_version: 0.32.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
@@ -177,7 +177,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:daac09c825081c41d9f83af43602bba2224d338398cfd2fa2a74ffa34d68a7e9
+  content_hash: sha256:9667e41646ab42c3c02817a2d428fa076dadfd56655f3370b8de4ea01f279c77
 - kind: project-relative
   target: claude
   value: .claude/rules/micro-engine.md
@@ -186,7 +186,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c13d341654c13d5dba4c9a2e9d78128a5aa6e4bd414ed1bcc25e34e1e0f97957
+  content_hash: sha256:cf5712421da78f3dae66c9c42978b766706f0dd3d7605830d2646948843263bb
 - kind: project-relative
   target: claude
   value: .claude/rules/monorepo.md
@@ -726,7 +726,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:78ab718cc566053a3d2cb24cd4a01f4fe80521613fc73432db878e83654fd707
+  content_hash: sha256:5815c15dcc3c105d576f66b81ae17f3f0b88b9a27612c93871925363a8e46439
 - kind: project-relative
   target: cursor
   value: .cursor/rules/micro-engine.mdc
@@ -735,7 +735,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:110d55b3c6c01372ab974ccd8576073f3e11d2ba8007534ac67c1a9167694f21
+  content_hash: sha256:1803a47b4ec126a8ccd24a9f7dadf510cfb99b368f9b6bc15af57e6e66399da5
 - kind: project-relative
   target: cursor
   value: .cursor/rules/monorepo.mdc
@@ -1230,8 +1230,8 @@ local_deployed_file_hashes:
   .claude/rules/e2e.md: sha256:12fcfe1c54fe4bfdbdf250de498935e34da34141e72b869da020626b825e560d
   .claude/rules/engine.md: sha256:cbfa9096d6c97043ebbef90b567bb92f081cf11779eb826a2ca74bdd35de1cbc
   .claude/rules/go-module.md: sha256:4823920c4373e02f4d370fbd6b483e094df46480b80b59653f321636fe14d92a
-  .claude/rules/infrastructure.md: sha256:daac09c825081c41d9f83af43602bba2224d338398cfd2fa2a74ffa34d68a7e9
-  .claude/rules/micro-engine.md: sha256:c13d341654c13d5dba4c9a2e9d78128a5aa6e4bd414ed1bcc25e34e1e0f97957
+  .claude/rules/infrastructure.md: sha256:9667e41646ab42c3c02817a2d428fa076dadfd56655f3370b8de4ea01f279c77
+  .claude/rules/micro-engine.md: sha256:cf5712421da78f3dae66c9c42978b766706f0dd3d7605830d2646948843263bb
   .claude/rules/monorepo.md: sha256:637a5dace70830ab398ddf17b1f5d48732fc7642985a82da024816c86ad9ded4
   .claude/rules/qip-working-agreements.md: sha256:72257161852f5f17451a59e3f6c816f49cdbdf8da37b39b3b82840e2fd30b799
   .claude/rules/runtime-catalog.md: sha256:576ea1f9123f6ddfd78a6d97728594b68d795e04c7a3457a09eac4ee62db362a
@@ -1266,8 +1266,8 @@ local_deployed_file_hashes:
   .cursor/rules/e2e.mdc: sha256:8476c6ca9d648b472e0df2dfca4bfc711d3041c442827df917135d4b32608ba5
   .cursor/rules/engine.mdc: sha256:d258bb38382c6841db60f6174bd72055cb0b8617ec226b16c287c68ed6547e28
   .cursor/rules/go-module.mdc: sha256:8e9b8e81bd0cef962f9d8d3f9ba7abf1905867cc6102e71d0395278a12693084
-  .cursor/rules/infrastructure.mdc: sha256:78ab718cc566053a3d2cb24cd4a01f4fe80521613fc73432db878e83654fd707
-  .cursor/rules/micro-engine.mdc: sha256:110d55b3c6c01372ab974ccd8576073f3e11d2ba8007534ac67c1a9167694f21
+  .cursor/rules/infrastructure.mdc: sha256:5815c15dcc3c105d576f66b81ae17f3f0b88b9a27612c93871925363a8e46439
+  .cursor/rules/micro-engine.mdc: sha256:1803a47b4ec126a8ccd24a9f7dadf510cfb99b368f9b6bc15af57e6e66399da5
   .cursor/rules/monorepo.mdc: sha256:beaf45bea182ddfe6b28dab88bdc2cbafa7dc77334ce8ddce1a50b4550166cde
   .cursor/rules/qip-working-agreements.mdc: sha256:1d803f8610cecc024814db799f2b0536972040823a2c0e2543d31c75557f1aec
   .cursor/rules/runtime-catalog.mdc: sha256:ce26074e295e660122b887fa52ea503cfdd02a17818b3ee0c43833ab33c64256
