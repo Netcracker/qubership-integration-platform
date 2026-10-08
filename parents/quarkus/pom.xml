@@ -48,7 +48,6 @@
 
     <!-- Common plugin versions -->
     <maven-antrun-plugin.version>3.2.0</maven-antrun-plugin.version>
-    <surefire-plugin.version>3.5.6</surefire-plugin.version>
   </properties>
 
   <dependencyManagement>

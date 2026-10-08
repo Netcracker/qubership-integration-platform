@@ -568,7 +568,7 @@
       </plugin>
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>${surefire-plugin.version}</version>
+        <version>${maven-surefire-plugin.version}</version>
         <configuration>
           <includes>
             <include>**/*Test.java</include>
@@ -585,7 +585,7 @@
       </plugin>
       <plugin>
         <artifactId>maven-failsafe-plugin</artifactId>
-        <version>${surefire-plugin.version}</version>
+        <version>${maven-surefire-plugin.version}</version>
         <executions>
           <execution>
             <goals>
