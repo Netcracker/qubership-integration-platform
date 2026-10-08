@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.engine.controlplane;
 
 import org.qubership.integration.platform.engine.model.deployment.update.DeploymentRouteUpdate;
+import org.qubership.integration.platform.engine.model.deployment.update.RouteType;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -31,11 +32,16 @@ public class ChainRouteRegistry {
         Set<String> pathsClaimedByOthers = byDeployment.entrySet().stream()
                 .filter(entry -> !entry.getKey().equals(deploymentId))
                 .flatMap(entry -> entry.getValue().stream())
-                .map(DeploymentRouteUpdate::getPath)
+                .map(ChainRouteRegistry::gatewayPath)
                 .collect(Collectors.toSet());
         return ownRoutes.stream()
-                .filter(route -> !pathsClaimedByOthers.contains(route.getPath()))
+                .filter(route -> !pathsClaimedByOthers.contains(gatewayPath(route)))
                 .toList();
+    }
+
+    // An egress route's path holds its target URL. The gateway matches the route on its gateway prefix.
+    private static String gatewayPath(DeploymentRouteUpdate route) {
+        return RouteType.isEgressRoute(route.getType()) ? route.getGatewayPrefix() : route.getPath();
     }
 
     public void unregister(String chainId, String deploymentId) {

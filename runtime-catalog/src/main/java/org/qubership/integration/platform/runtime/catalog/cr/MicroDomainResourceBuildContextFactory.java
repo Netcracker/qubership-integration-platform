@@ -8,7 +8,6 @@ import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.MountOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
-import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
 import org.qubership.integration.platform.camelk.services.BuildInfoFactory;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
@@ -31,18 +30,14 @@ import org.springframework.stereotype.Component;
 import java.util.*;
 
 import static java.util.Objects.isNull;
-import static org.qubership.integration.platform.camelk.builders.chain.EgressRouteResourceBuilder.EGRESS_HTTP_ROUTE_CACHE_KEY;
 import static org.qubership.integration.platform.camelk.builders.chain.EgressRouteResourceBuilder.destinationRuleCacheKey;
 import static org.qubership.integration.platform.camelk.builders.chain.EgressRouteResourceBuilder.serviceEntryCacheKey;
-import static org.qubership.integration.platform.camelk.builders.chain.HttpRouteResourceBuilder.PRIVATE_HTTP_ROUTE_CACHE_KEY;
-import static org.qubership.integration.platform.camelk.builders.chain.HttpRouteResourceBuilder.PUBLIC_HTTP_ROUTE_CACHE_KEY;
 import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.CHAIN_ID_LABEL;
 import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
 import static org.qubership.integration.platform.runtime.catalog.kubernetes.KubeUtil.getName;
 
 @Component
 public class MicroDomainResourceBuildContextFactory {
-    private static final String HTTP_ROUTE_KIND = "HTTPRoute";
 
     private final SnapshotRepository snapshotRepository;
     private final MicroDomainService microDomainService;
@@ -50,9 +45,6 @@ public class MicroDomainResourceBuildContextFactory {
     private final BuildInfoFactory buildInfoFactory;
     private final IntegrationServiceCatalog integrationServiceCatalog;
     private final SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
-    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
-    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
-    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
     private final AuditorAware<User> auditor;
     private final boolean hostResourcesEnabled;
 
@@ -67,18 +59,6 @@ public class MicroDomainResourceBuildContextFactory {
             @Qualifier("sourceDslConfigMapNamingStrategy")
             SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy,
 
-            // Needed only to name a tier HTTPRoute that Phase 1 looked for and did not find, so its
-            // absence can be recorded under the real key Phase 2 will later generate (see
-            // recordAppendObservations). MicroDomainService already carries the identical three
-            // strategies for the same reason; this is a second Spring-managed reference to the same
-            // beans, not a duplicate implementation.
-            @Qualifier("httpRoutePublicNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy,
-            @Qualifier("httpRoutePrivateNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy,
-            @Qualifier("httpRouteEgressNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
-
             AuditorAware<User> auditor,
 
             @Value("${cip.istio.host-resources.enabled:true}") boolean hostResourcesEnabled
@@ -89,9 +69,6 @@ public class MicroDomainResourceBuildContextFactory {
         this.buildInfoFactory = buildInfoFactory;
         this.integrationServiceCatalog = integrationServiceCatalog;
         this.sourceDslConfigMapNamingStrategy = sourceDslConfigMapNamingStrategy;
-        this.httpRoutePublicNamingStrategy = httpRoutePublicNamingStrategy;
-        this.httpRoutePrivateNamingStrategy = httpRoutePrivateNamingStrategy;
-        this.httpRouteEgressNamingStrategy = httpRouteEgressNamingStrategy;
         this.auditor = auditor;
         this.hostResourcesEnabled = hostResourcesEnabled;
     }
@@ -104,7 +81,7 @@ public class MicroDomainResourceBuildContextFactory {
      */
     public record BuildContextWithObservations(
             ResourceBuildContext<List<Snapshot>> context,
-            Map<ResourceKey, Optional<V1ObjectMeta>> observations
+            Map<ResourceKey, V1ObjectMeta> observations
     ) { }
 
     public BuildContextWithObservations createResourceBuildContext(
@@ -122,7 +99,7 @@ public class MicroDomainResourceBuildContextFactory {
         ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(buildInfo, integrationServiceCatalog)
                 .updateTo(snapshots);
 
-        Map<ResourceKey, Optional<V1ObjectMeta>> observations = new LinkedHashMap<>();
+        Map<ResourceKey, V1ObjectMeta> observations = new LinkedHashMap<>();
 
         if (appendToExising) {
             addAppendConfigurationToContext(context, observations);
@@ -167,7 +144,7 @@ public class MicroDomainResourceBuildContextFactory {
 
     private void addAppendConfigurationToContext(
             ResourceBuildContext<List<Snapshot>> context,
-            Map<ResourceKey, Optional<V1ObjectMeta>> observations
+            Map<ResourceKey, V1ObjectMeta> observations
     ) {
         microDomainService
                 .getMainIntegrationResources(context.getBuildInfo().getOptions().getName())
@@ -176,7 +153,6 @@ public class MicroDomainResourceBuildContextFactory {
                     updateIntegrationEmptyDirs(context, resources.integration());
                     putIntegrationsConfigurationToBuildCache(context, resources.integrationsConfiguration());
                     putSourceConfigMapNamesToBuildCache(context, resources);
-                    putHttpRouteRulesToBuildCache(context, resources);
                     recordAppendObservations(context, resources, observations);
                 });
     }
@@ -186,41 +162,21 @@ public class MicroDomainResourceBuildContextFactory {
      * at, so a later write can carry it as an optimistic-concurrency precondition (see
      * {@code MicroDomainService.deploy}).
      *
-     * <p>The Integration is never null here: reaching this method at all means
-     * {@code getMainIntegrationResources} found one. The tier HTTPRoutes are named independently of
-     * whether they were found, via the same naming strategies {@code HttpRouteResourceBuilder} uses
-     * to name them in the generated YAML, so an absent tier is recorded under the exact key Phase 3
-     * will look up -- recording it as observed-absent under that key lets the write create it
-     * directly, without paying for a GET first. Those tiers are worth the naming machinery because
-     * they are the objects a concurrent deploy of the same domain can actually contend on.
-     *
-     * <p>Service, ServiceMonitor, and the integrations-configuration ConfigMap have no such strategy
-     * wired into this factory, so when one of them is absent {@link #recordIfNamed} skips it rather
-     * than recording an entry under a name nothing could ever look up: the write derives its lookup
-     * key from the generated document's own name, so an unnamed entry could never match, and would
-     * misreport "never looked" as "looked, confirmed absent". Skipping leaves the key entirely out
-     * of the map, so the write correctly falls through to Task 1's write-time GET-then-PUT for that
-     * one kind -- the same behavior as before this optimization existed, just without the false
-     * "confirmed absent" claim. These three are per-domain, uncontended objects, so the GET they pay
-     * for on the "never observed" branch is not worth three more naming strategies wired into this
-     * factory to avoid.
+     * <p>An object that is absent, or has no name, is not recorded: the write derives its lookup key
+     * from the generated document's own name, and a missing key leaves the write to resolve the
+     * object with a read of its own. The Service, the ServiceMonitor, and the integrations-configuration
+     * ConfigMap are per-domain, uncontended objects, so that read costs little.
      */
     private void recordAppendObservations(
             ResourceBuildContext<List<Snapshot>> context,
             MicroDomainService.IntegrationResources resources,
-            Map<ResourceKey, Optional<V1ObjectMeta>> observations
+            Map<ResourceKey, V1ObjectMeta> observations
     ) {
-        recordObservation(observations, "Integration", nameOrNull(resources.integration()), resources.integration());
+        recordIfNamed(observations, "Integration", resources.integration());
         recordIfNamed(observations, "Service", resources.service());
         recordIfNamed(observations, "ServiceMonitor", resources.serviceMonitor());
         recordIfNamed(observations, "ConfigMap", resources.integrationsConfiguration());
         resources.integrationSources().forEach(configMap -> recordIfNamed(observations, "ConfigMap", configMap));
-        recordObservation(observations, HTTP_ROUTE_KIND,
-                httpRoutePublicNamingStrategy.getName(context), resources.publicHttpRoute());
-        recordObservation(observations, HTTP_ROUTE_KIND,
-                httpRoutePrivateNamingStrategy.getName(context), resources.privateHttpRoute());
-        recordObservation(observations, HTTP_ROUTE_KIND,
-                httpRouteEgressNamingStrategy.getName(context), resources.egressHttpRoute());
     }
 
     /** {@code obj}'s own name, or {@code null} when {@code obj} itself is absent. */
@@ -228,37 +184,16 @@ public class MicroDomainResourceBuildContextFactory {
         return obj == null ? null : getName(obj).orElse(null);
     }
 
-    /**
-     * Records an observation only when {@code live} resolves to a name. The write derives its
-     * lookup key from the generated document's own name, so an entry with no name could never
-     * match -- and would misreport "never looked" as "looked, confirmed absent".
-     */
+    /** Records {@code live}'s metadata under {@code kind} and its name, when it has one. */
     private void recordIfNamed(
-            Map<ResourceKey, Optional<V1ObjectMeta>> observations,
+            Map<ResourceKey, V1ObjectMeta> observations,
             String kind,
             KubernetesObject live
     ) {
         String name = nameOrNull(live);
         if (name != null) {
-            recordObservation(observations, kind, name, live);
+            observations.put(new ResourceKey(kind, name), live.getMetadata());
         }
-    }
-
-    /**
-     * Records what Phase 1 saw for one {@code (kind, name)} slot: {@code live}'s metadata when it
-     * was found, or {@link Optional#empty()} when this call site looked and found nothing. A slot
-     * this method is never called for stays entirely absent from the map, which
-     * {@code MicroDomainService.deploy} reads as "Phase 1 never looked" -- the third state, distinct
-     * from both of the ones this method produces.
-     */
-    private void recordObservation(
-            Map<ResourceKey, Optional<V1ObjectMeta>> observations,
-            String kind,
-            String name,
-            KubernetesObject live
-    ) {
-        observations.put(new ResourceKey(kind, name),
-                live == null ? Optional.empty() : Optional.ofNullable(live.getMetadata()));
     }
 
     private void putIntegrationsConfigurationToBuildCache(
@@ -291,28 +226,12 @@ public class MicroDomainResourceBuildContextFactory {
         });
     }
 
-    private void putHttpRouteRulesToBuildCache(
-            ResourceBuildContext<List<Snapshot>> context,
-            MicroDomainService.IntegrationResources resources
-    ) {
-        if (resources.publicHttpRoute() != null) {
-            context.getBuildCache().put(PUBLIC_HTTP_ROUTE_CACHE_KEY, resources.publicHttpRoute().getSpec());
-        }
-        if (resources.privateHttpRoute() != null) {
-            context.getBuildCache().put(PRIVATE_HTTP_ROUTE_CACHE_KEY, resources.privateHttpRoute().getSpec());
-        }
-        if (resources.egressHttpRoute() != null) {
-            context.getBuildCache().put(EGRESS_HTTP_ROUTE_CACHE_KEY, resources.egressHttpRoute().getSpec());
-        }
-    }
-
     /**
      * Seeds every existing {@code ServiceEntry}/{@code DestinationRule}'s current spec into the
      * build cache, keyed by {@code EgressRouteResourceBuilder}'s host-derived cache keys, so that
      * builder can merge its own port into whatever another domain already contributed for the same
-     * host instead of overwriting it -- without needing to talk to Kubernetes itself. Unlike
-     * {@link #putHttpRouteRulesToBuildCache} (three fixed, per-domain-named CRs), there's no way to
-     * know in advance which hosts this build's routes will touch, so every existing one is fetched
+     * host instead of overwriting it, without needing to talk to Kubernetes itself. There's no way
+     * to know in advance which hosts this build's routes will touch, so every existing one is fetched
      * and seeded; {@code EgressRouteResourceBuilder} looks up only the keys it actually needs.
      *
      * <p>Skipping this call is safe only while {@code EgressRouteResourceBuilder} skips generating
@@ -326,18 +245,18 @@ public class MicroDomainResourceBuildContextFactory {
      */
     private void putHostResourceSpecsToBuildCache(
             ResourceBuildContext<List<Snapshot>> context,
-            Map<ResourceKey, Optional<V1ObjectMeta>> observations
+            Map<ResourceKey, V1ObjectMeta> observations
     ) {
         for (KubeCustomObject serviceEntry : microDomainService.getExistingServiceEntries()) {
             getName(serviceEntry).ifPresent(name -> {
                 context.getBuildCache().put(serviceEntryCacheKey(name), serviceEntry.getSpec());
-                recordObservation(observations, "ServiceEntry", name, serviceEntry);
+                recordIfNamed(observations, "ServiceEntry", serviceEntry);
             });
         }
         for (KubeCustomObject destinationRule : microDomainService.getExistingDestinationRules()) {
             getName(destinationRule).ifPresent(name -> {
                 context.getBuildCache().put(destinationRuleCacheKey(name), destinationRule.getSpec());
-                recordObservation(observations, "DestinationRule", name, destinationRule);
+                recordIfNamed(observations, "DestinationRule", destinationRule);
             });
         }
     }

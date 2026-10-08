@@ -4,7 +4,6 @@ import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameVerifier;
-import org.qubership.integration.platform.camelk.naming.validation.K8sNames;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -12,13 +11,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.function.Function;
 
 @Component("httpRouteEgressNamingStrategy")
-public class HttpRouteEgressNamingStrategy extends K8sResourceNamingStrategy<ResourceBuildContext<List<Snapshot>>> {
-    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy;
-    private final K8sNameValidator nameValidator;
-    private final String suffix;
-
+public class HttpRouteEgressNamingStrategy extends ChainHttpRouteNamingStrategy {
     @Autowired
     public HttpRouteEgressNamingStrategy(
             K8sNameVerifier nameVerifier,
@@ -27,24 +23,12 @@ public class HttpRouteEgressNamingStrategy extends K8sResourceNamingStrategy<Res
             @Qualifier("integrationResourceNamingStrategy")
             NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy,
 
+            @Qualifier("suffixGenerator")
+            Function<Long, String> suffixGenerator,
+
             @Value("${cip.cr.naming.http-route.egress-suffix:-egress-routes}")
             String suffix
     ) {
-        super(nameVerifier);
-        this.integrationResourceNamingStrategy = integrationResourceNamingStrategy;
-        this.nameValidator = nameValidator;
-        this.suffix = suffix;
-    }
-
-    @Override
-    protected String proposeName(ResourceBuildContext<List<Snapshot>> context) {
-        String base = integrationResourceNamingStrategy.getName(context);
-        // Reserve room for the full suffix before truncating, so a long base name can never cut
-        // into the suffix, the same way the public/private tiers already guard against it.
-        int maxBaseLength = K8sNames.K8S_RESOURCE_NAME_LENGTH_LIMIT - suffix.length();
-        if (maxBaseLength > 0 && base.length() > maxBaseLength) {
-            base = base.substring(0, maxBaseLength);
-        }
-        return nameValidator.validate(base + suffix);
+        super(nameVerifier, nameValidator, integrationResourceNamingStrategy, suffixGenerator, suffix);
     }
 }

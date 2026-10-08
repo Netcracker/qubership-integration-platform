@@ -47,6 +47,10 @@ public enum RouteType {
         return routeType == EXTERNAL_TRIGGER || routeType == EXTERNAL_PRIVATE_TRIGGER;
     }
 
+    public static boolean isEgressRoute(RouteType routeType) {
+        return routeType == EXTERNAL_SENDER || routeType == EXTERNAL_SERVICE;
+    }
+
     public static boolean triggerRouteCleanupNeeded(RouteType routeType) {
         return routeType == EXTERNAL_TRIGGER || routeType == PRIVATE_TRIGGER || routeType == INTERNAL_TRIGGER;
     }

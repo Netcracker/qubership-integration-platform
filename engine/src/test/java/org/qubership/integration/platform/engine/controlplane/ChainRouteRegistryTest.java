@@ -102,6 +102,25 @@ class ChainRouteRegistryTest {
         assertDoesNotThrow(() -> registry.unregister(CHAIN_ID, DEPLOYMENT_ID_A));
     }
 
+    @Test
+    void getUnsharedRoutesComparesEgressRoutesByGatewayPrefix() {
+        // The newer deployment calls the same target with a new timeout, which changes the prefix.
+        DeploymentRouteUpdate oldSender = egressRoute("https://api.example.com", "/http-sender/elem/hash-old");
+        registry.register(CHAIN_ID, DEPLOYMENT_ID_A, List.of(oldSender));
+        registry.register(CHAIN_ID, DEPLOYMENT_ID_B,
+                List.of(egressRoute("https://api.example.com", "/http-sender/elem/hash-new")));
+
+        assertEquals(List.of(oldSender), registry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A));
+    }
+
+    private DeploymentRouteUpdate egressRoute(String targetUrl, String gatewayPrefix) {
+        return DeploymentRouteUpdate.builder()
+                .path(targetUrl)
+                .gatewayPrefix(gatewayPrefix)
+                .type(RouteType.EXTERNAL_SENDER)
+                .build();
+    }
+
     private DeploymentRouteUpdate route(String path) {
         return DeploymentRouteUpdate.builder()
                 .path(path)

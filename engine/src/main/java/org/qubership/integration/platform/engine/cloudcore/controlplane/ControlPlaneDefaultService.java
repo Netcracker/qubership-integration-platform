@@ -117,12 +117,12 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
     }
 
     @Override
-    public void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
+    public void postPublicEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
         postEngineRoutes(deploymentRoutes, endpoint, publicGatewayName);
     }
 
     @Override
-    public void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
+    public void postPrivateEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
         postEngineRoutes(deploymentRoutes, endpoint, privateGatewayName);
     }
 
@@ -168,20 +168,20 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
     }
 
     @Override
-    public void removeEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName) throws ControlPlaneException {
+    public void removeEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName) throws ControlPlaneException {
         try {
-            if (deploymentRoutes.isEmpty() || deploymentName.isEmpty()) {
-                return;
-            }
-
-            List<RouteConfigurationResponse> routesList = getRoutesList();
-
             List<String> publicPaths = deploymentRoutes.stream()
                 .filter(route -> RouteType.isPublicTriggerRoute(route.getType()))
                 .map(DeploymentRouteUpdate::getPath).toList();
             List<String> privatePaths = deploymentRoutes.stream()
                 .filter(route -> RouteType.isPrivateTriggerRoute(route.getType()))
                 .map(DeploymentRouteUpdate::getPath).toList();
+
+            if ((publicPaths.isEmpty() && privatePaths.isEmpty()) || deploymentName.isEmpty()) {
+                return;
+            }
+
+            List<RouteConfigurationResponse> routesList = getRoutesList();
 
             removeEngineRoutesByPathsAndEndpoint(publicPaths, routesList, PUBLIC_GATEWAY_SERVICE_NODEGROUP, deploymentName);
             removeEngineRoutesByPathsAndEndpoint(privatePaths, routesList, PRIVATE_GATEWAY_SERVICE_NODEGROUP, deploymentName);
@@ -255,7 +255,7 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
      * @param endpoint unused; Core Mesh's route objects aren't named per pod
      */
     @Override
-    public void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint) throws ControlPlaneException {
+    public void postEgressGatewayRoutes(String chainId, List<DeploymentRouteUpdate> routes, String endpoint) throws ControlPlaneException {
         for (DeploymentRouteUpdate route : routes) {
             postEgressGatewayRoute(route);
         }

@@ -17,7 +17,6 @@
 package org.qubership.integration.platform.runtime.catalog.cr;
 
 import com.coreos.monitoring.models.V1ServiceMonitor;
-import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
 import io.kubernetes.client.common.KubernetesObject;
 import io.kubernetes.client.openapi.models.V1ConfigMap;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
@@ -34,7 +33,6 @@ import org.qubership.integration.platform.camelk.integrations.configuration.Sour
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
-import org.qubership.integration.platform.camelk.services.RoutesGetterService;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.cr.MicroDomainService.BuiltResources;
@@ -45,14 +43,12 @@ import org.qubership.integration.platform.runtime.catalog.cr.k8s.GenericCustomRe
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.kubernetes.KubeApiConflictException;
 import org.qubership.integration.platform.runtime.catalog.kubernetes.KubeOperator;
-import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -61,7 +57,6 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -84,7 +79,6 @@ class MicroDomainServiceTest {
     private IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private GenericCustomResources genericCustomResources;
     private IntegrationServiceCatalog integrationServiceCatalog;
-    private SnapshotRepository snapshotRepository;
 
     @SuppressWarnings("unchecked")
     private MicroDomainService newService(boolean monitoringEnabled) {
@@ -96,13 +90,7 @@ class MicroDomainServiceTest {
                 genericCustomResources,
                 integrationServiceCatalog,
                 monitoringEnabled,
-                mock(RoutesGetterService.class),
-                snapshotRepository,
-                context -> "http-route-public",
-                context -> "http-route-private",
-                context -> "http-route-egress",
                 context -> "engine-routes",
-                new YAMLMapper(),
                 new K8sNameValidator());
         // The @Value fields are package-private, so the test in this package sets them directly.
         service.domainLabel = "qip.domain";
@@ -120,7 +108,6 @@ class MicroDomainServiceTest {
         integrationConfigurationSerdes = mock(IntegrationConfigurationSerdes.class);
         genericCustomResources = mock(GenericCustomResources.class);
         integrationServiceCatalog = mock(IntegrationServiceCatalog.class);
-        snapshotRepository = mock(SnapshotRepository.class);
     }
 
     private void stubNamingStrategies() {
@@ -222,7 +209,7 @@ class MicroDomainServiceTest {
         V1ConfigMap withoutLabel = configMap("cm-3", Map.of());
         MicroDomainService.IntegrationResources resources = new MicroDomainService.IntegrationResources(
                 null, null, null, null,
-                List.of(withS1, withS2, withoutLabel), null, List.of(), null, null, null);
+                List.of(withS1, withS2, withoutLabel), null, List.of());
 
         Map<String, V1ConfigMap> byLabel = resources.getSourceByLabelMap(SNAPSHOT_ID_LABEL);
 
@@ -264,7 +251,7 @@ class MicroDomainServiceTest {
         MicroDomainService service = newService(false);
         service.deploy(new BuiltResources(manifest, Map.of()));
 
-        verify(kubeOperator).createOrUpdateResource(any(V1ConfigMap.class), anyBoolean());
+        verify(kubeOperator).createOrUpdateResource(any(V1ConfigMap.class));
     }
 
     @DisplayName("Writes the Integration before the ConfigMaps and keeps the build order of the rest")
@@ -281,7 +268,7 @@ class MicroDomainServiceTest {
         service.deploy(new BuiltResources(manifest, Map.of()));
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator, times(3)).createOrUpdateResource(captor.capture(), anyBoolean());
+        verify(kubeOperator, times(3)).createOrUpdateResource(captor.capture());
         List<String> written = captor.getAllValues().stream()
                 .map(resource -> ((KubernetesObject) resource).getMetadata().getName())
                 .toList();
@@ -294,7 +281,7 @@ class MicroDomainServiceTest {
     void wrapsDeployFailure() throws Exception {
         String manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm-1\n";
         RuntimeException cause = new RuntimeException("boom");
-        doThrow(cause).when(kubeOperator).createOrUpdateResource(any(), anyBoolean());
+        doThrow(cause).when(kubeOperator).createOrUpdateResource(any());
 
         MicroDomainService service = newService(false);
         BuiltResources built = new BuiltResources(manifest, Map.of());
@@ -302,6 +289,8 @@ class MicroDomainServiceTest {
                 assertThrows(MicroDomainDeployError.class, () -> service.deploy(built));
 
         assertSame(cause, error.getCause());
+        assertEquals("Failed to deploy resources: boom", error.getMessage(),
+                "the error message has to carry the API server's refusal, since a caller sees nothing else");
     }
 
     @DisplayName("Lets a KubeApiConflictException through unwrapped so a caller can retry it")
@@ -309,7 +298,7 @@ class MicroDomainServiceTest {
     void deployDoesNotWrapAConflictException() {
         String manifest = "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm-1\n";
         KubeApiConflictException conflict = new KubeApiConflictException("conflict", null);
-        doThrow(conflict).when(kubeOperator).createOrUpdateResource(any(), anyBoolean());
+        doThrow(conflict).when(kubeOperator).createOrUpdateResource(any());
 
         MicroDomainService service = newService(false);
         BuiltResources built = new BuiltResources(manifest, Map.of());
@@ -326,7 +315,7 @@ class MicroDomainServiceTest {
         V1ObjectMeta observed = new V1ObjectMeta().name("route").resourceVersion("42");
         BuiltResources built = new BuiltResources(
                 httpRouteYaml("route"),
-                Map.of(new ResourceKey("HTTPRoute", "route"), Optional.of(observed)));
+                Map.of(new ResourceKey("HTTPRoute", "route"), observed));
 
         MicroDomainService service = newService(false);
         // Registers HTTPRoute with the client's static ModelMapper (mirrors the real bean's
@@ -336,7 +325,7 @@ class MicroDomainServiceTest {
         service.deploy(built);
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
         KubeCustomObject written = (KubeCustomObject) captor.getValue();
         assertEquals("42", written.getMetadata().getResourceVersion());
     }
@@ -351,7 +340,7 @@ class MicroDomainServiceTest {
                 .labels(new LinkedHashMap<>(Map.of("qip.domain", "payments")));
         BuiltResources built = new BuiltResources(
                 integrationYaml("int-res"),   // declares only the qip.domain label
-                Map.of(new ResourceKey("Integration", "int-res"), Optional.of(observed)));
+                Map.of(new ResourceKey("Integration", "int-res"), observed));
 
         MicroDomainService service = newService(false);
         // Registers Integration with the client's static ModelMapper (mirrors the real bean's
@@ -361,29 +350,11 @@ class MicroDomainServiceTest {
         service.deploy(built);
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
         CamelKIntegration written = (CamelKIntegration) captor.getValue();
         assertEquals("camel-k", written.getMetadata().getAnnotations().get("camel.apache.org/operator.id"),
                 "an annotation only the operator set must survive the write");
         assertEquals("payments", written.getMetadata().getLabels().get("qip.domain"));
-    }
-
-    @DisplayName("Leaves resourceVersion unset for a document Phase 1 observed as absent")
-    @Test
-    void deployLeavesVersionUnsetForAnObservedAbsentDocument() {
-        BuiltResources built = new BuiltResources(
-                httpRouteYaml("route"),
-                Map.of(new ResourceKey("HTTPRoute", "route"), Optional.empty()));
-
-        MicroDomainService service = newService(false);
-        // See deployStampsObservedResourceVersion for why this call is needed.
-        service.init();
-        service.deploy(built);
-
-        ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(true));
-        KubeCustomObject written = (KubeCustomObject) captor.getValue();
-        assertNull(written.getMetadata().getResourceVersion());
     }
 
     @DisplayName("Stamps the observed resourceVersion onto a core-kind document too")
@@ -396,13 +367,13 @@ class MicroDomainServiceTest {
         V1ObjectMeta observed = new V1ObjectMeta().name("cm-1").resourceVersion("42");
         BuiltResources built = new BuiltResources(
                 "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm-1\n",
-                Map.of(new ResourceKey("ConfigMap", "cm-1"), Optional.of(observed)));
+                Map.of(new ResourceKey("ConfigMap", "cm-1"), observed));
 
         MicroDomainService service = newService(false);
         service.deploy(built);
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
         V1ConfigMap written = (V1ConfigMap) captor.getValue();
         assertEquals("ConfigMap", written.getKind(),
                 "Yaml.loadAll must populate kind for a core kind, or the observation lookup misses");
@@ -425,14 +396,14 @@ class MicroDomainServiceTest {
                 .finalizers(new ArrayList<>(List.of("qip.org/cleanup")));
         BuiltResources built = new BuiltResources(
                 integrationYaml("int-res"),
-                Map.of(new ResourceKey("Integration", "int-res"), Optional.of(observed)));
+                Map.of(new ResourceKey("Integration", "int-res"), observed));
 
         MicroDomainService service = newService(false);
         service.init();
         service.deploy(built);
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
         V1ObjectMeta written = ((CamelKIntegration) captor.getValue()).getMetadata();
         assertEquals(List.of(owner), written.getOwnerReferences(),
                 "a PUT replaces metadata wholesale, so dropping ownerReferences here would break "
@@ -441,23 +412,6 @@ class MicroDomainServiceTest {
         assertEquals("live-uid", written.getUid());
         assertEquals("int-res", written.getName(), "the generated name must win over the live one");
         assertEquals("payments", written.getLabels().get("qip.domain"));
-    }
-
-    @DisplayName("Tells the write to create outright for a document Phase 1 observed as absent")
-    @Test
-    void deployAsksForAnUnconditionalCreateForAnObservedAbsentDocument() {
-        BuiltResources built = new BuiltResources(
-                httpRouteYaml("route"),
-                Map.of(new ResourceKey("HTTPRoute", "route"), Optional.empty()));
-
-        MicroDomainService service = newService(false);
-        // See deployStampsObservedResourceVersion for why this call is needed.
-        service.init();
-        service.deploy(built);
-
-        // A write-time read would find an object a racing writer created during the build and
-        // replace it wholesale; creating instead turns that race into a reportable conflict.
-        verify(kubeOperator).createOrUpdateResource(any(), eq(true));
     }
 
     @DisplayName("Leaves a document Phase 1 never looked at to the write-time read")
@@ -471,7 +425,7 @@ class MicroDomainServiceTest {
         service.deploy(built);
 
         ArgumentCaptor<Object> captor = ArgumentCaptor.forClass(Object.class);
-        verify(kubeOperator).createOrUpdateResource(captor.capture(), eq(false));
+        verify(kubeOperator).createOrUpdateResource(captor.capture());
         assertNull(((KubeCustomObject) captor.getValue()).getMetadata().getResourceVersion());
     }
 
@@ -559,12 +513,6 @@ class MicroDomainServiceTest {
                 .build();
         when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
         when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
-        // HTTPRoute cleanup resolves the removed snapshot ("s1") and then the remaining one ("s2").
-        // Returning one row per lookup keeps both resolutions complete, so cleanup runs instead of
-        // being skipped by the fail-closed guards: this test is about the mount and the
-        // configuration entry, not cleanup.
-        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
-                org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
 
         MicroDomainService service = newService(false);
         service.deleteChainSnapshot(DOMAIN, "s1");
@@ -621,8 +569,6 @@ class MicroDomainServiceTest {
                 .build();
         when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
         when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
-        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
-                org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
 
         MicroDomainService service = newService(false);
         service.deleteChainSnapshot(DOMAIN, rawId);
@@ -674,8 +620,6 @@ class MicroDomainServiceTest {
                 .build();
         when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
         when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
-        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
-                org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
 
         MicroDomainService service = newService(false);
         service.deleteChainSnapshot(DOMAIN, "s1");
@@ -728,14 +672,14 @@ class MicroDomainServiceTest {
                 "wrapping it in a RuntimeException would hide the conflict from a caller's retry logic");
     }
 
-    @DisplayName("Skips HTTPRoute cleanup when the domain has no integrations-configuration config map")
+    @DisplayName("Deletes the HTTPRoutes labeled with the removed snapshot and keeps the others")
     @Test
-    void deleteChainSnapshotSkipsHttpRouteCleanupWhenConfigurationConfigMapAbsent() {
+    void deleteChainSnapshotDeletesTheHttpRoutesOfThatSnapshot() {
         stubNamingStrategies();
 
         CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
                 new CamelKIntegration.IntegrationSpec.Traits.MountTrait();
-        mount.setResources(new ArrayList<>(List.of("configmap:src-s1/x")));
+        mount.setResources(new ArrayList<>(List.of("configmap:src-uuid/x")));
         CamelKIntegration.IntegrationSpec.Traits traits = new CamelKIntegration.IntegrationSpec.Traits();
         traits.setMount(mount);
         CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
@@ -743,61 +687,42 @@ class MicroDomainServiceTest {
         CamelKIntegration integration = new CamelKIntegration();
         integration.setSpec(spec);
 
-        // Only the snapshot's own source config map comes back, never the integrations
-        // configuration one, so IntegrationResources.integrationsConfiguration() is null.
-        V1ConfigMap source = configMap("src-s1", Map.of(SNAPSHOT_ID_LABEL, "s1"));
+        String rawId = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+        String labelId = new K8sNameValidator().validate(rawId);
+        V1ConfigMap source = configMap("src-uuid", Map.of(SNAPSHOT_ID_LABEL, labelId));
         when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of(integration));
         when(kubeOperator.getServicesByLabel(anyString(), anyString())).thenReturn(List.of());
         when(kubeOperator.getConfigMapsByLabel(anyString(), anyString())).thenReturn(List.of(source));
+        when(kubeOperator.getCustomObjectsByLabels(anyString(), anyString(), anyString(), any())).thenReturn(List.of(
+                httpRoute("route-removed-public", labelId),
+                httpRoute("route-removed-egress", labelId),
+                httpRoute("route-other-public", "s2")));
 
         MicroDomainService service = newService(false);
-        service.deleteChainSnapshot(DOMAIN, "s1");
+        service.deleteChainSnapshot(DOMAIN, rawId);
 
-        // The cleanup path is the only caller of the snapshot repository. Never touching it
-        // proves the tiers were not read, let alone rewritten.
-        verify(snapshotRepository, never()).findAllByIdIn(any());
+        verify(kubeOperator).deleteCustomObject(anyString(), anyString(), anyString(), eq("route-removed-public"));
+        verify(kubeOperator).deleteCustomObject(anyString(), anyString(), anyString(), eq("route-removed-egress"));
+        verify(kubeOperator, never()).deleteCustomObject(anyString(), anyString(), anyString(), eq("route-other-public"));
     }
 
-    @DisplayName("Still runs HTTPRoute cleanup when a present integrations-configuration config map lists no other sources")
+    @DisplayName("Deletes the HTTPRoutes of every chain in the domain")
     @Test
-    void deleteChainSnapshotRunsHttpRouteCleanupWhenConfigurationConfigMapListsNoOtherSources() {
-        stubNamingStrategies();
-
-        CamelKIntegration.IntegrationSpec.Traits.MountTrait mount =
-                new CamelKIntegration.IntegrationSpec.Traits.MountTrait();
-        mount.setResources(new ArrayList<>(List.of("configmap:src-s1/x")));
-        CamelKIntegration.IntegrationSpec.Traits traits = new CamelKIntegration.IntegrationSpec.Traits();
-        traits.setMount(mount);
-        CamelKIntegration.IntegrationSpec spec = new CamelKIntegration.IntegrationSpec();
-        spec.setTraits(traits);
-        CamelKIntegration integration = new CamelKIntegration();
-        integration.setSpec(spec);
-
-        V1ConfigMap cfg = configMap(CFG_CONFIG_MAP_NAME, null);
-        V1ConfigMap source = configMap("src-s1", Map.of(SNAPSHOT_ID_LABEL, "s1"));
-        when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of(integration));
-        when(kubeOperator.getServicesByLabel(anyString(), anyString())).thenReturn(List.of());
-        when(kubeOperator.getConfigMapsByLabel(anyString(), anyString())).thenReturn(List.of(cfg, source));
-
-        // The config map lists only the removed snapshot's own source, so remainingSnapshotIds
-        // subtracts it down to an empty set, not an absent Optional. A domain's last chain being
-        // removed must still run cleanup.
-        IntegrationsConfiguration configuration = IntegrationsConfiguration.builder()
-                .sources(new ArrayList<>(List.of(SourceDefinition.builder().id("s1").build())))
-                .build();
-        when(integrationConfigurationSerdes.getFromConfigMap(cfg)).thenReturn(configuration);
-        when(integrationConfigurationSerdes.toYaml(any())).thenReturn("yaml-out");
-        // Cleanup still resolves the removed snapshot ("s1") even though the remaining set is
-        // empty. Stubbing one row back keeps resolution complete, past the removed-snapshot guard,
-        // so the test fails for the right reason if cleanup stops running.
-        when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of(mock(
-                org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot.class)));
+    void deleteRemovesTheChainHttpRoutes() {
+        when(kubeOperator.getIntegrationsByLabels(any())).thenReturn(List.of());
+        when(kubeOperator.getCustomObjectsByLabels(anyString(), anyString(), anyString(), any()))
+                .thenReturn(List.of(httpRoute("route-a-public", "s1"), httpRoute("route-b-egress", "s2")));
 
         MicroDomainService service = newService(false);
-        service.deleteChainSnapshot(DOMAIN, "s1");
+        service.delete(DOMAIN);
 
-        // The guard only reaches this call when remainingSnapshotIds resolved to a present (even
-        // if empty) set, so this proves cleanup ran rather than being skipped.
-        verify(snapshotRepository).findAllByIdIn(Set.of("s1"));
+        verify(kubeOperator).deleteCustomObject(anyString(), anyString(), anyString(), eq("route-a-public"));
+        verify(kubeOperator).deleteCustomObject(anyString(), anyString(), anyString(), eq("route-b-egress"));
+    }
+
+    private KubeCustomObject httpRoute(String name, String snapshotLabel) {
+        KubeCustomObject object = new KubeCustomObject();
+        object.setMetadata(new V1ObjectMeta().name(name).labels(Map.of(SNAPSHOT_ID_LABEL, snapshotLabel)));
+        return object;
     }
 }

@@ -86,27 +86,30 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     }
 
     @Override
-    public synchronized void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
-            throws ControlPlaneException {
-        mergeTierRoutes(tierRequest(endpoint, "public"), deploymentRoutes, publicGatewayName,
+    public synchronized void postPublicEngineRoutes(
+            String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint
+    ) throws ControlPlaneException {
+        mergeTierRoutes(tierRequest(endpoint, chainId, "public"), deploymentRoutes, publicGatewayName,
                 this::triggerPathMatch, route -> buildTriggerRule(route, endpoint));
     }
 
     @Override
-    public synchronized void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
-            throws ControlPlaneException {
-        mergeTierRoutes(tierRequest(endpoint, "private"), deploymentRoutes, privateGatewayName,
+    public synchronized void postPrivateEngineRoutes(
+            String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint
+    ) throws ControlPlaneException {
+        mergeTierRoutes(tierRequest(endpoint, chainId, "private"), deploymentRoutes, privateGatewayName,
                 this::triggerPathMatch, route -> buildTriggerRule(route, endpoint));
     }
 
     @Override
-    public synchronized void removeEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName)
-            throws ControlPlaneException {
+    public synchronized void removeEngineRoutes(
+            String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName
+    ) throws ControlPlaneException {
         List<DeploymentRouteUpdate> publicRoutes = deploymentRoutes.stream()
                 .filter(route -> RouteType.isPublicTriggerRoute(route.getType()))
                 .toList();
         if (!publicRoutes.isEmpty()) {
-            mergeTierRoutes(tierRequest(deploymentName, "public"), publicRoutes, publicGatewayName,
+            mergeTierRoutes(tierRequest(deploymentName, chainId, "public"), publicRoutes, publicGatewayName,
                     this::triggerPathMatch, null);
         }
 
@@ -114,18 +117,27 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .filter(route -> RouteType.isPrivateTriggerRoute(route.getType()))
                 .toList();
         if (!privateRoutes.isEmpty()) {
-            mergeTierRoutes(tierRequest(deploymentName, "private"), privateRoutes, privateGatewayName,
+            mergeTierRoutes(tierRequest(deploymentName, chainId, "private"), privateRoutes, privateGatewayName,
                     this::triggerPathMatch, null);
+        }
+
+        List<DeploymentRouteUpdate> egressRoutes = deploymentRoutes.stream()
+                .filter(route -> RouteType.isEgressRoute(route.getType()))
+                .toList();
+        if (!egressRoutes.isEmpty()) {
+            mergeTierRoutes(egressTierRequest(deploymentName, chainId), egressRoutes, egressGatewayName,
+                    this::egressPathMatch, null);
         }
     }
 
     @Override
-    public synchronized void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint)
-            throws ControlPlaneException {
+    public synchronized void postEgressGatewayRoutes(
+            String chainId, List<DeploymentRouteUpdate> routes, String endpoint
+    ) throws ControlPlaneException {
         if (hostResourcesEnabled) {
             upsertHostResourcesForRoutes(routes);
         }
-        mergeTierRoutes(egressTierRequest(endpoint), routes, egressGatewayName,
+        mergeTierRoutes(egressTierRequest(endpoint, chainId), routes, egressGatewayName,
                 this::egressPathMatch, this::buildEgressRule);
     }
 
@@ -240,12 +252,10 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     }
 
     /**
-     * Reads the path match off an existing rule fetched from the cluster. Unlike
-     * {@code integration-build-pipeline}'s sibling {@code HttpRouteRuleNormalizer} (which
-     * preserves an unrecognized rule and logs a warning), a malformed rule here throws
+     * Reads the path match off an existing rule fetched from the cluster. A malformed rule throws
      * (e.g. {@link IndexOutOfBoundsException} on an
      * empty {@code matches} list), which {@link #mergeTierRoutes} wraps as a
-     * {@link ControlPlaneException} and aborts the whole write. That asymmetry is intentional:
+     * {@link ControlPlaneException} and aborts the whole write. That is intentional:
      * this write path merges into a live route the engine itself owns, so failing loudly and
      * leaving the existing HTTPRoute untouched is safer than silently guessing at a rule's
      * intent and possibly dropping or misapplying it.
@@ -532,10 +542,9 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
     /**
      * Creates or updates a host-keyed egress resource ({@code ServiceEntry}/{@code DestinationRule})
      * by reading its current spec (if any), letting {@code specMerger} fold the new content into it,
-     * and writing the result back with optimistic-concurrency retry -- the same read-merge-write-
-     * with-retry shape {@link #mergeTierRoutes} uses for the shared HTTPRoute tiers, applied here
-     * because these resources are shared across chains too and must not lose another chain's port
-     * entry to a concurrent write.
+     * and writing the result back with optimistic-concurrency retry, the same shape
+     * {@link #mergeTierRoutes} uses for the HTTPRoute tiers. These resources are shared across
+     * chains, so a concurrent write must not lose another chain's port entry.
      */
     private void upsertHostResource(
             String group, String version, String plural, String kind, String name,
@@ -588,9 +597,9 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .build());
     }
 
-    private KubeCustomObjectRequest tierRequest(String cloudServiceName, String tier) {
+    private KubeCustomObjectRequest tierRequest(String cloudServiceName, String chainId, String tier) {
         V1ObjectMeta metadata = new V1ObjectMeta();
-        metadata.setName(cloudServiceName + "-chain-" + tier + "-routes");
+        metadata.setName(cloudServiceName + "-" + chainId + "-chain-" + tier + "-routes");
         metadata.setNamespace(namespace);
 
         return KubeCustomObjectRequest.builder()
@@ -605,9 +614,9 @@ public class IstioRoutesRegistrationService implements ControlPlaneService {
                 .build();
     }
 
-    private KubeCustomObjectRequest egressTierRequest(String cloudServiceName) {
+    private KubeCustomObjectRequest egressTierRequest(String cloudServiceName, String chainId) {
         V1ObjectMeta metadata = new V1ObjectMeta();
-        metadata.setName(cloudServiceName + "-egress-routes");
+        metadata.setName(cloudServiceName + "-" + chainId + "-egress-routes");
         metadata.setNamespace(namespace);
 
         return KubeCustomObjectRequest.builder()

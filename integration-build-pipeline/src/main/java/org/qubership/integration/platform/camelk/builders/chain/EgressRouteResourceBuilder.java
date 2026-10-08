@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
-import lombok.extern.slf4j.Slf4j;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.ResourceBuildError;
 import org.qubership.integration.platform.camelk.model.ResourceBuilder;
@@ -32,12 +31,12 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@Slf4j
+import static org.qubership.integration.platform.camelk.builders.chain.SourceConfigMapBuilder.SNAPSHOT_ID_LABEL;
+
 @Component
 @ConditionalOnProperty(name = "cip.control-plane.mesh-type", havingValue = "Istio")
 @ConditionalOnProperty(name = "cip.istio.enabled", havingValue = "true")
 public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot>> {
-    public static final String EGRESS_HTTP_ROUTE_CACHE_KEY = "egressHttpRoute";
     private static final String ROUTES_CACHE_KEY = "egressRouteResourceBuilder.routes";
     private static final String SERVICE_ENTRY_CACHE_KEY_PREFIX = "egressServiceEntry:";
     private static final String DESTINATION_RULE_CACHE_KEY_PREFIX = "egressDestinationRule:";
@@ -50,7 +49,7 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
 
     private final YAMLMapper yamlMapper;
     private final RoutesGetterService routesGetterService;
-    private final NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
+    private final NamingStrategy<ResourceBuildContext<Snapshot>> httpRouteEgressNamingStrategy;
     private final K8sNameValidator k8sNameValidator;
 
     @Value("${cip.gateway.egress.name}")
@@ -74,7 +73,7 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
             RoutesGetterService routesGetterService,
 
             @Qualifier("httpRouteEgressNamingStrategy")
-            NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
+            NamingStrategy<ResourceBuildContext<Snapshot>> httpRouteEgressNamingStrategy,
 
             K8sNameValidator k8sNameValidator
     ) {
@@ -96,43 +95,44 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
 
     @Override
     public boolean enabled(ResourceBuildContext<List<Snapshot>> context) {
-        return !collectRoutes(context).isEmpty();
+        return collectRoutes(context).values().stream().anyMatch(routes -> !routes.isEmpty());
     }
 
     @Override
     public String build(ResourceBuildContext<List<Snapshot>> context) throws Exception {
-        List<Route> routes = collectRoutes(context);
+        Map<String, List<Route>> routesBySnapshotId = collectRoutes(context);
 
         StringBuilder out = new StringBuilder();
-        appendEgressHttpRoute(out, context, routes);
+        for (Snapshot snapshot : context.getData()) {
+            appendEgressHttpRoute(out, context.updateTo(snapshot), routesBySnapshotId.get(snapshot.getId()));
+        }
         if (hostResourcesEnabled) {
+            List<Route> routes = routesBySnapshotId.values().stream().flatMap(List::stream).toList();
             appendHostResources(out, context, routes);
         }
         return out.toString();
     }
 
     @SuppressWarnings("unchecked")
-    private List<Route> collectRoutes(ResourceBuildContext<List<Snapshot>> context) {
+    private Map<String, List<Route>> collectRoutes(ResourceBuildContext<List<Snapshot>> context) {
         Object cached = context.getBuildCache().get(ROUTES_CACHE_KEY);
         if (cached != null) {
-            return (List<Route>) cached;
+            return (Map<String, List<Route>>) cached;
         }
-        // RoutesGetterService is per-snapshot, so a multi-snapshot domain build fans out and
-        // concatenates before filtering down to the two egress route types.
-        List<Route> routes = context.getData().stream()
-                .flatMap(snapshot ->
-                        routesGetterService.getRoutes(snapshot, context.getServiceCatalog()).stream())
-                .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
-                        || route.getType() == RouteType.EXTERNAL_SERVICE)
-                .map(EgressServiceRouteFormatter::formatServiceRoute)
-                .toList();
+        Map<String, List<Route>> routes = new LinkedHashMap<>();
+        context.getData().forEach(snapshot -> routes.put(snapshot.getId(),
+                routesGetterService.getRoutes(snapshot, context.getServiceCatalog()).stream()
+                        .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
+                                || route.getType() == RouteType.EXTERNAL_SERVICE)
+                        .map(EgressServiceRouteFormatter::formatServiceRoute)
+                        .toList()));
         context.getBuildCache().put(ROUTES_CACHE_KEY, routes);
         return routes;
     }
 
     private void appendEgressHttpRoute(
             StringBuilder out,
-            ResourceBuildContext<List<Snapshot>> context,
+            ResourceBuildContext<Snapshot> context,
             List<Route> routes
     ) {
         if (routes.isEmpty()) {
@@ -140,8 +140,6 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         }
 
         String name = httpRouteEgressNamingStrategy.getName(context);
-        List<ObjectNode> preservedRules = preservedRulesFromCache(context, routes);
-        List<ObjectNode> newRules = routes.stream().map(this::buildRule).toList();
 
         ObjectNode httpRoute = yamlMapper.createObjectNode();
         httpRoute.put("apiVersion", GATEWAY_API_GROUP + "/" + GATEWAY_API_VERSION);
@@ -152,6 +150,7 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         ObjectNode labels = metadata.withObject("labels");
         labels.put(domainLabel, k8sNameValidator.validate(context.getBuildInfo().getOptions().getName()));
         labels.put(bgVersionLabel, bgVersion);
+        labels.put(SNAPSHOT_ID_LABEL, k8sNameValidator.validate(context.getData().getId()));
 
         ObjectNode spec = httpRoute.withObjectProperty("spec");
         spec.withArray("parentRefs").addObject()
@@ -159,8 +158,7 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
                 .put("kind", "Gateway")
                 .put("name", egressGatewayName);
         ArrayNode rules = spec.withArray("rules");
-        preservedRules.forEach(rules::add);
-        newRules.forEach(rules::add);
+        routes.forEach(route -> rules.add(buildRule(route)));
 
         appendYamlDocument(out, httpRoute, "egress HTTPRoute CR " + name);
     }
@@ -196,49 +194,6 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         }
 
         return rule;
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<ObjectNode> preservedRulesFromCache(
-            ResourceBuildContext<List<Snapshot>> context,
-            List<Route> routes
-    ) {
-        Object cached = context.getBuildCache().get(EGRESS_HTTP_ROUTE_CACHE_KEY);
-        if (!(cached instanceof Map<?, ?> existingSpec)) {
-            return List.of();
-        }
-        Object rulesRaw = existingSpec.get("rules");
-        if (!(rulesRaw instanceof List<?> existingRules)) {
-            return List.of();
-        }
-
-        Set<GatewayPathMatch> touchedPaths = routes.stream()
-                .map(route -> GatewayPathMatch.forPath(route.getGatewayPrefix()))
-                .collect(Collectors.toSet());
-
-        List<ObjectNode> preserved = new ArrayList<>();
-        for (Object ruleObj : existingRules) {
-            ObjectNode ruleNode = yamlMapper.convertValue(ruleObj, ObjectNode.class);
-            HttpRouteRuleNormalizer.normalizeIntegralDoubles(ruleNode);
-            JsonNode pathNode = ruleNode.path("matches").path(0).path("path");
-            String type = pathNode.path("type").asText(null);
-            String value = pathNode.path("value").asText(null);
-            if (value == null) {
-                log.warn("Preserved egress HTTPRoute rule has no recognizable path match "
-                        + "(matches[0].path.type/value); keeping it unconditionally rather than risk silently "
-                        + "dropping it from the cluster: {}", ruleNode);
-                preserved.add(ruleNode);
-                continue;
-            }
-            if (type == null) {
-                // Gateway API defaults HTTPPathMatch.type to PathPrefix when omitted.
-                type = "PathPrefix";
-            }
-            if (!touchedPaths.contains(GatewayPathMatch.of(type, value))) {
-                preserved.add(ruleNode);
-            }
-        }
-        return preserved;
     }
 
     private void appendHostResources(

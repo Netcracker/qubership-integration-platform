@@ -65,7 +65,7 @@ class RemoveRoutesFromControlPlaneActionTest {
 
         removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null);
 
-        verify(controlPlaneService).removeEngineRoutes(routes, DEPLOYMENT_NAME);
+        verify(controlPlaneService).removeEngineRoutes(CHAIN_ID, routes, DEPLOYMENT_NAME);
     }
 
     @Test
@@ -81,7 +81,7 @@ class RemoveRoutesFromControlPlaneActionTest {
     void doesNothingWhenNothingWasEverRegisteredForTheChain() {
         removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null);
 
-        verify(controlPlaneService, never()).removeEngineRoutes(any(), any());
+        verify(controlPlaneService, never()).removeEngineRoutes(any(), any(), any());
     }
 
     @Test
@@ -95,7 +95,7 @@ class RemoveRoutesFromControlPlaneActionTest {
 
         removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null);
 
-        verify(controlPlaneService).removeEngineRoutes(List.of(dropped), DEPLOYMENT_NAME);
+        verify(controlPlaneService).removeEngineRoutes(CHAIN_ID, List.of(dropped), DEPLOYMENT_NAME);
         assertTrue(chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
         assertEquals(List.of("/shared", "/added"),
                 chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B).stream()
@@ -112,7 +112,7 @@ class RemoveRoutesFromControlPlaneActionTest {
 
         removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_B), null);
 
-        verify(controlPlaneService, never()).removeEngineRoutes(any(), any());
+        verify(controlPlaneService, never()).removeEngineRoutes(any(), any(), any());
         assertTrue(chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_B).isEmpty());
         assertEquals(List.of(shared), chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A));
     }
@@ -122,7 +122,7 @@ class RemoveRoutesFromControlPlaneActionTest {
         List<DeploymentRouteUpdate> routes = List.of(route("/chain-1"));
         chainRouteRegistry.register(CHAIN_ID, DEPLOYMENT_ID_A, routes);
         doThrow(new ControlPlaneException("boom"))
-                .when(controlPlaneService).removeEngineRoutes(routes, DEPLOYMENT_NAME);
+                .when(controlPlaneService).removeEngineRoutes(CHAIN_ID, routes, DEPLOYMENT_NAME);
         DeploymentInfo deploymentInfo = deploymentInfo(DEPLOYMENT_ID_A);
 
         assertThrows(RouteRegistrationException.class, () ->
@@ -156,7 +156,7 @@ class RemoveRoutesFromControlPlaneActionTest {
         // new context has already started.
         removeAction.execute(null, deploymentInfo(DEPLOYMENT_ID_A), null);
 
-        verify(controlPlaneService, never()).removeEngineRoutes(any(), any());
+        verify(controlPlaneService, never()).removeEngineRoutes(any(), any(), any());
         assertTrue(chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID_A).isEmpty());
     }
 

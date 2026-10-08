@@ -32,7 +32,6 @@ import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.Resourc
 
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -58,7 +57,7 @@ class MicroDomainResourceBuildServiceTest {
                 .options(ResourceBuildOptions.builder().build())
                 .build();
         ResourceBuildContext<List<Snapshot>> context = mock(ResourceBuildContext.class);
-        Map<ResourceKey, Optional<V1ObjectMeta>> observations = Map.of();
+        Map<ResourceKey, V1ObjectMeta> observations = Map.of();
         BuildContextWithObservations built = new BuildContextWithObservations(context, observations);
         when(buildContextFactory.createResourceBuildContext(request, true)).thenReturn(built);
         when(resourceBuildService.buildResources(context)).thenReturn("resource-yaml");

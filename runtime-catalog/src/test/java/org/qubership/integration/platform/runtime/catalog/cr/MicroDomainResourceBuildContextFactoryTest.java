@@ -26,7 +26,6 @@ import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.MountOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
-import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
 import org.qubership.integration.platform.camelk.services.BuildInfoFactory;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
@@ -67,12 +66,6 @@ class MicroDomainResourceBuildContextFactoryTest {
 
     private static final String DOMAIN = "payments";
     private static final String BUILD_NAME = "build-name";
-    // The name httpRoutePublicNamingStrategy yields for DOMAIN in this fixture; stubbed below
-    // rather than computed by a real strategy instance, since the factory only needs some name
-    // that both the mock and the "observed absent" test agree on.
-    private static final String PUBLIC_ROUTE_NAME = "payments-chain-public-routes";
-    private static final String PRIVATE_ROUTE_NAME = "payments-chain-private-routes";
-    private static final String EGRESS_ROUTE_NAME = "payments-chain-egress-routes";
 
     private SnapshotRepository snapshotRepository;
     private BuildInfoFactory buildInfoFactory;
@@ -80,9 +73,6 @@ class MicroDomainResourceBuildContextFactoryTest {
     private IntegrationConfigurationSerdes integrationConfigurationSerdes;
     private IntegrationServiceCatalog integrationServiceCatalog;
     private SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
-    private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
-    private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
-    private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
     private AuditorAware<User> auditor;
     private MicroDomainResourceBuildContextFactory factory;
 
@@ -95,9 +85,6 @@ class MicroDomainResourceBuildContextFactoryTest {
         integrationConfigurationSerdes = mock(IntegrationConfigurationSerdes.class);
         integrationServiceCatalog = mock(IntegrationServiceCatalog.class);
         sourceDslConfigMapNamingStrategy = mock(SourceDslConfigMapNamingStrategy.class);
-        httpRoutePublicNamingStrategy = mock(NamingStrategy.class);
-        httpRoutePrivateNamingStrategy = mock(NamingStrategy.class);
-        httpRouteEgressNamingStrategy = mock(NamingStrategy.class);
         auditor = mock(AuditorAware.class);
         when(auditor.getCurrentAuditor()).thenReturn(Optional.empty());
         when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of());
@@ -107,9 +94,6 @@ class MicroDomainResourceBuildContextFactoryTest {
             .options(invocation.getArgument(0))
             .createdBy(invocation.getArgument(1))
             .build());
-        when(httpRoutePublicNamingStrategy.getName(any())).thenReturn(PUBLIC_ROUTE_NAME);
-        when(httpRoutePrivateNamingStrategy.getName(any())).thenReturn(PRIVATE_ROUTE_NAME);
-        when(httpRouteEgressNamingStrategy.getName(any())).thenReturn(EGRESS_ROUTE_NAME);
         factory = factoryWithHostResources(true);
     }
 
@@ -121,9 +105,6 @@ class MicroDomainResourceBuildContextFactoryTest {
                 buildInfoFactory,
                 integrationServiceCatalog,
                 sourceDslConfigMapNamingStrategy,
-                httpRoutePublicNamingStrategy,
-                httpRoutePrivateNamingStrategy,
-                httpRouteEgressNamingStrategy,
                 auditor,
                 hostResourcesEnabled);
     }
@@ -152,26 +133,14 @@ class MicroDomainResourceBuildContextFactoryTest {
             V1ConfigMap integrationsConfiguration,
             List<V1ConfigMap> sources
     ) {
-        return resources(integration, integrationsConfiguration, sources, null);
-    }
-
-    private MicroDomainService.IntegrationResources resources(
-            CamelKIntegration integration,
-            V1ConfigMap integrationsConfiguration,
-            List<V1ConfigMap> sources,
-            KubeCustomObject publicHttpRoute
-    ) {
         return new MicroDomainService.IntegrationResources(
-                integration, null, null, integrationsConfiguration, sources, null, List.of(),
-                publicHttpRoute, null, null);
+                integration, null, null, integrationsConfiguration, sources, null, List.of());
     }
 
     /** IntegrationResources with only the fields a given test cares about; the rest read as absent. */
-    private MicroDomainService.IntegrationResources resources(
-            CamelKIntegration integration, KubeCustomObject publicHttpRoute) {
+    private MicroDomainService.IntegrationResources resources(CamelKIntegration integration) {
         return new MicroDomainService.IntegrationResources(
-                integration, null, null, null, List.of(), null, List.of(),
-                publicHttpRoute, null, null);
+                integration, null, null, null, List.of(), null, List.of());
     }
 
     private CamelKIntegration integrationWithVersion(String name, String resourceVersion) {
@@ -348,52 +317,18 @@ class MicroDomainResourceBuildContextFactoryTest {
         verify(sourceDslConfigMapNamingStrategy).useName(any(), eq("src-chain"));
     }
 
-    @DisplayName("Caches the public tier's existing HTTPRoute rules so append-mode builds can preserve them")
-    @Test
-    void appendModeCachesExistingHttpRouteRules() {
-        Map<String, Object> spec = new LinkedHashMap<>();
-        spec.put("rules", List.of(Map.of("matches", List.of(Map.of("path", Map.of("value", "/qip-routes/a"))))));
-        KubeCustomObject publicRoute = new KubeCustomObject();
-        publicRoute.setSpec(spec);
-
-        CamelKIntegration integration = new CamelKIntegration();
-        integration.setSpec(new CamelKIntegration.IntegrationSpec());
-        when(microDomainService.getMainIntegrationResources(DOMAIN))
-                .thenReturn(java.util.Optional.of(resources(integration, null, List.of(), publicRoute)));
-
-        ResourceBuildContext<List<Snapshot>> context =
-                factory.createResourceBuildContext(request(options()), true).context();
-
-        assertEquals(spec, context.getBuildCache().get("publicHttpRoute"));
-    }
-
     @Test
     void recordsTheLiveMetadataOfEveryObjectItReadUnderAppendMode() {
         CamelKIntegration integration = integrationWithVersion("int-res", "42");
         when(microDomainService.getMainIntegrationResources(DOMAIN))
-                .thenReturn(Optional.of(resources(integration, null)));
+                .thenReturn(Optional.of(resources(integration)));
 
         var built = factory.createResourceBuildContext(buildRequest(DOMAIN), true);
 
-        Optional<V1ObjectMeta> observed =
+        V1ObjectMeta observed =
                 built.observations().get(new MicroDomainService.ResourceKey("Integration", "int-res"));
         assertNotNull(observed, "an object Phase 1 read must be recorded, not omitted");
-        assertTrue(observed.isPresent());
-        assertEquals("42", observed.get().getResourceVersion());
-    }
-
-    @Test
-    void recordsAnAbsentObjectAsObservedEmptyRatherThanOmittingIt() {
-        // publicHttpRoute is null: getMainIntegrationResources looked and found nothing.
-        when(microDomainService.getMainIntegrationResources(DOMAIN))
-                .thenReturn(Optional.of(resources(integrationWithVersion("int-res", "42"), null)));
-
-        var built = factory.createResourceBuildContext(buildRequest(DOMAIN), true);
-
-        Optional<V1ObjectMeta> observed = built.observations()
-                .get(new MicroDomainService.ResourceKey("HTTPRoute", PUBLIC_ROUTE_NAME));
-        assertNotNull(observed, "looked-and-absent must be distinguishable from never-looked");
-        assertTrue(observed.isEmpty());
+        assertEquals("42", observed.getResourceVersion());
     }
 
     @Test

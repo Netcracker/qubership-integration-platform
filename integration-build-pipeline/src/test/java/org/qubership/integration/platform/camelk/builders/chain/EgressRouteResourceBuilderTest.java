@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.camelk.builders.chain;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.fasterxml.jackson.dataformat.yaml.YAMLGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLMapper;
@@ -21,9 +22,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -35,8 +38,8 @@ class EgressRouteResourceBuilderTest {
     @BeforeEach
     void setUp() {
         routesGetterService = mock(RoutesGetterService.class);
-        NamingStrategy<ResourceBuildContext<List<Snapshot>>> egressNamingStrategy =
-                context -> "my-domain-v1-egress-routes";
+        NamingStrategy<ResourceBuildContext<Snapshot>> egressNamingStrategy =
+                context -> "my-domain-v1-" + context.getData().getId() + "-egress-routes";
 
         // Mirrors the MINIMIZE_QUOTES setting of the production "customResourceYamlMapper" bean
         // (see YamlMapperConfiguration), so assertions here can match unquoted YAML scalars the
@@ -57,13 +60,49 @@ class EgressRouteResourceBuilderTest {
     }
 
     private ResourceBuildContext<List<Snapshot>> contextWithSnapshot(String snapshotId) {
-        Snapshot snapshot = mock(Snapshot.class);
-        when(snapshot.getId()).thenReturn(snapshotId);
+        return contextWithSnapshots(snapshot(snapshotId));
+    }
+
+    private ResourceBuildContext<List<Snapshot>> contextWithSnapshots(Snapshot... snapshots) {
         return ResourceBuildContext.create(BuildInfo.builder()
                         .options(ResourceBuildOptions.builder().name("my-domain").build())
                         .build(),
                         mock(IntegrationServiceCatalog.class))
-                .updateTo(List.of(snapshot));
+                .updateTo(List.of(snapshots));
+    }
+
+    private Snapshot snapshot(String snapshotId) {
+        Snapshot snapshot = mock(Snapshot.class);
+        when(snapshot.getId()).thenReturn(snapshotId);
+        return snapshot;
+    }
+
+    @Test
+    void buildEmitsOneHttpRoutePerSnapshotAndOneServiceEntryPerHost() throws Exception {
+        Snapshot first = snapshot("snap-1");
+        Snapshot second = snapshot("snap-2");
+        when(routesGetterService.getRoutes(eq(first), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com/a").gatewayPrefix("/http-sender/elem-a/hash")
+                        .type(RouteType.EXTERNAL_SENDER).build()));
+        when(routesGetterService.getRoutes(eq(second), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com/b").gatewayPrefix("/http-sender/elem-b/hash")
+                        .type(RouteType.EXTERNAL_SENDER).build()));
+
+        String result = builder.build(contextWithSnapshots(first, second));
+
+        List<JsonNode> httpRoutes = new YAMLMapper().readValues(new YAMLFactory().createParser(result), JsonNode.class)
+                .readAll().stream()
+                .filter(document -> "HTTPRoute".equals(document.path("kind").asText()))
+                .toList();
+        assertEquals(2, httpRoutes.size());
+        assertEquals("my-domain-v1-snap-1-egress-routes", httpRoutes.get(0).at("/metadata/name").asText());
+        assertEquals("snap-1", httpRoutes.get(0).at("/metadata/labels").path(SourceConfigMapBuilder.SNAPSHOT_ID_LABEL).asText());
+        assertEquals("/http-sender/elem-a/hash", httpRoutes.get(0).at("/spec/rules/0/matches/0/path/value").asText());
+        assertEquals(1, httpRoutes.get(0).at("/spec/rules").size());
+        assertEquals("my-domain-v1-snap-2-egress-routes", httpRoutes.get(1).at("/metadata/name").asText());
+        assertEquals("/http-sender/elem-b/hash", httpRoutes.get(1).at("/spec/rules/0/matches/0/path/value").asText());
+        assertEquals(1, httpRoutes.get(1).at("/spec/rules").size());
+        assertEqualsOccurrences(1, "kind: ServiceEntry", result);
     }
 
     @Test
@@ -92,7 +131,7 @@ class EgressRouteResourceBuilderTest {
         String result = builder.build(contextWithSnapshot("snap-1"));
 
         assertTrue(result.contains("kind: HTTPRoute"));
-        assertTrue(result.contains("name: my-domain-v1-egress-routes"));
+        assertTrue(result.contains("name: my-domain-v1-snap-1-egress-routes"));
         assertTrue(result.contains("name: egress-gateway"));
         assertTrue(result.contains("value: /system/elem-a"));
         assertTrue(result.contains("kind: ServiceEntry"));
@@ -144,27 +183,6 @@ class EgressRouteResourceBuilderTest {
         assertTrue(result.contains("number: 9443"));
         assertTrue(result.contains("name: https-443"));
         assertTrue(result.contains("name: https-9443"));
-    }
-
-    @Test
-    void buildPreservesUntouchedRulesFromTheCache() throws Exception {
-        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
-                Route.builder().path("https://api.example.com/v2").gatewayPrefix("/system/elem-a")
-                        .type(RouteType.EXTERNAL_SERVICE).build()));
-        Map<String, Object> pathMatch = Map.of("type", "PathPrefix", "value", "/system/other-elem");
-        Map<String, Object> match = Map.of("path", pathMatch);
-        Map<String, Object> existingRule = new LinkedHashMap<>();
-        existingRule.put("matches", List.of(match));
-        Map<String, Object> existingSpec = new LinkedHashMap<>();
-        existingSpec.put("rules", List.of(existingRule));
-
-        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
-        context.getBuildCache().put(EgressRouteResourceBuilder.EGRESS_HTTP_ROUTE_CACHE_KEY, existingSpec);
-
-        String result = builder.build(context);
-
-        assertTrue(result.contains("/system/other-elem"));
-        assertTrue(result.contains("/system/elem-a"));
     }
 
     @Test
