@@ -28,10 +28,10 @@ import {
 
 const CHAIN_SCHEMA = `${SCHEMA}/chain`;
 
-// The document schemas from schemas/src/main/resources/qip-model, bundled as text by webpack. The
-// path is `qipModelDir` in webpack.config.js.
+// The document schemas from schemas/src/main/resources/conf-model, bundled as text by webpack. The
+// path is `confModelDir` in webpack.config.js.
 function documentSchemas(): Ajv {
-  const sources = require.context("../../../../../schemas/src/main/resources/qip-model", true, /\.schema\.yaml$/);
+  const sources = require.context("../../../../../schemas/src/main/resources/conf-model", true, /\.schema\.yaml$/);
   const ajv = new Ajv({ allErrors: true, discriminator: true, keywords: ["subtype", "resourceType", "metaInfo"] });
   for (const key of sources.keys()) {
     const schema = yaml.parse(sources(key));

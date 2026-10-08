@@ -20,7 +20,7 @@ public class JsonSchemaFormatTest {
     private static final String ID_PREFIX =
             "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/";
     private static final String SCHEMA_FILE_SUFFIX = ".schema.yaml";
-    private static final String MODEL_DIR = "/qip-model/";
+    private static final String MODEL_DIR = "/conf-model/";
 
     private static List<Resource> schemaResources;
 
