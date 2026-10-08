@@ -20,7 +20,6 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.runtime.catalog.model.ChainDiff;
 import org.qubership.integration.platform.runtime.catalog.model.chain.element.UsedProperty;
@@ -170,7 +169,7 @@ public class ElementController {
     }
 
     @PatchMapping("/{elementId}")
-    @Operation(description = "Change element in the chain")
+    @Operation(description = "Change element in the chain without moving it; use POST /v1/chains/{chainId}/elements/transfer to move it")
     public ResponseEntity<ChainDiffResponse> patchElement(@PathVariable @Parameter(description = "Chain id") String chainId,
                                                           @PathVariable @Parameter(description = "Element id") String elementId,
                                                           @RequestBody @Parameter(description = "Change element request object") PatchElementRequest patchElementRequest) {
@@ -178,15 +177,7 @@ public class ElementController {
         ChainDiff chainDiff = new ChainDiff();
 
         ChainElement element = transferableElementService.findById(elementId);
-        ChainElement parentElement = element.getParent();
-        String newParentId = patchElementRequest.getParentElementId();
-        if (parentElement != null) {
-            if (!StringUtils.equals(parentElement.getId(), newParentId)) {
-                transferableElementService.changeParent(element, newParentId);
-            } else {
-                chainDiff.merge(transferableElementService.updateRelativeProperties(element, patchElementRequest.getProperties()));
-            }
-        }
+        chainDiff.merge(transferableElementService.updateRelativeProperties(element, patchElementRequest.getProperties()));
 
         elementMapper.patch(element, patchElementRequest);
 

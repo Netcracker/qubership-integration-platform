@@ -504,22 +504,6 @@ public class ElementService extends ElementBaseService {
     }
 
     @ChainModification
-    public ChainElement changeParent(ChainElement element, String newParentId) {
-        checkIfAllowedInContainers(element.getType());
-
-        ContainerChainElement parent = newParentId != null ? findById(newParentId, ContainerChainElement.class) : null;
-        ContainerChainElement oldParent = element.getParent();
-        auditingHandler.markModified(oldParent);
-
-        oldParent.removeChildElement(element);
-        if (parent != null) {
-            parent.addChildElement(element);
-            auditingHandler.markModified(parent);
-        }
-        return element;
-    }
-
-    @ChainModification
     public ChainElement save(ChainElement element) {
         auditingHandler.markModified(element);
         return elementRepository.save(element);

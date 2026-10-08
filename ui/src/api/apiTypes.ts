@@ -60,7 +60,6 @@ export type PatchElementRequest = {
   name: string;
   description: string;
   type: string;
-  parentElementId?: string;
   properties: Record<string, unknown>;
 };
 

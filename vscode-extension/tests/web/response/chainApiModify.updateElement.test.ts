@@ -102,40 +102,30 @@ describe("updateElement – chain and element validation", () => {
     (makeChain([]) as any).id = "other";
     getMainChainMock.mockResolvedValue({ id: "other", content: { elements: [] } });
 
-    await expect(updateElement(fileUri, chainId, "el-1", { name: "x", description: "", parentElementId: undefined, properties: {} } as any)).rejects.toThrow("ChainId mismatch");
+    await expect(updateElement(fileUri, chainId, "el-1", { name: "x", description: "", properties: {} } as any)).rejects.toThrow("ChainId mismatch");
   });
 
   it("throws when element not found", async () => {
     getMainChainMock.mockResolvedValue(makeChain([]));
 
-    await expect(updateElement(fileUri, chainId, "missing", { name: "x", description: "", parentElementId: undefined, properties: {} } as any)).rejects.toThrow("ElementId not found");
-  });
-
-  it("throws when parent not found (getParentElementForUpdate)", async () => {
-    const el = makeElement({ id: "el-1", type: "http-trigger" });
-    getMainChainMock.mockResolvedValue(makeChain([el]));
-
-    await expect(
-      updateElement(fileUri, chainId, "el-1", { name: "x", description: "", parentElementId: "missing-parent", properties: {} } as any),
-    ).rejects.toThrow("Parent ElementId not found");
+    await expect(updateElement(fileUri, chainId, "missing", { name: "x", description: "", properties: {} } as any)).rejects.toThrow("ElementId not found");
   });
 });
 
-describe("updateElement – parent reattachment (getParentElementForUpdate / reattachElementOnUpdate)", () => {
-  it("does not move element when parent unchanged (isChangeParent false)", async () => {
-    const el = makeElement({ id: "el-1", type: "http-trigger" });
-    const chain = makeChain([el]);
+describe("updateElement – the element keeps its parent", () => {
+  it("keeps a nested element in its container when the patch omits parentElementId", async () => {
+    const inner = makeElement({ id: "el-1", type: "http-trigger", parentElementId: "cont-1" });
+    const container = makeElement({ id: "cont-1", type: "container", children: [inner] });
+    const chain = makeChain([container]);
     getMainChainMock.mockResolvedValue(chain);
 
-    await updateElement(fileUri, chainId, "el-1", { name: "new name", description: "desc", parentElementId: undefined, properties: {} } as any);
+    await updateElement(fileUri, chainId, "el-1", { name: "new name", description: "", properties: {} } as any);
 
-    // element stays at root, not duplicated
-    expect(chain.content.elements).toHaveLength(1);
-    expect(chain.content.elements[0].id).toBe("el-1");
-    expect(writeMainChainMock).toHaveBeenCalled();
+    expect(chain.content.elements).toEqual([container]);
+    expect(container.children).toEqual([expect.objectContaining({ id: "el-1", name: "new name", parentElementId: "cont-1" })]);
   });
 
-  it("moves element to new container parent when parent changes", async () => {
+  it("keeps a top-level element at the root when the patch names a container", async () => {
     const el = makeElement({ id: "el-1", type: "http-trigger" });
     const container = makeElement({ id: "cont-1", type: "container", children: [] });
     const chain = makeChain([el, container]);
@@ -143,46 +133,9 @@ describe("updateElement – parent reattachment (getParentElementForUpdate / rea
 
     await updateElement(fileUri, chainId, "el-1", { name: "new name", description: "", parentElementId: "cont-1", properties: {} } as any);
 
-    expect(chain.content.elements).toHaveLength(1);
-    expect(chain.content.elements[0].id).toBe("cont-1");
-    expect((chain.content.elements[0].children as any[])[0].id).toBe("el-1");
-    expect((chain.content.elements[0].children as any[])[0].parentElementId).toBe("cont-1");
-  });
-
-  it("moves element from container back to root (parentElement undefined)", async () => {
-    const inner = makeElement({ id: "el-1", type: "http-trigger", parentElementId: "cont-1" });
-    const container = makeElement({ id: "cont-1", type: "container", children: [inner] });
-    // findElementById will locate el-1 under cont-1 with parentId cont-1
-    const chain = makeChain([container]);
-    getMainChainMock.mockResolvedValue(chain);
-
-    await updateElement(fileUri, chainId, "el-1", { name: "new name", description: "", parentElementId: undefined, properties: {} } as any);
-
-    // after move, container should have no children, root should contain el-1
-    expect(container.children).toHaveLength(0);
-    expect(chain.content.elements).toContainEqual(expect.objectContaining({ id: "el-1" }));
-  });
-
-  it("initializes parent children array when undefined", async () => {
-    const el = makeElement({ id: "el-1", type: "http-trigger" });
-    const container = makeElement({ id: "cont-1", type: "container" }); // children undefined
-    delete (container as any).children;
-    const chain = makeChain([el, container]);
-    getMainChainMock.mockResolvedValue(chain);
-
-    await updateElement(fileUri, chainId, "el-1", { name: "x", description: "", parentElementId: "cont-1", properties: {} } as any);
-
-    expect((container as any).children).toEqual([expect.objectContaining({ id: "el-1" })]);
-  });
-
-  it("returns parent undefined when parentElementId is empty", async () => {
-    const el = makeElement({ id: "el-1" });
-    const chain = makeChain([el]);
-    getMainChainMock.mockResolvedValue(chain);
-
-    await updateElement(fileUri, chainId, "el-1", { name: "x", description: "", parentElementId: undefined, properties: {} } as any);
-
-    expect(chain.content.elements[0].name).toBe("x");
+    expect(chain.content.elements.map((each: any) => each.id)).toEqual(["el-1", "cont-1"]);
+    expect(container.children).toEqual([]);
+    expect((el as any).parentElementId).toBeUndefined();
   });
 });
 

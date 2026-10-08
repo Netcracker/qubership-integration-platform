@@ -504,14 +504,8 @@ export class Catalog {
    * every default the element was created with — and finds out through a validation error naming a
    * property it never touched.
    *
-   * `parentElementId` is round-tripped for the same reason, and it is the sharper of the two:
-   * `ElementController.patchElement` reads the request's `parentElementId` and re-parents the
-   * element whenever it differs from the one it has, so a patch that omits the key **lifts a
-   * nested element out of its container** to the chain's top level. The status is 200 either way.
-   * `specs/api/elements.spec.ts` pins that as the endpoint's contract.
-   *
    * It answers a diff rather than the element, and the element is the sole entry of
-   * `updatedElements` unless the patch also re-parented it.
+   * `updatedElements` unless a priority change renumbered its siblings.
    */
   async patchElementProperties(
     chainId: string,
@@ -523,7 +517,6 @@ export class Catalog {
     return await this.call("patch", `/v1/chains/${chainId}/elements/${elementId}`, {
       name: name ?? current.name,
       type: current.type,
-      parentElementId: current.parentElementId,
       properties: { ...current.properties, ...properties },
     });
   }

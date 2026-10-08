@@ -39,8 +39,6 @@ export async function applyChainModificationProposal(
                 description:
                   (target as { description?: string }).description || "",
                 type: target.type,
-                parentElementId: (target as { parentElementId?: string })
-                  .parentElementId,
                 properties: { ...currentProps, ...properties },
               },
               chainId,

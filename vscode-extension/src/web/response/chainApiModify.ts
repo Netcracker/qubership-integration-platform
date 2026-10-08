@@ -246,37 +246,6 @@ async function checkRestrictions(
   // }
 }
 
-function getParentElementForUpdate(chainElements: ElementSchema[], parentId: string | undefined) {
-  if (!parentId) {
-    return undefined;
-  }
-  const parent = findElementById(chainElements, parentId);
-  if (!parent) {
-    console.error(`Parent ElementId not found`);
-    throw new Error("Parent ElementId not found");
-  }
-  return parent;
-}
-
-function reattachElementOnUpdate(
-  chain: ChainSchema,
-  element: ElementSchema,
-  parentElement: ReturnType<typeof findElementById>,
-  isChangeParent: boolean,
-): void {
-  if (!isChangeParent) {
-    return;
-  }
-  if (parentElement) {
-    if (!(parentElement.element.children as ElementSchema[])?.length) {
-      parentElement.element.children = [];
-    }
-    (parentElement.element.children as ElementSchema[]).push(element);
-  } else {
-    (chain.content.elements as ElementSchema[]).push(element);
-  }
-}
-
 export async function updateElement(
   fileUri: Uri,
   chainId: string,
@@ -291,7 +260,7 @@ export async function updateElement(
 
   const chainElements = chain.content.elements as ElementSchema[];
   const elementWithParentId = findElementById(chainElements, elementId);
-  let element: ElementSchema | undefined = elementWithParentId?.element;
+  const element = elementWithParentId?.element;
 
   if (!element) {
     console.error(`ElementId not found`);
@@ -301,15 +270,6 @@ export async function updateElement(
   const oldFilenames = new Set<string>();
   collectFilenamesFromElementTree([element], oldFilenames);
   const prevFilenames = ResourceFileNames.fromElement(element);
-
-  const isChangeParent =
-    elementWithParentId?.parentId !== elementRequest.parentElementId;
-
-  if (isChangeParent) {
-    element = findAndRemoveElementById(chainElements, elementId)!;
-  }
-
-  const parentElement = getParentElementForUpdate(chainElements, elementRequest.parentElementId);
 
   element.name = elementRequest.name;
   element.description = elementRequest.description;
@@ -322,9 +282,6 @@ export async function updateElement(
     elementRequest,
   );
   (element as any).properties = elementRequest.properties;
-
-  element.parentElementId = elementRequest.parentElementId;
-  reattachElementOnUpdate(chain, element, parentElement, isChangeParent);
 
   await checkRestrictions(element, chain.content.elements as ElementSchema[]);
 

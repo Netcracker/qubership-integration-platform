@@ -52,27 +52,26 @@ export class OrderedElementService {
   }
 
   static async isOrdered(element: ElementWithParentId): Promise<boolean> {
+    // A top-level group has no library entry, so the lookup would throw.
+    if (element.parentElementId === undefined) {
+      return false;
+    }
     const libraryElement = await getLibraryElementByType(getType(element.element));
 
-    return element.parentElementId !== undefined && libraryElement.ordered;
+    return libraryElement.ordered;
   }
 
   async updateProperties(
     element: ElementWithParentId,
     elementRequest: PatchElementRequest,
   ): Promise<ActionDifference | undefined> {
-    if (
-      elementRequest.parentElementId &&
-      elementRequest.parentElementId === element.parentElementId
-    ) {
-      if (await OrderedElementService.isOrdered(element)) {
-        const orderedElementUtils = await OrderedElementUtils.create(element);
-        const newPriority = orderedElementUtils.getPriorityOrUndefined(
-          elementRequest.properties,
-        );
-        if (newPriority !== undefined) {
-          return await this.changePriority(orderedElementUtils, newPriority);
-        }
+    if (await OrderedElementService.isOrdered(element)) {
+      const orderedElementUtils = await OrderedElementUtils.create(element);
+      const newPriority = orderedElementUtils.getPriorityOrUndefined(
+        elementRequest.properties,
+      );
+      if (newPriority !== undefined) {
+        return await this.changePriority(orderedElementUtils, newPriority);
       }
     }
   }

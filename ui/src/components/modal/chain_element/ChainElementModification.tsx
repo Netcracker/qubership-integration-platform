@@ -702,7 +702,6 @@ export const ChainElementModification: React.FC<ElementModificationProps> = ({
         name: nameToUse,
         description: formData.description as string,
         type: node.data.elementType,
-        parentElementId: node.parentId,
         properties: formData.properties as Record<string, unknown>,
       };
       const changedElement: Element | undefined = await updateElement(

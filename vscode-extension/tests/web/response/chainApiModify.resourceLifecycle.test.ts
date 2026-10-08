@@ -157,7 +157,6 @@ async function save(element: Element, properties: Properties): Promise<void> {
   await updateElement(fileUri, chainId, element.id, {
     name: element.name,
     description: element.description ?? "",
-    parentElementId: element.parentElementId,
     properties,
   } as PatchElementRequest);
 }

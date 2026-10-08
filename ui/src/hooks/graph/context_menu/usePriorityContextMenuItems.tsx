@@ -155,7 +155,6 @@ export const usePriorityContextMenuItems: ContextMenuItemsHook = ({
       name: node.data.label,
       description: node.data.description,
       type: node.data.elementType,
-      parentElementId: node.parentId,
       properties: { ...node.data.properties, [priorityProperty]: newPriority },
     };
   };

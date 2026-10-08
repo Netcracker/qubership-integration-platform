@@ -31,8 +31,6 @@ public class PatchElementRequest {
     private String description;
     @Schema(description = "Inner element type")
     private String type;
-    @Schema(description = "Parent element (container) id")
-    private String parentElementId;
     @Schema(description = "Map of properties for the element")
     private Map<String, Object> properties = new HashMap<>();
 }

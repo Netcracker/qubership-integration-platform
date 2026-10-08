@@ -197,34 +197,26 @@ test("the first swimlane adopts the chain, and a transfer moves an element betwe
   });
 });
 
-test("a patch that omits parentElementId lifts the element out of its container", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
-  // Not a defect so much as the endpoint's contract, and it is the one that catches a client out:
-  // `ElementController.patchElement` re-parents whenever the request's `parentElementId` differs
-  // from the element's, and an omitted key reads as `null`. So a patch meant to set one property
-  // restructures the chain, and answers 200. Filed in `docs/product-defects.md` under "a PATCH
-  // without `parentElementId` moves the element out of its container"; `patchElementProperties`
-  // round-trips the key, which is why every other case here can patch a nested element safely.
+test("a patch never moves the element, whatever parentElementId it carries", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
+  // A patch used to move a nested element to the container it named, or to the top level when it
+  // named none (#1003). `POST .../elements/transfer` is now the only way to move an element.
   const chainId = await emptyChain(catalog, run, folder.id, "elements-patch-parent");
   const container = await catalog.createElement(chainId, "try-catch-finally-2");
   const branches = branchesOf(container);
   const script = await catalog.createElement(chainId, "script", { parentElementId: branches["try-2"] });
 
-  const bare = await catalog.raw("patch", `/v1/chains/${chainId}/elements/${script.id}`, {
-    name: script.name,
-    type: script.type,
-    properties: { ...script.properties, script: "// lifted" },
-  });
-  expect(bare.status(), "the restructuring is silent: it answers 200").toBe(200);
-  expect((await graphOf(catalog, chainId))[script.id].parent).toBeUndefined();
-
-  // The round-tripping client is what keeps a patch a patch. Put the script back and patch again.
-  await catalog.transferElements(chainId, { parentId: branches["try-2"], elements: [script.id] });
-  await catalog.patchElementProperties(chainId, script.id, { script: "// kept" });
-  const graph = await graphOf(catalog, chainId);
-  expect(graph[script.id].parent, "a patch carrying the parent leaves it where it was").toBe(
-    branches["try-2"],
-  );
-  expect((await catalog.getElement(chainId, script.id)).properties.script).toBe("// kept");
+  const patch = (body: Record<string, unknown>) =>
+    catalog.raw("patch", `/v1/chains/${chainId}/elements/${script.id}`, {
+      name: script.name,
+      type: script.type,
+      properties: { ...script.properties, script: "// patched" },
+      ...body,
+    });
+  expect((await patch({})).status()).toBe(200);
+  expect((await graphOf(catalog, chainId))[script.id].parent, "a patch without parentElementId").toBe(branches["try-2"]);
+  expect((await patch({ parentElementId: branches["finally-2"] })).status()).toBe(200);
+  expect((await graphOf(catalog, chainId))[script.id].parent, "a patch naming another branch").toBe(branches["try-2"]);
+  expect((await catalog.getElement(chainId, script.id)).properties.script).toBe("// patched");
 });
 
 test("grouping wraps elements in a container, and ungrouping lifts them back out", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {

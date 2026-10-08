@@ -33,7 +33,6 @@ export type ChainModificationAction =
         name: string;
         description: string;
         type: string;
-        parentElementId?: string;
         properties: Record<string, unknown>;
       };
     }
@@ -146,9 +145,7 @@ export const ChainModificationConfirmation: React.FC<Props> = ({
                       {change.action === "createElement" &&
                         `Parent: ${change.request.parentElementId ?? "root"}`}
                       {change.action === "updateElement" &&
-                        `Type: ${change.patch.type}, parent: ${
-                          change.patch.parentElementId ?? "unchanged"
-                        }`}
+                        `Type: ${change.patch.type}`}
                       {change.action === "deleteElements" &&
                         `Elements: ${change.elementIds.join(", ")}`}
                       {change.action === "createConnection" &&

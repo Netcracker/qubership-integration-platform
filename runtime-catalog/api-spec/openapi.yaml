@@ -2749,7 +2749,8 @@ paths:
       tags:
       - element-controller
     patch:
-      description: Change element in the chain
+      description: "Change element in the chain without moving it; use POST /v1/chains/{chainId}/elements/transfer\
+        \ to move it"
       operationId: patchElement
       parameters:
       - description: Chain id
@@ -9776,9 +9777,6 @@ components:
         name:
           type: string
           description: Element name
-        parentElementId:
-          type: string
-          description: Parent element (container) id
         properties:
           type: object
           additionalProperties: {}

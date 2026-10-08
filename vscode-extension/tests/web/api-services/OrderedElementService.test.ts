@@ -113,10 +113,6 @@ describe("OrderedElementService", () => {
           ordered: false,
           container: true,
         } as LibraryElement)
-        .mockResolvedValueOnce({
-          ordered: false,
-          container: true,
-        } as LibraryElement)
         .mockResolvedValueOnce({ ordered: true } as LibraryElement);
 
       service = new OrderedElementService(
@@ -369,6 +365,19 @@ describe("OrderedElementService", () => {
       const result = await OrderedElementService.isOrdered(mockElement);
 
       expect(result).toBe(false);
+    });
+
+    it("should return false for a top-level element whose type has no library entry", async () => {
+      const mockElement = {
+        element: { type: "container" } as unknown as ElementSchema,
+        parentElementId: undefined,
+      };
+
+      mockGetLibraryElementByType.mockRejectedValue(
+        new Error("Library element not found: container"),
+      );
+
+      await expect(OrderedElementService.isOrdered(mockElement)).resolves.toBe(false);
     });
   });
 
@@ -646,7 +655,7 @@ describe("OrderedElementService", () => {
   });
 
   describe("updateProperties", () => {
-    it("should return undefined when parentElementId has not changed", async () => {
+    it("should return undefined when the request carries no priority", async () => {
       const mockElementSchema = {
         id: "element-1",
         type: { name: "ordered-type" } as any,
@@ -659,9 +668,12 @@ describe("OrderedElementService", () => {
       };
 
       const elementRequest = {
-        parentElementId: "parent-id",
         properties: {},
       };
+
+      mockGetLibraryElementByType.mockResolvedValue({
+        ordered: true,
+      } as LibraryElement);
 
       service = new OrderedElementService(
         mockChainFileUri,
@@ -690,7 +702,6 @@ describe("OrderedElementService", () => {
       };
 
       const elementRequest = {
-        parentElementId: "parent-id",
         properties: { priority: 2 },
       };
 
@@ -725,7 +736,6 @@ describe("OrderedElementService", () => {
       };
 
       const elementRequest = {
-        parentElementId: "parent-id",
         properties: { priority: 2 },
       };
 
@@ -868,7 +878,6 @@ describe("OrderedElementService", () => {
         };
 
         const elementRequest = {
-          parentElementId: "parent-id",
           properties: { priority: newPriority },
         };
 
