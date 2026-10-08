@@ -7,7 +7,6 @@ import org.qubership.integration.platform.chain.model.Connection;
 import org.qubership.integration.platform.chain.model.Element;
 import org.springframework.stereotype.Component;
 
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 import static org.qubership.integration.platform.camelk.sources.builders.xml.beans.XmlBeanConstants.*;
@@ -42,8 +41,7 @@ public class WireTapInfoBeanBuilder implements ElementBeansBuilder {
 
     public String getWireTapId(Element element) {
         return element.getInputConnections().stream()
-                .map(dependency -> dependency.getFrom().getOriginalId().orElse(null))
-                .filter(Objects::nonNull)
+                .map(dependency -> dependency.getFrom().getId())
                 .collect(Collectors.joining(","));
     }
 

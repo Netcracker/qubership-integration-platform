@@ -14,7 +14,6 @@
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
-import { MICRO_CONTAINER_PARENTS, MISPLACED_BRANCH_STEPS, strikesAsKnown } from "../../support/known-defect.js";
 import { readUntil } from "../../support/poll.js";
 import { callChain, element, elementNames, HTTP_TRIGGER_STEPS, SESSION_TIMEOUT, trace, type RecordedSession, type Sessions, type TracedElement } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
@@ -113,9 +112,7 @@ test("split-async-2 answers from the step after it, and each async branch runs i
     const parent = step && (steps.find((each) => each.elementId === step.parentElement)?.elementName ?? "no parent");
     return parent === undefined || parent === branch ? [] : [`"${script}" under ${parent}`];
   });
-  await strikesAsKnown(MICRO_CONTAINER_PARENTS, async () =>
-    expect(misplaced, `${MISPLACED_BRANCH_STEPS} ${misplaced.join(", ")}`).toEqual([]),
-  );
+  expect(misplaced, `a step of an async branch is recorded under another parent: ${misplaced.join(", ")}`).toEqual([]);
   expect((session.sessionElements ?? []).map((each) => each.elementName)).toEqual(["HTTP Trigger", "Split Async", "After Split"]);
 
   const split = element(session, "Split Async") as TracedElement;

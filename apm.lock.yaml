@@ -141,7 +141,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:00f8caeff5bbad6b4f0ac7cc6d69e43c3d1b460484503f0adda400688ff25227
+  content_hash: sha256:0b60a71ab9543c1c3b17de3d668ae0d8dbb5894ecc3b917b3389f7ae270de0c8
 - kind: project-relative
   target: claude
   value: .claude/rules/engine.md
@@ -690,7 +690,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:e2384dfd51cc08c7ebea479df0621dd6e9d55aa32948202ce9801d7e400ec63b
+  content_hash: sha256:54b6331d58d35e565b9eba216f10afe88814ca36018b9a92e8c669d2118ed84e
 - kind: project-relative
   target: cursor
   value: .cursor/rules/engine.mdc
@@ -1227,7 +1227,7 @@ local_deployed_file_hashes:
   .claude/agents/npm-verifier.md: sha256:7e38e0a49cf43125b37569c0cf7cb8751588c0e14323320dd4cdf90ddf0a41ce
   .claude/rules/ci-fix.md: sha256:4de31150e369c45093fbfe099209e95118d30f19e3a8c23fd91d0b1cd332f559
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
-  .claude/rules/e2e.md: sha256:00f8caeff5bbad6b4f0ac7cc6d69e43c3d1b460484503f0adda400688ff25227
+  .claude/rules/e2e.md: sha256:0b60a71ab9543c1c3b17de3d668ae0d8dbb5894ecc3b917b3389f7ae270de0c8
   .claude/rules/engine.md: sha256:cbfa9096d6c97043ebbef90b567bb92f081cf11779eb826a2ca74bdd35de1cbc
   .claude/rules/go-module.md: sha256:4823920c4373e02f4d370fbd6b483e094df46480b80b59653f321636fe14d92a
   .claude/rules/infrastructure.md: sha256:daac09c825081c41d9f83af43602bba2224d338398cfd2fa2a74ffa34d68a7e9
@@ -1263,7 +1263,7 @@ local_deployed_file_hashes:
   .cursor/agents/npm-verifier.md: sha256:7e38e0a49cf43125b37569c0cf7cb8751588c0e14323320dd4cdf90ddf0a41ce
   .cursor/rules/ci-fix.mdc: sha256:3407eae3d299bbac9cb20f14b41a3a87a75406d5a947843ad6a3cb7e49b49c98
   .cursor/rules/docs-authoring.mdc: sha256:5896f61123e24afdab8e95f0b2ec503a929c8a14839f8044d732bee46037dd7d
-  .cursor/rules/e2e.mdc: sha256:e2384dfd51cc08c7ebea479df0621dd6e9d55aa32948202ce9801d7e400ec63b
+  .cursor/rules/e2e.mdc: sha256:54b6331d58d35e565b9eba216f10afe88814ca36018b9a92e8c669d2118ed84e
   .cursor/rules/engine.mdc: sha256:d258bb38382c6841db60f6174bd72055cb0b8617ec226b16c287c68ed6547e28
   .cursor/rules/go-module.mdc: sha256:8e9b8e81bd0cef962f9d8d3f9ba7abf1905867cc6102e71d0395278a12693084
   .cursor/rules/infrastructure.mdc: sha256:78ab718cc566053a3d2cb24cd4a01f4fe80521613fc73432db878e83654fd707

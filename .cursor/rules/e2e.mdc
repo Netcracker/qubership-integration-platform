@@ -351,9 +351,8 @@ right now, so a controller added to a service fails a run.
     - It is for a divergence a spec can reproduce on demand. Where no create path manufactures the
       offending state, such as an element of a type the library does not offer, the spec asserts the
       healthy contract and prints the query that finds the offender instead.
-    - A defect that only some runs meet, such as one that needs a stack holding enough data or a
-      particular thread interleaving, would turn a plain `test.fail()` red on the other runs. Wrap the
-      step that meets it in `strikesAsKnown` with a `ConditionalDefect` from
+    - A defect that only a stack holding enough data meets would turn a plain `test.fail()` red on a
+      small stack. Wrap the step that meets it in `strikesAsKnown` with a `ConditionalDefect` from
       `support/known-defect.ts`: the case becomes an expected failure only when the step throws that
       defect, and the defect's `matches` gets a case in `specs/schema/conditional-defects.spec.ts`.
 14. **A `specs/schema/` spec imports `test` and `expect` from `@playwright/test`, never from

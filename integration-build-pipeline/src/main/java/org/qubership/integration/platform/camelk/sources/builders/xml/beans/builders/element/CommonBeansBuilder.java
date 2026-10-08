@@ -57,13 +57,14 @@ public class CommonBeansBuilder implements ElementBeansBuilder {
 
         if (element.getParent().isPresent()) {
             Element parent = element.getParent().get();
-            if (CONTAINER.equals(parent.getType())
-                || libraryService.lookupElementDescriptor(parent.getType())
+            if (!CONTAINER.equals(parent.getType())
+                && !libraryService.lookupElementDescriptor(parent.getType())
                 .map(ElementDescriptor::getType)
                 .map(ElementType.REUSE::equals)
                 .orElse(false)) {
 
-                writePropertyElement(streamWriter, "parentId", parent.getOriginalId().orElse(parent.getId()));
+                // The engine's execution map is keyed by step id, which is the element id, not the original id.
+                writePropertyElement(streamWriter, "parentId", parent.getId());
                 writePropertyElement(streamWriter, "hasIntermediateParents", Boolean.toString(ELEMENTS_WITH_INTERMEDIATE_CHILDREN
                     .contains(parent.getType())));
             }
