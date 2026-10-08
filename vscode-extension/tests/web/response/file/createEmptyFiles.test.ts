@@ -61,6 +61,11 @@ import { ExtensionContext } from "vscode";
 import { setFileApi } from "../../../../src/web/response/file/fileApiProvider";
 import { VSCodeFileApi } from "../../../../src/web/response/file/fileApiImpl";
 import { ProjectConfigService } from "../../../../src/web/services/ProjectConfigService";
+import {
+  CHAIN_MIGRATIONS,
+  MCP_SERVICE_MIGRATIONS,
+  SERVICE_MIGRATIONS,
+} from "../../../../src/web/constants/migrations";
 
 const SCHEMA =
   "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model";
@@ -124,15 +129,21 @@ describe("new files under the embedded default config", () => {
       `/workspace/${result!.chainId}/${result!.chainId}.chain.cip.yaml`,
     );
     expect(document.$schema).toBe(`${SCHEMA}/chain`);
+    expect(document.content.migrations).toBe(CHAIN_MIGRATIONS);
   });
 
   it.each([
-    ["EXTERNAL", ".service.cip.yaml", "service"],
-    ["CONTEXT", ".context-service.cip.yaml", "context-service"],
-    ["MCP", ".mcp-service.cip.yaml", "mcp-service"],
+    ["EXTERNAL", ".service.cip.yaml", "service", SERVICE_MIGRATIONS],
+    [
+      "CONTEXT",
+      ".context-service.cip.yaml",
+      "context-service",
+      SERVICE_MIGRATIONS,
+    ],
+    ["MCP", ".mcp-service.cip.yaml", "mcp-service", MCP_SERVICE_MIGRATIONS],
   ])(
     "creates a service of type %s as *%s with the CIP %s schema",
-    async (type, suffix, schema) => {
+    async (type, suffix, schema, migrations) => {
       mockShowInputBox.mockResolvedValue("new-service");
       mockShowQuickPick.mockResolvedValueOnce({ label: type, value: type });
 
@@ -143,6 +154,8 @@ describe("new files under the embedded default config", () => {
         `/workspace/${result!.serviceId}/${result!.serviceId}${suffix}`,
       );
       expect(document.$schema).toBe(`${SCHEMA}/${schema}`);
+      expect(document.content.migrations).toBe(migrations);
+      expect(document.content).not.toHaveProperty("protocol");
     },
   );
 });

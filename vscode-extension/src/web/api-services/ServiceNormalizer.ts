@@ -18,7 +18,6 @@ export class ServiceNormalizer {
         description: "",
         activeEnvironmentId: "",
         integrationSystemType: "",
-        protocol: "",
         extendedProtocol: "",
         specification: "",
         environments: [],
@@ -34,9 +33,6 @@ export class ServiceNormalizer {
       }
       if (service.content.integrationSystemType === undefined) {
         service.content.integrationSystemType = "";
-      }
-      if (service.content.protocol === undefined) {
-        service.content.protocol = "";
       }
       if (service.content.extendedProtocol === undefined) {
         service.content.extendedProtocol = "";

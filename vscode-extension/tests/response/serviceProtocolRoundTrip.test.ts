@@ -6,7 +6,15 @@ import {
   stubProjectConfigService,
 } from "../helpers/mocks";
 
-jest.mock("vscode", () => createVscodeMock(), { virtual: true });
+// createService reads `vscode` through its default export.
+jest.mock(
+  "vscode",
+  () => {
+    const vscode = createVscodeMock();
+    return { __esModule: true, ...vscode, default: vscode };
+  },
+  { virtual: true },
+);
 jest.mock("yaml", () => ({ stringify: jest.fn(), parse: jest.fn() }));
 jest.mock("../../src/web/response/file/fileApiProvider", () =>
   stubFileApi({ getMainService: jest.fn(), findFileById: jest.fn() }),
@@ -30,8 +38,13 @@ jest.mock("../../src/web/api-services/parsers/ContentParser", () => ({
 jest.mock("@netcracker/qip-ui", () => ({}), { virtual: true });
 
 import { getService } from "../../src/web/response/serviceApiRead";
-import { updateService } from "../../src/web/response/serviceApiModify";
+import {
+  createService,
+  updateService,
+} from "../../src/web/response/serviceApiModify";
 import { SystemService } from "../../src/web/api-services/SystemService";
+import { ServiceNormalizer } from "../../src/web/api-services/ServiceNormalizer";
+import { SERVICE_MIGRATIONS } from "../../src/web/constants/migrations";
 import { fileApi } from "../../src/web/response/file/fileApiProvider";
 
 const serviceFileUri = {} as any;
@@ -74,5 +87,44 @@ describe("getService <-> updateService – the protocol on disk", () => {
     const system = await new SystemService().getSystemById("svc-1");
 
     expect(system?.protocol).toBe("SOAP");
+  });
+
+  // The catalog cannot read an empty protocol, so a service without a specification stores none.
+  test("reading a service without a protocol adds none", () => {
+    const service = ServiceNormalizer.normalizeService({
+      id: "svc-1",
+      content: { integrationSystemType: "EXTERNAL" },
+    });
+
+    expect(service.content.protocol).toBeUndefined();
+  });
+
+  test("creating a service without a protocol stores none, at the current migrations", async () => {
+    await createService(
+      {} as any,
+      {} as any,
+      {
+        name: "New",
+        type: "EXTERNAL",
+      } as any,
+    );
+
+    const written = (fileApi.writeServiceFile as jest.Mock).mock.calls[0][1];
+    expect(written.content.protocol).toBeUndefined();
+    expect(written.content.migrations).toBe(SERVICE_MIGRATIONS);
+  });
+
+  test("SystemService saves a service that has no protocol without adding one", async () => {
+    (fileApi.getMainService as jest.Mock).mockResolvedValue({
+      id: "svc-1",
+      content: { integrationSystemType: "EXTERNAL" },
+    });
+    const systemService = new SystemService();
+
+    const system = await systemService.getSystemById("svc-1");
+    await systemService.saveSystem(system!);
+
+    const written = (fileApi.writeMainService as jest.Mock).mock.calls[0][1];
+    expect(written.content.protocol).toBeUndefined();
   });
 });

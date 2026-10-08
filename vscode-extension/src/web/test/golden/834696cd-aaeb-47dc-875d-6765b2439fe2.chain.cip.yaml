@@ -1,4 +1,5 @@
 $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
 id: 834696cd-aaeb-47dc-875d-6765b2439fe2
 name: vsc-created-chain
-content: {}
+content:
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

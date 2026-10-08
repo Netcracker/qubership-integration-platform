@@ -21,6 +21,7 @@ import { fileApi } from "./file/fileApiProvider";
 import { refreshQipExplorer } from "../extension";
 import { LabelUtils } from "../api-services/LabelUtils";
 import { ProjectConfigService } from "../services/ProjectConfigService";
+import { SERVICE_MIGRATIONS } from "../constants/migrations";
 import { ContextSystem, MCPSystem } from "@netcracker/qip-ui";
 import { QipFileType, validateAllowedSystemProtocol } from "./serviceApiUtils";
 
@@ -158,11 +159,12 @@ export async function createService(
         description: serviceRequest.description || "",
         activeEnvironmentId: "",
         integrationSystemType: serviceRequest.type || "EXTERNAL",
-        protocol: (serviceRequest.protocol || "").toUpperCase(),
+        protocol: serviceRequest.protocol?.toUpperCase() || undefined,
         extendedProtocol: serviceRequest.extendedProtocol || "",
         specification: serviceRequest.specification || "",
         environments: [],
         labels: LabelUtils.fromEntityLabels(serviceRequest.labels || []),
+        migrations: SERVICE_MIGRATIONS,
       },
     };
 

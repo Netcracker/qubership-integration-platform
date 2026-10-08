@@ -356,8 +356,7 @@ mvn compile -Dcip.failFast=false
 ## Migrations
 
 Exported chain and service files carry a format version, and the pipeline migrates each file to the
-current format before reading it. The plugin reuses runtime-catalog's import migrations unchanged, with
-one difference: the fallback for files that carry no version at all.
+current format before reading it. The plugin reuses runtime-catalog's import migrations unchanged.
 
 ### How the version of a file is found
 
@@ -367,23 +366,19 @@ takes the first answer:
 1. `content.migrations`, a list such as `[100, 101, 102]` inside `content`.
 2. `migrations` at the top level.
 3. `fileVersion`, the oldest format: `fileVersion: N` means migrations `1` through `N`.
-4. The plugin's `AssumeActualVersion` fallback, for a file with none of these fields.
 
 The migrations the file lacks are then applied in ascending order. A file that lists a migration the
 plugin does not know was exported by a newer QIP version, and the build fails with
 `Unable to import an entity exported from a newer version`. Upgrade the plugin to read it.
 
-### The fallback: files without migration metadata
+### Files without migration metadata
 
-In runtime-catalog, a file with no migration metadata is an error. The plugin instead treats it as
-already current: `AssumeActualVersion` answers with every migration the plugin knows, so none is applied.
-This fits chains written by hand or by the VS Code extension in the current format. An old file that lost
-its metadata is read as current and fails later, on the first field the old format names differently.
+A file with none of these fields is read as current, and no migration is applied to it. Every export the
+catalog writes carries `migrations` or `fileVersion`, so only a file written by hand or by an earlier
+version of the VS Code extension lacks them. runtime-catalog reads such a file the same way.
 
-The fallback tells files apart by `$schema`: a value containing `service` gets the service migrations,
-anything else the chain migrations. A service file with neither metadata nor `$schema` is therefore told it
-carries chain migrations, and fails as coming from a newer version. Add a `migrations`
-field or a `$schema` to such a file.
+An old file that lost its metadata is read as current too, and nothing moves its fields into `content`. A
+chain then fails to read, while a service is read with only its id and name.
 
 Specification group and specification files have no version of their own. A file already in the `content`
 layout is read as is; an older one is migrated with the versions of the service file it belongs to.

@@ -82,7 +82,7 @@ public class FileMigrationService {
         Collection<Integer> migrationVersions = getMigrationVersions(migrations);
         log.trace("Actual versions: {}", migrationVersions);
 
-        Collection<Integer> documentVersions = getDocumentVersions(documentNode);
+        Collection<Integer> documentVersions = getDocumentVersions(documentNode, migrationVersions);
         log.trace("Document versions: {}", documentVersions);
 
         Collection<Integer> nonexistentVersions = subtract(documentVersions, migrationVersions);
@@ -130,9 +130,13 @@ public class FileMigrationService {
         return node;
     }
 
-    private Collection<Integer> getDocumentVersions(ObjectNode node) throws MigrationException {
+    private Collection<Integer> getDocumentVersions(ObjectNode node, Collection<Integer> currentVersions)
+            throws MigrationException {
         try {
-            return versionsGetterService.getVersions(node);
+            // Every catalog export carries migration metadata. A file without it was written by hand
+            // or by an earlier version of the VS Code extension, in the current format.
+            Optional<List<Integer>> versions = versionsGetterService.getVersions(node);
+            return versions.isPresent() ? versions.get() : currentVersions;
         } catch (Exception exception) {
             throw new MigrationException("Failed to retrieve migration data", exception,
                     getId(node), getName(node));

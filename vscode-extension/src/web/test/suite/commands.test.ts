@@ -1,5 +1,6 @@
 import * as assert from "assert";
 import * as vscode from "vscode";
+import { CHAIN_MIGRATIONS } from "../../constants/migrations";
 import {
   FIXTURES,
   SCHEMA,
@@ -117,7 +118,7 @@ suite("Create commands", function () {
         $schema: `${SCHEMA}/chain`,
         id: folder,
         name: "vsc-created-chain",
-        content: {},
+        content: { migrations: CHAIN_MIGRATIONS },
       });
       await assertGolden(workspaceUri(`${folder}/${folder}.chain.cip.yaml`), folder, "CHAIN", ".chain.cip.yaml");
     } finally {

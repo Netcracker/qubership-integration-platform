@@ -17,6 +17,11 @@ import { ServiceNormalizer } from "../../api-services/ServiceNormalizer";
 import { ProjectConfigService } from "../../services/ProjectConfigService";
 import { FileCacheService } from "../../services/FileCacheService";
 import {
+  CHAIN_MIGRATIONS,
+  MCP_SERVICE_MIGRATIONS,
+  SERVICE_MIGRATIONS,
+} from "../../constants/migrations";
+import {
   CHAIN_ROUTES,
   CONTEXT_SERVICE_ROUTES,
   MCP_SERVICE_ROUTES,
@@ -611,7 +616,9 @@ export class VSCodeFileApi implements FileApi {
         $schema: config.schemaUrls.chain,
         id: chainId,
         name: chainName,
-        content: {},
+        content: {
+          migrations: CHAIN_MIGRATIONS,
+        },
       };
       const bytes = new TextEncoder().encode(yaml.stringify(chain));
 
@@ -734,6 +741,7 @@ export class VSCodeFileApi implements FileApi {
               name: serviceName.trim(),
               content: {
                 description: serviceDescription?.trim() || "",
+                migrations: SERVICE_MIGRATIONS,
               },
             }
           : serviceType.value === "MCP"
@@ -745,6 +753,7 @@ export class VSCodeFileApi implements FileApi {
                   identifier: identifier?.trim() || "",
                   instructions: "",
                   description: serviceDescription?.trim() || "",
+                  migrations: MCP_SERVICE_MIGRATIONS,
                 },
               }
             : {
@@ -755,11 +764,11 @@ export class VSCodeFileApi implements FileApi {
                   description: serviceDescription?.trim() || "",
                   activeEnvironmentId: "",
                   integrationSystemType: serviceType.value,
-                  protocol: "",
                   extendedProtocol: "",
                   specification: "",
                   environments: [],
                   labels: [],
+                  migrations: SERVICE_MIGRATIONS,
                 },
               };
 

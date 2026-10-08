@@ -5,8 +5,8 @@ content:
   description: Created as EXTERNAL
   activeEnvironmentId: ""
   integrationSystemType: EXTERNAL
-  protocol: ""
   extendedProtocol: ""
   specification: ""
   environments: []
   labels: []
+  migrations: "[100, 101, 102]"

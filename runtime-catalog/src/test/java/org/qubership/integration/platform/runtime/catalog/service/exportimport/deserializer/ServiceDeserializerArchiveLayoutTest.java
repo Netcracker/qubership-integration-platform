@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -80,7 +81,7 @@ class ServiceDeserializerArchiveLayoutTest {
         YAMLMapper yamlMapper = new YAMLMapper();
         List<ServiceImportFileMigration> migrations = List.of(new V100ServiceImportFileMigration());
 
-        when(versionsGetterService.getVersions(any())).thenReturn(List.of(100, 101, 102));
+        when(versionsGetterService.getVersions(any())).thenReturn(Optional.of(List.of(100, 101, 102)));
         when(fileMigrationService.migrate(anyString(), anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
         when(fileMigrationService.migrate(any(ObjectNode.class), anyCollection())).thenAnswer(invocation -> invocation.getArgument(0));
 
