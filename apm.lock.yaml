@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-10-07T14:54:02.301937+00:00'
+generated_at: '2026-10-08T13:44:31.469586+00:00'
 apm_version: 0.32.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
@@ -285,7 +285,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:47b818792a7c0e9c6debe5bd59393a989c3cc99343ea3613b54842ca102ab5e6
+  content_hash: sha256:862f712cec457156700d3fde67afa7b17eb63bfa21663d035fdca800ba31d1ea
 - kind: project-relative
   target: claude
   value: .claude/skills/apm-authoring
@@ -834,7 +834,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:17a9914d3d3c07bdd81a7878a3f813347a01c3a7e97e42a041d806afa8f6e311
+  content_hash: sha256:8fe5caa7f39c6aad34e4254943b3df6758efe64e7223d14620b7f41254991a46
 - kind: project-relative
   target: legacy
   value: .agents/skills/ci-fix
@@ -1242,7 +1242,7 @@ local_deployed_file_hashes:
   .claude/rules/ui-component-patterns.md: sha256:6ea0cf80626c5e7a78b5d8e36ee5817cfdc8266afcf32b76c85e69d6702ffe1a
   .claude/rules/ui-core-development.md: sha256:c42c9e14a47aa880f644e2bcdb76e08c284cb4e2b336143fb364393d3640d9c3
   .claude/rules/ui-theme-and-vscode-webview.md: sha256:b9c3fb0eb8853ff8fc98a27ac8ccbdb9f6755fd235addba7d44a5855b5b43a17
-  .claude/rules/vscode-extension.md: sha256:47b818792a7c0e9c6debe5bd59393a989c3cc99343ea3613b54842ca102ab5e6
+  .claude/rules/vscode-extension.md: sha256:862f712cec457156700d3fde67afa7b17eb63bfa21663d035fdca800ba31d1ea
   .claude/skills/ci-fix/SKILL.md: sha256:ea79a8e0f51183ce3329312a3cd0c94e09c4fb0b2996054eac4ce4840b9c856a
   .claude/skills/docs-authoring/SKILL.md: sha256:1ad8f4e2efe177403af5cf5978c327cd57b39bee266620dec3395af182f15f6f
   .claude/skills/fix-issue/SKILL.md: sha256:4a996a2d976f274b4f91e40ae417a8533ee481c2e4589232fdd63a02a93f18e7
@@ -1278,4 +1278,4 @@ local_deployed_file_hashes:
   .cursor/rules/ui-component-patterns.mdc: sha256:53c570a4a8dca369d8a250c7d18ead83f845685d16bba32a042dbb5b4b0e61ef
   .cursor/rules/ui-core-development.mdc: sha256:6232692ddcda622d6cdeea12c9e4c3afec6eaf75e0235347e0a9b3dad7b3952d
   .cursor/rules/ui-theme-and-vscode-webview.mdc: sha256:e8c44c2ac98376f01905c6f2f8bf55b9bcc455cd560cd46036201cd124b7fdca
-  .cursor/rules/vscode-extension.mdc: sha256:17a9914d3d3c07bdd81a7878a3f813347a01c3a7e97e42a041d806afa8f6e311
+  .cursor/rules/vscode-extension.mdc: sha256:8fe5caa7f39c6aad34e4254943b3df6758efe64e7223d14620b7f41254991a46
