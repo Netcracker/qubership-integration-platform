@@ -11,18 +11,16 @@
   </parent>
 
   <artifactId>qip-checkstyle</artifactId>
-  <version>${qip.checkstyle.version}</version>
+  <version>${revision}${changelist}</version>
   <packaging>jar</packaging>
 
   <name>QIP Checkstyle Configuration</name>
   <description>Checkstyle definition for QIP</description>
 
-  <distributionManagement>
-    <repository>
-      <id>central</id>
-      <name>Central Maven Repository</name>
-    </repository>
-  </distributionManagement>
+  <properties>
+    <revision>0.0.3</revision>
+    <changelist></changelist>
+  </properties>
 
   <build>
     <plugins>

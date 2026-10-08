@@ -10,10 +10,15 @@
   </parent>
 
   <artifactId>qip-sessions-management</artifactId>
-  <version>${qip.sessions-management.version}</version>
+  <version>${revision}${changelist}</version>
 
   <name>QIP Sessions Management</name>
   <description>Managing recorded sessions of integration flows execution stored in OpenSearch index</description>
+
+  <properties>
+    <revision>1.5.1</revision>
+    <changelist>-SNAPSHOT</changelist>
+  </properties>
 
   <dependencies>
     <!-- Cloud Core dependencies -->

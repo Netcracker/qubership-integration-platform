@@ -20,42 +20,42 @@
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-schemas</artifactId>
-        <version>${qip.schemas.version}</version>
+        <version>1.5.1-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-checkstyle</artifactId>
-        <version>${qip.checkstyle.version}</version>
+        <version>0.0.3</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-micro-engine</artifactId>
-        <version>${qip.micro-engine.version}</version>
+        <version>1.5.1-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-integration-build-pipeline</artifactId>
-        <version>${qip.integration-build-pipeline.version}</version>
+        <version>1.5.1-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-integration-build-maven-plugin</artifactId>
-        <version>${qip.integration-build-maven-plugin.version}</version>
+        <version>1.5.1-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-engine</artifactId>
-        <version>${qip.engine.version}</version>
+        <version>1.5.1-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-runtime-catalog</artifactId>
-        <version>${qip.runtime-catalog.version}</version>
+        <version>1.5.1-SNAPSHOT</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-sessions-management</artifactId>
-        <version>${qip.sessions-management.version}</version>
+        <version>1.5.1-SNAPSHOT</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

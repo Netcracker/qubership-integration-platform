@@ -35,10 +35,7 @@
     <json-filter.version>4.0.1</json-filter.version>
     <json-schema-validator.version>1.0.87</json-schema-validator.version>
     <kubernetes-client-java.version>19.0.3</kubernetes-client-java.version>
-    <lombok.version>1.18.46</lombok.version>
-    <mapstruct.version>1.5.5.Final</mapstruct.version>
     <opensearch.version>2.14.0</opensearch.version>
-    <protobuf-java.version>4.33.2</protobuf-java.version>
     <reflections.version>0.10.2</reflections.version>
     <testcontainers.version>1.20.4</testcontainers.version>
     <wiremock.version>3.13.2</wiremock.version>

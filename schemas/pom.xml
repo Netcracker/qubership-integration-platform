@@ -11,36 +11,17 @@
   </parent>
 
   <artifactId>qip-schemas</artifactId>
-  <version>${qip.schemas.version}</version>
+  <version>${revision}${changelist}</version>
 
   <name>QIP Schemas</name>
   <description>Schemas definition for QIP</description>
 
-  <profiles>
-    <profile>
-      <id>central</id>
-      <activation>
-        <activeByDefault>true</activeByDefault>
-      </activation>
-      <build>
-        <plugins>
-          <plugin>
-            <groupId>org.sonatype.central</groupId>
-            <artifactId>central-publishing-maven-plugin</artifactId>
-            <version>0.7.0</version>
-            <extensions>true</extensions>
-            <configuration>
-              <publishingServerId>central</publishingServerId>
-              <autoPublish>true</autoPublish>
-              <waitUntil>validated</waitUntil>
-            </configuration>
-          </plugin>
+  <properties>
+    <revision>1.5.1</revision>
+    <changelist>-SNAPSHOT</changelist>
 
-        </plugins>
-      </build>
-    </profile>
-
-  </profiles>
+    <maven-assembly-plugin.version>3.7.1</maven-assembly-plugin.version>
+  </properties>
 
   <build>
     <testResources>
@@ -59,6 +40,7 @@
       </plugin>
       <plugin>
         <artifactId>maven-assembly-plugin</artifactId>
+        <version>${maven-assembly-plugin.version}</version>
         <executions>
           <execution>
             <id>zip-schemas</id>
@@ -78,7 +60,6 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.5.6</version>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

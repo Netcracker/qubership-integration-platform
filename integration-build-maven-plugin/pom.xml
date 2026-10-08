@@ -12,11 +12,18 @@
   </parent>
 
   <artifactId>qip-integration-build-maven-plugin</artifactId>
-  <version>${qip.integration-build-maven-plugin.version}</version>
+  <version>${revision}${changelist}</version>
   <packaging>maven-plugin</packaging>
 
   <name>QIP Integration Build Maven Plugin</name>
   <description>Builds QIP integration chains and services into a K8s CRs.</description>
+
+  <properties>
+    <revision>1.5.1</revision>
+    <changelist>-SNAPSHOT</changelist>
+
+    <qip.integration-build-pipeline.revision>1.5.1</qip.integration-build-pipeline.revision>
+  </properties>
 
   <dependencyManagement>
     <dependencies>
@@ -44,7 +51,7 @@
       <dependency>
         <groupId>${project.parent.groupId}</groupId>
         <artifactId>qip-integration-build-pipeline</artifactId>
-        <version>${qip.integration-build-pipeline.version}</version>
+        <version>${qip.integration-build-pipeline.revision}${changelist}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

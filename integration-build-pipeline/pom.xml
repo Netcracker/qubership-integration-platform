@@ -9,11 +9,16 @@
   </parent>
 
   <artifactId>qip-integration-build-pipeline</artifactId>
-  <version>${qip.integration-build-pipeline.version}</version>
+  <version>${revision}${changelist}</version>
   <packaging>jar</packaging>
 
   <name>QIP Integration Build Pipeline</name>
   <description>Reads QIP integration chains and services into a domain model and generates Apache Camel DSL.</description>
+
+  <properties>
+    <revision>1.5.1</revision>
+    <changelist>-SNAPSHOT</changelist>
+  </properties>
 
   <dependencies>
     <dependency>
