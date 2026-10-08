@@ -6,13 +6,18 @@ import io.kubernetes.client.openapi.apis.CoreV1Api;
 import io.kubernetes.client.openapi.apis.CustomObjectsApi;
 import io.kubernetes.client.openapi.models.V1DeleteOptions;
 import io.kubernetes.client.openapi.models.V1ObjectMeta;
+import okhttp3.Call;
+import okhttp3.MediaType;
+import okhttp3.Protocol;
+import okhttp3.Request;
+import okhttp3.Response;
+import okhttp3.ResponseBody;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,22 +44,10 @@ class KubeOperatorTest {
     }
 
     @Test
-    void getCustomObjectReturnsParsedBodyOn200() throws ApiException {
-        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
-                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
-                .thenReturn(getRequest);
-
-        Map<String, Object> rawObject = new LinkedHashMap<>();
-        rawObject.put("apiVersion", GROUP + "/" + VERSION);
-        rawObject.put("kind", "HTTPRoute");
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("name", NAME);
-        rawObject.put("metadata", metadata);
-        Map<String, Object> spec = new LinkedHashMap<>();
-        spec.put("rules", List.of());
-        rawObject.put("spec", spec);
-        when(getRequest.execute()).thenReturn(rawObject);
+    void getCustomObjectReturnsParsedBodyOn200() throws Exception {
+        stubGet(200, """
+                {"apiVersion": "%s/%s", "kind": "HTTPRoute", "metadata": {"name": "%s"}, "spec": {"rules": []}}
+                """.formatted(GROUP, VERSION, NAME));
 
         Optional<KubeCustomObject> result = kubeOperator.getCustomObject(request());
 
@@ -65,12 +58,22 @@ class KubeOperatorTest {
     }
 
     @Test
-    void getCustomObjectReturnsEmptyOn404() throws ApiException {
-        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
-                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
-                .thenReturn(getRequest);
-        when(getRequest.execute()).thenThrow(new ApiException(404, "Not Found"));
+    void getCustomObjectKeepsIntegerFieldsAsIntegers() throws Exception {
+        stubGet(200, """
+                {"apiVersion": "networking.istio.io/v1", "kind": "ServiceEntry",
+                 "metadata": {"name": "%s"},
+                 "spec": {"ports": [{"number": 80, "name": "http-80", "protocol": "HTTP"}]}}
+                """.formatted(NAME));
+
+        KubeCustomObject result = kubeOperator.getCustomObject(request()).orElseThrow();
+
+        List<?> ports = (List<?>) result.getSpec().get("ports");
+        assertEquals(80, ((Map<?, ?>) ports.get(0)).get("number"));
+    }
+
+    @Test
+    void getCustomObjectReturnsEmptyOn404() throws Exception {
+        stubGet(404, "{\"kind\": \"Status\", \"code\": 404}");
 
         Optional<KubeCustomObject> result = kubeOperator.getCustomObject(request());
 
@@ -78,12 +81,8 @@ class KubeOperatorTest {
     }
 
     @Test
-    void getCustomObjectThrowsKubeApiExceptionOnOtherFailure() throws ApiException {
-        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
-                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
-        when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
-                .thenReturn(getRequest);
-        when(getRequest.execute()).thenThrow(new ApiException(500, "Internal Server Error"));
+    void getCustomObjectThrowsKubeApiExceptionOnOtherFailure() throws Exception {
+        stubGet(500, "{\"kind\": \"Status\", \"code\": 500}");
         KubeCustomObjectRequest req = request();
 
         assertThrows(KubeApiException.class, () -> kubeOperator.getCustomObject(req));
@@ -260,5 +259,21 @@ class KubeOperatorTest {
                         .metadata(metadata)
                         .build())
                 .build();
+    }
+
+    private void stubGet(int code, String body) throws Exception {
+        CustomObjectsApi.APIgetNamespacedCustomObjectRequest getRequest =
+                mock(CustomObjectsApi.APIgetNamespacedCustomObjectRequest.class);
+        when(customObjectsApi.getNamespacedCustomObject(GROUP, VERSION, NAMESPACE, PLURAL, NAME))
+                .thenReturn(getRequest);
+        Call call = mock(Call.class);
+        when(getRequest.buildCall(null)).thenReturn(call);
+        when(call.execute()).thenReturn(new Response.Builder()
+                .request(new Request.Builder().url("https://kubernetes.default.svc/").build())
+                .protocol(Protocol.HTTP_1_1)
+                .code(code)
+                .message("HTTP " + code)
+                .body(ResponseBody.create(body, MediaType.get("application/json")))
+                .build());
     }
 }
