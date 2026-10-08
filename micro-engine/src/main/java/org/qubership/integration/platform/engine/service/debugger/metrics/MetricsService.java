@@ -81,7 +81,7 @@ public class MetricsService {
                     }
                     break;
                 case SERVICE_CALL:
-                    if (metricNeedsToBeRecorded(exchange, elementId) && metricsStore.isHttpPayloadMetricsEnabled()) {
+                    if (metricNeedsToBeRecorded(exchange, chainExecutionContext) && metricsStore.isHttpPayloadMetricsEnabled()) {
                         distributionSummary = metricsStore.processHttpPayloadSize(
                                 true, chainId, chainName, elementId, elementName, elementType);
                         distributionSummary.record(calculatePayloadSize(exchange));
@@ -153,7 +153,7 @@ public class MetricsService {
                     }
                     break;
                 case SERVICE_CALL:
-                    if (metricNeedsToBeRecorded(exchange, elementId) && metricsStore.isHttpPayloadMetricsEnabled()) {
+                    if (metricNeedsToBeRecorded(exchange, chainExecutionContext) && metricsStore.isHttpPayloadMetricsEnabled()) {
                         distributionSummary = metricsStore.processHttpPayloadSize(
                                 false, chainId, chainName, elementId, elementName, elementType);
                         distributionSummary.record(calculatePayloadSize(exchange));
@@ -167,8 +167,9 @@ public class MetricsService {
         }
     }
 
-    private boolean metricNeedsToBeRecorded(Exchange exchange, String elementId) {
-        ServiceCallInfo serviceCallInfo = MetadataUtil.getBeanForElement(exchange, elementId, ServiceCallInfo.class);
+    private boolean metricNeedsToBeRecorded(Exchange exchange, ChainExecutionContext chainExecutionContext) {
+        String snapshotElementId = chainExecutionContext.getElementInfo().getSnapshotElementId();
+        ServiceCallInfo serviceCallInfo = MetadataUtil.getBeanForElement(exchange, snapshotElementId, ServiceCallInfo.class);
         return metricNeedsToBeRecorded(serviceCallInfo);
     }
 

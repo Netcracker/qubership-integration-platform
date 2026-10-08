@@ -34,6 +34,7 @@ class MetricsServiceTest {
     private static final String CHAIN_ID = "chain-id";
     private static final String CHAIN_NAME = "Chain name";
     private static final String ELEMENT_ID = "element-id";
+    private static final String SNAPSHOT_ELEMENT_ID = "snapshot-element-id";
     private static final String ELEMENT_NAME = "Element name";
     private static final String PARENT_ID = "parent-id";
     private static final String PARENT_SNAPSHOT_ID = "parent-snapshot-id";
@@ -117,7 +118,7 @@ class MetricsServiceTest {
         )).thenReturn(distributionSummary);
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
-            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, ELEMENT_ID, ServiceCallInfo.class))
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, SNAPSHOT_ELEMENT_ID, ServiceCallInfo.class))
                     .thenReturn(serviceCallInfo);
 
             metricsService.processElementStartMetrics(exchange, context);
@@ -136,7 +137,7 @@ class MetricsServiceTest {
         when(metricsStore.isMetricsEnabled()).thenReturn(true);
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
-            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, ELEMENT_ID, ServiceCallInfo.class))
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, SNAPSHOT_ELEMENT_ID, ServiceCallInfo.class))
                     .thenReturn(serviceCallInfo);
 
             metricsService.processElementStartMetrics(exchange, context);
@@ -163,6 +164,53 @@ class MetricsServiceTest {
         metricsService.processElementFinishMetrics(exchange, context, false);
 
         verify(distributionSummary).record(64.0);
+    }
+
+    @Test
+    void shouldRecordServiceCallResponsePayloadSizeWhenProtocolIsHttp() {
+        Exchange exchange = exchangeWithContentLength(32);
+        ChainExecutionContext context = chainExecutionContext(ChainElementType.SERVICE_CALL);
+        ServiceCallInfo serviceCallInfo = ServiceCallInfo.builder()
+                .protocol(ChainProperties.OPERATION_PROTOCOL_TYPE_HTTP)
+                .build();
+        stubPayloadMetricsEnabled();
+        when(metricsStore.processHttpPayloadSize(
+                false,
+                CHAIN_ID,
+                CHAIN_NAME,
+                ELEMENT_ID,
+                ELEMENT_NAME,
+                ChainElementType.SERVICE_CALL.getText()
+        )).thenReturn(distributionSummary);
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, SNAPSHOT_ELEMENT_ID, ServiceCallInfo.class))
+                    .thenReturn(serviceCallInfo);
+
+            metricsService.processElementFinishMetrics(exchange, context, false);
+        }
+
+        verify(distributionSummary).record(32.0);
+    }
+
+    @Test
+    void shouldSkipServiceCallResponsePayloadSizeWhenProtocolIsNotHttp() {
+        Exchange exchange = exchangeWithContentLength(32);
+        ChainExecutionContext context = chainExecutionContext(ChainElementType.SERVICE_CALL);
+        ServiceCallInfo serviceCallInfo = ServiceCallInfo.builder()
+                .protocol(ChainProperties.OPERATION_PROTOCOL_TYPE_KAFKA)
+                .build();
+        when(metricsStore.isMetricsEnabled()).thenReturn(true);
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, SNAPSHOT_ELEMENT_ID, ServiceCallInfo.class))
+                    .thenReturn(serviceCallInfo);
+
+            metricsService.processElementFinishMetrics(exchange, context, false);
+        }
+
+        verify(metricsStore).isMetricsEnabled();
+        verifyNoMoreInteractions(metricsStore);
     }
 
     @Test
@@ -306,6 +354,7 @@ class MetricsServiceTest {
     ) {
         return ElementInfo.builder()
                 .id(elementId)
+                .snapshotElementId(SNAPSHOT_ELEMENT_ID)
                 .name(elementName)
                 .type(elementType.getText())
                 .parentId(parentId)
