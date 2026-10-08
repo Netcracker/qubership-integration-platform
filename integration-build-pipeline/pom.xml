@@ -18,7 +18,138 @@
   <properties>
     <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
+
+    <antlr4.version>4.13.1</antlr4.version>
+    <graphql-java.version>21.5</graphql-java.version>
+    <plexus-utils.version>3.0.24</plexus-utils.version>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>io.swagger.core.v3</groupId>
+        <artifactId>swagger-core-jakarta</artifactId>
+        <version>${swagger-core.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+
+      <dependency>
+        <groupId>io.swagger.parser.v3</groupId>
+        <artifactId>swagger-parser</artifactId>
+        <version>${swagger-parser.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.jetbrains</groupId>
+        <artifactId>annotations</artifactId>
+        <version>26.1.0</version>
+        <scope>provided</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-lang3</artifactId>
+        <version>${commons-lang3.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-text</artifactId>
+        <version>${commons-text.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-collections4</artifactId>
+        <version>${commons-collections4.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>commons-io</groupId>
+        <artifactId>commons-io</artifactId>
+        <version>${commons-io.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.jknack</groupId>
+        <artifactId>handlebars</artifactId>
+        <version>${handlebars.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-core</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-json-model</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-json-module</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-xml-model</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-xml-module</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.codehaus.plexus</groupId>
+        <artifactId>plexus-utils</artifactId>
+        <version>${plexus-utils.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.antlr</groupId>
+        <artifactId>antlr4-runtime</artifactId>
+        <version>${antlr4.version}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.skyscreamer</groupId>
+        <artifactId>jsonassert</artifactId>
+        <version>1.5.3</version>
+        <scope>test</scope>
+      </dependency>
+
+      <!-- DTO-library code generation -->
+      <dependency>
+        <groupId>com.graphql-java</groupId>
+        <artifactId>graphql-java</artifactId>
+        <version>${graphql-java.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.graphql-java-generator</groupId>
+        <artifactId>graphql-maven-plugin-logic</artifactId>
+        <version>${graphql-maven-plugin.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.squareup.wire</groupId>
+        <artifactId>wire-schema-jvm</artifactId>
+        <version>${wire.version}</version>
+      </dependency>
+      <!-- WSDL support -->
+      <dependency>
+        <groupId>com.predic8</groupId>
+        <artifactId>soa-model-core</artifactId>
+        <version>${soa-model-core.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.woden</groupId>
+        <artifactId>woden-core</artifactId>
+        <version>${woden-core.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency>

@@ -21,6 +21,8 @@
     <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
+    <graphql-java.version>21.5</graphql-java.version>
+
     <qip.integration-build-pipeline.revision>1.5.1</qip.integration-build-pipeline.revision>
 
     <okhttp-bom.version>5.3.2</okhttp-bom.version>
@@ -33,12 +35,207 @@
         <artifactId>qip-integration-build-pipeline</artifactId>
         <version>${qip.integration-build-pipeline.revision}${changelist}</version>
       </dependency>
+      <!-- BOMs -->
+      <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson-bom.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>okhttp-bom</artifactId>
         <version>${okhttp-bom.version}</version>
         <type>pom</type>
         <scope>import</scope>
+      </dependency>
+      <!-- Dependencies -->
+      <dependency>
+        <groupId>org.springdoc</groupId>
+        <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        <version>${springdoc.version}</version>
+      </dependency>
+      <!-- Utility dependencies -->
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-text</artifactId>
+        <version>${commons-text.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>de.siegmar</groupId>
+        <artifactId>logback-gelf</artifactId>
+        <version>${logback-gelf.version}</version>
+      </dependency>
+      <!-- Camel dependencies -->
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-core</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-json-model</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-json-module</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-xml-model</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.atlasmap</groupId>
+        <artifactId>atlas-xml-module</artifactId>
+        <version>${atlasmap.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.github.jknack</groupId>
+        <artifactId>handlebars</artifactId>
+        <version>${handlebars.version}</version>
+      </dependency>
+      <!-- Converter dependencies -->
+      <dependency>
+        <groupId>org.json</groupId>
+        <artifactId>json</artifactId>
+        <version>${json.version}</version>
+      </dependency>
+      <!-- ... -->
+      <dependency>
+        <groupId>io.kubernetes</groupId>
+        <artifactId>client-java-api-fluent</artifactId>
+        <version>${kubernetes-client-java.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.kubernetes</groupId>
+        <artifactId>client-java</artifactId>
+        <version>${kubernetes-client-java.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.kubernetes</groupId>
+        <artifactId>client-java-prometheus-operator-models</artifactId>
+        <version>${kubernetes-client-java.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.micrometer</groupId>
+        <artifactId>micrometer-registry-prometheus</artifactId>
+        <version>${micrometer.version}</version>
+      </dependency>
+      <!-- TODO Vulnerable version is used -->
+      <dependency>
+        <groupId>com.google.guava</groupId>
+        <artifactId>guava</artifactId>
+        <version>${google-guava.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.squareup.okio</groupId>
+        <artifactId>okio-jvm</artifactId>
+        <version>${okio.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.squareup.okio</groupId>
+        <artifactId>okio-fakefilesystem-jvm</artifactId>
+        <version>${okio.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.dhatim</groupId>
+        <artifactId>fastexcel</artifactId>
+        <version>${dhatim.fastexcel.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.vladsch.flexmark</groupId>
+        <artifactId>flexmark</artifactId>
+        <version>${flexmark.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.vladsch.flexmark</groupId>
+        <artifactId>flexmark-ext-tables</artifactId>
+        <version>${flexmark.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.hypersistence</groupId>
+        <artifactId>hypersistence-utils-hibernate-63</artifactId>
+        <version>${hypersistence-utils-hibernate.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>commons-validator</groupId>
+        <artifactId>commons-validator</artifactId>
+        <version>${commons-validator.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.codehaus.plexus</groupId>
+        <artifactId>plexus-utils</artifactId>
+        <version>${plexus-utils.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>commons-beanutils</groupId>
+        <artifactId>commons-beanutils</artifactId>
+        <version>${commons-beanutils.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.bitbucket.b_c</groupId>
+        <artifactId>jose4j</artifactId>
+        <version>${jose4j.version}</version>
+      </dependency>
+      <!-- Apache POI dependencies -->
+      <dependency>
+        <groupId>org.apache.poi</groupId>
+        <artifactId>poi</artifactId>
+        <version>${poi.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.poi</groupId>
+        <artifactId>poi-ooxml</artifactId>
+        <version>${poi.version}</version>
+      </dependency>
+      <!-- GraphQL -->
+      <dependency>
+        <groupId>com.graphql-java</groupId>
+        <artifactId>graphql-java</artifactId>
+        <version>${graphql-java.version}</version>
+      </dependency>
+      <!-- OpenAPI and Swagger -->
+      <dependency>
+        <groupId>io.swagger.parser.v3</groupId>
+        <artifactId>swagger-parser</artifactId>
+        <version>${swagger-parser.version}</version>
+        <exclusions>
+        <exclusion>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-core</artifactId>
+        </exclusion>
+        </exclusions>
+      </dependency>
+      <dependency>
+        <groupId>io.swagger.core.v3</groupId>
+        <artifactId>swagger-core-jakarta</artifactId>
+        <version>${swagger-core.version}</version>
+      </dependency>
+      <!-- GRPC -->
+      <dependency>
+        <groupId>io.grpc</groupId>
+        <artifactId>grpc-protobuf</artifactId>
+        <version>${grpc.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.grpc</groupId>
+        <artifactId>grpc-stub</artifactId>
+        <version>${grpc.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.protobuf</groupId>
+        <artifactId>protobuf-java</artifactId>
+        <version>${protobuf-java.version}</version>
+      </dependency>
+      <!-- Use maven plugin code in runtime -->
+      <dependency>
+        <groupId>com.graphql-java-generator</groupId>
+        <artifactId>graphql-maven-plugin-logic</artifactId>
+        <version>${graphql-maven-plugin.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

@@ -66,7 +66,6 @@
     <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
     <flexmark.version>0.64.8</flexmark.version>
     <google-guava.version>33.4.0-jre</google-guava.version>
-    <graphql-java.version>21.5</graphql-java.version>
     <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
     <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version>
     <grpc.version>1.54.2</grpc.version>
@@ -117,7 +116,6 @@
     <flatten-maven-plugin.version>1.5.0</flatten-maven-plugin.version>
     <hibernate-enhance-maven-plugin.version>${hibernate.version}</hibernate-enhance-maven-plugin.version>
     <jacoco.plugin.version>0.8.15</jacoco.plugin.version>
-    <maven-antrun-plugin.version>3.2.0</maven-antrun-plugin.version>
     <maven-checkstyle-plugin.version>3.6.0</maven-checkstyle-plugin.version>
     <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
     <maven-javadoc-plugin.version>3.7.0</maven-javadoc-plugin.version>
@@ -127,49 +125,7 @@
 
   <dependencyManagement>
     <dependencies>
-      <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-bom</artifactId>
-        <version>1.75.0</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.camel</groupId>
-        <artifactId>camel-bom</artifactId>
-        <version>${camel.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.camel.springboot</groupId>
-        <artifactId>camel-spring-boot-bom</artifactId>
-        <version>${camel.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.groovy</groupId>
-        <artifactId>groovy-bom</artifactId>
-        <version>${groovy-apache-bom.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.springframework.ai</groupId>
-        <artifactId>spring-ai-bom</artifactId>
-        <version>${spring-ai.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>com.fasterxml.jackson</groupId>
-        <artifactId>jackson-bom</artifactId>
-        <version>${jackson.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-
+      <!-- BOMs -->
       <dependency>
         <groupId>com.netcracker.cloud</groupId>
         <artifactId>dbaas-client-bom</artifactId>
@@ -250,6 +206,11 @@
         <version>${mapstruct.version}</version>
       </dependency>
       <dependency>
+        <groupId>org.projectlombok</groupId>
+        <artifactId>lombok</artifactId>
+        <version>${lombok.version}</version>
+      </dependency>
+      <dependency>
         <groupId>org.springdoc</groupId>
         <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         <version>${springdoc.version}</version>
@@ -257,6 +218,11 @@
 
       <!-- Utility dependencies -->
 
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-text</artifactId>
+        <version>${commons-text.version}</version>
+      </dependency>
       <dependency>
         <groupId>de.siegmar</groupId>
         <artifactId>logback-gelf</artifactId>
@@ -273,281 +239,10 @@
         <artifactId>jandex</artifactId>
         <version>${jandex.version}</version>
       </dependency>
-
-      <dependency>
-        <groupId>io.swagger.core.v3</groupId>
-        <artifactId>swagger-core-jakarta</artifactId>
-        <version>${swagger-core.version}</version>
-      </dependency>
-
-      <dependency>
-        <groupId>org.xerial.snappy</groupId>
-        <artifactId>snappy-java</artifactId>
-        <version>${snappy-java.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.projectlombok</groupId>
-        <artifactId>lombok</artifactId>
-        <version>${lombok.version}</version>
-      </dependency>
-      <!-- For rabbitmq-custom component -->
-      <dependency>
-        <groupId>com.rabbitmq</groupId>
-        <artifactId>amqp-client</artifactId>
-        <version>${amqp-client.version}</version>
-      </dependency>
-      <!-- Mapper dependencies -->
-      <dependency>
-        <groupId>io.hypersistence</groupId>
-        <artifactId>hypersistence-utils-hibernate-63</artifactId>
-        <version>${hypersistence-utils-hibernate.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-api</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-core</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-json-model</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-json-module</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-xml-model</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.atlasmap</groupId>
-        <artifactId>atlas-xml-module</artifactId>
-        <version>${atlasmap.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.google.protobuf</groupId>
-        <artifactId>protobuf-java</artifactId>
-        <version>${protobuf-java.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.google.protobuf</groupId>
-        <artifactId>protobuf-java-util</artifactId>
-        <version>${protobuf-java.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.arakelian</groupId>
-        <artifactId>json-filter</artifactId>
-        <version>${json-filter.version}</version>
-      </dependency>
-      <!-- Related to google pubsub -->
-      <dependency>
-        <groupId>org.conscrypt</groupId>
-        <artifactId>conscrypt-openjdk-uber</artifactId>
-        <version>${conscrypt-openjdk-uber.version}</version>
-      </dependency>
-      <!-- OpenSearch -->
-      <dependency>
-        <groupId>org.opensearch.client</groupId>
-        <artifactId>opensearch-java</artifactId>
-        <version>${opensearch.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>jakarta.ws.rs</groupId>
-        <artifactId>jakarta.ws.rs-api</artifactId>
-        <version>${jakarta.ws.rs-api.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.reflections</groupId>
-        <artifactId>reflections</artifactId>
-        <version>${reflections.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.kafka</groupId>
-        <artifactId>kafka-clients</artifactId>
-        <version>${kafka.version}</version>
-        <exclusions>
-          <exclusion>
-            <groupId>org.lz4</groupId>
-            <artifactId>lz4-java</artifactId>
-          </exclusion>
-        </exclusions>
-      </dependency>
-      <dependency>
-        <groupId>at.yawk.lz4</groupId>
-        <artifactId>lz4-java</artifactId>
-        <version>${lz4-java.version}</version>
-      </dependency>
       <dependency>
         <groupId>net.logstash.logback</groupId>
         <artifactId>logstash-logback-encoder</artifactId>
         <version>${logstash-logback-encoder.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.swagger.parser.v3</groupId>
-        <artifactId>swagger-parser</artifactId>
-        <version>${swagger-parser.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.jetbrains</groupId>
-        <artifactId>annotations</artifactId>
-        <version>26.1.0</version>
-        <scope>provided</scope>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.commons</groupId>
-        <artifactId>commons-lang3</artifactId>
-        <version>${commons-lang3.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.commons</groupId>
-        <artifactId>commons-text</artifactId>
-        <version>${commons-text.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.commons</groupId>
-        <artifactId>commons-collections4</artifactId>
-        <version>${commons-collections4.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>commons-io</groupId>
-        <artifactId>commons-io</artifactId>
-        <version>${commons-io.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.github.jknack</groupId>
-        <artifactId>handlebars</artifactId>
-        <version>${handlebars.version}</version>
-      </dependency>
-
-      <dependency>
-        <groupId>org.codehaus.plexus</groupId>
-        <artifactId>plexus-utils</artifactId>
-        <version>${plexus-utils.version}</version>
-      </dependency>
-
-      <dependency>
-        <groupId>org.antlr</groupId>
-        <artifactId>antlr4-runtime</artifactId>
-        <version>${antlr4.version}</version>
-      </dependency>
-
-      <dependency>
-        <groupId>org.skyscreamer</groupId>
-        <artifactId>jsonassert</artifactId>
-        <version>1.5.3</version>
-        <scope>test</scope>
-      </dependency>
-
-      <!-- DTO-library code generation -->
-      <dependency>
-        <groupId>com.graphql-java</groupId>
-        <artifactId>graphql-java</artifactId>
-        <version>${graphql-java.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.graphql-java-generator</groupId>
-        <artifactId>graphql-maven-plugin-logic</artifactId>
-        <version>${graphql-maven-plugin.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.squareup.wire</groupId>
-        <artifactId>wire-schema-jvm</artifactId>
-        <version>${wire.version}</version>
-      </dependency>
-
-      <!-- WSDL support -->
-      <dependency>
-        <groupId>com.predic8</groupId>
-        <artifactId>soa-model-core</artifactId>
-        <version>${soa-model-core.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.woden</groupId>
-        <artifactId>woden-core</artifactId>
-        <version>${woden-core.version}</version>
-      </dependency>
-
-      <!-- Converter dependencies -->
-      <dependency>
-        <groupId>org.json</groupId>
-        <artifactId>json</artifactId>
-        <version>${json.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.micrometer</groupId>
-        <artifactId>micrometer-registry-prometheus</artifactId>
-        <version>${micrometer.version}</version>
-      </dependency>
-      <!-- TODO Vulnerable version is used -->
-      <dependency>
-        <groupId>com.google.guava</groupId>
-        <artifactId>guava</artifactId>
-        <version>${google-guava.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.squareup.okio</groupId>
-        <artifactId>okio-jvm</artifactId>
-        <version>${okio.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.squareup.okio</groupId>
-        <artifactId>okio-fakefilesystem-jvm</artifactId>
-        <version>${okio.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.dhatim</groupId>
-        <artifactId>fastexcel</artifactId>
-        <version>${dhatim.fastexcel.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.vladsch.flexmark</groupId>
-        <artifactId>flexmark</artifactId>
-        <version>${flexmark.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>com.vladsch.flexmark</groupId>
-        <artifactId>flexmark-ext-tables</artifactId>
-        <version>${flexmark.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>commons-validator</groupId>
-        <artifactId>commons-validator</artifactId>
-        <version>${commons-validator.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>commons-beanutils</groupId>
-        <artifactId>commons-beanutils</artifactId>
-        <version>${commons-beanutils.version}</version>
-      </dependency>
-      <!-- Apache POI dependencies -->
-      <dependency>
-        <groupId>org.apache.poi</groupId>
-        <artifactId>poi</artifactId>
-        <version>${poi.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.apache.poi</groupId>
-        <artifactId>poi-ooxml</artifactId>
-        <version>${poi.version}</version>
-      </dependency>
-      <!-- GRPC -->
-      <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-protobuf</artifactId>
-        <version>${grpc.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.grpc</groupId>
-        <artifactId>grpc-stub</artifactId>
-        <version>${grpc.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
