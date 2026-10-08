@@ -152,11 +152,10 @@ const R_ASYNC_API_TRIGGER_SYSTEM_TYPE =
 const R_ASYNC_API_TRIGGER_UNCOVERED = "no case: the async-api-trigger cases vary only the protocol axis";
 // The `script` element has no axis row: it is covered at tier 1 by a fixture chain, and none of the
 // six axes the script specs sweep is a discriminator the schemas declare, so the extractor produces
-// no row for any of them. What those specs settled is written in their headers —
+// no row for any of them. What those specs settled is written in their headers:
 // `specs/api/script-source.spec.ts` and
-// `specs/runtime/script-{exchange,libraries,failures,in-container,external-library}.spec.ts` — and
-// in `docs/product-defects.md` where it is a finding about the platform. Two facts belong here
-// rather than there:
+// `specs/runtime/script-{exchange,libraries,failures,in-container,external-library}.spec.ts`. Two
+// facts belong here rather than there:
 //
 // - `propertiesFilename`, with `exportFileExtension` and `propertiesToExportInSeparateFile`,
 //   describes an archive and not a run, so it is not an axis even though it reads like one. The

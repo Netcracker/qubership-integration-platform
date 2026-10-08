@@ -61,7 +61,7 @@ tree view and eleven commands (`qip.open`, `qip.createChain`, `qip.createService
 view (proposed `customEditorDiffs` API).
 `editorViewTypes.ts:getEditorViewTypeForUri` resolves a URI to its view type for `openDocumentInEditor`.
 `qip.revealInExplorer` in `extension.ts` does not use it: its own suffix check knows chains and plain services only,
-so it opens context and MCP services in the chain editor. `docs/product-defects.md` records that defect, and
+so it opens context and MCP services in the chain editor. That defect is #1005, and
 `commands.test.ts` pins it by asserting the chain editor. A new editor type needs an entry in both places until the
 command uses the resolver.
 
@@ -97,7 +97,8 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
   stub on `vscode.window` supplies the input the extension's prompts return.
 - A spec sends `getApiResponse` the message the webview would, so the wiring in `enrichWebview` from the webview to
   the running extension's router is not exercised. In this host the embedded UI does not use that wiring anyway:
-  `docs/product-defects.md` records why it sends nothing in VS Code for the Web. The webview DOM is out of scope.
+  it detects VS Code by the `vscode-webview:` protocol, and VS Code for the Web serves the webview over HTTP, so it
+  sends nothing. The webview DOM is out of scope.
 - `src/web/test/golden/` holds files the extension wrote, and the specs that write them compare the bytes. The end-to-end
   suite imports the same files into the catalog (`e2e/specs/api/extension-output.spec.ts`), so a change to what the
   extension writes updates the golden file in the same commit and runs that spec too.

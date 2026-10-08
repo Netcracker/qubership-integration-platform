@@ -65,7 +65,6 @@
  * The micro engine is not measured here and has nothing to measure: `resetScriptCache()` has no
  * caller in `micro-engine/src/main`, because micro loads libraries before chains and loads chains
  * once at application start, so no cached script can outlive a library change.
- * `docs/product-defects.md` carries both halves.
  */
 import { test, expect } from "../../support/fixtures.js";
 import {

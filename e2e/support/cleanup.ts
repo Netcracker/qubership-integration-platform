@@ -215,8 +215,8 @@ function reportLeaks(failures: string[], bodyFailed: boolean): void {
 /**
  * How many calls right after a deploy may record no session before `waitForRecording` fails.
  *
- * The loss is the defect "A chain deployed in the same engine batch as another can lose the session
- * of its first call" in `docs/product-defects.md`, which loses one call. Two leave one call of slack;
+ * A chain deployed in the same engine batch as another can lose the session of its first call, and
+ * only that one. Two leave one call of slack;
  * above that, a loss that grows shows up as a red case instead of slower warm-ups.
  */
 export const UNRECORDED_WARM_UP_LIMIT = 2;
@@ -273,8 +273,8 @@ export async function waitForFirstRecording(what: string, warmUp: WarmUp): Promi
   }
   expect(
     unrecorded.length,
-    `${what}: more calls after the deploy recorded no session than the defect in docs/product-defects.md ` +
-      `accounts for ("A chain deployed in the same engine batch as another can lose the session of its first call")`,
+    `${what}: more calls after the deploy recorded no session than the known loss accounts for ` +
+      `(a chain deployed in the same engine batch as another can lose the session of its first call)`,
   ).toBeLessThanOrEqual(UNRECORDED_WARM_UP_LIMIT);
 }
 

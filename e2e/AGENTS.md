@@ -204,9 +204,9 @@ holds the rest at their defaults, so an element with ten two-value axes costs tw
 - a single-value precondition that makes the branch reachable, such as the `afterValidation` entry a
   `service-call` response handler handles. It has no discriminator, so it is not a second axis.
 
-A case setting two varying axes together names the defect that justifies it in
-`docs/product-defects.md`. Value unions (`#{variable}` against a literal) are one class, covered
-once by `specs/runtime/placeholder.spec.ts`; do not add a case per element.
+A case setting two varying axes together names the defect that justifies it. Value unions
+(`#{variable}` against a literal) are one class, covered once by `specs/runtime/placeholder.spec.ts`;
+do not add a case per element.
 
 The chains come from `fixtures/axis-generator.ts`. An `axisFixtures` entry names a family, an axis
 path and a value, plus the `properties` template, and a `downstream` element where only a later step
@@ -338,8 +338,9 @@ right now, so a controller added to a service fails a run.
 13. **Carry a known divergence as `test.fail()`, never as a red result the reader is told to
     expect.** The annotation inverts the verdict, so the run stays green while the defect stands and
     turns red the day it is fixed, which is the signal to remove the annotation. Every case carrying
-    it names its entry in `docs/product-defects.md` at the annotation; `grep -rn "test\.fail(" specs/`
-    lists them, so quote no count. Two limits come with the annotation:
+    it names its defect at the annotation, by issue number where one is filed;
+    `grep -rn "test\.fail(" specs/` lists them, so quote no count. Two limits come with the
+    annotation:
     - It accepts **any** failure, so a pinned case narrows itself to the divergence it carries
       through `support/known-defect.ts`: `onlyTheKnownStatus` where the defect is one status and the
       fix another, `notTheKnownDefect` where the message has to be read too, and `outsideTheDefect`
@@ -396,7 +397,7 @@ right now, so a controller added to a service fails a run.
     read `engineKind` in a micro-only pin, `test.fail(engineKind === "micro", <defect>.title)`,
     which `support/known-defect.ts` narrows to that defect, and in `engine-identity.spec.ts`, whose
     subject is the engine kind. A difference between the two engines is a finding: pin it with its
-    entry in `docs/product-defects.md`, never loosen the assertion for one engine. A runtime file
+    issue, never loosen the assertion for one engine. A runtime file
     that deploys its own chains, calls the classic engine directly, or goes through the testing
     service is classic-only: it goes in `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`, which
     `runtime-micro` ignores and the report header lists.
@@ -546,7 +547,7 @@ Such a case builds through the builders in `support/deployable.ts` and holds wha
 the worker folder. A describe that builds its chains once in `beforeAll` hands them to `release` in
 `afterAll` instead. After `waitForRoutes` the case calls `waitForRecording` from the same module; a
 chain with no route, like the MCP one, goes through `waitForFirstRecording` with a warm-up of its
-own. A call sent the moment a route answers can record no session (`docs/product-defects.md`), so the
+own. A call sent the moment a route answers can record no session, so the
 gate sends warm-up calls until one records, and fails once more of them are lost than
 `UNRECORDED_WARM_UP_LIMIT` allows.
 
@@ -661,8 +662,5 @@ case.
 ### Related
 
 - Design and rollout: issue #710.
-- `docs/product-defects.md`: the defects this work found in the platform itself, each with the
-  `file:line` or the command that proves it. A spec that pins a defect rather than a contract says
-  so and names its entry, and every `test.fail()` case in the suite is filed there.
 - `specs/env/service-type-roundtrip.spec.ts` is the live check for the per-type service file format
   (#553).

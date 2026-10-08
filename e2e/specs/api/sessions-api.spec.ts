@@ -40,8 +40,8 @@
  * - **The external-id lookup is light unless asked.** `sessionElements` is null without
  *   `includeDetails=true`, and a token no session carries answers 404 with an error body naming it.
  *
- * One platform defect is pinned here as `test.fail()`, filed in `docs/product-defects.md`: a filter
- * clause omitting `feature` or `condition` answers 500 where it should answer 400.
+ * One platform defect is pinned here as `test.fail()`: a filter clause omitting `feature` or
+ * `condition` answers 500 where it should answer 400.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { ABSENT_UUID } from "../../support/absent.js";
@@ -653,10 +653,9 @@ test("the search takes an empty body and refuses a request carrying none", { tag
 );
 
 test("a filter clause that names no column is refused", { tag: ["@sessions", "@tier2"] }, async ({ sessions }) => {
-    // A platform defect, filed in `docs/product-defects.md` as "a malformed session filter clause
-    // answers 500". PR #769 guarded an absent `filterRequestList`; a clause *inside* the list that
-    // omits `feature` or `condition` still reaches the switch and is dereferenced there. It is the
-    // easy mistake to make from the catalog side, where the same idea is spelled `column`:
+    // A platform defect. PR #769 guarded an absent `filterRequestList`; a clause *inside* the list
+    // that omits `feature` or `condition` still reaches the switch and is dereferenced there. It is
+    // the easy mistake to make from the catalog side, where the same idea is spelled `column`:
     // `FilterRequestDTO.feature` carries `@JsonProperty("column")` there and nothing does here, so
     // a body copied across services deserializes with a null feature and answers 500.
     test.fail();

@@ -81,10 +81,8 @@ module.
 - An implementation plan, when one is committed, is `docs/plans/<yyyymmdd>-<slug>.md`, and moves to
   `docs/plans/completed/` under the same name once its tasks are done.
 - `docs/repro/<slug>/` holds the artifacts of one reproduction — the chain document, the archive,
-  and a `README.md` with the commands. Reference it from whatever entry needed it rather than
-  pasting a ZIP archive into prose.
-- `docs/product-defects.md` is the register of defects found in the platform itself. Every entry
-  carries the `file:line` or the command that proves it; nothing there is inferred.
+  and a `README.md` with the commands. Reference it from whatever issue or document needed it
+  rather than pasting a ZIP archive into prose.
 
 ### Top-level build commands
 

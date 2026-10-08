@@ -79,9 +79,9 @@ export interface MicroDefect {
   matches(message: string): boolean;
 }
 
-/** docs/product-defects.md, "The micro engine has no xslt component". */
+/** #997: the micro engine has no xslt component. */
 export const MICRO_XSLT: MicroDefect = {
-  title: "the micro engine has no xslt component (docs/product-defects.md)",
+  title: "the micro engine has no xslt component (#997)",
   // The case puts the engine's log line for the endpoint it could not resolve in the message.
   matches: (message) =>
     /No endpoint could be found for: xslt:[\s\S]*Expected: 200\s+Received: 500/.test(message),

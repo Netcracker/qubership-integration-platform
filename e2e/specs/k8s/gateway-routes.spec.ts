@@ -6,8 +6,7 @@
  * one chain with `externalRoute: true` to the classic engine, which writes a rule for it into the
  * HTTPRoute `qip-engine-v1-chain-public-routes`, and reads that rule off the cluster. The engine
  * keeps every external trigger of a domain in that one HTTPRoute, and the Gateway API caps it at 16
- * rules (`docs/product-defects.md`, "An engine domain serves at most 16 external HTTP triggers"), so
- * this case deploys one chain and undeploys it before it ends.
+ * rules (#1001), so this case deploys one chain and undeploys it before it ends.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { ENGINE_CASE_TIMEOUT, waitForDeployed } from "../../support/corpus.js";

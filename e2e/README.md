@@ -147,9 +147,8 @@ chains of its own through the classic deployment API, calls the classic engine d
 chains through the testing service, which calls the classic engine only.
 
 **Parity findings.** A case that passes under `runtime` and fails under `runtime-micro` is a
-finding, pinned with `test.fail(engineKind === "micro", …)` and an entry in
-`docs/product-defects.md`. The pinned micro-engine defect is that the engine has no `camel-xslt` at
-runtime.
+finding, pinned with `test.fail(engineKind === "micro", …)` and its issue. The pinned micro-engine
+defect is #997: the engine has no `camel-xslt` at runtime.
 
 **What each target costs**, measured with the other target stopped:
 
@@ -338,8 +337,8 @@ fails, `e2e/.e2e-ui-server.log` holds the whole `vite preview` log.
 
 ### Known defects pinned with `test.fail()`
 
-A known divergence is pinned with `test.fail()` and its entry in `docs/product-defects.md`, so the
-run stays green while the defect stands. `grep -rn "test\.fail(" specs/` lists them. A pinned case
+A known divergence is pinned with `test.fail()` and a comment naming the defect, so the run stays
+green while the defect stands. `grep -rn "test\.fail(" specs/` lists them. A pinned case
 turns red the day its defect is fixed, and that is the signal to remove the annotation.
 
 The `list` reporter marks a pinned case with ✘ when it fails as expected, the same mark a real
@@ -349,8 +348,8 @@ below the list.
 
 ### Red runs that were not regressions
 
-Three kinds of red have been seen without a regression behind them. The first two are platform races
-filed in `docs/product-defects.md`; the third is a race in the suite's own code. Check here before
+Three kinds of red have been seen without a regression behind them. The first two are platform races;
+the third is a race in the suite's own code. Check here before
 you bisect.
 
 - **`specs/api/import-export.spec.ts`, three times in eleven full runs.**

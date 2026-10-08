@@ -8,7 +8,7 @@
  * **`chainIds` with `httpTriggerIds`** is the form the UI sends, and the one asserted here.
  * `externalRoutes` defaults to `true` and the OpenAPI predicate then keeps only external routes, so a
  * fixture declaring `externalRoute: false` needs `externalRoutes=false` to appear at all. The other
- * shapes are a WON'T FIX in `docs/product-defects.md`.
+ * shapes fail, and that is decided as won't fix.
  *
  * The whole-catalog export, with neither parameter, is in `specs/global/export-all.spec.ts`.
  */
