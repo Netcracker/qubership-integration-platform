@@ -421,7 +421,9 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
         if (!(cached instanceof Map<?, ?> existingSpecMap)) {
             return yamlMapper.createObjectNode();
         }
-        return yamlMapper.valueToTree((Map<String, Object>) existingSpecMap);
+        JsonNode existingSpec = yamlMapper.valueToTree((Map<String, Object>) existingSpecMap);
+        HttpRouteRuleNormalizer.normalizeIntegralDoubles(existingSpec);
+        return existingSpec;
     }
 
     /**
