@@ -13,7 +13,7 @@ Before service is being exported, all environments with address shall be pre-con
 3. Add a unique label to each of your environment. It could be done via Editing the environment card ( check for "Labels" combo-box)
 4. At this point, you can export the service(s) for future import.
 
-Now, when you are importing external services via [Deployment Process](../../01__Chains/3__Deployments/deployments.md), you can use **deployLabel** parameter in the request's body to specify the exact label (added as part of the preparation steps) of the environment you want to deploy the service to.
+Now, when you are importing external services via [Deployment Process](../../01__Chains/3__Deployments/readme.md), you can use **deployLabel** parameter in the request's body to specify the exact label (added as part of the preparation steps) of the environment you want to deploy the service to.
 
 ![activate_environment](img/label_env_activate.svg)
 
@@ -29,7 +29,7 @@ When configured properly, fetching of the environment based on the labels is bei
 
 ---
 
-To properly prepare the service for export and make sure that it will be possible to utilize labels during the import, you can use CIP UI. For more details, please refer to [External Services](../../02__Services/1__External/external.md).
+To properly prepare the service for export and make sure that it will be possible to utilize labels during the import, you can use CIP UI. For more details, please refer to [External Services](../../02__Services/1__External/readme.md).
 
 ## Data Storage
 
@@ -42,4 +42,3 @@ As part of the preparation steps, labels are going to be stored under the servic
 ---
 
 To utilize mentioned approach, configuration shall be done via CIP UI (when preparing the service for export) and via API (when adding the label to the **deployLabel** body parameter).
-

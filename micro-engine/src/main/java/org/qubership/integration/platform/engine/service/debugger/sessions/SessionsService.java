@@ -223,7 +223,7 @@ public class SessionsService {
 
         updateSessionInfoForElements(exchange, sessionElement);
 
-        if (stepName.equals(elementInfo.getId())) {
+        if (IdentifierUtils.isValidUUID(stepName)) {
             MetadataUtil.lookupBeanForElement(exchange, stepName, WireTapInfo.class).ifPresentOrElse(
                     wireTapInfo -> {
                         for (String id : wireTapInfo.getParentIds()) {
@@ -237,12 +237,10 @@ public class SessionsService {
                     },
                     () -> sessionElement.setParentElementId(extractParentId(exchange, sessionId, elementInfo))
             );
+            sessionElement.setElementName(elementInfo.getName());
         } else {
             sessionElement.setParentElementId(
                 (String) exchange.getProperty(Properties.STEPS, Deque.class).peek());
-        }
-        if (IdentifierUtils.isValidUUID(stepName)) {
-            sessionElement.setElementName(elementInfo.getName());
         }
         return sessionElement;
     }

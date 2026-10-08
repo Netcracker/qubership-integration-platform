@@ -1,0 +1,165 @@
+# Variables
+
+> ⛔️ This functionality is not available via the VS Code Extension.
+
+## Description
+
+---
+Variables are data items, which can be used in different places of Cloud Integration Platform like chain elements, services, configuration management settings, etc. Variable can contain any useful information for integration flows like namespace, RabbitMQ server address, etc.
+
+There are two variable types:
+- **Common** - commonly used type of variables. Their values are stored in the Consul and visible for user.
+- **Secured** - variables, specifically derived to handle protected data (e.g. credentials). Such variables are stored in K8S secrets, and their values are hidden on respective tab.
+
+> ℹ️ **Note:** When it is required to refer to the secured variables, which are stored in **non-default secret**, it is required to specify their secret before their names with a "**:**" delimiter.
+
+### Design Time Variables
+Variables, that are specified on Admin Tools and referred within a chain via **"\#{"** combination, are considered to be **design time variables**.
+Hence, when variable's value is updated on Admin Tools ("Variables" section) it won't be automatically picked up during chain execution. To make active chain utilize new design time variable's value, it is required to redeploy the chain or restart engine's pod.
+
+Please refer to the syntax sample below for design time variables:
+
+```text
+#{variable_name}
+#{secret_name:variable_name} //only for secured variables, stored in non-default secrets.
+```
+
+### Runtime Variables
+It is possible to configure **runtime variables**, so the chain will always pick up the actual variable value during processing. Redeploying the chain is not required when the variable is configured using the syntax described below:
+
+- For **CIP fields** (where Apache Simple language is being utilized):
+
+  ```text
+  ${exchangeProperty.variables["variable_name"]}
+  ${exchangeProperty.variables["secret_name:variable_name"]} //only for secured variables, stored in non-default secrets.
+  ```
+
+- For **Scripts** (that use Groovy language):
+
+```groovy
+  exchange.getProperty("variables").get("variable_name")
+  exchange.getProperty("variables").get("secret_name:variable_name") //only for secured variables, stored in non-default secrets.
+ ```
+### Default Variables
+There are currently two default variables, that are being specified as part of the installation:
+- namespace
+- tenant_id
+
+Both variables will be available on Common variables tab in the application.
+
+> ℹ️ **Note:** Please note, that both variables will be restored with refreshed values during pod startup. Before operating with mentioned variables, it is strongly recommended to consult with technical team.
+
+### Variables Autocompletion
+If variable is configured in Admin Tools, there is no need to remember its exact name when specifying it for a particular field.
+Simply enter combination of **"#{"** (without quotes) to get a dropdown list with a suggestion and select desired design time variable.
+When specific fields do not "recognize" such combination, it means that fields do not support operating with them
+(the only exception is URI field for [HTTP Trigger](../../01__Chains/1__Graph/1__Elements_Library/6__Triggers/1__HTTP_Trigger/readme.md)
+and [HTTP Sender](../../01__Chains/1__Graph/1__Elements_Library/7__Senders/4__HTTP_Sender/readme.md), please read respective articles for more details).
+
+> ℹ️ **Note:** For **common variables used in design time mode** there is no need to remember its value or check it on dedicated UI page. **Just hover the mouse on variable name and the value will appear on the screen**.
+
+## Process Initialization
+
+---
+
+Default set of variables is being delivered as part of OOB. Additional variables (or updates for existing ones) could be added via "**Variables**" tab under "**Admin tools**" section.
+
+## User Interface
+
+---
+### View Common Variables
+After navigation to "Variables" tab, the table with common variables will be initially shown, where next information and control elements are presented:
+
+- **Key** - non-editable name of the variable.
+- **Value** - editable variable's value. When column is clicked, the same options are available.
+
+**Control panel**
+
+At the top of the table the following options are available:
+  - **Search variables** - search box, provides ability to find respective data in the table.
+  - ![delete](img/delete.svg) - deletes the variable(s), selected via checkbox.
+  - ![cloud-download](img/cloud-download.svg) - exports variables, selected via checkbox. If no specific variables were selected before clicking, then system will export all of them at once.
+  - ![cloud-upload](img/cloud-upload.svg) - opens pop-up, that allows to import variables.
+  - ![plus](img/plus.svg) - allows to add a new variable to the table.
+
+### View Secured Variables
+Click "**Secured**" sub-tab in the menu on the right to open secured variables table, where next information and control elements are presented:
+
+* **Secret** - name of the secret. Under each secret secured variables can be created.
+  - **Key** - non-editable name of the variable or secret. Default secret will also be marked with (Default) identifier.
+  - **Value** - editable variable's value, masked with dots.
+- **Control panel** - panel, placed on the right top of the table. Provides next capabilities:
+  - **Search secrets** - search box, provides ability to find respective data in the table.
+  - ![delete](img/delete.svg) - deletes the variable(s), selected via checkbox.
+  - ![plus](img/plus.svg) - allows to create a new secret.
+
+Under each secret the following actions can be applied:
+* ![cloud-download](img/cloud-download.svg) - export secret as Helm Chart.
+* ![plus](img/plus.svg) - add variable.
+
+> ⚠️ **Warning:** This icon is disabled for the **default secret**, since adding new variables to it is no longer allowed.
+
+### Create Secret
+To create a secret, which represents a **secured storage object in Kubernetes**, click "**Add Secret**" button marked with ![plus](img/plus.svg), specify the name and confirm operation with "**Create**" button.
+As the result of this operation, there will be new Secret created with a given name in Kubernetes. Secret's name must be specified in lower case, start with a letter and contain no special symbols besides "-", which could be used as a delimiter.
+
+> ⚠️ **Warning:** Never **ever** attempt to override or re-create secret with the name "*cip-secured-variables-v2*", as it is reserved for **default** secret name. Any improper actions with default secret may lead to data corruption or system malfunction.
+
+### Create Variable
+To add new variable, click actions menu icon ![plus](img/plus.svg) for respective secret, specify variable name and value in the respective fields. Finally, press button **"Add"** on the widget.
+
+### Edit Variable Value
+To edit variable value, hover the mouse over the value field, and click it, when you see icon ![edit](img/edit.svg). Type new value and press **```Enter```**.
+
+### Delete Variable
+To delete variable(s), select the suitable variables by checkbox near variable key (name) and press ![delete](img/delete.svg). To delete every variable from the secret, mark the secret with checkbox, click ![delete](img/delete.svg) and confirm operation (secret itself won't be removed).
+
+### Export Variables
+To export common variables, select the suitable variable by checkboxes near respective keys and click ![cloud-download](img/cloud-download.svg).
+
+> ℹ️ **Note:** If no specific records are checked for export, all existing variables are going to be exported by pressing the export button.
+
+### Download Secrets
+To download a secret from "**Secured Variables**" tab, click on ![cloud-download](img/cloud-download.svg) for respective secret record. Resulted file will have **.yaml** format.
+
+### Import Variables
+To import variables via UI capabilities, press ![cloud-upload](img/cloud-upload.svg) button on respective tab for common variables, upload single file in **.yaml** or **.yml** format and press "**Import**". Archive resulted in export chain operation may also be a subject for import if it contains variables in it.
+
+YAML file sample:
+
+```yaml
+KAFKA_URL: "kafka.test-service:0000"
+MAX_USER_COUNT: "10000"
+namespace: "Cloud_space"
+ENV_TYPE: "PROD"
+1: "1"
+```
+If there are Import Instructions configured for common variables that are going to be imported, system **ignores** them during the import process. Find more details about Import Instructions in the respective article: [Import Instructions](../4__Import_Instructions/readme.md).
+> ℹ️ **Note:** There are syntax specifics, that shall be considered:
+>
+> - every numeric key shall be wrapped with quotation marks.
+> - both key and value will be imported with AS-IS letter cases.
+
+As the result of the import, new variables will be published to the respective storages:
+
+- **Consul** - for common variables.
+
+Variable's values **will override** the ones that are currently available in the storages, if the variables names match.
+
+## Data Storage
+
+---
+
+Each common variables are stored in Consul by the following path:
+
+```text
+config/{namespace}/cip-engine-configurations/variables/common/{variableName}
+```
+
+Secured variables are stored in K8S secrets.
+
+## Configuration
+
+---
+
+Configuration could be done via CIP user interface or via native functionality of K8s / Consul.

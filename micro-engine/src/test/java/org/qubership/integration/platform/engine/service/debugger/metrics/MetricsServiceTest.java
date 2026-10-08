@@ -34,8 +34,10 @@ class MetricsServiceTest {
     private static final String CHAIN_ID = "chain-id";
     private static final String CHAIN_NAME = "Chain name";
     private static final String ELEMENT_ID = "element-id";
+    private static final String SNAPSHOT_ELEMENT_ID = "snapshot-element-id";
     private static final String ELEMENT_NAME = "Element name";
     private static final String PARENT_ID = "parent-id";
+    private static final String PARENT_SNAPSHOT_ID = "parent-snapshot-id";
     private static final String PARENT_NAME = "Parent name";
     private static final String SNAPSHOT_NAME = "Snapshot name";
 
@@ -116,7 +118,7 @@ class MetricsServiceTest {
         )).thenReturn(distributionSummary);
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
-            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, ELEMENT_ID, ServiceCallInfo.class))
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, SNAPSHOT_ELEMENT_ID, ServiceCallInfo.class))
                     .thenReturn(serviceCallInfo);
 
             metricsService.processElementStartMetrics(exchange, context);
@@ -135,7 +137,7 @@ class MetricsServiceTest {
         when(metricsStore.isMetricsEnabled()).thenReturn(true);
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
-            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, ELEMENT_ID, ServiceCallInfo.class))
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, SNAPSHOT_ELEMENT_ID, ServiceCallInfo.class))
                     .thenReturn(serviceCallInfo);
 
             metricsService.processElementStartMetrics(exchange, context);
@@ -165,19 +167,66 @@ class MetricsServiceTest {
     }
 
     @Test
+    void shouldRecordServiceCallResponsePayloadSizeWhenProtocolIsHttp() {
+        Exchange exchange = exchangeWithContentLength(32);
+        ChainExecutionContext context = chainExecutionContext(ChainElementType.SERVICE_CALL);
+        ServiceCallInfo serviceCallInfo = ServiceCallInfo.builder()
+                .protocol(ChainProperties.OPERATION_PROTOCOL_TYPE_HTTP)
+                .build();
+        stubPayloadMetricsEnabled();
+        when(metricsStore.processHttpPayloadSize(
+                false,
+                CHAIN_ID,
+                CHAIN_NAME,
+                ELEMENT_ID,
+                ELEMENT_NAME,
+                ChainElementType.SERVICE_CALL.getText()
+        )).thenReturn(distributionSummary);
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, SNAPSHOT_ELEMENT_ID, ServiceCallInfo.class))
+                    .thenReturn(serviceCallInfo);
+
+            metricsService.processElementFinishMetrics(exchange, context, false);
+        }
+
+        verify(distributionSummary).record(32.0);
+    }
+
+    @Test
+    void shouldSkipServiceCallResponsePayloadSizeWhenProtocolIsNotHttp() {
+        Exchange exchange = exchangeWithContentLength(32);
+        ChainExecutionContext context = chainExecutionContext(ChainElementType.SERVICE_CALL);
+        ServiceCallInfo serviceCallInfo = ServiceCallInfo.builder()
+                .protocol(ChainProperties.OPERATION_PROTOCOL_TYPE_KAFKA)
+                .build();
+        when(metricsStore.isMetricsEnabled()).thenReturn(true);
+
+        try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, SNAPSHOT_ELEMENT_ID, ServiceCallInfo.class))
+                    .thenReturn(serviceCallInfo);
+
+            metricsService.processElementFinishMetrics(exchange, context, false);
+        }
+
+        verify(metricsStore).isMetricsEnabled();
+        verifyNoMoreInteractions(metricsStore);
+    }
+
+    @Test
     void shouldRecordFallbackForMainCircuitBreakerWhenMainBranchFailsWithoutFallback() {
         Exchange exchange = MockExchanges.defaultExchange();
         exchange.setProperty(Properties.CIRCUIT_BREAKER_HAS_FALLBACK, false);
         ChainExecutionContext context = chainExecutionContext(
                 ChainElementType.CIRCUIT_BREAKER_MAIN_ELEMENT,
-            PARENT_ID,
+            PARENT_SNAPSHOT_ID,
                 CamelNames.MAIN_BRANCH_CB_STEP_PREFIX
         );
         ElementInfo parentElementInfo = elementInfo(ChainElementType.CIRCUIT_BREAKER, PARENT_ID, PARENT_NAME, null);
         when(metricsStore.isMetricsEnabled()).thenReturn(true);
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
-            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, PARENT_ID, ElementInfo.class))
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, PARENT_SNAPSHOT_ID, ElementInfo.class))
                     .thenReturn(parentElementInfo);
 
             metricsService.processElementFinishMetrics(exchange, context, true);
@@ -191,14 +240,14 @@ class MetricsServiceTest {
         Exchange exchange = MockExchanges.defaultExchange();
         ChainExecutionContext context = chainExecutionContext(
                 ChainElementType.CIRCUIT_BREAKER_FALLBACK,
-            PARENT_ID,
+            PARENT_SNAPSHOT_ID,
                 "Fallback"
         );
         ElementInfo parentElementInfo = elementInfo(ChainElementType.CIRCUIT_BREAKER, PARENT_ID, PARENT_NAME, null);
         when(metricsStore.isMetricsEnabled()).thenReturn(true);
 
         try (MockedStatic<MetadataUtil> metadataUtil = mockStatic(MetadataUtil.class)) {
-            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, PARENT_ID, ElementInfo.class))
+            metadataUtil.when(() -> MetadataUtil.getBeanForElement(exchange, PARENT_SNAPSHOT_ID, ElementInfo.class))
                     .thenReturn(parentElementInfo);
 
             metricsService.processElementFinishMetrics(exchange, context, false);
@@ -305,6 +354,7 @@ class MetricsServiceTest {
     ) {
         return ElementInfo.builder()
                 .id(elementId)
+                .snapshotElementId(SNAPSHOT_ELEMENT_ID)
                 .name(elementName)
                 .type(elementType.getText())
                 .parentId(parentId)
