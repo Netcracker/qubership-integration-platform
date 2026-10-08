@@ -24,9 +24,9 @@ content:
     name: "Slurp Json"
     type: "script"
     properties:
-      # Textually unique, like every script in this corpus: the compiled-script cache is keyed on
-      # the trimmed source alone, so two identical scripts share one compiled class and a per-chain
-      # assertion can be met by another chain's compilation. Do not deduplicate these.
+      # Textually unique within this chain: the engine caches a compiled script per chain, keyed
+      # on its trimmed source, so two identical scripts here would share one compiled class and an
+      # assertion about one could be met by the compilation of the other. Do not deduplicate these.
       script: |-
         // script-libraries-json/slurp-json
         // Parsed from the raw bytes rather than from a String, which is the reading a stream body

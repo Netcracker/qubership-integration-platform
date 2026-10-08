@@ -290,10 +290,7 @@ right now, so a controller added to a service fails a run.
    | `POST /v1/catalog/maintenance/snapshots/prune` | the delete carries no caller, chain, or run-token predicate |
    | `GET /v1/catalog/export` | takes no IDs, so it exports every chain |
 
-   Global **state** counts the same as a global view. `specs/global/script-external-library.spec.ts`
-   reads its own chain, but the compiled-script cache it asserts is one Spring singleton that
-   `GroovyLanguage.stop()` on any undeploy clears, so no promise about its own chains keeps another
-   worker off it.
+   Global **state** counts the same as a global view.
 3. **A spec that restarts a service belongs in `specs/env/`.** A restart costs about 30 s against
    0.15 s for an API assertion and disturbs everything in flight. Placement follows that scheduling
    need, not the spec's subject.
@@ -375,7 +372,7 @@ right now, so a controller added to a service fails a run.
     a `since` for that reason: an unscoped read is satisfied by an unrelated earlier line, and an
     absence-only assertion is equally green when the mechanism never ran. Assert the line that
     proves it ran **and** the line that would show it failing, and scope the positive half to
-    something only this case could have caused. `specs/global/script-external-library.spec.ts` is
+    something only this case could have caused. `specs/runtime/script-external-library.spec.ts` is
     the shape: `Resetting groovy script cache` read after the case's own `Saved library` line for its
     model id, and `Failed to reset groovy script cache` absent.
 19. **Correlate a broker or file trigger by transport, never by the shared run token.**

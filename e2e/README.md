@@ -141,7 +141,7 @@ logging properties and records no sessions, so seed it again:
 CIP_TARGET=k8s E2E_KEEP=1 npx playwright test --project=seed
 ```
 
-**The classic-only runtime files.** `runtime-micro` leaves out 11 of the 26 files in
+**The classic-only runtime files.** `runtime-micro` leaves out 12 of the 27 files in
 `specs/runtime/`, listed in `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`. Each deploys
 chains of its own through the classic deployment API, calls the classic engine directly, or starts
 chains through the testing service, which calls the classic engine only.

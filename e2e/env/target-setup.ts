@@ -196,6 +196,7 @@ export const CLASSIC_ONLY_RUNTIME_FILES: readonly string[] = [
   "metrics.spec.ts",
   "misc-elements.spec.ts",
   "placeholder.spec.ts",
+  "script-external-library.spec.ts",
   "script-failures.spec.ts",
   "service-call-axes.spec.ts",
   "service-call-sync.spec.ts",

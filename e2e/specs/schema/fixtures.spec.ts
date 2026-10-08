@@ -107,19 +107,18 @@ for (const { dir, name } of fixtures) {
   });
 }
 
-test("no two scripts under fixtures/script/ carry the same text", { tag: ["@infra", "@tier1"] }, () => {
-  // The rule `registry/elements.ts` states, enforced where it costs nothing. The engine's
-  // compiled-script cache is keyed on the trimmed source alone and one language bean serves every
-  // per-chain Camel context, so two chains carrying identical script text share one compiled class
-  // — and a per-chain reading is then satisfied by another chain's compilation. The comment line at
-  // the top of each fixture script is what keeps them apart; this is what notices when one is
-  // copied without it.
+test("no two scripts in one chain under fixtures/script/ carry the same text", { tag: ["@infra", "@tier1"] }, () => {
+  // The rule `registry/elements.ts` states, enforced where it costs nothing. The engine keys a
+  // compiled script on its trimmed source, in a cache that belongs to the chain's Camel context, so
+  // two scripts in one chain with identical text share one compiled class, and a reading about one
+  // of them is satisfied by the compilation of the other. The comment line at the top of each
+  // fixture script keeps them apart; this check notices when one is copied without it.
   //
-  // Scoped to the Script corpus, which is the only directory whose specs make per-chain readings
-  // about compilation. `fixtures/chains/` and `fixtures/axes/` already share script text across
-  // six groups, and no spec there says anything a shared compilation could satisfy.
-  const byText = new Map<string, string>();
+  // Scoped to the Script corpus, which is the only directory whose specs make readings about
+  // compilation.
+  let scripts = 0;
   for (const name of chainFixtureNames(SCRIPT_FIXTURE_DIR)) {
+    const byText = new Map<string, string>();
     for (const [where, script] of scriptsOf(
       readFixtureDocument(name, renderFixture(SCRIPT_FIXTURE_DIR, name, RUN)).document,
     )) {
@@ -127,8 +126,9 @@ test("no two scripts under fixtures/script/ carry the same text", { tag: ["@infr
       expect(already, `${name}/${where} repeats the script text of ${already}`).toBeUndefined();
       byText.set(script, `${name}/${where}`);
     }
+    scripts += byText.size;
   }
-  expect(byText.size, "no fixture under fixtures/script/ carries a script").toBeGreaterThan(0);
+  expect(scripts, "no fixture under fixtures/script/ carries a script").toBeGreaterThan(0);
 });
 
 test("EXPORTED_CHAIN_SCHEMA is the chain schema's $id and the validator resolves it", { tag: ["@infra", "@tier1"] }, () => {

@@ -24,10 +24,6 @@ content:
     name: "Script"
     type: "script"
     properties:
-      # Textually unique across the corpus, and the first line is what keeps it that way. The
-      # compiled-script cache is keyed on the trimmed source alone, so two fixtures with identical
-      # text share one compiled class and a per-chain assertion can be met by another chain's
-      # compilation. Do not deduplicate these.
       script: |-
         // script-inline/script
         def marker = 'script-inline'

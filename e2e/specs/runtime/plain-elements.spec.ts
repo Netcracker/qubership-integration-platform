@@ -9,7 +9,6 @@
  *   step first. The XSLT step is traced after the steps that prepare it.
  * - `split-async-2` answers without waiting for its branches, which run in parallel, so the branches
  *   are compared as a set. One branch sleeps, and the answer has to arrive before that branch ends.
- *   A micro domain can record a branch step under the wrong parent: pinned.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
