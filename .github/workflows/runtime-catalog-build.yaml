@@ -6,7 +6,7 @@ on:
     paths:
       - 'runtime-catalog/**'
       - 'integration-build-pipeline/**'
-      - 'parent/**'
+      - 'parents/**'
       - 'pom.xml'
 
 permissions: {}

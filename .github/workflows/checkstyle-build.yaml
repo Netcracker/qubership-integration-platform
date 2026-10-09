@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'checkstyle/**'
+      - 'parents/**'
       - 'pom.xml'
 
 permissions: {}

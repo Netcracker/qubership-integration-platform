@@ -5,6 +5,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'micro-engine/**'
+      - 'parents/**'
       - 'pom.xml'
 
 permissions: {}
