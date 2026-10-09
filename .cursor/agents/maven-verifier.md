@@ -1,6 +1,6 @@
 ---
 name: maven-verifier
-description: Verify changes in any Maven module of the monorepo (engine, micro-engine, runtime-catalog, sessions-management, parent, checkstyle) by compiling and testing only the affected module. Use after editing Java sources, POMs, or resources under those modules, or when asked whether backend changes still build. Returns a verdict with the failing output; it does not fix anything.
+description: Verify changes in any Maven module of the monorepo (engine, micro-engine, runtime-catalog, sessions-management, parents, bom, checkstyle) by compiling and testing only the affected module. Use after editing Java sources, POMs, or resources under those modules, or when asked whether backend changes still build. Returns a verdict with the failing output; it does not fix anything.
 tools: Bash, Read, Grep, Glob
 ---
 
@@ -31,7 +31,8 @@ Map each path to its module — the top-level directory is the module name:
 | `micro-engine/` | micro-engine | 246 | Quarkus; slowest suite by far |
 | `runtime-catalog/` | runtime-catalog | 85 | ANTLR sources regenerate on build |
 | `sessions-management/` | sessions-management | 2 | |
-| `parent/` | parent | — | shared config; affects every module |
+| `parents/` | parents | — | parent POMs; affect every module |
+| `bom/` | bom | — | lists module versions; no module depends on it |
 | `checkstyle/` | checkstyle | — | shared rules; affects every module |
 
 Decide how much to build:
@@ -40,9 +41,9 @@ Decide how much to build:
 - **Only `*.md` under a module** — stop the same way.
 - **One module touched** — build that module alone, without `-am`. Its dependencies are
   already installed in `~/.m2`.
-- **`parent/` or `checkstyle/` touched** — these change every downstream module. Install
+- **`parents/` or `checkstyle/` touched** — these change every downstream module. Install
   them first, then verify the modules that matter to the caller:
-  `mvn -q -pl parent,checkstyle install -Dgpg.skip=true`.
+  `mvn -q -pl parents/base,parents/spring,parents/quarkus,checkstyle install -Dgpg.skip=true`.
 - **Several modules touched** — pass them together: `-pl engine,runtime-catalog`.
 
 ## 2. Run the check
@@ -99,8 +100,8 @@ run on Quarkus and dominate the wall-clock time of any full-module run.
   before touching `~/.m2`.
 - The whole aggregator (`mvn clean install` at the root) — minutes of work to check one
   module.
-- `-am` when only the module's own sources changed. It pulls `parent` and `checkstyle`
-  into the reactor for nothing.
+- `-am` when only the module's own sources changed. It pulls the parent POMs and
+  `checkstyle` into the reactor for nothing.
 
 ## 4. Read failures correctly
 
@@ -113,7 +114,7 @@ Not every red build is a code problem:
 - **Checkstyle violations** — these fail at `compile`, before any test runs. Report the
   rule and the file; the module's own `checkstyle-suppressions.xml` covers local
   exceptions if one is genuinely warranted.
-- **Missing dependency after a `parent/` change** — install `parent` and `checkstyle`
+- **Missing dependency after a `parents/` change** — install the parent POMs and `checkstyle`
   first, then retry once.
 
 ## 5. Report
