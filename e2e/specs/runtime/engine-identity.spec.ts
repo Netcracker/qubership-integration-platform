@@ -4,7 +4,7 @@
  * `runtime` and `runtime-micro` run the same files, and every other case in them would pass just as
  * well if both projects reached the classic engine. The session records the kind of engine that ran
  * the chain, so this case reads it. It is the one runtime spec whose subject is `engineKind`, and the
- * one allowed to read it outside a micro-only `test.fail()`.
+ * only one allowed to read it.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
