@@ -117,12 +117,18 @@ class VersionInvariantsTest(RepositoryCopy):
         """The committed tree satisfies every invariant."""
         result = self.check()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn(f"Version invariants hold: platform {self.platform}", result.stdout)
+        self.assertIn(
+            f"Version invariants hold: platform {self.platform}", result.stdout
+        )
 
     def test_root_revision_must_be_semver(self):
         """A root <revision> that is not X.Y.Z stops the check."""
-        self.substitute("pom.xml", r"<revision>[^<]+</revision>", "<revision>1.5</revision>")
-        self.assertFailsWith(self.check(), "root pom <revision> is not X.Y.Z (got '1.5')")
+        self.substitute(
+            "pom.xml", r"<revision>[^<]+</revision>", "<revision>1.5</revision>"
+        )
+        self.assertFailsWith(
+            self.check(), "root pom <revision> is not X.Y.Z (got '1.5')"
+        )
 
     def test_parent_version_follows_the_platform(self):
         """A parent POM whose own version drifted is named."""
@@ -156,7 +162,9 @@ class VersionInvariantsTest(RepositoryCopy):
             r"<qip\.integration-build-pipeline\.revision>[^<]+<",
             "<qip.integration-build-pipeline.revision>0.0.1<",
         )
-        self.assertFailsWith(self.check(), "runtime-catalog/pom.xml pins the library at '0.0.1'")
+        self.assertFailsWith(
+            self.check(), "runtime-catalog/pom.xml pins the library at '0.0.1'"
+        )
 
     def test_checkstyle_pin_follows_checkstyle(self):
         """A parent pinning another checkstyle revision is named."""
@@ -232,7 +240,9 @@ class VersionInvariantsTest(RepositoryCopy):
             r"<artifactId>qip-schemas</artifactId>\s*<version>[^<]+</version>\s*</dependency>",
             "",
         )
-        self.assertFailsWith(self.check(), "bom/pom.xml has no entry for qip-schemas (schemas)")
+        self.assertFailsWith(
+            self.check(), "bom/pom.xml has no entry for qip-schemas (schemas)"
+        )
 
     def test_parents_share_their_common_properties(self):
         """A property both parents declare must have one value."""
@@ -321,22 +331,28 @@ class SyncBomEntryTest(RepositoryCopy):
     def release(self, module, version):
         """Write a module's released <revision> and move its BOM entry, as the release job does."""
         self.substitute(
-            f"{module}/pom.xml", r"<revision>[^<]+</revision>", f"<revision>{version}</revision>"
+            f"{module}/pom.xml",
+            r"<revision>[^<]+</revision>",
+            f"<revision>{version}</revision>",
         )
         return self.run_script("sync-bom-entry.sh", module, version)
 
     def test_moves_the_entry_and_keeps_the_changelist(self):
         """The entry takes the new number and keeps ${changelist}; other entries stay."""
         catalog = self.value(
-            "bom/pom.xml", r"<artifactId>qip-runtime-catalog</artifactId>\s*<version>([^<]+)<"
+            "bom/pom.xml",
+            r"<artifactId>qip-runtime-catalog</artifactId>\s*<version>([^<]+)<",
         )
         result = self.release("engine", "9.9.9")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(result.stdout.strip(), "bom/pom.xml")
-        self.assertEqual(self.value("bom/pom.xml", self.ENGINE_ENTRY), "9.9.9${changelist}")
+        self.assertEqual(
+            self.value("bom/pom.xml", self.ENGINE_ENTRY), "9.9.9${changelist}"
+        )
         self.assertEqual(
             self.value(
-                "bom/pom.xml", r"<artifactId>qip-runtime-catalog</artifactId>\s*<version>([^<]+)<"
+                "bom/pom.xml",
+                r"<artifactId>qip-runtime-catalog</artifactId>\s*<version>([^<]+)<",
             ),
             catalog,
         )
@@ -348,7 +364,10 @@ class SyncBomEntryTest(RepositoryCopy):
         result = self.run_script("sync-bom-entry.sh", "checkstyle", "9.9.9")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(
-            self.value("bom/pom.xml", r"<artifactId>qip-checkstyle</artifactId>\s*<version>([^<]+)<"),
+            self.value(
+                "bom/pom.xml",
+                r"<artifactId>qip-checkstyle</artifactId>\s*<version>([^<]+)<",
+            ),
             "9.9.9",
         )
 
@@ -390,10 +409,13 @@ class SyncBomEntryTest(RepositoryCopy):
         self.release("runtime-catalog", "8.8.8")
         self.git("commit", "--quiet", "--all", "--message", "catalog")
         self.git("rebase", "--quiet", "engine-release")
-        self.assertEqual(self.value("bom/pom.xml", self.ENGINE_ENTRY), "9.9.9${changelist}")
+        self.assertEqual(
+            self.value("bom/pom.xml", self.ENGINE_ENTRY), "9.9.9${changelist}"
+        )
         self.assertEqual(
             self.value(
-                "bom/pom.xml", r"<artifactId>qip-runtime-catalog</artifactId>\s*<version>([^<]+)<"
+                "bom/pom.xml",
+                r"<artifactId>qip-runtime-catalog</artifactId>\s*<version>([^<]+)<",
             ),
             "8.8.8${changelist}",
         )
@@ -412,7 +434,9 @@ class ComputeReleaseVersionTest(RepositoryCopy):
 
     def test_platform(self):
         """A minor wave bumps the root revision and tags a bare vX.Y.Z."""
-        major, minor, _ = self.value("pom.xml", r"<revision>([^<]+)</revision>").split(".")
+        major, minor, _ = self.value("pom.xml", r"<revision>([^<]+)</revision>").split(
+            "."
+        )
         output = self.compute(ECOSYSTEM="platform", RELEASE_TYPE="minor")
         self.assertIn(f"release-version={major}.{int(minor) + 1}.0", output)
         self.assertIn(f"release-tag=v{major}.{int(minor) + 1}.0", output)
@@ -484,7 +508,8 @@ class PublishParentsTest(RepositoryCopy):
     def test_skips_when_every_parent_is_published(self):
         """A rerun after a complete deploy builds nothing."""
         published = " ".join(
-            f"qip-parent-{name}-{self.VERSION}.pom" for name in ["base", "spring", "quarkus"]
+            f"qip-parent-{name}-{self.VERSION}.pom"
+            for name in ["base", "spring", "quarkus"]
         )
         result = self.publish(PUBLISHED=published)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
