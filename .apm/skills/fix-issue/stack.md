@@ -14,8 +14,16 @@ nohup npm -w @netcracker/qip-ui run dev > "$TMP/vite.log" 2>&1 &                
 
 - `npm run dev` fetches documentation over the network before Vite starts; the first run is
   slow. `vite` is hoisted to the repo-root `node_modules/.bin`.
-- Stop only what you started. Leave containers that were already running, and if a
-  reproduction has to recreate one of the user's containers, put it back and say so.
+
+## Reach the services
+
+| Need | How |
+|---|---|
+| SQL | `docker exec postgreSQL psql -U postgres -d postgres`; there is no `psql` on the host |
+| Consul KV | header `X-Consul-Token` with `CONSUL_ADMIN_TOKEN` from `infrastructure/qip-dev.env`; without it `?keys` returns `[]`, which looks like an empty store |
+| A chain's HTTP trigger on the classic engine | `http://localhost:8092/routes/<contextPath>`; 8080 proxies it only while Vite runs |
+| A JVM service in a debugger | `jdb -attach 5006` for the catalog, `5007` for the engine |
+| The end-to-end suite against the running stack | `E2E_PROVISION=never`; by default the suite runs `mvn install` and rebuilds every service that is stale against its own checkout (`e2e/AGENTS.md`, Provisioning) |
 
 ## Read the symptom
 
@@ -30,24 +38,15 @@ nohup npm -w @netcracker/qip-ui run dev > "$TMP/vite.log" 2>&1 &                
 
 ## Worktrees
 
-The run works in `/home/dmitrii/qip-wt-<N>`, a worktree of the user's checkout. Everything the
+The run works in `$HOME/qip-wt-<N>`, a worktree of the user's checkout. Everything the
 user has locally is visible there except uncommitted work, which is the point.
 
-- Docker build contexts resolve relative to the compose file, so
-  `docker compose -f "$WT/infrastructure/docker-compose.yml" up -d --build <service>` builds the
-  branch and replaces the container of the same name.
-- `~/.m2` is shared with every other worktree. A temporary version installed there for an
-  experiment leaks into the next run; remove it before the run ends.
-- Review lenses get the worktree path and read nothing else. One lens read the user's checkout
-  and cited a document that exists only on the user's branch.
+- The running stack may come from a checkout other than the user's. Restore from the compose
+  file it runs from:
+  `STACK_COMPOSE=$(docker inspect qip-runtime-catalog --format '{{index .Config.Labels "com.docker.compose.project.config_files"}}')`.
+- `~/.m2` is shared with every other worktree; install nothing there (see `maven-verifier`).
 - Never `git stash`, `git checkout`, or `git add` in the user's checkout. Another run may be
   using it at the same time; one run watched its stash disappear under another.
 - A worktree created by the harness under `.claude/worktrees` guards against `git` commands
   that name a path outside it. Use plain `git` from inside that worktree and put scripts that
   mention Git in a file.
-
-## Waiting
-
-Agents, background commands, and monitors notify the session when they finish. `sleep` is
-blocked by a hook, `until [ -f /tmp/nonexistent ]` loops burned an hour in one session, and
-empty timers woke a finished session four times. Wait by doing nothing that touches the diff.

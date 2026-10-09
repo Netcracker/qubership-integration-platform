@@ -18,6 +18,14 @@ git -C "$WT" ls-remote origin fix/<N>-<slug>   # compare with git -C "$WT" rev-p
 
 A push during a network fault returned success and moved nothing; the `ls-remote` is the check.
 
+Before every push after the first, confirm the pull request is still open. A maintainer can
+merge it mid-run, and a push then recreates the deleted branch, after which an edit changes the
+merged pull request:
+
+```bash
+gh pr view <PR> -R Netcracker/qubership-integration-platform --json state --jq .state   # OPEN
+```
+
 ## Attach images
 
 GitHub's attachment endpoint is undocumented, so treat a failure as expected: fall back to the
@@ -39,9 +47,6 @@ tag.
 gh pr create --base main --head fix/<N>-<slug> --title "<title>" --body-file "$TMP/body.md"
 ```
 
-Ready for review, not a draft: gate 6 already holds the run until the checks are green, and a
-draft asks nobody to look.
-
 `Closes #<N>` goes in the body. `pr-linked-issue` reads GitHub's `closingIssuesReferences`,
 which a keyword in a commit message never fills. Confirm:
 
@@ -60,58 +65,60 @@ gh api -X PATCH repos/{owner}/{repo}/pulls/<PR> -F body=@"$TMP/body.md"
 gh pr view <PR> --json body --jq '.body' | tail -3
 gh api -X POST repos/{owner}/{repo}/issues/<PR>/labels -f "labels[]=ai:processed"
 gh api -X POST repos/{owner}/{repo}/issues/<N>/labels -f "labels[]=ai:processed"
+gh api -X DELETE repos/{owner}/{repo}/issues/<N>/labels/ai%3Aneeds-human   # a resumed run
 ```
-
-Label the pull request on every run that produces one, including a run resumed after a stop.
 
 ## Move the issue on the board
 
-The board needs a token with the `project` scope. Check it at gate 0 with `gh auth status`; if
-the scope is missing, ask the user to run `gh auth refresh -s project` at the very end, once, and
-say in the report that the board was not updated. Five consecutive reports repeated the same
-"could not move" line because nobody asked.
+The board is project 12 of the `Netcracker` organization. The option is "In review", lowercase
+"r"; "In Review" fails with "no changes to make".
+
+```bash
+ITEM=$(gh api graphql -F n=<N> -f query='query($n:Int!){repository(owner:"Netcracker",name:"qubership-integration-platform"){issue(number:$n){projectItems(first:10){nodes{id project{number}}}}}}' \
+  --jq '.data.repository.issue.projectItems.nodes[] | select(.project.number==12) | .id')
+[ -n "$ITEM" ] || ITEM=$(gh project item-add 12 --owner Netcracker \
+  --url https://github.com/Netcracker/qubership-integration-platform/issues/<N> --format json --jq .id)
+gh project item-edit --project-id PVT_kwDOBQbhhM4Axo_H --id "$ITEM" \
+  --field-id PVTSSF_lADOBQbhhM4Axo_HzgnuIZM --single-select-option-id 4cc61d42   # In review
+```
+
+The token needs the `project` scope. Check it at gate 0 with `gh auth status`; if the scope is
+missing, ask the user to run `gh auth refresh -s project` at the very end, once, and say in the
+report that the board was not updated.
 
 ## Comment the run report
 
 ```bash
-timeout 120 gh issue comment <N> --body-file "$TMP/report.md"
+timeout 120 gh issue comment <N> -R Netcracker/qubership-integration-platform --body-file "$TMP/report.md"
 ```
 
 ## Gate 6: read the checks correctly
 
 `gh pr checks` lists the sub-checks a workflow reports and can miss a job that failed on its own:
 it showed 23 green rows while `run-lint` was red. Green is the conclusion of every run on the
-head commit. This `gh` version has no `--json` on `pr checks`; a monitor built on it stayed
-silent for 30 minutes.
+head commit, plus every external check such as SonarCloud. `scripts/wait-checks.sh` waits for
+both and prints them; run it in the background and act on its exit code:
 
 ```bash
-SHA=$(git -C "$WT" rev-parse HEAD)
-gh run list --commit "$SHA" --json name,status,conclusion --jq '.[] | "\(.conclusion // .status)\t\(.name)"'
-gh pr view <PR> --json statusCheckRollup --jq '.statusCheckRollup[] | select(.conclusion != "SUCCESS" and .conclusion != "SKIPPED" and .conclusion != null) | "\(.conclusion)\t\(.name // .context)"'
-gh run view <run-id> --log-failed | tail -40
+bash <this skill's directory>/scripts/wait-checks.sh <PR>   # 0: all green, 1: prints what failed
 ```
 
-Both lists must be free of `failure` before the label. Wait with a background command that
-exits when every run has a conclusion; do not poll by hand.
+Write no waiter of your own. Hand-written ones exited early in about fifteen runs: a run in progress
+has `"conclusion": ""`, and jq's `//` falls back only on null. For a failed job, apply the `ci-fix`
+skill: it reads the job's log, routes the failure to its linter or build, and reproduces it.
 
 ### Sonar
 
-Sonar reports a status, not a reason. Ask the API which condition failed:
+Apply the `sonar-triage` skill for the project keys, the failed conditions, and the open issues;
+read the issues even when the gate passed, because a reviewer reads them too. The conditions that
+failed runs of this pipeline:
 
-```bash
-curl -s "https://sonarcloud.io/api/qualitygates/project_status?projectKey=<key>&pullRequest=<PR>" \
-  | jq '.projectStatus.conditions[] | select(.status=="ERROR")'
-```
-
-The condition that catches this pipeline is `new_coverage`, threshold 80. Gate 4 already
-covered the new lines with a test that fails when the fix is reverted; if the gate still fails,
-the uncovered lines are cosmetics in a touched file, and the answer is to remove them.
-
-### super-linter
-
-It reaches past the module you touched: CSS, EditorConfig, gitleaks, Trivy, `shfmt`,
-`shellcheck`, and `yamllint` all report separately, and a new file is linted by the rules for
-its type. Read the job that failed, not the workflow name.
+- `new_coverage` below 80, counted over lines and branches together: a run at 75% had no
+  uncovered line, only an untested branch condition.
+- `new_maintainability_rating`: cognitive complexity (S3776) of a method the fix grew.
+- `new_reliability_rating`: a possible null dereference (S2259) on a real code path. Fix it; mark
+  an issue a false positive only with the evidence that the path cannot occur.
+- `new_security_rating`: old findings on lines the fix only moved, such as code wrapped in a `try`.
 
 ## Clean up
 
@@ -119,6 +126,5 @@ its type. Read the job that failed, not the workflow name.
 git -C "$REPO" worktree remove "$WT"
 ```
 
-Delete the seeded entities, remove any temporary Maven artifacts from `~/.m2`, restore any
-container you rebuilt, and record in the report anything about the stack that is not as you
-found it.
+Delete the seeded entities, stop only what you started, restore any container you rebuilt, and
+record in the report anything about the stack that is not as you found it.

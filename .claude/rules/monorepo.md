@@ -27,26 +27,13 @@ configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact
 
 Edit these instructions under `.apm/`, never the generated `AGENTS.md` files.
 
-### The `docs/` tree
-
-`docs/` holds working documents that outlive the branch that produced them, and it belongs to no
-module.
-
-- An implementation plan, when one is committed, is `docs/plans/<yyyymmdd>-<slug>.md`, and moves to
-  `docs/plans/completed/` under the same name once its tasks are done.
-- `docs/repro/<slug>/` holds the artifacts of one reproduction — the chain document, the archive,
-  and a `README.md` with the commands. Reference it from whatever entry needed it rather than
-  pasting a ZIP archive into prose.
-- `docs/product-defects.md` is the register of defects found in the platform itself. Every entry
-  carries the `file:line` or the command that proves it; nothing there is inferred.
-
 ### Top-level build commands
 
 #### Maven aggregator (`pom.xml`, `groupId: org.qubership.integration.platform`, `artifactId: qip-monorepo`)
 
 ```bash
 mvn clean install -Dgpg.skip=true              # Build all Java modules (see <modules> in the root pom.xml)
-mvn -pl engine -am clean install -Dgpg.skip=true   # Single module + its dependencies
+mvn -pl engine -am package -Dgpg.skip=true   # Single module + its dependencies, nothing written to ~/.m2
 ```
 
 `-Dgpg.skip=true` is required locally (GPG signing is configured in `parent/pom.xml` for release publishing).
@@ -106,6 +93,6 @@ release wave, or publishing a snapshot, apply the `release-process` skill.
 ### Cross-module change tips
 
 - A change touching schemas + UI + vscode-extension usually only needs `npm install` once at the root — workspace symlinks propagate. No publish step required for local testing.
-- A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am install -Dgpg.skip=true`.
+- A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am package -Dgpg.skip=true`. `install` writes the branch's snapshots to the shared `~/.m2`, where every other checkout and worktree builds against them.
 - The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.
 - The `qip-checkstyle` rules version is pinned via `qip-checkstyle-revision` in `parent/pom.xml`. Java modules also keep a `checkstyle-suppressions.xml` for module-local exceptions.
