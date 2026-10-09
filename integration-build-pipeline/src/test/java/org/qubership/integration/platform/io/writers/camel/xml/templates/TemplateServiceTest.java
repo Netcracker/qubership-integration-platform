@@ -249,6 +249,11 @@ public class TemplateServiceTest {
                         "/testData/output/builder/templates/service_call_multi_response_handlers.xml"
                 ),
                 Arguments.of(
+                        "HTTP Trigger element with a chain call failure handler",
+                        "/testData/input/builder/templates/http_trigger_chain_failure_chain_call.yml",
+                        "/testData/output/builder/templates/http_trigger_chain_failure_chain_call.xml"
+                ),
+                Arguments.of(
                         "HTTP Trigger element with idempotency",
                         "/testData/input/builder/templates/http_trigger_idempotency.yml",
                         "/testData/output/builder/templates/http_trigger_idempotency.xml"
