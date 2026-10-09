@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-10-09T10:27:32.294336+00:00'
+generated_at: '2026-10-09T13:51:48.076231+00:00'
 apm_version: 0.32.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
@@ -195,7 +195,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:b1bd8cc11fa521c66af4d8f6452eb4f6a9baed1e2dc6e4087fbca4880efd9e30
+  content_hash: sha256:587ff776cabc23081d00bfd2130f83fea4742b3a34012e930b84ef1635c2e98c
 - kind: project-relative
   target: claude
   value: .claude/rules/qip-working-agreements.md
@@ -744,7 +744,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:c00544452b676ba2a37718296d18124a4ab3d6920e7260f304effe836b92f017
+  content_hash: sha256:d66e528ffc3138862d38c92da8ad9a7b8475f49f89c59d52368a8034a84db915
 - kind: project-relative
   target: cursor
   value: .cursor/rules/qip-working-agreements.mdc
@@ -1178,7 +1178,7 @@ local_deployed_file_hashes:
   .claude/rules/go-module.md: sha256:4823920c4373e02f4d370fbd6b483e094df46480b80b59653f321636fe14d92a
   .claude/rules/infrastructure.md: sha256:9667e41646ab42c3c02817a2d428fa076dadfd56655f3370b8de4ea01f279c77
   .claude/rules/micro-engine.md: sha256:cf5712421da78f3dae66c9c42978b766706f0dd3d7605830d2646948843263bb
-  .claude/rules/monorepo.md: sha256:b1bd8cc11fa521c66af4d8f6452eb4f6a9baed1e2dc6e4087fbca4880efd9e30
+  .claude/rules/monorepo.md: sha256:587ff776cabc23081d00bfd2130f83fea4742b3a34012e930b84ef1635c2e98c
   .claude/rules/qip-working-agreements.md: sha256:72257161852f5f17451a59e3f6c816f49cdbdf8da37b39b3b82840e2fd30b799
   .claude/rules/runtime-catalog.md: sha256:3280d0854efcf422ff3b90fe892a1075fe83c2bf5eb2b1c9ab73f03ab9e0a4fa
   .claude/rules/schemas.md: sha256:840097735d1b806108391f21948dbb663cf5049279ad803f8c30045c07bdad01
@@ -1215,7 +1215,7 @@ local_deployed_file_hashes:
   .cursor/rules/go-module.mdc: sha256:8e9b8e81bd0cef962f9d8d3f9ba7abf1905867cc6102e71d0395278a12693084
   .cursor/rules/infrastructure.mdc: sha256:5815c15dcc3c105d576f66b81ae17f3f0b88b9a27612c93871925363a8e46439
   .cursor/rules/micro-engine.mdc: sha256:1803a47b4ec126a8ccd24a9f7dadf510cfb99b368f9b6bc15af57e6e66399da5
-  .cursor/rules/monorepo.mdc: sha256:c00544452b676ba2a37718296d18124a4ab3d6920e7260f304effe836b92f017
+  .cursor/rules/monorepo.mdc: sha256:d66e528ffc3138862d38c92da8ad9a7b8475f49f89c59d52368a8034a84db915
   .cursor/rules/qip-working-agreements.mdc: sha256:1d803f8610cecc024814db799f2b0536972040823a2c0e2543d31c75557f1aec
   .cursor/rules/runtime-catalog.mdc: sha256:5ee379a24e2c1c4cae1040be7ef6b83ef42ffc2563282b170790455ebd1ec68d
   .cursor/rules/schemas.mdc: sha256:c0ece583f568e40587865df4f38a3cf3b9c41e4d81d7b138a9ddf655e53173af
