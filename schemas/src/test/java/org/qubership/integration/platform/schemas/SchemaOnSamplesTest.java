@@ -110,7 +110,7 @@ public final class SchemaOnSamplesTest {
                 builder -> builder.schemaMappers(schemaMappers -> schemaMappers.mappings(
                         iri -> iri.startsWith(ID_PREFIX),
                         iri -> {
-                            String result = iri.replace(ID_PREFIX, "classpath:qip-model/") + SCHEMA_FILE_SUFFIX;
+                            String result = iri.replace(ID_PREFIX, "classpath:conf-model/") + SCHEMA_FILE_SUFFIX;
                             LOGGER.info(iri + " -> " + result);
                             return result;
                         }))

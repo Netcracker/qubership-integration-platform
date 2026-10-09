@@ -100,7 +100,7 @@ Domain types (`Chain`, `Element`, `LibraryData`, message envelopes) come from `@
 - `src/web/test/golden/` holds files the extension wrote, and the specs that write them compare the bytes. The end-to-end
   suite imports the same files into the catalog (`e2e/specs/api/extension-output.spec.ts`), so a change to what the
   extension writes updates the golden file in the same commit and runs that spec too.
-- The document schemas under `schemas/src/main/resources/qip-model/` are bundled as text by a webpack
+- The document schemas under `schemas/src/main/resources/conf-model/` are bundled as text by a webpack
   `asset/source` rule, so a spec validates a saved file against the checked-in sources.
 
 ### Platform Context

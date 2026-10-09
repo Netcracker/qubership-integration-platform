@@ -15,7 +15,7 @@ const confModelResolver = {
 
     const absPath = path.resolve(
       process.cwd(),
-      "src/main/resources/qip-model/",
+      "src/main/resources/conf-model/",
       relPath,
     );
 
@@ -45,7 +45,7 @@ const ignoreMapperResolver = {
 export class SchemaResolver {
   private inputDir = path.resolve(
     process.cwd(),
-    "src/main/resources/qip-model/element",
+    "src/main/resources/conf-model/element",
   );
   private outputDir = path.resolve(process.cwd(), "assets");
 
