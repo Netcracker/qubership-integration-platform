@@ -51,15 +51,16 @@ import { emptyProvisionReport, mavenInstall } from "./common.js";
  * so it stays correct on a dirty tree, which is the normal state while developing.
  *
  * The rule is "what reaches the jar this image runs", so it holds three kinds of path rather than
- * one. `parent/pom.xml` is the parent of all three Spring services — every one of them declares
- * `qip-monorepo-parent` with `<relativePath>../parent</relativePath>` — and it carries the
+ * one. `parents/spring/pom.xml` is the parent of all three Spring services — every one of them
+ * declares `qip-parent-spring` with `<relativePath>../parents/spring/pom.xml</relativePath>` — and
+ * it carries the
  * `spring-boot-starter-parent` import, the dependency versions and the `spring-boot-maven-plugin`
  * repackage configuration, so a bump there changes every jar the build produces. The module's
  * `Dockerfile` is the other input to the image, and it is the only file in the build context the
  * jar does not already cover: all three copy nothing but `target/`. The root `pom.xml` is
- * deliberately absent — it aggregates the reactor and parents nothing, `parent/pom.xml` inherits
- * from `spring-boot-starter-parent` instead, and the `revision` and `changelist` the modules
- * interpolate are the parent's own properties rather than the aggregator's.
+ * deliberately absent — it aggregates the reactor and parents nothing, and the Spring parent
+ * inherits from `spring-boot-starter-parent` instead. `parents/base/pom.xml` is absent for the same
+ * reason: no Spring service inherits from it.
  */
 interface Provisionable {
   /** Compose service name, which is what `docker compose up` takes. */
@@ -102,7 +103,7 @@ const PROVISIONED: Provisionable[] = [
       "runtime-catalog/src",
       "runtime-catalog/pom.xml",
       "runtime-catalog/Dockerfile",
-      "parent/pom.xml",
+      "parents/spring/pom.xml",
       "integration-build-pipeline/src",
       "integration-build-pipeline/pom.xml",
     ],
@@ -112,7 +113,7 @@ const PROVISIONED: Provisionable[] = [
     service: "qip-engine",
     container: "qip-engine",
     mavenModule: "engine",
-    sources: ["engine/src", "engine/pom.xml", "engine/Dockerfile", "parent/pom.xml"],
+    sources: ["engine/src", "engine/pom.xml", "engine/Dockerfile", "parents/spring/pom.xml"],
     envFiles: ["infrastructure/qip-dev.env", "infrastructure/engine-dev.env"],
   },
   {
@@ -123,7 +124,7 @@ const PROVISIONED: Provisionable[] = [
       "sessions-management/src",
       "sessions-management/pom.xml",
       "sessions-management/Dockerfile",
-      "parent/pom.xml",
+      "parents/spring/pom.xml",
     ],
     envFiles: ["infrastructure/qip-dev.env"],
   },
