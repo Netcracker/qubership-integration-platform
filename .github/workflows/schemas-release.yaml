@@ -27,14 +27,6 @@ on:
         required: false
         type: string
         default: "latest"
-      maven-profile:
-        description: "Maven profile for the Maven artifact"
-        type: choice
-        options:
-          - "central"
-          - "github"
-        required: false
-        default: "central"
       cascade-ui:
         description: "After releasing schemas, also release ui (auto patch-bump)"
         required: false
@@ -45,6 +37,11 @@ on:
         required: false
         type: boolean
         default: false
+      cascade-bom:
+        description: "After releasing the Maven artifact, release the BOM with a patch bump"
+        required: false
+        type: boolean
+        default: true
 
 permissions: {}
 
@@ -71,10 +68,7 @@ jobs:
     uses: ./.github/workflows/schemas-maven-release.yaml
     with:
       version: ${{ needs.release.outputs.release-version }}
-      profile: ${{ inputs.maven-profile }}
     secrets:
-      MAVEN_USER: ${{ secrets.MAVEN_USER }}
-      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
       MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
@@ -93,4 +87,22 @@ jobs:
       npm-dist-tag: ${{ inputs.npm-dist-tag }}
       cascade-vscode-extension: ${{ inputs.cascade-vscode-extension }}
     secrets:
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
+  # Cascade: the Maven release moved schemas' BOM entry, so publish a BOM that
+  # carries it. Calls the reusable directly, like cascade-ui calls ui-release.
+  cascade-bom:
+    needs: release-maven
+    if: ${{ inputs.cascade-bom && always() && !failure() && !cancelled() }}
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/_maven-module-release.yaml
+    with:
+      module: bom
+      release-type: patch
+      build-docker: false
+    secrets:
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}

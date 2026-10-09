@@ -11,21 +11,17 @@ on:
         required: false
         type: string
         default: "patch"
-      profile:
-        description: "Maven profile to use"
-        type: string
-        required: false
-        default: "central"
       mvn-args:
         description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
         required: false
         default: ""
         type: string
+      cascade-bom:
+        description: "After the release, release the BOM with a patch bump"
+        required: false
+        default: true
+        type: boolean
     secrets:
-      MAVEN_USER:
-        required: false
-      MAVEN_PASSWORD:
-        required: false
       MAVEN_GPG_PRIVATE_KEY:
         required: false
       MAVEN_GPG_PASSPHRASE:
@@ -35,19 +31,16 @@ on:
   # Patch only: minor and major go through release-all.
   workflow_dispatch:
     inputs:
-      profile:
-        description: "Maven profile to use"
-        type: choice
-        options:
-          - "github"
-          - "central"
-        required: false
-        default: "central"
       mvn-args:
         description: "Additional maven arguments to pass (e.g. -DskipTests=true -Dmaven.javadoc.skip=true)"
         required: false
         default: ""
         type: string
+      cascade-bom:
+        description: "After the release, release the BOM with a patch bump"
+        required: false
+        default: true
+        type: boolean
 
 permissions: {}
 
@@ -60,16 +53,35 @@ jobs:
     with:
       module: integration-build-pipeline
       release-type: ${{ inputs.release-type }}
-      profile: ${{ inputs.profile }}
       build-docker: false
       mvn-args: ${{ inputs.mvn-args }}
       # runtime-catalog and the Maven plugin pin this library by property; move
       # them onto the release in the same bump commit, before their jobs check out.
-      sync-property: qip-integration-build-pipeline.version
+      sync-property: qip.integration-build-pipeline.revision
       sync-poms: runtime-catalog/pom.xml integration-build-maven-plugin/pom.xml
     secrets:
-      MAVEN_USER: ${{ secrets.MAVEN_USER }}
-      MAVEN_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
+      MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+      GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
+
+  # Cascade: the release moved this module's BOM entry, so publish a BOM that
+  # carries it. Calls the reusable directly rather than bom-release.yaml, so that
+  # release-all -> this wrapper -> the reusable stays three levels deep.
+  # release-all passes cascade-bom: false and releases the BOM once per wave. If
+  # another cascade cancels this one while it waits on the BOM's concurrency
+  # group, nothing is lost: the next BOM release carries every moved entry.
+  cascade-bom:
+    needs: release
+    if: ${{ inputs.cascade-bom && always() && !failure() && !cancelled() }}
+    permissions:
+      contents: write
+      packages: write
+    uses: ./.github/workflows/_maven-module-release.yaml
+    with:
+      module: bom
+      release-type: patch
+      build-docker: false
+    secrets:
       MAVEN_GPG_PRIVATE_KEY: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
       GH_BUMP_VERSION_APP_KEY: ${{ secrets.GH_BUMP_VERSION_APP_KEY }}
