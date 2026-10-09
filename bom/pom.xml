@@ -10,10 +10,16 @@
   </parent>
 
   <artifactId>qip-bom</artifactId>
+  <version>${revision}${changelist}</version>
   <packaging>pom</packaging>
 
   <name>QIP BOM</name>
   <description>QIP External BOM</description>
+
+  <properties>
+    <revision>1.5.1</revision>
+    <changelist>-SNAPSHOT</changelist>
+  </properties>
 
   <dependencyManagement>
     <dependencies>
@@ -70,6 +76,10 @@
             <dependencyManagement>resolve</dependencyManagement>
           </pomElements>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-gpg-plugin</artifactId>
       </plugin>
     </plugins>
   </build>
