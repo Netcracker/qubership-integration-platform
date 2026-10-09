@@ -4,15 +4,15 @@
 # it changed (one per line) so a caller can commit exactly those.
 #
 # The platform version lives in three places that must agree:
-#   * the root aggregator pom <revision>  — the source of truth
-#   * parent/pom.xml <version> + <revision>
-#   * <parent><version> in every child that pins qip-monorepo-parent
+#   * the root aggregator pom <revision>, the source of truth
+#   * the own <version> of every POM in QIP_PARENT_POMS, as X.Y.Z-SNAPSHOT
+#   * <parent><version> in every POM in QIP_PARENT_CHILDREN, as X.Y.Z-SNAPSHOT
 #
-# parent/pom.xml keeps a literal <version> on purpose: ${revision} is redefined
-# by every child for its own module version, so a parent reference written as
-# ${revision} resolves to the wrong number (and to nothing at all before the
-# child POM is read). That is why the bump is this coordinated rewrite rather
-# than one shared property.
+# The parents keep a literal <version> on purpose. Maven 3 compares a child's
+# literal parent version with the parent's raw ${revision}${changelist}, finds no
+# match, and resolves the parent from the repository instead of the relativePath.
+# That is why the bump is this coordinated rewrite rather than one shared
+# property.
 #
 # Every rewrite is verified — a sed that matches nothing is silent otherwise,
 # and the caller commits and releases on whatever this script leaves behind.
@@ -30,37 +30,30 @@ VERSION="${1:?version (X.Y.Z) required}"
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 . "$ROOT/scripts/modules.sh"
+. "$ROOT/scripts/pom.sh"
 
 PARENT_VERSION="${VERSION}-SNAPSHOT"
 
-verify() { # <file> <expected substring>
-    grep -qF "$2" "$1" || {
-        echo "::error::Failed to write '$2' in $1"
-        exit 1
-    }
+sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${VERSION}</revision>#" pom.xml
+[ "$(pom_prop pom.xml revision)" = "$VERSION" ] || {
+    echo "::error::Failed to write <revision>${VERSION}</revision> in pom.xml"
+    exit 1
 }
 
-sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${VERSION}</revision>#" pom.xml
-verify pom.xml "<revision>${VERSION}</revision>"
-
-# The <version> range is anchored: parent/pom.xml opens with spring-boot-starter-parent's
-# own <version>, and only the second one is ours.
-sed -i -E \
-    -e "0,/<version>[0-9]+\.[0-9]+\.[0-9]+-SNAPSHOT<\/version>/s##<version>${PARENT_VERSION}</version>#" \
-    -e "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${VERSION}</revision>#" \
-    parent/pom.xml
-verify parent/pom.xml "<version>${PARENT_VERSION}</version>"
-verify parent/pom.xml "<revision>${VERSION}</revision>"
-
-# Children pin the parent literally; rewrite only inside the <parent> block.
-for child in "${QIP_PARENT_CHILDREN[@]}"; do
-    sed -i -E "/<parent>/,/<\/parent>/s#<version>[^<]+</version>#<version>${PARENT_VERSION}</version>#" \
-        "$child/pom.xml"
-    verify "$child/pom.xml" "<version>${PARENT_VERSION}</version>"
+for pom in "${QIP_PARENT_POMS[@]}"; do
+    pom_set_own_version "$pom" "$PARENT_VERSION"
+    [ "$(pom_own_version "$pom")" = "$PARENT_VERSION" ] || {
+        echo "::error::Failed to write <version>${PARENT_VERSION}</version> in $pom"
+        exit 1
+    }
 done
 
-echo pom.xml
-echo parent/pom.xml
 for child in "${QIP_PARENT_CHILDREN[@]}"; do
-    echo "$child/pom.xml"
+    pom_set_parent_version "$child" "$PARENT_VERSION"
+    [ "$(pom_parent_version "$child")" = "$PARENT_VERSION" ] || {
+        echo "::error::Failed to write the parent version ${PARENT_VERSION} in $child"
+        exit 1
+    }
 done
+
+printf '%s\n' pom.xml "${QIP_PARENT_POMS[@]}" "${QIP_PARENT_CHILDREN[@]}" | sort -u

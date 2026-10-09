@@ -247,5 +247,57 @@ class VersionInvariantsTest(RepositoryCopy):
         )
 
 
+class SetPlatformVersionTest(RepositoryCopy):
+    """set-platform-version.sh moves every copy of the platform version."""
+
+    def test_moves_every_copy(self):
+        """The root revision, the parents, and every pin move together."""
+        platform = self.value("pom.xml", r"<revision>([^<]+)</revision>")
+        boot = self.value(
+            "parents/spring/pom.xml",
+            r"<artifactId>spring-boot-starter-parent</artifactId>\s*<version>([^<]+)<",
+        )
+        major, minor, _ = platform.split(".")
+        target = f"{major}.{int(minor) + 1}.0"
+        result = self.run_script("set-platform-version.sh", target)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            set(result.stdout.split()),
+            {
+                "pom.xml",
+                "parents/pom.xml",
+                "parents/base/pom.xml",
+                "parents/spring/pom.xml",
+                "parents/quarkus/pom.xml",
+                "bom/pom.xml",
+                "checkstyle/pom.xml",
+                "schemas/pom.xml",
+                "integration-build-pipeline/pom.xml",
+                "integration-build-maven-plugin/pom.xml",
+                "runtime-catalog/pom.xml",
+                "sessions-management/pom.xml",
+                "engine/pom.xml",
+                "micro-engine/pom.xml",
+            },
+        )
+        check = self.run_script("check-version-invariants.sh")
+        self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+        self.assertIn(f"platform {target}", check.stdout)
+        self.assertEqual(
+            self.value(
+                "parents/spring/pom.xml",
+                r"<artifactId>spring-boot-starter-parent</artifactId>\s*<version>([^<]+)<",
+            ),
+            boot,
+        )
+
+    def test_rejects_a_version_that_is_not_semver(self):
+        """Only X.Y.Z is a platform version."""
+        self.assertFailsWith(
+            self.run_script("set-platform-version.sh", "1.6"),
+            "platform version must be X.Y.Z (got '1.6')",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
