@@ -36,7 +36,8 @@ pom_parent_version() { # <pom> -> the <version> inside <parent>
 pom_set_own_version() { # <pom> <version>
     local tmp
     tmp="$(mktemp)"
-    awk -v ver="$2" '
+    # BINMODE=3 keeps the carriage return of a CRLF line where gawk reads text mode (Git Bash on Windows).
+    awk -v BINMODE=3 -v ver="$2" '
         /<parent>/ { in_parent = 1 }
         !in_parent && !done && /<version>[^<]*<\/version>/ {
             sub(/<version>[^<]*<\/version>/, "<version>" ver "</version>")

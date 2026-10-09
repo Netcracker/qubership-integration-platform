@@ -38,6 +38,8 @@ class RepositoryCopy(unittest.TestCase):
             shutil.copyfile(REPOSITORY / name, target)
         self.environment = {**os.environ, "LC_ALL": "C.UTF-8"}
         self.git("init", "--quiet")
+        # The scripts run git too, so keep Git for Windows from converting line endings on checkout.
+        self.git("config", "core.autocrlf", "false")
         self.git("add", "--all")
         self.git("commit", "--quiet", "--message", "copy")
 
@@ -298,6 +300,17 @@ class SetPlatformVersionTest(RepositoryCopy):
             "platform version must be X.Y.Z (got '1.6')",
         )
 
+    def test_works_on_a_crlf_checkout(self):
+        """POMs with CRLF line endings keep them when the version moves."""
+        for name in ["parents/base/pom.xml", "engine/pom.xml"]:
+            text = self.read(name).replace("\r\n", "\n").replace("\n", "\r\n")
+            self.write(name, text)
+        result = self.run_script("set-platform-version.sh", "9.9.9")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        base = self.read("parents/base/pom.xml")
+        self.assertIn("<version>9.9.9-SNAPSHOT</version>\r\n", base)
+        self.assertNotIn("\r\r", base)
+
 
 class SyncBomEntryTest(RepositoryCopy):
     """sync-bom-entry.sh moves one BOM entry and keeps its form."""
@@ -412,6 +425,86 @@ class ComputeReleaseVersionTest(RepositoryCopy):
         output = self.compute(ECOSYSTEM="maven", MODULE="bom", RELEASE_TYPE="patch")
         self.assertIn(f"release-version={major}.{minor}.{int(patch) + 1}", output)
         self.assertIn(f"release-tag=bom-v{major}.{minor}.{int(patch) + 1}", output)
+
+
+CURL_STUB = """#!/usr/bin/env bash
+# Stand-in for curl: succeeds for a URL whose file name is listed in $PUBLISHED.
+url="${*: -1}"
+case " ${PUBLISHED:-} " in *" ${url##*/} "*) exit 0 ;; esac
+exit 22
+"""
+
+MVN_STUB = """#!/usr/bin/env bash
+# Stand-in for mvn: records its arguments and the parent POMs it ran against.
+echo "$*" >> mvn-arguments.log
+cat parents/base/pom.xml parents/spring/pom.xml parents/quarkus/pom.xml > mvn-parents.xml
+exit "${MVN_EXIT:-0}"
+"""
+
+
+class PublishParentsTest(RepositoryCopy):
+    """publish-parents.sh deploys the missing parents at the platform version."""
+
+    VERSION = "9.9.9"
+
+    def setUp(self):
+        super().setUp()
+        stubs = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, stubs, ignore_errors=True)
+        for name, text in [("curl", CURL_STUB), ("mvn", MVN_STUB)]:
+            with open(stubs / name, "w", encoding="utf-8", newline="\n") as file:
+                file.write(text)
+            (stubs / name).chmod(0o755)
+        self.environment["PATH"] = f"{stubs}{os.pathsep}{os.environ['PATH']}"
+
+    def publish(self, **environment):
+        """Run publish-parents.sh with a token and the given stand-in settings."""
+        return self.run_script(
+            "publish-parents.sh", self.VERSION, **{"GH_TOKEN": "token", **environment}
+        )
+
+    def assertParentsRestored(self):  # pylint: disable=invalid-name
+        """Assert that parents/ is back to the committed state."""
+        self.assertEqual(self.git("status", "--porcelain", "--", "parents"), "")
+
+    def test_deploys_the_missing_parents_at_the_version(self):
+        """Only the unpublished parents are deployed, rewritten to the platform version."""
+        boot = self.value(
+            "parents/spring/pom.xml",
+            r"<artifactId>spring-boot-starter-parent</artifactId>\s*<version>([^<]+)<",
+        )
+        result = self.publish(PUBLISHED=f"qip-parent-base-{self.VERSION}.pom")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("deploy -pl spring,quarkus", self.read("mvn-arguments.log"))
+        deployed = self.read("mvn-parents.xml")
+        self.assertEqual(deployed.count(f"<version>{self.VERSION}</version>"), 3)
+        self.assertIn(f"<version>{boot}</version>", deployed)
+        self.assertParentsRestored()
+
+    def test_skips_when_every_parent_is_published(self):
+        """A rerun after a complete deploy builds nothing."""
+        published = " ".join(
+            f"qip-parent-{name}-{self.VERSION}.pom" for name in ["base", "spring", "quarkus"]
+        )
+        result = self.publish(PUBLISHED=published)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn(f"Every parent is published at {self.VERSION}.", result.stdout)
+        self.assertFalse((self.root / "mvn-arguments.log").exists())
+
+    def test_restores_the_parents_when_the_deploy_fails(self):
+        """A failed deploy leaves no rewritten version behind."""
+        self.assertNotEqual(self.publish(MVN_EXIT="1").returncode, 0)
+        self.assertParentsRestored()
+
+    def test_needs_a_token_before_it_touches_the_parents(self):
+        """Without GH_TOKEN the script stops before any lookup or rewrite."""
+        environment = {**self.environment}
+        environment.pop("GH_TOKEN", None)
+        self.environment = environment
+        result = self.run_script("publish-parents.sh", self.VERSION)
+        self.assertFailsWith(result, "GH_TOKEN")
+        self.assertFalse((self.root / "mvn-arguments.log").exists())
+        self.assertParentsRestored()
 
 
 if __name__ == "__main__":
