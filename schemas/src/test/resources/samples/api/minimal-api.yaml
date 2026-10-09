@@ -1,0 +1,8 @@
+---
+$schema: "http://qubership.org/schemas/product/qip/api.schema.yaml"
+id: "minimap-api-id"
+name: "Minimal API"
+content:
+  specificationType: "openapi"
+  specifications:
+    - filePath: "some-resource-name.yaml"
