@@ -49,7 +49,6 @@ import { createScriptChain, SCRIPT_CHAIN_STEPS } from "../../support/deployable.
 import { tokenized } from "../../support/run.js";
 import { callChain } from "../../support/sessions.js";
 import { releaseChains } from "../../support/cleanup.js";
-import { notTheKnownDefect } from "../../support/known-defect.js";
 import type { Catalog, EnginePodView } from "../../support/catalog.js";
 import type { SeedChain } from "../../support/corpus.js";
 
@@ -113,21 +112,13 @@ test("the pod listing follows the target's domain source", { tag: ["@catalog", "
   // `ClassicDomainSource` lists the engine pods, whose addresses are the hosts they registered.
   const hosts = (await catalog.engineHosts())[DEFAULT_DOMAIN] ?? [];
 
-  // Where the catalog lists pods, the listing answers 400: the Kubernetes client refuses a pod
-  // status field it does not know. docs/product-defects.md, "The catalog cannot list a domain's
-  // engine pods on Kubernetes v1.36".
+  // A pod status carries fields the client's models may not declare, such as `allocatedResources`
+  // on Kubernetes 1.36 under client-java 25.0.0, which answered 400 (#1000).
   const { listsEnginePods } = env.domainFacts();
-  test.fail(listsEnginePods, "the catalog cannot read a pod status on Kubernetes v1.36");
   const listing = await catalog.raw("get", `/v1/catalog/domains/${DEFAULT_DOMAIN}/engines`);
-  if (listing.status() !== 200) {
-    const body = await listing.text();
-    if (!listsEnginePods || listing.status() !== 400 || !body.includes("allocatedResources")) {
-      notTheKnownDefect(`the pod listing answered ${listing.status()}: ${body.slice(0, 300)}`);
-    }
-  }
-  expect(listing.status(), "the catalog lists the pods now: delete the test.fail() annotation").toBe(200);
+  expect(listing.status(), await listing.text()).toBe(200);
   const pods = (await listing.json()) as EnginePodView[];
-  expect(pods.map((each) => each.ip).sort()).toEqual(listsEnginePods ? [...hosts].sort() : []);
+  expect(pods.map((each) => each.host).sort()).toEqual(listsEnginePods ? [...hosts].sort() : []);
 });
 
 test("an engine pod reports the deployments it is running, and an address nothing answers on reports none", { tag: ["@catalog", "@engine", "@tier1"] }, async ({ catalog }) => {
