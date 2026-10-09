@@ -65,13 +65,13 @@ so every child build fails on a clean repository.
 | Are the parents published? | Yes, at each platform drop, and as snapshots on demand. |
 | Are snapshots signed? | Yes. |
 | Is the e2e staleness list in scope? | Yes. |
-| Structure | Extend the existing scripts and wrappers in place; add two small scripts. |
+| Structure | Extend the existing scripts and wrappers in place; add two small scripts and a sourced `pom.sh`. |
 
 ## Version model
 
 | Version | Source of truth | Copies that must match | Written by |
 | --- | --- | --- | --- |
-| Platform `P` | root `pom.xml` `<revision>` | the literal `<version>P-SNAPSHOT</version>` of every POM in `QIP_PARENT_POMS`, and every `<parent><version>` that pins a `qip-parent-*` POM | `set-platform-version.sh` |
+| Platform `P` | root `pom.xml` `<revision>` | the literal `<version>P-SNAPSHOT</version>` of every POM in `QIP_PARENT_POMS`, and every `<parent><version>` in `QIP_PARENT_CHILDREN` | `set-platform-version.sh` |
 | Module `M` | `<module>/pom.xml` `<revision>` | the module's BOM entry | `sync-bom-entry.sh`, from the release bump step |
 | Library | `integration-build-pipeline/pom.xml` `<revision>` | `qip.integration-build-pipeline.revision` in runtime-catalog and integration-build-maven-plugin | `sync-consumer-pins.sh` |
 | Checkstyle | `checkstyle/pom.xml` `<revision>` | `qip.checkstyle.version` in `parents/base` and `parents/spring`, and the BOM entry | `sync-consumer-pins.sh` and `sync-bom-entry.sh` |
@@ -179,7 +179,7 @@ The published parents equal the parent POMs at tag `vP` with `-SNAPSHOT` removed
 
 | Variable | Value |
 | --- | --- |
-| `QIP_PARENT_POMS` | `parents/pom.xml parents/base/pom.xml parents/spring/pom.xml parents/quarkus/pom.xml` |
+| `QIP_PARENT_POMS` | the parent POMs that declare their own `<version>`: `parents/pom.xml parents/base/pom.xml parents/spring/pom.xml` |
 | `QIP_PARENT_CHILDREN` | POM paths, no longer directory names: `pom.xml bom/pom.xml checkstyle/pom.xml schemas/pom.xml integration-build-pipeline/pom.xml integration-build-maven-plugin/pom.xml runtime-catalog/pom.xml sessions-management/pom.xml engine/pom.xml micro-engine/pom.xml parents/quarkus/pom.xml` |
 | `QIP_LIBRARY_PROPERTY` | `qip.integration-build-pipeline.revision` |
 | `QIP_LIBRARY_CONSUMERS` | unchanged |
@@ -189,11 +189,15 @@ The published parents equal the parent POMs at tag `vP` with `-SNAPSHOT` removed
 | `QIP_BOM_MODULES` | gains `bom` |
 
 `parents/quarkus/pom.xml` declares no `<version>` of its own and inherits it through its pin on the base parent, so it
-appears in both `QIP_PARENT_POMS` and `QIP_PARENT_CHILDREN`. The scripts rewrite its pin and skip its missing own
-version.
+appears in `QIP_PARENT_CHILDREN` only.
 
 The workflows cannot source a shell file, so `checkstyle-release.yaml` and `integration-build-pipeline-release.yaml`
 spell out the property names and POM paths, as they do today.
+
+### `pom.sh` (new, sourced)
+
+The POM readers and writers the four version scripts share: a property, a POM's own `artifactId` and `<version>`, its
+parent pin, a BOM entry, and the matching writers. It runs nothing when executed, like `modules.sh`.
 
 ### `sync-bom-entry.sh <module> <version>` (new)
 
@@ -204,13 +208,13 @@ does not land. Prints `bom/pom.xml`, so the caller can commit it.
 
 ### `publish-parents.sh <version>` (new)
 
-1. For each of `qip-parent-base`, `qip-parent-spring`, and `qip-parent-quarkus`, sends a `curl` `HEAD` request with
-   `GH_TOKEN` for the POM at
+1. For each of `qip-parent-base`, `qip-parent-spring`, and `qip-parent-quarkus`, requests the POM with `curl --fail`
+   and `GH_TOKEN` at
    `https://maven.pkg.github.com/Netcracker/qubership-integration-platform/org/qubership/integration/platform/<artifact>/<version>/<artifact>-<version>.pom`.
-   A parent that answers `200` is already published and is skipped.
+   A parent whose POM downloads is already published and is skipped.
 2. When every parent is published, exits 0 without building.
-3. Otherwise, rewrites the own `<version>` of `parents/base` and `parents/spring`, and the base pin in
-   `parents/quarkus`, to `<version>`. A `trap` restores `parents/` with `git checkout -- parents` on exit, whatever the
+3. Otherwise, rewrites the own `<version>` of every POM in `QIP_PARENT_POMS`, and the base pin in `parents/quarkus`,
+   to the given version. A `trap` restores `parents/` with `git checkout -- parents` on exit, whatever the
    outcome.
 4. Runs `mvn -B -s .github/maven-settings.xml -f parents/pom.xml deploy -pl <missing parents>`, signed. The
    `qip-parents` aggregator is never deployed: no POM inherits from it.
@@ -220,8 +224,8 @@ released version, which GitHub Packages rejects.
 
 ### `set-platform-version.sh <version>`
 
-Writes the root `<revision>`; the own `<version>` of every parent POM that declares one, anchored on the `<version>`
-line that follows the POM's own `<artifactId>`, so the `<version>` of `spring-boot-starter-parent` is never touched;
+Writes the root `<revision>`; the own `<version>` of every POM in `QIP_PARENT_POMS`, which is the first `<version>`
+outside the `<parent>` block, so the `<version>` of `spring-boot-starter-parent` is never touched;
 and the `<version>` inside the `<parent>` block of every POM in `QIP_PARENT_CHILDREN`. Verifies every write and prints
 the changed files, as today.
 
@@ -230,7 +234,7 @@ the changed files, as today.
 Fails with one `::error::` line per broken invariant:
 
 1. The root `<revision>` is `X.Y.Z`. Call it `P`.
-2. The own `<version>` of every parent POM that declares one is `P-SNAPSHOT`.
+2. The own `<version>` of every POM in `QIP_PARENT_POMS` is `P-SNAPSHOT`.
 3. The parent pin of every POM in `QIP_PARENT_CHILDREN` is `P-SNAPSHOT`.
 4. Every `QIP_LIBRARY_PROPERTY` pin equals the library's `<revision>`.
 5. Every `QIP_CHECKSTYLE_PROPERTY` pin equals checkstyle's `<revision>`.
@@ -276,8 +280,9 @@ every BOM entry.
   `.codex` copies; none of those is edited by hand.
 - `scripts/README.md`, `checkstyle/README.md`, `integration-build-maven-plugin/README.md`, and the header comments of
   every changed workflow.
-- `e2e/env/provision/compose.ts`: `parent/pom.xml` becomes `parents/base/pom.xml` and `parents/spring/pom.xml` in the
-  `sources` of runtime-catalog, engine, and sessions-management, and the doc comment describes the new parents.
+- `e2e/env/provision/compose.ts`: `parent/pom.xml` becomes `parents/spring/pom.xml` in the `sources` of
+  runtime-catalog, engine, and sessions-management, and the doc comment describes the new parent. The Spring parent
+  extends `spring-boot-starter-parent`, so `parents/base/pom.xml` reaches none of these jars.
   `e2e/specs/schema/provision.spec.ts` and `e2e/k8s/README.md` follow.
 
 ## Failure handling
@@ -292,7 +297,8 @@ every BOM entry.
 
 ## Verification
 
-Local checks, each part of the implementation plan:
+Local checks, each part of the implementation plan. The script checks live in `scripts/test_version_scripts.py`, a
+`unittest` file like `scripts/test_run_micro_engine_snapshots.py`, and `version-invariants.yaml` runs it.
 
 - `check-version-invariants.sh` passes on the branch. On a scratch copy with one value broken per invariant, it fails
   with that invariant's error.
