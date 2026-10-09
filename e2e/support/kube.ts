@@ -23,8 +23,10 @@ export { microChainUrl, microServiceOf, proxiedChainUrl, proxiedServiceUrl };
 /** The classic engine's Service, which carries its Deployment's name. */
 export const CLASSIC_ENGINE_SERVICE = deploymentOf("engine");
 
-/** The HTTPRoute holding every external trigger the classic engine serves on the public gateway. */
-export const CLASSIC_PUBLIC_ROUTES = `${CLASSIC_ENGINE_SERVICE}-chain-public-routes`;
+/** The HTTPRoute that holds one chain's external triggers on the classic engine's public gateway. */
+export function classicPublicRoutes(chainId: string): string {
+  return `${CLASSIC_ENGINE_SERVICE}-${chainId}-chain-public-routes`;
+}
 
 /** The gateway's path prefix for a chain with an external trigger. */
 export const GATEWAY_ROUTE_PREFIX = "/qip-routes";

@@ -37,6 +37,7 @@ class IstioRoutesRegistrationServiceTest {
     private static final String NAMESPACE = "qip";
     private static final String BASE_PATH = "/api/v1";
     private static final String CLOUD_SERVICE_NAME = "engine-service";
+    private static final String CHAIN_ID = "8a7f3c1e-2b4d-4e6f-9a0b-1c2d3e4f5a6b";
 
     private KubeOperator kubeOperator;
     private IstioRoutesRegistrationService service;
@@ -53,7 +54,7 @@ class IstioRoutesRegistrationServiceTest {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
         DeploymentRouteUpdate route = route("/chain-a", RouteType.EXTERNAL_TRIGGER, 5000L);
 
-        service.postPublicEngineRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postPublicEngineRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
@@ -63,7 +64,7 @@ class IstioRoutesRegistrationServiceTest {
         assertEquals("gateway.networking.k8s.io", request.getGroup());
         assertEquals("v1", request.getVersion());
         assertEquals("httproutes", request.getResourceNamePlural());
-        assertEquals(CLOUD_SERVICE_NAME + "-chain-public-routes", request.getBody().getMetadata().getName());
+        assertEquals(CLOUD_SERVICE_NAME + "-" + CHAIN_ID + "-chain-public-routes", request.getBody().getMetadata().getName());
         assertEquals(NAMESPACE, request.getBody().getMetadata().getNamespace());
 
         HTTPRouteSpec spec = new ObjectMapper().convertValue(request.getBody().getSpec(), HTTPRouteSpec.class);
@@ -84,7 +85,7 @@ class IstioRoutesRegistrationServiceTest {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
         DeploymentRouteUpdate route = route("/chain-a", RouteType.EXTERNAL_TRIGGER, 120_000L);
 
-        service.postPublicEngineRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postPublicEngineRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
@@ -98,7 +99,7 @@ class IstioRoutesRegistrationServiceTest {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
         DeploymentRouteUpdate route = route("/chain-a/{id}", RouteType.EXTERNAL_TRIGGER, null);
 
-        service.postPublicEngineRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postPublicEngineRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
@@ -114,7 +115,7 @@ class IstioRoutesRegistrationServiceTest {
         HTTPRouteRule staleRule = rule("RegularExpression", BASE_PATH + "/chain-a/[^/]+/?", CLOUD_SERVICE_NAME);
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(staleRule))));
 
-        service.postPublicEngineRoutes(
+        service.postPublicEngineRoutes(CHAIN_ID,
                 List.of(route("/chain-a/{id}", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
@@ -125,11 +126,11 @@ class IstioRoutesRegistrationServiceTest {
     }
 
     @Test
-    void postPublicEngineRoutesPreservesOtherChainsRules() {
-        HTTPRouteRule otherChainRule = rule("/chain-b", "other-service");
-        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(otherChainRule))));
+    void postPublicEngineRoutesPreservesRulesForOtherPaths() {
+        HTTPRouteRule otherPathRule = rule("/chain-b", CLOUD_SERVICE_NAME);
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(otherPathRule))));
 
-        service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+        service.postPublicEngineRoutes(CHAIN_ID, List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
@@ -148,7 +149,7 @@ class IstioRoutesRegistrationServiceTest {
         HTTPRouteRule staleRule = rule("/chain-a", CLOUD_SERVICE_NAME);
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(staleRule))));
 
-        service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+        service.postPublicEngineRoutes(CHAIN_ID, List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
@@ -158,8 +159,8 @@ class IstioRoutesRegistrationServiceTest {
     }
 
     @Test
-    void postPublicEngineRoutesWithEmptyListAndOtherChainsPresentDoesNothing() {
-        service.postPublicEngineRoutes(List.of(), CLOUD_SERVICE_NAME);
+    void postPublicEngineRoutesWithEmptyListDoesNothing() {
+        service.postPublicEngineRoutes(CHAIN_ID, List.of(), CLOUD_SERVICE_NAME);
 
         verify(kubeOperator, never()).getCustomObject(any());
         verify(kubeOperator, never()).createOrReplaceCustomObject(any());
@@ -170,13 +171,13 @@ class IstioRoutesRegistrationServiceTest {
     void postPrivateEngineRoutesTargetsPrivateGatewayAndCr() {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
 
-        service.postPrivateEngineRoutes(List.of(route("/chain-a", RouteType.PRIVATE_TRIGGER, null)), CLOUD_SERVICE_NAME);
+        service.postPrivateEngineRoutes(CHAIN_ID, List.of(route("/chain-a", RouteType.PRIVATE_TRIGGER, null)), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
 
         KubeCustomObjectRequest request = captor.getValue();
-        assertEquals(CLOUD_SERVICE_NAME + "-chain-private-routes", request.getBody().getMetadata().getName());
+        assertEquals(CLOUD_SERVICE_NAME + "-" + CHAIN_ID + "-chain-private-routes", request.getBody().getMetadata().getName());
 
         HTTPRouteSpec spec = new ObjectMapper().convertValue(request.getBody().getSpec(), HTTPRouteSpec.class);
         assertEquals("private-gateway", spec.getParentRefs().get(0).getName());
@@ -186,7 +187,7 @@ class IstioRoutesRegistrationServiceTest {
     void removeEngineRoutesDoesNothingWhenCrDoesNotExist() {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
 
-        assertDoesNotThrow(() -> service.removeEngineRoutes(
+        assertDoesNotThrow(() -> service.removeEngineRoutes(CHAIN_ID,
                 List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
 
         verify(kubeOperator, never()).createOrReplaceCustomObject(any());
@@ -198,7 +199,7 @@ class IstioRoutesRegistrationServiceTest {
         HTTPRouteRule onlyRule = rule("/chain-a", CLOUD_SERVICE_NAME);
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(onlyRule))));
 
-        service.removeEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+        service.removeEngineRoutes(CHAIN_ID, List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
 
         verify(kubeOperator).deleteCustomObject(any());
         verify(kubeOperator, never()).createOrReplaceCustomObject(any());
@@ -212,7 +213,7 @@ class IstioRoutesRegistrationServiceTest {
                 .doNothing()
                 .when(kubeOperator).deleteCustomObject(any());
 
-        assertDoesNotThrow(() -> service.removeEngineRoutes(
+        assertDoesNotThrow(() -> service.removeEngineRoutes(CHAIN_ID,
                 List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
 
         verify(kubeOperator, times(2)).getCustomObject(any());
@@ -220,12 +221,12 @@ class IstioRoutesRegistrationServiceTest {
     }
 
     @Test
-    void removeEngineRoutesLeavesOtherChainsRulesInPlace() {
+    void removeEngineRoutesLeavesRulesForOtherPathsInPlace() {
         HTTPRouteRule ownRule = rule("/chain-a", CLOUD_SERVICE_NAME);
-        HTTPRouteRule otherChainRule = rule("/chain-b", "other-service");
-        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(ownRule, otherChainRule))));
+        HTTPRouteRule otherPathRule = rule("/chain-b", CLOUD_SERVICE_NAME);
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(ownRule, otherPathRule))));
 
-        service.removeEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+        service.removeEngineRoutes(CHAIN_ID, List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
@@ -242,15 +243,52 @@ class IstioRoutesRegistrationServiceTest {
         DeploymentRouteUpdate publicRoute = route("/chain-a", RouteType.EXTERNAL_TRIGGER, null);
         DeploymentRouteUpdate privateRoute = route("/chain-b", RouteType.PRIVATE_TRIGGER, null);
 
-        service.removeEngineRoutes(List.of(publicRoute, privateRoute), CLOUD_SERVICE_NAME);
+        service.removeEngineRoutes(CHAIN_ID, List.of(publicRoute, privateRoute), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, times(2)).getCustomObject(captor.capture());
         List<String> requestedNames = captor.getAllValues().stream()
                 .map(r -> r.getBody().getMetadata().getName())
                 .toList();
-        assertTrue(requestedNames.contains(CLOUD_SERVICE_NAME + "-chain-public-routes"));
-        assertTrue(requestedNames.contains(CLOUD_SERVICE_NAME + "-chain-private-routes"));
+        assertTrue(requestedNames.contains(CLOUD_SERVICE_NAME + "-" + CHAIN_ID + "-chain-public-routes"));
+        assertTrue(requestedNames.contains(CLOUD_SERVICE_NAME + "-" + CHAIN_ID + "-chain-private-routes"));
+    }
+
+    @Test
+    void postPublicEngineRoutesWritesEachChainToItsOwnHttpRoute() {
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
+
+        service.postPublicEngineRoutes("chain-1", List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)),
+                CLOUD_SERVICE_NAME);
+        service.postPublicEngineRoutes("chain-2", List.of(route("/chain-b", RouteType.EXTERNAL_TRIGGER, null)),
+                CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator, times(2)).createOrReplaceCustomObject(captor.capture());
+        assertEquals(
+                List.of(CLOUD_SERVICE_NAME + "-chain-1-chain-public-routes",
+                        CLOUD_SERVICE_NAME + "-chain-2-chain-public-routes"),
+                captor.getAllValues().stream().map(r -> r.getBody().getMetadata().getName()).toList());
+    }
+
+    @Test
+    void removeEngineRoutesStripsEgressRoutesFromTheChainsEgressHttpRoute() {
+        HTTPRouteRule ownRule = rule("PathPrefix", "/http-sender/elem-a/hash-a", "api.example.com");
+        HTTPRouteRule otherPathRule = rule("PathPrefix", "/http-sender/elem-b/hash-b", "api.example.com");
+        when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existingCr(List.of(ownRule, otherPathRule))));
+
+        service.removeEngineRoutes(CHAIN_ID,
+                List.of(egressRoute("https://api.example.com", "/http-sender/elem-a/hash-a", RouteType.EXTERNAL_SENDER)),
+                CLOUD_SERVICE_NAME);
+
+        ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
+        verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
+        KubeCustomObjectRequest request = captor.getValue();
+        assertEquals(CLOUD_SERVICE_NAME + "-" + CHAIN_ID + "-egress-routes", request.getBody().getMetadata().getName());
+        HTTPRouteSpec spec = new ObjectMapper().convertValue(request.getBody().getSpec(), HTTPRouteSpec.class);
+        assertEquals("egress-gateway", spec.getParentRefs().get(0).getName());
+        assertEquals(List.of("/http-sender/elem-b/hash-b"),
+                spec.getRules().stream().map(r -> r.getMatches().get(0).getPath().getValue()).toList());
     }
 
     @Test
@@ -259,7 +297,7 @@ class IstioRoutesRegistrationServiceTest {
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
 
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, times(3)).createOrReplaceCustomObject(captor.capture());
@@ -279,7 +317,7 @@ class IstioRoutesRegistrationServiceTest {
         assertEquals("networking.istio.io", destinationRuleRequest.getGroup());
         assertEquals("api.example.com", destinationRuleRequest.getBody().getSpec().get("host"));
 
-        assertEquals(CLOUD_SERVICE_NAME + "-egress-routes", httpRouteRequest.getBody().getMetadata().getName());
+        assertEquals(CLOUD_SERVICE_NAME + "-" + CHAIN_ID + "-egress-routes", httpRouteRequest.getBody().getMetadata().getName());
         HTTPRouteSpec spec = new ObjectMapper().convertValue(httpRouteRequest.getBody().getSpec(), HTTPRouteSpec.class);
         assertEquals("egress-gateway", spec.getParentRefs().get(0).getName());
         assertEquals("PathPrefix", spec.getRules().get(0).getMatches().get(0).getPath().getType());
@@ -299,7 +337,7 @@ class IstioRoutesRegistrationServiceTest {
         DeploymentRouteUpdate route =
                 egressRoute("http://backend:9090", "/http-sender/elem-1/abc", RouteType.EXTERNAL_SENDER);
 
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, times(2)).createOrReplaceCustomObject(captor.capture());
@@ -314,7 +352,7 @@ class IstioRoutesRegistrationServiceTest {
         DeploymentRouteUpdate routeB =
                 egressRoute("https://api.example.com/b", "/system/elem-b", RouteType.EXTERNAL_SERVICE);
 
-        service.postEgressGatewayRoutes(List.of(routeA, routeB), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(routeA, routeB), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         // 1 ServiceEntry + 1 DestinationRule (one unique host) + 1 HTTPRoute (two rules) = 3 calls
@@ -325,7 +363,7 @@ class IstioRoutesRegistrationServiceTest {
     }
 
     @Test
-    void postEgressGatewayRoutesPreservesOtherChainsRulesInTheSharedEgressCr() {
+    void postEgressGatewayRoutesPreservesRulesForOtherPaths() {
         HTTPRouteRule existingRule = HTTPRouteRule.builder()
                 .matches(List.of(HTTPRouteMatch.builder()
                         .path(HTTPPathMatch.builder().type("PathPrefix").value("/system/other-elem").build())
@@ -340,14 +378,14 @@ class IstioRoutesRegistrationServiceTest {
                 .rules(List.of(existingRule))
                 .build();
         KubeCustomObject existing = KubeCustomObject.builder()
-                .metadata(metadataWithVersion(CLOUD_SERVICE_NAME + "-egress-routes", "5"))
+                .metadata(metadataWithVersion(CLOUD_SERVICE_NAME + "-" + CHAIN_ID + "-egress-routes", "5"))
                 .spec(new ObjectMapper().convertValue(existingSpec, new TypeReference<Map<String, Object>>() {}))
                 .build();
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existing));
 
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, times(3)).createOrReplaceCustomObject(captor.capture());
@@ -371,7 +409,7 @@ class IstioRoutesRegistrationServiceTest {
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
 
-        assertDoesNotThrow(() -> service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME));
+        assertDoesNotThrow(() -> service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME));
     }
 
     @Test
@@ -384,7 +422,7 @@ class IstioRoutesRegistrationServiceTest {
                 egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE));
 
         assertThrows(ControlPlaneException.class,
-                () -> service.postEgressGatewayRoutes(routes, CLOUD_SERVICE_NAME));
+                () -> service.postEgressGatewayRoutes(CHAIN_ID, routes, CLOUD_SERVICE_NAME));
 
         verify(kubeOperator, times(3)).createOrReplaceCustomObject(
                 argThat(r -> "serviceentries".equals(r.getResourceNamePlural())));
@@ -400,7 +438,7 @@ class IstioRoutesRegistrationServiceTest {
 
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
@@ -421,7 +459,7 @@ class IstioRoutesRegistrationServiceTest {
 
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
@@ -442,7 +480,7 @@ class IstioRoutesRegistrationServiceTest {
 
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
@@ -463,7 +501,7 @@ class IstioRoutesRegistrationServiceTest {
 
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
@@ -496,7 +534,7 @@ class IstioRoutesRegistrationServiceTest {
 
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
@@ -530,7 +568,7 @@ class IstioRoutesRegistrationServiceTest {
 
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE);
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
@@ -563,7 +601,7 @@ class IstioRoutesRegistrationServiceTest {
 
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
@@ -597,7 +635,7 @@ class IstioRoutesRegistrationServiceTest {
 
         DeploymentRouteUpdate route =
                 egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE);
-        service.postEgressGatewayRoutes(List.of(route), CLOUD_SERVICE_NAME);
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(route), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator, atLeastOnce()).createOrReplaceCustomObject(captor.capture());
@@ -620,7 +658,7 @@ class IstioRoutesRegistrationServiceTest {
         when(kubeOperator.getCustomObject(argThat(r -> r != null && !"serviceentries".equals(r.getResourceNamePlural()))))
                 .thenReturn(Optional.empty());
 
-        service.postEgressGatewayRoutes(List.of(
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(
                         egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
                 CLOUD_SERVICE_NAME);
 
@@ -631,7 +669,7 @@ class IstioRoutesRegistrationServiceTest {
     void postEgressGatewayRoutesSetsLocationAndResolutionWhenTheServiceEntryDoesNotExistYet() {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
 
-        service.postEgressGatewayRoutes(List.of(
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(
                         egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
                 CLOUD_SERVICE_NAME);
 
@@ -648,7 +686,7 @@ class IstioRoutesRegistrationServiceTest {
         when(kubeOperator.getCustomObject(argThat(r -> r != null && !"serviceentries".equals(r.getResourceNamePlural()))))
                 .thenReturn(Optional.empty());
 
-        service.postEgressGatewayRoutes(List.of(
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(
                         egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
                 CLOUD_SERVICE_NAME);
 
@@ -667,7 +705,7 @@ class IstioRoutesRegistrationServiceTest {
         when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
                 .thenReturn(Optional.empty());
 
-        service.postEgressGatewayRoutes(List.of(
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(
                         egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
                 CLOUD_SERVICE_NAME);
 
@@ -690,7 +728,7 @@ class IstioRoutesRegistrationServiceTest {
         when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
                 .thenReturn(Optional.empty());
 
-        service.postEgressGatewayRoutes(List.of(
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(
                         egressRoute("https://api.example.com:9443/v2", "/system/service-b", RouteType.EXTERNAL_SERVICE)),
                 CLOUD_SERVICE_NAME);
 
@@ -723,7 +761,7 @@ class IstioRoutesRegistrationServiceTest {
                 .when(kubeOperator)
                 .createOrReplaceCustomObject(argThat(r -> "destinationrules".equals(r.getResourceNamePlural())));
 
-        service.postEgressGatewayRoutes(List.of(
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(
                         egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
                 CLOUD_SERVICE_NAME);
 
@@ -762,7 +800,7 @@ class IstioRoutesRegistrationServiceTest {
         when(kubeOperator.getCustomObject(argThat(r -> r != null && !"destinationrules".equals(r.getResourceNamePlural()))))
                 .thenReturn(Optional.empty());
 
-        service.postEgressGatewayRoutes(List.of(
+        service.postEgressGatewayRoutes(CHAIN_ID, List.of(
                         egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
                 CLOUD_SERVICE_NAME);
 
@@ -791,7 +829,7 @@ class IstioRoutesRegistrationServiceTest {
                 "public-gateway", "private-gateway", "egress-gateway", false);
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
 
-        withoutHostResources.postEgressGatewayRoutes(List.of(
+        withoutHostResources.postEgressGatewayRoutes(CHAIN_ID, List.of(
                         egressRoute("https://api.example.com/v2", "/system/service-a", RouteType.EXTERNAL_SERVICE)),
                 CLOUD_SERVICE_NAME);
 
@@ -865,7 +903,7 @@ class IstioRoutesRegistrationServiceTest {
         List<DeploymentRouteUpdate> routes = List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null));
 
         ControlPlaneException exception = assertThrows(ControlPlaneException.class, () ->
-                service.postPublicEngineRoutes(routes, CLOUD_SERVICE_NAME));
+                service.postPublicEngineRoutes(CHAIN_ID, routes, CLOUD_SERVICE_NAME));
 
         assertInstanceOf(IndexOutOfBoundsException.class, exception.getCause());
         verify(kubeOperator, never()).createOrReplaceCustomObject(any());
@@ -878,7 +916,7 @@ class IstioRoutesRegistrationServiceTest {
         existing.getMetadata().setResourceVersion("42");
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.of(existing));
 
-        service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+        service.postPublicEngineRoutes(CHAIN_ID, List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
@@ -889,7 +927,7 @@ class IstioRoutesRegistrationServiceTest {
     void postPublicEngineRoutesLeavesResourceVersionNullWhenNoCrExists() {
         when(kubeOperator.getCustomObject(any())).thenReturn(Optional.empty());
 
-        service.postPublicEngineRoutes(List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
+        service.postPublicEngineRoutes(CHAIN_ID, List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME);
 
         ArgumentCaptor<KubeCustomObjectRequest> captor = ArgumentCaptor.forClass(KubeCustomObjectRequest.class);
         verify(kubeOperator).createOrReplaceCustomObject(captor.capture());
@@ -903,7 +941,7 @@ class IstioRoutesRegistrationServiceTest {
                 .doNothing()
                 .when(kubeOperator).createOrReplaceCustomObject(any());
 
-        assertDoesNotThrow(() -> service.postPublicEngineRoutes(
+        assertDoesNotThrow(() -> service.postPublicEngineRoutes(CHAIN_ID,
                 List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null)), CLOUD_SERVICE_NAME));
 
         verify(kubeOperator, times(2)).getCustomObject(any());
@@ -917,7 +955,7 @@ class IstioRoutesRegistrationServiceTest {
         List<DeploymentRouteUpdate> routes = List.of(route("/chain-a", RouteType.EXTERNAL_TRIGGER, null));
 
         assertThrows(ControlPlaneException.class,
-                () -> service.postPublicEngineRoutes(routes, CLOUD_SERVICE_NAME));
+                () -> service.postPublicEngineRoutes(CHAIN_ID, routes, CLOUD_SERVICE_NAME));
 
         verify(kubeOperator, times(3)).getCustomObject(any());
         verify(kubeOperator, times(3)).createOrReplaceCustomObject(any());
@@ -988,7 +1026,7 @@ class IstioRoutesRegistrationServiceTest {
         Map<String, Object> specMap = new ObjectMapper().convertValue(spec, Map.class);
 
         V1ObjectMeta metadata = new V1ObjectMeta();
-        metadata.setName(CLOUD_SERVICE_NAME + "-chain-public-routes");
+        metadata.setName(CLOUD_SERVICE_NAME + "-" + CHAIN_ID + "-chain-public-routes");
         metadata.setNamespace(NAMESPACE);
 
         return KubeCustomObject.builder()

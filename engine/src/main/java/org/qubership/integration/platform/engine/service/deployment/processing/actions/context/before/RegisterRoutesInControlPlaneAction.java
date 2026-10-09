@@ -79,36 +79,42 @@ public class RegisterRoutesInControlPlaneAction implements DeploymentProcessingA
                     .setPath("/" + StringUtils.strip(externalRoute.getPath(), "/")))
             .toList();
 
+        // Register http based senders and service call paths '/{senderType}/{elementId}', '/system/{elementId}'
+        List<DeploymentRouteUpdate> egressRoutes = deploymentConfiguration.getRoutes().stream()
+            .filter(route -> RouteType.isEgressRoute(route.getType()))
+            .map(RegisterRoutesInControlPlaneAction::formatServiceRoutes)
+            .toList();
+
+        String chainId = deploymentInfo.getChainId();
         try {
             controlPlaneService.postPublicEngineRoutes(
+                chainId,
                 gatewayTriggersRoutes.stream()
                     .filter(route -> RouteType.isPublicTriggerRoute(route.getType())).toList(),
                 applicationConfiguration.getDeploymentName());
             controlPlaneService.postPrivateEngineRoutes(
+                chainId,
                 gatewayTriggersRoutes.stream()
                     .filter(route -> RouteType.isPrivateTriggerRoute(route.getType())).toList(),
                 applicationConfiguration.getDeploymentName());
 
             chainRouteRegistry.register(
-                deploymentInfo.getChainId(), deploymentInfo.getDeploymentId(), gatewayTriggersRoutes);
+                chainId,
+                deploymentInfo.getDeploymentId(),
+                Stream.concat(gatewayTriggersRoutes.stream(), egressRoutes.stream()).toList());
 
             // Purge each route from the gateway tier it no longer belongs to (visibility
             // changed public<->private, or downgraded to internal).
             controlPlaneService.removeEngineRoutes(
+                chainId,
                 deploymentConfiguration.getRoutes().stream()
                     .filter(route -> RouteType.triggerRouteCleanupNeeded(route.getType()))
                     .flatMap(RegisterRoutesInControlPlaneAction::opposingTierRemovals)
                     .toList(),
                 applicationConfiguration.getDeploymentName());
 
-            // Register http based senders and service call paths '/{senderType}/{elementId}', '/system/{elementId}'
             controlPlaneService.postEgressGatewayRoutes(
-                deploymentConfiguration.getRoutes().stream()
-                    .filter(route -> route.getType() == RouteType.EXTERNAL_SENDER
-                        || route.getType() == RouteType.EXTERNAL_SERVICE)
-                    .map(RegisterRoutesInControlPlaneAction::formatServiceRoutes)
-                    .toList(),
-                applicationConfiguration.getDeploymentName());
+                chainId, egressRoutes, applicationConfiguration.getDeploymentName());
         } catch (ControlPlaneException e) {
             throw new DeploymentRetriableException(e);
         }

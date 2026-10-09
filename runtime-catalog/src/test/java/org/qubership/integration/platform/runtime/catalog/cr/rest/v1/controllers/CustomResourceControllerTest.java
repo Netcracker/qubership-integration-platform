@@ -170,9 +170,9 @@ class CustomResourceControllerTest {
         verifyNoInteractions(bulkDeploymentService);
     }
 
-    // deleteChainSnapshot rewrites the Integration, the integrations-configuration ConfigMap and the
-    // shared HTTPRoute tiers, each carrying the resourceVersion it read on entry, so a deploy to the
-    // same domain can take any of those writes. It reloads everything through
+    // deleteChainSnapshot rewrites the Integration and the integrations-configuration ConfigMap, each
+    // carrying the resourceVersion it read on entry, so a deploy to the same domain can take either
+    // write. It reloads everything through
     // getMainIntegrationResources, so re-calling it recomputes against current state.
     @DisplayName("Retries a snapshot removal that loses a concurrency race")
     @Test
