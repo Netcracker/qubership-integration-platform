@@ -1,0 +1,16 @@
+id: "1c2f0a3e-5b7d-4e19-9a64-3d8f2b6c7e10"
+name: "V1"
+description: ""
+modifiedWhen: 1683113761033
+elements:
+  - id: "6a4e2b19-8c3d-4f57-b0e1-2d9a7c5f3b84"
+    name: "HTTP Trigger"
+    element-type: "http-trigger"
+    original-id: "f2b7c9d1-3e4a-4b6c-8d5e-7a1f0c9b2e63"
+    properties:
+      contextPath: "v1/test"
+      accessControlType: "NONE"
+      httpMethodRestrict: "POST"
+      handleChainFailureAction: "chain-call"
+      chainFailureHandlerContainer:
+        elementId: "3a0a790b-2f10-429c-8334-50d23af3a2cf"

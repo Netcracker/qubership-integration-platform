@@ -302,6 +302,26 @@ class EgressRouteResourceBuilderTest {
         assertTrue(result.contains("number: 9080"));
     }
 
+    // The catalog seeds the spec as Gson read it, so an existing port arrived as 80.0 and was
+    // written back that way, and the ServiceEntry CRD refused the whole document.
+    @Test
+    void buildWritesAnExistingPortSeededAsADoubleBackAsAnInteger() throws Exception {
+        when(routesGetterService.getRoutes(any(), any())).thenReturn(List.of(
+                Route.builder().path("https://api.example.com/v2").gatewayPrefix("/system/elem-b")
+                        .type(RouteType.EXTERNAL_SERVICE).build()));
+
+        ResourceBuildContext<List<Snapshot>> context = contextWithSnapshot("snap-1");
+        String hostResourceName = EgressTarget.parse("https://api.example.com").hostResourceName();
+        context.getBuildCache().put(EgressRouteResourceBuilder.serviceEntryCacheKey(hostResourceName),
+                existingServiceEntrySpec(Map.of("number", 80.0, "name", "http-80", "protocol", "HTTP")));
+
+        String result = builder.build(context);
+
+        assertEqualsOccurrences(1, "number: 80", result);
+        assertFalse(result.contains("80.0"));
+        assertTrue(result.contains("number: 443"));
+    }
+
     @Test
     @SuppressWarnings("unchecked")
     void buildFoldsANewTlsSettingIntoTheExistingEntryForTheSamePort() throws Exception {

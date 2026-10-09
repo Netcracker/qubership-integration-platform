@@ -394,10 +394,10 @@ class CamelDebuggerTest {
     }
 
     @Test
-    void logAfterStepFinishedShouldLogRetryAttemptForServiceCallOnWarnLevel() {
+    void logAfterStepFinishedShouldLogRetryAttemptBySnapshotElementId() {
         Exchange exchange = createExchange();
         lenient().when(runtimeProperties.getLogLoggingLevel()).thenReturn(LogLoggingLevel.WARN);
-        ElementInfo elementInfo = ElementInfo.builder().id("elem-1").type(ChainElementType.SERVICE_CALL.getText()).name("elem").build();
+        ElementInfo elementInfo = ElementInfo.builder().id("original-1").snapshotElementId("elem-1").type(ChainElementType.SERVICE_CALL.getText()).name("elem").build();
         ChainExecutionContext ctx = ChainExecutionContext.builder()
                 .elementInfo(elementInfo)
                 .stepName(CamelNames.REQUEST_ATTEMPT_STEP_PREFIX)
