@@ -20,7 +20,7 @@ spec:
               value: -Xms512m -Xmx512m
             - name: discovery.type
               value: single-node
-          image: opensearchproject/opensearch:2.18.0
+          image: opensearchproject/opensearch:2.19.6
           livenessProbe:
             httpGet:
               path: /_cluster/health

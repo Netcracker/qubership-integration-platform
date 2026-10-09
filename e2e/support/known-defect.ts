@@ -76,15 +76,6 @@ export interface ConditionalDefect {
 }
 
 /**
- * #985: behind an Istio sidecar, a session search that returns many sessions answers 400 over an
- * OpenSearch 502, because the collapsed search sends more response headers than Envoy accepts.
- */
-export const SESSION_SEARCH_HEADER_LIMIT: ConditionalDefect = {
-  title: "a session search returning many sessions fails behind an Istio sidecar (#985)",
-  matches: (message) => message.includes("502 Bad Gateway") && message.includes("reset reason: protocol error"),
-};
-
-/**
  * Runs `step`, and marks the running case an expected failure only when `step` throws `defect`. Any
  * other failure stays a real one, and a step that succeeds leaves the case an ordinary passing case.
  */
