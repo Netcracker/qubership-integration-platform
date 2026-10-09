@@ -10,7 +10,7 @@ Verify a change in one Maven module and report what breaks. Build the smallest r
 that can still catch the failure.
 
 All commands run from the repository root and need `-Dgpg.skip=true` — GPG signing is
-configured in `parent/pom.xml` for release publishing and fails locally without it.
+configured in the `parents/` POMs for publishing and fails locally without it.
 
 Give Maven room: use a Bash `timeout` of at least 600000 ms. Test runs here have hit the
 two-minute default repeatedly.
@@ -55,7 +55,7 @@ mvn -q -pl runtime-catalog test -Dgpg.skip=true -nsu
 
 Two things make this enough:
 
-- **Checkstyle already runs.** `parent/pom.xml` binds `checkstyle:check` to the `compile`
+- **Checkstyle already runs.** The parent POMs bind `checkstyle:check` to the `compile`
   phase with `failOnViolation=true` and `maxAllowedViolations=0`. A separate
   `mvn checkstyle:check` run repeats work that `test` has already done.
 - **`-nsu` skips snapshot update checks**, which saves a remote round-trip per dependency

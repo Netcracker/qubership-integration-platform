@@ -23,7 +23,8 @@ module, scoped by `applyTo` to that module's path:
 The `ui` module is covered by the four `ui-*` skills rather than an instruction, because its
 guidance is long enough to be worth loading on demand. Two directories carry shared build
 configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact) and
-`parent/` (the Maven parent POM `qip-monorepo-parent`).
+`parents/` (the parent POMs `qip-parent-base`, `qip-parent-spring`, and `qip-parent-quarkus`). `bom/` holds `qip-bom`,
+the public BOM that lists every published module at its project version.
 
 Edit these instructions under `.apm/`, never the generated `AGENTS.md` files.
 
@@ -49,7 +50,7 @@ mvn clean install -Dgpg.skip=true              # Build all Java modules (see <mo
 mvn -pl engine -am clean install -Dgpg.skip=true   # Single module + its dependencies
 ```
 
-`-Dgpg.skip=true` is required locally (GPG signing is configured in `parent/pom.xml` for release publishing).
+`-Dgpg.skip=true` is required locally (GPG signing is configured in `parents/base/pom.xml` and `parents/spring/pom.xml` for publishing).
 
 Consolidation did not rename any published artifact; each module's POM still carries its original coordinates.
 
@@ -107,5 +108,5 @@ release wave, or publishing a snapshot, apply the `release-process` skill.
 
 - A change touching schemas + UI + vscode-extension usually only needs `npm install` once at the root — workspace symlinks propagate. No publish step required for local testing.
 - A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am install -Dgpg.skip=true`.
-- The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.
-- The `qip-checkstyle` rules version is pinned via `qip-checkstyle-revision` in `parent/pom.xml`. Java modules also keep a `checkstyle-suppressions.xml` for module-local exceptions.
+- `parents/spring/pom.xml` controls Spring Boot, MapStruct, Lombok, Checkstyle, and JaCoCo versions for every Spring module, and `parents/quarkus/pom.xml` the Quarkus ones for micro-engine. Bump dependency versions there, not in module POMs; a property both `parents/base` and `parents/spring` declare must keep one value, which `scripts/check-version-invariants.sh` checks.
+- The `qip-checkstyle` rules version is pinned via `qip.checkstyle.version` in `parents/base/pom.xml` and `parents/spring/pom.xml`. Java modules also keep a `checkstyle-suppressions.xml` for module-local exceptions.
