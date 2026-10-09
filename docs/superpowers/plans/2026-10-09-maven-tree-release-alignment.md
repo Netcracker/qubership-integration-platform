@@ -11,7 +11,7 @@ GitHub workflows call. A new sourced `scripts/pom.sh` holds the POM readers and 
 lists. Two new scripts move a BOM entry and publish the parents. The workflows lose the Central profile and gain a BOM
 cascade that calls the reusable `_maven-module-release.yaml` directly.
 
-**Tech Stack:** Bash (GNU sed, awk, grep with `-P`), GitHub Actions, Maven 3.9 with flatten-maven-plugin and
+**Tech Stack:** Bash (GNU sed, AWK, grep with `-P`), GitHub Actions, Maven 3.9 with flatten-maven-plugin and
 maven-gpg-plugin, Python 3 `unittest` for the script tests, Docker for actionlint and super-linter.
 
 **Spec:** `docs/superpowers/specs/2026-10-09-maven-tree-release-alignment-design.md`
@@ -1404,7 +1404,7 @@ Expected: actionlint passes, and the grep prints the lines to remove (the check 
 
 - [ ] **Step 2: Edit the inputs and secrets**
 
-Delete the `profile` input (the five lines from `      profile:` through `        default: "central"`).
+Delete the `profile` input (the five lines from the `profile:` key through its `default: "central"` line).
 Delete the `MAVEN_USER` and `MAVEN_PASSWORD` secrets (six lines). In the header comment, replace
 `# flatten-maven-plugin inlines the parent, so the published POM has no SNAPSHOT.` with
 
@@ -1796,7 +1796,7 @@ At the end: the first grep prints nothing; the count is `6`.
 
 - [ ] **Step 2: Remove the profile and the Central guard**
 
-Delete the `profile` input (eight lines from `      profile:` through `        default: "github"`), the step
+Delete the `profile` input (eight lines from the `profile:` key through its `default: "github"` line), the step
 `Reject a Central wave that cannot resolve the library` with its four-line comment, every `profile: ${{ inputs.profile }}`
 line, and every `MAVEN_USER:` and `MAVEN_PASSWORD:` secret line.
 
@@ -2123,7 +2123,7 @@ with
 
 - [ ] **Step 4: Edit `e2e/k8s/README.md`**
 
-On line 140, replace `` and `parent/pom.xml` for the`` with `` and `parents/spring/pom.xml` for the``.
+On line 140, replace ``and `parent/pom.xml` for the`` with ``and `parents/spring/pom.xml` for the``.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -2167,15 +2167,15 @@ In this table, ` / ` separates the lines of a multi-line passage.
 
 | Find | Replace with |
 | --- | --- |
-| `` configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact) and`` / `` `parent/` (the Maven parent POM `qip-monorepo-parent`).`` | `` configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact) and`` / `` `parents/` (the parent POMs `qip-parent-base`, `qip-parent-spring`, and `qip-parent-quarkus`). `bom/` holds `qip-bom`,`` / ``the public BOM that lists every published module at its project version.`` |
-| `` (GPG signing is configured in `parent/pom.xml` for release publishing).`` | `` (GPG signing is configured in `parents/base/pom.xml` and `parents/spring/pom.xml` for publishing).`` |
-| `` - The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.`` | `` - `parents/spring/pom.xml` controls Spring Boot, MapStruct, Lombok, Checkstyle, and JaCoCo versions for every Spring module, and `parents/quarkus/pom.xml` the Quarkus ones for micro-engine. Bump dependency versions there, not in module POMs; a property both `parents/base` and `parents/spring` declare must keep one value, which `scripts/check-version-invariants.sh` checks.`` |
-| `` - The `qip-checkstyle` rules version is pinned via `qip-checkstyle-revision` in `parent/pom.xml`.`` | `` - The `qip-checkstyle` rules version is pinned via `qip.checkstyle.version` in `parents/base/pom.xml` and `parents/spring/pom.xml`.`` |
+| ``configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact) and`` / `` `parent/` (the Maven parent POM `qip-monorepo-parent`).`` | ``configuration instead of a service: `checkstyle/` (the `qip-checkstyle` artifact) and`` / `` `parents/` (the parent POMs `qip-parent-base`, `qip-parent-spring`, and `qip-parent-quarkus`). `bom/` holds `qip-bom`,`` / ``the public BOM that lists every published module at its project version.`` |
+| ``(GPG signing is configured in `parent/pom.xml` for release publishing).`` | ``(GPG signing is configured in `parents/base/pom.xml` and `parents/spring/pom.xml` for publishing).`` |
+| ``- The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.`` | ``- `parents/spring/pom.xml` controls Spring Boot, MapStruct, Lombok, Checkstyle, and JaCoCo versions for every Spring module, and `parents/quarkus/pom.xml` the Quarkus ones for micro-engine. Bump dependency versions there, not in module POMs; a property both `parents/base` and `parents/spring` declare must keep one value, which `scripts/check-version-invariants.sh` checks.`` |
+| ``- The `qip-checkstyle` rules version is pinned via `qip-checkstyle-revision` in `parent/pom.xml`.`` | ``- The `qip-checkstyle` rules version is pinned via `qip.checkstyle.version` in `parents/base/pom.xml` and `parents/spring/pom.xml`.`` |
 
 - [ ] **Step 3: Edit `.apm/agents/maven-verifier.agent.md`**
 
-Line 13: replace `` configured in `parent/pom.xml` for release publishing and fails locally without it.`` with
-`` configured in the `parents/` POMs for publishing and fails locally without it.``
+Line 13: replace ``configured in `parent/pom.xml` for release publishing and fails locally without it.`` with
+``configured in the `parents/` POMs for publishing and fails locally without it.``
 Line 58: replace `` `parent/pom.xml` binds `checkstyle:check` to the `compile` `` with
 `` the parent POMs bind `checkstyle:check` to the `compile` ``.
 
@@ -2282,7 +2282,7 @@ git commit -m "docs: describe the parent POMs, the BOM, and the signed releases"
 
 ---
 
-### Task 13: Verify the branch end to end
+### Task 13: Verify the branch end-to-end
 
 **Files:** none changed, unless a check fails.
 

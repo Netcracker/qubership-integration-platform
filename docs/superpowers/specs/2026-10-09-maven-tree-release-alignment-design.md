@@ -64,7 +64,7 @@ so every child build fails on a clean repository.
 | When is the BOM released? | After every standalone Maven module release, as a patch, and once at the end of `release-all`. |
 | Are the parents published? | Yes, at each platform drop, and as snapshots on demand. |
 | Are snapshots signed? | Yes. |
-| Is the e2e staleness list in scope? | Yes. |
+| Is the end-to-end staleness list in scope? | Yes. |
 | Structure | Extend the existing scripts and wrappers in place; add two small scripts and a sourced `pom.sh`. |
 
 ## Version model
@@ -273,7 +273,7 @@ Fails with one `::error::` line per broken invariant:
 `bom/**` needs no build of its own: `version-invariants.yaml` already runs on every `**/pom.xml` change, and it checks
 every BOM entry.
 
-## Documentation and e2e
+## Documentation and end-to-end tests
 
 - The `.apm` sources: `.apm/instructions/monorepo.instructions.md`, `.apm/agents/maven-verifier.agent.md`, and
   `.apm/skills/release-process/SKILL.md`. `apm compile` regenerates `AGENTS.md` and the `.claude`, `.cursor`, and
