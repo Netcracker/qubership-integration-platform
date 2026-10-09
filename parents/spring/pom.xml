@@ -120,7 +120,6 @@
     <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
     <maven-javadoc-plugin.version>3.7.0</maven-javadoc-plugin.version>
     <maven-source-plugin.version>3.3.1</maven-source-plugin.version>
-    <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -257,18 +256,6 @@
       </releases>
       <snapshots>
         <enabled>false</enabled>
-      </snapshots>
-    </repository>
-
-    <!-- Maven Central repository for SNAPSHOT versions-->
-    <repository>
-      <id>oss.sonatype.org-snapshot</id>
-      <url>https://central.sonatype.com/repository/maven-snapshots</url>
-      <releases>
-        <enabled>false</enabled>
-      </releases>
-      <snapshots>
-        <enabled>true</enabled>
       </snapshots>
     </repository>
 
@@ -503,21 +490,4 @@
       </plugin>
     </plugins>
   </build>
-
-  <profiles>
-    <profile>
-      <id>github</id>
-      <activation>
-        <activeByDefault>false</activeByDefault>
-      </activation>
-      <distributionManagement>
-        <repository>
-          <id>github</id>
-          <name>GitHub Packages</name>
-          <url>https://maven.pkg.github.com/Netcracker/qubership-integration-platform</url>
-        </repository>
-      </distributionManagement>
-    </profile>
-  </profiles>
-
 </project>
