@@ -22,7 +22,8 @@
 # <revision> itself; npm's release already updated package.json.
 #
 # ECOSYSTEM=platform reads the root aggregator pom instead of a module. That
-# number is the platform version: the drop tag and the release title.
+# number is the platform version: the drop tag, the release title, and the
+# version the parents are published at. The BOM releases as MODULE=bom.
 
 set -euo pipefail
 

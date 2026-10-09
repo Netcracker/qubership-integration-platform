@@ -299,5 +299,120 @@ class SetPlatformVersionTest(RepositoryCopy):
         )
 
 
+class SyncBomEntryTest(RepositoryCopy):
+    """sync-bom-entry.sh moves one BOM entry and keeps its form."""
+
+    ENGINE_REVISION = r"<revision>([^<]+)</revision>"
+    ENGINE_ENTRY = r"<artifactId>qip-engine</artifactId>\s*<version>([^<]+)<"
+
+    def release(self, module, version):
+        """Write a module's released <revision> and move its BOM entry, as the release job does."""
+        self.substitute(
+            f"{module}/pom.xml", r"<revision>[^<]+</revision>", f"<revision>{version}</revision>"
+        )
+        return self.run_script("sync-bom-entry.sh", module, version)
+
+    def test_moves_the_entry_and_keeps_the_changelist(self):
+        """The entry takes the new number and keeps ${changelist}; other entries stay."""
+        catalog = self.value(
+            "bom/pom.xml", r"<artifactId>qip-runtime-catalog</artifactId>\s*<version>([^<]+)<"
+        )
+        result = self.release("engine", "9.9.9")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout.strip(), "bom/pom.xml")
+        self.assertEqual(self.value("bom/pom.xml", self.ENGINE_ENTRY), "9.9.9${changelist}")
+        self.assertEqual(
+            self.value(
+                "bom/pom.xml", r"<artifactId>qip-runtime-catalog</artifactId>\s*<version>([^<]+)<"
+            ),
+            catalog,
+        )
+        check = self.run_script("check-version-invariants.sh")
+        self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+
+    def test_checkstyle_entry_stays_bare(self):
+        """checkstyle's entry has no suffix before the sync and none after it."""
+        result = self.run_script("sync-bom-entry.sh", "checkstyle", "9.9.9")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            self.value("bom/pom.xml", r"<artifactId>qip-checkstyle</artifactId>\s*<version>([^<]+)<"),
+            "9.9.9",
+        )
+
+    def test_fails_for_a_module_the_bom_does_not_list(self):
+        """The BOM lists no entry for itself."""
+        self.assertFailsWith(
+            self.run_script("sync-bom-entry.sh", "bom", "9.9.9"),
+            "bom/pom.xml has no entry for qip-bom (bom)",
+        )
+
+    def test_a_rerun_with_the_same_version_changes_nothing(self):
+        """Recovery re-applies the bump, so a second sync must be a no-op."""
+        self.release("engine", "9.9.9")
+        before = self.read("bom/pom.xml")
+        result = self.run_script("sync-bom-entry.sh", "engine", "9.9.9")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.read("bom/pom.xml"), before)
+
+    def test_works_on_a_crlf_checkout(self):
+        """POMs with CRLF line endings read and write like LF ones."""
+        for name in ["bom/pom.xml", "engine/pom.xml"]:
+            text = self.read(name).replace("\r\n", "\n").replace("\n", "\r\n")
+            self.write(name, text)
+        result = self.release("engine", "9.9.9")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        bom = self.read("bom/pom.xml")
+        self.assertIn("<version>9.9.9${changelist}</version>\r\n", bom)
+        self.assertNotIn("\r\r", bom)
+        check = self.run_script("check-version-invariants.sh")
+        self.assertEqual(check.returncode, 0, check.stdout + check.stderr)
+
+    def test_parallel_releases_merge_without_a_conflict(self):
+        """Two wave jobs move two entries on two branches; the rebase merges them."""
+        self.git("checkout", "--quiet", "-b", "engine-release")
+        self.release("engine", "9.9.9")
+        self.git("commit", "--quiet", "--all", "--message", "engine")
+        self.git("checkout", "--quiet", "-")
+        self.git("checkout", "--quiet", "-b", "catalog-release")
+        self.release("runtime-catalog", "8.8.8")
+        self.git("commit", "--quiet", "--all", "--message", "catalog")
+        self.git("rebase", "--quiet", "engine-release")
+        self.assertEqual(self.value("bom/pom.xml", self.ENGINE_ENTRY), "9.9.9${changelist}")
+        self.assertEqual(
+            self.value(
+                "bom/pom.xml", r"<artifactId>qip-runtime-catalog</artifactId>\s*<version>([^<]+)<"
+            ),
+            "8.8.8${changelist}",
+        )
+
+
+class ComputeReleaseVersionTest(RepositoryCopy):
+    """compute-release-version.sh reads the restored root revision and the BOM."""
+
+    def compute(self, **environment):
+        """Run the script and return what it wrote to GITHUB_OUTPUT."""
+        result = self.run_script(
+            "compute-release-version.sh", GITHUB_OUTPUT="github-output", **environment
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return self.read("github-output")
+
+    def test_platform(self):
+        """A minor wave bumps the root revision and tags a bare vX.Y.Z."""
+        major, minor, _ = self.value("pom.xml", r"<revision>([^<]+)</revision>").split(".")
+        output = self.compute(ECOSYSTEM="platform", RELEASE_TYPE="minor")
+        self.assertIn(f"release-version={major}.{int(minor) + 1}.0", output)
+        self.assertIn(f"release-tag=v{major}.{int(minor) + 1}.0", output)
+
+    def test_bom(self):
+        """The BOM releases like a module, tagged bom-vX.Y.Z."""
+        major, minor, patch = self.value(
+            "bom/pom.xml", r"<revision>([^<]+)</revision>"
+        ).split(".")
+        output = self.compute(ECOSYSTEM="maven", MODULE="bom", RELEASE_TYPE="patch")
+        self.assertIn(f"release-version={major}.{minor}.{int(patch) + 1}", output)
+        self.assertIn(f"release-tag=bom-v{major}.{minor}.{int(patch) + 1}", output)
+
+
 if __name__ == "__main__":
     unittest.main()

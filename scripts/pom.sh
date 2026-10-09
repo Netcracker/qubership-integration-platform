@@ -81,7 +81,8 @@ bom_entry() { # <artifactId> -> the version text of its BOM entry, or nothing
 bom_set_entry() { # <artifactId> <X.Y.Z> -> 1 when the BOM lists no such artifact
     local tmp
     tmp="$(mktemp)"
-    if awk -v id="$1" -v ver="$2" '
+    # BINMODE=3 keeps the carriage return of a CRLF line where gawk reads text mode (Git Bash on Windows).
+    if awk -v BINMODE=3 -v id="$1" -v ver="$2" '
         /<dependencyManagement>[[:space:]]*$/ { inside = 1 }
         /<\/dependencyManagement>/ { inside = 0 }
         inside && /<artifactId>/ {
