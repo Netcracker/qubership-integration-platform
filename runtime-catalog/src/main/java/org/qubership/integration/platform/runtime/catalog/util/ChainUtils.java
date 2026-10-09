@@ -31,6 +31,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 
 public class ChainUtils {
 
@@ -103,6 +105,35 @@ public class ChainUtils {
                         digest.update(buffer, 0, bytesRead);
                     }
                 }
+            }
+        }
+
+        return convertToHexString(digest.digest());
+    }
+
+    /**
+     * Generate hash value of provided chain configuration file contents, mirroring
+     * {@link #getChainFilesHash(File, String)} but over in-memory bytes (as produced on export).
+     * Keys are bare file names; entries are sorted by name before hashing.
+     *
+     * @param filesByName file name to file bytes, only top-level chain files
+     * @param currentArtifactDescriptorVersion current cip build versions. Uses as salt for hash
+     * @return Hexadecimal string representation of the hash digest of the given bytes.
+     */
+    public static String getChainFilesHash(Map<String, byte[]> filesByName, String currentArtifactDescriptorVersion)
+            throws NoSuchAlgorithmException {
+        if (filesByName == null || filesByName.isEmpty()) {
+            return "0";
+        }
+
+        MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM);
+        digest.update(currentArtifactDescriptorVersion.getBytes(StandardCharsets.UTF_8));
+
+        List<String> sortedNames = filesByName.keySet().stream().sorted().toList();
+        for (String name : sortedNames) {
+            byte[] data = filesByName.get(name);
+            if (data != null) {
+                digest.update(data, 0, data.length);
             }
         }
 

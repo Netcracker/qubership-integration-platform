@@ -49,6 +49,7 @@ import org.springframework.context.annotation.Lazy;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
@@ -186,6 +187,11 @@ public class ChainService extends ChainBaseService {
 
     public String getChainHash(String chainId) {
         return chainRepository.getChainLastImportHash(chainId);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void backfillLastImportHash(String chainId, String hash) {
+        chainRepository.backfillLastImportHash(chainId, hash);
     }
 
     public void clearContext() {

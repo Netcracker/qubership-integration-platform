@@ -42,6 +42,11 @@ public interface ChainRepository extends CommonRepository<Chain>, JpaRepository<
     @Query("update chains chain set chain.unsavedChanges = :unsavedChanges where chain.id = :chainId")
     void updateUnsavedChanges(String chainId, boolean unsavedChanges);
 
+    @Modifying
+    @Query("update chains chain set chain.lastImportHash = :hash where chain.id = :chainId"
+            + " and (chain.lastImportHash is null or chain.lastImportHash = '0')")
+    int backfillLastImportHash(String chainId, String hash);
+
     @Query(
             nativeQuery = true,
             value = """

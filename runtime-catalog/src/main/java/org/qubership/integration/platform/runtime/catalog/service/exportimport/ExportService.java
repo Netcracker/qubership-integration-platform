@@ -33,6 +33,7 @@ import org.qubership.integration.platform.runtime.catalog.service.ActionsLogServ
 import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
 import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -58,6 +59,9 @@ public class ExportService {
 
     @Value("${cip.export.legacy-format}")
     private boolean isLegacyExport;
+
+    @Value("${cip.build.artifact-descriptor-version:}")
+    private String artifactDescriptorVersion;
 
     private final YAMLMapper yamlMapper;
     private final ChainService chainService;
@@ -111,11 +115,33 @@ public class ExportService {
             String zipName = generateExportZipName();
             byte[] zipBytes = zipChainFiles(fileContentMap);
             for (Chain chain : chains) {
+                backfillLastImportHashIfEmpty(chain, fileContentMap);
                 logChainExport(chain);
             }
             return Pair.of(zipName, zipBytes);
         } catch (Exception e) {
             throw new ChainExportException(e);
+        }
+    }
+
+    private void backfillLastImportHashIfEmpty(Chain chain, Map<Path, byte[]> fileContentMap) {
+        String currentHash = chain.getLastImportHash();
+        if (currentHash != null && !"0".equals(currentHash)) {
+            return;
+        }
+        try {
+            Path chainDirectory = getChainDirectory(chain);
+            Map<String, byte[]> topLevelFiles = new HashMap<>();
+            for (Map.Entry<Path, byte[]> entry : fileContentMap.entrySet()) {
+                Path key = entry.getKey();
+                if (key.getParent() != null && key.getParent().equals(chainDirectory) && key.getFileName() != null) {
+                    topLevelFiles.put(key.getFileName().toString(), entry.getValue());
+                }
+            }
+            String hash = ChainUtils.getChainFilesHash(topLevelFiles, artifactDescriptorVersion);
+            chainService.backfillLastImportHash(chain.getId(), hash);
+        } catch (Exception e) {
+            log.warn("Failed to backfill last import hash for chain {}", chain.getId(), e);
         }
     }
 
