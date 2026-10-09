@@ -21,12 +21,15 @@
     <changelist>-SNAPSHOT</changelist>
   </properties>
 
+  <!-- Each entry is its module's project version: the module's <revision> followed by ${changelist}, which this
+       POM resolves to -SNAPSHOT in the working tree and to nothing in a release. checkstyle has an empty
+       changelist, so its entry is the bare <revision>. scripts/sync-bom-entry.sh moves an entry on release. -->
   <dependencyManagement>
     <dependencies>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-schemas</artifactId>
-        <version>1.5.1-SNAPSHOT</version>
+        <version>1.5.1${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
@@ -36,32 +39,32 @@
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-micro-engine</artifactId>
-        <version>1.5.1-SNAPSHOT</version>
+        <version>1.5.1${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-integration-build-pipeline</artifactId>
-        <version>1.5.1-SNAPSHOT</version>
+        <version>1.5.1${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-integration-build-maven-plugin</artifactId>
-        <version>1.5.1-SNAPSHOT</version>
+        <version>1.5.1${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-engine</artifactId>
-        <version>1.5.1-SNAPSHOT</version>
+        <version>1.5.1${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-runtime-catalog</artifactId>
-        <version>1.5.1-SNAPSHOT</version>
+        <version>1.5.1${changelist}</version>
       </dependency>
       <dependency>
         <groupId>org.qubership.integration.platform</groupId>
         <artifactId>qip-sessions-management</artifactId>
-        <version>1.5.1-SNAPSHOT</version>
+        <version>1.5.1${changelist}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

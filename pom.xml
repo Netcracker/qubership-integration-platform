@@ -11,9 +11,16 @@
   </parent>
 
   <artifactId>qip-monorepo</artifactId>
+  <version>${revision}${changelist}</version>
   <packaging>pom</packaging>
 
   <name>QIP Monorepo Aggregator</name>
+
+  <properties>
+    <!-- The platform version: the last released drop. The parents carry it with -SNAPSHOT appended. -->
+    <revision>1.5.1</revision>
+    <changelist>-SNAPSHOT</changelist>
+  </properties>
 
   <modules>
     <module>parents</module>
