@@ -152,11 +152,10 @@ const R_ASYNC_API_TRIGGER_SYSTEM_TYPE =
 const R_ASYNC_API_TRIGGER_UNCOVERED = "no case: the async-api-trigger cases vary only the protocol axis";
 // The `script` element has no axis row: it is covered at tier 1 by a fixture chain, and none of the
 // six axes the script specs sweep is a discriminator the schemas declare, so the extractor produces
-// no row for any of them. What those specs settled is written in their headers —
-// `specs/api/script-source.spec.ts`,
-// `specs/runtime/script-{exchange,libraries,failures,in-container}.spec.ts` and
-// `specs/global/script-external-library.spec.ts` — and in `docs/product-defects.md` where it is a
-// finding about the platform. Two facts belong here rather than there:
+// no row for any of them. What those specs settled is written in their headers:
+// `specs/api/script-source.spec.ts` and
+// `specs/runtime/script-{exchange,libraries,failures,in-container,external-library}.spec.ts`. Two
+// facts belong here rather than there:
 //
 // - `propertiesFilename`, with `exportFileExtension` and `propertiesToExportInSeparateFile`,
 //   describes an archive and not a run, so it is not an axis even though it reads like one. The
@@ -164,12 +163,11 @@ const R_ASYNC_API_TRIGGER_UNCOVERED = "no case: the async-api-trigger cases vary
 //   the importer reads the file into `script` and drops the name. A chain on the platform always
 //   carries the script inline. `specs/api/script-source.spec.ts` asserts that round trip and
 //   declares no `covers()`, because the `script` row is `@engine` and that spec deploys nothing.
-// - **Every script in `fixtures/script/` is textually unique**, and the comment line at the top of
-//   each is what keeps it that way — `specs/schema/fixtures.spec.ts` refuses a duplicate. The
-//   compiled-script cache is keyed on the trimmed source alone and every per-chain Camel context
-//   shares one language bean, so two chains carrying identical script text share one compiled
-//   class and a per-chain assertion can be satisfied by another chain's compilation. Do not
-//   deduplicate them.
+// - **No two scripts in one chain under `fixtures/script/` carry the same text**, and the comment
+//   line at the top of each keeps them apart; `specs/schema/fixtures.spec.ts` refuses a duplicate.
+//   Each chain's Camel context has its own compiled-script cache, keyed on the trimmed source, so
+//   two identical scripts in one chain share one compiled class, and an assertion about one of them
+//   can be satisfied by the compilation of the other. Do not deduplicate them.
 //
 // Two deliberate gaps, both decided rather than deferred.
 const R_JMS =

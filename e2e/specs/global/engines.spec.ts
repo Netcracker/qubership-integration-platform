@@ -114,8 +114,7 @@ test("the pod listing follows the target's domain source", { tag: ["@catalog", "
   const hosts = (await catalog.engineHosts())[DEFAULT_DOMAIN] ?? [];
 
   // Where the catalog lists pods, the listing answers 400: the Kubernetes client refuses a pod
-  // status field it does not know. docs/product-defects.md, "The catalog cannot list a domain's
-  // engine pods on Kubernetes v1.36".
+  // status field it does not know (#1000).
   const { listsEnginePods } = env.domainFacts();
   test.fail(listsEnginePods, "the catalog cannot read a pod status on Kubernetes v1.36");
   const listing = await catalog.raw("get", `/v1/catalog/domains/${DEFAULT_DOMAIN}/engines`);

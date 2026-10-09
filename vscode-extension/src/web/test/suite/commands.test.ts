@@ -278,7 +278,7 @@ suite("Open commands", function () {
     });
   }
 
-  // Pins a defect (docs/product-defects.md): `qip.revealInExplorer` opens context and MCP services in
+  // Pins a defect (#1005): `qip.revealInExplorer` opens context and MCP services in
   // the chain editor. The case fails once the command opens their own editors; then assert that instead.
   for (const { fixture } of EDITORS.filter((each) => !each.revealed)) {
     test(`qip.revealInExplorer opens ${suffixOf(fixture)} in the chain editor`, async () => {

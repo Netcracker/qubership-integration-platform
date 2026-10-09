@@ -11,7 +11,7 @@
  * jar. This file covers the catalog side of it — that a library appears, is served, and is rebuilt.
  * The **behavioral** use of a library, a Groovy script resolving the generated class and the
  * engine's compiled-script cache noticing when it moves, is
- * `specs/global/script-external-library.spec.ts`.
+ * `specs/runtime/script-external-library.spec.ts`.
  *
  * Four shapes measured rather than assumed:
  *

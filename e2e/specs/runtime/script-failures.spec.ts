@@ -287,7 +287,7 @@ test("a whitespace-only script is a no-op and the body passes through it", { tag
   // not, which reads as a divergence and is not one: the two engines use different chain loaders,
   // `camel-xml-io-dsl` drops a whitespace-only expression body where the Spring engine's JAXB
   // loader keeps it, and the override restores the behavior this case asserts. To Groovy an empty
-  // source and a whitespace-only one are the same thing. `docs/product-defects.md` carries it.
+  // source and a whitespace-only one are the same thing.
   const chain = seedChain(readCorpusState(), "script-empty.yaml");
   const sent = { ping: "empty" };
   const call = await callChain(request, env.chainUrl(chain.contextPath), { data: sent });

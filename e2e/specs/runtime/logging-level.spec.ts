@@ -120,10 +120,9 @@ test("the session logging level decides whether a call leaves a trace", { tag: [
     // The ERROR chain's recording path, proven live before anything is read off it.
     //
     // `clean` below is an absence assertion, and a chain deployed in a batch with others can lose
-    // the session of its first call — `docs/product-defects.md`, "A chain deployed in the same
-    // engine batch as another can lose the session of its first call", measured at 2 of 12 calls
-    // sent the moment the route answered. A lost session and a suppressed one read the same, so
-    // without this gate a regression that started recording clean calls at ERROR would still pass.
+    // the session of its first call, measured at 2 of 12 calls sent the moment the route answered.
+    // A lost session and a suppressed one read the same, so without this gate a regression that
+    // started recording clean calls at ERROR would still pass.
     // The warm-up calls fail on purpose: a clean one records nothing at this level by design and
     // would never satisfy the gate. The OFF chain gets none, for the same reason — nothing it does
     // records — and what stands in for one there is `silentFailure`, its **second** call.
