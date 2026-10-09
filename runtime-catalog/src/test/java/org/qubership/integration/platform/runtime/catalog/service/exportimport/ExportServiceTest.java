@@ -16,6 +16,7 @@ import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
 
+import java.lang.reflect.Field;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -45,6 +46,9 @@ class ExportServiceTest {
     private ExportService service;
 
     private void stubExport(Chain chain) throws Exception {
+        Field versionField = ExportService.class.getDeclaredField("artifactDescriptorVersion");
+        versionField.setAccessible(true);
+        versionField.set(service, "test-version");
         when(chainFinderService.findById("c1")).thenReturn(chain);
         ChainExternalEntity external = ChainExternalEntity.builder()
                 .id("c1")
