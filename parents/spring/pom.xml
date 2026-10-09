@@ -247,7 +247,6 @@
     </dependencies>
   </dependencyManagement>
 
-  <!-- Maven queries repositories in this order and Central serves nearly every artifact, so it goes first. -->
   <repositories>
     <!-- Maven Central for release versions. Maven queries repositories in this order, so Central goes first. -->
     <repository>

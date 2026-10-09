@@ -67,7 +67,6 @@
     <maven-dependency-plugin.version>3.8.1</maven-dependency-plugin.version>
   </properties>
 
-  <!-- Maven queries repositories in this order and Central serves nearly every artifact, so it goes first. -->
   <repositories>
     <!-- Maven Central for release versions. Maven queries repositories in this order, so Central goes first. -->
     <repository>
