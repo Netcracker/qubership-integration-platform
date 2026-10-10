@@ -122,9 +122,10 @@ class RequirementPolicyConsultationTest {
     var update = new DraftUpdate(List.of(), List.of(), List.of(), List.of(), List.of(), List.of(),
         List.of(changed), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), null);
     var result = RequirementCaptureEditor.apply(old, update);
-    assertFalse(result.accepted());
-    assertEquals(old, result.draft());
-    assertTrue(result.issues().stream().anyMatch(i -> i.code().equals("POLICY_RESPONSE_REQUIRED")));
+    assertTrue(result.accepted());
+    var issues = RequirementRevisionAdmission.validate(old, result.draft(), List.of(),
+        java.util.Set.of(), java.util.Map.of(), fact -> true);
+    assertTrue(issues.stream().anyMatch(i -> i.code().equals("POLICY_RESPONSE_REQUIRED")));
   }
 
   @Test

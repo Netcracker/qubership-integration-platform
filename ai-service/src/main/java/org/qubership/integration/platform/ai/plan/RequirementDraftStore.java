@@ -40,6 +40,7 @@ public class RequirementDraftStore {
       new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, List<RequirementCaptureInput.FactInput>> rejectedCaptureFacts =
       new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, com.fasterxml.jackson.databind.JsonNode> rejectedCaptureValues = new ConcurrentHashMap<>();
   private final CompilationArtifacts artifacts;
   private final CompilationSessions sessions;
   private final org.qubership.integration.platform.ai.chat.conversation.ConversationService conversations;
@@ -69,6 +70,158 @@ public class RequirementDraftStore {
   }
 
   public void put(String conversationId, RequirementDraft draft) {
+    withWriteAuthority(conversationId, () -> {
+      var previous = get(conversationId).orElse(null);
+      if (previous != null && previous.authoredDraft() != null
+          && !Objects.equals(previous.authoredDraft(), draft.authoredDraft())) {
+        throw new IllegalArgumentException("Derived writes must preserve admitted authored requirements.");
+      }
+      requireCurrentSource(conversationId);
+      appendDraft(conversationId, draft, false);
+      return null;
+    });
+  }
+
+  <T> T withWriteAuthority(String conversationId, java.util.function.Supplier<T> action) {
+    java.util.function.Supplier<T> serialized = () -> {
+      synchronized (this) {
+        return action.get();
+      }
+    };
+    if (conversations == null) {
+      return serialized.get();
+    }
+    var current = conversations.archive().read(conversationId);
+    return conversations.archive().withAuthority(conversationId, current.generation(),
+        org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(current), serialized);
+  }
+
+  List<RequirementCaptureEditor.Issue> admitCapture(String conversationId, Reference expectedBase,
+      RequirementDraft draft, RequirementCaptureInput.DraftUpdate changes,
+      java.util.Map<String, java.util.Set<String>> mappingPaths) {
+    return withWriteAuthority(conversationId,
+        () -> admitCaptureLocked(conversationId, expectedBase, draft, changes, mappingPaths));
+  }
+
+  private List<RequirementCaptureEditor.Issue> admitCaptureLocked(String conversationId, Reference expectedBase,
+      RequirementDraft draft, RequirementCaptureInput.DraftUpdate changes,
+      java.util.Map<String, java.util.Set<String>> mappingPaths) {
+    var issues = new java.util.ArrayList<RequirementCaptureEditor.Issue>();
+    var current = latestRevision(conversationId);
+    if (!Objects.equals(expectedBase, current.map(Revision::reference).orElse(null))) {
+      issues.add(new RequirementCaptureEditor.Issue("STALE_REQUIREMENT_BASE", "/draft", null,
+          "Read the current admitted revision before preparing another candidate."));
+    }
+    if (!currentSource(conversationId)) {
+      issues.add(new RequirementCaptureEditor.Issue("STALE_REQUIREMENT_SOURCE", "/draft", null,
+          "This candidate belongs to an obsolete author source. Resume with the current source."));
+    }
+    var base = current.map(revision -> artifacts.payload(revision, RequirementDraft.class))
+        .map(RequirementDraft::authoredDraft).orElse(null);
+    var authorPaths = new java.util.LinkedHashSet<String>();
+    if (changes != null && changes.amendments() != null) {
+      for (var amendment : changes.amendments()) {
+        if (amendment == null || !RequirementRevisionAdmission.validPath(base, amendment.path())
+            || !supportsAmendment(conversationId, amendment)) {
+          issues.add(new RequirementCaptureEditor.Issue("INVALID_AUTHOR_AMENDMENT", "/changes/amendments", null,
+              "Cite a fresh READY author source and its exact nonempty quote for an existing requirement path."
+                  + " A repair instruction or an earlier consumed source does not authorize an amendment."));
+        } else {
+          authorPaths.add(amendment.path());
+        }
+      }
+    }
+    if (!issues.isEmpty()) {
+      return List.copyOf(issues);
+    }
+    issues.addAll(RequirementRevisionAdmission.validate(base, draft.authoredDraft(),
+        rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), authorPaths, activeRepairPaths(conversationId, base), mappingPaths,
+        fact -> canResolvePolicyChoice(conversationId, fact)));
+    if (!issues.isEmpty()) {
+      return List.copyOf(issues);
+    }
+    if (current.isEmpty() || !draft.equals(artifacts.payload(current.orElseThrow(), RequirementDraft.class))) {
+      appendDraft(conversationId, draft, true);
+    }
+    clearRejectedCaptureFacts(conversationId);
+    return List.of();
+  }
+
+  public List<RequirementCaptureEditor.Issue> validateCurrent(String conversationId) {
+    var current = get(conversationId).orElse(null);
+    if (current == null || current.authoredDraft() == null) return List.of();
+    return RequirementRevisionAdmission.validate(current.authoredDraft(), current.authoredDraft(),
+        rejectedCaptureFacts(conversationId), rejectedCaptureValues.get(conversationId), java.util.Set.of(),
+        java.util.Set.of(), java.util.Map.of(), fact -> false);
+  }
+
+  private java.util.Set<String> activeRepairPaths(String conversationId, RequirementCaptureInput.DraftInput base) {
+    return org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext
+        .binding(conversationId)
+        .filter(binding -> binding.mode()
+            == org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.Mode.DISCOVERY)
+        .filter(binding -> binding.approvedDraft() != null && Objects.equals(base, binding.approvedDraft().authoredDraft()))
+        .map(binding -> binding.requirementRepairPaths()).orElse(java.util.Set.of());
+  }
+
+  public static boolean isRequirementRepairPath(RequirementDraft draft, String path) {
+    return draft != null && RequirementRevisionAdmission.validPath(draft.authoredDraft(), path)
+        && !path.contains("/policyConflict");
+  }
+
+  private boolean supportsAmendment(String conversationId, RequirementCaptureInput.AmendmentInput amendment) {
+    if (amendment.quote() == null || amendment.quote().isBlank() || amendmentAlreadyAdmitted(conversationId, amendment.path())) {
+      return false;
+    }
+    var source = sourceInputs.get(conversationId);
+    if (source == null) {
+      return "current".equals(amendment.sourceTurnId())
+          && currentAuthorText.getOrDefault(conversationId, "").contains(amendment.quote());
+    }
+    return source.activeTurns().stream().anyMatch(turn -> Objects.equals(turn.id(), amendment.sourceTurnId())
+        && turn.message().role() == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+        && "READY".equals(turn.status()) && turn.consumedDraftReference() == null
+        && turn.message().content().contains(amendment.quote()));
+  }
+
+  private boolean amendmentAlreadyAdmitted(String conversationId, String path) {
+    var current = factProtection(conversationId, List.of());
+    return artifacts.history(sessions.active(conversationId), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream()
+        .map(revision -> artifacts.payload(revision, RequirementCaptureAttempt.class))
+        .filter(RequirementCaptureAttempt::accepted)
+        .filter(attempt -> new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(),
+            attempt.authorText(), List.of()).sameSource(current))
+        .map(attempt -> new ObjectMapper().<com.fasterxml.jackson.databind.JsonNode>valueToTree(attempt.arguments()))
+        .anyMatch(arguments -> arguments.path("amendments").findValuesAsText("path").stream()
+            .anyMatch(prior -> prior.equals(path) || prior.startsWith(path + "/") || path.startsWith(prior + "/")));
+  }
+
+  private boolean currentSource(String conversationId) {
+    if (conversations == null || !sourceInputs.containsKey(conversationId)) {
+      return true;
+    }
+    var expected = sourceInputs.get(conversationId);
+    var current = conversations.archive().read(conversationId);
+    return expected.generation().equals(current.generation())
+        && Objects.equals(org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(expected),
+            org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(current));
+  }
+
+  private void requireCurrentSource(String conversationId) {
+    if (!currentSource(conversationId)) {
+      throw new IllegalStateException("Requirement source authority is obsolete.");
+    }
+  }
+
+  private void appendDraft(String conversationId, RequirementDraft draft, boolean consumeSource) {
+    if (draft.authoredDraft() != null) {
+      var authored = draft.authoredDraft();
+      var facts = RequirementCaptureProjection.facts(authored).subList(0, authored.facts().size());
+      if (!draft.facts().containsAll(facts)
+          || !draft.flow().equals(RequirementCaptureProjection.flow(authored))) {
+        throw new IllegalArgumentException("Derived requirements must retain the admitted source facts and flow.");
+      }
+    }
     lastCaptureRejection.remove(conversationId);
     String compilationId = sessions.active(conversationId);
     String revisesArtifactId =
@@ -76,7 +229,7 @@ public class RequirementDraftStore {
             .latest(compilationId, Kind.REQUIREMENT_DRAFT)
             .map(Revision::artifactId)
             .orElse(null);
-    var source = sourceInputs.get(conversationId);
+    var source = consumeSource ? sourceInputs.get(conversationId) : null;
     List<Reference> inputs = source == null ? List.of() : source.activeTurns().stream()
         .filter(turn -> turn.message().role()
             == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
@@ -107,14 +260,8 @@ public class RequirementDraftStore {
     if (get(conversationId).filter(draft::equals).isPresent()) {
       return;
     }
-    var source = sourceInputs.remove(conversationId);
-    try {
-      put(conversationId, draft);
-    } finally {
-      if (source != null) {
-        sourceInputs.put(conversationId, source);
-      }
-    }
+    beginTurn(conversationId);
+    put(conversationId, draft);
   }
 
   public Optional<Revision> latestRevision(String conversationId) {
@@ -123,9 +270,85 @@ public class RequirementDraftStore {
         .flatMap(link -> artifacts.latest(link.compilationId(), Kind.REQUIREMENT_DRAFT));
   }
 
+  public record WriteAuthority(Reference base, String sourceGeneration, String sourceTurnId) {}
+
+  public WriteAuthority writeAuthority(String conversationId) {
+    var source = conversations == null ? null : conversations.archive().read(conversationId);
+    return new WriteAuthority(latestRevision(conversationId).map(Revision::reference).orElse(null),
+        source == null ? null : source.generation(), source == null ? null
+            : org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(source));
+  }
+
+  public boolean isCurrentWrite(String conversationId, WriteAuthority expected) {
+    return Objects.equals(expected, writeAuthority(conversationId));
+  }
+
+  public boolean putIfCurrent(String conversationId, WriteAuthority expected, RequirementDraft draft) {
+    return withWriteAuthority(conversationId, () -> {
+      if (!isCurrentWrite(conversationId, expected)) {
+        return false;
+      }
+      put(conversationId, draft);
+      return true;
+    });
+  }
+
   public Optional<RequirementDraft> get(String conversationId) {
     return latestRevision(conversationId)
         .map(revision -> artifacts.payload(revision, RequirementDraft.class));
+  }
+
+  /** Returns effective answers with the revision and sources that first admitted each value. */
+  public List<AuthorAnswer> confirmedAnswers(String conversationId) {
+    var current = sessions.current(conversationId);
+    if (current.isEmpty()) {
+      return List.of();
+    }
+    var answers = new java.util.LinkedHashMap<String, AuthorAnswer>();
+    for (var revision : artifacts.history(current.get().compilationId(), Kind.REQUIREMENT_DRAFT)) {
+      var draft = artifacts.payload(revision, RequirementDraft.class).authoredDraft();
+      if (draft == null) {
+        continue;
+      }
+      var effective = new java.util.HashSet<String>();
+      for (var fact : draft.facts()) {
+        var policy = fact.policyConflict();
+        if (policy != null && policy.decision() != null) {
+          effective.add(fact.sourceFactId());
+          var previous = answers.get(fact.sourceFactId());
+          if (previous == null || !Objects.equals(previous.policy(), policy)
+              || !previous.interactionIds().equals(fact.interactionIds())) {
+            answers.put(fact.sourceFactId(), new AuthorAnswer(fact.sourceFactId(), policy.questionId(),
+                fact.interactionIds(), policy, revision.reference(), revision.inputs()));
+          }
+        }
+      }
+      answers.keySet().retainAll(effective);
+    }
+    return List.copyOf(answers.values());
+  }
+
+  public record AuthorAnswer(String sourceFactId, String questionId, List<String> interactionIds,
+      RequirementPolicyConflict policy, Reference admittedRevision, List<Reference> sourceInputs) {
+    public AuthorAnswer {
+      interactionIds = List.copyOf(interactionIds);
+      sourceInputs = List.copyOf(sourceInputs);
+    }
+  }
+
+  public void recordIdsChoice(String conversationId, Boolean choice) {
+    withWriteAuthority(conversationId, () -> {
+    var previous = get(conversationId).orElseThrow();
+    if (previous.idsRequested() != null || choice == null) {
+      throw new IllegalArgumentException("An unresolved IDS choice and an author response are required.");
+    }
+    requireCurrentSource(conversationId);
+    if (sourceInputs.containsKey(conversationId) && wasCapturedThisTurn(conversationId)) {
+      throw new IllegalArgumentException("A fresh author response is required for the IDS choice.");
+    }
+    appendDraft(conversationId, previous.withIdsRequested(choice), true);
+    return null;
+    });
   }
 
   public ArtifactDecision approve(
@@ -256,11 +479,12 @@ public class RequirementDraftStore {
           .ifPresent(draft -> policyQuestionsAtTurnStart.put(conversationId, draft));
       capturedThisTurn.put(conversationId, capturedFromSource(conversationId, source));
       rejectedCaptureFacts.remove(conversationId);
+      rejectedCaptureValues.remove(conversationId);
       if (source != null || authorText != null) {
         captureMutationScopes.remove(conversationId);
       }
     }
-    if (source != null) {
+    if (source != null && !sameAuthorTurn) {
       sourceInputs.put(conversationId, source);
     }
     if (authorText == null) {
@@ -271,8 +495,11 @@ public class RequirementDraftStore {
     if (!sameAuthorTurn) {
       CaptureFactProtection scope = factProtection(conversationId, List.of());
       latestFactProtection(conversationId)
-          .filter(previous -> previous.sameSource(scope) && !previous.facts().isEmpty())
-          .ifPresent(previous -> rejectedCaptureFacts.put(conversationId, previous.facts()));
+          .filter(previous -> previous.sameSource(scope))
+          .ifPresent(previous -> {
+            rejectedCaptureFacts.put(conversationId, previous.facts());
+            if (previous.values() != null) rejectedCaptureValues.put(conversationId, previous.values());
+          });
     }
     turnDirectives.remove(conversationId);
   }
@@ -318,11 +545,25 @@ public class RequirementDraftStore {
         policyQuestionsAtTurnStart.get(conversationId), candidate);
   }
 
+  void rememberRejectedCapture(String conversationId, RequirementCaptureInput.DraftInput input,
+      List<RequirementCaptureEditor.Issue> issues) {
+    var facts = RequirementRevisionAdmission.accumulate(rejectedCaptureFacts(conversationId),
+        RequirementCaptureEditor.factsToPreserve(input, issues));
+    var values = RequirementRevisionAdmission.accumulateValues(rejectedCaptureValues.get(conversationId),
+        RequirementRevisionAdmission.valuesToPreserve(input, issues));
+    if (!facts.equals(rejectedCaptureFacts(conversationId)) || !values.equals(rejectedCaptureValues.get(conversationId))) {
+      rejectedCaptureFacts.put(conversationId, facts);
+      rejectedCaptureValues.put(conversationId, values);
+      saveFactProtection(conversationId, facts);
+    }
+  }
+
   void rememberRejectedCaptureFacts(
       String conversationId, List<RequirementCaptureInput.FactInput> facts) {
-    if (!facts.isEmpty() && !rejectedCaptureFacts.containsKey(conversationId)) {
-      saveFactProtection(conversationId, facts);
-      rejectedCaptureFacts.putIfAbsent(conversationId, List.copyOf(facts));
+    var accumulated = RequirementRevisionAdmission.accumulate(rejectedCaptureFacts(conversationId), facts);
+    if (!accumulated.equals(rejectedCaptureFacts(conversationId))) {
+      saveFactProtection(conversationId, accumulated);
+      rejectedCaptureFacts.put(conversationId, accumulated);
     }
   }
 
@@ -332,7 +573,8 @@ public class RequirementDraftStore {
 
   void clearRejectedCaptureFacts(String conversationId) {
     rejectedCaptureFacts.remove(conversationId);
-    if (latestFactProtection(conversationId).filter(protection -> !protection.facts().isEmpty()).isPresent()) {
+    rejectedCaptureValues.remove(conversationId);
+    if (latestFactProtection(conversationId).filter(protection -> !protection.facts().isEmpty() || protection.values() != null && !protection.values().isEmpty()).isPresent()) {
       saveFactProtection(conversationId, List.of());
     }
   }
@@ -343,7 +585,7 @@ public class RequirementDraftStore {
     String inputId = source == null ? null
         : org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(source);
     return new CaptureFactProtection(inputId == null ? null : source.generation(), inputId,
-        inputId == null ? currentAuthorText.get(conversationId) : null, facts);
+        inputId == null ? currentAuthorText.get(conversationId) : null, facts, rejectedCaptureValues.get(conversationId));
   }
 
   private Optional<CaptureFactProtection> latestFactProtection(String conversationId) {
@@ -361,7 +603,12 @@ public class RequirementDraftStore {
   }
 
   public record CaptureFactProtection(String sourceGeneration, String sourceTurnId, String authorText,
-      List<RequirementCaptureInput.FactInput> facts) {
+      List<RequirementCaptureInput.FactInput> facts, com.fasterxml.jackson.databind.JsonNode values) {
+    public CaptureFactProtection(String sourceGeneration, String sourceTurnId, String authorText,
+        List<RequirementCaptureInput.FactInput> facts) {
+      this(sourceGeneration, sourceTurnId, authorText, facts, null);
+    }
+
     public CaptureFactProtection {
       facts = List.copyOf(facts);
     }
@@ -381,6 +628,13 @@ public class RequirementDraftStore {
   }
 
   public Optional<String> currentAuthorText(String conversationId) {
+    var source = sourceInputs.get(conversationId);
+    if (source != null) {
+      return source.activeTurns().stream().filter(turn -> turn.message().role()
+          == org.qubership.integration.platform.ai.chat.conversation.ConversationMessage.Role.USER
+          && "READY".equals(turn.status())).reduce((first, last) -> last)
+          .map(turn -> turn.message().content());
+    }
     return Optional.ofNullable(currentAuthorText.get(conversationId));
   }
 
@@ -495,6 +749,21 @@ public class RequirementDraftStore {
 
   public void applyImportResult(
       String conversationId, String interactionId, ResolvedCatalogBinding binding) {
+    applyImportResult(conversationId, writeAuthority(conversationId), interactionId, binding);
+  }
+
+  public boolean applyImportResult(String conversationId, WriteAuthority expected,
+      String interactionId, ResolvedCatalogBinding binding) {
+    return withWriteAuthority(conversationId, () -> {
+      if (!isCurrentWrite(conversationId, expected)) {
+        return false;
+      }
+      applyCurrentImportResult(conversationId, interactionId, binding);
+      return true;
+    });
+  }
+
+  private void applyCurrentImportResult(String conversationId, String interactionId, ResolvedCatalogBinding binding) {
     RequirementDraft current = get(conversationId).orElse(null);
     if (current == null || binding == null) {
       return;
@@ -559,6 +828,14 @@ public class RequirementDraftStore {
    * Clears the pending API Hub candidate after import failure while keeping durable
    * {@code importIntent} for soft re-gather.
    */
+  public boolean recordImportFailure(String conversationId, WriteAuthority expected) {
+    return withWriteAuthority(conversationId, () -> {
+      if (!isCurrentWrite(conversationId, expected)) return false;
+      recordImportFailure(conversationId);
+      return true;
+    });
+  }
+
   public void recordImportFailure(String conversationId) {
     RequirementDraft current = get(conversationId).orElse(null);
     if (current == null) {
@@ -568,12 +845,17 @@ public class RequirementDraftStore {
   }
 
   public void rememberPreferredSystemType(String conversationId, String systemType) {
-    RequirementDraft current = get(conversationId).orElse(null);
-    if (current == null) {
-      put(conversationId, new RequirementDraft(false, "").withPreferredSystemType(systemType));
-      return;
-    }
-    put(conversationId, current.withPreferredSystemType(systemType));
+    withWriteAuthority(conversationId, () -> {
+      beginTurn(conversationId);
+      RequirementDraft current = get(conversationId).orElse(null);
+      if (current == null) {
+        put(conversationId, new RequirementDraft(false, "").withPreferredSystemType(systemType));
+        return null;
+      }
+      requireCurrentSource(conversationId);
+      appendDraft(conversationId, current.withPreferredSystemType(systemType), true);
+      return null;
+    });
   }
 
   /** Ensures durable import intent is set when cold IMPORT soft-advances into gather. */

@@ -534,7 +534,13 @@ class RequirementCaptureToolsTest {
       var next = archive.beginInput(chat, "Remove the external route requirement.", null);
       archive.resolveInput(chat, next, "Remove the external route requirement.");
       restored.store().beginTurn(chat, "Remove the external route requirement.");
-      assertTrue(mapper.readValue(restored.tools().updateRequirementDraft(removal), RequirementCaptureResult.class).accepted());
+      var authorRemoval = new DraftUpdate(removal.addInteractions(), removal.updateInteractions(),
+          removal.removeInteractionIds(), removal.addTransitions(), removal.removeTransitions(), removal.addFacts(),
+          removal.updateFacts(), removal.removeFactIds(), removal.setCapabilities(), removal.removeCapabilityInteractionIds(),
+          removal.addQuestions(), removal.updateQuestions(), removal.removeQuestionIds(), null,
+          List.of(new RequirementCaptureInput.AmendmentInput("/facts/visibility", next.turnId(),
+              "Remove the external route requirement.")));
+      assertTrue(mapper.readValue(restored.tools().updateRequirementDraft(authorRemoval), RequirementCaptureResult.class).accepted());
     }
   }
 
@@ -763,7 +769,9 @@ class RequirementCaptureToolsTest {
           Polarity.POSITIVE, "Create one task for each input.");
       DraftUpdate change = new DraftUpdate(List.of(), List.of(), List.of(), List.of(),
           List.of(), List.of(), List.of(changedFact), List.of(), List.of(), List.of(),
-          List.of(), List.of(), List.of(), null);
+          List.of(), List.of(), List.of(), null,
+          List.of(new RequirementCaptureInput.AmendmentInput("/facts/goal/text", "current",
+              "Create one task for each input.")));
       RequirementCaptureResult updated = mapper.readValue(
           tools.updateRequirementDraft(change), RequirementCaptureResult.class);
       assertTrue(updated.accepted());
@@ -872,6 +880,8 @@ class RequirementCaptureToolsTest {
     var conversations = mock(ConversationService.class);
     when(conversations.archive()).thenReturn(archive);
     String chat = "focused-role-" + UUID.randomUUID();
+    var initialSource = archive.beginInput(chat, "Create the endpoint without IDS.", null);
+    archive.resolveInput(chat, initialSource, "Create the endpoint without IDS.");
     var h = persistentHarness(blobs, mapper, conversations, chat);
     h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
         .createForUnitTests(h.mapper());
@@ -965,7 +975,9 @@ class RequirementCaptureToolsTest {
         harness.store().beginTurn(harness.conversationId(), "Remove the external route requirement.");
         DraftUpdate authorRemoval = new DraftUpdate(List.of(), List.of(), List.of(), List.of(),
             List.of(), List.of(), List.of(), List.of("visibility"), List.of(), List.of(), List.of(),
-            List.of(), List.of(), null);
+            List.of(), List.of(), null,
+            List.of(new RequirementCaptureInput.AmendmentInput("/facts/visibility", "current",
+                "Remove the external route requirement.")));
         RequirementCaptureResult removed = harness.mapper().readValue(
             harness.tools().updateRequirementDraft(authorRemoval), RequirementCaptureResult.class);
         assertTrue(removed.accepted(), removed.toString());

@@ -165,7 +165,12 @@ public class GatherRequirementsPromptBuilder {
     StringBuilder body = new StringBuilder("\n<requirement-source>\n");
     body.append("Use the current draft as accepted state. Apply explicit author amendments; ")
         .append("retain unrelated requirements. Prior sources are evidence, and superseded values ")
-        .append("do not override accepted changes. Read an earlier source by its turn id when needed.\n");
+        .append("do not override accepted changes. Read an earlier source by its turn id when needed. ")
+        .append("When changing or removing accepted content, include amendments in updateRequirementDraft: ")
+        .append("each has the exact stable path, pending author sourceTurnId, and a verbatim quote of the amendment. ")
+        .append("Examples: /facts/goal/text, /facts/goal for removal, /capabilities/entry/path, /transitions/entry for outgoing transitions. ")
+        .append("An unrelated new message grants no permission to change earlier requirements. ")
+        .append("Automatic correction uses amendments: [] and retains confirmed answers.\n");
     boolean currentIncluded = false;
     if (conversationService != null) {
       var archive = conversationService.archive();
@@ -297,7 +302,7 @@ public class GatherRequirementsPromptBuilder {
     return """
 
         <incomplete-requirement-draft>
-        The saved draft is still partial. Call captureRequirementDraft again and fill the missing fields before CONTINUE. Do not tell the user the draft is ready.
+        The saved draft is still partial. Read it with readRequirementDraft and use updateRequirementDraft to fill the missing fields before CONTINUE. Do not tell the user the draft is ready.
         %s</incomplete-requirement-draft>
         """.formatted(gaps);
   }

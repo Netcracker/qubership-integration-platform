@@ -53,6 +53,12 @@ import org.qubership.integration.platform.ai.storage.S3Service;
 
 class AutoUploadedSpecImportCapabilityTest {
 
+  private static RequirementDraftStore admittingStore() {
+    var store = mock(RequirementDraftStore.class);
+    when(store.putIfCurrent(any(), any(), any())).thenReturn(true);
+    return store;
+  }
+
   @Test
   void skipsWhenNoAttachments() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
@@ -62,7 +68,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1")).thenReturn(List.of());
 
@@ -85,7 +91,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/spec.yaml"));
@@ -111,7 +117,7 @@ class AutoUploadedSpecImportCapabilityTest {
             artifactStore,
             handler,
             mock(CatalogBindingMatcher.class),
-            mock(RequirementDraftStore.class));
+            admittingStore());
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/orders.md", "uploads/orders-api.yaml", "uploads/rules.pdf"));
     when(gateway.importUploadedSpec(eq("conv-1"), any(UploadedSpecAttachment.class), eq("INTERNAL")))
@@ -149,7 +155,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/orders-api.yaml", "uploads/notifications-async.yaml"));
@@ -191,7 +197,7 @@ class AutoUploadedSpecImportCapabilityTest {
             artifactStore,
             handler,
             mock(CatalogBindingMatcher.class),
-            mock(RequirementDraftStore.class));
+            admittingStore());
     RequirementDraft draft = draft();
     UploadedSpecAttachment first =
         new UploadedSpecAttachment("uploads/orders.yaml", "orders.yaml");
@@ -366,7 +372,7 @@ class AutoUploadedSpecImportCapabilityTest {
             artifactStore,
             handler,
             mock(CatalogBindingMatcher.class),
-            mock(RequirementDraftStore.class));
+            admittingStore());
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/orders-api.yaml", "uploads/partner-events.yaml"));
@@ -411,7 +417,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/orders-api.yaml", "uploads/notifications-async.yaml"));
@@ -446,7 +452,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1")).thenReturn(List.of());
     when(gateway.importUploadedSpec(
@@ -481,7 +487,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(
@@ -518,7 +524,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/orders-api.yaml", "uploads/notifications-async.yaml"));
@@ -541,7 +547,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draft();
     when(conversationService.getAllowedAttachmentKeys("conv-1"))
         .thenReturn(List.of("uploads/orders-api.yaml", "uploads/notifications-async.yaml"));
@@ -567,7 +573,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draftWithBinding();
     CompilationArtifacts.Reference draftRef = requirementDraftRef();
     stubRequirementDraft(artifactStore, draftRef, draft);
@@ -592,7 +598,7 @@ class AutoUploadedSpecImportCapabilityTest {
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, matcher, mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, matcher, admittingStore());
     RequirementDraft draft =
         omWfmDraft()
             .withApiHubCandidate(apiHubCandidate(), "create-salesforce-task")
@@ -630,7 +636,7 @@ class AutoUploadedSpecImportCapabilityTest {
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
-    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    RequirementDraftStore draftStore = admittingStore();
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
             gateway, conversationService, artifactStore, handler, matcher, draftStore);
@@ -695,7 +701,7 @@ class AutoUploadedSpecImportCapabilityTest {
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
-    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    RequirementDraftStore draftStore = admittingStore();
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
             gateway, conversationService, artifactStore, handler, matcher, draftStore);
@@ -753,7 +759,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft =
         omWfmDraft()
             .withBoundInteraction("create-salesforce-task", restHint("create-salesforce-task"))
@@ -778,7 +784,7 @@ class AutoUploadedSpecImportCapabilityTest {
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
-            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), mock(RequirementDraftStore.class));
+            gateway, conversationService, artifactStore, handler, mock(CatalogBindingMatcher.class), admittingStore());
     RequirementDraft draft = draft();
     CompilationArtifacts.Reference draftRef = requirementDraftRef();
     stubRequirementDraft(artifactStore, draftRef, draft);
@@ -811,7 +817,7 @@ class AutoUploadedSpecImportCapabilityTest {
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
-    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    RequirementDraftStore draftStore = admittingStore();
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
             gateway, conversationService, artifactStore, handler, matcher, draftStore);
@@ -873,7 +879,7 @@ class AutoUploadedSpecImportCapabilityTest {
         "Call catalog-bound Stub OpenAPI Service stubOperation operation, POST /stub/path",
         updated.facts().get(0).text());
     ArgumentCaptor<RequirementDraft> storeDraft = ArgumentCaptor.forClass(RequirementDraft.class);
-    verify(draftStore).put(eq("conv-1"), storeDraft.capture());
+    verify(draftStore).putIfCurrent(eq("conv-1"), any(), storeDraft.capture());
     assertEquals(
         "Call catalog-bound Stub OpenAPI Service stubOperation operation, POST /stub/path",
         storeDraft.getValue().facts().get(0).text());
@@ -889,7 +895,7 @@ class AutoUploadedSpecImportCapabilityTest {
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
-    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    RequirementDraftStore draftStore = admittingStore();
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
             gateway, conversationService, artifactStore, handler, matcher, draftStore);
@@ -972,7 +978,7 @@ class AutoUploadedSpecImportCapabilityTest {
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
-    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    RequirementDraftStore draftStore = admittingStore();
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
             gateway, conversationService, artifactStore, handler, matcher, draftStore);
@@ -1062,7 +1068,7 @@ class AutoUploadedSpecImportCapabilityTest {
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
-    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    RequirementDraftStore draftStore = admittingStore();
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
             gateway, conversationService, artifactStore, handler, matcher, draftStore);
@@ -1211,7 +1217,7 @@ class AutoUploadedSpecImportCapabilityTest {
     UploadedSpecsApprovalHandler handler =
         new UploadedSpecsApprovalHandler(conversationService, mock(S3Service.class));
     CatalogBindingMatcher matcher = mock(CatalogBindingMatcher.class);
-    RequirementDraftStore draftStore = mock(RequirementDraftStore.class);
+    RequirementDraftStore draftStore = admittingStore();
     AutoUploadedSpecImportCapability capability =
         new AutoUploadedSpecImportCapability(
             gateway, conversationService, artifactStore, handler, matcher, draftStore);

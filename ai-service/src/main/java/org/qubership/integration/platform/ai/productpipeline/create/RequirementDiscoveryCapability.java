@@ -311,17 +311,20 @@ public class RequirementDiscoveryCapability implements StageCapability {
         && idsChoice != null) {
       RequirementDraft decided = current.withIdsRequested(idsChoice);
       draftStore.beginTurn(conversationId);
-      draftStore.put(conversationId, decided);
+      draftStore.recordIdsChoice(conversationId, idsChoice);
       draftStore.markCaptured(conversationId);
       return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(decided)));
     }
     AtomicReference<RequirementDraft> captured = new AtomicReference<>();
     String gatherMessage = userMessage;
+    RequirementDraft repairBase = mappingRepairDraft != null ? mappingRepairDraft : draftStore.get(conversationId).orElse(null);
+    var nativeRepairPaths = requirementRepairPaths(context, repairBase);
     ToolSession.bind(conversationId);
     Context toolSessionContext = ToolSession.attachedContext();
     java.util.function.Supplier<Context> startCapture = () -> {
       Context installed = ProductCapabilityCaptureContext.bindDiscovery(
-        context.runId(), conversationId, mappingRepairDraft, mappingRepairPaths(context), payload -> {
+        context.runId(), conversationId, nativeRepairPaths.isEmpty() ? mappingRepairDraft : repairBase,
+        mappingRepairPaths(context), nativeRepairPaths, payload -> {
           if (payload instanceof RequirementDraft draft) {
             captured.set(draft);
           }
@@ -394,12 +397,58 @@ public class RequirementDiscoveryCapability implements StageCapability {
                     }));
   }
 
+  private static java.util.Set<String> requirementRepairPaths(StageExecutionContext context, RequirementDraft draft) {
+    var repair = StageRepairEvidence.from(context);
+    if (repair == null || repair.typedCauseJson().isBlank()) {
+      return java.util.Set.of();
+    }
+    try {
+      var cause = new com.fasterxml.jackson.databind.ObjectMapper()
+          .disable(com.fasterxml.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+          .readValue(repair.typedCauseJson(), RecoveryCause.class);
+      var paths = new java.util.LinkedHashSet<String>();
+      for (var finding : cause.findings()) {
+        String path = finding.fieldPointer();
+        if (path.startsWith("/draft/")) path = path.substring("/draft".length());
+        if (path.startsWith("/flow/")) path = path.substring("/flow".length());
+        path = path.replace("/facts[]/", "/facts/").replace("/interactions[]/", "/interactions/")
+            .replace("/capabilities[]/", "/capabilities/");
+        if (path.startsWith("/") && !finding.originRecordId().isBlank()
+            && !RequirementDraftStore.isRequirementRepairPath(draft, path)) {
+          String owner = finding.originRecordId();
+          var family = com.fasterxml.jackson.core.JsonPointer.compile(path).getMatchingProperty();
+          if (List.of("facts", "interactions", "capabilities").contains(family)) {
+            var tail = com.fasterxml.jackson.core.JsonPointer.compile(path).tail();
+            if (tail.getMatchingIndex() >= 0) tail = tail.tail();
+            path = "/" + family + "/" + owner + tail;
+          } else {
+            path = "/facts/" + owner + path;
+          }
+        }
+        if (finding.blocker() && RequirementDraftStore.isRequirementRepairPath(draft, path)) {
+          paths.add(path);
+        }
+      }
+      return java.util.Set.copyOf(paths);
+    } catch (com.fasterxml.jackson.core.JsonProcessingException | IllegalArgumentException invalidEvidence) {
+      return java.util.Set.of();
+    }
+  }
+
   private CapabilitySignal.Completed completeDiscovery(
       StageExecutionContext context,
       AtomicReference<RequirementDraft> captured) {
     String conversationId = context.conversationId();
     RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
     RequirementDraft draft = draftStore.get(conversationId).orElse(captured.get());
+    var preservation = draftStore.validateCurrent(conversationId);
+    if (!preservation.isEmpty()) {
+      var findings = preservation.stream().map(issue -> new PlanValidationFinding(issue.code(), issue.message(), true,
+          MappingValidationDetails.empty(), issue.entityId(), CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Retain validated requirements from rejected attempts before continuing.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "")));
+    }
     Optional<RequirementRejection> rejection = captureFeedback == null ? Optional.empty()
         : captureFeedback.lastRequirementRejection(conversationId);
     if (rejection.isPresent() && rejection.get().issues().stream()

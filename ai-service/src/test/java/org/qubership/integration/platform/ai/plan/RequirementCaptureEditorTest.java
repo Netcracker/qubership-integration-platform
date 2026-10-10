@@ -208,8 +208,10 @@ class RequirementCaptureEditorTest {
       assertTrue(rejected.issues().stream().anyMatch(issue ->
           (sourceList ? "MAPPING_SINGLE_SOURCE_REQUIRED" : "MAPPING_SINGLE_TARGET_REQUIRED").equals(issue.code())
               && "mapping".equals(issue.entityId())));
-      assertEquals(List.of(initial.facts().getFirst()),
-          RequirementCaptureEditor.factsToPreserve(input, rejected.issues()));
+      var protectedFacts = RequirementCaptureEditor.factsToPreserve(input, rejected.issues());
+      assertEquals(List.of(initial.facts().getFirst().sourceFactId(), "mapping"), protectedFacts.stream().map(FactInput::sourceFactId).toList());
+      assertEquals(mapping.text(), protectedFacts.getLast().text());
+      assertEquals(mapping.fieldMapping().expression(), protectedFacts.getLast().fieldMapping().expression());
       var corrected = new FactInput(mapping.sourceFactId(), mapping.interactionIds(), mapping.kind(),
           mapping.polarity(), mapping.text(), new RequirementCaptureInput.FieldMappingInput(
               "start", null, "create-task", sourceList ? "Description" : "executionId",

@@ -204,7 +204,6 @@ public class ChatExecutionService {
       request.setResolvedEffectiveUserText(
           ChatDecisionService.transcriptMarker(request.getDecision(), domain));
       applyScenarioHint(request);
-      decisionService.rememberImportChoice(conversationId, request.getDecision());
     } else {
       if (pendingRedeployStore
           .find(conversationId)
@@ -224,6 +223,9 @@ public class ChatExecutionService {
 
     conversationService.archive().resolveInput(conversationId, sourceInput, request.getEffectiveUserText(),
         request.getDecision() == null ? null : objectMapper.valueToTree(request.getDecision()));
+    if (request.getDecision() != null) {
+      decisionService.rememberImportChoice(conversationId, request.getDecision());
+    }
 
     logAiTurnStart(conversationId);
 

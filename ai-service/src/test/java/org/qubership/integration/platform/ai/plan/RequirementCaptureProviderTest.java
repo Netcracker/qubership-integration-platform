@@ -36,6 +36,19 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureProviderTest {
 
   @Test
+  void updateSchemaRequiresScopedAmendmentEvidence() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var provider = new RequirementCaptureToolProvider(new RequirementCaptureTools(new RequirementDraftStore(),
+        mock(RequirementDraftTool.class), mapper), mapper).provideTools(null);
+    var changes = assertInstanceOf(JsonObjectSchema.class,
+        provider.toolSpecificationByName("updateRequirementDraft").parameters().properties().get("changes"));
+    assertTrue(changes.required().contains("amendments"));
+    var amendments = assertInstanceOf(JsonArraySchema.class, changes.properties().get("amendments"));
+    var item = assertInstanceOf(JsonObjectSchema.class, amendments.items());
+    assertEquals(java.util.Set.of("path", "sourceTurnId", "quote"), java.util.Set.copyOf(item.required()));
+  }
+
+  @Test
   void malformedToolArgumentsRemainIntactWithTheirTypedRejection() throws Exception {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();
