@@ -169,6 +169,9 @@ public class GatherRequirementsPromptBuilder {
         .append("When changing or removing accepted content, include amendments in updateRequirementDraft: ")
         .append("each has the exact stable path, pending author sourceTurnId, and a verbatim quote of the amendment. ")
         .append("Examples: /facts/goal/text, /facts/goal for removal, /capabilities/entry/path, /transitions/entry for outgoing transitions. ")
+        .append("Apply one author amendment atomically to every affected representation. When an endpoint URL changes, ")
+        .append("update its capability path and any operation, description, or fact text that repeats that URL. ")
+        .append("Use the same source quote with a separate exact path for each changed field; retain all other content. ")
         .append("An unrelated new message grants no permission to change earlier requirements. ")
         .append("Automatic correction uses amendments: [] and retains confirmed answers.\n");
     boolean currentIncluded = false;

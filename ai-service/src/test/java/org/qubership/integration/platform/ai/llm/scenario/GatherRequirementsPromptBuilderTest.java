@@ -77,6 +77,8 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("Selected revision:"), input);
     assertTrue(input.contains("authorApproved=false"), input);
     assertFalse(input.contains("Current author message:"), input);
+    assertTrue(input.contains("Apply one author amendment atomically to every affected representation"), input);
+    assertTrue(input.contains("operation, description, or fact text that repeats that URL"), input);
   }
 
   @Test

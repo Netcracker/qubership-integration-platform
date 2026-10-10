@@ -810,6 +810,11 @@ public class RequirementAnalysisCapability implements StageCapability {
             + "service calls from the selected RequirementFlow. Do not author ENDPOINT or "
             + "SERVICE_CALL topology facts. Keep facts as ordinary constraints and native-trigger "
             + "configuration.\n\n");
+    sb.append(
+        "Structured capability and catalog-binding fields are authoritative for transport values. "
+            + "Use their current method, path, and topic in the goal, summary, and inputs. An older "
+            + "value repeated in descriptive text does not override these fields. Preserve the "
+            + "other requirements in that text.\n\n");
     RequirementFlow flow = approved.flow();
     if (!flow.interactions().isEmpty()) {
       sb.append("Selected RequirementFlow:\n");
