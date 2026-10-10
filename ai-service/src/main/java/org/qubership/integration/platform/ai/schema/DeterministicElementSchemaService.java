@@ -656,7 +656,7 @@ public class DeterministicElementSchemaService {
       JsonNode documentRoot,
       String documentUri,
       Deque<String> refStack) {
-    if (schema != null && schema.isObject() && schema.has("$ref") && schema.size() == 1) {
+    if (schema != null && schema.isObject() && schema.has("$ref")) {
       return resolver.dereference(documentRoot, documentUri, schema, refStack);
     }
     return schema;

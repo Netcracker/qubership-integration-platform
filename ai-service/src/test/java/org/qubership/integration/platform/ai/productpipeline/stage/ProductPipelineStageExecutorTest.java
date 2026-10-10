@@ -4562,9 +4562,38 @@ class ProductPipelineStageExecutorTest {
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "design-planning").status());
   }
 
+  @Test
+  void omittedDiscoveryCaptureRepairsInTheSameRunAndRetiresItsErrorBeforeAnalysis() {
+    var profile = discoveryAndAnalysisThenPlanningProfile(new ArtifactTypeRef("requirement-draft", 1),
+        new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("plan-validation-result", 1));
+    var calls = new AtomicInteger();
+    var discovery = capability("discovery-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(context.attributeAsString("userText") == null && !StageRepairEvidence.isRepairTurn(context)
+            ? StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "") : calls.incrementAndGet() == 1
+            ? StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, "Mandatory capture was omitted.",
+                new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+                    "CAPTURE_MISSING", "Capture the draft from saved input.", true)), ""))
+            : new StageOutcome(StageOutcomeClass.SUCCEEDED, List.of(new ArtifactCandidate(
+                Kind.REQUIREMENT_DRAFT, new RequirementDraft(true, "draft"), List.of())), "ready", null))));
+    var analysis = capability("analysis-cap", context -> {
+      assertFalse(StageRepairEvidence.isRepairTurn(context), "Resolved discovery error must not reopen analysis.");
+      return analysisAlwaysCandidate().execute(context);
+    });
+    var runtime = newRuntime(new FailureNarrative(), profile, discovery, analysis, planningAlwaysCandidate());
+    startAndRecordInput(runtime, profile);
+    int inputs = artifactStore.history(RUN_ID, Kind.USER_INPUT).size();
+    assertInstanceOf(StageDecision.Retry.class, execute(runtime, "requirement-discovery").decision());
+    applyLifecycle(runtime, execute(runtime, "requirement-discovery"));
+    assertInstanceOf(StageDecision.WaitForApproval.class, execute(runtime, "requirement-analysis").decision());
+    assertEquals(2, calls.get());
+    assertEquals(inputs, artifactStore.history(RUN_ID, Kind.USER_INPUT).size());
+    assertTrue(requireRun().attempts().stream().anyMatch(attempt -> attempt.outcome() == StageStatus.FAILED));
+  }
+
   @ParameterizedTest
-  @ValueSource(strings = {"design-input", "design-planning"})
-  void sourceCorrectionReopensCommittedDiscoveryAndRenewsBriefApprovalWithoutNewInput(String failedStage) {
+  @org.junit.jupiter.params.provider.CsvSource({"design-input,REVISE_BRIEF", "design-planning,REVISE_BRIEF",
+      "design-input,ASK_USER", "design-planning,ASK_USER"})
+  void sourceCorrectionReopensCommittedDiscoveryAndRenewsBriefApprovalWithoutNewInput(String failedStage, String diagnosis) {
     var draftType = new ArtifactTypeRef("requirement-draft", 1);
     var briefType = new ArtifactTypeRef("requirement-brief", 1);
     var base = discoveryAndAnalysisThenPlanningProfile(draftType, briefType,
@@ -4581,6 +4610,14 @@ class ProductPipelineStageExecutorTest {
     org.mockito.Mockito.when(narrative.diagnoseRecovery(org.mockito.ArgumentMatchers.anyString(),
         org.mockito.ArgumentMatchers.any(RecoveryContext.class))).thenAnswer(call -> {
       RecoveryContext context = call.getArgument(1);
+      if ("ASK_USER".equals(diagnosis)) {
+        return FailureNarrative.RecoveryResult.reply(new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT,
+            context.evidence().approvedBriefRef(), List.of(context.evidence().failureId()), RecoveryAction.ASK_USER,
+            List.of(), "Which group should receive the events?", "The group is missing.",
+            new org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence(
+                "endpoint", "groupId", org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence.Kind.MISSING_VALUE,
+                context.authorInputs().stream().map(org.qubership.integration.platform.ai.productpipeline.artifact.UserInput::inputId).toList())));
+      }
       return FailureNarrative.RecoveryResult.reply(new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT,
           context.evidence().approvedBriefRef(), List.of(context.evidence().failureId(), context.authorInputs().getFirst().inputId()),
           RecoveryAction.REVISE_BRIEF,
@@ -4606,8 +4643,13 @@ class ProductPipelineStageExecutorTest {
             ? StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, "The draft omitted the method.",
                 RecoveryCause.missingBriefFacts(List.of("HTTP method is absent from the draft.")))
             : StageOutcome.of(StageOutcomeClass.SUCCEEDED, "ready"))));
-    var runtime = newRuntime(narrative, profile, discovery, analysisAlwaysCandidate(), planning);
-    attachAuthorSources(runtime, "Accept POST /orders", "Change the path to /orders-v2");
+    var runtime = newRuntime(narrative, profile, discovery,
+        analysisWithBrief(new RequirementBrief("Receive events", List.of(), List.of(), List.of(), List.of(), "")
+            .withFacts(List.of(new org.qubership.integration.platform.ai.plan.RequirementFact("endpoint",
+                org.qubership.integration.platform.ai.plan.RequirementFactPolarity.POSITIVE,
+                org.qubership.integration.platform.ai.plan.RequirementFactKind.ENDPOINT,
+                "kafka-trigger-2", "Receive events")))), planning);
+    attachAuthorSources(runtime, "Receive events with groupId=orders", "Change groupId to invoices");
     startAndRecordInput(runtime, profile);
     applyLifecycle(runtime, execute(runtime, "requirement-discovery"));
     assertEquals(StageStatus.SUCCEEDED, snapshot(requireRun(), "requirement-discovery").status());
@@ -4761,6 +4803,38 @@ class ProductPipelineStageExecutorTest {
         && attempt.failureEvidence().contains("PERMANENT_PROVIDER_FAILURE")));
   }
 
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+  void completedTransientDiagnosisUsesOnlyTheRemainingDiagnosisCall(boolean recover) {
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    var diagnoses = new AtomicInteger();
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
+      if (diagnoses.incrementAndGet() == 1 || !recover) {
+        throw new dev.langchain4j.exception.HttpException(503, "Provider unavailable");
+      }
+      var json = mapper.readTree((String) call.getArgument(1));
+      var ref = mapper.treeToValue(json.path("evidence").path("rejectedArtifactRefs").get(0), Reference.class);
+      return new RecoveryDecision(RecoveryCauseClass.DERIVATION_DEFECT, ref,
+          List.of(json.path("evidence").path("failureId").asText()), RecoveryAction.REGENERATE_ARTIFACT,
+          List.of(), "", "Correct the rejected output.");
+    });
+    var calls = new AtomicInteger();
+    var runtime = executionRecoveryRuntime(new FailureNarrative(agent), calls,
+        RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY));
+    var result = execute(runtime, "design-execution");
+    assertEquals(2, diagnoses.get());
+    assertEquals(1, calls.get());
+    if (recover) {
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+    } else {
+      var wait = assertInstanceOf(StageDecision.WaitForInput.class, result.decision());
+      assertEquals(PipelineGates.RECOVERY_RETRY_TECHNICAL, PipelineGates.gateOf(wait.prompt()).orElseThrow());
+      execute(runtime, "design-execution");
+      assertEquals(2, diagnoses.get());
+    }
+  }
+
   @Test
   void diagnosticParsingFailureGetsOneCorrectionThenSafeProducerFallback() {
     var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
@@ -4875,8 +4949,9 @@ class ProductPipelineStageExecutorTest {
     assertEquals(firstCalls * 2, diagnoses.get());
   }
 
-  @Test
-  void theLastDiagnosisRequestBlocksRepairWithoutDoubleChargingOrRecordingADispatch() {
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void theLastDiagnosisRequestBlocksRepairWithoutDoubleChargingOrRecordingADispatch(boolean transientFailure) {
     var config = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.configuration.AppConfig.class,
         org.mockito.Mockito.RETURNS_DEEP_STUBS);
     org.mockito.Mockito.when(config.llm().maxRequestsPerRun()).thenReturn(1);
@@ -4886,6 +4961,7 @@ class ProductPipelineStageExecutorTest {
         org.mockito.ArgumentMatchers.anyString())).thenAnswer(call -> {
       budget.reserve(RUN_ID, 1, 1);
       assertNull(budget.state(RUN_ID).refusal());
+      if (transientFailure) { throw new dev.langchain4j.exception.HttpException(503, "Provider unavailable"); }
       return null;
     });
     var calls = new AtomicInteger();

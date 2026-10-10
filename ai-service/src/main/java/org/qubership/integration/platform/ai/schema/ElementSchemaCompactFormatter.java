@@ -147,7 +147,7 @@ public final class ElementSchemaCompactFormatter {
       return out;
     }
     JsonNode s = rawSchema;
-    if (s.isObject() && s.has("$ref") && s.size() == 1) {
+    if (s.isObject() && s.has("$ref")) {
       try {
         s = resolver.dereference(documentRoot, documentUri, s, refStack);
       } catch (SchemaRefResolutionException ex) {

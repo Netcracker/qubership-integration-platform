@@ -53,18 +53,60 @@ public final class ToolCallFingerprints {
    * escalates. Keying it on the normalized complaint spends one credit per distinct defect, which
    * is what the budget is for.
    *
-   * <p>Node ids and bracketed id lists are masked, so the same defect reported against two
-   * different nodes collapses to one signature. A generator that fixes node A and then trips the
-   * same rule on node B has not found a new problem to spend a second credit on. Counts are left
-   * alone: two rejections that differ only by a number are usually two different defects.
+   * <p>Quoted native node and field identities retain separate credit. Incidental whitespace,
+   * casing outside identities, and unquoted request UUIDs do not create a new occurrence.
    */
   public static String failureFingerprint(String tool, String capability, String message) {
     if (tool == null || tool.isBlank()) {
       throw new IllegalArgumentException("tool is required");
     }
     String capabilityOrEmpty = capability == null || capability.isBlank() ? "" : capability;
-    String hash = sha256Hex(failureSignature(message).getBytes(StandardCharsets.UTF_8));
+    String hash = sha256Hex(failureOccurrenceSignature(message).getBytes(StandardCharsets.UTF_8));
     return tool + '\u0000' + capabilityOrEmpty + '\u0000' + hash;
+  }
+
+  private static String failureOccurrenceSignature(String message) {
+    if (message == null || message.isBlank()) { return ""; }
+    message = message.strip();
+    String nativeMessage = message.toLowerCase(Locale.ROOT);
+    if (!nativeMessage.contains("node '") || !nativeMessage.contains(" property ")) {
+      return failureSignature(message);
+    }
+    String prefix = "";
+    String graphPrefix = "Patch produced invalid graph: ";
+    if (nativeMessage.startsWith(graphPrefix.toLowerCase(Locale.ROOT))) {
+      prefix = graphPrefix.toLowerCase(Locale.ROOT);
+      message = message.substring(graphPrefix.length());
+    }
+    var normalized = new StringBuilder();
+    var findings = new java.util.ArrayList<String>();
+    int start = 0;
+    // shortcut: Embedded apostrophes need structured native identities instead of quoted messages.
+    boolean identity = false;
+    while (start < message.length()) {
+      int end = message.indexOf('\'', start);
+      if (end < 0) { end = message.length(); }
+      String part = message.substring(start, end);
+      int separator;
+      while (!identity && (separator = part.indexOf("; ")) >= 0) {
+        normalized.append(normalizeUnquotedFailure(part.substring(0, separator)));
+        findings.add(normalized.toString().strip());
+        normalized.setLength(0);
+        part = part.substring(separator + 2);
+      }
+      normalized.append(identity ? part : normalizeUnquotedFailure(part));
+      if (end < message.length()) { normalized.append('\''); }
+      identity = !identity;
+      start = end + 1;
+    }
+    findings.add(normalized.toString().strip());
+    java.util.Collections.sort(findings);
+    return prefix + String.join("; ", findings);
+  }
+
+  private static String normalizeUnquotedFailure(String message) {
+    return WHITESPACE.matcher(UUID_VALUE.matcher(message.toLowerCase(Locale.ROOT)).replaceAll("<id>"))
+        .replaceAll(" ");
   }
 
   /** Normalizes rejection text to recognize the same failure across attempts. */

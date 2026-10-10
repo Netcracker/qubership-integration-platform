@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 import io.smallrye.mutiny.Context;
 import dev.langchain4j.invocation.InvocationParameters;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -47,6 +48,7 @@ public final class ProductCapabilityCaptureContext {
       String resetGeneration,
       String sourceTurnId,
       RequirementDraft approvedDraft,
+      Map<String, Set<String>> mappingRepairPaths,
       String approvedDraftReference,
       RequirementBrief approvedBrief,
       AtomicReference<RequirementDraft> draftCandidate,
@@ -58,6 +60,11 @@ public final class ProductCapabilityCaptureContext {
 
   public static Context bindDiscovery(
       String runId, String conversationId, Consumer<Object> onCandidate) {
+    return bindDiscovery(runId, conversationId, null, Map.of(), onCandidate);
+  }
+
+  public static Context bindDiscovery(String runId, String conversationId, RequirementDraft selectedDraft,
+      Map<String, Set<String>> mappingRepairPaths, Consumer<Object> onCandidate) {
     Binding binding =
         new Binding(
             Mode.DISCOVERY,
@@ -66,7 +73,10 @@ public final class ProductCapabilityCaptureContext {
             java.util.UUID.randomUUID().toString(),
             null,
             null,
-            null,
+            selectedDraft,
+            selectedDraft == null ? Map.of() : mappingRepairPaths.entrySet().stream()
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,
+                    entry -> Set.copyOf(entry.getValue()))),
             null,
             null,
             new AtomicReference<>(),
@@ -118,6 +128,7 @@ public final class ProductCapabilityCaptureContext {
             resetGeneration,
             sourceTurnId,
             approvedDraft,
+            Map.of(),
             approvedDraftReference,
             null,
             new AtomicReference<>(),
@@ -145,6 +156,7 @@ public final class ProductCapabilityCaptureContext {
             null,
             null,
             null,
+            Map.of(),
             null,
             approvedBrief,
             new AtomicReference<>(),

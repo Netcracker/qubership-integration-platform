@@ -112,9 +112,11 @@ public class RequirementCaptureTools {
         }
         EditResult edit = RequirementCaptureEditor.initialize(draft);
         if (!edit.accepted()) {
+          List<Issue> issues = new ArrayList<>(edit.issues());
+          issues.addAll(validateElementEvidence(conversationId, draft, previous));
           store.rememberRejectedCaptureFacts(conversationId,
-              RequirementCaptureEditor.factsToPreserve(draft, edit.issues()));
-          return view(previous, false, false, edit.issues());
+              RequirementCaptureEditor.factsToPreserve(draft, issues));
+          return view(previous, false, false, issues);
         }
         List<Issue> preservationIssues = RequirementCaptureEditor.validateFactPreservation(
             store.rejectedCaptureFacts(conversationId), draft, false);
@@ -147,6 +149,13 @@ public class RequirementCaptureTools {
         EditResult edit = RequirementCaptureEditor.apply(
             previous == null ? null : previous.authoredDraft(), changes);
         if (!edit.accepted()) {
+          if (edit.candidate() != null && edit.issues().stream()
+              .noneMatch(issue -> "POLICY_RESPONSE_REQUIRED".equals(issue.code()))) {
+            var issues = new ArrayList<>(edit.issues());
+            issues.addAll(validateElementEvidence(conversationId, edit.candidate(), previous));
+            store.rememberRejectedCaptureFacts(conversationId,
+                RequirementCaptureEditor.factsToPreserve(edit.candidate(), issues));
+          }
           return view(previous, false, false, edit.issues());
         }
         List<Issue> policyIssues = RequirementCaptureEditor.validatePolicyResponses(
@@ -156,11 +165,17 @@ public class RequirementCaptureTools {
         }
         if (store.wasCapturedThisTurn(conversationId)) {
           List<Issue> preservationIssues = RequirementCaptureEditor.validateFactPreservation(
-              previous.authoredDraft(), edit.draft());
+              previous.authoredDraft(), edit.draft(), mappingRepairPaths(conversationId));
           if (!preservationIssues.isEmpty()) {
             return view(previous, false, false,
                 withPreservedFacts(preservationIssues, previous.authoredDraft().facts()));
           }
+        }
+        List<Issue> rejectedFactIssues = RequirementCaptureEditor.validateFactPreservation(
+            store.rejectedCaptureFacts(conversationId), edit.draft(), false, mappingRepairPaths(conversationId));
+        if (!rejectedFactIssues.isEmpty()) {
+          return view(previous, false, false,
+              withPreservedFacts(rejectedFactIssues, store.rejectedCaptureFacts(conversationId)));
         }
         if (!edit.changed()) {
           store.recordCaptureAttempt(conversationId, true);
@@ -249,13 +264,14 @@ public class RequirementCaptureTools {
           RequirementDiscoveryDirective directive) {
     return traced("finishRequirementDiscoveryTurn", directive, () -> {
       String conversationId = ToolSession.resolveConversationId();
-      if (feedbackStore.lastRequirementFailure(conversationId)
-          .filter(failure -> failure.failureClass() == CaptureFailureClass.IDENTICAL_SPAM)
-          .isPresent()) {
+      var rejection = feedbackStore.lastRequirementRejection(conversationId);
+      if (rejection.filter(value -> value.feedback().failureClass() == CaptureFailureClass.IDENTICAL_SPAM).isPresent()) {
         store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
-        return view(store.get(conversationId).orElse(null), false, false,
-            List.of(new Issue("REPEATED_REJECTION", "/", null,
-                "Requirement capture stopped after a repeated rejection.")));
+        var issues = new ArrayList<>(rejection.orElseThrow().issues().stream()
+            .map(issue -> new Issue(issue.code(), issue.path(), issue.entityId(), issue.message())).toList());
+        issues.add(new Issue("REPEATED_REJECTION", "/", null,
+            "Requirement capture stopped after a repeated rejection."));
+        return view(store.get(conversationId).orElse(null), false, false, issues);
       }
       if (directive == null || directive == RequirementDiscoveryDirective.NONE) {
         return view(store.get(conversationId).orElse(null), false, false,
@@ -311,20 +327,16 @@ public class RequirementCaptureTools {
     preferenceIssues = new ArrayList<>(preferenceIssues);
     preferenceIssues.addAll(validateElementEvidence(conversationId, input, previous));
     if (!preferenceIssues.isEmpty()) {
-      if (previous == null || previous.authoredDraft() == null) {
-        store.rememberRejectedCaptureFacts(conversationId,
-            RequirementCaptureEditor.factsToPreserve(input, preferenceIssues));
-      }
+      store.rememberRejectedCaptureFacts(conversationId,
+          RequirementCaptureEditor.factsToPreserve(input, preferenceIssues));
       return view(previous, false, false, preferenceIssues);
     }
     RequirementTargetResolver.Resolution targetResolution = targetResolver == null
         ? new RequirementTargetResolver.Resolution(Map.of(), List.of())
         : targetResolver.resolve(input);
     if (!targetResolution.issues().isEmpty()) {
-      if (previous == null || previous.authoredDraft() == null) {
-        store.rememberRejectedCaptureFacts(conversationId,
-            RequirementCaptureEditor.factsToPreserve(input, targetResolution.issues()));
-      }
+      store.rememberRejectedCaptureFacts(conversationId,
+          RequirementCaptureEditor.factsToPreserve(input, targetResolution.issues()));
       return view(previous, false, false, targetResolution.issues());
     }
     List<CatalogBindingHint> bindings =
@@ -344,6 +356,9 @@ public class RequirementCaptureTools {
 
   private List<Issue> validateElementEvidence(String conversationId, DraftInput input, RequirementDraft previous) {
     List<Issue> issues = new ArrayList<>();
+    if (input == null || input.facts() == null) {
+      return issues;
+    }
     String authorText = store.currentAuthorText(conversationId).orElse(null);
     if (conversations != null) {
       authorText = conversations.archive().read(conversationId).activeTurns().stream()
@@ -352,8 +367,12 @@ public class RequirementCaptureTools {
           .map(turn -> turn.message().content()).collect(Collectors.joining("\n"));
     }
     for (FactInput fact : input.facts()) {
+      if (fact == null || fact.text() == null) {
+        continue;
+      }
       var intent = fact.elementIntent();
-      if (intent == null) {
+      if (intent == null || intent.elementType() == null || intent.placement() == null
+          || intent.requestedProperties() == null || intent.exactValues() == null) {
         continue;
       }
       String path = "/draft/facts/" + fact.sourceFactId() + "/elementIntent";
@@ -399,9 +418,10 @@ public class RequirementCaptureTools {
           && previous.authoredDraft().facts().stream().anyMatch(prior ->
               prior.sourceFactId().equals(fact.sourceFactId()) && Objects.equals(prior.elementIntent(), intent));
       if (authorText != null && !unchanged) {
-        for (String literal : intent.exactValues()) {
+        for (int i = 0; i < intent.exactValues().size(); i++) {
+          String literal = intent.exactValues().get(i);
           if (literal != null && !fact.text().contains(literal)) {
-            issues.add(new Issue("ELEMENT_LITERAL_FACT_MISMATCH", path, fact.sourceFactId(),
+            issues.add(new Issue("ELEMENT_LITERAL_FACT_MISMATCH", path + "/exactValues/" + i, fact.sourceFactId(),
                 "Keep each exactValues literal unchanged in this fact text."));
           }
         }
@@ -409,9 +429,11 @@ public class RequirementCaptureTools {
         if (intent.requestedName() != null) {
           literals.add(intent.requestedName());
         }
-        for (String literal : literals) {
+        for (int i = 0; i < literals.size(); i++) {
+          String literal = literals.get(i);
           if (literal == null || literal.isBlank() || !authorText.contains(literal)) {
-            issues.add(new Issue("ELEMENT_LITERAL_SOURCE_MISMATCH", path, fact.sourceFactId(),
+            String field = i < intent.exactValues().size() ? "/exactValues/" + i : "/requestedName";
+            issues.add(new Issue("ELEMENT_LITERAL_SOURCE_MISMATCH", path + field, fact.sourceFactId(),
                 "Copy names and exactValues verbatim from an author source. Generated suggestions are not requested names."));
           }
         }
@@ -438,9 +460,19 @@ public class RequirementCaptureTools {
         .toList();
   }
 
+  private java.util.Map<String, java.util.Set<String>> mappingRepairPaths(String conversationId) {
+    return ProductCapabilityCaptureContext.binding(conversationId)
+        .filter(binding -> binding.mode() == ProductCapabilityCaptureContext.Mode.DISCOVERY)
+        .map(ProductCapabilityCaptureContext.Binding::mappingRepairPaths).orElse(java.util.Map.of());
+  }
+
   private RequirementCaptureResult recordOutcome(String toolName, Object arguments, RequirementCaptureResult result) {
     String conversationId = ToolSession.resolveConversationId();
     store.recordCaptureOutcome(conversationId, toolName, arguments, result);
+    if ("finishRequirementDiscoveryTurn".equals(toolName) && result.issues().stream()
+        .anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code()))) {
+      return result;
+    }
     if (!result.accepted() && result.issues().stream()
         .noneMatch(issue -> "CONTINUATION_NOT_AUTHORIZED".equals(issue.code()))) {
       store.recordCaptureAttempt(conversationId, false);

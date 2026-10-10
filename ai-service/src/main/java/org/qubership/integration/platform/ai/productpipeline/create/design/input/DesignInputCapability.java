@@ -167,6 +167,16 @@ public class DesignInputCapability implements StageCapability {
           StageOutcomeClass.MISSING_MANDATORY_INPUT,
           "design-input requires an approved RequirementBrief");
     }
+    var inputFindings = org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.validateElementOrder(
+        brief.flow(), brief.facts());
+    if (!inputFindings.isEmpty()) {
+      var findings = inputFindings.stream().map(issue -> new PlanValidationFinding(
+          issue.code(), issue.path() + ": " + issue.message(), true, null, issue.entityId(), issue.path())).toList();
+      return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "The accepted brief contains contradictory element order.\n"
+              + String.join("\n", findings.stream().map(PlanValidationFinding::message).toList()),
+          new RecoveryCause(RecoveryCauseCode.BRIEF_CONTRACT, findings, ""));
+    }
     String blankEntryPoint = entryPointWithoutCapability(brief);
     if (blankEntryPoint != null) {
       // Fail before the agent runs: the capture would be rejected anyway, and a typed cause lets

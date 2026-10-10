@@ -32,7 +32,13 @@ public final class RecoveryDecisionValidator {
 
   private RecoveryDecisionValidator() {}
 
-  public record Result(boolean accepted, List<String> findings) {}
+  public static final String SOURCE_RECONCILIATION_REQUIRED = "SOURCE_RECONCILIATION_REQUIRED";
+
+  public record Result(boolean accepted, List<String> findings) {
+    public boolean requiresSourceReconciliation() {
+      return findings.size() == 1 && findings.getFirst().startsWith(SOURCE_RECONCILIATION_REQUIRED + ":");
+    }
+  }
 
   public static Result validate(RecoveryDecision decision, RecoveryContext context) {
     if (decision == null || context == null) {
@@ -297,6 +303,9 @@ public final class RecoveryDecisionValidator {
               && finding.schemaDefaults().containsKey(question.propertyKey()));
       if (!values.isEmpty() || hasDefault) {
         findings.add("ASK_USER cannot request a supplied value or schema default. Repair the producer from saved input.");
+      } else {
+        findings.add(SOURCE_RECONCILIATION_REQUIRED
+            + ": The source owner must check saved author messages before a missing projected value can be asked again.");
       }
     } else if (question.kind() == AuthorQuestionEvidence.Kind.CONFLICTING_VALUES && values.size() < 2) {
       findings.add("ASK_USER requires conflicting saved values for the same interaction and property.");

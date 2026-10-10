@@ -136,6 +136,7 @@ public record RecoveryCause(
 
   public static boolean isKnownBriefDefect(RecoveryCauseCode causeCode) {
     return causeCode == RecoveryCauseCode.MISSING_BRIEF_FACTS
+        || causeCode == RecoveryCauseCode.BRIEF_CONTRACT
         || causeCode == RecoveryCauseCode.MAPPING_CONTRACT;
   }
 
@@ -240,6 +241,7 @@ public record RecoveryCause(
       case "MISSING_REQUIRED_PROPERTY" -> RecoveryCauseCode.MISSING_REQUIRED_PROPERTY;
       case "GRAPH_STRUCTURE" -> RecoveryCauseCode.GRAPH_STRUCTURE;
       case "MISSING_BRIEF_FACTS" -> RecoveryCauseCode.MISSING_BRIEF_FACTS;
+      case "BRIEF_CONTRACT" -> RecoveryCauseCode.BRIEF_CONTRACT;
       case "CATALOG_RESOLUTION" -> RecoveryCauseCode.CATALOG_RESOLUTION;
       case "MAPPING_CONTRACT",
               "MAPPING_UNKNOWN_TARGET",

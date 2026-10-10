@@ -17,6 +17,9 @@ public enum RecoveryCauseCode {
   /** Design-input could not derive a flow because the approved brief lacks facts. */
   MISSING_BRIEF_FACTS,
 
+  /** Accepted requirements contradict their own represented contract before generation. */
+  BRIEF_CONTRACT,
+
   /** Catalog binding did not resolve to one service or operation. */
   CATALOG_RESOLUTION,
 
