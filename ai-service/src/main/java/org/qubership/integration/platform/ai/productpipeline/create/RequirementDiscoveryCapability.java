@@ -236,6 +236,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
       draftStore.restoreAccepted(conversationId, mappingRepairDraft);
     }
     var repair = StageRepairEvidence.from(context);
+    if (repair != null && ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(userMessage.strip())) {
+      userMessage = "";
+    }
     if (userMessage.isBlank() && repair != null
         && (RecoveryCauseCode.MISSING_BRIEF_FACTS.name().equals(repair.causeCode())
             || RecoveryCauseCode.BRIEF_CONTRACT.name().equals(repair.causeCode()))) {
@@ -298,6 +301,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     RequirementDraft current = draftStore.get(conversationId).orElse(null);
     if (current != null
         && current.readyForPlan()
+        && repair == null
         && ChatEvent.CONTINUE_TO_PLANNING_ACTION.equals(userMessage.strip())) {
       draftStore.beginTurn(conversationId);
       draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.CONTINUE);
@@ -306,6 +310,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     Boolean idsChoice = idsChoice(userMessage);
     if (current != null
         && current.readyForPlan()
+        && repair == null
         && current.idsRequested() == null
         && stageDeclaresIdsBypass(context)
         && idsChoice != null) {
@@ -408,26 +413,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
           .readValue(repair.typedCauseJson(), RecoveryCause.class);
       var paths = new java.util.LinkedHashSet<String>();
       for (var finding : cause.findings()) {
-        String path = finding.fieldPointer();
-        if (path.startsWith("/draft/")) path = path.substring("/draft".length());
-        if (path.startsWith("/flow/")) path = path.substring("/flow".length());
-        path = path.replace("/facts[]/", "/facts/").replace("/interactions[]/", "/interactions/")
-            .replace("/capabilities[]/", "/capabilities/");
-        if (path.startsWith("/") && !finding.originRecordId().isBlank()
-            && !RequirementDraftStore.isRequirementRepairPath(draft, path)) {
-          String owner = finding.originRecordId();
-          var family = com.fasterxml.jackson.core.JsonPointer.compile(path).getMatchingProperty();
-          if (List.of("facts", "interactions", "capabilities").contains(family)) {
-            var tail = com.fasterxml.jackson.core.JsonPointer.compile(path).tail();
-            if (tail.getMatchingIndex() >= 0) tail = tail.tail();
-            path = "/" + family + "/" + owner + tail;
-          } else {
-            path = "/facts/" + owner + path;
-          }
-        }
-        if (finding.blocker() && RequirementDraftStore.isRequirementRepairPath(draft, path)) {
-          paths.add(path);
-        }
+        String path = RequirementDraftStore.requirementRepairPath(draft, finding);
+        if (path != null) paths.add(path);
       }
       return java.util.Set.copyOf(paths);
     } catch (com.fasterxml.jackson.core.JsonProcessingException | IllegalArgumentException invalidEvidence) {

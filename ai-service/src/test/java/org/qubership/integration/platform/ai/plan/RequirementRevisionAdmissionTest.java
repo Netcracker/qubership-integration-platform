@@ -23,6 +23,24 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class RequirementRevisionAdmissionTest {
 
+  @Test
+  void nativeRepairEvidenceMustIdentifyTheSameStableRecord() throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Create tasks and preserve inputs. Proceed without IDS.");
+      assertTrue(h.capture(httpDraft(List.of(fact("goal", "Create tasks."),
+          fact("sibling", "Preserve inputs.")))).accepted());
+      var draft = h.store.get(h.chat).orElseThrow();
+      var details = org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails.empty();
+      assertEquals("/facts/goal/text", RequirementDraftStore.requirementRepairPath(draft,
+          new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+              "SOURCE_LITERAL_MISMATCH", "Restore the saved requirement.", true, details, "goal", "/facts[]/text")));
+      assertNull(RequirementDraftStore.requirementRepairPath(draft,
+          new org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding(
+              "SOURCE_LITERAL_MISMATCH", "Restore the saved requirement.", true, details, "goal", "/facts/sibling/text")));
+    }
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void confirmedAnswerSurvivesRetriesAndUnrelatedMessages(boolean newMessage) throws Exception {
