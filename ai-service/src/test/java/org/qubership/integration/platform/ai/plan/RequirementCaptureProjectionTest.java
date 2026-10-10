@@ -28,6 +28,39 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureProjectionTest {
 
   @Test
+  void directHttpProjectionUsesCurrentTransportValuesWithoutRewritingAuthoredDescriptions() {
+    for (String capabilityKey : List.of("http-trigger", "http-sender")) {
+      String path = capabilityKey.equals("http-trigger") ? "/new-tasks" : "https://example.com/new-tasks";
+      var description = new FactInput("visibility", List.of("entry"), FactKind.VISIBILITY,
+          Polarity.POSITIVE, "External endpoint at /tasks.");
+      var owner = new InteractionInput("entry", capabilityKey.equals("http-trigger")
+          ? Direction.INBOUND : Direction.OUTBOUND, "Caller", "POST /tasks", "Old endpoint /tasks", null, null);
+      var transport = new CapabilityInput("entry", capabilityKey,
+              capabilityKey.equals("http-trigger") ? HttpMode.CUSTOM : null, HttpMethod.POST,
+              path, null, null, null);
+      boolean sender = capabilityKey.equals("http-sender");
+      DraftInput input = new DraftInput(new FlowInput(sender
+          ? List.of(new InteractionInput("caller", Direction.INBOUND, "Client", "POST /start", null, null, null), owner)
+          : List.of(owner), sender ? List.of(new TransitionInput("caller", "entry")) : List.of()), List.of(description),
+          sender ? List.of(new CapabilityInput("caller", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+              "/start", null, null, null), transport) : List.of(transport), List.of(), new DraftSettings(false, null));
+      assertTrue(RequirementCaptureEditor.initialize(input).accepted());
+      var facts = RequirementCaptureProjection.facts(input);
+      assertEquals("POST " + path, facts.stream().filter(f -> f.kind() == RequirementFactKind.CAPABILITY
+              && f.interactionIds().contains("entry"))
+          .findFirst().orElseThrow().operation());
+      assertEquals(description.text(), facts.getFirst().text());
+      assertEquals("POST /tasks", owner.operation());
+    }
+    DraftInput catalog = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+        "Task API", "createTask", null, null, null)), List.of()), List.of(),
+        List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CATALOG, null, null, null, null, null)),
+        List.of(), new DraftSettings(false, null));
+    assertTrue(RequirementCaptureEditor.initialize(catalog).accepted());
+    assertEquals("createTask", RequirementCaptureProjection.facts(catalog).getFirst().operation());
+  }
+
+  @Test
   void elementIntentSurvivesProjectionAndAutomaticRepairCannotDropIt() throws Exception {
     var intent = new RequirementElementIntent("checkpoint", "checkpoint",
         RequirementElementIntent.Placement.LOCAL_NODE, "entry", "check-properties", "entry", null,

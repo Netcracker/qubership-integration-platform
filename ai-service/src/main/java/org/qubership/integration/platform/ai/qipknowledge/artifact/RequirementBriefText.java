@@ -77,6 +77,15 @@ public final class RequirementBriefText {
           .append(entryPoint.entryPointId())
           .append(" capabilityKey=")
           .append(entryPoint.capabilityKey());
+      if (!entryPoint.httpMethod().isBlank()) {
+        body.append(" method=").append(entryPoint.httpMethod());
+      }
+      if (!entryPoint.path().isBlank()) {
+        body.append(" path=").append(entryPoint.path());
+      }
+      if (!entryPoint.topic().isBlank()) {
+        body.append(" topic=").append(entryPoint.topic());
+      }
     }
   }
 
