@@ -15,12 +15,13 @@ jest.mock("antd", () => ({
     </button>
   ),
   Radio: {
-    Group: ({ options, onChange }: any) => (
+    Group: ({ options, value, onChange }: any) => (
       <div data-testid="radio-group">
         {options?.map((opt: any) => (
           <button
             key={opt.value}
             data-testid={`radio-${opt.value}`}
+            data-selected={opt.value === value}
             onClick={() => onChange({ target: { value: opt.value } })}
           >
             {opt.label}
@@ -55,6 +56,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c1"
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -68,6 +70,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c2"
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -80,6 +83,7 @@ describe("ChainDiffViewControls", () => {
       <ChainDiffViewControls
         changes={changes}
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -93,6 +97,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c3"
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -106,6 +111,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c2"
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -118,6 +124,7 @@ describe("ChainDiffViewControls", () => {
       <ChainDiffViewControls
         changes={changes}
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -132,6 +139,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c3"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -148,6 +156,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c1"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -164,6 +173,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c1"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -180,6 +190,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c3"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -195,6 +206,7 @@ describe("ChainDiffViewControls", () => {
       <ChainDiffViewControls
         changes={changes}
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
       />,
     );
@@ -212,6 +224,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c1"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
         onPreviousChange={onPreviousChange}
       />,
@@ -231,6 +244,7 @@ describe("ChainDiffViewControls", () => {
         changes={changes}
         selectedChangeId="c3"
         onSelectChange={onSelectChange}
+        viewType="graph"
         onViewTypeChange={jest.fn()}
         onNextChange={onNextChange}
       />,
@@ -248,6 +262,7 @@ describe("ChainDiffViewControls", () => {
       <ChainDiffViewControls
         changes={[]}
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={onViewTypeChange}
       />,
     );
@@ -257,12 +272,33 @@ describe("ChainDiffViewControls", () => {
     expect(onViewTypeChange).toHaveBeenCalledWith("table");
   });
 
+  it("should select the option that matches the provided viewType", () => {
+    render(
+      <ChainDiffViewControls
+        changes={[]}
+        onSelectChange={jest.fn()}
+        viewType="table"
+        onViewTypeChange={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByTestId("radio-table")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    expect(screen.getByTestId("radio-graph")).toHaveAttribute(
+      "data-selected",
+      "false",
+    );
+  });
+
   it("should call onViewTypeChange with graph when the Graph option is selected", () => {
     const onViewTypeChange = jest.fn();
     render(
       <ChainDiffViewControls
         changes={[]}
         onSelectChange={jest.fn()}
+        viewType="graph"
         onViewTypeChange={onViewTypeChange}
       />,
     );

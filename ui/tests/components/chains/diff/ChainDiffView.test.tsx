@@ -324,4 +324,37 @@ describe("ChainDiffView", () => {
 
     expect(mockUseChainDiff).toHaveBeenCalledWith(item1, item2);
   });
+
+  it("should preserve the selected viewType for ChainDiffViewControls across loading changes", () => {
+    mockUseChainDiff.mockReturnValue(defaultHookReturn);
+
+    const { rerender } = render(<ChainDiffView item1={item1} item2={item2} />);
+
+    const initialViewType = MockViewControls.mock.calls[0][0].viewType;
+    expect(initialViewType).toBe("graph");
+
+    const { onViewTypeChange } = MockViewControls.mock.calls[0][0];
+    act(() => {
+      onViewTypeChange("table");
+    });
+
+    expect(
+      MockViewControls.mock.calls[MockViewControls.mock.calls.length - 1][0]
+        .viewType,
+    ).toBe("table");
+    expect(screen.getByTestId("table-view")).toBeInTheDocument();
+
+    mockUseChainDiff.mockReturnValue({ ...defaultHookReturn, isLoading: true });
+    rerender(<ChainDiffView item1={item1} item2={item2} />);
+    expect(screen.getByTestId("loading-spinner")).toBeInTheDocument();
+
+    mockUseChainDiff.mockReturnValue(defaultHookReturn);
+    rerender(<ChainDiffView item1={item1} item2={item2} />);
+
+    const lastViewType =
+      MockViewControls.mock.calls[MockViewControls.mock.calls.length - 1][0]
+        .viewType;
+    expect(lastViewType).toBe("table");
+    expect(screen.getByTestId("table-view")).toBeInTheDocument();
+  });
 });
