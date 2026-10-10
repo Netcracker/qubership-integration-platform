@@ -188,6 +188,14 @@ public class ElementService extends ElementBaseService {
         elementRepository.actualizeCollectionStateOnlyUpdates(getAllParentElements(oldChainElementStates), getAllParentElements(newChainElementStates));
     }
 
+    public void replaceImportedChainElements(List<ChainElement> newRootElements) {
+        List<ChainElement> none = Collections.emptyList();
+        elementRepository.actualizeCollectionStateWOUpdates(none, getAllImportParentElements(newRootElements));
+        elementRepository.actualizeCollectionStateWOUpdates(none, getAllChildElements(newRootElements));
+        elementRepository.actualizeCollectionStateOnlyUpdates(none, getAllImportParentElements(newRootElements));
+        elementRepository.actualizeCollectionStateOnlyUpdates(none, getAllChildElements(newRootElements));
+    }
+
     public List<ChainElement> findAllByChainId(String chainId) {
         var chain = chainFinderService.findById(chainId);
         return chain.getElements();
@@ -934,6 +942,24 @@ public class ElementService extends ElementBaseService {
                 .stream()
                 .filter(chainElement -> (chainElement instanceof ContainerChainElement) || (chainElement instanceof SwimlaneChainElement))
                 .collect(Collectors.toList());
+    }
+
+    private List<ChainElement> getAllImportParentElements(List<ChainElement> chainElementList) {
+        List<ChainElement> parents = new ArrayList<>();
+        appendImportContainerAndSwimlaneElements(chainElementList, parents);
+        return parents;
+    }
+
+    private void appendImportContainerAndSwimlaneElements(List<ChainElement> chainElementList, List<ChainElement> parents) {
+        for (ChainElement element : chainElementList) {
+            if (element instanceof ContainerChainElement container) {
+                parents.add(container);
+                appendImportContainerAndSwimlaneElements(container.getElements(), parents);
+            } else if (element instanceof SwimlaneChainElement swimlane) {
+                parents.add(swimlane);
+                appendImportContainerAndSwimlaneElements(swimlane.getElements(), parents);
+            }
+        }
     }
 
     public Map<String, String> provideNavigationPath(String chainId) {

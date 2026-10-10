@@ -9,6 +9,7 @@ import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.qubership.integration.platform.chain.impl.ChainImpl;
 import org.qubership.integration.platform.io.model.exportimport.MetaInfoExternalEntity;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainCommitRequestAction;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainExternalContentEntity;
@@ -30,6 +31,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Deployment;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Folder;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Snapshot;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.SwimlaneChainElement;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentResponse;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.deployment.bulk.BulkDeploymentStatus;
 import org.qubership.integration.platform.runtime.catalog.rest.v1.dto.exportimport.chain.ImportChainPreviewDTO;
@@ -219,6 +221,43 @@ class ChainImportServiceTest {
         assertEquals(ImportEntityStatus.UPDATED, result.getStatus());
         assertSame(existingFolder, captor.getValue().getExistingFolder());
         verify(folderService, never()).save(any(Folder.class), nullable(String.class));
+    }
+
+    @DisplayName("saveImportedChain should remove existing elements before mapping an update")
+    @Test
+    void shouldRemoveElementsBeforeMappingOnUpdate() {
+        Chain existingChain = Chain.builder().id("c1").name("Chain 1").build();
+        Chain refreshedChain = Chain.builder().id("c1").name("Chain 1").build();
+        Chain mapped = Chain.builder().id("c1").name("Chain 1").build();
+        when(chainFinderService.tryFindById("c1"))
+                .thenReturn(Optional.of(existingChain))
+                .thenReturn(Optional.of(existingChain))
+                .thenReturn(Optional.of(refreshedChain));
+        when(chainModelMapper.map(any(), any())).thenReturn(new ChainImpl());
+        when(chainExternalEntityMapper.toInternalEntity(any())).thenReturn(mapped);
+
+        service.saveImportedChain(externalChain(null), null, Collections.emptySet());
+
+        InOrder order = inOrder(elementService, chainModelMapper);
+        order.verify(elementService).deleteAllByChainIdAndFlush("c1");
+        order.verify(chainModelMapper).map(any(), any());
+    }
+
+    @DisplayName("saveImportedChainBackward should replace elements and restore swimlane refs on update")
+    @Test
+    void shouldReplaceElementsOnBackwardUpdate() {
+        Chain existingChain = Chain.builder().id("c1").name("Chain 1").build();
+        SwimlaneChainElement reuseSwimlane = SwimlaneChainElement.builder().id("reuse-sl").build();
+        Chain imported = Chain.builder().id("c1").name("Chain 1").build();
+        imported.setReuseSwimlane(reuseSwimlane);
+        when(chainFinderService.tryFindById("c1")).thenReturn(Optional.of(existingChain));
+
+        service.saveImportedChainBackward(imported);
+
+        verify(elementService).replaceImportedChainElements(any());
+        verify(chainService).setActualizedChainState(existingChain, imported);
+        assertNotNull(imported.getReuseSwimlane());
+        assertEquals("reuse-sl", imported.getReuseSwimlane().getId());
     }
 
     // makeDeployActions builds a snapshot for every imported chain whose commit request asks for one,
