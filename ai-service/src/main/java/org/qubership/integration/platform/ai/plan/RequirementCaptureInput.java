@@ -160,5 +160,24 @@ public final class RequirementCaptureInput {
       List<QuestionInput> addQuestions,
       List<QuestionInput> updateQuestions,
       List<String> removeQuestionIds,
-      @NullableCaptureValue DraftSettings settings) {}
+      @NullableCaptureValue DraftSettings settings,
+      List<AmendmentInput> amendments) {
+
+    public DraftUpdate(
+        List<InteractionInput> addInteractions, List<InteractionInput> updateInteractions,
+        List<String> removeInteractionIds, List<TransitionInput> addTransitions,
+        List<TransitionInput> removeTransitions, List<FactInput> addFacts, List<FactInput> updateFacts,
+        List<String> removeFactIds, List<CapabilityInput> setCapabilities,
+        List<String> removeCapabilityInteractionIds, List<QuestionInput> addQuestions,
+        List<QuestionInput> updateQuestions, List<String> removeQuestionIds, DraftSettings settings) {
+      this(addInteractions, updateInteractions, removeInteractionIds, addTransitions, removeTransitions,
+          addFacts, updateFacts, removeFactIds, setCapabilities, removeCapabilityInteractionIds,
+          addQuestions, updateQuestions, removeQuestionIds, settings, List.of());
+    }
+  }
+
+  public record AmendmentInput(
+      String path,
+      String sourceTurnId,
+      String quote) {}
 }

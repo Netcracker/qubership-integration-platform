@@ -227,7 +227,7 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("http-trigger is missing operation"), input);
     assertTrue(input.contains("script-set-body is missing direction and participant"), input);
     assertTrue(input.contains("kafka-sender is missing operation"), input);
-    assertTrue(input.contains("Call captureRequirementDraft again"), input);
+    assertTrue(input.contains("use updateRequirementDraft"), input);
     assertTrue(input.contains("Do not tell the user the draft is ready"), input);
   }
 

@@ -102,9 +102,7 @@ public class RequirementCaptureTools {
         RequirementDraft previous = store.get(conversationId).orElse(null);
         if (previous != null && previous.authoredDraft() != null) {
           if (Objects.equals(previous.authoredDraft(), draft)) {
-            store.recordCaptureAttempt(conversationId, true);
-            feedbackStore.clearRequirement(conversationId);
-            return view(previous, true, false, List.of());
+            return publish(conversationId, draft, previous, null);
           }
           return view(previous, false, false, List.of(new Issue(
               "DRAFT_ALREADY_EXISTS", "/draft", null,
@@ -114,21 +112,14 @@ public class RequirementCaptureTools {
         if (!edit.accepted()) {
           List<Issue> issues = new ArrayList<>(edit.issues());
           issues.addAll(validateElementEvidence(conversationId, draft, previous));
-          store.rememberRejectedCaptureFacts(conversationId,
-              RequirementCaptureEditor.factsToPreserve(draft, issues));
+          store.rememberRejectedCapture(conversationId, draft, issues);
           return view(previous, false, false, issues);
-        }
-        List<Issue> preservationIssues = RequirementCaptureEditor.validateFactPreservation(
-            store.rejectedCaptureFacts(conversationId), draft, false);
-        if (!preservationIssues.isEmpty()) {
-          return view(previous, false, false, withPreservedFacts(
-              preservationIssues, store.rejectedCaptureFacts(conversationId)));
         }
         Issue folderIssue = ambiguousFolder(draft, previous, "/draft/settings/targetFolderPath");
         if (folderIssue != null) {
           return view(previous, false, false, List.of(folderIssue));
         }
-        return publish(conversationId, draft, previous);
+        return publish(conversationId, draft, previous, null);
       }
     });
   }
@@ -136,9 +127,14 @@ public class RequirementCaptureTools {
   @Tool("""
       Apply focused requirement changes atomically. Each updated entity is a complete small record.
       Empty lists leave their entity family unchanged. Remove references explicitly when deleting an
-      interaction. After a save in this author turn, preserve existing fact IDs, kind, full text, polarity,
+      interaction. Preserve existing fact IDs, kind, full text, polarity,
       and mapping values. Reassign fact references when fixing topology; add omitted requirements as
-      new facts. A new author turn can replace or remove requirements.
+      new facts. A new author message permits only its explicit amendments. For each changed accepted
+      value, supply amendments with path, sourceTurnId, and the exact quote authorizing that change.
+      Paths use stable IDs, such as /facts/goal/text, /facts/goal for removal, or /capabilities/entry/path. Use /transitions/entry for the outgoing transitions of entry.
+      Use /settings/idsRequested for an explicit choice. Never cite automatic repair instructions.
+      Use amendments: [] for automatic corrections and additions. Preserve confirmed policy answers;
+      do not null them or reopen answered questions.
       A rejected edit retains the accepted draft and bindings.
       """)
   public String updateRequirementDraft(@P("Focused edits to the accepted draft") DraftUpdate changes) {
@@ -153,41 +149,16 @@ public class RequirementCaptureTools {
               .noneMatch(issue -> "POLICY_RESPONSE_REQUIRED".equals(issue.code()))) {
             var issues = new ArrayList<>(edit.issues());
             issues.addAll(validateElementEvidence(conversationId, edit.candidate(), previous));
-            store.rememberRejectedCaptureFacts(conversationId,
-                RequirementCaptureEditor.factsToPreserve(edit.candidate(), issues));
+            store.rememberRejectedCapture(conversationId, edit.candidate(), issues);
           }
           return view(previous, false, false, edit.issues());
-        }
-        List<Issue> policyIssues = RequirementCaptureEditor.validatePolicyResponses(
-            previous.authoredDraft(), edit.draft(), fact -> store.canResolvePolicyChoice(conversationId, fact));
-        if (!policyIssues.isEmpty()) {
-          return view(previous, false, false, policyIssues);
-        }
-        if (store.wasCapturedThisTurn(conversationId)) {
-          List<Issue> preservationIssues = RequirementCaptureEditor.validateFactPreservation(
-              previous.authoredDraft(), edit.draft(), mappingRepairPaths(conversationId));
-          if (!preservationIssues.isEmpty()) {
-            return view(previous, false, false,
-                withPreservedFacts(preservationIssues, previous.authoredDraft().facts()));
-          }
-        }
-        List<Issue> rejectedFactIssues = RequirementCaptureEditor.validateFactPreservation(
-            store.rejectedCaptureFacts(conversationId), edit.draft(), false, mappingRepairPaths(conversationId));
-        if (!rejectedFactIssues.isEmpty()) {
-          return view(previous, false, false,
-              withPreservedFacts(rejectedFactIssues, store.rejectedCaptureFacts(conversationId)));
-        }
-        if (!edit.changed()) {
-          store.recordCaptureAttempt(conversationId, true);
-          feedbackStore.clearRequirement(conversationId);
-          return view(previous, true, false, List.of());
         }
         Issue folderIssue =
             ambiguousFolder(edit.draft(), previous, "/changes/settings/targetFolderPath");
         if (folderIssue != null) {
           return view(previous, false, false, List.of(folderIssue));
         }
-        return publish(conversationId, edit.draft(), previous);
+        return publish(conversationId, edit.draft(), previous, changes);
       }
     });
   }
@@ -280,6 +251,11 @@ public class RequirementCaptureTools {
       }
       RequirementDraft current = refreshCatalogBindings(conversationId);
       if (directive == RequirementDiscoveryDirective.CONTINUE) {
+        var preservation = store.validateCurrent(conversationId);
+        if (!preservation.isEmpty()) {
+          store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
+          return view(current, false, false, preservation);
+        }
         Optional<String> refusal = continueRefusal(current);
         if (refusal.isPresent()) {
           store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
@@ -320,23 +296,22 @@ public class RequirementCaptureTools {
   }
 
   private RequirementCaptureResult publish(
-      String conversationId, DraftInput input, RequirementDraft previous) {
+      String conversationId, DraftInput input, RequirementDraft previous, DraftUpdate changes) {
+    var expectedBase = store.latestRevision(conversationId).map(value -> value.reference()).orElse(null);
     List<Issue> preferenceIssues = RequirementPreferenceEvidence.validate(
         input, previous, store.currentAuthorText(conversationId).orElse(null),
         previous == null || previous.authoredDraft() == null ? "/draft" : "/changes");
     preferenceIssues = new ArrayList<>(preferenceIssues);
     preferenceIssues.addAll(validateElementEvidence(conversationId, input, previous));
     if (!preferenceIssues.isEmpty()) {
-      store.rememberRejectedCaptureFacts(conversationId,
-          RequirementCaptureEditor.factsToPreserve(input, preferenceIssues));
+      store.rememberRejectedCapture(conversationId, input, preferenceIssues);
       return view(previous, false, false, preferenceIssues);
     }
     RequirementTargetResolver.Resolution targetResolution = targetResolver == null
         ? new RequirementTargetResolver.Resolution(Map.of(), List.of())
         : targetResolver.resolve(input);
     if (!targetResolution.issues().isEmpty()) {
-      store.rememberRejectedCaptureFacts(conversationId,
-          RequirementCaptureEditor.factsToPreserve(input, targetResolution.issues()));
+      store.rememberRejectedCapture(conversationId, input, targetResolution.issues());
       return view(previous, false, false, targetResolution.issues());
     }
     List<CatalogBindingHint> bindings =
@@ -345,13 +320,19 @@ public class RequirementCaptureTools {
         input, previous, bindings,
         legacyBindingAdapter.sourceSkillVersion(conversationId),
         legacyBindingAdapter.sourceSkillHash(conversationId), targetResolution.targetIds());
-    store.put(conversationId, draft);
-    store.clearRejectedCaptureFacts(conversationId);
+    var admissionIssues = store.admitCapture(conversationId, expectedBase, draft, changes,
+        mappingRepairPaths(conversationId));
+    if (!admissionIssues.isEmpty()) {
+      store.rememberRejectedCapture(conversationId, input, admissionIssues);
+      return view(previous, false, false, withPreservedFacts(admissionIssues,
+          previous, store.rejectedCaptureFacts(conversationId)));
+    }
     store.recordCaptureAttempt(conversationId, true);
     feedbackStore.clearRequirement(conversationId);
     store.markCaptured(conversationId);
     ProductCapabilityCaptureContext.offerDraft(draft);
-    return view(draft, true, true, List.of());
+    return view(draft, true, !Objects.equals(expectedBase,
+        store.latestRevision(conversationId).map(value -> value.reference()).orElse(null)), List.of());
   }
 
   private List<Issue> validateElementEvidence(String conversationId, DraftInput input, RequirementDraft previous) {
@@ -450,13 +431,19 @@ public class RequirementCaptureTools {
         draft, reference, accepted, changed, issues, store.turnDirective(ToolSession.resolveConversationId()));
   }
 
-  private List<Issue> withPreservedFacts(List<Issue> issues, List<FactInput> facts) {
+  private List<Issue> withPreservedFacts(List<Issue> issues, RequirementDraft accepted, List<FactInput> facts) {
     return issues.stream().map(issue -> new Issue(
         issue.code(), issue.path(), issue.entityId(), issue.message()
-            + " Required fact records from the previous input: "
+            + " Accepted fact records: "
+            + mapper.valueToTree(accepted == null || accepted.authoredDraft() == null ? List.of()
+                : accepted.authoredDraft().facts().stream()
+                    .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
+            + ". Validated fields from rejected inputs: "
             + mapper.valueToTree(facts.stream()
                 .filter(fact -> Objects.equals(fact.sourceFactId(), issue.entityId())).toList())
-            + ". Copy these records unchanged except for an invalid ID or a required reference repair."))
+            + ". Rejected-input records are partial preservation constraints, not replacement records."
+            + " Null does not instruct you to clear an accepted value. Retain accepted values and validated"
+            + " pending fields; correct only reported invalid fields or explicitly authorized amendments."))
         .toList();
   }
 
@@ -518,10 +505,10 @@ public class RequirementCaptureTools {
     ToolTraceLog.logToolInvoke(LOG, toolName, conversationId, "structured arguments");
     try {
       RequirementCaptureResult result;
-      synchronized (store) {
+      result = store.withWriteAuthority(conversationId, () -> {
         store.captureMutationScope(conversationId);
-        result = recordOutcome(toolName, arguments, action.get());
-      }
+        return recordOutcome(toolName, arguments, action.get());
+      });
       String encoded = encode(result);
       String summary = "accepted=" + result.accepted() + " changed=" + result.changed()
           + " readiness=" + result.readiness() + " issues="

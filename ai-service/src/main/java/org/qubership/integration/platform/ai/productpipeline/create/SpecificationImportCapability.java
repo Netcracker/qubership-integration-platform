@@ -103,6 +103,7 @@ public class SpecificationImportCapability implements StageCapability {
     }
 
     String conversationId = context.conversationId();
+    var writeAuthority = draftStore.writeAuthority(conversationId);
     String userText = context.attributeAsString("userText");
     if (!isImportConfirm(userText)) {
       // User may say the service is already in the catalog — bind it instead of replaying Import.
@@ -113,8 +114,10 @@ public class SpecificationImportCapability implements StageCapability {
           ResolvedCatalogBinding binding =
               ResolvedCatalogBinding.enrichFromCache(
                   catalogCache, conversationId, existing.get());
-          draftStore.applyImportResult(
-              conversationId, draft.apiHubCandidateInteractionId(), binding);
+          if (!draftStore.applyImportResult(
+              conversationId, writeAuthority, draft.apiHubCandidateInteractionId(), binding)) {
+            return completed(staleImport());
+          }
           RequirementDraft updated =
               draftStore.get(conversationId).orElse(draft);
           LOG.infof(
@@ -161,8 +164,10 @@ public class SpecificationImportCapability implements StageCapability {
                                       catalogCache,
                                       conversationId,
                                       ResolvedCatalogBinding.fromImportResult(result));
-                              draftStore.applyImportResult(
-                                  conversationId, draft.apiHubCandidateInteractionId(), binding);
+                              if (!draftStore.applyImportResult(
+                                  conversationId, writeAuthority, draft.apiHubCandidateInteractionId(), binding)) {
+                                return (CapabilitySignal) new CapabilitySignal.Completed(staleImport());
+                              }
                               RequirementDraft updated =
                                   draftStore.get(conversationId).orElse(draft);
                               LOG.infof(
@@ -190,9 +195,11 @@ public class SpecificationImportCapability implements StageCapability {
                 .onFailure()
                 .recoverWithMulti(
                     error -> {
+                      if (!draftStore.recordImportFailure(conversationId, writeAuthority)) {
+                        return Multi.createFrom().item(new CapabilitySignal.Completed(staleImport()));
+                      }
                       LOG.errorf(
                           error, "specification-import failed conversationId=%s", conversationId);
-                      draftStore.recordImportFailure(conversationId);
                       RequirementDraft afterFail =
                           draftStore.get(conversationId).orElseGet(draft::clearApiHubCandidate);
                       String detail =
@@ -217,6 +224,11 @@ public class SpecificationImportCapability implements StageCapability {
                     }))
         .onTermination()
         .invoke((failure, cancelled) -> SkillActivitySupport.clearParents());
+  }
+
+  private static StageOutcome staleImport() {
+    return StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+        "Requirement inputs changed during import. Resume from the current admitted draft.");
   }
 
   private RequirementDraft resolveDraft(StageExecutionContext context) {

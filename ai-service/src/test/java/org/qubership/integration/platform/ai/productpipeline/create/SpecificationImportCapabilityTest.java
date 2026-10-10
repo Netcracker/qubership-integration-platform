@@ -41,18 +41,49 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 
 class SpecificationImportCapabilityTest {
 
+  private static RequirementDraftStore admittingStore() {
+    var store = mock(RequirementDraftStore.class);
+    when(store.applyImportResult(any(), any(), any(), any())).thenReturn(true);
+    when(store.recordImportFailure(any(), any())).thenReturn(true);
+    return store;
+  }
+
+  @Test
+  void lateImportCompletionReturnsRecoveryWithoutOverwritingNewerRequirements() {
+    var gateway = mock(CatalogMutationGateway.class);
+    var store = new RequirementDraftStore();
+    var initial = pendingDraft();
+    store.put("conv-1", initial);
+    var importResult = new java.util.concurrent.CompletableFuture<ApiHubSpecificationImportResult>();
+    when(gateway.importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class), eq("INTERNAL")))
+        .thenReturn(Uni.createFrom().completionStage(importResult));
+    var context = new StageExecutionContext("run-1", "conv-1", "import-stage", "exec-1", "attempt-1",
+        null, null, List.of(), Map.of("approvedDraft", initial, "userText", ChatEvent.IMPORT_MARKER));
+    var pending = capability(gateway, store).execute(context).collect().asList().subscribeAsCompletionStage();
+    var newer = initial.withPreferredSystemType("EXTERNAL");
+    store.put("conv-1", newer);
+    var current = store.latestRevision("conv-1").orElseThrow().reference();
+    importResult.complete(new ApiHubSpecificationImportResult("sys", "spec", "group", "imp-1", "GeoSite", Optional.of("op")));
+    var completed = pending.toCompletableFuture().join().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow();
+    assertEquals(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE, completed.outcome().outcomeClass());
+    assertTrue(completed.outcome().candidates().isEmpty());
+    assertEquals(current, store.latestRevision("conv-1").orElseThrow().reference());
+    assertEquals(newer, store.get("conv-1").orElseThrow());
+  }
+
   @Test
   void capabilityIdIsSpecificationImport() {
     assertEquals(
         "specification-import",
-        new SpecificationImportCapability(mock(CatalogMutationGateway.class), mock(RequirementDraftStore.class), mock(ConversationCatalogCache.class))
+        new SpecificationImportCapability(mock(CatalogMutationGateway.class), admittingStore(), mock(ConversationCatalogCache.class))
             .capabilityId());
   }
 
   @Test
   void skipsWithoutCallingCatalogWhenNoCandidate() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
-    RequirementDraftStore store = mock(RequirementDraftStore.class);
+    RequirementDraftStore store = admittingStore();
     RequirementDraft draft = readyDraft(null, null);
     when(store.get("conv-1")).thenReturn(Optional.of(draft));
 
@@ -68,7 +99,7 @@ class SpecificationImportCapabilityTest {
   @Test
   void skipsWithoutCallingCatalogWhenBindingAlreadyPresent() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
-    RequirementDraftStore store = mock(RequirementDraftStore.class);
+    RequirementDraftStore store = admittingStore();
     ResolvedCatalogBinding binding =
         new ResolvedCatalogBinding("sys", "spec", "group", "op");
     RequirementDraft draft = readyDraft(candidate(), binding);
@@ -84,7 +115,7 @@ class SpecificationImportCapabilityTest {
   @Test
   void waitsForExplicitConfirmBeforeImport() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
-    RequirementDraftStore store = mock(RequirementDraftStore.class);
+    RequirementDraftStore store = admittingStore();
     RequirementDraft draft = pendingDraft();
     when(store.get("conv-1")).thenReturn(Optional.of(draft));
 
@@ -101,7 +132,7 @@ class SpecificationImportCapabilityTest {
     // the import. Only ChatEvent.IMPORT_MARKER, written by the server when the decision card is
     // clicked, does.
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
-    RequirementDraftStore store = mock(RequirementDraftStore.class);
+    RequirementDraftStore store = admittingStore();
     RequirementDraft draft = pendingDraft();
     when(store.get("conv-1")).thenReturn(Optional.of(draft));
 
@@ -117,7 +148,7 @@ class SpecificationImportCapabilityTest {
   @Test
   void importsWithDraftPreferredSystemType() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
-    RequirementDraftStore store = mock(RequirementDraftStore.class);
+    RequirementDraftStore store = admittingStore();
     ConversationCatalogCache catalogCache = mock(ConversationCatalogCache.class);
     RequirementDraft draft = pendingDraft().withPreferredSystemType("EXTERNAL");
     RequirementDraft bound =
@@ -145,7 +176,7 @@ class SpecificationImportCapabilityTest {
   @Test
   void importsOnDecisionMarkerAndMutatesDraft() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
-    RequirementDraftStore store = mock(RequirementDraftStore.class);
+    RequirementDraftStore store = admittingStore();
     ConversationCatalogCache catalogCache = mock(ConversationCatalogCache.class);
     RequirementDraft draft = pendingDraft();
     ResolvedCatalogBinding binding =
@@ -173,13 +204,13 @@ class SpecificationImportCapabilityTest {
     assertFalse(produced.importIntent());
     assertEquals("sys", produced.catalogBindings().getFirst().systemId());
     verify(gateway).importApiHubSpecification(eq("conv-1"), any(ApiHubRequirementRefs.class), eq("INTERNAL"));
-    verify(store).applyImportResult(eq("conv-1"), any(), any());
+    verify(store).applyImportResult(eq("conv-1"), any(), any(), any());
   }
 
   @Test
   void importFailureSoftRecoversWithNeedsInput() {
     CatalogMutationGateway gateway = mock(CatalogMutationGateway.class);
-    RequirementDraftStore store = mock(RequirementDraftStore.class);
+    RequirementDraftStore store = admittingStore();
     RequirementDraft draft = pendingDraft();
     RequirementDraft afterFail = draft.clearApiHubCandidate().withImportIntent(true);
     when(store.get("conv-1")).thenReturn(Optional.of(draft), Optional.of(afterFail));
@@ -195,7 +226,7 @@ class SpecificationImportCapabilityTest {
     assertTrue(
         completed.outcome().message().contains("import intent is kept")
             || completed.outcome().message().contains("Import intent"));
-    verify(store).recordImportFailure("conv-1");
+    verify(store).recordImportFailure(eq("conv-1"), any());
     RequirementDraft produced =
         (RequirementDraft) completed.outcome().candidates().get(0).payload();
     assertNull(produced.apiHubCandidate());
