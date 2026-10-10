@@ -49,6 +49,7 @@ public final class ProductCapabilityCaptureContext {
       String sourceTurnId,
       RequirementDraft approvedDraft,
       Map<String, Set<String>> mappingRepairPaths,
+      Set<String> requirementRepairPaths,
       String approvedDraftReference,
       RequirementBrief approvedBrief,
       AtomicReference<RequirementDraft> draftCandidate,
@@ -65,6 +66,11 @@ public final class ProductCapabilityCaptureContext {
 
   public static Context bindDiscovery(String runId, String conversationId, RequirementDraft selectedDraft,
       Map<String, Set<String>> mappingRepairPaths, Consumer<Object> onCandidate) {
+    return bindDiscovery(runId, conversationId, selectedDraft, mappingRepairPaths, Set.of(), onCandidate);
+  }
+
+  public static Context bindDiscovery(String runId, String conversationId, RequirementDraft selectedDraft,
+      Map<String, Set<String>> mappingRepairPaths, Set<String> requirementRepairPaths, Consumer<Object> onCandidate) {
     Binding binding =
         new Binding(
             Mode.DISCOVERY,
@@ -77,6 +83,7 @@ public final class ProductCapabilityCaptureContext {
             selectedDraft == null ? Map.of() : mappingRepairPaths.entrySet().stream()
                 .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,
                     entry -> Set.copyOf(entry.getValue()))),
+            Set.copyOf(requirementRepairPaths),
             null,
             null,
             new AtomicReference<>(),
@@ -129,6 +136,7 @@ public final class ProductCapabilityCaptureContext {
             sourceTurnId,
             approvedDraft,
             Map.of(),
+            Set.of(),
             approvedDraftReference,
             null,
             new AtomicReference<>(),
@@ -157,6 +165,7 @@ public final class ProductCapabilityCaptureContext {
             null,
             null,
             Map.of(),
+            Set.of(),
             null,
             approvedBrief,
             new AtomicReference<>(),

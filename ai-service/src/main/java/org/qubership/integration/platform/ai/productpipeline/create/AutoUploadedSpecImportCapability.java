@@ -200,6 +200,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
             .get(conversationId)
             .map(RequirementDraft::resolvedPreferredSystemType)
             .orElse("INTERNAL");
+    var writeAuthority = draftStore == null ? null : draftStore.writeAuthority(conversationId);
     Uni<CapabilitySignal.Completed> importWork =
         Multi.createFrom()
             .iterable(attachments)
@@ -225,7 +226,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
             .collect()
             .asList()
             .onItem()
-            .transform(outcomes -> importOutcome(context, outcomes));
+            .transform(outcomes -> importOutcome(context, outcomes, writeAuthority));
 
     return Multi.createFrom()
         .uni(importWork)
@@ -279,7 +280,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
   }
 
   private CapabilitySignal.Completed importOutcome(
-      StageExecutionContext context, List<UploadedSpecImportOutcome> outcomes) {
+      StageExecutionContext context, List<UploadedSpecImportOutcome> outcomes, RequirementDraftStore.WriteAuthority authority) {
     long succeeded = outcomes.stream().filter(Objects::nonNull).count();
     if (succeeded == 0) {
       return completed(
@@ -295,7 +296,7 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
     }
     List<UploadedSpecImportOutcome> imported =
         outcomes.stream().filter(Objects::nonNull).toList();
-    return succeeded(context, "Uploaded API specifications imported", imported);
+    return succeeded(context, "Uploaded API specifications imported", imported, authority);
   }
 
   private Optional<CompilationArtifacts.Reference> findApprovalReference(
@@ -363,6 +364,12 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
       StageExecutionContext context,
       String message,
       List<UploadedSpecImportOutcome> imported) {
+    return succeeded(context, message, imported,
+        draftStore == null ? null : draftStore.writeAuthority(context.conversationId()));
+  }
+
+  private CapabilitySignal.Completed succeeded(StageExecutionContext context, String message,
+      List<UploadedSpecImportOutcome> imported, RequirementDraftStore.WriteAuthority authority) {
     RequirementDraft draft = resolveCurrentDraft(context).orElse(null);
     if (draft == null) {
       return completed(
@@ -375,7 +382,10 @@ public class AutoUploadedSpecImportCapability implements StageCapability {
         rewriteFactsAndHints(updatedDraft, context.conversationId(), imported);
     RequirementDraft rewrittenDraft = rewrite.draft();
     if (draftStore != null) {
-      draftStore.put(context.conversationId(), rewrittenDraft);
+      if (!draftStore.putIfCurrent(context.conversationId(), authority, rewrittenDraft)) {
+        return completed(StageOutcome.of(StageOutcomeClass.RETRYABLE_TECHNICAL_FAILURE,
+            "Requirement inputs changed during import. Resume from the current admitted draft."));
+      }
     }
     LOG.infof(
         "auto-uploaded-spec-import: rewriting facts conversationId=%s facts=%d hints=%d",

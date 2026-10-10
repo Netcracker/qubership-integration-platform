@@ -404,11 +404,14 @@ class RequirementDiscoveryCapabilityTest {
   @ValueSource(booleans = {false, true})
   void automaticMappingRepairUsesEvidenceWhileManualChangesKeepAuthorText(boolean automatic) throws Exception {
     var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
-    var tree = mapper.valueToTree(RequirementFactFixtures.greetingsApprovedDraft());
-    ((com.fasterxml.jackson.databind.node.ObjectNode) tree).set("authoredDraft", mapper.valueToTree(
-        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
-            null, List.of(), List.of(), List.of(), null)));
-    var original = mapper.treeToValue(tree, RequirementDraft.class);
+    var authored = new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
+        new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FlowInput(List.of(), List.of()),
+        List.of(new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput("goal", List.of(),
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.GOAL,
+            org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE, "Create tasks.")),
+        List.of(), List.of(), new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftSettings(null, null));
+    var original = org.qubership.integration.platform.ai.plan.RequirementCaptureProjection.toDraft(
+        authored, null, List.of(), null, null);
     var store = new RequirementDraftStore();
     var seen = new AtomicReference<String>();
     var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {

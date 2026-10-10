@@ -47,6 +47,10 @@ public final class RequirementCaptureEditor {
 
   private RequirementCaptureEditor() {}
 
+  static boolean validFactId(String id) {
+    return id != null && LOCAL_ID.matcher(id).matches();
+  }
+
   public static EditResult initialize(DraftInput draft) {
     List<Issue> issues = new ArrayList<>(validate(draft));
     if (draft != null && draft.facts() != null) {
@@ -92,6 +96,7 @@ public final class RequirementCaptureEditor {
     requiredList(issues, update.addQuestions(), "/changes/addQuestions");
     requiredList(issues, update.updateQuestions(), "/changes/updateQuestions");
     requiredList(issues, update.removeQuestionIds(), "/changes/removeQuestionIds");
+    requiredList(issues, update.amendments(), "/changes/amendments");
     if (!issues.isEmpty()) {
       return new EditResult(accepted, sorted(issues), false);
     }
@@ -169,7 +174,6 @@ public final class RequirementCaptureEditor {
                     update.settings().targetFolderPath() == null
                         ? accepted.settings().targetFolderPath() : update.settings().targetFolderPath()));
     issues.addAll(validate(candidate));
-    issues.addAll(validatePolicyResponses(accepted, candidate, fact -> true));
     return new EditResult(
         issues.isEmpty() ? candidate : accepted,
         sorted(issues),
@@ -278,20 +282,45 @@ public final class RequirementCaptureEditor {
           (issue.path().equals(prefix) || issue.path().startsWith(prefix + "/"))
               && !issue.path().equals(prefix + "/sourceFactId")
               || Objects.equals(issue.entityId(), fact == null ? null : fact.sourceFactId())
-                  && issue.path().startsWith("/draft/facts/")
+                  && (issue.path().startsWith("/draft/facts/") || issue.path().startsWith("/changes/facts/"))
                   && !issue.path().endsWith("/sourceFactId")).toList();
       if (fact != null && fact.text() != null && !fact.text().isBlank()
           && fact.kind() != null && fact.polarity() != null && fact.interactionIds() != null
-          && factIssues.stream().allMatch(issue -> issue.path().contains("/elementIntent"))
+          && factIssues.stream().allMatch(issue -> List.of("/elementIntent", "/fieldMapping", "/interactionIds",
+              "/policyConflict", "/kind", "/polarity", "/text").stream().anyMatch(field -> issue.path().contains(field)))
           && factIssues.stream().noneMatch(issue -> "ELEMENT_LITERAL_SOURCE_MISMATCH".equals(issue.code())
               && factIssues.stream().noneMatch(other -> "ELEMENT_LITERAL_FACT_MISMATCH".equals(other.code())
                   && other.path().equals(issue.path())))) {
-        facts.add(factIssues.isEmpty() ? fact : new FactInput(fact.sourceFactId(), fact.interactionIds(),
-            fact.kind(), fact.polarity(), fact.text(), fact.fieldMapping(), fact.policyConflict(),
+        var retainedTargets = new ArrayList<String>();
+        for (int target = 0; target < fact.interactionIds().size(); target++) {
+          String suffix = "/interactionIds/" + target;
+          if (factIssues.stream().noneMatch(issue -> issue.path().endsWith("/interactionIds") || issue.path().endsWith(suffix))) {
+            retainedTargets.add(fact.interactionIds().get(target));
+          }
+        }
+        facts.add(factIssues.isEmpty() ? fact : new FactInput(fact.sourceFactId(), List.copyOf(retainedTargets),
+            factIssues.stream().anyMatch(issue -> issue.path().endsWith("/kind")) ? null : fact.kind(),
+            factIssues.stream().anyMatch(issue -> issue.path().endsWith("/polarity")) ? null : fact.polarity(),
+            factIssues.stream().anyMatch(issue -> issue.path().endsWith("/text")) ? null : fact.text(),
+            mappingToPreserve(fact.fieldMapping(), factIssues),
+            factIssues.stream().anyMatch(issue -> issue.path().contains("/policyConflict")) ? null : fact.policyConflict(),
             intentToPreserve(fact.elementIntent(), factIssues)));
       }
     }
     return List.copyOf(facts);
+  }
+
+  private static FieldMappingInput mappingToPreserve(FieldMappingInput mapping, List<Issue> issues) {
+    if (mapping == null) return null;
+    var paths = issues.stream().filter(issue -> issue.path().contains("/fieldMapping"))
+        .map(issue -> issue.path().substring(issue.path().indexOf("/fieldMapping") + "/fieldMapping".length()))
+        .collect(java.util.stream.Collectors.toSet());
+    if (paths.contains("")) return null;
+    return new FieldMappingInput(paths.contains("/sourceInteractionId") ? null : mapping.sourceInteractionId(),
+        paths.contains("/sourcePath") ? null : mapping.sourcePath(),
+        paths.contains("/targetInteractionId") ? null : mapping.targetInteractionId(),
+        paths.contains("/targetPath") ? null : mapping.targetPath(),
+        paths.contains("/expression") ? null : mapping.expression());
   }
 
   private static RequirementElementIntent intentToPreserve(RequirementElementIntent intent, List<Issue> issues) {
@@ -300,7 +329,7 @@ public final class RequirementCaptureEditor {
       return null;
     }
     Set<String> paths = new HashSet<>();
-    issues.forEach(issue -> paths.add(issue.path().substring(issue.path().indexOf("/elementIntent")
+    issues.stream().filter(issue -> issue.path().contains("/elementIntent")).forEach(issue -> paths.add(issue.path().substring(issue.path().indexOf("/elementIntent")
         + "/elementIntent".length())));
     var properties = intent.requestedProperties().stream().filter(property -> property != null
         && property.key() != null && !paths.contains("/requestedProperties")
@@ -339,18 +368,17 @@ public final class RequirementCaptureEditor {
       FactInput updated = stableId ? facts.get(original.sourceFactId())
           : candidate.facts().stream()
               .filter(fact -> Objects.equals(original.text(), fact.text())).findFirst().orElse(null);
-      // ponytail: Preserve accepted wording within a turn; semantic corrections start with new author input.
       if (updated == null
-          || !Objects.equals(original.text(), updated.text())
-          || original.kind() != updated.kind()
-          || original.polarity() != updated.polarity()
+          || original.text() != null && !Objects.equals(original.text(), updated.text())
+          || original.kind() != null && original.kind() != updated.kind()
+          || original.polarity() != null && original.polarity() != updated.polarity()
           || (!original.interactionIds().isEmpty() && updated.interactionIds().isEmpty())
           || original.interactionIds().stream().anyMatch(id ->
               interactions.contains(id) && !updated.interactionIds().contains(id))
           || !preservesElementIntent(original.elementIntent(), updated.elementIntent(), saved)
           || !sameMappingContent(original.fieldMapping(), updated.fieldMapping(), interactions,
-              editableMappingPaths.getOrDefault(original.sourceFactId(), Set.of()))
-          || !Objects.equals(original.policyConflict() == null ? null : original.policyConflict().unresolved(),
+              editableMappingPaths.getOrDefault(original.sourceFactId(), Set.of()), saved)
+          || (saved || original.policyConflict() != null) && !Objects.equals(original.policyConflict() == null ? null : original.policyConflict().unresolved(),
               updated.policyConflict() == null ? null : updated.policyConflict().unresolved())) {
         add(issues, "REPAIR_FACT_LOSS", (saved ? "/changes" : "/draft")
                 + "/facts/" + original.sourceFactId(),
@@ -388,13 +416,13 @@ public final class RequirementCaptureEditor {
   }
 
   private static boolean sameMappingContent(
-      FieldMappingInput original, FieldMappingInput updated, Set<String> interactions, Set<String> editablePaths) {
+      FieldMappingInput original, FieldMappingInput updated, Set<String> interactions, Set<String> editablePaths, boolean saved) {
     if (original == null || updated == null) {
-      return original == updated;
+      return !saved && original == null || original == updated;
     }
-    return (editablePaths.contains("sourcePath") || Objects.equals(original.sourcePath(), updated.sourcePath()))
-        && (editablePaths.contains("targetPath") || Objects.equals(original.targetPath(), updated.targetPath()))
-        && Objects.equals(original.expression(), updated.expression())
+    return (editablePaths.contains("sourcePath") || !saved && original.sourcePath() == null || Objects.equals(original.sourcePath(), updated.sourcePath()))
+        && (editablePaths.contains("targetPath") || !saved && original.targetPath() == null || Objects.equals(original.targetPath(), updated.targetPath()))
+        && (!saved && original.expression() == null || Objects.equals(original.expression(), updated.expression()))
         && (!interactions.contains(original.sourceInteractionId())
             || Objects.equals(original.sourceInteractionId(), updated.sourceInteractionId()))
         && (!interactions.contains(original.targetInteractionId())
