@@ -33,6 +33,28 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationS
 class CompilerValidationPipelineTest {
 
   @Test
+  void configurationValidationRejectsStringContextOverrideButAcceptsItsJsonObject() {
+    ObjectMapper mapper = new ObjectMapper();
+    var schemaService = DeterministicElementSchemaService.createForUnitTests(mapper);
+    var loader = new SchemaResourceLoader();
+    var resolver = new SchemaRefResolver(loader, new QipSchemaYamlParser());
+    var pipeline = new CompilerValidationPipeline(loader, resolver, mapper,
+        new ChainPlanGraphValidator(schemaService), schemaService,
+        security(valid("security")), quality(valid("quality")));
+    for (String value : List.of("X-Request-Id=override-request-id", "{\"X-Request-Id\":\"override-request-id\"}")) {
+      var sender = new ChainPlanNode("send", "http-sender", "Send", null, null,
+          List.of(new PlanProperty("propagateContext", "true"), new PlanProperty("overrideContextParams", value)));
+      var graph = new ChainPlanGraph("1.0", new ChainSection("test", "Test"), List.of(sender), List.of());
+      var result = pipeline.validatePass(CompilerValidationPipeline.CONFIGURATION, null, graph);
+      assertEquals(value.startsWith("{"), result.valid(), result.toString());
+      if (!result.valid()) {
+        assertTrue(result.issues().getFirst().message().contains("overrideContextParams"), result.toString());
+        assertEquals(List.of("send"), result.issues().getFirst().affectedNodeIds());
+      }
+    }
+  }
+
+  @Test
   void bundleContainsEveryCompilerValidationPass() {
     CompilerValidationPipeline pipeline =
         new CompilerValidationPipeline(

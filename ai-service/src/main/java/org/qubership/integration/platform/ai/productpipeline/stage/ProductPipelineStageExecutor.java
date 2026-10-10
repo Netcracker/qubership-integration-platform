@@ -32,6 +32,9 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingContract;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
+import org.qubership.integration.platform.ai.productpipeline.artifact.MappingValidationDetails;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
 import org.qubership.integration.platform.ai.productpipeline.artifact.UserInput;
@@ -821,7 +824,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         if (outcome.recoveryCause() != null && java.util.Set.of(
             RecoveryCauseCode.CONTRACT_SHAPE, RecoveryCauseCode.GRAPH_STRUCTURE,
             RecoveryCauseCode.UNKNOWN_PROPERTY, RecoveryCauseCode.MISSING_REQUIRED_PROPERTY,
-            RecoveryCauseCode.MAPPING_CONTRACT, RecoveryCauseCode.MISSING_BRIEF_FACTS)
+            RecoveryCauseCode.MAPPING_CONTRACT, RecoveryCauseCode.MISSING_BRIEF_FACTS, RecoveryCauseCode.BRIEF_CONTRACT)
             .contains(outcome.recoveryCause().causeCode())) {
           yield haltRecoverable(doc, stage,
               appendCandidates(runId, stage, resolveProducedCandidates(stage, outcome.candidates())),
@@ -1383,7 +1386,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (stage == null || outcomeClass != StageOutcomeClass.CONTRACT_FAILURE) {
       return false;
     }
-    if (cause != null && cause.causeCode() == RecoveryCauseCode.MISSING_BRIEF_FACTS
+    if (cause != null && (cause.causeCode() == RecoveryCauseCode.MISSING_BRIEF_FACTS
+        || cause.causeCode() == RecoveryCauseCode.BRIEF_CONTRACT)
         && "design-input".equals(stage.stageId())) {
       return true;
     }
@@ -1462,7 +1466,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         "inputs", RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId()),
         "defect", recoveryLedger.key(stage.stageId(), budgetCause,
             RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId()), doc.transitions()).evidenceIdentity()));
-    if (rejectedRefs.isEmpty() && "design-input".equals(stage.stageId())) {
+    if (rejectedRefs.isEmpty() && cause.causeCode() != RecoveryCauseCode.BRIEF_CONTRACT
+        && "design-input".equals(stage.stageId())) {
       rejectedRefs =
           List.of(new Reference(Kind.CHAIN_SEMANTIC_REVISION, failureId, "rejected-capture"));
     }
@@ -1470,7 +1475,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       rejectedRefs =
           List.of(new Reference(Kind.DESIGN_PLAN_REPORT, failureId, "rejected-plan"));
     }
-    if (rejectedRefs.isEmpty()) {
+    if (rejectedRefs.isEmpty() && cause.causeCode() != RecoveryCauseCode.BRIEF_CONTRACT) {
       Kind rejectedKind = switch (stage.stageId()) {
         case "requirement-discovery" -> Kind.REQUIREMENT_DRAFT;
         case "requirement-analysis" -> Kind.REQUIREMENT_BRIEF;
@@ -1505,10 +1510,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             draftEvidence, approvedBrief, rejectedPayload, locale, authorInputs(doc),
             approvedPlanRevision == null ? null : approvedPlanRevision.reference(),
             approvedPlanRevision == null ? null : artifactStore.payload(approvedPlanRevision, Object.class));
-    // A rejected design capture belongs to its producer. Missing brief input has its own typed
-    // cause before capture; an output contract rejection cannot reopen an approved brief.
+    // Input contract checks identify brief defects before capture; rejected output stays with its producer.
     AcceptedRecovery acceptedRecovery =
         "design-input".equals(stage.stageId()) && cause.causeCode() != RecoveryCauseCode.MISSING_BRIEF_FACTS
+            && cause.causeCode() != RecoveryCauseCode.BRIEF_CONTRACT
             ? new AcceptedRecovery(
                 captureRegenerateDecision(draftEvidence, findings.isBlank() ? evidenceText : findings),
                 draftEvidence)
@@ -1534,6 +1539,18 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
               ? PipelineGates.RECOVERY_ENVIRONMENT : PipelineGates.RECOVERY_RETRY_TECHNICAL,
           "The model provider could not complete diagnosis. Progress is saved.",
           evidenceText + "\n" + detail, null, emitted);
+    }
+    if (acceptedRecovery.sourceQuestion() != null) {
+      var question = acceptedRecovery.sourceQuestion();
+      cause = new RecoveryCause(RecoveryCauseCode.MISSING_BRIEF_FACTS, List.of(new PlanValidationFinding(
+          RecoveryDecisionValidator.SOURCE_RECONCILIATION_REQUIRED,
+          accepted.userSummary(), true, MappingValidationDetails.empty(), question.interactionId(),
+          question.propertyKey())), question.propertyKey());
+      putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR, cause.causeCode().name());
+      putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR,
+          ProductPipelineRunSupport.recoveryCauseJson(cause));
+      putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR, cause.formattedFindings());
+      putRunAttribute(runId, ProductPipelineRunSupport.STAGE_ERROR_REQUESTED_FACT_ATTR, question.propertyKey());
     }
     boolean currentProducerFallback = currentRepairEligible && (accepted == null
         || accepted.action() == RecoveryAction.PARK);
@@ -1715,6 +1732,18 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     }
     if (mapped instanceof StageDecision.ReopenProducer reopen) {
       if (accepted.action() == RecoveryAction.REVISE_BRIEF) {
+        if (cause.causeCode() == RecoveryCauseCode.BRIEF_CONTRACT || acceptedRecovery.sourceQuestion() != null) {
+          Revision draft = committedArtifactRevision(doc, Kind.REQUIREMENT_DRAFT);
+          if (draft != null && draft.provenance() != null
+              && ProductPipelineRunSupport.isCommittedRequirementDraftOwner(doc, draft.provenance().stageId(),
+                  profilesByRun.get(runId), artifactStore)) {
+            var source = artifactStore.payload(draft, org.qubership.integration.platform.ai.plan.RequirementDraft.class);
+            if (acceptedRecovery.sourceQuestion() != null || !org.qubership.integration.platform.ai.plan.RequirementCaptureEditor
+                .validateElementOrder(source.flow(), source.facts()).isEmpty()) {
+              reopen = new StageDecision.ReopenProducer(stage.stageId(), draft.provenance().stageId(), reopen.authorNote());
+            }
+          }
+        }
         putRunAttributeObject(
             runId,
             ProductPipelineRunSupport.PROPOSED_BRIEF_CHANGES_ATTR,
@@ -1723,7 +1752,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             runId,
             ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
             reopen.producerStageId());
-        boolean sourceCorrection = !accepted.proposedBriefChanges().isEmpty()
+        boolean sourceCorrection = acceptedRecovery.sourceQuestion() != null || !accepted.proposedBriefChanges().isEmpty()
             && accepted.proposedBriefChanges().stream().allMatch(change -> !change.authorDecisionRequired())
             && context.authorInputs().stream().anyMatch(input -> acceptedRecovery.decision() != null
                 && acceptedRecovery.decision().evidenceRefs().contains(input.inputId()));
@@ -1888,7 +1917,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
 
   record AcceptedRecovery(
       RecoveryDecision decision, RecoveryEvidence evidence, boolean rejectedAuthorQuestion,
-      RecoveryStatus diagnosisStatus) {
+      RecoveryStatus diagnosisStatus,
+      org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence sourceQuestion) {
+    private AcceptedRecovery(RecoveryDecision decision, RecoveryEvidence evidence, boolean rejectedAuthorQuestion,
+        RecoveryStatus diagnosisStatus) {
+      this(decision, evidence, rejectedAuthorQuestion, diagnosisStatus, null);
+    }
+
     private AcceptedRecovery(RecoveryDecision decision, RecoveryEvidence evidence) {
       this(decision, evidence, false, RecoveryStatus.READY);
     }
@@ -1916,7 +1951,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     if (request == null) { request = new DiagnosisRequest(identity, 0, null); }
     AcceptedRecovery prior = request.result();
     if (prior != null && (prior.decision() != null || request.calls() >= 2
-        || prior.diagnosisStatus() != RecoveryStatus.INVALID_REPLY)) {
+        || prior.diagnosisStatus() != RecoveryStatus.INVALID_REPLY
+            && prior.diagnosisStatus() != RecoveryStatus.TRANSIENT_PROVIDER_FAILURE)) {
       return prior;
     }
     RecoveryEvidence evidence = prior == null ? context.evidence() : prior.evidence();
@@ -1938,11 +1974,24 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         evidence = evidenceWithDecisionFindings(evidence, List.of(reply.detail() == null ? reply.status().name() : reply.detail()));
         AcceptedRecovery failed = new AcceptedRecovery(null, evidence, rejectedQuestion, reply.status());
         saveDiagnosis(runId, identity, calls, failed);
-        if (reply.status() != RecoveryStatus.INVALID_REPLY) { return failed; }
+        if (calls >= 2 || reply.status() != RecoveryStatus.INVALID_REPLY
+            && reply.status() != RecoveryStatus.TRANSIENT_PROVIDER_FAILURE) { return failed; }
         continue;
       }
       RecoveryDecision decision = reply.decision();
       RecoveryDecisionValidator.Result validation = RecoveryDecisionValidator.validate(decision, nextContext);
+      if (validation.requiresSourceReconciliation()) {
+        var question = decision.authorQuestionEvidence();
+        var sourceRefs = new ArrayList<String>();
+        sourceRefs.add(evidence.failureId());
+        context.authorInputs().forEach(input -> sourceRefs.add(input.inputId()));
+        var reconciliation = new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT,
+            evidence.approvedBriefRef(), sourceRefs, RecoveryAction.REVISE_BRIEF, List.of(), "",
+            "Check the saved author messages for " + question.propertyKey() + " on " + question.interactionId()
+                + ". Preserve later corrections and confirmed choices. Ask only if the source leaves the value unresolved.");
+        return saveDiagnosis(runId, identity, calls,
+            new AcceptedRecovery(reconciliation, evidence, true, RecoveryStatus.READY, question));
+      }
       if (validation.accepted()) {
         return saveDiagnosis(runId, identity, calls,
             new AcceptedRecovery(decision, evidence, rejectedQuestion, RecoveryStatus.READY));
@@ -2527,7 +2576,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     return cause != null
         && succeededWithOutputs
         && (cause.isBindingIdentityMismatch()
-            || (cause.causeCode() == RecoveryCauseCode.MISSING_BRIEF_FACTS
+            || ((cause.causeCode() == RecoveryCauseCode.MISSING_BRIEF_FACTS
+                || cause.causeCode() == RecoveryCauseCode.BRIEF_CONTRACT)
                 && ProductPipelineRunSupport.isCommittedRequirementDraftOwner(
                     doc, owner, profilesByRun.get(doc.run().runId()), artifactStore))
             || (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT
@@ -2815,20 +2865,36 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         RequirementDraft draft = artifactStore.payload(revision, RequirementDraft.class);
         attributes.put("requirementCorrectionDraftReference", revision.reference());
         attributes.put("requirementCorrectionDraft", draft);
-        java.util.Set<String> editable = new java.util.LinkedHashSet<>();
+        Map<String, Set<String>> editable = new HashMap<>();
         mappingRepairEvidence(runId).ifPresent(evidence -> evidence.findings().forEach(finding -> {
           try {
-            var details = recoveryValidationDeps().objectMapper
-                .readValue(finding.rawValidatorJson(), PlanValidationFinding.class).mappingDetails();
+            var nativeFinding = recoveryValidationDeps().objectMapper
+                .readValue(finding.rawValidatorJson(), PlanValidationFinding.class);
+            var details = nativeFinding.mappingDetails();
+            String path = switch (nativeFinding.code()) {
+              case "MAPPING_INVALID_SOURCE" -> "sourcePath";
+              case "MAPPING_UNKNOWN_TARGET" -> "targetPath";
+              default -> null;
+            };
+            if (path == null) { return; }
             draft.authoredDraft().facts().stream().filter(fact -> fact.fieldMapping() != null)
-                .filter(fact -> details.sourceRef().equals(fact.fieldMapping().sourceInteractionId())
-                    && details.targetRef().equals(fact.fieldMapping().targetInteractionId()))
-                .map(fact -> fact.sourceFactId()).forEach(editable::add);
+                .filter(fact -> {
+                  var mapping = fact.fieldMapping();
+                  var rule = new MappingIntentRule(mapping.sourcePath(), mapping.targetPath(), mapping.expression());
+                  return details.sourceRef().equals(mapping.sourceInteractionId())
+                      && details.targetRef().equals(mapping.targetInteractionId())
+                      && details.sourcePath().equals(MappingContract.canonicalPath(rule.sourcePath()))
+                      && details.targetPath().equals(MappingContract.canonicalPath(rule.targetPath()))
+                      && details.expression().equals(java.util.Objects.toString(rule.expression(), ""));
+                })
+                .forEach(fact -> editable.computeIfAbsent(fact.sourceFactId(), ignored -> new java.util.HashSet<>()).add(path));
           } catch (Exception ignored) {
             // Text-only evidence cannot authorize an automatic field correction.
           }
         }));
-        attributes.put("mappingRepairFactIds", java.util.Set.copyOf(editable));
+        attributes.put("mappingRepairPaths", editable.entrySet().stream()
+            .collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey,
+                entry -> Set.copyOf(entry.getValue()))));
       });
     }
     return attributes;
@@ -3419,6 +3485,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 reason,
                 null,
                 null)));
+    if (attemptOutcome == StageStatus.SUCCEEDED) {
+      ProductPipelineRunSupport.settleActiveRepair(doc.run().currentStageId(), attributesByRun.get(doc.run().runId()));
+    }
   }
 
   private void recordRetryableFailure(ProductPipelineRunDocument doc, String evidence) {

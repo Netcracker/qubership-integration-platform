@@ -213,6 +213,11 @@ Cite evidenceRefs only from context.evidenceRefIds. \
 userSummary has no stage ids; state what failed and what must change in the artifact supported \
 by the evidence. Attribute a defect to the requirements only when the context establishes a missing \
 or contradictory requirement. A rejected output alone does not establish a brief defect. \
+BRIEF_CONTRACT identifies accepted input rejected by a deterministic check before generation. \
+There is no rejected output for that failure. Compare the affected fact and field with authorInputs; \
+prepare REVISE_BRIEF corrections supported by the source, preserving unrelated requirements and \
+confirmed choices. A parallel flow with a generated successor between sibling branches can be \
+corrected by clearing that successor when the saved source requires parallel execution. \
 Before ASK_USER, read every authorInputs entry in order, the approved brief, schemaDefaults, \
 and persisted policyConflict decisions. Later author corrections supersede earlier values. \
 If an answer is present only in the source, repair the requirement projection; do not ask again. \

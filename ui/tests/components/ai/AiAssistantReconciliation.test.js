@@ -5,9 +5,7 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const repo = path.resolve(__dirname, "../../../..");
-const ts = require(
-  path.join(repo, "node_modules/typescript/lib/typescript.js"),
-);
+const ts = require("typescript");
 const assistantPath = path.join(repo, "ui/src/components/ai/AiAssistant.tsx");
 const helperPath = path.join(repo, "ui/src/components/ai/chatDecisionUtils.ts");
 const assistantSource = fs.readFileSync(assistantPath, "utf8");
@@ -57,6 +55,7 @@ vm.runInNewContext(transpile(helperSource), {
 const helpers = helpersModule.exports;
 const actualCallback = extractCallback("reconcileOpenDecision");
 const actualAnswerCallback = extractCallback("handleDecisionAnswer");
+const actualStreamingCallback = extractCallback("runStreamingChat");
 const sendSourceFile = ts.createSourceFile(
   "send.ts",
   `const send = ${extractCallback("sendToProvider")};`,
@@ -92,6 +91,117 @@ function deferred() {
   });
   return { promise, resolve };
 }
+
+test.each([false, true])(
+  "should persist completion across suspended frames with a gate: %s",
+  async (withGate) => {
+    const loadHelper = (file) => {
+      const module = { exports: {} };
+      vm.runInNewContext(transpile(fs.readFileSync(file, "utf8")), {
+        exports: module.exports,
+        module,
+        setTimeout,
+        clearTimeout,
+        requestAnimationFrame: () => 1,
+        cancelAnimationFrame: () => {},
+      });
+      return module.exports;
+    };
+    const textHelpers = loadHelper(
+      path.join(repo, "ui/src/components/ai/chatMessageUtils.ts"),
+    );
+    const revealHelpers = loadHelper(
+      path.join(repo, "ui/src/components/ai/streamReveal.ts"),
+    );
+    const completion = `${"Chain configuration saved. ".repeat(20)}[Open graph](/chains/chain-1/graph)`;
+    const beforeGate = "Requirements ready for review. ".repeat(10);
+    const session = { messages: [] };
+    let streaming = false;
+    let completed = false;
+    const context = {
+      ...textHelpers,
+      ...revealHelpers,
+      ...helpers,
+      performance: { now: () => 100 },
+      console,
+      setIsStreaming: (value) => {
+        streaming = value;
+      },
+      activityStore: {
+        reset: () => {},
+        getRows: () => [],
+        applyStep: () => {},
+      },
+      sessionStore: {
+        updateSessionMessages: (_id, messages) => {
+          session.messages = messages;
+        },
+      },
+      refreshSessions: () => {},
+      throttledRefreshSessions: () => {},
+      scrollToBottom: () => {},
+      chainContext: undefined,
+      abortControllerRef: { current: new AbortController() },
+      attachActivityToLastAssistant: (messages) => messages,
+      handleResponseComplete: (_id, response) => {
+        session.messages = response.finalMessages;
+        completed = true;
+      },
+    };
+    const run = vm.runInNewContext(
+      transpile(`const callback = ${actualStreamingCallback}; callback;`),
+      context,
+    );
+    const turn = run(
+      {
+        streamChat: async (_payload, emit) => {
+          if (withGate) {
+            emit({ type: "delta", contentDelta: beforeGate });
+            emit({
+              type: "decision",
+              decision: {
+                id: "review:1",
+                kind: "approve",
+                question: "Approve brief?",
+                revision: 1,
+                actions: ["approve"],
+              },
+            });
+          }
+          emit({ type: "delta", contentDelta: completion });
+          // Let the real reveal loop reach a suspended frame before the terminal event.
+          await Promise.resolve();
+          await Promise.resolve();
+          emit({ type: "done", conversationId: "conversation-1" });
+        },
+      },
+      {},
+      "session-1",
+      [{ role: "user", content: "Create the chain" }],
+      0,
+      "conversation-1",
+    );
+    await Promise.race([
+      turn,
+      new Promise((resolve) => setTimeout(resolve, 100)),
+    ]);
+    assert.equal(
+      completed,
+      true,
+      "Terminal persistence must not depend on a browser paint",
+    );
+    assert.equal(streaming, false);
+    assert(session.messages.some((message) => message.content === completion));
+    if (withGate) {
+      const gateIndex = session.messages.findIndex(
+        (message) => message.decision?.id === "review:1",
+      );
+      assert(gateIndex > 0);
+      assert.equal(session.messages[gateIndex].content, beforeGate);
+      assert.equal(session.messages[gateIndex + 1].content, completion);
+    }
+  },
+);
 
 function setup() {
   const offer = {

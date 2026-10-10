@@ -31,6 +31,7 @@ public final class HaltProducerCauseTable {
       case DESIGN_INPUT ->
           Set.of(
               RecoveryCauseCode.MISSING_BRIEF_FACTS,
+              RecoveryCauseCode.BRIEF_CONTRACT,
               RecoveryCauseCode.CONTRACT_SHAPE,
               RecoveryCauseCode.VALIDATION_BLOCKER,
               RecoveryCauseCode.MISSING_MANDATORY_INPUT);
@@ -123,6 +124,7 @@ public final class HaltProducerCauseTable {
     return switch (cause.causeCode()) {
       case SECURITY_POLICY -> "Set accessControlType on the HTTP trigger in " + role + ".";
       case MISSING_BRIEF_FACTS -> "Add the missing facts to " + role + ".";
+      case BRIEF_CONTRACT -> "Correct the contradictory facts in " + role + ".";
       case MAPPING_CONTRACT -> mappingContractSentence(cause, role);
       case MISSING_REQUIRED_PROPERTY -> "Add the required property to " + role + ".";
       case UNKNOWN_PROPERTY -> "Remove the unknown property from the generated element.";
@@ -173,7 +175,7 @@ public final class HaltProducerCauseTable {
   /** Owner category the router uses for {@code causeCode}. Exhaustive over {@link RecoveryCauseCode}. */
   static FindingOwnerCategory ownerCategory(RecoveryCauseCode causeCode) {
     return switch (causeCode) {
-      case MISSING_BRIEF_FACTS, MAPPING_CONTRACT -> FindingOwnerCategory.POLICY_OR_BRIEF;
+      case MISSING_BRIEF_FACTS, BRIEF_CONTRACT, MAPPING_CONTRACT -> FindingOwnerCategory.POLICY_OR_BRIEF;
       case SECURITY_POLICY, MISSING_REQUIRED_PROPERTY, UNKNOWN_PROPERTY ->
           FindingOwnerCategory.EXECUTION;
       case CONTRACT_SHAPE,

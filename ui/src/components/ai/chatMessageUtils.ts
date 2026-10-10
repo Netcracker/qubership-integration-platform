@@ -211,7 +211,11 @@ export function upsertAssistantMessage(
   content: string,
 ): ChatMessage[] {
   const last = messages[messages.length - 1];
-  if (last?.role === "assistant" && last.variant !== "error") {
+  if (
+    last?.role === "assistant" &&
+    last.variant !== "error" &&
+    (last.decision === undefined || !content.trim())
+  ) {
     // A trailing empty finalize must not wipe prose (or a decision parked on it).
     if (!content.trim()) {
       return messages;

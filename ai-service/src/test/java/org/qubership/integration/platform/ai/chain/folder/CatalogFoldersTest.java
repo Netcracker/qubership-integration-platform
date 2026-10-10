@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -27,6 +28,45 @@ class CatalogFoldersTest {
   private static final Folder LEGACY = new Folder("f3", "Legacy", null, "Legacy");
   private static final Folder LEGACY_SALESFORCE =
       new Folder("f4", "Salesforce", "f3", "Legacy/Salesforce");
+
+  @Test
+  void concurrentPublicationsResolveToOneFolder() throws Exception {
+    var client = mock(CatalogRestClient.class);
+    var items = new java.util.concurrent.CopyOnWriteArrayList<FolderItemDto>();
+    var writes = new java.util.concurrent.atomic.AtomicInteger();
+    var firstRead = new java.util.concurrent.CountDownLatch(1);
+    var releaseRead = new java.util.concurrent.CountDownLatch(1);
+    when(client.listFolder(ListFolderRequest.of(null))).thenAnswer(invocation -> {
+      var snapshot = List.copyOf(items);
+      if (firstRead.getCount() != 0) {
+        firstRead.countDown();
+        assertTrue(releaseRead.await(2, java.util.concurrent.TimeUnit.SECONDS));
+      }
+      return snapshot;
+    });
+    when(client.createFolder(any())).thenAnswer(invocation -> {
+      var request = invocation.getArgument(0, FolderWriteRequest.class);
+      var created = item("f" + writes.incrementAndGet(), request.name(), "FOLDER");
+      items.add(created);
+      return created;
+    });
+    var folders = new CatalogFolders(client);
+    try (var pool = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      var first = pool.submit(() -> folders.resolveOrCreateId("/Campaign"));
+      assertTrue(firstRead.await(2, java.util.concurrent.TimeUnit.SECONDS));
+      var second = pool.submit(() -> folders.resolveOrCreateId("/Campaign"));
+      try {
+        second.get(100, java.util.concurrent.TimeUnit.MILLISECONDS);
+      } catch (java.util.concurrent.TimeoutException serialized) {
+        // The second resolver may correctly wait for the first publication.
+      } finally {
+        releaseRead.countDown();
+      }
+      assertEquals(first.get(2, java.util.concurrent.TimeUnit.SECONDS),
+          second.get(2, java.util.concurrent.TimeUnit.SECONDS));
+      assertEquals(1, writes.get());
+    }
+  }
 
   @Test
   void bareNameFindsTheFolderAnywhereIgnoringCase() {
@@ -101,12 +141,14 @@ class CatalogFoldersTest {
   @Test
   void createMakesOnlyTheMissingLevels() {
     CatalogRestClient client = mock(CatalogRestClient.class);
+    when(client.listFolder(ListFolderRequest.of(null))).thenReturn(List.of(item("f1", "Integrations", "FOLDER")));
+    when(client.listFolder(ListFolderRequest.of("f1"))).thenReturn(List.of(item("f2", "Salesforce", "FOLDER")));
     when(client.createFolder(new FolderWriteRequest("f2", "Orders", null)))
         .thenReturn(item("f9", "Orders", "FOLDER"));
 
     Folder created =
         new CatalogFolders(client)
-            .create("integrations/Salesforce/Orders", List.of(INTEGRATIONS, SALESFORCE));
+            .create("integrations/Salesforce/Orders");
 
     assertEquals(new Folder("f9", "Orders", "f2", "Integrations/Salesforce/Orders"), created);
     verify(client).createFolder(new FolderWriteRequest("f2", "Orders", null));

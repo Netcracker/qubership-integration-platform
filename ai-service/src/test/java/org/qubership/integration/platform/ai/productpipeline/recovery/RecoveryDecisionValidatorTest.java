@@ -163,8 +163,21 @@ class RecoveryDecisionValidatorTest {
     assertFalse(result.accepted(), "A failure label does not prove that the author omitted the supplied method.");
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"Receive events with groupId=orders", "Receive events", "Use groupId=orders, then change it to invoices"})
+  void missingProjectedValueRequiresSourceOwnerReconciliation(String source) {
+    var endpoint = new RequirementFact("consume", RequirementFactPolarity.POSITIVE,
+        RequirementFactKind.ENDPOINT, "kafka-trigger-2", "Receive events");
+    var decision = ask("consume", "groupId", AuthorQuestionEvidence.Kind.MISSING_VALUE, List.of("input-1"));
+    var result = RecoveryDecisionValidator.validate(decision, new RecoveryContext(evidence,
+        context.approvedBrief().withFacts(List.of(endpoint)), null, "en", List.of(authorInput("input-1", source))));
+    assertFalse(result.accepted());
+    assertTrue(result.findings().stream().anyMatch(finding -> finding.startsWith("SOURCE_RECONCILIATION_REQUIRED")),
+        result.toString());
+  }
+
   @Test
-  void briefDefectMayAskForAnUnresolvedProductChoice() {
+  void unresolvedProductChoiceReturnsToTheSourceOwnerBeforeAsking() {
     var missingChoice = new RecoveryEvidence(1, evidence.failureId(), "MISSING_BRIEF_FACTS",
         "requirement-analysis", briefRef, semanticRef, List.of(planRef), List.of(), null, List.of());
     var decision = new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT, briefRef,
@@ -174,7 +187,7 @@ class RecoveryDecisionValidatorTest {
             List.of("input-1")));
     var endpoint = new RequirementFact("consume", RequirementFactPolarity.POSITIVE,
         RequirementFactKind.ENDPOINT, "kafka-trigger-2", "Receive events");
-    assertTrue(RecoveryDecisionValidator.validate(decision, new RecoveryContext(missingChoice,
+    assertFalse(RecoveryDecisionValidator.validate(decision, new RecoveryContext(missingChoice,
         context.approvedBrief().withFacts(List.of(endpoint)), context.rejectedArtifact(), "en",
         List.of(authorInput("input-1", "Receive events")))).accepted());
   }
@@ -207,7 +220,8 @@ class RecoveryDecisionValidatorTest {
       var result = RecoveryDecisionValidator.validate(decision, new RecoveryContext(observed,
           context.approvedBrief().withFacts(List.of(endpoint)), null, "en",
           List.of(authorInput("input-1", "Receive events"))));
-      org.junit.jupiter.api.Assertions.assertEquals(!"consume".equals(owner), result.accepted());
+            assertFalse(result.accepted());
+      org.junit.jupiter.api.Assertions.assertEquals(!"consume".equals(owner), result.requiresSourceReconciliation());
     }
   }
 

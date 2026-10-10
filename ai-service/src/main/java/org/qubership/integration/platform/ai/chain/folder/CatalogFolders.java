@@ -112,7 +112,8 @@ public class CatalogFolders {
   }
 
   /** Creates each level of {@code path} that the tree lacks and returns the deepest folder. */
-  public Folder create(String path, List<Folder> tree) {
+  public synchronized Folder create(String path) {
+    List<Folder> tree = tree();
     Folder current = null;
     for (String segment : segments(path)) {
       Folder existing = child(tree, current, segment);
@@ -137,12 +138,13 @@ public class CatalogFolders {
    * @return null for the root
    * @throws AmbiguousFolderException when a bare name matches more than one folder
    */
-  public String resolveOrCreateId(String reference) {
+  // shortcut: Serialize this service instance; use catalog atomic creation before deploying multiple replicas.
+  public synchronized String resolveOrCreateId(String reference) {
     List<Folder> tree = tree();
     return switch (resolve(reference, tree)) {
       case Resolution.Root root -> null;
       case Resolution.Found found -> found.folder().id();
-      case Resolution.Missing missing -> create(missing.path(), tree).id();
+      case Resolution.Missing missing -> create(missing.path()).id();
       case Resolution.Ambiguous ambiguous ->
           throw new AmbiguousFolderException(reference, paths(ambiguous.candidates()));
     };

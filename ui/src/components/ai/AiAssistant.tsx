@@ -451,6 +451,7 @@ export const AiAssistant: React.FC = () => {
       let periodicalChainRefreshAt = performance.now() + 2000;
       let activeConversationId = conversationId;
       let turnFailed = false;
+      let turnEnded = false;
       let streamOps: Promise<void> = Promise.resolve();
 
       const paintVisible = (chunk: string) => {
@@ -509,13 +510,15 @@ export const AiAssistant: React.FC = () => {
             return;
           }
           const delta = chunk.contentDelta;
-          accumulatedContent += delta;
           enqueueOp(async () => {
+            accumulatedContent += delta;
             await revealStreamText(
               delta,
               paintVisible,
               waitForNextPaint,
-              () => abortControllerRef.current?.signal.aborted === true,
+              () =>
+                turnEnded ||
+                abortControllerRef.current?.signal.aborted === true,
             );
             if (chainContext) {
               const now = performance.now();
@@ -529,6 +532,7 @@ export const AiAssistant: React.FC = () => {
         }
 
         if (chunk.type === "done") {
+          turnEnded = true;
           enqueueOp(async () => {
             const durationMs = Math.round(performance.now() - start);
             let finalMessages = applyStreamingDoneMessages(
@@ -559,6 +563,7 @@ export const AiAssistant: React.FC = () => {
         }
 
         if (chunk.type === "error" && chunk.errorMessage) {
+          turnEnded = true;
           const errorMessage = chunk.errorMessage;
           turnFailed = true;
           enqueueOp(async () => {

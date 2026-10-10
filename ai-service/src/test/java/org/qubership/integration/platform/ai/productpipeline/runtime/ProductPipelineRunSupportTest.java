@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.ai.productpipeline.runtime;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
@@ -47,6 +48,33 @@ import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
 import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 
 class ProductPipelineRunSupportTest {
+
+  @Test
+  void upstreamSuccessKeepsTheObserverErrorUntilTheObserverSucceeds() {
+    var attrs = new HashMap<String, Object>();
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Rejected downstream plan");
+    attrs.put(ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "design-planning");
+    ProductPipelineRunSupport.settleActiveRepair("requirement-analysis", attrs);
+    assertTrue(org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.haltRecorded(attrs));
+    ProductPipelineRunSupport.settleActiveRepair("design-planning", attrs);
+    assertFalse(org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.haltRecorded(attrs));
+  }
+
+  @org.junit.jupiter.params.ParameterizedTest
+  @org.junit.jupiter.params.provider.EnumSource(value = StageStatus.class, names = {"SUCCEEDED"})
+  void settledCaptureCannotRestoreAnEarlierActiveError(StageStatus settled) {
+    String json = ProductPipelineRunSupport.haltEvidence(Map.of(
+        ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR, "Rejected draft",
+        ProductPipelineRunSupport.STAGE_ERROR_FAILED_STAGE_ATTR, "requirement-discovery"), null);
+    var failed = documentWithHalt("requirement-discovery", json);
+    var attempts = new java.util.ArrayList<>(failed.attempts());
+    attempts.add(attempt("requirement-discovery", 3, settled));
+    var doc = new ProductPipelineRunDocument(failed.run(), attempts, failed.transitions(), failed.blobVersion());
+    var attrs = new HashMap<String, Object>();
+    ProductPipelineRunSupport.overlayHaltEvidenceForStage(doc, "requirement-discovery", attrs);
+    assertFalse(org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.haltRecorded(attrs));
+    assertEquals(2, doc.attempts().size());
+  }
 
   @org.junit.jupiter.params.ParameterizedTest
   @org.junit.jupiter.params.provider.ValueSource(strings = {"", "requirement-discovery"})

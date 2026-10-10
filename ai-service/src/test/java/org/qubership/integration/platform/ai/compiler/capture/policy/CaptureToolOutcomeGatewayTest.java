@@ -30,6 +30,36 @@ class CaptureToolOutcomeGatewayTest {
   }
 
   @Test
+  void nativeUnknownKeysReceiveCreditPerNodeAndField() {
+    String first = "node 'script-a' (script) has unknown property key 'incorrectA'";
+    String second = "node 'script-b' (script) has unknown property key 'incorrectB'";
+    for (String message : List.of(first, second)) {
+      assertEquals(message, gateway.onFailure(CaptureFeedbackChannel.PATCH, "native-fields", "script",
+          CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE, "captureGraphPatch",
+          Map.of("explanation", message), message));
+    }
+    assertThrows(CaptureValidationException.class, () -> gateway.onFailure(CaptureFeedbackChannel.PATCH,
+        "native-fields", "script", CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE,
+        "captureGraphPatch", Map.of("explanation", "Changed payload wording"),
+        "  NODE 'script-a' (script)  has unknown property key 'incorrectA'  "));
+    for (String node : List.of("script a", "script  a", "script; a")) {
+      String message = "node '" + node + "' (script) has unknown property key 'incorrectA'";
+      assertEquals(message, gateway.onFailure(CaptureFeedbackChannel.PATCH, "native-identities", "script",
+          CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE, "captureGraphPatch", Map.of(), message));
+    }
+    String combined = "Patch produced invalid graph: " + first + "; " + second;
+    assertEquals(combined, gateway.onFailure(CaptureFeedbackChannel.PATCH, "native-order", "script",
+        CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE, "captureGraphPatch", Map.of(), combined));
+    assertThrows(CaptureValidationException.class, () -> gateway.onFailure(CaptureFeedbackChannel.PATCH,
+        "native-order", "script", CaptureFailureKind.VALIDATION, CaptureFailureClass.CORRECTABLE,
+        "captureGraphPatch", Map.of("order", "reversed"), "Patch produced invalid graph: " + second + "; " + first));
+    assertFalse(ToolCallFingerprints.failureFingerprint("captureGraphPatch", "script",
+        "node '00000000-0000-0000-0000-000000000001' (script) has unknown property key 'x'")
+        .equals(ToolCallFingerprints.failureFingerprint("captureGraphPatch", "script",
+            "node '00000000-0000-0000-0000-000000000002' (script) has unknown property key 'x'")));
+  }
+
+  @Test
   void onFailurePersistsFieldHintsOnPlanChannel() {
     List<CaptureFieldHint> hints =
         List.of(new CaptureFieldHint("patternId", "elementSkeleton.selectedPatternId", "GP-01"));

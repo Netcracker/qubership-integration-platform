@@ -26,7 +26,15 @@ export function nextStreamRevealChunk(pending: string): {
 export function waitForNextPaint(): Promise<void> {
   return new Promise((resolve) => {
     if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(() => resolve());
+      // Background tabs can suspend animation frames while the response still completes.
+      const timer = setTimeout(() => {
+        cancelAnimationFrame(frame);
+        resolve();
+      }, 32);
+      const frame = requestAnimationFrame(() => {
+        clearTimeout(timer);
+        resolve();
+      });
       return;
     }
     setTimeout(resolve, 16);

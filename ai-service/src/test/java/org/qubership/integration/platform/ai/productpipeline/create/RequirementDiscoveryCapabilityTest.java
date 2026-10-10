@@ -81,6 +81,122 @@ class RequirementDiscoveryCapabilityTest {
 
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
+  void catalogResolutionAfterCaptureUsesTheSettledDraft(boolean idsUndecided) {
+    var store = new RequirementDraftStore();
+    var initial = readyDraftWithUnboundServiceCall();
+    var settled = petstoreServiceCallDraft().withIdsRequested(idsUndecided ? null : false);
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      store.put(chat, initial);
+      store.markCaptured(chat);
+      ProductCapabilityCaptureContext.offerDraft(initial);
+      store.put(chat, settled);
+      store.finishTurn(chat, RequirementDiscoveryDirective.CONTINUE);
+      return Multi.createFrom().item(ChatEvent.token("Would you like an IDS?"));
+    });
+    var signals = capability.execute(new StageExecutionContext("resolved-run", "resolved-chat",
+        "requirement-discovery", "execution", "attempt",
+        discoveryProfile(List.of(new ArtifactTypeRef("requirement-draft", 2)),
+            List.of(new ArtifactTypeRef("ids-bypass", 1))), null, List.of(),
+        Map.of("userText", "Call Petstore Ext GET /pets.")))
+        .collect().asList().await().indefinitely();
+    var outcome = signals.stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    if (idsUndecided) {
+      assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
+      assertEquals(PipelineGates.IDS_PATH_CHOICE,
+          PipelineGates.gateOf(outcome.message()).orElseThrow());
+    } else {
+      assertEquals(StageOutcomeClass.CANDIDATE, outcome.outcomeClass());
+      assertEquals(settled, outcome.candidates().stream()
+          .filter(candidate -> candidate.kind() == CompilationArtifacts.Kind.REQUIREMENT_DRAFT)
+          .findFirst().orElseThrow().payload());
+    }
+  }
+
+  @Test
+  void settledReadyCaptureDoesNotPublishSpeculativeQuestions() {
+    var store = new RequirementDraftStore();
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      store.put(chat, RequirementFactFixtures.greetingsApprovedDraft());
+      store.markCaptured(chat);
+      store.finishTurn(chat, RequirementDiscoveryDirective.CONTINUE);
+      return Multi.createFrom().item(ChatEvent.token("Should I correct the generated mapping notation?"));
+    });
+    var signals = capability.execute(new StageExecutionContext("settled-run", "settled-chat",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(),
+        Map.of("userText", "Create the chain."))).collect().asList().await().indefinitely();
+    assertEquals(StageOutcomeClass.CANDIDATE, signals.stream()
+        .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome().outcomeClass());
+    assertTrue(signals.stream().noneMatch(CapabilitySignal.Message.class::isInstance),
+        "A ready capture must not publish an unrecorded question");
+  }
+
+  @Test
+  void rejectedAttemptDoesNotPublishRefusalBeforeAutomaticRecovery() {
+    var h = captureHarness(null);
+    var capability = new RequirementDiscoveryCapability(null, h.store(), (chat, text) -> {
+      h.tools().captureRequirementDraft(new DraftInput(null, List.of(new FactInput("goal", List.of(),
+          FactKind.GOAL, Polarity.POSITIVE, "Create a task.")), List.of(), List.of(), new DraftSettings(null, null)));
+      return Multi.createFrom().item(ChatEvent.token("I could not save the draft. Construction stopped."));
+    });
+    capability.captureFeedback = h.feedback();
+    var signals = capability.execute(new StageExecutionContext("refusal-run", "refusal-chat",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(),
+        Map.of("userText", "Create a task."))).collect().asList().await().indefinitely();
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, signals.stream()
+        .filter(CapabilitySignal.Completed.class::isInstance).map(CapabilitySignal.Completed.class::cast)
+        .findFirst().orElseThrow().outcome().outcomeClass());
+    assertTrue(signals.stream().noneMatch(CapabilitySignal.Message.class::isInstance));
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void savedSourceResumesDiscoveryOnlyAfterTheRunHasInput(boolean inputRecorded) {
+    var mapper = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules();
+    var archive = new org.qubership.integration.platform.ai.chat.conversation.ConversationArchive(
+        new org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore(), mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "source-retry";
+    var source = archive.beginInput(chat, RequirementFactFixtures.GREETINGS_PROMPT, null);
+    archive.resolveInput(chat, source, RequirementFactFixtures.GREETINGS_PROMPT);
+    var calls = new AtomicInteger();
+    var store = new RequirementDraftStore();
+    var capability = new RequirementDiscoveryCapability(null, store, null, (cid, text) -> {
+      assertEquals(RequirementFactFixtures.GREETINGS_PROMPT, text);
+      calls.incrementAndGet();
+      return Multi.createFrom().empty();
+    }, conversations);
+    var refs = inputRecorded ? List.of(new CompilationArtifacts.Reference(CompilationArtifacts.Kind.USER_INPUT,
+        "saved-input", "source-hash")) : List.<CompilationArtifacts.Reference>of();
+    capability.execute(new StageExecutionContext("saved-source-run", chat, "requirement-discovery",
+        "execution", "attempt", null, null, refs, Map.of()))
+        .collect().asList().await().indefinitely();
+    assertEquals(inputRecorded ? 1 : 0, calls.get());
+    assertEquals(1, archive.pendingInputs(chat).size());
+  }
+
+  @Test
+  void savedReadyDraftOffersContinuationWhenRetryHasNoNewAuthorMessage() {
+    var store = new RequirementDraftStore();
+    store.put("ready-retry", RequirementFactFixtures.greetingsApprovedDraft());
+    var calls = new AtomicInteger();
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      calls.incrementAndGet();
+      return Multi.createFrom().empty();
+    });
+    var outcome = capability.execute(new StageExecutionContext("ready-retry-run", "ready-retry",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(), Map.of()))
+        .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(StageOutcomeClass.NEEDS_INPUT, outcome.outcomeClass());
+    assertEquals(PipelineGates.REQUIREMENT_DRAFT_READY, PipelineGates.gateOf(outcome.message()).orElseThrow());
+    assertEquals(0, calls.get());
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
   void savedDiscoveryRepairWithoutANewAuthorMessageDispatchesTheProducer(boolean clean) {
     var store = new RequirementDraftStore();
     var calls = new AtomicInteger();
@@ -304,7 +420,7 @@ class RequirementDiscoveryCapabilityTest {
         "userText", automatic ? "" : "Change the fallback to the newly requested value.",
         "requirementCorrectionDraft", original,
         "mappingRepairAutomatic", Boolean.toString(automatic),
-        "mappingRepairFactIds", java.util.Set.of(),
+        "mappingRepairPaths", Map.of(),
         org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CONTEXT_ATTR,
         "MAPPING_UNKNOWN_TARGET: $.Task.Subject is absent; $.Subject is required.",
         org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR,
@@ -361,12 +477,27 @@ class RequirementDiscoveryCapabilityTest {
             null, List.of(mapping, behavior), List.of(), List.of(), null)));
     var original = mapper.treeToValue(tree, RequirementDraft.class);
     var context = new StageExecutionContext("run", "chat", "requirement-discovery", "exec", "attempt",
-        null, null, List.of(), Map.of("mappingRepairFactIds", java.util.Set.of("subject-map")));
+        null, null, List.of(), Map.of("mappingRepairPaths", Map.of("subject-map", java.util.Set.of("targetPath"))));
     var candidateTree = tree.deepCopy();
     ((com.fasterxml.jackson.databind.node.ObjectNode) candidateTree.at("/authoredDraft/facts/0/fieldMapping"))
         .put("targetPath", "Subject");
     assertTrue(RequirementDiscoveryCapability.preservesMappingRepair(context, original,
         mapper.treeToValue(candidateTree, RequirementDraft.class)));
+
+    var changedSource = candidateTree.deepCopy();
+    ((com.fasterxml.jackson.databind.node.ObjectNode) changedSource.at("/authoredDraft/facts/0/fieldMapping"))
+        .put("sourcePath", "differentName");
+    assertFalse(RequirementDiscoveryCapability.preservesMappingRepair(context, original,
+        mapper.treeToValue(changedSource, RequirementDraft.class)));
+    var sourceContext = new StageExecutionContext("run", "chat", "requirement-discovery", "exec", "attempt",
+        null, null, List.of(), Map.of("mappingRepairPaths", Map.of("subject-map", java.util.Set.of("sourcePath"))));
+    assertFalse(RequirementDiscoveryCapability.preservesMappingRepair(sourceContext, original,
+        mapper.treeToValue(candidateTree, RequirementDraft.class)));
+    var sourceOnly = tree.deepCopy();
+    ((com.fasterxml.jackson.databind.node.ObjectNode) sourceOnly.at("/authoredDraft/facts/0/fieldMapping"))
+        .put("sourcePath", "differentName");
+    assertTrue(RequirementDiscoveryCapability.preservesMappingRepair(sourceContext, original,
+        mapper.treeToValue(sourceOnly, RequirementDraft.class)));
 
     var changedExpression = candidateTree.deepCopy();
     ((com.fasterxml.jackson.databind.node.ObjectNode) changedExpression.at("/authoredDraft/facts/0/fieldMapping"))
@@ -899,9 +1030,8 @@ class RequirementDiscoveryCapabilityTest {
       }
     });
 
-    assertEquals(StageOutcomeClass.NEEDS_INPUT, completed.get().outcome().outcomeClass());
-    assertEquals(
-        RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE, completed.get().outcome().message());
+    assertEquals(StageOutcomeClass.CONTRACT_FAILURE, completed.get().outcome().outcomeClass());
+    assertEquals(org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.CONTRACT_SHAPE, completed.get().outcome().recoveryCause().causeCode());
 
     ArgumentCaptor<String> input = ArgumentCaptor.forClass(String.class);
     verify(agent).chat(eq("conv-dup"), input.capture(), any());
