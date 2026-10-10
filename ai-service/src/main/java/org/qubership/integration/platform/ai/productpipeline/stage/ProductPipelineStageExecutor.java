@@ -25,9 +25,12 @@ import org.qubership.integration.platform.ai.compiler.capture.ToolArgumentsFailu
 import org.qubership.integration.platform.ai.compiler.capture.policy.ToolCallFingerprints;
 import org.qubership.integration.platform.ai.compiler.capture.TransientFailures;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.core.JsonPointer;
 import org.qubership.integration.platform.ai.compiler.contract.CompilerContract;
 import org.qubership.integration.platform.ai.plan.RequirementBriefProjector;
 import org.qubership.integration.platform.ai.plan.RequirementDraft;
+import org.qubership.integration.platform.ai.plan.RequirementDraftStore;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRecordV2;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
@@ -1143,7 +1146,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
           null,
           emitted);
     }
-    if (usesStructuredContractRecovery(stage, outcomeClass, cause)) {
+    Optional<ReportedDraftDefect> reportedDraftOwner = producerRepairAllowed
+        ? reportedDraftOwner(doc, stage, refs, cause) : Optional.empty();
+    if (reportedDraftOwner.isEmpty() && usesStructuredContractRecovery(stage, outcomeClass, cause)) {
       putRunAttribute(
           doc.run().runId(), ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR, "");
       return recoverValidationFailure(
@@ -1176,7 +1181,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             : new ProducerOwnedRecovery.Route(ProducerOwnedRecovery.Action.PARK, "");
     Optional<Revision> mappingDraft = mappingDraftRevision(doc.run().runId(), cause);
     if (producerRepairAllowed && mappingDraft.isPresent()) {
-      String owner = mappingDraftOwner(doc.run().runId(), profile, mappingDraft.get()).orElse("");
+      String owner = requirementDraftOwner(doc.run().runId(), profile, mappingDraft.get()).orElse("");
       if (!owner.isBlank()) {
         recovery = new ProducerOwnedRecovery.Route(
             catalogHasBeenWritten(doc.run().runId()) ? ProducerOwnedRecovery.Action.PARK
@@ -1184,13 +1189,24 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                     : ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, owner);
       }
     }
+    if (producerRepairAllowed && reportedDraftOwner.isPresent()) {
+      var defect = reportedDraftOwner.get();
+      recovery = new ProducerOwnedRecovery.Route(
+          catalogHasBeenWritten(doc.run().runId()) ? ProducerOwnedRecovery.Action.PARK
+              : ProducerOwnedRecovery.Action.REOPEN_UPSTREAM, defect.owner());
+      RecoveryCause draftCause = new RecoveryCause(cause.causeCode(), defect.findings(), cause.requestedFact());
+      putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR,
+          ProductPipelineRunSupport.recoveryCauseJson(draftCause));
+      putRunAttribute(doc.run().runId(), ProductPipelineRunSupport.STAGE_ERROR_FINDINGS_ATTR,
+          draftCause.formattedFindings());
+    }
     putRunAttribute(
         doc.run().runId(),
         ProductPipelineRunSupport.DIAGNOSED_OWNER_STAGE_ATTR,
         recovery.producerStageId());
-    if (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT
-        && !cause.findings().isEmpty()) {
-      persistMappingContractEvidence(doc, stage, refs, cause, recovery.producerStageId());
+    if (!cause.findings().isEmpty()
+        && (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT || reportedDraftOwner.isPresent())) {
+      persistRequirementContractEvidence(doc, stage, refs, cause, recovery.producerStageId());
     }
     if (recovery.action() == ProducerOwnedRecovery.Action.REPAIR_CURRENT) {
       String ownerArtifact =
@@ -2057,6 +2073,73 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         .map(ArtifactProvenance::stageId);
   }
 
+  private record ReportedDraftDefect(String owner, List<PlanValidationFinding> findings) {}
+
+  private Optional<ReportedDraftDefect> reportedDraftOwner(ProductPipelineRunDocument doc, ProfileStage stage,
+      List<Reference> refs, RecoveryCause cause) {
+    if (cause.causeCode() != RecoveryCauseCode.BRIEF_CONTRACT
+        && cause.causeCode() != RecoveryCauseCode.MISSING_BRIEF_FACTS) {
+      return Optional.empty();
+    }
+    Revision draftRevision = committedArtifactRevision(doc, Kind.REQUIREMENT_DRAFT);
+    if (draftRevision == null) return Optional.empty();
+    Revision briefRevision = rejectedArtifactRefs(refs).stream()
+        .filter(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF)
+        .map(ref -> rejectedArtifactRevision(doc.run().runId(), ref).orElse(null))
+        .filter(Objects::nonNull).findFirst()
+        .orElseGet(() -> committedArtifactRevision(doc, Kind.REQUIREMENT_BRIEF));
+    if (briefRevision == null) {
+      // Before a brief exists, a native draft pointer identifies the committed analysis input.
+      if (stage.consumes().stream().noneMatch(type -> type.matches(Kind.REQUIREMENT_DRAFT))
+          || stage.produces().stream().noneMatch(type -> type.matches(Kind.REQUIREMENT_BRIEF))) {
+        return Optional.empty();
+      }
+    }
+    RequirementBrief brief = briefRevision == null ? null : artifactStore.payload(briefRevision, RequirementBrief.class);
+    if (brief != null && !draftRevision.artifactId().equals(brief.approvedDraftReference())) return Optional.empty();
+    RequirementDraft draft = artifactStore.payload(draftRevision, RequirementDraft.class);
+    List<PlanValidationFinding> draftFindings = new ArrayList<>();
+    for (PlanValidationFinding finding : cause.findings()) {
+      String path = RequirementDraftStore.requirementRepairPath(draft, finding);
+      if (path == null) continue;
+      if (brief == null) {
+        draftFindings.add(finding);
+        continue;
+      }
+      JsonPointer pointer = JsonPointer.compile(path);
+      String family = pointer.getMatchingProperty();
+      String id = pointer.tail().getMatchingProperty();
+      JsonPointer field = pointer.tail().tail();
+      JsonNode source;
+      JsonNode derived;
+      if ("facts".equals(family)) {
+        source = requirementField(draft.facts(), "sourceFactId", id, field);
+        derived = requirementField(brief.facts(), "sourceFactId", id, field);
+      } else if ("interactions".equals(family)) {
+        source = requirementField(draft.flow().interactions(), "interactionId", id, field);
+        derived = requirementField(brief.flow().interactions(), "interactionId", id, field);
+      } else {
+        continue;
+      }
+      // A brief-only defect must not authorize changes to the accepted draft.
+      if (!source.isMissingNode() && source.equals(derived)) {
+        draftFindings.add(finding);
+      }
+    }
+    return draftFindings.isEmpty() ? Optional.empty()
+        : requirementDraftOwner(doc.run().runId(), profilesByRun.get(doc.run().runId()), draftRevision)
+            .filter(owner -> !owner.equals(stage.stageId()))
+            .map(owner -> new ReportedDraftDefect(owner, List.copyOf(draftFindings)));
+  }
+
+  private JsonNode requirementField(List<?> records, String idField, String id, JsonPointer field) {
+    JsonNode tree = recoveryValidationDeps().objectMapper.valueToTree(records);
+    for (JsonNode record : tree) {
+      if (record.path(idField).asText().equals(id)) return record.at(field);
+    }
+    return com.fasterxml.jackson.databind.node.MissingNode.getInstance();
+  }
+
   private Optional<Revision> mappingDraftRevision(String runId, RecoveryCause cause) {
     if (cause == null || cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
       return Optional.empty();
@@ -2093,7 +2176,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         .filter(evidence -> "MAPPING_CONTRACT".equals(evidence.observedCauseCode())).findFirst();
   }
 
-  private Optional<String> mappingDraftOwner(String runId, ProductPipelineProfile profile, Revision selected) {
+  private Optional<String> requirementDraftOwner(String runId, ProductPipelineProfile profile, Revision selected) {
     if (profile == null) {
       return Optional.empty();
     }
@@ -2136,10 +2219,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   }
 
   /**
-   * Stores observing stage and brief producer on the durable recovery record. Schema-side identity
+   * Stores the observing stage and requirement producer on the durable recovery record. Schema-side identity
    * stays in the finding JSON; those sides live under conversation compilation, not this run.
    */
-  private void persistMappingContractEvidence(
+  private void persistRequirementContractEvidence(
       ProductPipelineRunDocument doc,
       ProfileStage stage,
       List<Reference> refs,
@@ -2148,6 +2231,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     String runId = doc.run().runId();
     String failureId = UUID.randomUUID().toString();
     Reference approvedBriefRef = compiledBriefReference(cause);
+    if (approvedBriefRef == null && cause.causeCode() != RecoveryCauseCode.MAPPING_CONTRACT) {
+      Revision brief = committedArtifactRevision(doc, Kind.REQUIREMENT_BRIEF);
+      approvedBriefRef = brief == null ? null : brief.reference();
+    }
     List<Reference> rejectedRefs = rejectedArtifactRefs(refs);
     RecoveryEvidence evidence =
         new RecoveryEvidence(
@@ -2159,13 +2246,15 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             approvedBriefRef,
             null,
             rejectedRefs,
-            mappingSemanticFindings(cause, failureId),
+            semanticFindingsFor(runId, rejectedRefs, stage.stageId(), failureId, "", "", cause),
             null,
             List.of());
     List<Reference> evidenceInputs = new ArrayList<>();
     if (approvedBriefRef != null) {
       evidenceInputs.add(approvedBriefRef);
     }
+    Revision draft = committedArtifactRevision(doc, Kind.REQUIREMENT_DRAFT);
+    if (draft != null) evidenceInputs.add(draft.reference());
     rejectedRefs.stream()
         .filter(ref -> !evidenceInputs.contains(ref))
         .filter(ref -> artifactStore.get(runId, ref).isPresent())
@@ -2357,7 +2446,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     for (Reference ref : refs) {
       Optional<Revision> revision = rejectedArtifactRevision(runId, ref);
       if (revision.isPresent()) {
-        return artifactStore.payload(revision.orElseThrow(), Object.class);
+        return ref.kind() == Kind.CHAIN_SEMANTIC_REVISION
+            ? artifactStore.payload(revision.orElseThrow(), ChainSemanticRevision.class)
+            : artifactStore.payload(revision.orElseThrow(), Object.class);
       }
     }
     return null;
@@ -2582,7 +2673,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                     doc, owner, profilesByRun.get(doc.run().runId()), artifactStore))
             || (cause.causeCode() == RecoveryCauseCode.MAPPING_CONTRACT
                 && mappingDraftRevision(doc.run().runId(), cause)
-                    .flatMap(revision -> mappingDraftOwner(doc.run().runId(),
+                    .flatMap(revision -> requirementDraftOwner(doc.run().runId(),
                         profilesByRun.get(doc.run().runId()), revision)).filter(owner::equals).isPresent())
             || (cause.causeCode() == RecoveryCauseCode.CONTRACT_SHAPE
                 && "materialization".equals(doc.run().currentStageId())

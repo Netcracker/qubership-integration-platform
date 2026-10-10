@@ -169,6 +169,37 @@ public class RequirementDraftStore {
         && !path.contains("/policyConflict");
   }
 
+  /** Resolves a native finding to the same stable field used by revision admission. */
+  public static String requirementRepairPath(RequirementDraft draft,
+      org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding finding) {
+    if (finding == null || !finding.blocker()) return null;
+    try {
+      String path = finding.fieldPointer();
+      if (path.startsWith("/draft/")) path = path.substring("/draft".length());
+      if (path.startsWith("/flow/")) path = path.substring("/flow".length());
+      path = path.replace("/facts[]/", "/facts/").replace("/interactions[]/", "/interactions/")
+          .replace("/capabilities[]/", "/capabilities/");
+      if (path.startsWith("/") && !finding.originRecordId().isBlank() && !isRequirementRepairPath(draft, path)) {
+        var pointer = com.fasterxml.jackson.core.JsonPointer.compile(path);
+        String family = pointer.getMatchingProperty();
+        if (List.of("facts", "interactions", "capabilities").contains(family)) {
+          var tail = pointer.tail();
+          if (tail.getMatchingIndex() >= 0) tail = tail.tail();
+          path = "/" + family + "/" + finding.originRecordId() + tail;
+        } else {
+          path = "/facts/" + finding.originRecordId() + path;
+        }
+      }
+      var pointer = com.fasterxml.jackson.core.JsonPointer.compile(path);
+      if (List.of("facts", "interactions", "capabilities").contains(pointer.getMatchingProperty())
+          && !finding.originRecordId().isBlank()
+          && !finding.originRecordId().equals(pointer.tail().getMatchingProperty())) return null;
+      return isRequirementRepairPath(draft, path) ? path : null;
+    } catch (IllegalArgumentException invalidEvidence) {
+      return null;
+    }
+  }
+
   private boolean supportsAmendment(String conversationId, RequirementCaptureInput.AmendmentInput amendment) {
     if (amendment.quote() == null || amendment.quote().isBlank() || amendmentAlreadyAdmitted(conversationId, amendment.path())) {
       return false;
