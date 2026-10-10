@@ -133,6 +133,52 @@ class RequirementRevisionAdmissionTest {
   }
 
   @Test
+  void oneAuthorAmendmentUpdatesDuplicatedValuesAndPreservesTheConfirmedAnswer() throws Exception {
+    var h = new Harness();
+    try (var ignored = ToolSession.open(h.chat)) {
+      h.begin("Create an external endpoint at /tasks with NONE. Proceed without IDS.");
+      var initial = policyDraft(null);
+      var visibility = new FactInput("visibility", List.of("entry"), FactKind.VISIBILITY,
+          Polarity.POSITIVE, "External endpoint at /tasks.");
+      var flow = new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+          "Caller", "POST /tasks", "External task endpoint at /tasks.", null, null)), List.of());
+      assertTrue(h.capture(new DraftInput(flow,
+          List.of(initial.facts().getFirst(), visibility, initial.facts().getLast()),
+          initial.capabilities(), initial.openQuestions(), initial.settings())).accepted());
+      h.begin("Use the recommended RBAC.");
+      assertTrue(h.update(editPolicy(Decision.USE_RECOMMENDED, false)).accepted());
+      String quote = "Change only the endpoint URL to /new-tasks.";
+      var source = h.begin(quote);
+      var update = new DraftUpdate(List.of(), List.of(new InteractionInput("entry", Direction.INBOUND,
+          "Caller", "POST /new-tasks", "External task endpoint at /new-tasks.", null, null)), List.of(), List.of(), List.of(),
+          List.of(), List.of(new FactInput(visibility.sourceFactId(), visibility.interactionIds(), visibility.kind(),
+              visibility.polarity(), "External endpoint at /new-tasks.")), List.of(),
+          List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.POST,
+              "/new-tasks", null, null, null)), List.of(), List.of(), List.of(), List.of(), null,
+          List.of("/capabilities/entry/path", "/interactions/entry/operation",
+              "/interactions/entry/description", "/facts/visibility/text")
+              .stream().map(path -> new AmendmentInput(path, source.turnId(), quote)).toList());
+      assertTrue(h.update(update).accepted());
+      assertTrue(h.result(h.tools.finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE)).accepted());
+      h.restartStore();
+      RequirementDraft selected = h.store.get(h.chat).orElseThrow();
+      assertEquals("External task endpoint at /new-tasks.", selected.flow().interactions().getFirst().description());
+      var brief = RequirementBriefProjector.project(
+          new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+              "Create tasks", List.of(), List.of(), List.of(), List.of(), "Create tasks", null,
+              selected.planningText(), selected.facts()).withFlow(selected.flow()));
+      assertEquals("/new-tasks", brief.entryPoints().getFirst().path());
+      assertEquals("POST /new-tasks", brief.entryPoints().getFirst().operation());
+      String downstream = org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBriefText.format(brief);
+      assertTrue(downstream.contains("method=POST path=/new-tasks"), downstream);
+      assertFalse(downstream.contains("POST /tasks"), downstream);
+      assertFalse(downstream.contains("at /tasks."), downstream);
+      assertEquals(Decision.USE_RECOMMENDED, h.store.confirmedAnswers(h.chat).getFirst().policy().decision());
+      assertEquals(initial.facts().getFirst(), selected.authoredDraft().facts().getFirst());
+    }
+  }
+
+  @Test
   void anExplicitAnswerAmendmentRetainsItsOwnSourceProvenance() throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {

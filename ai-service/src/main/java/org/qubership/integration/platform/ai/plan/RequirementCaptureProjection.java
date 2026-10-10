@@ -68,6 +68,12 @@ public final class RequirementCaptureProjection {
           ? targets.get(capability.interactionId()) : capability.path();
       String operation = capability.mcpServerId() != null
           ? capability.mcpServerId() : owner.operation();
+      if (("http-sender".equals(capability.capabilityKey())
+          || "http-trigger".equals(capability.capabilityKey())
+              && capability.httpMode() == RequirementCaptureInput.HttpMode.CUSTOM)
+          && capability.httpMethod() != null && !blank(capability.path())) {
+        operation = capability.httpMethod().name() + " " + capability.path();
+      }
       projected.add(new RequirementFact(
           uniqueDerivedId(usedIds, capability.interactionId()), RequirementFactPolarity.POSITIVE,
           RequirementFactKind.CAPABILITY, capability.capabilityKey(),
