@@ -544,7 +544,7 @@ public class ChainListScenario implements ScenarioHandler {
       case Resolution.Found found ->
           Outcome.text("Folder " + found.folder().path() + " already exists.");
       case Resolution.Missing missing ->
-          Outcome.text("Created folder " + folders.create(missing.path(), tree).path() + ".");
+          Outcome.text("Created folder " + folders.create(missing.path()).path() + ".");
       default -> throw new Answer("Ask what the new folder should be called.");
     };
   }

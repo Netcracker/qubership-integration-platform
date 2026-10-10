@@ -6,6 +6,7 @@ import jakarta.inject.Inject;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -236,9 +237,10 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     var repair = StageRepairEvidence.from(context);
     if (userMessage.isBlank() && repair != null
-        && RecoveryCauseCode.MISSING_BRIEF_FACTS.name().equals(repair.causeCode())) {
+        && (RecoveryCauseCode.MISSING_BRIEF_FACTS.name().equals(repair.causeCode())
+            || RecoveryCauseCode.BRIEF_CONTRACT.name().equals(repair.causeCode()))) {
       userMessage = """
-          Restore requirements omitted from the accepted draft. Call readRequirementSource to read
+          Correct the reported missing or contradictory fields in the accepted draft. Call readRequirementSource to read
           the saved author messages in order, including later corrections, then read the accepted
           draft. Call updateRequirementDraft only for changes supported by those messages. Preserve
           unrelated facts, IDs, flow, settings, and confirmed policy choices. Ask for clarification
@@ -268,9 +270,21 @@ public class RequirementDiscoveryCapability implements StageCapability {
               : "Correct the affected capture fields from the saved evidence.",
               repair.causeCode(), repair.findings(), repair.errorEvidence());
     }
-    // startOrResume advances the first stage before acceptInput attaches userText. LangChain4j
-    // rejects blank @UserMessage, so wait for input instead of calling the gather agent.
+    if (userMessage.isBlank() && conversationService != null && context.inputRefs().stream()
+        .anyMatch(ref -> ref.kind() == CompilationArtifacts.Kind.USER_INPUT)) {
+      var pending = conversationService.archive().pendingInputs(conversationId);
+      if (!pending.isEmpty()) {
+        userMessage = pending.getLast().message().content();
+      }
+    }
+    // Initial advance has no recorded input; recovery can reuse the pending author source.
     if (userMessage.isBlank()) {
+      RequirementDraft saved = draftStore.get(conversationId).orElse(null);
+      if (saved != null && saved.readyForPlan()) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+            PipelineGates.tag(PipelineGates.REQUIREMENT_DRAFT_READY,
+                "Requirements draft saved. Continue to planning when ready."))));
+      }
       // Silent wait: first-stage advance has no userText yet. Do not surface agent capture jargon.
       return Multi.createFrom()
           .item(
@@ -307,7 +321,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
     Context toolSessionContext = ToolSession.attachedContext();
     java.util.function.Supplier<Context> startCapture = () -> {
       Context installed = ProductCapabilityCaptureContext.bindDiscovery(
-        context.runId(), conversationId, payload -> {
+        context.runId(), conversationId, mappingRepairDraft, mappingRepairPaths(context), payload -> {
           if (payload instanceof RequirementDraft draft) {
             captured.set(draft);
           }
@@ -340,12 +354,8 @@ public class RequirementDiscoveryCapability implements StageCapability {
         .streams(
             Multi.createFrom().item(SkillActivitySupport.running(skillId)),
             agentStream
-                .onItem()
-                .transform(
-                    event -> (CapabilitySignal) new CapabilitySignal.Message(tokenText(event)))
-                .onCompletion()
-                .switchTo(
-                    () -> {
+                .collect().asList().onItem().transformToMulti(
+                    events -> {
                       try {
                         java.util.function.Supplier<CapabilitySignal.Completed> finish = () ->
                             ProductCapabilityCaptureContext.withBinding(conversationId,
@@ -355,7 +365,15 @@ public class RequirementDiscoveryCapability implements StageCapability {
                         var completed = authority == null ? finish.get() : conversationService.archive()
                             .withAuthority(conversationId, authority.generation(),
                                 org.qubership.integration.platform.ai.chat.conversation.ConversationArchive.latestInputId(authority), finish);
-                        return Multi.createFrom().iterable(SkillActivitySupport.wrapTerminal(skillId, List.of(completed)));
+                        List<CapabilitySignal> signals = new ArrayList<>();
+                        var settledDraft = draftStore.get(conversationId).orElse(null);
+                        if (completed.outcome().outcomeClass() == StageOutcomeClass.NEEDS_INPUT
+                            && (settledDraft == null || !settledDraft.readyForPlan()
+                                || !draftStore.wasCapturedThisTurn(conversationId))) {
+                          events.forEach(event -> signals.add(new CapabilitySignal.Message(tokenText(event))));
+                        }
+                        signals.addAll(SkillActivitySupport.wrapTerminal(skillId, List.of(completed)));
+                        return Multi.createFrom().iterable(signals);
                       } finally {
                         SkillActivitySupport.clearParents();
                         ProductCapabilityCaptureContext.unbind(binding);
@@ -381,8 +399,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
       AtomicReference<RequirementDraft> captured) {
     String conversationId = context.conversationId();
     RequirementDiscoveryDirective directive = draftStore.turnDirective(conversationId);
-    RequirementDraft draft =
-        captured.get() != null ? captured.get() : draftStore.get(conversationId).orElse(null);
+    RequirementDraft draft = draftStore.get(conversationId).orElse(captured.get());
     Optional<RequirementRejection> rejection = captureFeedback == null ? Optional.empty()
         : captureFeedback.lastRequirementRejection(conversationId);
     if (rejection.isPresent() && rejection.get().issues().stream()
@@ -419,15 +436,14 @@ public class RequirementDiscoveryCapability implements StageCapability {
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
     }
     if (draft == null) {
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(
-              StageOutcomeClass.NEEDS_INPUT,
-              RequirementDraftTool.CAPTURE_MISSING_USER_GUIDANCE));
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "The requirements response omitted captureRequirementDraft. Capture the draft from the saved author input.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(new PlanValidationFinding(
+              "CAPTURE_MISSING", "Capture the requirements draft before finishing the generation turn.", true,
+              MappingValidationDetails.empty(), "requirement-draft", "/draft")), "")));
     }
-    if (directive == RequirementDiscoveryDirective.NONE
-        && !draftStore.wasCapturedThisTurn(conversationId)) {
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
+    if (directive == RequirementDiscoveryDirective.NONE && !draftStore.wasCapturedThisTurn(conversationId)) {
+      return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
     }
     // Pending APIHub import hands off to import-stage (ADR 0001) even when the draft
     // is still NEEDS_INPUT with the pinned import-confirm open question. Approved uploaded
@@ -633,6 +649,19 @@ public class RequirementDiscoveryCapability implements StageCapability {
         && draft.authoredDraft() != null ? draft : null;
   }
 
+  private static Map<String, java.util.Set<String>> mappingRepairPaths(StageExecutionContext context) {
+    var paths = new java.util.HashMap<String, java.util.Set<String>>();
+    if (context.attributes().get("mappingRepairPaths") instanceof Map<?, ?> permissions) {
+      permissions.forEach((id, fields) -> {
+        if (id instanceof String factId && fields instanceof java.util.Set<?> names) {
+          paths.put(factId, names.stream().filter(String.class::isInstance).map(String.class::cast)
+              .collect(java.util.stream.Collectors.toUnmodifiableSet()));
+        }
+      });
+    }
+    return Map.copyOf(paths);
+  }
+
   static boolean preservesMappingRepair(
       StageExecutionContext context, RequirementDraft original, RequirementDraft candidate) {
     if (candidate == null || candidate.authoredDraft() == null) {
@@ -640,20 +669,21 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     var accepted = original.authoredDraft();
     var proposed = candidate.authoredDraft();
-    var editable = context.attributes().get("mappingRepairFactIds") instanceof java.util.Set<?> ids
-        ? ids : java.util.Set.of();
+    var editable = mappingRepairPaths(context);
     var retained = new java.util.ArrayList<RequirementCaptureInput.FactInput>();
     for (var fact : proposed.facts()) {
       String factId = fact.sourceFactId();
       var prior = accepted.facts().stream()
           .filter(value -> value.sourceFactId().equals(factId)).findFirst().orElse(null);
-      if (prior != null && editable.contains(fact.sourceFactId())
+      if (prior != null && editable.containsKey(fact.sourceFactId())
           && prior.fieldMapping() != null && fact.fieldMapping() != null) {
         var mapping = fact.fieldMapping();
         fact = new RequirementCaptureInput.FactInput(fact.sourceFactId(), fact.interactionIds(),
             fact.kind(), fact.polarity(), fact.text(), new RequirementCaptureInput.FieldMappingInput(
-                mapping.sourceInteractionId(), prior.fieldMapping().sourcePath(), mapping.targetInteractionId(),
-                prior.fieldMapping().targetPath(), mapping.expression()));
+                mapping.sourceInteractionId(), editable.get(factId).contains("sourcePath")
+                    ? prior.fieldMapping().sourcePath() : mapping.sourcePath(), mapping.targetInteractionId(),
+                editable.get(factId).contains("targetPath") ? prior.fieldMapping().targetPath() : mapping.targetPath(),
+                mapping.expression()), fact.policyConflict(), fact.elementIntent());
       }
       retained.add(fact);
     }

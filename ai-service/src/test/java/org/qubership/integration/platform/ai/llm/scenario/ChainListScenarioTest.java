@@ -154,7 +154,7 @@ class ChainListScenarioTest {
   void createReadsABareNameAsANewTopLevelFolder() {
     when(folders.tree()).thenReturn(List.of(LEGACY, LEGACY_CRM));
     answer(command(ChainListAction.CREATE_FOLDER, "CRM", null, List.of(), List.of()));
-    when(folders.create("CRM", List.of(LEGACY, LEGACY_CRM))).thenReturn(CRM);
+    when(folders.create("CRM")).thenReturn(CRM);
 
     assertEquals("Created folder CRM.", text(scenario.dispatch(message(), CONVERSATION)));
   }

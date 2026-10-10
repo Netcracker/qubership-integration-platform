@@ -2133,6 +2133,12 @@ public final class ProductPipelineRunSupport {
           .map(Revision::reference).orElse(null);
       return reopenRequirementDraft(doc, command, selectedBrief);
     }
+    if (currentStage(doc).produces().stream().anyMatch(type -> type.matches(Kind.REQUIREMENT_BRIEF))
+        && !catalogHasBeenWritten(command.runId())) {
+      commitStatus(doc, RunStatus.RUNNING, StageStatus.RUNNING, doc.run().stages(), "accepted mapping correction",
+          haltEvidence(attributesByRun.get(command.runId()), null), command.commandId(), command.commandPayloadHash());
+      return Multi.createFrom().empty();
+    }
     // A mapping amendment can reopen the brief; rephrasing a retry cannot.
     return applyDiagnosedOwner(doc, command);
   }
@@ -3727,6 +3733,9 @@ public final class ProductPipelineRunSupport {
                 reason,
                 commandId,
                 commandPayloadHash)));
+    if (stageStatus == StageStatus.SUCCEEDED) {
+      settleActiveRepair(doc.run().currentStageId(), attributesByRun.get(doc.run().runId()));
+    }
   }
 
   private void commitMove(
@@ -4038,16 +4047,45 @@ public final class ProductPipelineRunSupport {
     if (doc == null || stageId == null || stageId.isBlank() || attributes == null) {
       return;
     }
-    doc.attempts().stream()
-        .filter(attempt -> stageId.equals(attempt.stageId()))
-        .map(StageAttempt::failureEvidence)
-        .filter(Objects::nonNull)
-        .map(ProductPipelineRunSupport::readHaltEvidence)
-        .filter(evidence -> !evidence.isEmpty())
-        .reduce((first, second) -> second)
-        .ifPresent(evidence -> evidence.forEach((key, value) -> {
-          if (!RECOVERY_PREPARING_OWNER_ATTR.equals(key) && !ACCEPTED_SOURCE_BRIEF_REF_ATTR.equals(key)) { attributes.put(key, value); }
-        }));
+    unresolvedHaltEvidence(doc, stageId).forEach((key, value) -> {
+      if (!RECOVERY_PREPARING_OWNER_ATTR.equals(key) && !ACCEPTED_SOURCE_BRIEF_REF_ATTR.equals(key)) {
+        attributes.put(key, value);
+      }
+    });
+  }
+
+  private static Map<String, Object> unresolvedHaltEvidence(ProductPipelineRunDocument doc, String stageId) {
+    Map<String, Object> pending = Map.of();
+    for (StageAttempt attempt : doc.attempts()) {
+      if (!stageId.equals(attempt.stageId())) { continue; }
+      if (attempt.outcome() == StageStatus.SUCCEEDED) {
+        pending = Map.of();
+      } else {
+        var evidence = readHaltEvidence(attempt.failureEvidence());
+        if (!evidence.isEmpty()) { pending = evidence; }
+      }
+    }
+    return pending;
+  }
+
+  /** Retires an observing stage's active error only after that stage succeeds or its output is approved. */
+  public static void settleActiveRepair(String stageId, Map<String, Object> attributes) {
+    if (attributes != null && stageId.equals(attributes.get(STAGE_ERROR_FAILED_STAGE_ATTR))) {
+      clearActiveRepair(attributes);
+    }
+  }
+
+  private static void clearActiveRepair(Map<String, Object> attributes) {
+    for (String key : List.of(
+        STAGE_ERROR_CONTEXT_ATTR, STAGE_ERROR_OUTCOME_ATTR, STAGE_ERROR_FAILED_STAGE_ATTR,
+        STAGE_ERROR_FAILED_SKILL_ATTR, STAGE_ERROR_FINDINGS_ATTR, STAGE_ERROR_CAUSE_CODE_ATTR,
+        STAGE_ERROR_CAUSE_JSON_ATTR, STAGE_ERROR_REQUESTED_FACT_ATTR, DIAGNOSED_OWNER_STAGE_ATTR,
+        RECOVERY_EVIDENCE_REF_ATTR, RECOVERY_INVOCATION_ATTR, RECOVERY_PENDING_ATTEMPT_ATTR,
+        RECOVERY_DIAGNOSIS_ATTR, DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+        DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR, PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
+        PRIOR_CANDIDATE_ATTR)) {
+      attributes.remove(key);
+    }
   }
 
   public static Map<String, Integer> consecutiveTechnicalRetries(
@@ -4146,42 +4184,14 @@ public final class ProductPipelineRunSupport {
 
   private static void restoreHaltEvidence(
       ProductPipelineRunDocument doc, Map<String, Object> attributes) {
-    for (String key : List.of(
-        STAGE_ERROR_CONTEXT_ATTR,
-        STAGE_ERROR_OUTCOME_ATTR,
-        STAGE_ERROR_FAILED_STAGE_ATTR,
-        STAGE_ERROR_FAILED_SKILL_ATTR,
-        STAGE_ERROR_FINDINGS_ATTR,
-        STAGE_ERROR_CAUSE_CODE_ATTR,
-        STAGE_ERROR_CAUSE_JSON_ATTR,
-        STAGE_ERROR_REQUESTED_FACT_ATTR,
-        DIAGNOSED_OWNER_STAGE_ATTR,
-        RECOVERY_EVIDENCE_REF_ATTR,
-        RECOVERY_INVOCATION_ATTR,
-        RECOVERY_PENDING_ATTEMPT_ATTR,
-        RECOVERY_DIAGNOSIS_ATTR,
-        DESIGN_INPUT_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
-        DESIGN_PLAN_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
-        PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR,
-        PRIOR_CANDIDATE_ATTR)) {
-      attributes.remove(key);
-    }
+    clearActiveRepair(attributes);
     for (String key : List.of(RECOVERY_PREPARING_OWNER_ATTR, ACCEPTED_SOURCE_BRIEF_REF_ATTR)) {
       attributes.remove(key);
       doc.attempts().stream().map(StageAttempt::failureEvidence).filter(Objects::nonNull)
           .map(ProductPipelineRunSupport::readHaltEvidence).filter(evidence -> evidence.containsKey(key))
           .reduce((first, second) -> second).ifPresent(evidence -> attributes.put(key, evidence.get(key)));
     }
-    doc.attempts().stream()
-        .filter(attempt -> doc.run().currentStageId().equals(attempt.stageId()))
-        .map(StageAttempt::failureEvidence)
-        .filter(Objects::nonNull)
-        .map(ProductPipelineRunSupport::readHaltEvidence)
-        .filter(evidence -> !evidence.isEmpty())
-        .reduce((first, second) -> second)
-        .ifPresent(evidence -> evidence.forEach((key, value) -> {
-          if (!RECOVERY_PREPARING_OWNER_ATTR.equals(key) && !ACCEPTED_SOURCE_BRIEF_REF_ATTR.equals(key)) { attributes.put(key, value); }
-        }));
+    overlayHaltEvidenceForStage(doc, doc.run().currentStageId(), attributes);
   }
 
   public static Map<String, Object> readHaltEvidence(String evidence) {

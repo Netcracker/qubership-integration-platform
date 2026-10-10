@@ -36,7 +36,10 @@ public final class RequirementCaptureEditor {
 
   public record Issue(String code, String path, String entityId, String message) {}
 
-  public record EditResult(DraftInput draft, List<Issue> issues, boolean changed) {
+  public record EditResult(DraftInput draft, List<Issue> issues, boolean changed, DraftInput candidate) {
+    public EditResult(DraftInput draft, List<Issue> issues, boolean changed) {
+      this(draft, issues, changed, null);
+    }
     public boolean accepted() {
       return issues.isEmpty();
     }
@@ -170,7 +173,7 @@ public final class RequirementCaptureEditor {
     return new EditResult(
         issues.isEmpty() ? candidate : accepted,
         sorted(issues),
-        issues.isEmpty() && !candidate.equals(accepted));
+        issues.isEmpty() && !candidate.equals(accepted), candidate);
   }
 
   static List<Issue> validatePolicyResponses(
@@ -212,7 +215,55 @@ public final class RequirementCaptureEditor {
   }
 
   static List<Issue> validateFactPreservation(DraftInput accepted, DraftInput candidate) {
-    return validateFactPreservation(accepted.facts(), candidate, true);
+    return validateFactPreservation(accepted, candidate, Map.of());
+  }
+
+  static List<Issue> validateFactPreservation(
+      DraftInput accepted, DraftInput candidate, Map<String, Set<String>> editableMappingPaths) {
+    List<Issue> invalidOrder = validate(accepted).stream()
+        .filter(issue -> "ELEMENT_FLOW_ORDER_MISMATCH".equals(issue.code())).toList();
+    if (!invalidOrder.isEmpty()) {
+      var protectedCandidate = new DraftInput(candidate.flow(), factsToPreserve(candidate, invalidOrder),
+          candidate.capabilities(), candidate.openQuestions(), candidate.settings());
+      return validateFactPreservation(factsToPreserve(accepted, invalidOrder), protectedCandidate, true, editableMappingPaths);
+    }
+    return validateFactPreservation(accepted.facts(), candidate, true, editableMappingPaths);
+  }
+
+  public static List<Issue> validateElementOrder(
+      org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow flow,
+      List<RequirementFact> facts) {
+    if (flow == null) { return List.of(); }
+    Set<String> interactions = new HashSet<>();
+    flow.interactions().forEach(interaction -> interactions.add(interaction.interactionId()));
+    Map<String, List<String>> successors = new HashMap<>();
+    flow.transitions().forEach(transition -> successors.computeIfAbsent(
+        transition.sourceInteractionId(), ignored -> new ArrayList<>()).add(transition.targetInteractionId()));
+    List<Issue> issues = new ArrayList<>();
+    for (RequirementFact fact : facts) {
+      if (fact.elementIntent() != null) {
+        checkElementOrder(issues, fact.elementIntent(), fact.sourceFactId(), interactions, successors);
+      }
+    }
+    return List.copyOf(issues);
+  }
+
+  private static void checkElementOrder(List<Issue> issues, RequirementElementIntent intent, String factId,
+      Set<String> interactions, Map<String, List<String>> successors) {
+    if (intent.placement() != RequirementElementIntent.Placement.ANCHOR
+        || !interactions.contains(intent.elementRef())) { return; }
+    var refs = new String[] {intent.successorElementRef(), intent.predecessorElementRef()};
+    var fields = new String[] {"successorElementRef", "predecessorElementRef"};
+    for (int i = 0; i < refs.length; i++) {
+      String ref = refs[i];
+      if (ref != null && !ref.equals(intent.elementRef()) && interactions.contains(ref)
+          && !hasPath(successors, i == 0 ? intent.elementRef() : ref, i == 0 ? ref : intent.elementRef())) {
+        add(issues, "ELEMENT_FLOW_ORDER_MISMATCH", "/draft/facts/" + factId + "/elementIntent/" + fields[i], factId,
+            "This element order contradicts flow.transitions. Parallel or alternative interactions must not"
+                + " name each other as predecessor or successor. Use null for this reference unless the source"
+                + " requires that sequence; then correct the flow too. Preserve the fact text and settings.");
+      }
+    }
   }
 
   static List<FactInput> factsToPreserve(DraftInput input, List<Issue> issues) {
@@ -223,22 +274,57 @@ public final class RequirementCaptureEditor {
     for (int i = 0; i < input.facts().size(); i++) {
       FactInput fact = input.facts().get(i);
       String prefix = "/draft/facts/" + i;
+      List<Issue> factIssues = issues.stream().filter(issue ->
+          (issue.path().equals(prefix) || issue.path().startsWith(prefix + "/"))
+              && !issue.path().equals(prefix + "/sourceFactId")
+              || Objects.equals(issue.entityId(), fact == null ? null : fact.sourceFactId())
+                  && issue.path().startsWith("/draft/facts/")
+                  && !issue.path().endsWith("/sourceFactId")).toList();
       if (fact != null && fact.text() != null && !fact.text().isBlank()
           && fact.kind() != null && fact.polarity() != null && fact.interactionIds() != null
-          && issues.stream().noneMatch(issue ->
-              (issue.path().equals(prefix) || issue.path().startsWith(prefix + "/"))
-                  && !issue.path().equals(prefix + "/sourceFactId")
-                  || Objects.equals(issue.entityId(), fact.sourceFactId())
-                      && issue.path().startsWith("/draft/facts/")
-                      && !issue.path().endsWith("/sourceFactId"))) {
-        facts.add(fact);
+          && factIssues.stream().allMatch(issue -> issue.path().contains("/elementIntent"))
+          && factIssues.stream().noneMatch(issue -> "ELEMENT_LITERAL_SOURCE_MISMATCH".equals(issue.code())
+              && factIssues.stream().noneMatch(other -> "ELEMENT_LITERAL_FACT_MISMATCH".equals(other.code())
+                  && other.path().equals(issue.path())))) {
+        facts.add(factIssues.isEmpty() ? fact : new FactInput(fact.sourceFactId(), fact.interactionIds(),
+            fact.kind(), fact.polarity(), fact.text(), fact.fieldMapping(), fact.policyConflict(),
+            intentToPreserve(fact.elementIntent(), factIssues)));
       }
     }
     return List.copyOf(facts);
   }
 
+  private static RequirementElementIntent intentToPreserve(RequirementElementIntent intent, List<Issue> issues) {
+    if (intent == null || issues.stream().anyMatch(issue -> issue.path().endsWith("/elementIntent")
+        || issue.path().endsWith("/elementRef"))) {
+      return null;
+    }
+    Set<String> paths = new HashSet<>();
+    issues.forEach(issue -> paths.add(issue.path().substring(issue.path().indexOf("/elementIntent")
+        + "/elementIntent".length())));
+    var properties = intent.requestedProperties().stream().filter(property -> property != null
+        && property.key() != null && !paths.contains("/requestedProperties")
+        && !paths.contains("/requestedProperties/" + property.key().replace("~", "~0").replace("/", "~1"))).toList();
+    List<String> values = new ArrayList<>();
+    for (int i = 0; i < intent.exactValues().size(); i++) {
+      if (!paths.contains("/exactValues/" + i)) {
+        values.add(intent.exactValues().get(i));
+      }
+    }
+    return new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+        intent.ownerInteractionId(), paths.contains("/successorElementRef") ? null : intent.successorElementRef(),
+        paths.contains("/predecessorElementRef") ? null : intent.predecessorElementRef(),
+        paths.contains("/parentElementRef") ? null : intent.parentElementRef(),
+        paths.contains("/requestedName") ? null : intent.requestedName(), properties, values);
+  }
+
   static List<Issue> validateFactPreservation(
       List<FactInput> originalFacts, DraftInput candidate, boolean saved) {
+    return validateFactPreservation(originalFacts, candidate, saved, Map.of());
+  }
+
+  static List<Issue> validateFactPreservation(
+      List<FactInput> originalFacts, DraftInput candidate, boolean saved, Map<String, Set<String>> editableMappingPaths) {
     Set<String> interactions = new HashSet<>();
     candidate.flow().interactions().forEach(interaction -> interactions.add(interaction.interactionId()));
     Map<String, FactInput> facts = new HashMap<>();
@@ -261,8 +347,9 @@ public final class RequirementCaptureEditor {
           || (!original.interactionIds().isEmpty() && updated.interactionIds().isEmpty())
           || original.interactionIds().stream().anyMatch(id ->
               interactions.contains(id) && !updated.interactionIds().contains(id))
-          || !Objects.equals(original.elementIntent(), updated.elementIntent())
-          || !sameMappingContent(original.fieldMapping(), updated.fieldMapping(), interactions)
+          || !preservesElementIntent(original.elementIntent(), updated.elementIntent(), saved)
+          || !sameMappingContent(original.fieldMapping(), updated.fieldMapping(), interactions,
+              editableMappingPaths.getOrDefault(original.sourceFactId(), Set.of()))
           || !Objects.equals(original.policyConflict() == null ? null : original.policyConflict().unresolved(),
               updated.policyConflict() == null ? null : updated.policyConflict().unresolved())) {
         add(issues, "REPAIR_FACT_LOSS", (saved ? "/changes" : "/draft")
@@ -277,13 +364,36 @@ public final class RequirementCaptureEditor {
     return sorted(issues);
   }
 
+  private static boolean preservesElementIntent(
+      RequirementElementIntent original, RequirementElementIntent updated, boolean saved) {
+    if (saved) {
+      return Objects.equals(original, updated);
+    }
+    // Rejected captures protect validated values while their invalid representation remains repairable.
+    return original == null || updated != null
+        && Objects.equals(original.elementRef(), updated.elementRef())
+        && Objects.equals(original.elementType(), updated.elementType())
+        && original.placement() == updated.placement()
+        && preservesValue(original.ownerInteractionId(), updated.ownerInteractionId())
+        && preservesValue(original.successorElementRef(), updated.successorElementRef())
+        && preservesValue(original.predecessorElementRef(), updated.predecessorElementRef())
+        && preservesValue(original.parentElementRef(), updated.parentElementRef())
+        && preservesValue(original.requestedName(), updated.requestedName())
+        && updated.requestedProperties().containsAll(original.requestedProperties())
+        && updated.exactValues().containsAll(original.exactValues());
+  }
+
+  private static boolean preservesValue(String original, String updated) {
+    return original == null || original.equals(updated);
+  }
+
   private static boolean sameMappingContent(
-      FieldMappingInput original, FieldMappingInput updated, Set<String> interactions) {
+      FieldMappingInput original, FieldMappingInput updated, Set<String> interactions, Set<String> editablePaths) {
     if (original == null || updated == null) {
       return original == updated;
     }
-    return Objects.equals(original.sourcePath(), updated.sourcePath())
-        && Objects.equals(original.targetPath(), updated.targetPath())
+    return (editablePaths.contains("sourcePath") || Objects.equals(original.sourcePath(), updated.sourcePath()))
+        && (editablePaths.contains("targetPath") || Objects.equals(original.targetPath(), updated.targetPath()))
         && Objects.equals(original.expression(), updated.expression())
         && (!interactions.contains(original.sourceInteractionId())
             || Objects.equals(original.sourceInteractionId(), updated.sourceInteractionId()))
@@ -468,7 +578,7 @@ public final class RequirementCaptureEditor {
           "Transitions must not form a cycle.");
     }
 
-    validateElementIntents(draft, ids, issues);
+    validateElementIntents(draft, ids, successors, issues);
     Set<String> factIds = new HashSet<>();
     for (int i = 0; i < draft.facts().size(); i++) {
       FactInput fact = draft.facts().get(i);
@@ -623,7 +733,8 @@ public final class RequirementCaptureEditor {
     return sorted(issues);
   }
 
-  private static void validateElementIntents(DraftInput draft, Set<String> interactions, List<Issue> issues) {
+  private static void validateElementIntents(DraftInput draft, Set<String> interactions,
+      Map<String, List<String>> successors, List<Issue> issues) {
     Map<String, List<RequirementElementIntent>> intents = new HashMap<>();
     String chainName = null;
     for (FactInput fact : draft.facts()) {
@@ -694,15 +805,23 @@ public final class RequirementCaptureEditor {
       }
       priors.add(intent);
     }
-    for (var intent : intents.values().stream().flatMap(List::stream).toList()) {
-      for (String ref : new String[] {
-          intent.successorElementRef(), intent.predecessorElementRef(), intent.parentElementRef()}) {
+    for (FactInput fact : draft.facts()) {
+      var intent = fact == null ? null : fact.elementIntent();
+      if (intent == null) {
+        continue;
+      }
+      var refs = new String[] {intent.successorElementRef(), intent.predecessorElementRef(), intent.parentElementRef()};
+      var fields = new String[] {"successorElementRef", "predecessorElementRef", "parentElementRef"};
+      for (int i = 0; i < refs.length; i++) {
+        String ref = refs[i];
         if (ref != null && (!intents.containsKey(ref) && !interactions.contains(ref)
             || ref.equals(intent.elementRef()))) {
-          add(issues, "UNKNOWN_ELEMENT_REFERENCE", "/draft/facts/elementIntent", intent.elementRef(),
+          add(issues, "UNKNOWN_ELEMENT_REFERENCE", "/draft/facts/" + fact.sourceFactId()
+              + "/elementIntent/" + fields[i], fact.sourceFactId(),
               "Relative placement must name another accepted elementRef or business interaction.");
         }
       }
+      checkElementOrder(issues, intent, fact.sourceFactId(), interactions, successors);
     }
   }
 
@@ -762,6 +881,22 @@ public final class RequirementCaptureEditor {
             "Target is repeated.");
       }
     }
+  }
+
+  private static boolean hasPath(Map<String, List<String>> successors, String source, String target) {
+    var pending = new ArrayDeque<String>();
+    var visited = new HashSet<String>();
+    pending.add(source);
+    while (!pending.isEmpty()) {
+      String current = pending.remove();
+      if (current.equals(target)) {
+        return true;
+      }
+      if (visited.add(current)) {
+        pending.addAll(successors.getOrDefault(current, List.of()));
+      }
+    }
+    return false;
   }
 
   private static boolean hasCycle(Map<String, List<String>> successors, Set<String> ids) {

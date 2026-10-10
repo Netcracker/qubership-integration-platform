@@ -214,12 +214,15 @@ class MappingContractBriefProducerRecoveryTest {
         "subject-map", List.of("trigger-http", "call-1"),
         org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactKind.FIELD_MAPPING,
         org.qubership.integration.platform.ai.plan.RequirementCaptureInput.Polarity.POSITIVE,
-        "Map the subject.", new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
-            "trigger-http", "subject", "call-1", "Task.Subject", null));
+        "Map the execution identifier.", new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
+            "trigger-http", "executionId", "call-1", "preserved.executionId", "   "));
     var tree = MAPPER.valueToTree(RequirementFactFixtures.greetingsApprovedDraft());
     ((com.fasterxml.jackson.databind.node.ObjectNode) tree).set("authoredDraft", MAPPER.valueToTree(
         new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput(
-            null, List.of(fact), List.of(), List.of(), null)));
+            null, List.of(fact, new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FactInput(
+                "sibling-map", fact.interactionIds(), fact.kind(), fact.polarity(), "Map the subject.",
+                new org.qubership.integration.platform.ai.plan.RequirementCaptureInput.FieldMappingInput(
+                    "trigger-http", "subject", "call-1", "Subject", null))), List.of(), List.of(), null)));
     authoredDraft = MAPPER.treeToValue(tree, org.qubership.integration.platform.ai.plan.RequirementDraft.class);
     var runtime = runtime(FakeFailureNarrativeAgent.narrates("unused"), injectedMappingExecution());
     runtime.startOrResume(new StartOrResumeCommand(CONV_ID, RUN_ID, profile, manifest()))
@@ -240,7 +243,7 @@ class MappingContractBriefProducerRecoveryTest {
     assertEquals(draftRef, attrs.get("requirementCorrectionDraftReference"));
     assertEquals(authoredDraft, attrs.get("requirementCorrectionDraft"));
     assertEquals("true", attrs.get("mappingRepairAutomatic"));
-    assertEquals(Set.of("subject-map"), attrs.get("mappingRepairFactIds"));
+    assertEquals(Map.of("subject-map", Set.of("targetPath")), attrs.get("mappingRepairPaths"));
   }
 
   @Test
@@ -396,7 +399,7 @@ class MappingContractBriefProducerRecoveryTest {
     runtime.acceptInput(new AcceptInputCommand(RUN_ID, RETURN_CORRECTION))
         .collect().asList().await().indefinitely();
 
-    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status());
+    assertEquals(RunStatus.WAITING_FOR_APPROVAL, run().run().status(), run().transitions().getLast().reason());
     assertEquals("requirement-analysis", run().run().currentStageId());
     assertEquals(1, executions.get());
     assertEquals(RETURN_CORRECTION, runtime.support().haltFollowUpText(RUN_ID).orElseThrow());

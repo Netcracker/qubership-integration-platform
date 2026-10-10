@@ -32,6 +32,33 @@ class DeterministicElementSchemaServiceTest {
   }
 
   @Test
+  void resolvesContextOverrideSchemaWithReferenceAnnotations() throws Exception {
+    JsonNode summary = objectMapper.readTree(service.describeElementPatchSchema("http-sender"));
+    assertEquals("object", summary.path("properties").path("overrideContextParams").path("type").asText());
+
+    Object value = service.coercePatchPropertyValue(
+        "http-sender", "overrideContextParams", "{\"X-Request-Id\":\"override-request-id\"}");
+    assertEquals(Map.of("X-Request-Id", "override-request-id"), value);
+    assertTrue(service.validateCapturePropertyValue(
+        "http-sender", "overrideContextParams", objectMapper.valueToTree(value)).isEmpty());
+  }
+
+  @Test
+  void rejectsNonObjectContextOverridesAtCaptureAndPatchBoundaries() throws Exception {
+    for (String raw : List.of("X-Request-Id=override-request-id", "[\"override-request-id\"]")) {
+      Object value = service.coercePatchPropertyValue("http-sender", "overrideContextParams", raw);
+      assertTrue(service.validateCapturePropertyValue(
+          "http-sender", "overrideContextParams", objectMapper.valueToTree(value)).isPresent(), raw);
+      JsonNode result = objectMapper.readTree(service.validateElementPatch("http-sender",
+          objectMapper.writeValueAsString(Map.of("properties", Map.of(
+              "uri", "http://engine:8080/routes/headers", "httpMethod", "GET",
+              "propagateContext", true, "overrideContextParams", value)))));
+      assertFalse(result.path("valid").asBoolean(), result.toString());
+      assertTrue(result.path("errors").toString().contains("overrideContextParams"), result.toString());
+    }
+  }
+
+  @Test
   void validatesServiceCallAuthorizationAndResponseHandlerContents() throws Exception {
     assertTrue(service.validateCapturePropertyValue(
         "service-call", "authorizationConfiguration", objectMapper.readTree("{}"))

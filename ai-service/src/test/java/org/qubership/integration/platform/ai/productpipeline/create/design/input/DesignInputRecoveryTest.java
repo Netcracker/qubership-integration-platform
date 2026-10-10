@@ -72,6 +72,146 @@ class DesignInputRecoveryTest {
       new ClasspathCompilerContractRepository().require(CompilerContract.V1);
 
   @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void contradictoryAcceptedIntentReturnsToItsProducerAndRequiresNewApproval(boolean draftOwnsDefect) throws Exception {
+    Clock clock = Clock.fixed(Instant.EPOCH, ZoneOffset.UTC);
+    ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
+    InMemoryArtifactBlobStore blobs = new InMemoryArtifactBlobStore();
+    ProductPipelineArtifactStore artifacts =
+        new ProductPipelineArtifactStore(new CompilationArtifacts(blobs, mapper, clock));
+    ProductPipelineRunStore runs = new ProductPipelineRunStore(blobs, mapper, clock);
+    var correct = ChainSemanticCaptureFixtures.approvedBrief().withFlow(
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow(
+            List.of(
+                new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction(
+                    "http-in", org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.INBOUND,
+                    "Client", "createOrder", "Receive the order"),
+                new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction(
+                    "call-1", org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction.OUTBOUND,
+                    "Orders API", "getOrder", "Call Orders API")),
+            List.of(new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Transition(
+                "http-in", "call-1"))));
+    var body = mapper.valueToTree(correct);
+    ((com.fasterxml.jackson.databind.node.ObjectNode) body.path("facts").get(1)).set("elementIntent",
+        mapper.valueToTree(new org.qubership.integration.platform.ai.plan.RequirementElementIntent(
+            "call-1", "service-call", org.qubership.integration.platform.ai.plan.RequirementElementIntent.Placement.ANCHOR,
+            "call-1", "http-in", null, null, List.of(), List.of())));
+    var contradictory = mapper.treeToValue(body, RequirementBrief.class);
+    AtomicInteger analysisCalls = new AtomicInteger();
+    AtomicInteger discoveryCalls = new AtomicInteger();
+    StageCapability discovery = new StageCapability() {
+      public String capabilityId() { return "requirement-discovery"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        if (context.attributeAsString("userText") == null && discoveryCalls.get() == 0) {
+          return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements")));
+        }
+        var brief = discoveryCalls.incrementAndGet() == 1 ? contradictory : correct;
+        var draft = new org.qubership.integration.platform.ai.plan.RequirementDraft(true, "Orders",
+            org.qubership.integration.platform.ai.plan.DraftDecision.READY_FOR_PLAN, List.of(), "gather", "1", "sha",
+            null, false, brief.facts(), false, null, false, brief.flow());
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.SUCCEEDED,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_DRAFT, draft, List.of())), "draft", null)));
+      }
+    };
+    StageCapability analysis = new StageCapability() {
+      public String capabilityId() { return "analysis-cap"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        if (!draftOwnsDefect && context.attributeAsString("userText") == null && analysisCalls.get() == 0) {
+          return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Requirements")));
+        }
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+            StageOutcomeClass.CANDIDATE,
+            List.of(new ArtifactCandidate(Kind.REQUIREMENT_BRIEF,
+                analysisCalls.incrementAndGet() == 1 ? contradictory : correct, List.of())), "brief", null)));
+      }
+    };
+    AtomicInteger designCalls = new AtomicInteger();
+    ChainSemanticCaptureTool tool = captureTool();
+    DesignInputCapability design = new DesignInputCapability((conversation, prompt) -> {
+      designCalls.incrementAndGet();
+      return Multi.createFrom().item(tool.captureChainSemanticRevision(ChainSemanticCaptureFixtures.linearCapture()));
+    }, new DefaultChainSemanticIdsRenderer());
+    var briefType = new ArtifactTypeRef("requirement-brief", 1);
+    var stages = new ArrayList<ProfileStage>();
+    if (draftOwnsDefect) {
+      stages.add(new ProfileStage("requirement-discovery", discovery.capabilityId(),
+          List.of(new ArtifactTypeRef("user-input", 1)), List.of(new ArtifactTypeRef("requirement-draft", 2)),
+          null, null, new RetryPolicy(0, 0)));
+    }
+    stages.addAll(List.of(
+            new ProfileStage("requirement-analysis", "analysis-cap", List.of(new ArtifactTypeRef("user-input", 1)),
+                List.of(briefType), new ApprovalPolicy(briefType), null, new RetryPolicy(0, 0)),
+            new ProfileStage("design-input", design.capabilityId(), List.of(briefType),
+                List.of(new ArtifactTypeRef("chain-semantic-revision", 1), new ArtifactTypeRef("ids-document", 1)),
+                null, null, new RetryPolicy(0, 0))));
+    var profile = new ProductPipelineProfile(1, "upstream-recovery", "1",
+        List.of(new ArtifactTypeRef("user-input", 1)), stages,
+        new TerminalPolicy("design-input", "PLAN_APPROVED"), List.of("analysis-cap", design.capabilityId()));
+    var agent = mock(FailureNarrativeAgent.class);
+    AtomicInteger diagnosisCalls = new AtomicInteger();
+    when(agent.recover(anyString(), anyString())).thenAnswer(invocation -> {
+      diagnosisCalls.incrementAndGet();
+      var context = mapper.readTree((String) invocation.getArgument(1));
+      var briefRef = mapper.treeToValue(context.path("evidence").path("approvedBriefRef"),
+          CompilationArtifacts.Reference.class);
+      return new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT, briefRef,
+          List.of(context.path("evidence").path("failureId").asText(),
+              context.path("authorInputs").get(0).path("inputId").asText()),
+          RecoveryAction.REVISE_BRIEF,
+          List.of(new org.qubership.integration.platform.ai.productpipeline.recovery.ProposedBriefChange(
+              "fact-call", "successorElementRef", "http-in", "", "ELEMENT_INTENT_ORDER", false)),
+          "", "Remove the generated successor that contradicts the saved flow." );
+    });
+    var support = ProductPipelineRunSupport.builder(runs, artifacts,
+        new StageCapabilityRegistry(List.of(discovery, analysis, design)), clock)
+        .failureNarrative(new FailureNarrative(agent)).build();
+    var runtime = new CreateChainTestOrchestrator(support, runs);
+    var manifest = new RunManifest(RUN, null, List.of(), "product", profile.profileId(), "1", "sha",
+        "baseline", "sha", List.of(), "sha", null, "24.4", List.of(), null);
+    runtime.startOrResume(new StartOrResumeCommand("upstream-conversation", RUN, profile, manifest))
+        .collect().asList().await().indefinitely();
+    runtime.recordInput(new AcceptInputCommand(RUN, "Receive orders, prepare the request, then call Orders API.",
+        "source-input", "source-hash"))
+        .collect().asList().await().indefinitely();
+    if (draftOwnsDefect) {
+      var gathered = support.stageExecutor().execute(RUN, "requirement-discovery").await().indefinitely();
+      support.applyStageLifecycle(RUN, gathered).collect().asList().await().indefinitely();
+    }
+    var approval = assertInstanceOf(StageDecision.WaitForApproval.class,
+        support.stageExecutor().execute(RUN, "requirement-analysis").await().indefinitely().decision());
+    runtime.recordApprove(new ApproveCommand(RUN, approval.candidate(), runs.load(RUN).orElseThrow().run().runRevision()))
+        .collect().asList().await().indefinitely();
+
+    var rejected = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
+    var reopen = assertInstanceOf(StageDecision.ReopenProducer.class, rejected.decision(),
+        runs.load(RUN).orElseThrow().attempts().getLast().failureEvidence());
+    assertEquals(draftOwnsDefect ? "requirement-discovery" : "requirement-analysis", reopen.producerStageId());
+    assertEquals(0, designCalls.get());
+    assertEquals(1, diagnosisCalls.get());
+    support.applyStageLifecycle(RUN, rejected).collect().asList().await().indefinitely();
+    if (draftOwnsDefect) {
+      var regathered = support.stageExecutor().execute(RUN, "requirement-discovery").await().indefinitely();
+      support.applyStageLifecycle(RUN, regathered).collect().asList().await().indefinitely();
+      assertEquals(2, discoveryCalls.get());
+    }
+    var replacement = assertInstanceOf(StageDecision.WaitForApproval.class,
+        support.stageExecutor().execute(RUN, "requirement-analysis").await().indefinitely().decision());
+    assertFalse(approval.candidate().equals(replacement.candidate()));
+    assertEquals(correct, artifacts.payload(artifacts.get(RUN, replacement.candidate()).orElseThrow(), RequirementBrief.class));
+    assertEquals(2, analysisCalls.get());
+    runtime.recordApprove(new ApproveCommand(RUN, replacement.candidate(), runs.load(RUN).orElseThrow().run().runRevision()))
+        .collect().asList().await().indefinitely();
+    var resumed = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
+    assertFalse(resumed.decision() instanceof StageDecision.Retry);
+    assertTrue(artifacts.latest(RUN, Kind.CHAIN_SEMANTIC_REVISION).isPresent());
+    assertEquals(2, artifacts.history(RUN, Kind.REQUIREMENT_BRIEF).size());
+    assertEquals(contradictory, artifacts.payload(artifacts.get(RUN, approval.candidate()).orElseThrow(), RequirementBrief.class));
+    assertEquals(1, artifacts.history(RUN, Kind.USER_INPUT).size());
+    assertEquals(1, designCalls.get());
+    assertTrue(artifacts.latest(RUN, Kind.MATERIALIZATION_RESULT).isEmpty());
+  }
+
+  @ParameterizedTest
   @ValueSource(strings = {"regenerate", "missing", "ask", "invalid", "zero-budget"})
   void rejectedTopologyReachesPlanningAfterRestartWithoutChangingTheBrief(String decisionMode) {
     verifyRecovery(decisionMode, false);
@@ -79,7 +219,7 @@ class DesignInputRecoveryTest {
 
   @ParameterizedTest
   @ValueSource(strings = {"regenerate", "missing"})
-  void repeatedTopologyRejectionParksAfterRestartWithoutBlamingTheBrief(String decisionMode) {
+  void repeatedTopologyRejectionOffersRepairAllowanceWithoutBlamingTheBrief(String decisionMode) {
     verifyRecovery(decisionMode, true);
   }
 
@@ -284,7 +424,7 @@ class DesignInputRecoveryTest {
             .recoveryLedger(
                 new RecoveryAttemptLedger(
                     new RecoveryAttemptLedger.Limits(
-                        decisionMode.equals("zero-budget") ? 0 : 1, 1, 12)))
+                        decisionMode.equals("zero-budget") ? 0 : 1, 1, 12, 1)))
             .build();
     CreateChainTestOrchestrator runtime = new CreateChainTestOrchestrator(support, runs);
     runtime
@@ -331,7 +471,7 @@ class DesignInputRecoveryTest {
             .recoveryLedger(
                 new RecoveryAttemptLedger(
                     new RecoveryAttemptLedger.Limits(
-                        decisionMode.equals("zero-budget") ? 0 : 1, 1, 12)))
+                        decisionMode.equals("zero-budget") ? 0 : 1, 1, 12, 1)))
             .build();
     runtime = new CreateChainTestOrchestrator(support, runs);
     runtime
@@ -348,7 +488,7 @@ class DesignInputRecoveryTest {
       var third = support.stageExecutor().execute(RUN, "design-input").await().indefinitely();
       var wait = assertInstanceOf(StageDecision.WaitForInput.class, third.decision());
       assertEquals(
-          PipelineGates.RECOVERY_REBUILD_DESIGN,
+          PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
           PipelineGates.gateOf(wait.prompt()).orElseThrow());
       assertTrue(artifacts.latest(RUN, Kind.CHAIN_SEMANTIC_REVISION).isEmpty());
     } else {

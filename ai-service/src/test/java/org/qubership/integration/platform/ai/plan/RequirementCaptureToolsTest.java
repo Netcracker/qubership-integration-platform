@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -43,6 +44,191 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureResult.NextA
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 
 class RequirementCaptureToolsTest {
+
+  @Test
+  void sameSourceMappingRepairChangesOnlyAuthorizedPaths() throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "mapping-path-repair-" + UUID.randomUUID();
+    String text = "Map Subject from the input to the task request.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    var base = readyHttpDraft();
+    java.util.function.BiFunction<String, String, FactInput> mapping = (path, expression) -> new FactInput(
+        "subject", List.of("entry", "submit"), FactKind.FIELD_MAPPING, Polarity.POSITIVE, text,
+        new RequirementCaptureInput.FieldMappingInput("entry", "$.Subject", "submit", path, expression));
+    var sibling = new FactInput("external-id", List.of("entry", "submit"), FactKind.FIELD_MAPPING,
+        Polarity.POSITIVE, "Map id to ExternalId.",
+        new RequirementCaptureInput.FieldMappingInput("entry", "$.id", "submit", "$.ExternalId", null));
+    var initial = new DraftInput(base.flow(), List.of(base.facts().getFirst(), mapping.apply("$.Task.Subject", null), sibling),
+        base.capabilities(), base.openQuestions(), base.settings());
+    java.util.function.Function<FactInput, DraftUpdate> update = fact -> new DraftUpdate(
+        List.of(), List.of(), List.of(), List.of(), List.of(), List.of(), List.of(fact), List.of(),
+        List.of(), List.of(), List.of(), List.of(), List.of(), null);
+    try (var ignored = ToolSession.open(chat)) {
+      h.store().beginTurn(chat, text);
+      assertTrue(mapper.readValue(h.tools().captureRequirementDraft(initial), RequirementCaptureResult.class).accepted());
+      h.store().beginTurn(chat, "Correct the catalog mapping path.");
+      var corrected = mapping.apply("$.Subject", null);
+      assertFalse(mapper.readValue(h.tools().updateRequirementDraft(update.apply(corrected)),
+          RequirementCaptureResult.class).accepted());
+      org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.bindDiscovery(
+          "mapping-run", chat, h.store().get(chat).orElseThrow(), Map.of("subject", java.util.Set.of("targetPath")), value -> {});
+      try {
+        var repaired = mapper.readValue(h.tools().updateRequirementDraft(update.apply(corrected)),
+            RequirementCaptureResult.class);
+        assertTrue(repaired.accepted(), repaired.toString());
+        var changedSource = new FactInput(corrected.sourceFactId(), corrected.interactionIds(), corrected.kind(),
+            corrected.polarity(), corrected.text(),
+            new RequirementCaptureInput.FieldMappingInput("entry", "$.Other", "submit", "$.Subject", null));
+        assertFalse(mapper.readValue(h.tools().updateRequirementDraft(update.apply(changedSource)),
+            RequirementCaptureResult.class).accepted());
+        var changedSibling = new FactInput(sibling.sourceFactId(), sibling.interactionIds(), sibling.kind(),
+            sibling.polarity(), sibling.text(), corrected.fieldMapping());
+        assertFalse(mapper.readValue(h.tools().updateRequirementDraft(update.apply(changedSibling)),
+            RequirementCaptureResult.class).accepted());
+        assertFalse(mapper.readValue(h.tools().updateRequirementDraft(update.apply(mapping.apply("$.Subject", "changed"))),
+            RequirementCaptureResult.class).accepted());
+        var goal = new FactInput(base.facts().getFirst().sourceFactId(), List.of(), FactKind.GOAL,
+            Polarity.POSITIVE, "Changed goal");
+        assertFalse(mapper.readValue(h.tools().updateRequirementDraft(update.apply(goal)),
+            RequirementCaptureResult.class).accepted());
+      } finally {
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.unbind();
+      }
+      assertFalse(mapper.readValue(h.tools().updateRequirementDraft(update.apply(mapping.apply("$.Other", null))),
+          RequirementCaptureResult.class).accepted());
+    }
+  }
+
+  @Test
+  void finishingARepeatedCaptureRetainsTheOriginalIssue() throws Exception {
+    var h = harness();
+    var base = readyHttpDraft();
+    var invalid = new DraftInput(base.flow(), List.of(base.facts().getFirst(), base.facts().getFirst()),
+        base.capabilities(), base.openQuestions(), base.settings());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      h.store().beginTurn(h.conversationId(), "Submit one task.");
+      h.tools().captureRequirementDraft(invalid);
+      var rejected = h.mapper().readValue(h.tools().captureRequirementDraft(invalid), RequirementCaptureResult.class);
+      String original = rejected.issues().stream().filter(issue -> !"REPEATED_REJECTION".equals(issue.code()))
+          .findFirst().orElseThrow().code();
+      var finished = h.mapper().readValue(h.tools().finishRequirementDiscoveryTurn(RequirementDiscoveryDirective.CONTINUE),
+          RequirementCaptureResult.class);
+      assertTrue(finished.issues().stream().anyMatch(issue -> original.equals(issue.code())), finished.toString());
+      assertTrue(finished.issues().stream().anyMatch(issue -> "REPEATED_REJECTION".equals(issue.code())));
+    }
+  }
+
+  @Test
+  void contextOverrideRepresentationCanBeRepairedWithoutLosingItsFact() throws Exception {
+    var h = harness();
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    h.store().beginTurn(h.conversationId(), "Forward with context and override X-Request-Id with override-request-id.");
+    var base = readyHttpDraft();
+    java.util.function.BiFunction<String, Boolean, DraftInput> candidate = (value, invalidOrder) -> {
+      var intent = new RequirementElementIntent("submit", "http-sender",
+          RequirementElementIntent.Placement.ANCHOR, "submit", invalidOrder ? "entry" : null, null, null,
+          List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("propagateContext", "true"),
+              new org.qubership.integration.platform.ai.plan.model.PlanProperty("overrideContextParams", value)),
+          List.of("override-request-id"));
+      var fact = new FactInput("context-override", List.of("submit"), FactKind.PARAMETER, Polarity.POSITIVE,
+          "Forward with context and override X-Request-Id with override-request-id.", null, null, intent);
+      return new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+          base.capabilities(), base.openQuestions(), base.settings());
+    };
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      var initial = h.mapper().readValue(h.tools().captureRequirementDraft(
+          candidate.apply("X-Request-Id=override-request-id", true)), RequirementCaptureResult.class);
+      assertFalse(initial.accepted());
+      assertTrue(initial.issues().stream().anyMatch(issue -> "INVALID_REQUESTED_PROPERTY".equals(issue.code())
+          && issue.path().endsWith("/requestedProperties/overrideContextParams")), initial.toString());
+      assertTrue(initial.issues().stream().anyMatch(issue -> "ELEMENT_FLOW_ORDER_MISMATCH".equals(issue.code())));
+      var partial = h.mapper().readValue(h.tools().captureRequirementDraft(
+          candidate.apply("{\"X-Request-Id\":\"override-request-id\"}", true)), RequirementCaptureResult.class);
+      assertFalse(partial.accepted());
+      assertFalse(partial.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())), partial.toString());
+      var corrected = candidate.apply("{\"X-Request-Id\":\"override-request-id\"}", false);
+      var repaired = h.mapper().readValue(h.tools().captureRequirementDraft(corrected), RequirementCaptureResult.class);
+      assertTrue(repaired.accepted(), repaired.toString());
+      assertEquals(corrected.facts(), h.store().get(h.conversationId()).orElseThrow().authoredDraft().facts());
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void structuralRejectionDoesNotFreezeInvalidProperties(boolean restoreStore) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "structural-property-repair-" + UUID.randomUUID();
+    String text = "Accept POST /tasks. Run Prepare request in Groovy; export the script as groovy.";
+    var source = archive.beginInput(chat, text, null);
+    archive.resolveInput(chat, source, text);
+    var harness = persistentHarness(blobs, mapper, conversations, chat);
+    harness.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(mapper);
+    harness.store().beginTurn(chat, text);
+    var base = readyHttpDraft();
+    java.util.function.BiFunction<String, Boolean, DraftInput> candidate = (anchor, invalidProperty) -> {
+      var trigger = new FactInput("entry-config", List.of("entry"), FactKind.PARAMETER, Polarity.POSITIVE,
+          "Accept POST /tasks.", null, null, new RequirementElementIntent(anchor, "http-trigger",
+              RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null, List.of(), List.of()));
+      var properties = new java.util.ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();
+      properties.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("exportFileExtension", "groovy"));
+      if (invalidProperty) {
+        properties.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("language", "Groovy"));
+      }
+      var script = new FactInput("prepare-script", List.of("entry"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+          "Run Prepare request in Groovy; export the script as groovy.", null, null,
+          new RequirementElementIntent("prepare", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+              "entry", "submit", "entry", "Prepare request", properties, List.of("Groovy")));
+      return new DraftInput(base.flow(), List.of(base.facts().getFirst(), trigger, script),
+          base.capabilities(), base.openQuestions(), base.settings());
+    };
+    try (var ignored = ToolSession.open(chat)) {
+      var rejected = mapper.readValue(harness.tools().captureRequirementDraft(candidate.apply("wrong-entry", true)),
+          RequirementCaptureResult.class);
+      assertFalse(rejected.accepted());
+      assertTrue(rejected.issues().stream().anyMatch(issue -> "INVALID_ELEMENT_REFERENCE".equals(issue.code())));
+      if (restoreStore) {
+        var schemas = harness.tools().elementSchemas;
+        harness = persistentHarness(blobs, mapper, conversations, chat);
+        harness.tools().elementSchemas = schemas;
+        harness.store().beginTurn(chat, text);
+      }
+      var propertyFailure = mapper.readValue(harness.tools().captureRequirementDraft(candidate.apply("entry", true)),
+          RequirementCaptureResult.class);
+      assertTrue(propertyFailure.issues().stream()
+          .anyMatch(issue -> "INVALID_REQUESTED_PROPERTY".equals(issue.code())));
+      var repaired = candidate.apply("entry", false);
+      var lost = new DraftInput(repaired.flow(), repaired.facts().subList(0, 2),
+          repaired.capabilities(), repaired.openQuestions(), repaired.settings());
+      assertTrue(RequirementCaptureEditor.validateFactPreservation(
+          harness.store().rejectedCaptureFacts(chat), lost, false).stream()
+          .anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code()) && "prepare-script".equals(issue.entityId())));
+      var script = repaired.facts().getLast();
+      var intent = script.elementIntent();
+      var changed = new FactInput(script.sourceFactId(), script.interactionIds(), script.kind(), script.polarity(),
+          script.text(), null, null, new RequirementElementIntent(intent.elementRef(), intent.elementType(),
+              intent.placement(), intent.ownerInteractionId(), intent.successorElementRef(),
+              intent.predecessorElementRef(), intent.requestedName(), List.of(), intent.exactValues()));
+      assertTrue(RequirementCaptureEditor.validateFactPreservation(harness.store().rejectedCaptureFacts(chat),
+          new DraftInput(repaired.flow(), List.of(repaired.facts().getFirst(), repaired.facts().get(1), changed),
+              repaired.capabilities(), repaired.openQuestions(), repaired.settings()), false).stream()
+          .anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())));
+      var accepted = mapper.readValue(harness.tools().captureRequirementDraft(repaired), RequirementCaptureResult.class);
+      assertTrue(accepted.accepted(), accepted.issues().toString());
+      assertEquals(repaired.facts(), harness.store().get(chat).orElseThrow().authoredDraft().facts());
+    }
+  }
 
   @ParameterizedTest
   @ValueSource(strings = {"456", "flow"})
@@ -674,6 +860,63 @@ class RequirementCaptureToolsTest {
       assertEquals(
           RequirementDiscoveryDirective.CONTINUE,
           harness.store().turnDirective(harness.conversationId()));
+    }
+  }
+
+  @ParameterizedTest
+  @org.junit.jupiter.params.provider.CsvSource({"property,false", "property,true", "owner,false", "owner,true"})
+  void rejectedFocusedUpdateProtectsNewRoleDuringPropertyRepair(String defect, boolean restoreStore) throws Exception {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var archive = new ConversationArchive(blobs, mapper);
+    var conversations = mock(ConversationService.class);
+    when(conversations.archive()).thenReturn(archive);
+    String chat = "focused-role-" + UUID.randomUUID();
+    var h = persistentHarness(blobs, mapper, conversations, chat);
+    h.tools().elementSchemas = org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService
+        .createForUnitTests(h.mapper());
+    try (var ignored = ToolSession.open(h.conversationId())) {
+      h.tools().captureRequirementDraft(readyHttpDraft());
+      String text = "Use RBAC with qip-viewer and override-request-id.";
+      var source = archive.beginInput(chat, text, null);
+      archive.resolveInput(chat, source, text);
+      h.store().beginTurn(chat, text);
+      var role = new FactInput("role", List.of("entry"), FactKind.VISIBILITY, Polarity.POSITIVE,
+          "Use RBAC with roles [\"qip-viewer\"].");
+      java.util.function.Function<Boolean, FactInput> context = repaired -> new FactInput("context",
+          List.of("submit"), FactKind.PARAMETER, Polarity.POSITIVE,
+          "Override X-Request-Id with override-request-id.", null, null,
+          new RequirementElementIntent("submit", "http-sender", RequirementElementIntent.Placement.ANCHOR,
+              !repaired && defect.equals("owner") ? "wrong-submit" : "submit", null, null, null,
+              List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty(
+                  "overrideContextParams", !repaired && defect.equals("property")
+                      ? "X-Request-Id=override-request-id" : "{\"X-Request-Id\":\"override-request-id\"}")), List.of()));
+      java.util.function.Function<List<FactInput>, DraftUpdate> add = facts -> new DraftUpdate(
+          List.of(), List.of(), List.of(), List.of(), List.of(), facts, List.of(), List.of(),
+          List.of(), List.of(), List.of(), List.of(), List.of(), null);
+      var rejected = h.mapper().readValue(h.tools().updateRequirementDraft(
+          add.apply(List.of(role, context.apply(false)))),
+          RequirementCaptureResult.class);
+      assertFalse(rejected.accepted(), rejected.toString());
+      assertTrue(rejected.issues().stream().anyMatch(issue -> (defect.equals("property")
+          ? "INVALID_REQUESTED_PROPERTY" : "INVALID_ELEMENT_REFERENCE").equals(issue.code())));
+      assertEquals(readyHttpDraft(), h.store().get(h.conversationId()).orElseThrow().authoredDraft());
+      if (restoreStore) {
+        var schemas = h.tools().elementSchemas;
+        h = persistentHarness(blobs, mapper, conversations, chat);
+        h.tools().elementSchemas = schemas;
+        h.store().beginTurn(chat, text);
+      }
+      var repairedContext = context.apply(true);
+      var lost = h.mapper().readValue(h.tools().updateRequirementDraft(add.apply(List.of(repairedContext))),
+          RequirementCaptureResult.class);
+      assertFalse(lost.accepted(), "Repair must not silently lose the newly supplied role");
+      assertTrue(lost.issues().stream().anyMatch(issue -> "REPAIR_FACT_LOSS".equals(issue.code())
+          && "role".equals(issue.entityId())));
+      var repaired = h.mapper().readValue(h.tools().updateRequirementDraft(
+          add.apply(List.of(role, repairedContext))), RequirementCaptureResult.class);
+      assertTrue(repaired.accepted(), repaired.toString());
+      assertTrue(repaired.draft().facts().contains(role));
     }
   }
 

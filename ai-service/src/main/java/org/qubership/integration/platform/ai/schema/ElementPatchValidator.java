@@ -579,7 +579,7 @@ public final class ElementPatchValidator {
       return;
     }
     JsonNode s = schema;
-    if (s.isObject() && s.has("$ref") && s.size() == 1) {
+    if (s.isObject() && s.has("$ref")) {
       try {
         s = resolver.dereference(documentRoot, documentUri, s, refStack);
       } catch (SchemaRefResolutionException ex) {
@@ -630,7 +630,7 @@ public final class ElementPatchValidator {
       return true;
     }
     JsonNode s = schema;
-    if (s.isObject() && s.has("$ref") && s.size() == 1) {
+    if (s.isObject() && s.has("$ref")) {
       try {
         s = resolver.dereference(documentRoot, documentUri, s, refStack);
       } catch (SchemaRefResolutionException ex) {

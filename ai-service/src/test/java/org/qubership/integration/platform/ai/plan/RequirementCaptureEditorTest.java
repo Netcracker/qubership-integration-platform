@@ -22,6 +22,78 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureEditorTest {
 
   @Test
+  void interactionOrderMustAgreeWithTheBusinessFlowAndRemainRepairable() {
+    var base = initial();
+    var interactions = new java.util.ArrayList<>(base.flow().interactions());
+    interactions.add(new InteractionInput("notify", Direction.OUTBOUND, "Notification API", "notify", null, null, null));
+    for (boolean predecessor : List.of(false, true)) {
+      String owner = predecessor ? "notify" : "create-task";
+      var intent = new RequirementElementIntent(owner, "http-sender", RequirementElementIntent.Placement.ANCHOR,
+          owner, predecessor ? null : "notify", predecessor ? "create-task" : null, null, List.of(), List.of());
+      var fact = new FactInput("branch", List.of(owner), FactKind.BEHAVIOR, Polarity.POSITIVE,
+          "Run the outbound branches independently.", null, null, intent);
+      var parallel = new DraftInput(new FlowInput(interactions, List.of(
+          new TransitionInput("start", "create-task"), new TransitionInput("start", "notify"))),
+          List.of(fact), base.capabilities(), List.of(), base.settings());
+      var rejected = RequirementCaptureEditor.initialize(parallel);
+      assertFalse(rejected.accepted());
+      assertTrue(rejected.issues().stream().anyMatch(issue -> issue.code().equals("ELEMENT_FLOW_ORDER_MISMATCH")
+          && issue.path().endsWith(predecessor ? "/predecessorElementRef" : "/successorElementRef")));
+      var repaired = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+          null, null, new RequirementElementIntent(owner, "http-sender", intent.placement(), owner,
+              null, null, null, List.of(), List.of()));
+      var corrected = new DraftInput(parallel.flow(), List.of(repaired), parallel.capabilities(), List.of(), base.settings());
+      assertTrue(RequirementCaptureEditor.initialize(corrected).accepted());
+      assertTrue(RequirementCaptureEditor.validateFactPreservation(
+          RequirementCaptureEditor.factsToPreserve(parallel, rejected.issues()), corrected, false).isEmpty());
+      assertTrue(RequirementCaptureEditor.validateFactPreservation(parallel, corrected).isEmpty());
+      var changedText = new FactInput(repaired.sourceFactId(), repaired.interactionIds(), repaired.kind(), repaired.polarity(),
+          "Discard one branch.", null, null, repaired.elementIntent());
+      assertFalse(RequirementCaptureEditor.validateFactPreservation(parallel, new DraftInput(parallel.flow(),
+          List.of(changedText), parallel.capabilities(), List.of(), base.settings())).isEmpty());
+      var sequential = new DraftInput(new FlowInput(interactions, List.of(
+          new TransitionInput("start", "create-task"), new TransitionInput("create-task", "notify"))),
+          List.of(fact), base.capabilities(), List.of(), base.settings());
+      assertTrue(RequirementCaptureEditor.initialize(sequential).accepted());
+      assertFalse(RequirementCaptureEditor.validateFactPreservation(sequential, corrected).isEmpty());
+      var intermediate = new java.util.ArrayList<>(interactions);
+      intermediate.add(new InteractionInput("store", Direction.OUTBOUND, "Store API", "store", null, null, null));
+      var indirect = new DraftInput(new FlowInput(intermediate, List.of(
+          new TransitionInput("start", "create-task"), new TransitionInput("create-task", "store"),
+          new TransitionInput("store", "notify"))), List.of(fact), base.capabilities(), List.of(), base.settings());
+      assertTrue(RequirementCaptureEditor.initialize(indirect).accepted());
+    }
+  }
+
+  @Test
+  void reportedPlacementReferencesCanBeRepairedWhileValidElementValuesStayProtected() {
+    var base = initial();
+    for (int field = 0; field < 3; field++) {
+      var intent = new RequirementElementIntent("prepare", "script", RequirementElementIntent.Placement.LOCAL_NODE,
+          "start", field == 0 ? "missing" : null, field == 1 ? "missing" : null,
+          field == 2 ? "missing" : null, "Prepare", List.of(), List.of("Groovy"));
+      var fact = new FactInput("prepare", List.of("start"), FactKind.BEHAVIOR, Polarity.POSITIVE,
+          "Run Prepare in Groovy.", null, null, intent);
+      var input = new DraftInput(base.flow(), List.of(fact), base.capabilities(), base.openQuestions(), base.settings());
+      var rejected = RequirementCaptureEditor.initialize(input);
+      assertFalse(rejected.accepted());
+      var corrected = new FactInput(fact.sourceFactId(), fact.interactionIds(), fact.kind(), fact.polarity(), fact.text(),
+          null, null, new RequirementElementIntent(intent.elementRef(), intent.elementType(), intent.placement(),
+              intent.ownerInteractionId(), null, null, null, intent.requestedName(), List.of(), intent.exactValues()));
+      var candidate = new DraftInput(input.flow(), List.of(corrected), input.capabilities(), input.openQuestions(),
+          input.settings());
+      var protectedFacts = RequirementCaptureEditor.factsToPreserve(input, rejected.issues());
+      assertTrue(RequirementCaptureEditor.validateFactPreservation(protectedFacts, candidate, false).isEmpty());
+      var renamed = new FactInput(corrected.sourceFactId(), corrected.interactionIds(), corrected.kind(),
+          corrected.polarity(), corrected.text(), null, null,
+          new RequirementElementIntent("prepare", "script", intent.placement(), "start", null, null,
+              "Other name", List.of(), intent.exactValues()));
+      assertFalse(RequirementCaptureEditor.validateFactPreservation(protectedFacts, new DraftInput(input.flow(),
+          List.of(renamed), input.capabilities(), input.openQuestions(), input.settings()), false).isEmpty());
+    }
+  }
+
+  @Test
   void idsChoicePreservesFolderAndSystemTypeWhileExplicitChangesReplaceThem() {
     var base = initial();
     var accepted = new DraftInput(base.flow(), base.facts(), base.capabilities(), base.openQuestions(),
