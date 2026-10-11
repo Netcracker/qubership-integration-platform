@@ -56,7 +56,7 @@ on:
         default: ""
         type: string
       sync-property:
-        description: "Property in sync-poms to rewrite with the released version (e.g. qip-integration-build-pipeline.version)."
+        description: "Property in sync-poms to rewrite with the released version (e.g. qip.integration-build-pipeline.revision)."
         required: false
         default: ""
         type: string
@@ -205,7 +205,7 @@ jobs:
           EXTRA_ARGS: ${{ inputs.mvn-args }}
         run: |
           set -eu
-          # No -am: the parent is pre-installed above, and an in-repo library
+          # No -am: the parent POMs are pre-installed above, and an in-repo library
           # dependency (integration-build-pipeline) must come from its published
           # release, not from a reactor build this job would then deploy twice.
           # -Drevision publishes the computed version; -Dchangelist= strips

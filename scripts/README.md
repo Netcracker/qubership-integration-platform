@@ -19,6 +19,9 @@ locally to see what a release would do.
   from the reactor; `qip-checkstyle` is a plugin dependency and is never in a reactor, so its pin is used as is.
 - The BOM (`bom/pom.xml`) lists every Maven module at its project version. A module release moves its entry in the
   bump commit and then releases the BOM with a patch bump; `release-all` releases the BOM once per wave instead.
+  When a cascade did not publish the BOM (the BOM's concurrency group cancelled it, it failed, the module was
+  dispatched with `cascade-bom` off, or a failed Docker build skipped it), dispatch `bom-release.yaml` to release
+  the BOM with a patch bump.
 
 ## The scripts
 

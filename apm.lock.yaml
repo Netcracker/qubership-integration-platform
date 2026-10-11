@@ -1,5 +1,5 @@
 lockfile_version: '1'
-generated_at: '2026-10-09T15:14:13.224815+00:00'
+generated_at: '2026-10-11T10:38:34.788530+00:00'
 apm_version: 0.32.0
 dependencies:
 - repo_url: netcracker/qubership-ai-agent-telemetry
@@ -438,7 +438,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:59121db0473dbe5a39e321e27b7d2100091b68def631d2d7760aeb5fbef90528
+  content_hash: sha256:094f3fade3ee769577c45f540d260fd230c795cf9f231e8b23a34c1a99b50c73
 - kind: project-relative
   target: claude
   value: .claude/skills/runtime-catalog-api-testing
@@ -933,7 +933,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:59121db0473dbe5a39e321e27b7d2100091b68def631d2d7760aeb5fbef90528
+  content_hash: sha256:094f3fade3ee769577c45f540d260fd230c795cf9f231e8b23a34c1a99b50c73
 - kind: project-relative
   target: legacy
   value: .agents/skills/runtime-catalog-api-testing
@@ -1210,7 +1210,7 @@ local_deployed_file_hashes:
   .agents/skills/fix-issue/delivery.md: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
   .agents/skills/fix-issue/stack.md: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
   .agents/skills/fix-issue/verification.md: sha256:f66ab17b35df21a5dc3d2c2da4f20002977c700e8bf97a39d72a56cd65cfab75
-  .agents/skills/release-process/SKILL.md: sha256:59121db0473dbe5a39e321e27b7d2100091b68def631d2d7760aeb5fbef90528
+  .agents/skills/release-process/SKILL.md: sha256:094f3fade3ee769577c45f540d260fd230c795cf9f231e8b23a34c1a99b50c73
   .agents/skills/runtime-catalog-api-testing/SKILL.md: sha256:217ba8179b7541dd56d5603e79619806a77347e8e1c17c4a1254686fac46366b
   .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/fixtures.cpython-312.pyc: sha256:2d6d8547fdc27057b93a70d6a3ef04da3163e9b4b08e0610676fa682e96f3831
   .agents/skills/runtime-catalog-api-testing/scripts/__pycache__/rc_e2e.cpython-312.pyc: sha256:8ae36ab6e18a03cc2b041e7fd6e81a73e93d7bfc0d0cc1f75bdd64c81be188d0
@@ -1249,7 +1249,7 @@ local_deployed_file_hashes:
   .claude/skills/fix-issue/delivery.md: sha256:baa25d8d86344771e0c11d37bf8b62308e7b50238d1c3ec6f55db3e4d338229e
   .claude/skills/fix-issue/stack.md: sha256:12c40759ac39206df4ab27ff29f15766eeb8596a9bacaf3b82a3555c4372b2fc
   .claude/skills/fix-issue/verification.md: sha256:f66ab17b35df21a5dc3d2c2da4f20002977c700e8bf97a39d72a56cd65cfab75
-  .claude/skills/release-process/SKILL.md: sha256:59121db0473dbe5a39e321e27b7d2100091b68def631d2d7760aeb5fbef90528
+  .claude/skills/release-process/SKILL.md: sha256:094f3fade3ee769577c45f540d260fd230c795cf9f231e8b23a34c1a99b50c73
   .claude/skills/runtime-catalog-api-testing/SKILL.md: sha256:217ba8179b7541dd56d5603e79619806a77347e8e1c17c4a1254686fac46366b
   .claude/skills/sonar-triage/SKILL.md: sha256:35f144fe5a8bc0f5407e922cb8b37c8a3f16d196bba7ba504f9f10cd4da18a31
   .claude/skills/ui-api-and-utilities/SKILL.md: sha256:83df8708d1821771414996df4ca1f45b138baa7a49415954ffeffb7d40c8b160

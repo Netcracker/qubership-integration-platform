@@ -25,7 +25,9 @@ for the next version.
 - **The BOM** (`bom/pom.xml`, `qip-bom`) lists every Maven module at its project version. A module
   release moves its BOM entry in the bump commit, and its wrapper then releases the BOM with a patch
   bump (`cascade-bom`, on by default). `release-all` turns the cascades off and releases the BOM once
-  after its Maven jobs, with the wave's release type.
+  after its Maven jobs, with the wave's release type. When a cascade did not publish the BOM (the BOM's
+  concurrency group cancelled it, it failed, the module was dispatched with `cascade-bom` off, or a failed
+  Docker build skipped it), dispatch `bom-release.yaml` to release the BOM with a patch bump.
 - **The parent POMs** (`parents/`) carry the platform version with `-SNAPSHOT` appended. The drop
   publishes them at the platform version (`scripts/publish-parents.sh`), then moves them to the next
   development version.
