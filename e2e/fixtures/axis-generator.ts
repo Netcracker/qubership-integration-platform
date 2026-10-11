@@ -261,9 +261,9 @@ const TRIGGER_PROPERTIES = {
   httpMethodRestrict: "POST",
   accessControlType: "NONE",
   handleChainFailureAction: "default",
-  // The schema defaults to `true`. On a cluster the engine then writes one gateway rule per chain
-  // into a single HTTPRoute, which the Gateway API caps at 16 rules (docs/product-defects.md), and
-  // every hand-written corpus fixture keeps its trigger internal as well.
+  // The schema defaults to `true`. The suite calls a corpus chain on the engine's own port, so the
+  // trigger needs no gateway route, and every hand-written corpus fixture keeps its trigger internal
+  // as well.
   externalRoute: false,
 };
 

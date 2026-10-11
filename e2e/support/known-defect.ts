@@ -17,11 +17,10 @@
  * Every `test.fail()` case in the suite narrows itself through this module: the ones that read more
  * than a status call `notTheKnownDefect` directly and run each step the defect cannot explain through
  * `outsideTheDefect`, and the rest — a defect that is one status and a fix that is another — go
- * through `onlyTheKnownStatus`. A micro-engine defect that many cases share is narrowed after the
- * body instead, by `settleMicroDefects`.
+ * through `onlyTheKnownStatus`.
  */
 import { test } from "@playwright/test";
-import type { APIResponse, TestInfo } from "@playwright/test";
+import type { APIResponse } from "@playwright/test";
 
 /**
  * Fails the running `test.fail()` case for real, because what it saw is not the defect it pins.
@@ -67,27 +66,6 @@ export async function onlyTheKnownStatus(
 }
 
 /**
- * A micro-engine difference that many cases share, pinned by its `title` as the `test.fail()`
- * description: `test.fail(engineKind === "micro", MICRO_XSLT.title)`.
- *
- * A body cannot narrow such a case the way the functions above do, because the assertion that meets
- * the defect differs from case to case. The `knownDefects` fixture narrows it after the body instead:
- * every error the case raised has to be one that `matches` accepts.
- */
-export interface MicroDefect {
-  title: string;
-  matches(message: string): boolean;
-}
-
-/** docs/product-defects.md, "The micro engine has no xslt component". */
-export const MICRO_XSLT: MicroDefect = {
-  title: "the micro engine has no xslt component (docs/product-defects.md)",
-  // The case puts the engine's log line for the endpoint it could not resolve in the message.
-  matches: (message) =>
-    /No endpoint could be found for: xslt:[\s\S]*Expected: 200\s+Received: 500/.test(message),
-};
-
-/**
  * A defect a case meets only on some stacks, because it depends on how much data the stack holds, so
  * the case cannot carry a plain `test.fail()`: on a small stack it passes, and the annotation would
  * turn that pass red.
@@ -108,37 +86,4 @@ export async function strikesAsKnown<T>(defect: ConditionalDefect, step: () => P
     if (defect.matches(String(cause))) test.fail(true, defect.title);
     throw cause;
   }
-}
-
-const MICRO_DEFECTS = [MICRO_XSLT];
-
-function pinnedWith(testInfo: TestInfo, defect: MicroDefect): boolean {
-  return testInfo.annotations.some((each) => each.type === "fail" && each.description === defect.title);
-}
-
-/**
- * Settles a case pinned with a `MicroDefect` once its body has run: an error that no pinned defect
- * `matches` turns the case back into a real failure. A case that passes needs nothing: Playwright
- * already reports an expected failure that passed.
- *
- * A case whose body reached a `test.fail()` of its own narrows itself, through `notTheKnownDefect`,
- * because its errors from there on belong to that pin.
- */
-export function settleMicroDefects(testInfo: TestInfo): void {
-  if (testInfo.expectedStatus !== "failed") return;
-  const pinned = MICRO_DEFECTS.filter((defect) => pinnedWith(testInfo, defect));
-  if (pinned.length === 0) return;
-  const titles = MICRO_DEFECTS.map((defect) => defect.title);
-  if (testInfo.annotations.some((each) => each.type === "fail" && !titles.includes(each.description ?? ""))) {
-    return;
-  }
-  const foreign = testInfo.errors
-    .map((error) => stripAnsi(error.message ?? error.value ?? ""))
-    .filter((message) => !pinned.some((defect) => defect.matches(message)));
-  if (foreign.length > 0) testInfo.expectedStatus = "passed";
-}
-
-function stripAnsi(text: string): string {
-  // eslint-disable-next-line no-control-regex
-  return text.replace(/\x1b\[[0-9;]*m/g, "");
 }

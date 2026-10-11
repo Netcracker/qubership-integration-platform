@@ -22,10 +22,10 @@ public class OptionControlledHttpRouteResourceBuilder extends HttpRouteResourceB
         RoutesGetterService routesGetterService,
 
         @Qualifier("httpRoutePublicNamingStrategy")
-        NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy,
+        NamingStrategy<ResourceBuildContext<Snapshot>> httpRoutePublicNamingStrategy,
 
         @Qualifier("httpRoutePrivateNamingStrategy")
-        NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy,
+        NamingStrategy<ResourceBuildContext<Snapshot>> httpRoutePrivateNamingStrategy,
 
         @Qualifier("serviceNamingStrategy")
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> serviceNamingStrategy,
