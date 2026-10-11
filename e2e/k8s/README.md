@@ -138,7 +138,8 @@ The kubelets of Docker Desktop and kind serve self-signed certificates. Without
 
 1. Builds the four platform images and the micro-engine image, each tagged `e2e-` and a hash over
    its sources: the module's `src/`, `pom.xml`, and `Dockerfile`, and `parents/spring/pom.xml` for the
-   Spring services. The runtime-catalog hash also covers `integration-build-pipeline/src` and its
+   Spring services. The micro-engine hash also covers `parents/quarkus/pom.xml` and
+   `parents/base/pom.xml`. The runtime-catalog hash also covers `integration-build-pipeline/src` and its
    `pom.xml`, the library linked into its jar, and the testing service's covers its whole directory.
    These are the sources the Compose provisioner compares. An image whose tag exists is not rebuilt, and `mvn install` runs only for the
    modules whose image is missing. The micro engine is built with
