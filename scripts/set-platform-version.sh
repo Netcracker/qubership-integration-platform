@@ -36,14 +36,14 @@ PARENT_VERSION="${VERSION}-SNAPSHOT"
 
 sed -i -E "s#<revision>[0-9]+\.[0-9]+\.[0-9]+</revision>#<revision>${VERSION}</revision>#" pom.xml
 [ "$(pom_prop pom.xml revision)" = "$VERSION" ] || {
-    echo "::error::Failed to write <revision>${VERSION}</revision> in pom.xml"
+    echo "::error::Failed to write <revision>${VERSION}</revision> in pom.xml" >&2
     exit 1
 }
 
 for pom in "${QIP_PARENT_POMS[@]}"; do
     pom_set_own_version "$pom" "$PARENT_VERSION"
     [ "$(pom_own_version "$pom")" = "$PARENT_VERSION" ] || {
-        echo "::error::Failed to write <version>${PARENT_VERSION}</version> in $pom"
+        echo "::error::Failed to write <version>${PARENT_VERSION}</version> in $pom" >&2
         exit 1
     }
 done
@@ -51,7 +51,7 @@ done
 for child in "${QIP_PARENT_CHILDREN[@]}"; do
     pom_set_parent_version "$child" "$PARENT_VERSION"
     [ "$(pom_parent_version "$child")" = "$PARENT_VERSION" ] || {
-        echo "::error::Failed to write the parent version ${PARENT_VERSION} in $child"
+        echo "::error::Failed to write the parent version ${PARENT_VERSION} in $child" >&2
         exit 1
     }
 done

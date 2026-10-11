@@ -18,7 +18,7 @@ set -euo pipefail
 MODULE="${1:?module directory required}"
 VERSION="${2:?version (X.Y.Z) required}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-    echo "::error::version must be X.Y.Z (got '$VERSION')"
+    echo "::error::version must be X.Y.Z (got '$VERSION')" >&2
     exit 1
 }
 
@@ -27,13 +27,13 @@ cd "$ROOT"
 . "$ROOT/scripts/pom.sh"
 
 [ -f "$MODULE/pom.xml" ] || {
-    echo "::error::No pom.xml at $MODULE/"
+    echo "::error::No pom.xml at $MODULE/" >&2
     exit 1
 }
 artifact="$(pom_artifact "$MODULE/pom.xml")"
 
 bom_set_entry "$artifact" "$VERSION" || {
-    echo "::error::bom/pom.xml has no entry for $artifact ($MODULE)"
+    echo "::error::bom/pom.xml has no entry for $artifact ($MODULE)" >&2
     exit 1
 }
 
@@ -41,7 +41,7 @@ bom_set_entry "$artifact" "$VERSION" || {
 case "$(bom_entry "$artifact")" in
     "$VERSION" | "$VERSION"'${changelist}') ;;
     *)
-        echo "::error::Failed to write $artifact $VERSION into bom/pom.xml"
+        echo "::error::Failed to write $artifact $VERSION into bom/pom.xml" >&2
         exit 1
         ;;
 esac

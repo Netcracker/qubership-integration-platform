@@ -373,10 +373,11 @@ class SyncBomEntryTest(RepositoryCopy):
 
     def test_fails_for_a_module_the_bom_does_not_list(self):
         """The BOM lists no entry for itself."""
-        self.assertFailsWith(
-            self.run_script("sync-bom-entry.sh", "bom", "9.9.9"),
-            "bom/pom.xml has no entry for qip-bom (bom)",
-        )
+        result = self.run_script("sync-bom-entry.sh", "bom", "9.9.9")
+        self.assertFailsWith(result, "bom/pom.xml has no entry for qip-bom (bom)")
+        # Callers capture stdout, so the message has to go to stderr.
+        self.assertIn("::error::", result.stderr)
+        self.assertEqual(result.stdout, "")
 
     def test_a_rerun_with_the_same_version_changes_nothing(self):
         """Recovery re-applies the bump, so a second sync must be a no-op."""
@@ -519,6 +520,9 @@ class PublishParentsTest(RepositoryCopy):
     def test_restores_the_parents_when_the_deploy_fails(self):
         """A failed deploy leaves no rewritten version behind."""
         self.assertNotEqual(self.publish(MVN_EXIT="1").returncode, 0)
+        # The stub copies the parents it deployed: the rewrite and the deploy both ran.
+        deployed = self.read("mvn-parents.xml")
+        self.assertIn(f"<version>{self.VERSION}</version>", deployed)
         self.assertParentsRestored()
 
     def test_needs_a_token_before_it_touches_the_parents(self):
