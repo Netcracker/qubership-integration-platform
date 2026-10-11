@@ -419,7 +419,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:5ae6b6666ccb22f58369bab8b1c328d95713eac4fc004f248c2aeac22da9638a
+  content_hash: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
 - kind: project-relative
   target: claude
   value: .claude/skills/fix-issue/stack.md
@@ -914,7 +914,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:5ae6b6666ccb22f58369bab8b1c328d95713eac4fc004f248c2aeac22da9638a
+  content_hash: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
 - kind: project-relative
   target: legacy
   value: .agents/skills/fix-issue/stack.md
@@ -1158,7 +1158,7 @@ local_deployed_file_hashes:
   .agents/skills/fix-issue/SKILL.md: sha256:651c6aae818de7cb4aa76fcb3a1c95b437574831e40a5a26884899ea8bbd4828
   .agents/skills/fix-issue/delivery.md: sha256:576647a2576a884334e23a43519fd4b7bdd549d0b3b0b7afe0d50c8c9af73dfe
   .agents/skills/fix-issue/k8s.md: sha256:0927196dc22a9c0110f2c720f8785c3a5de3022b0c22541087a8e13e2db7fb70
-  .agents/skills/fix-issue/scripts/wait-checks.sh: sha256:5ae6b6666ccb22f58369bab8b1c328d95713eac4fc004f248c2aeac22da9638a
+  .agents/skills/fix-issue/scripts/wait-checks.sh: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
   .agents/skills/fix-issue/stack.md: sha256:ffed4beae51b194591aefa9f7b3a31873017ea8691aedfc23dbc1e7554c30015
   .agents/skills/fix-issue/verification.md: sha256:a07921da4ad97b133aee8ac4933d9aa73218471e3c8fcda696e6c9d1bb8ae253
   .agents/skills/release-process/SKILL.md: sha256:73f75b303b02d738a56efa0c48a307b26d95c208b14cc160c9d63acefd4cd425
@@ -1193,7 +1193,7 @@ local_deployed_file_hashes:
   .claude/skills/fix-issue/SKILL.md: sha256:651c6aae818de7cb4aa76fcb3a1c95b437574831e40a5a26884899ea8bbd4828
   .claude/skills/fix-issue/delivery.md: sha256:576647a2576a884334e23a43519fd4b7bdd549d0b3b0b7afe0d50c8c9af73dfe
   .claude/skills/fix-issue/k8s.md: sha256:0927196dc22a9c0110f2c720f8785c3a5de3022b0c22541087a8e13e2db7fb70
-  .claude/skills/fix-issue/scripts/wait-checks.sh: sha256:5ae6b6666ccb22f58369bab8b1c328d95713eac4fc004f248c2aeac22da9638a
+  .claude/skills/fix-issue/scripts/wait-checks.sh: sha256:4b78b21c5a3ae4893898d5060bb98724260aa902101e996a60fffc4cfb5a904d
   .claude/skills/fix-issue/stack.md: sha256:ffed4beae51b194591aefa9f7b3a31873017ea8691aedfc23dbc1e7554c30015
   .claude/skills/fix-issue/verification.md: sha256:a07921da4ad97b133aee8ac4933d9aa73218471e3c8fcda696e6c9d1bb8ae253
   .claude/skills/release-process/SKILL.md: sha256:73f75b303b02d738a56efa0c48a307b26d95c208b14cc160c9d63acefd4cd425

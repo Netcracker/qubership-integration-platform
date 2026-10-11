@@ -27,8 +27,12 @@ STATE='
 
 last=-1
 while :; do
-    R=$(gh run list -R "$REPO" --commit "$SHA" --limit 100 --json name,status,conclusion,databaseId)
-    C=$(gh pr view "$PR" -R "$REPO" --json statusCheckRollup --jq .statusCheckRollup)
+    # A failed API call (a TLS handshake timeout, a 5xx) skips this poll instead of ending the wait.
+    if ! R=$(gh run list -R "$REPO" --commit "$SHA" --limit 100 --json name,status,conclusion,databaseId) ||
+        ! C=$(gh pr view "$PR" -R "$REPO" --json statusCheckRollup --jq .statusCheckRollup); then
+        sleep "$INTERVAL"
+        continue
+    fi
     S=$(jq -n --argjson r "$R" --argjson c "$C" "$STATE")
     read -r total pending < <(jq -r '"\(.total) \(.pending)"' <<< "$S")
     # Workflows triggered by other workflows start late: require two quiet polls in a row
