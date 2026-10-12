@@ -19,6 +19,36 @@ import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaSe
 class ChainStructurePropertySanitizerTest {
 
   @Test
+  void preservesOnlyUnchangedImportedPropertiesAcrossPlacementChanges() {
+    DeterministicElementSchemaService schemas = mock(DeterministicElementSchemaService.class);
+    when(schemas.hasElementSchema("chain-call-2")).thenReturn(true);
+    when(schemas.allowedPatchPropertyKeys("chain-call-2")).thenReturn(Set.of());
+    var sanitizer = new ChainStructurePropertySanitizer(schemas);
+    var property = new PlanProperty("block", "true");
+    var retained = new ChainPlanNode("call", "chain-call-2", "Call", null, null, List.of(property));
+    var base = new ChainPlanGraph("1.0", new ChainSection("Edit", "Edit"), List.of(retained), List.of());
+    var moved = new ChainPlanNode("call", "chain-call-2", "Call", "try", 1, List.of(property));
+    var changed = new ChainPlanNode("changed", "chain-call-2", "Changed", null, null, List.of(property));
+    var captured = new ChainStructure(
+        new ChainPlanGraph("1.0", base.chain(), List.of(moved, changed), List.of()), List.of(), List.of());
+    var result = sanitizer.sanitize(captured, base);
+    assertEquals(List.of(property), result.structure().graph().nodes().getFirst().properties());
+    assertEquals(List.of(), result.structure().graph().nodes().getLast().properties());
+
+    when(schemas.hasElementSchema("service-call")).thenReturn(true);
+    for (var updated : List.of(
+        new ChainPlanNode("call", "chain-call-2", "Call", null, null,
+            List.of(new PlanProperty("block", "false"))),
+        new ChainPlanNode("call", "service-call", "Call", null, null, retained.properties()),
+        new ChainPlanNode("call", "chain-call-2", "Call", null, null,
+            List.of(new PlanProperty("failIfNoConsumers", "true"))))) {
+      var altered = sanitizer.sanitize(new ChainStructure(
+          new ChainPlanGraph("1.0", base.chain(), List.of(updated), List.of()), List.of(), List.of()), base);
+      assertEquals(List.of(), altered.structure().graph().nodes().getFirst().properties(), updated.toString());
+    }
+  }
+
+  @Test
   void removesOnlySchemaUnknownPropertiesAndPreservesTopology() {
     DeterministicElementSchemaService schemaService =
         mock(DeterministicElementSchemaService.class);

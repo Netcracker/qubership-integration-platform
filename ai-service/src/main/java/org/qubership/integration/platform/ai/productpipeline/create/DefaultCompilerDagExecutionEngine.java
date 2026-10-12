@@ -1213,7 +1213,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
             inputGraph,
             ownershipFor(node),
         request.attemptId(),
-        ChainEditSkillContext.targetNodeIds(workspace, node.skillId()));
+        ChainEditSkillContext.targetNodeIds(workspace, node.skillId()))
+        .withExistingScriptBodyEdit(ChainEditSkillContext.editsExistingScriptBodies(workspace, node.skillId()));
   }
 
   private GraphPatchExecutionContext prepareMappingGeneration(

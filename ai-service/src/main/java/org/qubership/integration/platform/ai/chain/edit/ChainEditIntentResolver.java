@@ -123,7 +123,8 @@ public class ChainEditIntentResolver {
     text.append("elementType: ")
         .append(held.requestedElementType() == null ? "(none)" : held.requestedElementType())
         .append('\n');
-        text.append("disposition: ").append(held.disposition()).append('\n');
+    text.append("disposition: ").append(held.disposition()).append('\n');
+    text.append("reconnectNeighbors: ").append(held.reconnectNeighbors()).append('\n');
     text.append("cronExpression: ")
         .append(held.cronExpression() == null ? "(none)" : held.cronExpression())
         .append('\n');
@@ -248,7 +249,8 @@ public class ChainEditIntentResolver {
         capture.cronExpression(),
         capture.propertyKeys(),
         unresolved,
-        capture.disposition());
+        capture.disposition(),
+        action == ChainEditAction.DELETE && !Boolean.FALSE.equals(capture.reconnectNeighbors()));
   }
 
   private static ChainEditIntent noChange() {

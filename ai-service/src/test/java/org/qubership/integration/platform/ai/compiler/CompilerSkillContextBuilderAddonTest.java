@@ -488,6 +488,34 @@ class CompilerSkillContextBuilderAddonTest {
   }
 
   @Test
+  void scriptEditPromptIncludesOnlySelectedOriginalBodiesAndEditContext() {
+    String original = "def data = exchange.in.body\nreturn data";
+    ChainPlanGraph fixture = graphWithScriptNode(original);
+    var nodes = new java.util.ArrayList<>(fixture.nodes());
+    nodes.add(new org.qubership.integration.platform.ai.plan.model.ChainPlanNode("unselected", "script",
+        "Unselected", null, null, java.util.List.of(
+            new org.qubership.integration.platform.ai.plan.model.PlanProperty("script", "return 'PRIVATE_UNSELECTED'"))));
+    ChainPlanGraph graph = new ChainPlanGraph(fixture.schemaVersion(), fixture.chain(), nodes, fixture.edges());
+    CompilerSkillDocument document = documentService.loadByCapabilityId("cip-script-generator");
+    var snapshot = new CompilerSkillInputSnapshot("Add the current date", "Static response", null, graph, null,
+        "action: CONFIGURE\nproperty keys: script");
+    String message = contextBuilder.buildScriptRepairMessage("conversation-1", document, snapshot,
+        java.util.List.of("script-1"), true);
+    String json = message.substring(message.indexOf("Original script bodies:\n")
+        + "Original script bodies:\n".length(), message.indexOf("\n\nRequired script node IDs:"))
+        .replace("\\{", "{").replace("\\\\", "\\");
+    try {
+      assertEquals(original, new ObjectMapper().readTree(json).get(0).path("script").asText());
+    } catch (java.io.IOException e) {
+      throw new AssertionError(e);
+    }
+    assertTrue(message.contains("action: CONFIGURE"));
+    assertTrue(message.contains("Add the current date"));
+    assertTrue(message.contains("Required script node IDs"));
+    assertFalse(message.contains("PRIVATE_UNSELECTED"));
+  }
+
+  @Test
   void scriptRepairMessageAppendsMappingGenerationContext() {
     CompilerSkillDocument document = documentService.loadByCapabilityId("cip-script-generator");
     ChainPlanGraph graph = graphWithScriptNode("");

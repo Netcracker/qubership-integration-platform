@@ -19,6 +19,21 @@ import org.qubership.integration.platform.ai.plan.model.ChainSection;
 class ChainEditIntentResolverTest {
 
   @Test
+  void deletionPreservesAnExplicitConnectionPolicyAcrossCopiesAndClarification() throws Exception {
+    ChainEditCapture capture = new ObjectMapper().readValue("""
+        {"action":"DELETE","targetNodeIds":["call-orders"],"requestedChange":"delete and leave disconnected",
+         "reconnectNeighbors":false}
+        """, ChainEditCapture.class);
+    ChainEditIntent intent = resolve(capture);
+    assertTrue(intent.resolved());
+    assertFalse(intent.reconnectNeighbors());
+    assertFalse(intent.withTargets(List.of("call-invoices")).reconnectNeighbors());
+    assertTrue(ChainEditIntentResolver.composeResumeRequest(intent, "Which neighbors?", "leave the gap")
+        .contains("reconnectNeighbors: false"));
+    assertTrue(resolve(capture(ChainEditAction.DELETE, List.of("call-orders"), "delete it")).reconnectNeighbors());
+  }
+
+  @Test
   void readsTheActionTheTargetsAndTheLookup() {
     ChainEditIntent intent =
         resolve(

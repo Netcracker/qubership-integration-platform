@@ -20,6 +20,18 @@ public final class ChainEditSkillContext {
 
   private ChainEditSkillContext() {}
 
+  public static boolean editsExistingScriptBodies(SkillWorkspace workspace, String skillId) {
+    if (workspace == null
+        || !ScriptBodyPromptRedaction.SCRIPT_GENERATOR_CAPABILITY.equals(skillId)) {
+      return false;
+    }
+    return workspace.get(SkillArtifactType.CHAIN_EDIT_INTENT)
+        .map(artifact -> ((SkillArtifactPayload.ChainEditIntentPayload) artifact.payload()).intent())
+        .map(intent -> intent.action() == ChainEditAction.CONFIGURE
+            && intent.propertyKeys().contains("script"))
+        .orElse(false);
+  }
+
   public static List<String> targetNodeIds(SkillWorkspace workspace) {
     if (workspace == null) {
       return List.of();

@@ -179,6 +179,27 @@ class GraphPatchPreviewValidatorTest {
   }
 
   @Test
+  void explicitScriptEditRequiresOnlySelectedBodiesToBeComplete() {
+    ChainPlanGraph fixture = graphWithScriptMissingBody();
+    var nodes = new java.util.ArrayList<>(fixture.nodes());
+    nodes.add(new ChainPlanNode("unselected", "script", "Unselected", null, null, List.of()));
+    var edges = new java.util.ArrayList<>(fixture.edges());
+    edges.add(new ChainPlanEdge("to-unselected", "script-1", "unselected", null));
+    ChainPlanGraph base = new ChainPlanGraph(fixture.schemaVersion(), fixture.chain(), nodes, edges);
+    var edit = context(base).withEditTargetNodeIds(List.of("script-1")).withExistingScriptBodyEdit(true);
+    var patch = new GraphPatch("edit", "cip-script-generator", List.of(), List.of(),
+        List.of(new PropertyPatch(GraphPatchOperation.ADD, "script-1", new PlanProperty("script", "return 2"))),
+        List.of(), List.of(), "Edit the selected body");
+    List<String> signals = List.of("script_nodes_missing_body");
+    assertTrue(validator.validate(base, patch, edit, signals).pass());
+    assertFalse(validator.validate(base, patch, edit.withExistingScriptBodyEdit(false), signals).pass());
+    var blank = new GraphPatch("blank", "cip-script-generator", List.of(), List.of(),
+        List.of(new PropertyPatch(GraphPatchOperation.ADD, "script-1", new PlanProperty("script", ""))),
+        List.of(), List.of(), "Blank body");
+    assertFalse(validator.validate(base, blank, edit, signals).pass());
+  }
+
+  @Test
   void structuralFailureFailsPreview() {
     ChainPlanGraph base =
         new ChainPlanGraph(

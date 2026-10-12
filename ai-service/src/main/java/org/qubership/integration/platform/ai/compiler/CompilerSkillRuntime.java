@@ -1075,8 +1075,9 @@ public class CompilerSkillRuntime {
     if (graph == null) {
       return Multi.createFrom().empty();
     }
-    List<String> missingNodeIds = missingScriptNodeIds(conversationId, capabilityId, graph);
-    if (missingNodeIds.isEmpty()) {
+    List<String> requiredNodeIds = readinessEvaluator.scriptNodesForCapture(
+        graph, scriptExecutionContext(conversationId, capabilityId));
+    if (requiredNodeIds.isEmpty()) {
       // An earlier generator (e.g. cip-auth-generator's M2M before-hook) may have already
       // filled the only script body between plan time and this turn. Nothing to repair is a
       // legitimate no-op, not a failure to call repairScriptBodies — record it as an empty
@@ -1103,7 +1104,7 @@ public class CompilerSkillRuntime {
         true,
         feedback ->
             repairMessageBuilder.scriptBodiesRepairMessage(
-                missingNodeIds,
+                requiredNodeIds,
                 feedback,
                 mappingGenerationContext(conversationId, capabilityId)),
         sanitizingBeforeRepairRetry(
@@ -1240,7 +1241,7 @@ public class CompilerSkillRuntime {
           "Script repair patch failed: " + applyResult.validationResult().summary());
       return false;
     }
-    List<String> stillMissing = readinessEvaluator.scriptNodesMissingBody(applyResult.graph());
+    List<String> stillMissing = missingScriptNodeIds(conversationId, capabilityId, applyResult.graph());
     if (!stillMissing.isEmpty()) {
       captureSession.clearIfSame(key, patch);
       feedbackStore.recordPatchValidationFailure(
@@ -1293,10 +1294,12 @@ public class CompilerSkillRuntime {
       CaptureRoute route) {
     if (route.captureTool() == CaptureTool.REPAIR_SCRIPT_BODIES) {
       ChainPlanGraph graph = snapshot.chainPlanGraph();
-      List<String> missingNodeIds =
-          graph != null ? readinessEvaluator.scriptNodesMissingBody(graph) : List.of();
+      GraphPatchExecutionContext context = scriptExecutionContext(conversationId, document.capabilityId());
+      List<String> requiredNodeIds =
+          graph != null ? readinessEvaluator.scriptNodesForCapture(graph, context) : List.of();
       return contextBuilder.buildScriptRepairMessage(
-          conversationId, document, snapshot, missingNodeIds);
+          conversationId, document, snapshot, requiredNodeIds,
+          context != null && context.editsExistingScriptBodies());
     }
     return contextBuilder.buildUserMessage(
         conversationId, document, snapshot, activePlan, route.captureTool());
@@ -1515,6 +1518,11 @@ public class CompilerSkillRuntime {
       return missing;
     }
     return missing.stream().filter(targets::contains).toList();
+  }
+
+  private GraphPatchExecutionContext scriptExecutionContext(String conversationId, String capabilityId) {
+    return executionContextStore.get(conversationId, capabilityId)
+        .or(executionContextStore::current).orElse(null);
   }
 
   private static boolean isEmptyPatch(GraphPatch patch) {

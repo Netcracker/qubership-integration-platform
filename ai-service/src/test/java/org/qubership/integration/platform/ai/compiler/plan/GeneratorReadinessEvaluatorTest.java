@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.compiler.plan;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -11,6 +12,8 @@ import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.ChainSection;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwnershipPolicy;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 
 /**
@@ -19,6 +22,24 @@ import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaSe
  * here.
  */
 class GeneratorReadinessEvaluatorTest {
+
+  @Test
+  void explicitScriptEditsSelectFilledTargetsWithoutChangingCreateSelection() {
+    var filled = new ChainPlanNode("filled", "script", "Filled", null, null,
+        List.of(new PlanProperty("script", "return 1")));
+    var missing = new ChainPlanNode("missing", "script", "Missing", null, null, List.of());
+    var graph = new ChainPlanGraph("1.0", new ChainSection("Edit", "Edit"), List.of(filled, missing), List.of());
+    var context = new GraphPatchExecutionContext("run", "cip-script-generator", null, null, null,
+        null, null, List.of(), graph, GraphPatchOwnershipPolicy.denyAll(), "attempt", List.of("filled"));
+    assertEquals(List.of(), evaluator.scriptNodesForCapture(graph, context));
+    var edit = context.withExistingScriptBodyEdit(true);
+    assertEquals(List.of("filled"), evaluator.scriptNodesForCapture(graph, edit));
+    assertEquals(List.of("missing"), evaluator.scriptNodesForCapture(graph, null));
+    assertTrue(edit.withConsumedArtifacts(List.of()).withMappingGenerationContext("mapping")
+        .withEditTargetNodeIds(List.of("filled")).editsExistingScriptBodies());
+    assertThrows(IllegalArgumentException.class,
+        () -> evaluator.scriptNodesForCapture(graph, edit.withEditTargetNodeIds(List.of())));
+  }
 
   private static final Set<String> NO_INTENTS = Set.of();
 

@@ -20,6 +20,36 @@ import org.qubership.integration.platform.ai.skill.workspace.SkillArtifactType;
 
 class ChainEditCompilerDagTest {
 
+  @Test
+  void existingScriptEditModeRequiresTypedConfigureIntentAndTheScriptOwner() {
+    var workspace = new org.qubership.integration.platform.ai.skill.workspace.InMemorySkillWorkspace("edit");
+    assertFalse(org.qubership.integration.platform.ai.compiler.ChainEditSkillContext
+        .editsExistingScriptBodies(workspace, "cip-script-generator"));
+    var configure = new ChainEditIntent(ChainEditAction.CONFIGURE, List.of("script-1"), "Edit the script",
+        null, null, null, List.of("script"), List.of(), ChainEditDisposition.UNSET);
+    workspace.put(org.qubership.integration.platform.ai.skill.workspace.SkillArtifact.of(
+        SkillArtifactType.CHAIN_EDIT_INTENT, "edit",
+        new org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload.ChainEditIntentPayload(configure)));
+    assertTrue(org.qubership.integration.platform.ai.compiler.ChainEditSkillContext
+        .editsExistingScriptBodies(workspace, "cip-script-generator"));
+    assertFalse(org.qubership.integration.platform.ai.compiler.ChainEditSkillContext
+        .editsExistingScriptBodies(workspace, "cip-naming-generator"));
+    var labelEdit = new ChainEditIntent(ChainEditAction.CONFIGURE, List.of("script-1"), "Rename the script",
+        null, null, null, List.of("label"), List.of(), ChainEditDisposition.UNSET);
+    workspace.put(org.qubership.integration.platform.ai.skill.workspace.SkillArtifact.of(
+        SkillArtifactType.CHAIN_EDIT_INTENT, "edit",
+        new org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload.ChainEditIntentPayload(labelEdit)));
+    assertFalse(org.qubership.integration.platform.ai.compiler.ChainEditSkillContext
+        .editsExistingScriptBodies(workspace, "cip-script-generator"));
+    var addition = new ChainEditIntent(ChainEditAction.ADD_ELEMENTS, List.of("script-1"), "Add a script",
+        null, "script", null, List.of(), List.of(), ChainEditDisposition.KEEP);
+    workspace.put(org.qubership.integration.platform.ai.skill.workspace.SkillArtifact.of(
+        SkillArtifactType.CHAIN_EDIT_INTENT, "edit",
+        new org.qubership.integration.platform.ai.skill.workspace.SkillArtifactPayload.ChainEditIntentPayload(addition)));
+    assertFalse(org.qubership.integration.platform.ai.compiler.ChainEditSkillContext
+        .editsExistingScriptBodies(workspace, "cip-script-generator"));
+  }
+
   private static final Set<String> EDIT_SEED_ARTIFACTS =
       Set.of(
           SkillArtifactType.RAW_USER_REQUEST.name(),

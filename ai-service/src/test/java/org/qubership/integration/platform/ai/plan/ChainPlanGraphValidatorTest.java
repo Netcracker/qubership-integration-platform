@@ -84,6 +84,29 @@ class ChainPlanGraphValidatorTest {
   }
 
   @Test
+  void baselineExemptsOnlyUnchangedImportedPropertyValues() {
+    when(schemaService.hasElementSchema("chain-call-2")).thenReturn(true);
+    when(schemaService.allowedPatchPropertyKeys("chain-call-2")).thenReturn(Set.of());
+    var retained = new ChainPlanNode("call", "chain-call-2", "Call", null, null,
+        List.of(new PlanProperty("block", "true")));
+    var base = new ChainPlanGraph("1.0", new ChainSection("Edit", "Edit"), List.of(retained), List.of());
+    assertTrue(validator.validate(base).stream().anyMatch(error -> error.contains("unknown property key 'block'")));
+    assertFalse(validator.validate(base, base).stream().anyMatch(error -> error.contains("unknown property key")));
+    when(schemaService.hasElementSchema("service-call")).thenReturn(true);
+    for (var updated : List.of(
+        new ChainPlanNode("call", "chain-call-2", "Call", null, null,
+            List.of(new PlanProperty("block", "false"))),
+        new ChainPlanNode("new-call", "chain-call-2", "Call", null, null, retained.properties()),
+        new ChainPlanNode("call", "service-call", "Call", null, null, retained.properties()),
+        new ChainPlanNode("call", "chain-call-2", "Call", null, null,
+            List.of(new PlanProperty("failIfNoConsumers", "true"))))) {
+      var result = new ChainPlanGraph("1.0", base.chain(), List.of(updated), List.of());
+      assertTrue(validator.validate(result, base).stream()
+          .anyMatch(error -> error.contains("unknown property key")), updated.toString());
+    }
+  }
+
+  @Test
   void rejectsExceptionOnScriptWithCatch2Hint() {
     when(schemaService.hasElementSchema("script")).thenReturn(true);
     when(schemaService.allowedPatchPropertyKeys("script"))

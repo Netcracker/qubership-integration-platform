@@ -109,7 +109,7 @@ public class CaptureRepairMessageBuilder {
       CaptureAttemptFeedback feedback,
       String mappingGenerationContext) {
     StringBuilder message = new StringBuilder();
-    message.append("Repair missing script bodies by calling repairScriptBodies.\n");
+    message.append("Submit the required script bodies by calling repairScriptBodies.\n");
     message.append("Submit only scripts for these targetNodeIds: ")
         .append(String.join(", ", missingNodeIds))
         .append(".\n");

@@ -35,7 +35,23 @@ public record ChainEditIntent(
     String cronExpression,
     List<String> propertyKeys,
     List<String> unresolvedAmbiguities,
-    ChainEditDisposition disposition) {
+    ChainEditDisposition disposition,
+    boolean reconnectNeighbors) {
+
+  public ChainEditIntent(
+      ChainEditAction action,
+      List<String> targetNodeIds,
+      String requestedChange,
+      String externalBindingQuery,
+      String requestedElementType,
+      String cronExpression,
+      List<String> propertyKeys,
+      List<String> unresolvedAmbiguities,
+      ChainEditDisposition disposition) {
+    this(action, targetNodeIds, requestedChange, externalBindingQuery, requestedElementType,
+        cronExpression, propertyKeys, unresolvedAmbiguities, disposition,
+        action == ChainEditAction.DELETE);
+  }
 
   /** An edit of elements the chain already has, without a requested element type. */
   public ChainEditIntent(
@@ -208,7 +224,8 @@ public record ChainEditIntent(
         cronExpression,
         propertyKeys,
         List.of(),
-        disposition);
+        disposition,
+        reconnectNeighbors);
   }
 
   private static ChainEditDisposition resolvedDisposition(

@@ -4,6 +4,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.qubership.integration.platform.ai.plan.mapping.MappingExecutionSite;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
@@ -23,6 +25,10 @@ public class ChainStructurePropertySanitizer {
   }
 
   public SanitizationResult sanitize(ChainStructure capture) {
+    return sanitize(capture, null);
+  }
+
+  public SanitizationResult sanitize(ChainStructure capture, ChainPlanGraph baseGraph) {
     if (capture == null
         || capture.graph() == null
         || capture.graph().nodes() == null
@@ -30,9 +36,15 @@ public class ChainStructurePropertySanitizer {
       return new SanitizationResult(capture, List.of());
     }
     List<RemovedProperty> removed = new ArrayList<>();
+    Map<String, ChainPlanNode> baseNodes = new java.util.HashMap<>();
+    if (baseGraph != null && baseGraph.nodes() != null) {
+      for (ChainPlanNode node : baseGraph.nodes()) {
+        baseNodes.put(node.nodeId(), node);
+      }
+    }
     List<ChainPlanNode> nodes =
         capture.graph().nodes().stream()
-            .map(node -> sanitizeNode(node, removed))
+            .map(node -> sanitizeNode(node, baseNodes.get(node == null ? null : node.nodeId()), removed))
             .toList();
     ChainPlanGraph graph =
         new ChainPlanGraph(
@@ -47,7 +59,7 @@ public class ChainStructurePropertySanitizer {
   }
 
   private ChainPlanNode sanitizeNode(
-      ChainPlanNode node, List<RemovedProperty> removed) {
+      ChainPlanNode node, ChainPlanNode before, List<RemovedProperty> removed) {
     if (node == null
         || node.type() == null
         || node.type().isBlank()
@@ -63,7 +75,8 @@ public class ChainStructurePropertySanitizer {
           || property.key() == null
           || property.key().isBlank()
           || MappingExecutionSite.isCompilerMetadataKey(property.key().trim())
-          || allowed.contains(property.key().trim())) {
+          || allowed.contains(property.key().trim())
+          || unchangedImportedProperty(node, property, before)) {
         properties.add(property);
       } else {
         removed.add(new RemovedProperty(node.nodeId(), node.type(), property.key().trim()));
@@ -79,6 +92,15 @@ public class ChainStructurePropertySanitizer {
         node.parentNodeId(),
         node.order(),
         List.copyOf(properties));
+  }
+
+  private static boolean unchangedImportedProperty(
+      ChainPlanNode node, PlanProperty property, ChainPlanNode before) {
+    return before != null
+        && Objects.equals(before.nodeId(), node.nodeId())
+        && Objects.equals(before.type(), node.type())
+        && before.properties() != null
+        && before.properties().contains(property);
   }
 
   public record SanitizationResult(
