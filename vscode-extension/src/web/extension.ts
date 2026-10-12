@@ -19,7 +19,6 @@ import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
   DEFAULT_APP_NAME,
-  getExtensionsForUri,
   initializeContextFromFile,
 } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
@@ -844,23 +843,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       async (item: any) => {
         if (item && item.fileUri) {
           try {
-            // Determine the correct editor based on file type
-            const fileName = item.fileUri.fsPath;
-            let editorType = "qip.chainFile.editor"; // default
-
-            const fileExtensions = getExtensionsForUri({ path: fileName });
-            if (fileName.endsWith(fileExtensions.service)) {
-              editorType = "qip.serviceFile.editor";
-            } else if (fileName.endsWith(fileExtensions.chain)) {
-              editorType = "qip.chainFile.editor";
-            }
-
-            // Open the file with custom editor
-            await vscode.commands.executeCommand(
-              "vscode.openWith",
-              item.fileUri,
-              editorType,
-            );
+            await openDocumentInEditor(item.fileUri);
           } catch (error) {
             console.error("Failed to open file with custom editor:", error);
             // Fallback to text editor if custom editor fails

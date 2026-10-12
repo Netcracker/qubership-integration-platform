@@ -106,9 +106,9 @@ public class CustomResourceController {
      * Removes {@code snapshotId} from the micro-domain, retrying up to
      * {@link #MAX_CONFLICT_ATTEMPTS} times when a write loses an optimistic-concurrency race.
      *
-     * <p>{@code deleteChainSnapshot} rewrites the Integration, the integrations-configuration
-     * ConfigMap and the shared HTTPRoute tiers, each carrying the {@code resourceVersion} it read
-     * on entry, so a deploy to the same domain running alongside it can take any of those writes.
+     * <p>{@code deleteChainSnapshot} rewrites the Integration and the integrations-configuration
+     * ConfigMap, each carrying the {@code resourceVersion} it read on entry, so a deploy to the same
+     * domain running alongside it can take either write.
      * Re-reading is the whole recovery: the method reloads everything through
      * {@code getMainIntegrationResources}, so another attempt recomputes against current state
      * rather than replaying a decision made against stale reads. Unlike the deploy path there is

@@ -133,9 +133,8 @@ test("no micro fixture reads a common variable", { tag: ["@infra", "@tier1"] }, 
   expect(micro.texts.filter((text) => /#\{[^}]+\}/.test(text)).length).toBe(0);
 });
 
-// On a cluster the classic engine writes one rule per external trigger into a single HTTPRoute,
-// which the Gateway API caps at 16 rules (docs/product-defects.md), so the corpus keeps them all
-// internal.
+// The suite calls a corpus chain on the engine's own port, so the corpus writes no gateway route
+// and keeps every trigger internal.
 test("every HTTP trigger the corpus seeds, in both copies, is internal", { tag: ["@infra", "@tier1"] }, async () => {
   const names = [
     ...corpusFixtureNames([CHAIN_FIXTURE_DIR, SCRIPT_FIXTURE_DIR]),

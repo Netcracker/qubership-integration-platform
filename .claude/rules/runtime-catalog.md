@@ -113,10 +113,17 @@ Chain definition (UI/import) → Runtime Catalog compiles → Camel XML (Handleb
 
 ### Verifying a change through the API
 
-When testing, verifying, or reproducing a change through the HTTP API against the local
-Docker stack — exercising import/export, chains, folders, deployment, or variables and
-checking PostgreSQL and Consul side effects — apply the `runtime-catalog-api-testing`
-skill.
+The end-to-end suite covers the API against a running stack: its typed client
+`e2e/support/catalog.ts` holds the calls that work, and a behavior reproduced through the API
+gets its regression case in `e2e/specs/api/`. Read `e2e/AGENTS.md` before writing one.
+
+Exercise a change in four directions: once, twice (including into an entity that already
+exists), from several threads at once, and with edge inputs (blank, forbidden characters,
+duplicates, Unicode). A re-import into an existing folder tree and parallel imports into one new
+path both returned 200 and broke the data. A 200 is not a success on its own: the import status
+reports a failed chain in `result.chains[].status`, and the asynchronous import worker logs its
+error after the request returns. Read the body, the `[ERROR]` lines of the container log, and the
+rows the call should have written.
 
 ### Legacy `qip.*` property names
 
