@@ -154,14 +154,20 @@ class RequirementRevisionAdmissionTest {
   void oneAuthorAmendmentUpdatesDuplicatedValuesAndPreservesTheConfirmedAnswer() throws Exception {
     var h = new Harness();
     try (var ignored = ToolSession.open(h.chat)) {
-      h.begin("Create an external endpoint at /tasks with NONE. Proceed without IDS.");
+      h.begin("Create an external endpoint at /tasks with NONE. If RBAC is selected, use role qip-viewer. Proceed without IDS.");
       var initial = policyDraft(null);
       var visibility = new FactInput("visibility", List.of("entry"), FactKind.VISIBILITY,
           Polarity.POSITIVE, "External endpoint at /tasks.");
+      var roles = new FactInput("roles", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+          "If RBAC is selected, use role qip-viewer.", null, null,
+          new RequirementElementIntent("entry", "http-trigger", RequirementElementIntent.Placement.ANCHOR,
+              "entry", null, null, null,
+              List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", "[\"qip-viewer\"]")),
+              List.of()));
       var flow = new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
           "Caller", "POST /tasks", "External task endpoint at /tasks.", null, null)), List.of());
       assertTrue(h.capture(new DraftInput(flow,
-          List.of(initial.facts().getFirst(), visibility, initial.facts().getLast()),
+          List.of(initial.facts().getFirst(), visibility, roles, initial.facts().getLast()),
           initial.capabilities(), initial.openQuestions(), initial.settings())).accepted());
       h.begin("Use the recommended RBAC.");
       assertTrue(h.update(editPolicy(Decision.USE_RECOMMENDED, false)).accepted());

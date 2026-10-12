@@ -1071,6 +1071,32 @@ class RequirementCaptureToolsTest {
     }
   }
 
+  @Test
+  void roleExamplesCannotReplaceTheAuthorRoleChoice() throws Exception {
+    for (String role : List.of("qip-viewer", "ROLE_ND_APPLICATION_SUPPORT")) {
+      var h = harness();
+      h.store().beginTurn(h.conversationId(), "Use RBAC with the explicit role qip-viewer for the HTTP trigger.");
+      var base = readyHttpDraft();
+      var intent = new RequirementElementIntent("entry", "http-trigger",
+          RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null,
+          List.of(new org.qubership.integration.platform.ai.plan.model.PlanProperty("accessControlType", "RBAC"),
+              new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", "[\"" + role + "\"]")),
+          List.of());
+      var fact = new FactInput("security", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+          "Use RBAC with role " + role + ".", null, null, intent);
+      var input = new DraftInput(base.flow(), List.of(base.facts().getFirst(), fact),
+          base.capabilities(), base.openQuestions(), base.settings());
+      try (var ignored = ToolSession.open(h.conversationId())) {
+        var result = h.mapper().readValue(h.tools().captureRequirementDraft(input), RequirementCaptureResult.class);
+        assertEquals(role.equals("qip-viewer"), result.accepted(), result.toString());
+        if (!result.accepted()) {
+          assertTrue(result.issues().stream().anyMatch(issue -> "ELEMENT_LITERAL_SOURCE_MISMATCH".equals(issue.code())
+              && issue.path().endsWith("/requestedProperties/roles")), result.toString());
+        }
+      }
+    }
+  }
+
   private static Harness harness() {
     RequirementDraftStore store = new RequirementDraftStore();
     RequirementDraftTool bindingAdapter = mock(RequirementDraftTool.class);

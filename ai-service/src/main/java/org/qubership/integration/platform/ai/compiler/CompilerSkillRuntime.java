@@ -640,7 +640,10 @@ public class CompilerSkillRuntime {
       if (mappingFailure != null) {
         return SkillExecutionResult.failed(mappingFailure);
       }
-      return SkillExecutionResult.failed(message);
+      String captureRefusal = feedbackStore.lastPatchFailure(conversationId, capabilityId)
+          .map(CaptureAttemptFeedback::summary).filter(summary -> summary != null && !summary.isBlank())
+          .orElse(message);
+      return SkillExecutionResult.failed(captureRefusal);
     }
     return applyCapturedPatch(conversationId, graph, patch, capabilityId);
   }

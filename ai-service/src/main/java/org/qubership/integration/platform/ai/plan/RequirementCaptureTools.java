@@ -93,6 +93,9 @@ public class RequirementCaptureTools {
       Also map every result field on its adjacent delivery transition with sourcePath null and an
       expression explicitly reading the saved original field. Do not copy it from the call response.
       Named catalog outbound operations have no native capability entry; resolve them after capture.
+      Capture explicit HTTP trigger accessControlType and roles in ANCHOR elementIntent requestedProperties.
+      RBAC needs the author's explicit role choice. Save a partial draft and ask for missing roles;
+      role names from examples do not authorize access to this chain.
       Never send complete, decision, assembledText, catalog bindings, or revision references.
       """)
   public String captureRequirementDraft(@P("Authored requirement snapshot") DraftInput draft) {
@@ -402,6 +405,24 @@ public class RequirementCaptureTools {
           && previous.authoredDraft().facts().stream().anyMatch(prior ->
               prior.sourceFactId().equals(fact.sourceFactId()) && Objects.equals(prior.elementIntent(), intent));
       if (authorText != null && !unchanged) {
+        if ("http-trigger".equals(intent.elementType())) {
+          for (var property : intent.requestedProperties()) {
+            if (property == null || !"roles".equals(property.key()) || property.value() == null) { continue; }
+            try {
+              var roles = mapper.readTree(property.value());
+              if (roles == null || !roles.isArray()) { continue; }
+              for (var role : roles) {
+                if (role.isTextual() && !role.asText().isBlank() && !authorText.contains(role.asText())) {
+                  issues.add(new Issue("ELEMENT_LITERAL_SOURCE_MISMATCH", path + "/requestedProperties/roles",
+                      fact.sourceFactId(), "Use roles explicitly supplied by the author for this HTTP trigger."
+                          + " Ask which roles may access it; knowledge examples do not authorize a role choice."));
+                }
+              }
+            } catch (com.fasterxml.jackson.core.JsonProcessingException invalidRoles) {
+              // Property validation and readiness handle invalid array encoding.
+            }
+          }
+        }
         for (int i = 0; i < intent.exactValues().size(); i++) {
           String literal = intent.exactValues().get(i);
           if (literal != null && !fact.text().contains(literal)) {

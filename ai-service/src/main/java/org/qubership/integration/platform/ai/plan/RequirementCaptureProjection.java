@@ -1,5 +1,7 @@
 package org.qubership.integration.platform.ai.plan;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,6 +22,8 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.ServiceCallFa
 
 /** Derives the existing requirement artifact from the accepted authored content. */
 public final class RequirementCaptureProjection {
+
+  private static final ObjectMapper JSON = new ObjectMapper();
 
   public record PendingWork(
       String code, String interactionId, String questionId, String message) {}
@@ -134,6 +138,25 @@ public final class RequirementCaptureProjection {
     boolean hasInbound = false;
     for (InteractionInput interaction : input.flow().interactions()) {
       String id = interaction.interactionId();
+      CapabilityInput capability = capabilities.get(id);
+      if (capability != null && "http-trigger".equals(capability.capabilityKey())) {
+        var scoped = input.facts().stream().filter(fact -> fact.polarity() == RequirementCaptureInput.Polarity.POSITIVE
+            && fact.interactionIds().contains(id)).toList();
+        var properties = scoped.stream().map(FactInput::elementIntent)
+            .filter(intent -> intent != null && "http-trigger".equals(intent.elementType())
+                && intent.placement() == RequirementElementIntent.Placement.ANCHOR)
+            .flatMap(intent -> intent.requestedProperties().stream()).toList();
+        var policy = scoped.stream().map(FactInput::policyConflict)
+            .filter(conflict -> conflict != null && "accessControlType".equals(conflict.propertyKey()))
+            .findFirst().orElse(null);
+        String access = policy == null ? properties.stream().filter(property -> "accessControlType".equals(property.key()))
+            .map(org.qubership.integration.platform.ai.plan.model.PlanProperty::value).findFirst().orElse(null)
+            : policy.selectedValue();
+        if ("RBAC".equals(access) && !hasExplicitRoles(properties)) {
+          pending.add(new PendingWork("RBAC_ROLES_REQUIRED", id, null,
+              "Which explicit roles may access HTTP trigger '" + id + "' with RBAC?"));
+        }
+      }
       if (interaction.direction() == Direction.INBOUND) {
         hasInbound = true;
       }
@@ -142,7 +165,6 @@ public final class RequirementCaptureProjection {
         pending.add(new PendingWork(
             "INTERACTION_FIELD_REQUIRED", id, null, missingInteractionFields(interaction)));
       }
-      CapabilityInput capability = capabilities.get(id);
       if (interaction.direction() == Direction.OUTBOUND && capability == null
           && RequirementFlowValidator.isDirectHttpTarget(interaction.participant())) {
         pending.add(new PendingWork("CAPABILITY_CHOICE_REQUIRED", id, null,
@@ -231,6 +253,24 @@ public final class RequirementCaptureProjection {
           question.text()));
     }
     return List.copyOf(pending);
+  }
+
+  private static boolean hasExplicitRoles(List<org.qubership.integration.platform.ai.plan.model.PlanProperty> properties) {
+    for (var property : properties) {
+      if (!"roles".equals(property.key()) || blank(property.value())) { continue; }
+      try {
+        var roles = JSON.readTree(property.value());
+        if (!roles.isArray() || roles.isEmpty()) { continue; }
+        boolean explicit = true;
+        for (var role : roles) {
+          explicit &= role.isTextual() && !role.asText().isBlank() && !role.asText().contains("*");
+        }
+        if (explicit) { return true; }
+      } catch (JsonProcessingException invalidRoles) {
+        // Invalid array encoding cannot supply the required role choice.
+      }
+    }
+    return false;
   }
 
   public static List<AppliedDefault> defaults(DraftInput input) {
@@ -381,8 +421,12 @@ public final class RequirementCaptureProjection {
     Map<String, String> targets = new HashMap<>(retainedTargets(previous, input));
     targets.putAll(verifiedTargets);
     List<RequirementFact> facts = facts(input, targets);
-    boolean ready = pending(input, bindings, targets).isEmpty()
+    var remaining = pending(input, bindings, targets);
+    boolean ready = remaining.isEmpty()
         && RequirementFlowValidator.validateBindings(flow, facts, bindings).isEmpty();
+    var questions = new ArrayList<>(input.openQuestions().stream().map(QuestionInput::text).toList());
+    remaining.stream().filter(item -> "RBAC_ROLES_REQUIRED".equals(item.code()))
+        .map(PendingWork::message).filter(question -> !questions.contains(question)).forEach(questions::add);
     String candidateInteractionId = previous == null
         ? null : previous.apiHubCandidateInteractionId();
     boolean candidateBound = candidateInteractionId != null && bindings.stream()
@@ -391,7 +435,7 @@ public final class RequirementCaptureProjection {
         ready,
         render(input, bindings),
         ready ? DraftDecision.READY_FOR_PLAN : DraftDecision.NEEDS_INPUT,
-        input.openQuestions().stream().map(QuestionInput::text).toList(),
+        questions,
         RequirementDraftTool.SOURCE_SKILL_ID, sourceVersion, sourceHash,
         previous == null || candidateBound ? null : previous.apiHubCandidate(),
         false,

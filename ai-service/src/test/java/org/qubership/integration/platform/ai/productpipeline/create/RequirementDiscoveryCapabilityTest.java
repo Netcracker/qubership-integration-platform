@@ -195,6 +195,36 @@ class RequirementDiscoveryCapabilityTest {
     assertEquals(0, calls.get());
   }
 
+  @Test
+  void technicalRetryWithoutAFieldPointerResumesTheRequirementsProducer() {
+    var store = new RequirementDraftStore();
+    var calls = new AtomicInteger();
+    var capability = new RequirementDiscoveryCapability(null, store, (chat, text) -> {
+      calls.incrementAndGet();
+      assertTrue(ProductCapabilityCaptureContext.binding(chat).orElseThrow().requirementRepairPaths().isEmpty());
+      store.put(chat, RequirementFactFixtures.greetingsApprovedDraft());
+      store.markCaptured(chat);
+      store.finishTurn(chat, RequirementDiscoveryDirective.CONTINUE);
+      return Multi.createFrom().empty();
+    });
+    var attributes = new java.util.HashMap<String, Object>();
+    attributes.put("userText", RequirementFactFixtures.GREETINGS_PROMPT);
+    attributes.put(org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+        .STAGE_ERROR_CONTEXT_ATTR, "java.net.UnknownHostException: api.openai.com");
+    attributes.put(org.qubership.integration.platform.ai.productpipeline.runtime.ProductPipelineRunSupport
+        .STAGE_ERROR_CAUSE_JSON_ATTR, """
+        {"causeCode":"TECHNICAL_RETRY_EXHAUSTED","findings":[
+          {"code":"FAILURE_SIGNATURE","message":"java.net.UnknownHostException: api.openai.com","blocker":true}
+        ]}
+        """);
+    var outcome = capability.execute(new StageExecutionContext("technical-retry-run", "technical-retry-chat",
+        "requirement-discovery", "execution", "attempt", null, null, List.of(), attributes))
+        .collect().asList().await().indefinitely().stream().filter(CapabilitySignal.Completed.class::isInstance)
+        .map(CapabilitySignal.Completed.class::cast).findFirst().orElseThrow().outcome();
+    assertEquals(1, calls.get());
+    assertEquals(StageOutcomeClass.CANDIDATE, outcome.outcomeClass());
+  }
+
   @ParameterizedTest
   @ValueSource(booleans = {false, true})
   void savedDiscoveryRepairWithoutANewAuthorMessageDispatchesTheProducer(boolean clean) {

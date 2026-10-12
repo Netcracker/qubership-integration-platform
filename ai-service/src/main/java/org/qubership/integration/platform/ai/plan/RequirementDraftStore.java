@@ -172,7 +172,7 @@ public class RequirementDraftStore {
   /** Resolves a native finding to the same stable field used by revision admission. */
   public static String requirementRepairPath(RequirementDraft draft,
       org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding finding) {
-    if (finding == null || !finding.blocker()) return null;
+    if (finding == null || !finding.blocker() || finding.fieldPointer().isBlank()) return null;
     try {
       String path = finding.fieldPointer();
       if (path.startsWith("/draft/")) path = path.substring("/draft".length());
