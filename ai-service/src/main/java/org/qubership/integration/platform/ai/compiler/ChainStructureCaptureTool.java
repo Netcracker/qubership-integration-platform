@@ -111,6 +111,10 @@ public class ChainStructureCaptureTool {
     if (capture == null) {
       return finish(conversationId, startMs, "capture is required");
     }
+    if (editBase == null && !captureSession.isPresent(CaptureKey.conversation(CaptureSlot.CHAIN_STRUCTURE, conversationId))) {
+      feedbackStore.beginProposal(conversationId, CompilerGraphPatchTool.resolveCapabilityId(),
+          "captureChainStructure", capture);
+    }
     ChainStructure shaped;
     try {
       shaped = wholeGraphCapture(capture, editBase);

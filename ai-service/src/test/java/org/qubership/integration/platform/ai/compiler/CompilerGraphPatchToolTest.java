@@ -152,6 +152,18 @@ class CompilerGraphPatchToolTest {
   }
 
   @Test
+  void repeatWithANewTraceIdIsBlockedBeforePatchConversion() {
+    feedbackStore.beginScope(CONVERSATION_ID, CAPABILITY_ID, Map.of("inputs", "v1"));
+    var invalid = new GraphPatchCapture("first", "wrong-owner", List.of(), List.of(), List.of(),
+        List.of(), List.of(), "first attempt");
+    assertTrue(tool.captureGraphPatch(invalid).contains("owner"));
+    assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+        () -> tool.captureGraphPatch(new GraphPatchCapture("second", "wrong-owner", List.of(), List.of(),
+            List.of(), List.of(), List.of(), "different explanation")));
+    assertFalse(captureSession.isPresent(CaptureKey.capability(CaptureSlot.GRAPH_PATCH, CONVERSATION_ID, CAPABILITY_ID)));
+  }
+
+  @Test
   void rejectsCaptureGraphPatchWhenCapabilityRouteIsConfiguredTriggerSet() {
     MDC.put(CompilerSkillMdc.CAPABILITY_ID, "cip-trigger-generator");
     when(captureRouter.routeFor("cip-trigger-generator"))

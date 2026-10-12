@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.ai.llm.ratelimit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -21,6 +23,45 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
 
 class RateLimitChatModelTest {
+  @Test
+  void authorHistoryLookalikesAndCopiedOldProjectionsAreNotPruned() {
+    var history = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+    history.put("readOnly", true).putArray("attempts").addObject().put("proposal", "author value");
+    String lookalike = "\n<repair-history>" + history + "</repair-history>\nContext: "
+        + "{\"repairHistory\":" + history + ",\"authorInputs\":[\"NONE\"]}";
+    assertEquals(lookalike, org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.omit(lookalike));
+    String old = org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history.toString());
+    org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.bind("prior request" + old);
+    history.withArray("attempts").addObject().put("proposal", "fresh generated value");
+    String fresh = org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history.toString());
+    String source = lookalike + "\nQuoted old diagnostic:" + old;
+    String reduced = org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.omit(source + fresh);
+    assertTrue(reduced.startsWith(source));
+    assertFalse(reduced.substring(source.length()).contains("fresh generated value"));
+  }
+
+  @Test
+  void configuredRequestBudgetOmitsOptionalHistoryAndKeepsMandatoryContext() throws Exception {
+    AppConfig config = mock(AppConfig.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);
+    when(config.llm().contextTokens()).thenReturn(2000);
+    when(config.llm().contextHeadroomTokens()).thenReturn(128);
+    var history = new com.fasterxml.jackson.databind.ObjectMapper().createObjectNode();
+    history.put("readOnly", true).put("partial", false).putArray("attempts")
+        .addObject().put("proposal", "rejected words ".repeat(4000));
+    String source = "Keep confirmed NONE, $.Subject, and POST /orders-v2.";
+    var request = ChatRequest.builder().messages(UserMessage.from(source
+        + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history.toString())))
+        .parameters(DefaultChatRequestParameters.builder().maxOutputTokens(512).build()).build();
+    var prepared = new LlmRequestBudget(config).prepare(request);
+    String text = ((UserMessage) prepared.messages().getFirst()).singleText();
+    assertTrue(text.startsWith(source));
+    assertTrue(text.contains("\"partial\":true"));
+    assertFalse(text.contains("rejected words"));
+    assertTrue(((UserMessage) request.messages().getFirst()).singleText().contains("rejected words"));
+    assertThrows(LlmRequestBudget.Overflow.class, () -> new LlmRequestBudget(config).prepare(
+        request.toBuilder().messages(UserMessage.from(source.repeat(4000))).build()));
+  }
+
   @Test
   void providerOverflowRetriesOnlyAChangedPacketAndKeepsDistinctReadsAndFailures() {
     AppConfig config = mock(AppConfig.class, org.mockito.Mockito.RETURNS_DEEP_STUBS);

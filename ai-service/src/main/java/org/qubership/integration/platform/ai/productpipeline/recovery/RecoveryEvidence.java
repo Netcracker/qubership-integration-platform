@@ -18,9 +18,14 @@ public record RecoveryEvidence(
     List<SemanticFinding> findings,
     TechnicalFailureRecord technicalFailure,
     List<Reference> priorAttemptRefs,
-    List<String> documentRecordRefs) {
+    List<String> documentRecordRefs,
+    List<Reference> producerInputs,
+    List<String> authorInputIds,
+    boolean cleanRebuild) {
 
   public RecoveryEvidence {
+    producerInputs = producerInputs == null ? List.of() : List.copyOf(producerInputs);
+    authorInputIds = authorInputIds == null ? List.of() : List.copyOf(authorInputIds);
     if (schemaVersion != 1) {
       throw new IllegalArgumentException("schemaVersion must be 1");
     }
@@ -34,6 +39,16 @@ public record RecoveryEvidence(
     priorAttemptRefs = priorAttemptRefs == null ? List.of() : List.copyOf(priorAttemptRefs);
     documentRecordRefs =
         documentRecordRefs == null ? List.of() : List.copyOf(documentRecordRefs);
+  }
+
+  public RecoveryEvidence(int schemaVersion, String failureId, String observedCauseCode,
+      String observingStageId, String producerStageId, Reference approvedBriefRef,
+      Reference approvedSemanticRef, List<Reference> rejectedArtifactRefs,
+      List<SemanticFinding> findings, TechnicalFailureRecord technicalFailure,
+      List<Reference> priorAttemptRefs, List<String> documentRecordRefs) {
+    this(schemaVersion, failureId, observedCauseCode, observingStageId, producerStageId,
+        approvedBriefRef, approvedSemanticRef, rejectedArtifactRefs, findings, technicalFailure,
+        priorAttemptRefs, documentRecordRefs, List.of(), List.of(), false);
   }
 
   /**

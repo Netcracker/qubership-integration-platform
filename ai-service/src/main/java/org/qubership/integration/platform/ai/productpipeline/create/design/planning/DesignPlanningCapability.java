@@ -54,6 +54,10 @@ public class DesignPlanningCapability implements StageCapability {
   @Inject
   org.qubership.integration.platform.ai.llm.ratelimit.LlmRunBudget llmBudget;
 
+  @Inject
+  org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore captureFeedback =
+      new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+
   private static final Logger LOG = Logger.getLogger(DesignPlanningCapability.class);
 
   public static final String CAPABILITY_ID = "design-planning";
@@ -198,6 +202,10 @@ public class DesignPlanningCapability implements StageCapability {
               buildPlannerInput(ids, revision, release, brief),
               pinnedSkillHash,
               repairEvidenceText);
+      captureFeedback.beginScope(plannerRequest.conversationId(), CAPABILITY_ID, java.util.Map.of(
+          "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "revision", revision, "pin", pin),
+          context.conversationId());
+      captureFeedback.clearPlan(plannerRequest.conversationId());
       if (typedPlanner != null) {
         if (llmBudget != null) { llmBudget.linkConversation(context.runId(), plannerRequest.conversationId()); }
         TypedCipDesignPlannerAdapter.Result result =
@@ -250,6 +258,12 @@ public class DesignPlanningCapability implements StageCapability {
           projection,
           ex.recoveryCause());
     } catch (RuntimeException ex) {
+      if (ex instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException) {
+        return haltedSignal(StageOutcomeClass.CONTRACT_FAILURE, ex.getMessage(), contract, report, projection,
+            new org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause(
+                org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode.CONTRACT_SHAPE,
+                List.of(), "", true));
+      }
       if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(ex)) {
         StageOutcome technical = StageOutcome.technicalFailure(ex);
         return haltedSignal(technical.outcomeClass(), technical.message(), contract, report, projection,

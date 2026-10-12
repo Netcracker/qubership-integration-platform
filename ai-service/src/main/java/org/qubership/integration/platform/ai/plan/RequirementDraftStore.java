@@ -693,7 +693,48 @@ public class RequirementDraftStore {
     CaptureFactProtection source = factProtection(conversationId, List.of());
     saveCaptureAttempt(conversationId, new RequirementCaptureAttempt(source.sourceGeneration(), source.sourceTurnId(),
         source.authorText(), captureMutationScope(conversationId), toolName,
-        arguments, result.accepted(), result.issues(), result.revision()));
+        arguments, result.accepted(), result.issues(), result.revision(), repairAuthority(conversationId)));
+  }
+
+  private String repairAuthority(String conversationId) {
+    return org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(
+        org.qubership.integration.platform.ai.productpipeline.create.ProductCapabilityCaptureContext.binding(conversationId)
+            .map(binding -> java.util.Map.of("requirements", binding.requirementRepairPaths(),
+                "mappings", binding.mappingRepairPaths(), "mode", binding.mode().name()))
+            .orElse(java.util.Map.of()));
+  }
+
+  Optional<RequirementCaptureAttempt> rejectedProposal(String conversationId, String toolName, Object arguments) {
+    if (!currentSource(conversationId) || arguments == null
+        || latestCaptureAttempt(conversationId).filter(attempt -> "reset".equals(attempt.toolName())).isPresent()) {
+      return Optional.empty();
+    }
+    var source = factProtection(conversationId, List.of());
+    var base = latestRevision(conversationId).map(Revision::reference).orElse(null);
+    String digest = org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(arguments);
+    return sessions.current(conversationId).stream()
+        .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
+        .map(revision -> artifacts.payload(revision, RequirementCaptureAttempt.class))
+        .filter(attempt -> !attempt.accepted() && toolName.equals(attempt.toolName()))
+        .filter(attempt -> new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(),
+            attempt.authorText(), List.of()).sameSource(source))
+        .filter(attempt -> Objects.equals(attempt.acceptedDraftReference(), base))
+        .filter(attempt -> Objects.equals(attempt.repairAuthority(), repairAuthority(conversationId)))
+        .filter(attempt -> digest.equals(org.qubership.integration.platform.ai.compiler.capture.CaptureProposal.digest(attempt.arguments())))
+        .findFirst();
+  }
+
+  public String rejectedProposalHistory(String conversationId) {
+    var source = factProtection(conversationId, List.of());
+    var attempts = sessions.current(conversationId).stream()
+        .flatMap(link -> artifacts.history(link.compilationId(), Kind.REQUIREMENT_CAPTURE_ATTEMPT).stream())
+        .map(revision -> artifacts.payload(revision, RequirementCaptureAttempt.class))
+        .filter(attempt -> !attempt.accepted())
+        .filter(attempt -> new CaptureFactProtection(attempt.sourceGeneration(), attempt.sourceTurnId(),
+            attempt.authorText(), List.of()).sameSource(source))
+        .map(attempt -> (com.fasterxml.jackson.databind.JsonNode) new ObjectMapper().valueToTree(attempt)).toList();
+    return attempts.isEmpty() ? "" : org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory
+        .projectValues(attempts, new ObjectMapper(), org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.CHAR_BUDGET).toString();
   }
 
   private Optional<RequirementCaptureAttempt> latestCaptureAttempt(String conversationId) {
@@ -722,7 +763,14 @@ public class RequirementDraftStore {
 
   public record RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
       String mutationScope, String toolName, Object arguments, boolean accepted,
-      List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference) {
+      List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference, String repairAuthority) {
+    public RequirementCaptureAttempt(String sourceGeneration, String sourceTurnId, String authorText,
+        String mutationScope, String toolName, Object arguments, boolean accepted,
+        List<RequirementCaptureResult.CaptureIssue> issues, Reference acceptedDraftReference) {
+      this(sourceGeneration, sourceTurnId, authorText, mutationScope, toolName, arguments, accepted,
+          issues, acceptedDraftReference, "");
+    }
+
     public RequirementCaptureAttempt {
       issues = List.copyOf(issues);
     }

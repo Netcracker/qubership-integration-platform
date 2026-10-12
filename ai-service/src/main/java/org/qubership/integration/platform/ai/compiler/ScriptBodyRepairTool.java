@@ -148,6 +148,9 @@ public class ScriptBodyRepairTool {
     CaptureKey key =
         CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR, conversationId, capabilityId);
     ChainPlanGraph base = resolveBaseGraph(conversationId, capabilityId);
+    if (!captureSession.isPresent(key) && base != null) {
+      feedbackStore.beginProposal(conversationId, capabilityId, "repairScriptBodies", capture, base);
+    }
     if (base == null) {
       return recordFailure(conversationId, capabilityId, "CHAIN_PLAN_GRAPH is required");
     }

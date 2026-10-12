@@ -63,6 +63,8 @@ public class HttpTriggerCaptureTool {
         CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, conversationId))) {
       return rejected("DUPLICATE_CAPTURE", "/", "HTTP triggers already captured.", true);
     }
+    feedbackStore.beginProposal(conversationId, CompilerGraphPatchTool.resolveCapabilityId(),
+        "captureHttpTriggers", capture);
     try {
       String result = configuredTool.captureConfiguredTriggerSet(adapter.adapt(capture, binding));
       return rejected("TRIGGER_VALIDATION", "/endpoints", result, false);

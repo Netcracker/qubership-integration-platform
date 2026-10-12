@@ -100,6 +100,11 @@ public class ChainPlanTool {
         return finish(conversationId, startMs, message);
       }
 
+      if (!captureSession.isPresent(CaptureKey.conversation(CaptureSlot.CHAIN_PLAN, conversationId))) {
+        feedbackStore.beginProposal(conversationId,
+            org.qubership.integration.platform.ai.compiler.CompilerGraphPatchTool.resolveCapabilityId(),
+            "captureChainPlan", graph);
+      }
       ChainPlanGraph chainPlanGraph =
           validator.normalizeMissingSiblingExecutionEdges(toChainPlanGraph(graph));
 

@@ -903,6 +903,7 @@ public class RequirementAnalysisCapability implements StageCapability {
     if (repair.recoveryEvidenceRef() != null && !repair.recoveryEvidenceRef().isBlank()) {
       sb.append("- recoveryEvidenceRef: ").append(repair.recoveryEvidenceRef().trim()).append('\n');
     }
+    sb.append(org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(repair.repairHistoryJson()));
     if (!repair.proposedBriefChanges().isEmpty()) {
       sb.append(
           "Proposed brief corrections (do not invent values when authorDecisionRequired is"
@@ -956,7 +957,7 @@ public class RequirementAnalysisCapability implements StageCapability {
         shared.haltFollowUpText(),
         shared.recoveryEvidenceRef(),
         proposedBriefChanges(context),
-        prior == null ? "" : RequirementBriefText.format(prior));
+        prior == null ? "" : RequirementBriefText.format(prior), shared.repairHistoryJson());
   }
 
   private static List<ProposedBriefChange> proposedBriefChanges(StageExecutionContext context) {
@@ -1041,7 +1042,14 @@ public class RequirementAnalysisCapability implements StageCapability {
       String haltFollowUpText,
       String recoveryEvidenceRef,
       List<ProposedBriefChange> proposedBriefChanges,
-      String priorBriefText) {
+      String priorBriefText, String repairHistoryJson) {
+
+    BriefRepairEvidence(String outcomeClass, String failedStageId, String findings, String errorEvidence,
+        String haltFollowUpText, String recoveryEvidenceRef, List<ProposedBriefChange> proposedBriefChanges,
+        String priorBriefText) {
+      this(outcomeClass, failedStageId, findings, errorEvidence, haltFollowUpText, recoveryEvidenceRef,
+          proposedBriefChanges, priorBriefText, "");
+    }
 
     BriefRepairEvidence {
       proposedBriefChanges =

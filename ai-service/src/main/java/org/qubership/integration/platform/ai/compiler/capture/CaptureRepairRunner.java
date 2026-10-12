@@ -351,7 +351,8 @@ public class CaptureRepairRunner {
     repairsByFailure.put(failureKey, used + 1);
     String repairMessage =
         repairMessageFactory != null
-            ? QuteUserMessageEscaping.escapeForAiServiceUserMessage(repairMessageFactory.apply(failure.get()))
+            ? QuteUserMessageEscaping.escapeForAiServiceUserMessage(repairMessageFactory.apply(failure.get())
+                + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(failure.get().repairHistoryJson()))
             : initialUserMessage + "\n\n"
                 + QuteUserMessageEscaping.escapeForAiServiceUserMessage(messageBuilder.build(failure.get(), captureToolName));
     LOG.infof(

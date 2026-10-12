@@ -72,6 +72,10 @@ public class DesignInputCapability implements StageCapability {
   private final BiFunction<String, String, Multi<String>> designRunner;
 
   @Inject
+  org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore captureFeedback =
+      new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
+
+  @Inject
   org.qubership.integration.platform.ai.compiler.capture.ChatMemorySanitizer chatMemorySanitizer;
 
   @Inject
@@ -222,10 +226,16 @@ public class DesignInputCapability implements StageCapability {
           }
         });
     CompilerContract contract = contractRepository.require(CompilerContract.V1);
+    captureFeedback.beginScope(captureConversationId, CAPABILITY_ID, java.util.Map.of(
+        "runId", context.runId(), "inputs", context.inputRefs(), "brief", brief, "contract", contract),
+        context.conversationId());
+    captureFeedback.clearPlan(captureConversationId);
+    String history = captureFeedback.repairHistory(captureConversationId, CAPABILITY_ID);
     String agentText;
     try {
       agentText =
-          runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context));
+          runDesignAgent(captureConversationId, authoringPrompt(brief, contract, context)
+              + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(history));
       ProductCapabilityCaptureContext.designBinding(captureConversationId).ifPresent(binding -> {
         rejection.set(binding.captureRejection().get());
         terminalRejection.set(binding.captureTerminal().get());
@@ -253,7 +263,8 @@ public class DesignInputCapability implements StageCapability {
           new RecoveryCause(
               RecoveryCauseCode.CONTRACT_SHAPE,
               List.of(new PlanValidationFinding("CONTRACT_SHAPE", message, true)),
-              ""));
+              "", captureFeedback.lastPlanFailure(captureConversationId)
+                  .map(org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedback::noProgress).orElse(false)));
     }
     IdsDocument ids = idsRenderer.render(revision, contract, brief);
     // The stage carries no approval policy of its own: the topology is approved together with the

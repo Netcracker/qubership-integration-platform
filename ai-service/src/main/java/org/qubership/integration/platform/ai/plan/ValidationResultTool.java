@@ -79,6 +79,9 @@ public class ValidationResultTool {
         return finish(conversationId, startMs, message);
       }
 
+      if (!captureSession.isPresent(CaptureKey.conversation(CaptureSlot.VALIDATION_RESULT, conversationId))) {
+        feedbackStore.beginProposal(conversationId, capabilityId, "captureValidationResult", capture);
+      }
       String validationError = validateCapture(capture);
       if (validationError != null) {
         String message = repairMessageBuilder.validationResultMessage(validationError);

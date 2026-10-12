@@ -268,8 +268,16 @@ public class CompilerSkillRuntime {
     CompilerSkillInputSnapshot snapshot = contextBuilder.snapshotFromWorkspace(workspace);
     snapshot = overlayMappingGenerationContext(conversationId, capabilityId, snapshot);
     GeneratorPlan activePlan = readActivePlan(workspace, capabilityId);
+    if (snapshot.editContext() == null || snapshot.editContext().isBlank()) {
+      feedbackStore.beginScope(conversationId, capabilityId, java.util.Map.of(
+          "inputs", snapshot, "contract", document, "runId", context.runId()));
+    } else {
+      feedbackStore.endScope(conversationId, capabilityId);
+    }
     String userMessage = buildUserMessage(conversationId, document, snapshot, activePlan, route);
     userMessage += context.repairEvidence();
+    userMessage += org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(
+        feedbackStore.repairHistory(conversationId, capabilityId));
     HttpTriggerCaptureSession.unbind(conversationId);
     if (route.captureTool() == CaptureTool.CAPTURE_CONFIGURED_TRIGGER_SET) {
       var revision = workspace.get(SkillArtifactType.CHAIN_SEMANTIC_REVISION)
@@ -343,7 +351,7 @@ public class CompilerSkillRuntime {
       return SkillExecutionResult.failed(e.getMessage());
     }
 
-    return switch (route.captureTool()) {
+    SkillExecutionResult result = switch (route.captureTool()) {
       case CAPTURE_SELECTED_PATTERN ->
           finishPatternAndSkeleton(context.conversationId(), capabilityId);
       case CAPTURE_NAMING_MANIFEST ->
@@ -354,6 +362,18 @@ public class CompilerSkillRuntime {
           finishStructure(context.conversationId(), capabilityId);
       default -> finishExistingRoute(context, capabilityId, workspace, route, document.phase());
     };
+    if (result.status() != org.qubership.integration.platform.ai.skill.executor.SkillRunStatus.FAILED) {
+      return result;
+    }
+    var failure = feedbackStore.lastPatchFailure(context.conversationId(), capabilityId)
+        .or(() -> feedbackStore.lastValidationFailure(context.conversationId(), capabilityId))
+        .or(() -> feedbackStore.lastPlanFailure(context.conversationId()));
+    if (failure.isPresent() && failure.get().noProgress()) {
+      throw new org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException(
+          "contract failure: skill did not complete " + context.skillId() + " status=FAILED: " + result.message());
+    }
+    return new SkillExecutionResult(result.status(), result.outputs(), result.message(),
+        failure.map(CaptureAttemptFeedback::outerAllowed).orElse(true));
   }
 
   private SkillExecutionResult finishExistingRoute(
@@ -998,11 +1018,14 @@ public class CompilerSkillRuntime {
     if (draft == null || feedbackStore.lastPlanFailure(conversationId).isEmpty()) {
       return Multi.createFrom().empty();
     }
+    var failure = feedbackStore.lastPlanFailure(conversationId).orElseThrow();
+    if (!failure.outerAllowed()) { return Multi.createFrom().empty(); }
     List<ChainPlanRepairIssue> issues = graphValidator.diagnoseForRepair(draft);
     if (issues.isEmpty()) {
       return Multi.createFrom().empty();
     }
-    String repairMessage = buildPlanRepairMessage(issues);
+    String repairMessage = buildPlanRepairMessage(issues)
+        + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(failure.repairHistoryJson());
     LOG.infof(
         "Plan repair retry conversationId=%s repairIndex=%d issues=%d",
         conversationId,
@@ -1018,8 +1041,7 @@ public class CompilerSkillRuntime {
         .recoverWithMulti(
             error -> {
               if (isCaptureValidationFailure(error)) {
-                // IDENTICAL_SPAM CVE ends the repair-agent turn; chain to the next dedicated
-                // outer when budget remains (same role as CaptureRepairRunner CVE recover).
+                // Successful capture is harvested; the next dispatch checks outer permission.
                 return Multi.createFrom().empty();
               }
               return Multi.createFrom().failure(error);

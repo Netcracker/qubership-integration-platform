@@ -81,6 +81,9 @@ public class ChainPlanRepairTool {
     if (draft == null) {
       return "No invalid chain plan draft is available for repair.";
     }
+    feedbackStore.beginProposal(conversationId,
+        org.qubership.integration.platform.ai.compiler.CompilerGraphPatchTool.resolveCapabilityId(),
+        "repairChainPlanPatch", patch, draft);
     if (patch == null || patch.edgePatches() == null || patch.edgePatches().isEmpty()) {
       return recordFailure(conversationId, "Plan repair failed: edgePatches are required.");
     }
