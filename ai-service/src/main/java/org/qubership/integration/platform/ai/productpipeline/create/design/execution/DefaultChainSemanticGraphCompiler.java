@@ -702,7 +702,7 @@ public class DefaultChainSemanticGraphCompiler implements ChainSemanticGraphComp
         if (binding == null) {
           continue;
         }
-        addProperty(extraByNode, trigger.nodeId(), "systemType", "INTEGRATION");
+        addProperty(extraByNode, trigger.nodeId(), "systemType", "IMPLEMENTED");
         addProperty(extraByNode, trigger.nodeId(), "integrationSystemId", binding.systemId());
         addProperty(
             extraByNode,

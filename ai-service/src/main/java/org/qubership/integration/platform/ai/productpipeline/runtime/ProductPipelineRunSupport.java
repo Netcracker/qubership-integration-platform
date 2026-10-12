@@ -2069,6 +2069,9 @@ public final class ProductPipelineRunSupport {
               if (asked.isUnanswerable()) {
                 return showUnanswerableHalt(doc, command, priorFollowUp);
               }
+              if (asked.isRequirementChange()) {
+                return reopenRequirementDraft(doc, command, selectedRequirementBriefReference(doc));
+              }
               if (asked.isNotAQuestion()) {
                 String gate =
                     PipelineGates.gateOf(latestWaitingForInputPrompt(doc)).orElse("");
