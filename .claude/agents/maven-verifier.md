@@ -25,27 +25,28 @@ git diff --name-only HEAD
 
 Map each path to its module — the top-level directory is the module name:
 
-| Path prefix | Module | Note |
-|---|---|---|
-| `engine/` | engine | Spring Boot |
-| `micro-engine/` | micro-engine | Quarkus; slowest suite by far |
+| Path prefix | Module | Note                                                                     |
+|---|---|--------------------------------------------------------------------------|
+| `engine/` | engine | Spring Boot                                                              |
+| `micro-engine/` | micro-engine | Quarkus; slowest suite by far                                            |
 | `runtime-catalog/` | runtime-catalog | ANTLR sources regenerate on build; depends on integration-build-pipeline |
-| `sessions-management/` | sessions-management | |
-| `integration-build-pipeline/` | integration-build-pipeline | chain compilation; runtime-catalog and the Maven plugin consume it |
-| `integration-build-maven-plugin/` | integration-build-maven-plugin | depends on integration-build-pipeline |
-| `parents/` | parents | parent POMs; affect every module |
-| `bom/` | bom | lists module versions; no module depends on it |
-| `checkstyle/` | checkstyle | shared rules; affects every module |
+| `sessions-management/` | sessions-management |                                                                          |
+| `integration-build-pipeline/` | integration-build-pipeline | chain compilation; runtime-catalog and the Maven plugin consume it       |
+| `integration-build-maven-plugin/` | integration-build-maven-plugin | depends on integration-build-pipeline                                    |
+| `parents/` | parents | parent POMs; affect every module                                         |
+| `bom/` | bom | lists module versions; no module depends on it                           |
 
 Decide how much to build:
 
 - **No Maven module touched** — report "nothing to verify" and stop.
 - **Only `*.md` under a module** — stop the same way.
-- **One module touched** — build that module alone, without `-am`. Its dependencies are already installed in `~/.m2`.
+- **One module touched** — build that module alone, without `-am`. Its dependencies are
+  already installed in `~/.m2`.
 - **`integration-build-pipeline/` touched** — verify it together with its consumer:
   `-pl integration-build-pipeline,runtime-catalog`. Without it in the reactor, runtime-catalog
   compiles against the library version in `~/.m2`, not against the change.
-- **`parents/` or `checkstyle/` touched** — these change every downstream module. Install them first, then verify the modules that matter to the caller:
+- **`parents/` or `checkstyle/` touched** — these change every downstream module. Install
+  them first, then verify the modules that matter to the caller:
   `mvn -q -pl parents/base,parents/spring,parents/quarkus,checkstyle install -Dgpg.skip=true`.
 - **Several modules touched** — pass them together: `-pl engine,runtime-catalog`.
 
@@ -122,10 +123,6 @@ Not every red build is a code problem:
 - **Checkstyle violations** — these fail at `compile`, before any test runs. Report the
   rule and the file; the module's own `checkstyle-suppressions.xml` covers local
   exceptions if one is genuinely warranted.
-- **`Could not resolve` an in-repo `-SNAPSHOT` artifact** (`qip-monorepo-parent`,
-  `qip-checkstyle`, `qip-integration-build-pipeline`) — `~/.m2` is behind the checkout: `main`
-  bumped that module, and a fresh worktree has never built it. Retry once with `-am`, which
-  builds it in the reactor; never install to make it resolve.
 - **Missing dependency after a `parents/` change** — install the parent POMs and `checkstyle`
   first, then retry once.
 
