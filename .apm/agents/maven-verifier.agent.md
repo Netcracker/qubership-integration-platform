@@ -1,6 +1,6 @@
 ---
 name: maven-verifier
-description: Verify changes in any Maven module of the monorepo (engine, micro-engine, runtime-catalog, sessions-management, parents, bom, checkstyle) by compiling and testing only the affected module. Use after editing Java sources, POMs, or resources under those modules, or when asked whether backend changes still build. Returns a verdict with the failing output; it does not fix anything.
+description: Verify changes in any Maven module of the monorepo (engine, micro-engine, runtime-catalog, sessions-management, integration-build-pipeline, integration-build-maven-plugin, parents, bom, checkstyle) by compiling and testing only the affected module. Use after editing Java sources, POMs, or resources under those modules, or when asked whether backend changes still build. Returns a verdict with the failing output; it does not fix anything.
 tools: Bash, Read, Grep, Glob
 ---
 
@@ -25,15 +25,16 @@ git diff --name-only HEAD
 
 Map each path to its module — the top-level directory is the module name:
 
-| Path prefix | Module | Tests | Note |
-|---|---|---|---|
-| `engine/` | engine | 12 | Spring Boot |
-| `micro-engine/` | micro-engine | 246 | Quarkus; slowest suite by far |
-| `runtime-catalog/` | runtime-catalog | 85 | ANTLR sources regenerate on build |
-| `sessions-management/` | sessions-management | 2 | |
-| `parents/` | parents | — | parent POMs; affect every module |
-| `bom/` | bom | — | lists module versions; no module depends on it |
-| `checkstyle/` | checkstyle | — | shared rules; affects every module |
+| Path prefix | Module | Note                                                                     |
+|---|---|--------------------------------------------------------------------------|
+| `engine/` | engine | Spring Boot                                                              |
+| `micro-engine/` | micro-engine | Quarkus; slowest suite by far                                            |
+| `runtime-catalog/` | runtime-catalog | ANTLR sources regenerate on build; depends on integration-build-pipeline |
+| `sessions-management/` | sessions-management |                                                                          |
+| `integration-build-pipeline/` | integration-build-pipeline | chain compilation; runtime-catalog and the Maven plugin consume it       |
+| `integration-build-maven-plugin/` | integration-build-maven-plugin | depends on integration-build-pipeline                                    |
+| `parents/` | parents | parent POMs; affect every module                                         |
+| `bom/` | bom | lists module versions; no module depends on it                           |
 
 Decide how much to build:
 
@@ -41,6 +42,9 @@ Decide how much to build:
 - **Only `*.md` under a module** — stop the same way.
 - **One module touched** — build that module alone, without `-am`. Its dependencies are
   already installed in `~/.m2`.
+- **`integration-build-pipeline/` touched** — verify it together with its consumer:
+  `-pl integration-build-pipeline,runtime-catalog`. Without it in the reactor, runtime-catalog
+  compiles against the library version in `~/.m2`, not against the change.
 - **`parents/` or `checkstyle/` touched** — these change every downstream module. Install
   them first, then verify the modules that matter to the caller:
   `mvn -q -pl parents/base,parents/spring,parents/quarkus,checkstyle install -Dgpg.skip=true`.
@@ -89,15 +93,20 @@ find runtime-catalog/src/test -name 'ChainService*Test.java'
 Fall back to the module's full suite when a change reaches shared code — a mapper, an
 entity, a Flyway migration, anything under `common/` — and say that you did.
 
-For `micro-engine`, prefer `-Dtest=` scoping whenever the change allows it. Its 246 tests
+With `-am`, `test` runs the suites of the upstream modules too. Scope it with
+`-Dtest=<Class> -Dsurefire.failIfNoSpecifiedTests=false`, which skips modules that have no
+matching test.
+
+For `micro-engine`, prefer `-Dtest=` scoping whenever the change allows it. Its tests
 run on Quarkus and dominate the wall-clock time of any full-module run.
 
 ## 3. What not to run
 
 - `mvn clean` — it discards `target/` and forces a full recompile. Use it only when a
   build failure looks stale, such as ANTLR or MapStruct sources that no longer match.
-- `mvn install` on a module you are only verifying — `test` stops before packaging and
-  before touching `~/.m2`.
+- `mvn install` — `test` stops before packaging and before touching `~/.m2`. An installed
+  snapshot is shared with every other checkout and worktree on the machine, and another
+  session then builds against your branch without knowing it.
 - The whole aggregator (`mvn clean install` at the root) — minutes of work to check one
   module.
 - `-am` when only the module's own sources changed. It pulls the parent POMs and
