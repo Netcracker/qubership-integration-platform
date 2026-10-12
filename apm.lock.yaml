@@ -161,15 +161,6 @@ deployments:
   content_hash: sha256:2da9f6889756beb319a6395f3f363826d144b9b48c97d742cfd1a89ce0017d58
 - kind: project-relative
   target: claude
-  value: .claude/rules/go-module.md
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:4823920c4373e02f4d370fbd6b483e094df46480b80b59653f321636fe14d92a
-- kind: project-relative
-  target: claude
   value: .claude/rules/infrastructure.md
   runtime: null
   scope: project
@@ -194,7 +185,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:46869a8b4ca9c42e9aeb212ed66154fa9fcc122102fb83dcce079d200a9fe877
+  content_hash: sha256:d11596d10eedb3ffb86cf48e054e09b8c9af84ae53df4537e3e086c5cce26e7b
 - kind: project-relative
   target: claude
   value: .claude/rules/qip-working-agreements.md
@@ -240,6 +231,15 @@ deployments:
   - .
   active_owner: .
   content_hash: sha256:44a6efa4c0b06ee30ea7edf176a1c42767bc4045b0be002a021b117f1f7d03a2
+- kind: project-relative
+  target: claude
+  value: .claude/rules/testing-service.md
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:caa2aed08c3ca28b6390574364b9893b6bfc3b0c7f1a3e25f40f2cb67407e235
 - kind: project-relative
   target: claude
   value: .claude/rules/ui-api-and-utilities.md
@@ -737,15 +737,6 @@ deployments:
   content_hash: sha256:e6e830aa5469bcadacd7019c0421f84af09889e16db8a1225f2ad6f34a748fa9
 - kind: project-relative
   target: cursor
-  value: .cursor/rules/go-module.mdc
-  runtime: null
-  scope: project
-  owners:
-  - .
-  active_owner: .
-  content_hash: sha256:8e5541438358c61637f3bf6dc16443d7e1a55773cfb4e5d5c1e9a35114840237
-- kind: project-relative
-  target: cursor
   value: .cursor/rules/infrastructure.mdc
   runtime: null
   scope: project
@@ -770,7 +761,7 @@ deployments:
   owners:
   - .
   active_owner: .
-  content_hash: sha256:170abd896e41342031755d2500dbe69adc09cef6bca77a6ce121dd6cd15a5bea
+  content_hash: sha256:10895deca16b8a6326e5c3ac75b429e7092fe7a2216745b2522d174c9219b566
 - kind: project-relative
   target: cursor
   value: .cursor/rules/qip-working-agreements.mdc
@@ -816,6 +807,15 @@ deployments:
   - .
   active_owner: .
   content_hash: sha256:9418a601f82ff328ff99463908f96385acb0bc0ff47b6725309e77b61918034f
+- kind: project-relative
+  target: cursor
+  value: .cursor/rules/testing-service.mdc
+  runtime: null
+  scope: project
+  owners:
+  - .
+  active_owner: .
+  content_hash: sha256:eab55d3a45904d98ef98e855a8e70e5423c5639586981466b7806823b5eb10f7
 - kind: project-relative
   target: cursor
   value: .cursor/rules/ui-api-and-utilities.mdc
@@ -1198,7 +1198,6 @@ local_deployed_files:
 - .claude/rules/docs-authoring.md
 - .claude/rules/e2e.md
 - .claude/rules/engine.md
-- .claude/rules/go-module.md
 - .claude/rules/infrastructure.md
 - .claude/rules/micro-engine.md
 - .claude/rules/monorepo.md
@@ -1207,6 +1206,7 @@ local_deployed_files:
 - .claude/rules/schemas.md
 - .claude/rules/sessions-management.md
 - .claude/rules/sonar-triage.md
+- .claude/rules/testing-service.md
 - .claude/rules/ui-api-and-utilities.md
 - .claude/rules/ui-component-patterns.md
 - .claude/rules/ui-core-development.md
@@ -1248,7 +1248,6 @@ local_deployed_files:
 - .cursor/rules/docs-authoring.mdc
 - .cursor/rules/e2e.mdc
 - .cursor/rules/engine.mdc
-- .cursor/rules/go-module.mdc
 - .cursor/rules/infrastructure.mdc
 - .cursor/rules/micro-engine.mdc
 - .cursor/rules/monorepo.mdc
@@ -1257,6 +1256,7 @@ local_deployed_files:
 - .cursor/rules/schemas.mdc
 - .cursor/rules/sessions-management.mdc
 - .cursor/rules/sonar-triage.mdc
+- .cursor/rules/testing-service.mdc
 - .cursor/rules/ui-api-and-utilities.mdc
 - .cursor/rules/ui-component-patterns.mdc
 - .cursor/rules/ui-core-development.mdc
@@ -1290,15 +1290,15 @@ local_deployed_file_hashes:
   .claude/rules/docs-authoring.md: sha256:fb65f291a143c58e0b76a52a24d792a6f7a54c35813548e5d378341df89be806
   .claude/rules/e2e.md: sha256:8218a65be379f2fc2615a8513b11461ec4d501eef52ada4fc72881967cc13ebb
   .claude/rules/engine.md: sha256:cbfa9096d6c97043ebbef90b567bb92f081cf11779eb826a2ca74bdd35de1cbc
-  .claude/rules/go-module.md: sha256:4823920c4373e02f4d370fbd6b483e094df46480b80b59653f321636fe14d92a
   .claude/rules/infrastructure.md: sha256:9667e41646ab42c3c02817a2d428fa076dadfd56655f3370b8de4ea01f279c77
   .claude/rules/micro-engine.md: sha256:cf5712421da78f3dae66c9c42978b766706f0dd3d7605830d2646948843263bb
-  .claude/rules/monorepo.md: sha256:46869a8b4ca9c42e9aeb212ed66154fa9fcc122102fb83dcce079d200a9fe877
+  .claude/rules/monorepo.md: sha256:d11596d10eedb3ffb86cf48e054e09b8c9af84ae53df4537e3e086c5cce26e7b
   .claude/rules/qip-working-agreements.md: sha256:72257161852f5f17451a59e3f6c816f49cdbdf8da37b39b3b82840e2fd30b799
   .claude/rules/runtime-catalog.md: sha256:576ea1f9123f6ddfd78a6d97728594b68d795e04c7a3457a09eac4ee62db362a
   .claude/rules/schemas.md: sha256:840097735d1b806108391f21948dbb663cf5049279ad803f8c30045c07bdad01
   .claude/rules/sessions-management.md: sha256:19fdfdc27c5301233ae25983b21976246d2298f523e191ac0559bb9cb8e59f8f
   .claude/rules/sonar-triage.md: sha256:44a6efa4c0b06ee30ea7edf176a1c42767bc4045b0be002a021b117f1f7d03a2
+  .claude/rules/testing-service.md: sha256:caa2aed08c3ca28b6390574364b9893b6bfc3b0c7f1a3e25f40f2cb67407e235
   .claude/rules/ui-api-and-utilities.md: sha256:71aa40132c92c5861e02877fac639503defe750689e9b5019420180c9dda9a94
   .claude/rules/ui-component-patterns.md: sha256:6ea0cf80626c5e7a78b5d8e36ee5817cfdc8266afcf32b76c85e69d6702ffe1a
   .claude/rules/ui-core-development.md: sha256:c42c9e14a47aa880f644e2bcdb76e08c284cb4e2b336143fb364393d3640d9c3
@@ -1328,15 +1328,15 @@ local_deployed_file_hashes:
   .cursor/rules/docs-authoring.mdc: sha256:04274aa51cc097ea37ababc82b6fe050cbfb15dc4fff8bc37b81e50f2568f52c
   .cursor/rules/e2e.mdc: sha256:670b3f8fc0bbac427f6a08086a3c4ff6f1ae14ad0ee5c9db624c915eeca6637f
   .cursor/rules/engine.mdc: sha256:54766be92b6ee3275dddda3e65ac1fb0647d58de9b02dc8f3baa471b1ecbd251
-  .cursor/rules/go-module.mdc: sha256:8e5541438358c61637f3bf6dc16443d7e1a55773cfb4e5d5c1e9a35114840237
   .cursor/rules/infrastructure.mdc: sha256:adc7a4c41f95e0afa58ee18362c61efd9e8c7d3d62de1e15500f5b11df550ced
   .cursor/rules/micro-engine.mdc: sha256:e5cb84edf324e260668f4fa95e299cfdff96b9998402f491973286c6a6fddf38
-  .cursor/rules/monorepo.mdc: sha256:170abd896e41342031755d2500dbe69adc09cef6bca77a6ce121dd6cd15a5bea
+  .cursor/rules/monorepo.mdc: sha256:10895deca16b8a6326e5c3ac75b429e7092fe7a2216745b2522d174c9219b566
   .cursor/rules/qip-working-agreements.mdc: sha256:f4f9c8835673f5ed8a17fc3c591dc8ae5aea3982220ff0e82262d9ac1aa41c11
   .cursor/rules/runtime-catalog.mdc: sha256:960622b3b32bc3ff454511703ace54cc6538e93b11dd2ad1bfc72581891f7e9c
   .cursor/rules/schemas.mdc: sha256:550a3c1971d34b0bedb9f6f465f92de70a46595328df817add3479a08c2a80da
   .cursor/rules/sessions-management.mdc: sha256:b220ea14779526d9b8e6086786fca35fb0b72678cd34a4e3d2daacfa921009cf
   .cursor/rules/sonar-triage.mdc: sha256:9418a601f82ff328ff99463908f96385acb0bc0ff47b6725309e77b61918034f
+  .cursor/rules/testing-service.mdc: sha256:eab55d3a45904d98ef98e855a8e70e5423c5639586981466b7806823b5eb10f7
   .cursor/rules/ui-api-and-utilities.mdc: sha256:e1b232abf03edbf1951c220f12f596196290d597c22b9f621a773ccdeccc229d
   .cursor/rules/ui-component-patterns.mdc: sha256:76a996d7be248cf8d24fd46010eee39d9dc92bf8bd094eabf5e364412824c867
   .cursor/rules/ui-core-development.mdc: sha256:93c3440760f98198a68415de3658347c254dd4be05ed3cd7e096cd3eb3347e2a
