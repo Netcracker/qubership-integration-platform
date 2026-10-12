@@ -59,7 +59,7 @@ if (!fs.existsSync(qipSchemasAssets)) {
 }
 
 // The integration tests read both through `require.context`, which takes a literal path.
-const qipModelDir = path.resolve(__dirname, '../schemas/src/main/resources/qip-model');
+const confModelDir = path.resolve(__dirname, '../schemas/src/main/resources/conf-model');
 const goldenDir = path.resolve(__dirname, 'src/web/test/golden');
 
 /** @type WebpackConfig */
@@ -100,7 +100,7 @@ const webExtensionConfig = {
         }, {
             // The document schemas the integration tests validate saved files against, bundled as text.
             test: /\.schema\.yaml$/,
-            include: qipModelDir,
+            include: confModelDir,
             type: 'asset/source'
         }, {
             // The files the integration tests expect the extension to write, bundled as text.

@@ -1,7 +1,7 @@
 /**
  * Reads the element schemas and reports the discriminator axes each one declares.
  *
- * The source of truth is `schemas/src/main/resources/qip-model/element/`, not `schemas/assets/`.
+ * The source of truth is `schemas/src/main/resources/conf-model/element/`, not `schemas/assets/`.
  * `assets/` is a build output — `schemas/.gitignore` lists it, nothing tracks it, and it holds
  * whatever the last `npm -w @netcracker/qip-schemas run build` produced. A gap detector reading it
  * would go stale the moment somebody adds an axis and does not rebuild.
@@ -20,7 +20,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The tree every `SCHEMA_BASE_URL` id resolves into, as `<id path>.schema.yaml`. */
 export const QIP_MODEL_DIR = path.resolve(
   HERE,
-  "../../schemas/src/main/resources/qip-model",
+  "../../schemas/src/main/resources/conf-model",
 );
 
 /** The canonical element schemas. A caller may point the extractor somewhere else. */
