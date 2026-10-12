@@ -282,9 +282,12 @@ export interface EngineDomainView extends Named {
 
 /** One row of `GET /v1/catalog/domains/{d}/engines`, which Compose never produces. */
 export interface EnginePodView {
-  id?: string;
-  name?: string;
-  ip?: string;
+  id: string;
+  name: string;
+  host: string;
+  runningStatus: string;
+  ready: boolean;
+  namespace: string;
 }
 
 /** One row of `GET /v1/catalog/domains/{d}/engines/{host}/deployments`. */
