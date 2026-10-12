@@ -28,6 +28,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
   item2,
   editable1,
   editable2,
+  className,
   ...rest
 }): React.ReactNode => {
   const [i1, setI1] = useState<ComparableItem>(item1);
@@ -47,7 +48,12 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
   return isLoading ? (
     <Spin className={styles.loader} size={"large"}></Spin>
   ) : (
-    <Flex {...rest} vertical gap={8}>
+    <Flex
+      {...rest}
+      className={[className, styles.root].filter(Boolean).join(" ")}
+      vertical
+      gap={8}
+    >
       <Row gutter={16} align="middle">
         <Col span={12}>
           <DiffDocumentContextProvider type={"left"}>
@@ -103,14 +109,16 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
             onSelectChange={setSelectedChangeId}
           />
         ) : (
-          <ChainDiffTextView
-            ref={textViewRef}
-            chain1={chain1}
-            chain2={chain2}
-            changes={changes ?? []}
-            selectedChangeId={selectedChangeId}
-            onSelectChange={setSelectedChangeId}
-          />
+          <div className={styles.textHost}>
+            <ChainDiffTextView
+              ref={textViewRef}
+              chain1={chain1}
+              chain2={chain2}
+              changes={changes ?? []}
+              selectedChangeId={selectedChangeId}
+              onSelectChange={setSelectedChangeId}
+            />
+          </div>
         )}
       </ElementSchemasProvider>
     </Flex>
