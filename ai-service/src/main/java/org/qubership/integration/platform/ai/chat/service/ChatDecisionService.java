@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.jboss.logging.Logger;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationMessage;
@@ -60,6 +61,8 @@ public class ChatDecisionService {
 
   @Inject ConversationService conversationService;
 
+  @Inject ChainPatchStore patchStore;
+
   @Inject
   public ChatDecisionService(
       CreateChainApplicationFacade facade,
@@ -102,7 +105,17 @@ public class ChatDecisionService {
       return creation;
     }
     Optional<ChatEvent.Decision> uploaded = uploadedSpecsDecision(conversationId);
-    return uploaded.isPresent() ? uploaded : importDecision(conversationId);
+    Optional<ChatEvent.Decision> imported =
+        uploaded.isPresent() ? uploaded : importDecision(conversationId);
+    if (imported.isPresent() || patchStore == null) {
+      return imported;
+    }
+    return patchStore
+        .findProposal(conversationId)
+        .map(
+            proposal ->
+                (ChatEvent.Decision)
+                    ChatEvent.chainPatchDecision(proposal.patchHash(), proposal.summary()));
   }
 
   /** Converts an unambiguous typed restart request into the same command used by the UI menu. */

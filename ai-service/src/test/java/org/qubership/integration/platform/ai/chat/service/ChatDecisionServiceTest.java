@@ -25,6 +25,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
+import org.qubership.integration.platform.ai.chain.patch.ChainPatchStore;
+import org.qubership.integration.platform.ai.chain.patch.ProposedChainPatch;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.decision.UploadedSpecsApprovalHandler;
@@ -824,6 +826,27 @@ class ChatDecisionServiceTest {
             ChatEvent.REQUEST_CHANGES_ACTION,
             ChatEvent.RESTART_FROM_BEGINNING_ACTION),
         decision.actions());
+  }
+
+  @Test
+  void openDecisionKeepsThePendingChainPatchUntilItIsCleared() {
+    CreateChainApplicationFacade facade = mock(CreateChainApplicationFacade.class);
+    ChatDecisionService service =
+        new ChatDecisionService(facade, questionStore(), new RequirementDraftStore());
+    service.patchStore = new ChainPatchStore();
+    ProposedChainPatch proposal = mock(ProposedChainPatch.class);
+    when(proposal.patchHash()).thenReturn("sha256:patch");
+    when(proposal.summary()).thenReturn("Insert a delay script. Apply this to the chain?");
+    service.patchStore.putProposal("conv-patch", proposal);
+
+    ChatEvent.Decision expected =
+        (ChatEvent.Decision) ChatEvent.chainPatchDecision(proposal.patchHash(), proposal.summary());
+    assertEquals(expected, service.openDecision("conv-patch").orElseThrow());
+    assertEquals(expected, service.openDecision("conv-patch").orElseThrow());
+    assertTrue(service.openDecision("other-conversation").isEmpty());
+
+    service.patchStore.clearProposal("conv-patch");
+    assertTrue(service.openDecision("conv-patch").isEmpty());
   }
 
   @Test
