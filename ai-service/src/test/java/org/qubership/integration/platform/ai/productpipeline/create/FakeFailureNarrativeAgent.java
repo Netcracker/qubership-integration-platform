@@ -2,6 +2,7 @@ package org.qubership.integration.platform.ai.productpipeline.create;
 
 import java.time.Duration;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
@@ -14,6 +15,7 @@ import org.qubership.integration.platform.ai.compiler.artifact.CompilationArtifa
 import org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent;
 import org.qubership.integration.platform.ai.llm.agent.HaltQuestionDraft;
 import org.qubership.integration.platform.ai.llm.agent.OwnerDiagnosisDraft;
+import org.qubership.integration.platform.ai.productpipeline.recovery.AuthorQuestionEvidence;
 import org.qubership.integration.platform.ai.productpipeline.recovery.ProposedBriefChange;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryAction;
 import org.qubership.integration.platform.ai.productpipeline.recovery.RecoveryCauseClass;
@@ -67,6 +69,7 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
   public final AtomicReference<String> lastRecoveryContextJson = new AtomicReference<>();
 
   private String clarificationQuestion = "";
+  private String catalogChoiceInteraction;
   private final Deque<RecoveryDecision> recoveryDecisions = new ArrayDeque<>();
   private Kind regenerateFaultKind;
   private String regenerateSummary = "";
@@ -162,6 +165,12 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
     if (decisions != null) {
       Arrays.stream(decisions).filter(java.util.Objects::nonNull).forEach(recoveryDecisions::addLast);
     }
+    return this;
+  }
+
+  public FakeFailureNarrativeAgent recoverAsksForCatalogChoice(String interactionId, String question) {
+    this.catalogChoiceInteraction = interactionId;
+    this.clarificationQuestion = question;
     return this;
   }
 
@@ -328,6 +337,24 @@ public final class FakeFailureNarrativeAgent implements FailureNarrativeAgent {
     }
     waitOutTheDelay();
     lastRecoveryContextJson.set(recoveryContextJson);
+    if (catalogChoiceInteraction != null) {
+      try {
+        JsonNode context = CONTEXT_MAPPER.readTree(recoveryContextJson);
+        List<String> reviewedInputs = new ArrayList<>();
+        context.path("authorInputs").forEach(input -> reviewedInputs.add(input.path("inputId").asText()));
+        Reference briefRef = CONTEXT_MAPPER.treeToValue(
+            context.path("evidence").path("approvedBriefRef"), Reference.class);
+        return new RecoveryDecision(RecoveryCauseClass.BRIEF_DEFECT, briefRef,
+            List.of(context.path("evidence").path("failureId").asText()), RecoveryAction.ASK_USER,
+            List.of(), clarificationQuestion, "Select the catalog service.",
+            new AuthorQuestionEvidence(
+                catalogChoiceInteraction, "integrationSystemId",
+                AuthorQuestionEvidence.Kind.CATALOG_CHOICE,
+                reviewedInputs));
+      } catch (java.io.IOException invalidContext) {
+        throw new IllegalArgumentException("Invalid recovery fixture context", invalidContext);
+      }
+    }
     if (regenerateFaultKind != null) {
       String failureId = failureIdFromContext(recoveryContextJson);
       Reference faultRef = faultRefFromContext(recoveryContextJson, regenerateFaultKind);

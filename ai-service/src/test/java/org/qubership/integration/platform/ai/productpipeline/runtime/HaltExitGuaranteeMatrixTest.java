@@ -52,6 +52,9 @@ import org.qubership.integration.platform.ai.productpipeline.store.ProductPipeli
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
 
 /**
  * Runtime coverage of {@code gate × input kind × owner state × catalog state}. Unreachable cells
@@ -207,29 +210,29 @@ class HaltExitGuaranteeMatrixTest {
   }
 
   @Test
-  void anUnsatisfyingClarificationAnswerSpendsAnAttemptAndChangesTheCard() {
+  void aClarificationAnswerSpendsAnAttemptAndKeepsTheCatalogChoiceActionable() {
     haltOnCatalogResolution(
-        FakeFailureNarrativeAgent.owner("", "design-execution").clarifying(CLARIFICATION));
+        FakeFailureNarrativeAgent.owner("", "design-execution")
+            .recoverAsksForCatalogChoice("pets-call", CLARIFICATION));
     String first = latestWaitingPrompt();
-    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(first).orElseThrow());
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(first).orElseThrow(),
+        () -> run().attempts().getLast().failureEvidence());
     assertTrue(PipelineGates.strip(first).contains(CLARIFICATION), first);
     assertFalse(PipelineGates.strip(first).contains("Which catalog service should this chain use?"));
     SemanticRecoveryState before = runtime.captureSemanticRecoveryState(RUN_ID);
     int callsBefore = planningCalls.get();
 
     runtime
-        .acceptInput(new AcceptInputCommand(RUN_ID, "still the wrong service"))
+        .acceptInput(new AcceptInputCommand(RUN_ID, "still the wrong service", "clarify-1", "clarify-hash"))
         .collect()
         .asList()
         .await()
         .indefinitely();
 
     String second = latestWaitingPrompt();
-    assertNotEquals(PipelineGates.strip(first), PipelineGates.strip(second));
-    assertEquals(PipelineGates.RECOVERY_REPEATED, PipelineGates.gateOf(second).orElseThrow());
-    assertEquals(
-        "The same problem came back. Repeating the same request will not help.",
-        PipelineGates.strip(second));
+    assertEquals(PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(second).orElseThrow());
+    assertTrue(PipelineGates.strip(second).contains(CLARIFICATION), second);
+    assertTrue(agent.lastRecoveryContextJson.get().contains("still the wrong service"));
     assertInstanceOf(
         SemanticRecoveryState.CompareResult.Advanced.class,
         before.compareTo(runtime.captureSemanticRecoveryState(RUN_ID)));
@@ -330,7 +333,7 @@ class HaltExitGuaranteeMatrixTest {
         .indefinitely();
     List<PipelineSignal> afterInput =
         runtime
-            .acceptInput(new AcceptInputCommand(RUN_ID, "build pending pets"))
+            .acceptInput(new AcceptInputCommand(RUN_ID, "build pending pets", "create-1", "create-hash"))
             .collect()
             .asList()
             .await()
@@ -382,7 +385,12 @@ class HaltExitGuaranteeMatrixTest {
             StageOutcomeClass.CANDIDATE,
             List.of(
                 new ArtifactCandidate(
-                    Kind.REQUIREMENT_BRIEF, Map.of("goal", "pending pets"), List.of())),
+                    Kind.REQUIREMENT_BRIEF,
+                    new RequirementBrief("pending pets", List.of(), List.of(), List.of(), List.of(), "Find pets")
+                        .withFlow(new RequirementFlow(
+                            List.of(new Interaction(
+                                "pets-call", Direction.OUTBOUND,
+                                "", "Find pets", "")), List.of())), List.of())),
             "brief ready",
             null));
   }

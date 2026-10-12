@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.qubership.integration.platform.ai.skill.orchestration.ReconcileResult;
 import org.qubership.integration.platform.ai.catalog.binding.ResolvedServiceCallBinding;
 import org.qubership.integration.platform.ai.chain.imports.ChainPlanGraphImporter;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogDependency;
@@ -296,6 +297,9 @@ class CanonicalSemanticCreateChainIT {
         + doc.run().currentStageId()
         + " kinds="
         + historyKinds()
+        + " reconcile="
+        + artifactStore.latest(RUN_ID, Kind.RECONCILE_RESULT)
+            .map(stored -> artifactStore.payload(stored, ReconcileResult.class))
         + " attempts="
         + doc.attempts()
         + " transitions="
@@ -519,7 +523,16 @@ class CanonicalSemanticCreateChainIT {
               properties));
     }
     List<ChainCatalogDependency> dependencies = new ArrayList<>();
+    Map<String, String> ids = new LinkedHashMap<>();
+    graph.nodes().forEach(node -> ids.put(node.nodeId(), "catalog-" + node.nodeId()));
+    MaterializationMap map = new MaterializationMap(chainId, ids, Map.of(), Map.of());
     for (ChainPlanEdge edge : graph.edges()) {
+      var projection = org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer
+          .project(edge, graph, map);
+      if (projection.action() != org.qubership.integration.platform.ai.integration.catalog.materialize.ChainPlanConnectionsMaterializer
+          .ProjectionAction.CREATE) {
+        continue;
+      }
       dependencies.add(
           new ChainCatalogDependency(
               "catalog-" + edge.fromNodeId(), "catalog-" + edge.toNodeId()));
