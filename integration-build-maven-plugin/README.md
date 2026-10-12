@@ -433,6 +433,6 @@ mvn -pl integration-build-maven-plugin -am clean install -Dgpg.skip=true
 ```
 
 The plugin depends on `qip-integration-build-pipeline` at the version pinned by
-`qip-integration-build-pipeline.version` in `pom.xml`, with `${changelist}` appended. A development build
+`qip.integration-build-pipeline.revision` in `pom.xml`, with `${changelist}` appended. A development build
 resolves the library from the reactor; a release resolves the published JAR.
 `scripts/check-version-invariants.sh` keeps the pin equal to the library's revision.

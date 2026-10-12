@@ -1,71 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>org.qubership.integration.platform</groupId>
+
+  <parent>
+    <groupId>org.qubership.integration.platform</groupId>
+    <artifactId>qip-parent-spring</artifactId>
+    <version>1.5.1-SNAPSHOT</version>
+    <relativePath>../parents/spring/pom.xml</relativePath>
+  </parent>
+
   <artifactId>qip-runtime-catalog</artifactId>
   <version>${revision}${changelist}</version>
+
   <name>QIP Runtime Catalog</name>
   <description>
     Managing integration flows (so-called integration chains), services, snapshots and deployments.
   </description>
-  <url>https://github.com/Netcracker/qubership-integration-platform</url>
-  <scm>
-      <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-      <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-      <url>https://github.com/Netcracker/qubership-integration-platform</url>
-      <tag>HEAD</tag>
-  </scm>
-  <parent>
-      <groupId>org.qubership.integration.platform</groupId>
-      <artifactId>qip-monorepo-parent</artifactId>
-      <version>1.5.1-SNAPSHOT</version>
-      <relativePath>../parent</relativePath>
-  </parent>
 
   <properties>
     <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
-    <!-- Last released version of the in-repo library, kept equal to integration-build-pipeline's revision by
-         scripts/check-version-invariants.sh. The dependency below appends ${changelist}, so a normal build
-         resolves the development coordinate from the reactor and a release, which passes -Dchangelist=,
-         resolves the published jar. -->
-    <qip-integration-build-pipeline.version>1.5.1</qip-integration-build-pipeline.version>
-
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <!-- 3rd party dependencies -->
-    <commons-text.version>1.11.0</commons-text.version>
-    <json.version>20231013</json.version>
-    <logback-gelf.version>5.0.1</logback-gelf.version>
-    <handlebars.version>4.3.1</handlebars.version>
-    <kubernetes-client-java.version>27.0.0</kubernetes-client-java.version>
-    <atlasmap.version>2.5.2</atlasmap.version>
-    <antlr4.version>4.13.2</antlr4.version>
-    <google-guava.version>33.4.0-jre</google-guava.version>
-    <okio.version>3.16.4</okio.version>
-    <dhatim.fastexcel.version>0.16.4</dhatim.fastexcel.version>
-    <flexmark.version>0.64.8</flexmark.version>
-    <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
     <graphql-java.version>21.5</graphql-java.version>
-    <commons-validator.version>1.7</commons-validator.version>
-    <plexus-utils.version>3.6.1</plexus-utils.version>
-    <commons-beanutils.version>1.11.0</commons-beanutils.version>
-    <jose4j.version>0.9.6</jose4j.version>
-    <grpc.version>1.54.2</grpc.version>
-    <protobuf-java.version>4.33.2</protobuf-java.version>
+
+    <qip.integration-build-pipeline.revision>1.5.1</qip.integration-build-pipeline.revision>
+
     <okhttp-bom.version>5.3.2</okhttp-bom.version>
-    <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
-    <!-- Newest versions requires commons-io 2.15! -->
-    <!-- TODO update io.kubernetes.client-java before update this library -->
-    <poi.version>5.2.3</poi.version>
-    <!-- Plugins -->
-    <values-schema-json-plugin.version>1.1.1</values-schema-json-plugin.version>
-    <graphql-maven-plugin.version>2.0</graphql-maven-plugin.version>
-    <hibernate-enhance-maven-plugin.version>${hibernate.version}</hibernate-enhance-maven-plugin.version>
   </properties>
+
   <dependencyManagement>
     <dependencies>
+      <dependency>
+        <groupId>${project.parent.groupId}</groupId>
+        <artifactId>qip-integration-build-pipeline</artifactId>
+        <version>${qip.integration-build-pipeline.revision}${changelist}</version>
+      </dependency>
       <!-- BOMs -->
       <dependency>
         <groupId>com.fasterxml.jackson</groupId>
@@ -235,10 +204,10 @@
         <artifactId>swagger-parser</artifactId>
         <version>${swagger-parser.version}</version>
         <exclusions>
-          <exclusion>
+        <exclusion>
             <groupId>io.swagger.core.v3</groupId>
             <artifactId>swagger-core</artifactId>
-          </exclusion>
+        </exclusion>
         </exclusions>
       </dependency>
       <dependency>
@@ -270,6 +239,7 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
   <dependencies>
     <!--    DbaaS dependencies    -->
     <dependency>
@@ -461,7 +431,6 @@
     <dependency>
       <groupId>net.logstash.logback</groupId>
       <artifactId>logstash-logback-encoder</artifactId>
-      <version>${logstash-logback-encoder.version}</version>
     </dependency>
     <!-- Tracing -->
     <dependency>
@@ -561,7 +530,6 @@
     <dependency>
       <groupId>${project.parent.groupId}</groupId>
       <artifactId>qip-integration-build-pipeline</artifactId>
-      <version>${qip-integration-build-pipeline.version}${changelist}</version>
     </dependency>
   </dependencies>
   <build>
@@ -593,22 +561,6 @@
       <plugin>
         <groupId>org.jacoco</groupId>
         <artifactId>jacoco-maven-plugin</artifactId>
-      </plugin>
-      <plugin>
-        <groupId>org.antlr</groupId>
-        <artifactId>antlr4-maven-plugin</artifactId>
-        <version>${antlr4.version}</version>
-        <configuration>
-          <visitor>true</visitor>
-        </configuration>
-        <executions>
-          <execution>
-            <id>antlr</id>
-            <goals>
-              <goal>antlr4</goal>
-            </goals>
-          </execution>
-        </executions>
       </plugin>
       <plugin>
         <groupId>org.springframework.boot</groupId>

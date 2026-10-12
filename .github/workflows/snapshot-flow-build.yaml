@@ -10,7 +10,7 @@ on:
       - 'micro-engine/**'
       - 'scripts/test-micro-engine-snapshots.sh'
       - 'scripts/wait-for-module-builds.sh'
-      - 'parent/**'
+      - 'parents/**'
       - 'pom.xml'
   # Two pull requests can each pass while together breaking the catalog-to-engine
   # contract; the run on main catches that and saves the cache pull requests restore.
@@ -24,7 +24,7 @@ on:
       - 'micro-engine/**'
       - 'scripts/test-micro-engine-snapshots.sh'
       - 'scripts/wait-for-module-builds.sh'
-      - 'parent/**'
+      - 'parents/**'
       - 'pom.xml'
 
 concurrency:

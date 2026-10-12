@@ -4,37 +4,25 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
+  <parent>
+    <groupId>org.qubership.integration.platform</groupId>
+    <artifactId>qip-parent-spring</artifactId>
+    <version>1.5.1-SNAPSHOT</version>
+    <relativePath>../parents/spring/pom.xml</relativePath>
+  </parent>
+
   <artifactId>qip-integration-build-maven-plugin</artifactId>
   <version>${revision}${changelist}</version>
   <packaging>maven-plugin</packaging>
 
   <name>QIP Integration Build Maven Plugin</name>
   <description>Builds QIP integration chains and services into a K8s CRs.</description>
-  <url>https://github.com/Netcracker/qubership-integration-platform</url>
-  <scm>
-    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-    <url>https://github.com/Netcracker/qubership-integration-platform</url>
-    <tag>HEAD</tag>
-  </scm>
-
-  <parent>
-    <groupId>org.qubership.integration.platform</groupId>
-    <artifactId>qip-monorepo-parent</artifactId>
-    <version>1.5.1-SNAPSHOT</version>
-    <relativePath>../parent</relativePath>
-  </parent>
 
   <properties>
     <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
 
-    <!-- Last released version of the in-repo library, kept equal to integration-build-pipeline's revision by
-         scripts/check-version-invariants.sh. The dependency below appends ${changelist}, so a normal build
-         resolves the development coordinate from the reactor and a release, which passes -Dchangelist=,
-         resolves the published jar. Deriving it from this module's own ${revision} would break the moment
-         the two modules release on different lines. -->
-    <qip-integration-build-pipeline.version>1.5.1</qip-integration-build-pipeline.version>
+    <qip.integration-build-pipeline.revision>1.5.1</qip.integration-build-pipeline.revision>
   </properties>
 
   <dependencyManagement>
@@ -58,6 +46,12 @@
         <groupId>javax.inject</groupId>
         <artifactId>javax.inject</artifactId>
         <version>1</version>
+      </dependency>
+
+      <dependency>
+        <groupId>${project.parent.groupId}</groupId>
+        <artifactId>qip-integration-build-pipeline</artifactId>
+        <version>${qip.integration-build-pipeline.revision}${changelist}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -107,7 +101,6 @@
     <dependency>
       <groupId>${project.parent.groupId}</groupId>
       <artifactId>qip-integration-build-pipeline</artifactId>
-      <version>${qip-integration-build-pipeline.version}${changelist}</version>
     </dependency>
 
     <dependency>

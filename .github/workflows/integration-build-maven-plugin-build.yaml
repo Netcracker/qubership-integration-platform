@@ -7,7 +7,7 @@ on:
     paths:
       - 'integration-build-maven-plugin/**'
       - 'integration-build-pipeline/**'
-      - 'parent/**'
+      - 'parents/**'
       - 'pom.xml'
 
 permissions: {}

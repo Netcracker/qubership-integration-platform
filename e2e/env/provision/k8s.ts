@@ -285,7 +285,15 @@ export function suiteImages(): SuiteImage[] {
       // DBaaS agent and an M2M Consul login, which the chart has neither of; micro-engine/README.md
       // gives these profiles for a local stack.
       mavenArgs: ["-Dquarkus.profile=development,no-m2m"],
-      sources: ["micro-engine/src", "micro-engine/pom.xml", "micro-engine/Dockerfile"],
+      // The jar takes its Quarkus, Camel, and BOM versions from parents/quarkus and its plugin
+      // versions from parents/base.
+      sources: [
+        "micro-engine/src",
+        "micro-engine/pom.xml",
+        "micro-engine/Dockerfile",
+        "parents/quarkus/pom.xml",
+        "parents/base/pom.xml",
+      ],
     },
   ];
 }

@@ -13,8 +13,10 @@
 # docker, and WITHOUT stripping <changelist> — the current X.Y.Z-SNAPSHOT is
 # published as-is. Snapshots are always pointwise: one module per run, no "all".
 #
-# GitHub-only: the `github` profile targets maven.pkg.github.com and skips GPG.
-# Nothing is committed or tagged (contents: read), so it's safe from any branch.
+# GitHub Packages only, signed like a release. Nothing is committed or tagged
+# (contents: read), so it's safe from any branch. `parents` publishes the three
+# parent POMs at their X.Y.Z-SNAPSHOT; `bom` publishes the BOM, whose entries
+# name the module SNAPSHOTs, which exist only once each was published here.
 # Re-running republishes the same X.Y.Z-SNAPSHOT coordinates (no <snapshotRepository>
 # is declared, so it deploys to the release <repository>) — bump <revision> on the
 # branch if you need a distinct build.
@@ -35,12 +37,14 @@ on:
         description: "Module to publish a SNAPSHOT for (X.Y.Z-SNAPSHOT to GitHub Packages)"
         type: choice
         options:
+          - bom
           - engine
           - micro-engine
           - runtime-catalog
           - sessions-management
           - integration-build-pipeline
           - integration-build-maven-plugin
+          - parents
         default: engine
 
 concurrency:
@@ -68,7 +72,8 @@ jobs:
         with:
           java-version: "21"
           distribution: "temurin"
-          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s).
+          # GitHub Packages credentials live in .github/maven-settings.xml (passed via -s). GPG key here.
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
 
       # setup-java's built-in maven cache restores on an exact pom-hash key only.
       # Every release rewrites the poms in a [skip ci] commit, so the tree the
@@ -84,12 +89,13 @@ jobs:
           restore-keys: |
             maven-${{ runner.os }}-${{ inputs.module }}-
 
-      # Pre-install the parent pom so the single-module deploy below resolves it.
-      - name: Install qip-monorepo-parent locally
+      # Install the parent POMs so the single-module deploy below resolves them
+      # from the local repository. Signing is skipped: nothing leaves the runner.
+      - name: Install the parent POMs locally
         env:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
+        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parents/pom.xml install -Dgpg.skip=true
 
       # runtime-catalog and the Maven plugin pin integration-build-pipeline at its
       # development coordinate, and the deploy below builds one module with no
@@ -101,22 +107,31 @@ jobs:
         env:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
         run: |
           mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
-            -f integration-build-pipeline/pom.xml deploy -Pgithub \
-            -Dmaven.test.skip=true -Dmaven.javadoc.skip=true \
-            -Dgpg.skip=true -Dcheckstyle.skip=true
+            -f integration-build-pipeline/pom.xml deploy \
+            -Dmaven.test.skip=true -Dmaven.javadoc.skip=true -Dcheckstyle.skip=true
+
+      - name: Deploy the parent POMs SNAPSHOT
+        if: ${{ inputs.module == 'parents' }}
+        env:
+          MAVEN_GITHUB_USERNAME: ${{ github.actor }}
+          MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+        # qip-parents is an aggregator that no POM inherits from, so it stays out.
+        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parents/pom.xml deploy -pl base,spring,quarkus
 
       - name: Deploy SNAPSHOT to GitHub Packages
+        if: ${{ inputs.module != 'parents' }}
         working-directory: ${{ inputs.module }}
         env:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
         run: |
           set -eu
           # Run from the module dir so Maven reads only this module + parent (via
           # relativePath), never siblings. Keep ${revision}${changelist} intact
           # (no -Drevision / -Dchangelist=) → publishes the current X.Y.Z-SNAPSHOT.
-          # -Pgithub deactivates the activeByDefault `central` profile and targets
-          # maven.pkg.github.com; GPG is skipped for GitHub Packages.
-          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" deploy -Pgithub -Dgpg.skip=true
+          mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" deploy

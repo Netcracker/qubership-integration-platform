@@ -1,0 +1,89 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>org.qubership.integration.platform</groupId>
+    <artifactId>qip-parent-base</artifactId>
+    <version>1.5.1-SNAPSHOT</version>
+    <relativePath>../parents/base/pom.xml</relativePath>
+  </parent>
+
+  <artifactId>qip-bom</artifactId>
+  <version>${revision}${changelist}</version>
+  <packaging>pom</packaging>
+
+  <name>QIP BOM</name>
+  <description>QIP External BOM</description>
+
+  <properties>
+    <revision>1.5.1</revision>
+    <changelist>-SNAPSHOT</changelist>
+  </properties>
+
+  <!-- Each entry is its module's project version: the module's <revision> followed by ${changelist}, which this
+       POM resolves to -SNAPSHOT in the working tree and to nothing in a release. checkstyle has an empty
+       changelist, so its entry is the bare <revision>. scripts/sync-bom-entry.sh moves an entry on release. -->
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-schemas</artifactId>
+        <version>1.5.1${changelist}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-checkstyle</artifactId>
+        <version>0.0.3</version>
+      </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-micro-engine</artifactId>
+        <version>1.5.1${changelist}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-integration-build-pipeline</artifactId>
+        <version>1.5.1${changelist}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-integration-build-maven-plugin</artifactId>
+        <version>1.5.1${changelist}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-engine</artifactId>
+        <version>1.5.1${changelist}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-runtime-catalog</artifactId>
+        <version>1.5.1${changelist}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.qubership.integration.platform</groupId>
+        <artifactId>qip-sessions-management</artifactId>
+        <version>1.5.1${changelist}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>flatten-maven-plugin</artifactId>
+        <configuration>
+          <pomElements>
+            <dependencyManagement>resolve</dependencyManagement>
+          </pomElements>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-gpg-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>

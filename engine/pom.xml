@@ -1,26 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>org.qubership.integration.platform</groupId>
-  <artifactId>qip-engine</artifactId>
-  <version>${revision}${changelist}</version>
-  <name>QIP Engine</name>
-  <description>Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
-        collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
-    </description>
-  <url>https://github.com/Netcracker/qubership-integration-platform</url>
-  <scm>
-    <connection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</connection>
-    <developerConnection>scm:git:https://github.com/Netcracker/qubership-integration-platform.git</developerConnection>
-    <url>https://github.com/Netcracker/qubership-integration-platform</url>
-    <tag>HEAD</tag>
-  </scm>
+
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
-    <artifactId>qip-monorepo-parent</artifactId>
+    <artifactId>qip-parent-spring</artifactId>
     <version>1.5.1-SNAPSHOT</version>
-    <relativePath>../parent</relativePath>
+    <relativePath>../parents/spring/pom.xml</relativePath>
   </parent>
+
+  <artifactId>qip-engine</artifactId>
+  <version>${revision}${changelist}</version>
+
+  <name>QIP Engine</name>
+  <description>
+    Engine service orchestrates and runs integration chains, manages their endpoints, records executions,
+    collects metrics, and publishes deployment state, using Apache Camel, Consul, and OpenSearch
+  </description>
+
   <properties>
     <revision>1.5.1</revision>
     <changelist>-SNAPSHOT</changelist>
@@ -28,33 +25,17 @@
     <generated-sources>target/generated-sources/java</generated-sources>
     <generated-resources>target/generated-sources/resources</generated-resources>
 
-    <groovy-apache-bom.version>4.0.30</groovy-apache-bom.version><!-- Cloud Core dependencies -->
-
-    <!-- 3rd party dependencies -->
-    <camel.version>4.18.2</camel.version>
-    <spring-ai.version>1.1.3</spring-ai.version>
-    <snappy-java.version>1.1.10.8</snappy-java.version>
-    <hypersistence-utils-hibernate.version>3.7.4</hypersistence-utils-hibernate.version>
-    <atlasmap.version>2.5.2</atlasmap.version>
-    <protobuf-java.version>4.33.2</protobuf-java.version>
-    <amqp-client.version>5.34.0</amqp-client.version>
-    <json-filter.version>4.0.1</json-filter.version>
-    <conscrypt-openjdk-uber.version>2.2.1</conscrypt-openjdk-uber.version>
-    <opensearch.version>2.14.0</opensearch.version>
-    <jakarta.ws.rs-api.version>4.0.0</jakarta.ws.rs-api.version>
-    <reflections.version>0.10.2</reflections.version>
-    <lz4-java.version>1.11.4</lz4-java.version>
-    <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
-    <!-- Plugins -->
+    <netty-bom.version>4.1.110.Final</netty-bom.version>
   </properties>
+
   <dependencyManagement>
     <dependencies>
       <dependency>
-          <groupId>io.netty</groupId>
-          <artifactId>netty-bom</artifactId>
-          <version>4.1.110.Final</version>
-          <type>pom</type>
-          <scope>import</scope>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-bom</artifactId>
+        <version>${netty-bom.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
       </dependency>
       <dependency>
         <groupId>io.grpc</groupId>
@@ -199,6 +180,7 @@
       </dependency>
     </dependencies>
   </dependencyManagement>
+
   <dependencies>
     <!--   DBaaS dependencies    -->
 
@@ -567,7 +549,6 @@
     <dependency>
       <groupId>net.logstash.logback</groupId>
       <artifactId>logstash-logback-encoder</artifactId>
-      <version>${logstash-logback-encoder.version}</version>
     </dependency>
   </dependencies>
   <build>

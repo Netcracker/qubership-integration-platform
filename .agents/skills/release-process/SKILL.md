@@ -21,8 +21,16 @@ for the next version.
 
 - **Maven** (`${revision}${changelist}`, reusable `_maven-module-release.yaml`): releases the
   current `<revision>`; `release-type` sets the next dev `<revision>`.
-- **micro-engine** is the exception. It publishes to GitHub Packages (`profile=github`, fixed in its
-  wrapper) because its private `com.netcracker.cloud` dependencies are not on Central.
+- Every Maven release is signed and published to GitHub Packages; nothing goes to Maven Central.
+- **The BOM** (`bom/pom.xml`, `qip-bom`) lists every Maven module at its project version. A module
+  release moves its BOM entry in the bump commit, and its wrapper then releases the BOM with a patch
+  bump (`cascade-bom`, on by default). `release-all` turns the cascades off and releases the BOM once
+  after its Maven jobs, with the wave's release type. When a cascade did not publish the BOM (the BOM's
+  concurrency group cancelled it, it failed, the module was dispatched with `cascade-bom` off, or a failed
+  Docker build skipped it), dispatch `bom-release.yaml` to release the BOM with a patch bump.
+- **The parent POMs** (`parents/`) carry the platform version with `-SNAPSHOT` appended. The drop
+  publishes them at the platform version (`scripts/publish-parents.sh`), then moves them to the next
+  development version.
 - **npm** (`npm version`, reusable `_npm-module-release.yaml`): bumps `package.json` by
   `release-type` and releases that. The cascade schemas → ui → vscode-extension is auto-`patch`.
 
@@ -40,7 +48,8 @@ Only schemas' Maven line uses it, to take the number its npm release decided.
 
 On-demand, GitHub Packages only, with no tag, bump, commit, or GitHub Release:
 
-- Maven → `snapshot-publish.yaml`, publishing the current `X.Y.Z-SNAPSHOT`.
+- Maven → `snapshot-publish.yaml`, publishing the current `X.Y.Z-SNAPSHOT`, signed. It also takes
+  `parents` and `bom`.
 - npm → `snapshot-publish-npm.yaml`, publishing an ephemeral `<next>-dev.<UTC-ts>` under the `dev`
   dist-tag, for `ui` and `vscode-extension`.
 

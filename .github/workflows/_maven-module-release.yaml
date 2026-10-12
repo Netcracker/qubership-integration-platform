@@ -7,7 +7,9 @@
 # <revision> back, and tag the bump commit. Deciding the version at release time
 # keeps forked release lines from colliding on a shared pending version;
 # `version` overrides for edge cases.
-# flatten-maven-plugin inlines the parent, so the published POM has no SNAPSHOT.
+# flatten-maven-plugin removes the parent, so the published POM names no SNAPSHOT
+# parent. Every deploy is signed, and the bump commit also moves the module's
+# BOM entry (scripts/sync-bom-entry.sh).
 #
 # The tag rides the bump commit, so <revision> matches the released version and
 # `git checkout <tag>` reproduces it. commit-and-push.sh pushes the tag before the
@@ -38,11 +40,6 @@ on:
         required: false
         type: string
         default: ""
-      profile:
-        description: "Maven profile to use (central | github)"
-        type: string
-        required: false
-        default: "central"
       build-docker:
         description: "Build Docker image"
         required: false
@@ -59,7 +56,7 @@ on:
         default: ""
         type: string
       sync-property:
-        description: "Property in sync-poms to rewrite with the released version (e.g. qip-integration-build-pipeline.version)."
+        description: "Property in sync-poms to rewrite with the released version (e.g. qip.integration-build-pipeline.revision)."
         required: false
         default: ""
         type: string
@@ -69,12 +66,6 @@ on:
         default: ""
         type: string
     secrets:
-      MAVEN_USER:
-        required: false
-        description: "Username for the non-github Maven repository (e.g. Central). Unused when profile=github."
-      MAVEN_PASSWORD:
-        required: false
-        description: "Password/token for the non-github Maven repository. Unused when profile=github."
       MAVEN_GPG_PRIVATE_KEY:
         required: false
         description: "GPG private key used to sign release artifacts."
@@ -177,7 +168,7 @@ jobs:
           java-version: "21"
           distribution: "temurin"
           # Creds come from .github/maven-settings.xml (setup-java takes one
-          # server-id; a Central release needs github + central). GPG key here.
+          # server-id; the build needs github and the GPG passphrase). GPG key here.
           gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
 
       # setup-java's built-in maven cache restores on an exact pom-hash key only.
@@ -194,31 +185,27 @@ jobs:
           restore-keys: |
             maven-${{ runner.os }}-${{ inputs.module }}-
 
-      # Pre-install the parent pom (deploy needs it; `-pl parent -N` is broken).
-      - name: Install qip-monorepo-parent locally
+      # Install the parent POMs so the single-module deploy below resolves them
+      # from the local repository. Signing is skipped: nothing leaves the runner.
+      - name: Install the parent POMs locally
         if: ${{ needs.check-version.outputs.recover != 'true' }}
         env:
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parent/pom.xml install -N -DskipTests
+        run: mvn --batch-mode -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" -f parents/pom.xml install -Dgpg.skip=true
 
       - name: Build and deploy module
         if: ${{ needs.check-version.outputs.recover != 'true' }}
         env:
           MODULE_NAME: ${{ inputs.module }}
-          # From .github/maven-settings.xml: github resolves BOMs, central takes
-          # the deploy (empty for profile=github).
+          # From .github/maven-settings.xml: github resolves the BOMs and takes the deploy.
           MAVEN_GITHUB_USERNAME: ${{ github.actor }}
           MAVEN_GITHUB_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-          MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_USER }}
-          MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_PASSWORD }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
-          MVN_PROFILE: ${{ inputs.profile }}
           EXTRA_ARGS: ${{ inputs.mvn-args }}
-          SKIP_GPG: ${{ inputs.profile == 'github' && '-Dgpg.skip=true' || '' }}
         run: |
           set -eu
-          # No -am: the parent is pre-installed above, and an in-repo library
+          # No -am: the parent POMs are pre-installed above, and an in-repo library
           # dependency (integration-build-pipeline) must come from its published
           # release, not from a reactor build this job would then deploy twice.
           # -Drevision publishes the computed version; -Dchangelist= strips
@@ -227,10 +214,8 @@ jobs:
           mvn --batch-mode deploy \
             -s "$GITHUB_WORKSPACE/.github/maven-settings.xml" \
             -pl $MODULE_NAME \
-            -P "$MVN_PROFILE" \
             -Drevision="$RELEASE_VERSION" \
             -Dchangelist= \
-            $SKIP_GPG \
             $EXTRA_ARGS
 
       - name: Write released version back to revision, tag, and commit
@@ -254,6 +239,12 @@ jobs:
           if [ -n "$SYNC_PROPERTY" ]; then
             # shellcheck disable=SC2086
             files="$POM $(bash scripts/sync-consumer-pins.sh "$SYNC_PROPERTY" "$RELEASE_VERSION" $SYNC_POMS | tr '\n' ' ')"
+          fi
+          # The BOM lists every Maven module at its project version, so this
+          # module's entry moves with its <revision>. The BOM has no entry for
+          # itself.
+          if [ "$MODULE" != bom ]; then
+            files="$files $(bash scripts/sync-bom-entry.sh "$MODULE" "$RELEASE_VERSION")"
           fi
           # shellcheck disable=SC2086
           bash scripts/commit-and-push.sh "chore: $MODULE $RELEASE_VERSION released [skip ci]" $files

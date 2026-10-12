@@ -31,8 +31,8 @@ else
 fi
 
 # Push the tag before the branch, with retries: it is the recovery sentinel after
-# a non-idempotent Central deploy, so losing it would re-deploy and wedge the
-# module next run. Idempotent — a prior run may already hold it.
+# a deploy GitHub Packages will not repeat, so losing it would re-deploy and
+# wedge the module next run. Idempotent — a prior run may already hold it.
 tag_created=false
 if [ -n "$tag" ]; then
     if git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null 2>&1; then

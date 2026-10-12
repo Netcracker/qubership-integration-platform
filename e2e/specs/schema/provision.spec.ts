@@ -260,15 +260,15 @@ test("every source a service is rebuilt for is in the checkout", { tag: ["@infra
       ).toBe(true);
     }
 
-    // Two of the three inputs to a jar this image runs sit outside the module. `parent/pom.xml` is
-    // the parent of every Spring service and carries the dependency versions and the repackage
+    // Two of the three inputs to a jar this image runs sit outside the module. `parents/spring/pom.xml`
+    // is the parent of every Spring service and carries the dependency versions and the repackage
     // plugin, so a bump there changes every jar the build produces; the `Dockerfile` is the only
     // other input to the image, since all three copy nothing but `target/`. Without them a run after
     // either edit prints "nothing to do" and tests the jars from before it. The Go service has no
     // Maven module and watches its whole directory, Dockerfile included.
     if (each.mavenModule === undefined) continue;
     expect(each.sources, `${each.service} is not rebuilt for a change to the parent POM`).toContain(
-      "parent/pom.xml",
+      "parents/spring/pom.xml",
     );
     expect(each.sources, `${each.service} is not rebuilt for a change to its Dockerfile`).toContain(
       `${each.mavenModule}/Dockerfile`,

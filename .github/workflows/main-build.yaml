@@ -4,7 +4,7 @@ name: Main Build
 #
 # PR builds are path-filtered per module, so two PRs that are each green in
 # isolation can still break main together (a "semantic merge conflict" via the
-# shared parent/pom.xml or the schemas -> ui -> vscode-extension workspace
+# shared parents/ POMs or the schemas -> ui -> vscode-extension workspace
 # chain). This consolidated build re-runs the same checks on the merged main,
 # giving a single "is main green right now" signal. Sonar is intentionally
 # skipped here — it already runs on every PR.
@@ -22,7 +22,7 @@ on:
       - 'runtime-catalog/**'
       - 'integration-build-maven-plugin/**'
       - 'sessions-management/**'
-      - 'parent/**'
+      - 'parents/**'
       - 'pom.xml'
       - 'schemas/**'
       - 'ui/**'

@@ -12,7 +12,7 @@ Stack: Java 21, Quarkus 3.33.2 (`quarkus-bom` + `quarkus-camel-bom`), Apache Cam
 ### Build & Test Commands
 
 ```bash
-# Single-module build from repo root (preferred; -am pulls parent + checkstyle)
+# Single-module build from repo root (preferred; -am pulls the parent POMs + checkstyle)
 mvn -pl micro-engine -am clean install -Dgpg.skip=true
 
 # Building requires GitHub Packages credentials in ~/.m2/settings.xml (server id: github,
@@ -36,7 +36,7 @@ mvn -pl micro-engine verify -DskipITs=false -Dgpg.skip=true
 mvn -pl micro-engine checkstyle:check -Dgpg.skip=true
 ```
 
-The `quarkus-maven-plugin` `build`/`generate-code` goals and `camel-component-maven-plugin` (generates custom-component sources into `target/generated-sources`) are wired into the build lifecycle. The `flatten-maven-plugin` produces `.flattened-pom.xml`. Released to GitHub Packages with the `github` Maven profile (`mvn deploy -P github`) — micro-engine is the platform exception that does not publish to Maven Central; CI fixes the profile to `github`.
+The `quarkus-maven-plugin` `build`/`generate-code` goals and `camel-component-maven-plugin` (generates custom-component sources into `target/generated-sources`) are wired into the build lifecycle. The `flatten-maven-plugin` produces `.flattened-pom.xml`. Signed and released to GitHub Packages like every other Maven module; no Maven profile selects the target.
 
 ### Architecture
 
