@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/script.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/script
 id: "7c854b6a-ff6e-4f19-abae-8ec953e4424f"
 name: "Script"
 type: "script"

@@ -3,17 +3,15 @@ import * as fs from "fs";
 import $RefParser from "@apidevtools/json-schema-ref-parser";
 // @ts-ignore
 import yaml from "js-yaml";
+import { ID_PREFIX, SCHEMA_FILE_SUFFIX } from "./schemaIds";
 
-const qubershipResolver = {
+const confModelResolver = {
   order: 2,
   canRead: (file: any) => {
-    return file.url.startsWith("http://qubership.org/schemas/product/qip/");
+    return file.url.startsWith(ID_PREFIX);
   },
   read(file: any) {
-    const relPath = file.url.replace(
-      "http://qubership.org/schemas/product/qip/",
-      "",
-    );
+    const relPath = file.url.replace(ID_PREFIX, "") + SCHEMA_FILE_SUFFIX;
 
     const absPath = path.resolve(
       process.cwd(),
@@ -21,11 +19,7 @@ const qubershipResolver = {
       relPath,
     );
 
-    const content = fs.readFileSync(absPath, "utf-8");
-
-    if (absPath.endsWith(".yaml")) {
-      return yaml.load(content);
-    }
+    return yaml.load(fs.readFileSync(absPath, "utf-8"));
   },
 };
 
@@ -40,8 +34,7 @@ const ignoreSchemaResolver = {
 const ignoreMapperResolver = {
   order: 1,
   canRead: (file: any) =>
-    file.url ===
-    "http://qubership.org/schemas/product/qip/element/properties/mapper-description.schema.yaml",
+    file.url === ID_PREFIX + "element/properties/mapper-description",
   read: (file: any) => {
     return {
       type: "object",
@@ -124,7 +117,7 @@ export class SchemaResolver {
     const derefSchema = await $RefParser.dereference(schema, {
       resolve: {
         ignoreSchema: ignoreSchemaResolver,
-        qubership: qubershipResolver,
+        confModel: confModelResolver,
         ignoreMapperResolver: ignoreMapperResolver,
         file: true,
         http: false,

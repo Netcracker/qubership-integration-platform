@@ -116,7 +116,7 @@ class RolloutImportSnapshotToImportDirectoryServiceTest {
     @DisplayName("writeImportDirectory with chain files creates chains/ subdirectory with the file")
     void writeImportDirectoryWithChainFilesCreatesChainSubdir() throws IOException {
         byte[] content = "chain-content".getBytes();
-        Map<Path, byte[]> chainFiles = Map.of(Path.of("chain-id/chain-id.chain.qip.yaml"), content);
+        Map<Path, byte[]> chainFiles = Map.of(Path.of("chain-id/chain-id.chain.cip.yaml"), content);
 
         ImportConfig importConfig = emptyImportConfig();
         when(chainsToFilesConverter.convert(any(), any())).thenReturn(chainFiles);
@@ -127,7 +127,7 @@ class RolloutImportSnapshotToImportDirectoryServiceTest {
         File chainsDir = new File(rootDir, "chains");
         assertThat(chainsDir).exists().isDirectory();
 
-        File chainFile = new File(chainsDir, "chain-id/chain-id.chain.qip.yaml");
+        File chainFile = new File(chainsDir, "chain-id/chain-id.chain.cip.yaml");
         assertThat(chainFile).exists();
         assertThat(chainFile).hasBinaryContent(content);
 

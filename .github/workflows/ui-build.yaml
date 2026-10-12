@@ -86,6 +86,10 @@ jobs:
         working-directory: ui
         run: npm test -- --coverage
 
+      - name: Test build scripts
+        working-directory: ui
+        run: npm run test:scripts
+
       - name: Build app
         working-directory: ui
         run: npm run build

@@ -1,15 +1,15 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/service-call
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
 title: Service Call
 description: Make a call to a service registered in API Repository.
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   type:
     type: string
@@ -17,25 +17,25 @@ properties:
   properties:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/operation.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/correlation-id.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/context-propagation.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/element/properties/validation-failure-handler-properties.schema.yaml"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/operation"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/correlation-id"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/context-propagation"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/validation-failure-handler-properties"
     properties:
       errorThrowing:
         type: boolean
       retryCount:
         oneOf:
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/simple-expression.schema.yaml"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/simple-expression"
         default: 0
         title: Retry count
         description: >
           Specifies number of retries for the call before it considers as failed.
       retryDelay:
         oneOf:
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/integer-or-variable-placeholder.schema.yaml"
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/simple-expression.schema.yaml"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/integer-or-variable-placeholder"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/simple-expression"
         default: 5000
         title: Retry delay (ms)
         description: Specifies delay between retries in millis.
@@ -168,7 +168,7 @@ definitions:
       - type: object
         title: Mapper
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-mapper"
         properties:
           type:
             const: "mapper-2"
@@ -177,7 +177,7 @@ definitions:
       - type: object
         title: Scripting
         allOf:
-          - $ref: "http://qubership.org/schemas/product/qip/element/properties/resource-reference-script.schema.yaml"
+          - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-script"
         properties:
           type:
             const: "script"

@@ -640,7 +640,7 @@ public class CamelDebugger extends DefaultDebugger {
             case SERVICE_CALL:
                 if (CamelNames.REQUEST_ATTEMPT_STEP_PREFIX
                         .equals(executionContext.getStepName())) {
-                    chainLogger.logRetryRequestAttempt(exchange, executionContext.getElementInfo().getId());
+                    chainLogger.logRetryRequestAttempt(exchange, executionContext.getElementInfo().getSnapshotElementId());
                 }
                 break;
             default:

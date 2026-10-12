@@ -201,6 +201,9 @@ public class BulkDeploymentService {
                 DeployMode.APPEND.equals(request.getMode()));
             try {
                 microDomainService.deploy(built);
+                if (!DeployMode.APPEND.equals(request.getMode())) {
+                    microDomainService.deleteHttpRoutesOfOtherSnapshots(request.getName(), request.getSnapshotIds());
+                }
                 return;
             } catch (KubeApiConflictException conflict) {
                 if (attempt == MAX_CONFLICT_ATTEMPTS) {

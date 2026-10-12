@@ -21,9 +21,9 @@ import org.qubership.integration.platform.io.model.exportimport.system.ContextSe
 import org.qubership.integration.platform.io.model.exportimport.system.ContextServiceDto;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.io.readers.migrations.system.ServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.context.ContextSystem;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -36,10 +36,10 @@ public class ContextServiceDtoMapper {
 
     @Autowired
     public ContextServiceDtoMapper(
-            @Value("${cip.json.schemas.context-service:http://qubership.org/schemas/product/qip/context-service}") URI schemaUri,
+            ApplicationJsonSchemaProperties schemas,
             List<ServiceImportFileMigration> serviceImportFileMigrations
     ) {
-        this.schemaUri = schemaUri;
+        this.schemaUri = URI.create(schemas.getContextService());
         this.serviceImportFileMigrations = serviceImportFileMigrations;
     }
 

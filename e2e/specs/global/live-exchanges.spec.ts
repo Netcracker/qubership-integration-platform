@@ -37,9 +37,9 @@
  *   and the route then aborts: the caller gets **500 `QIP-0114`** and the recorded session gets
  *   `COMPLETED_WITH_ERRORS` with `Chain was interrupted manually` on the element that was in
  *   flight. That is what these cases assert.
- * - **the catalog does not answer 202 regardless of the outcome.** `sendKillExchangeRequest` uses
- *   `RestTemplate.delete`, which raises on the engine's 404, so a kill aimed at nothing is a
- *   **500** through the catalog and a 404 on the engine. Filed in `docs/product-defects.md`.
+ * - **the catalog does not answer 202 regardless of the outcome.** `sendKillExchangeRequest` maps
+ *   the engine's 404 to a 404 that keeps the engine's message, so a kill aimed at nothing is a 404
+ *   on both services, and an address that is no registered engine pod is a 404 of its own.
  */
 import { test, expect } from "../../support/fixtures.js";
 import { ENGINE_CASE_TIMEOUT, readCorpusState, seedChain } from "../../support/corpus.js";

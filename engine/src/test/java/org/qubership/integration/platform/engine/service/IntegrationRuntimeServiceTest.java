@@ -71,7 +71,6 @@ class IntegrationRuntimeServiceTest {
                 quartzSchedulerService,
                 mock(TracingConfiguration.class),
                 groovyShellFactory,
-                mock(GroovyLanguageWithResettableCache.class),
                 mock(MetricsStore.class),
                 mock(ExternalLibraryService.class),
                 mock(MaasService.class),
@@ -94,11 +93,12 @@ class IntegrationRuntimeServiceTest {
     void rejectsDeploymentWhenNestedGroovyScriptCannotCompile() throws Exception {
         when(groovyShellFactory.createGroovyShell(null)).thenReturn(new GroovyShell());
         RoutesDefinition routesDefinition = routesWithNestedGroovyScript("if (");
-        Method method = IntegrationRuntimeService.class.getDeclaredMethod("compileGroovyScripts", RoutesDefinition.class);
+        Method method = IntegrationRuntimeService.class.getDeclaredMethod("compileGroovyScripts",
+                RoutesDefinition.class, GroovyLanguageWithResettableCache.class);
         method.setAccessible(true);
 
         InvocationTargetException thrown = assertThrows(InvocationTargetException.class,
-                () -> method.invoke(service, routesDefinition));
+                () -> method.invoke(service, routesDefinition, new GroovyLanguageWithResettableCache()));
 
         assertSame(RuntimeException.class, thrown.getCause().getClass());
     }
@@ -106,10 +106,12 @@ class IntegrationRuntimeServiceTest {
     @Test
     void compilesValidNestedGroovyScriptBeforeDeployment() throws Exception {
         when(groovyShellFactory.createGroovyShell(null)).thenReturn(new GroovyShell());
-        Method method = IntegrationRuntimeService.class.getDeclaredMethod("compileGroovyScripts", RoutesDefinition.class);
+        Method method = IntegrationRuntimeService.class.getDeclaredMethod("compileGroovyScripts",
+                RoutesDefinition.class, GroovyLanguageWithResettableCache.class);
         method.setAccessible(true);
 
-        assertDoesNotThrow(() -> method.invoke(service, routesWithNestedGroovyScript("return null")));
+        assertDoesNotThrow(() -> method.invoke(service, routesWithNestedGroovyScript("return null"),
+                new GroovyLanguageWithResettableCache()));
 
         verify(groovyShellFactory).createGroovyShell(null);
     }

@@ -43,7 +43,6 @@ import { createScriptChain, SCRIPT_CHAIN_STEPS } from "../../support/deployable.
 import { releaseChains } from "../../support/cleanup.js";
 import { BROKERS_CORPUS_STATE_FILE, readBrokersCorpusState, type BrokerChain } from "../../support/brokers.js";
 import { keepEntities } from "../../support/fixtures.js";
-import { SESSION_SEARCH_HEADER_LIMIT, strikesAsKnown } from "../../support/known-defect.js";
 import type { Env } from "../../env/index.js";
 import type { Catalog } from "../../support/catalog.js";
 import type { APIRequestContext } from "@playwright/test";
@@ -150,10 +149,7 @@ test("the bare delete removes every session on the platform, and the index goes 
 
       const mine = await drive(request, sessions, env, chain);
 
-      // Behind an Istio sidecar a search this wide fails once the stack holds enough sessions (#985).
-      const before = await strikesAsKnown(SESSION_SEARCH_HEADER_LIMIT, () =>
-        sessions.search({}, { count: EVERY_SESSION }),
-      );
+      const before = await sessions.search({}, { count: EVERY_SESSION });
       expect(
         before.sessions.map((each) => each.id),
         "the session this case just recorded is in the platform-wide listing",

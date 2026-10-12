@@ -649,6 +649,85 @@ async function deleteSourceFilesFromSpecificationSources(
   }
 }
 
+/**
+ * @public
+ * Public API re-exported via `src/web/index.ts` for use in custom actions in apps based on this extension.
+ * Intentionally not called by `apiRouter.ts`. Do not remove.
+ */
+export async function deleteSpecificationByUri(
+  specificationFileUri: Uri,
+): Promise<void> {
+  try {
+    let specificationInfo: any = null;
+    try {
+      specificationInfo =
+        await ContentParser.parseContentFromFile(specificationFileUri);
+    } catch (error) {
+      console.error(
+        `Error reading specification file ${specificationFileUri.path}:`,
+        error,
+      );
+    }
+
+    if (specificationInfo?.id) {
+      try {
+        const siblingName =
+          specificationFileUri.path.split("/").pop() || "";
+        const extensions = getExtensionsForFile(siblingName);
+        const groupId = specificationInfo.content?.parentId;
+
+        if (!groupId) {
+          throw new Error(
+            `Specification ${specificationInfo.id} does not contain a parent group id`,
+          );
+        }
+
+        const groupFileUri = await fileApi.findFileById(
+          groupId,
+          extensions.specificationGroup,
+        );
+        const groupInfo =
+          await ContentParser.parseContentFromFile(groupFileUri);
+        const serviceId = groupInfo?.content?.parentId;
+
+        if (!serviceId) {
+          throw new Error(
+            `Specification group ${groupId} does not contain a parent service id`,
+          );
+        }
+
+        const serviceFileUri = await fileApi.findFileById(
+          serviceId,
+          extensions.service,
+        );
+        await deleteSpecificationModel(
+          serviceFileUri,
+          specificationInfo.id,
+          true,
+        );
+        return;
+      } catch (error) {
+        console.error(
+          `Error deleting specification by id ${specificationInfo.id}:`,
+          error,
+        );
+      }
+    }
+
+    if (specificationInfo) {
+      await deleteSourceFilesFromSpecificationSources(
+        specificationFileUri,
+        specificationInfo,
+      );
+    }
+
+    await fileApi.deleteFile(specificationFileUri);
+  } catch (error) {
+    console.error("[deleteSpecificationByUri] Error:", error);
+    throw error;
+  }
+}
+
 export async function deleteSpecificationGroup(
   serviceFileUri: Uri,
   groupId: string,
@@ -709,9 +788,50 @@ export async function deleteSpecificationGroup(
   }
 }
 
+/**
+ * @public
+ * Public API re-exported via `src/web/index.ts` for use in custom actions in apps based on this extension.
+ * Intentionally not called by `apiRouter.ts`. Do not remove.
+ */
+export async function deleteSpecificationGroupByUri(
+  specificationGroupFileUri: Uri,
+): Promise<void> {
+  try {
+    const groupInfo =
+      await ContentParser.parseContentFromFile(specificationGroupFileUri);
+
+    if (!groupInfo?.id) {
+      throw new Error(
+        `Specification group file ${specificationGroupFileUri.path} does not contain an id`,
+      );
+    }
+
+    const siblingName =
+      specificationGroupFileUri.path.split("/").pop() || "";
+    const extensions = getExtensionsForFile(siblingName);
+    const serviceId = groupInfo?.content?.parentId;
+
+    if (!serviceId) {
+      throw new Error(
+        `Specification group file ${specificationGroupFileUri.path} does not contain a parent service id`,
+      );
+    }
+
+    const serviceFileUri = await fileApi.findFileById(
+      serviceId,
+      extensions.service,
+    );
+    await deleteSpecificationGroup(serviceFileUri, groupInfo.id, true);
+  } catch (error) {
+    console.error("deleteSpecificationGroup: Error:", error);
+    throw error;
+  }
+}
+
 export async function deleteSpecificationModel(
   serviceFileUri: Uri,
   modelId: string,
+  silent = false,
 ): Promise<void> {
   try {
     const { specificationFile, specificationInfo } =
@@ -729,12 +849,18 @@ export async function deleteSpecificationModel(
     );
     await fileApi.deleteFile(specificationFileUri);
 
-    vscode.window.showInformationMessage(
-      `Specification "${specificationInfo.name}" has been deleted successfully!`,
-    );
+    if (!silent) {
+      vscode.window.showInformationMessage(
+        `Specification "${specificationInfo.name}" has been deleted successfully!`,
+      );
+    }
   } catch (error) {
     console.error("[deleteSpecificationModel] Error:", error);
-    vscode.window.showErrorMessage(`Failed to delete specification: ${error}`);
+    if (!silent) {
+      vscode.window.showErrorMessage(
+        `Failed to delete specification: ${error}`,
+      );
+    }
     throw error;
   }
 }

@@ -33,6 +33,7 @@ import org.qubership.integration.platform.runtime.catalog.service.ActionsLogServ
 import org.qubership.integration.platform.runtime.catalog.service.ChainService;
 import org.qubership.integration.platform.runtime.catalog.service.exportimport.mapper.chain.ChainExternalEntityMapper;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
+import org.qubership.integration.platform.runtime.catalog.util.ExportImportUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.util.Pair;
@@ -54,9 +55,6 @@ import static org.qubership.integration.platform.io.model.exportimport.ExportImp
 @Transactional(readOnly = true)
 @Service
 public class ExportService {
-
-    @Value("${app.prefix}")
-    private String appName;
 
     @Value("${cip.export.legacy-format}")
     private boolean isLegacyExport;
@@ -126,7 +124,7 @@ public class ExportService {
 
         Path chainDirectory = getChainDirectory(chain);
 
-        String chainFileName = generateChainYamlName(chain);
+        String chainFileName = ExportImportUtils.generateChainFileExportName(chain.getId(), isLegacyExport);
         List<Deployment> deployments = chain.getDeployments();
         if (deployments.size() > 1) {
             String curSnapShot = Optional.ofNullable(chain.getCurrentSnapshot())
@@ -175,12 +173,6 @@ public class ExportService {
     public String generateExportZipName() {
         DateFormat dateFormat = new SimpleDateFormat(DATE_TIME_FORMAT_PATTERN);
         return EXPORT_FILE_NAME_PREFIX + dateFormat.format(new Date()) + ZIP_NAME_POSTFIX;
-    }
-
-    public String generateChainYamlName(Chain chain) {
-        return isLegacyExport
-                ? CHAIN_YAML_NAME_PREFIX + chain.getId() + YAML_FILE_NAME_POSTFIX
-                : chain.getId() + CHAIN_YAML_NAME_POSTFIX + appName + YAML_FILE_NAME_POSTFIX;
     }
 
     private void logChainExport(Chain chain) {

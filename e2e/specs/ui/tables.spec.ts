@@ -93,8 +93,9 @@ async function fillAuditPage(catalog: Catalog, run: string, parentId: string): P
 
 test("the audit log loads its next page when its table is scrolled to the end", { tag: ["@ui", "@tier1"] }, async ({ page, catalog, folder, run }) => {
   await fillAuditPage(catalog, run, folder.id);
-  // Short enough that the first page overflows the table body, so the body can scroll.
-  await page.setViewportSize({ width: 1600, height: 700 });
+  // Short enough that the first page overflows the table body by more than the 200 px margin the
+  // infinite scroll loads ahead by, so only the scroll below can fetch the next page.
+  await page.setViewportSize({ width: 1600, height: 500 });
   const table = new TableView(page);
 
   await page.goto("/admintools/audit");

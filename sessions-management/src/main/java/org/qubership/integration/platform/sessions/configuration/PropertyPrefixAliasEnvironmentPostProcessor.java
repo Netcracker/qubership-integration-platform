@@ -2,6 +2,9 @@ package org.qubership.integration.platform.sessions.configuration;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.context.config.ConfigDataEnvironmentPostProcessor;
+import org.springframework.boot.context.properties.source.ConfigurationProperty;
+import org.springframework.boot.context.properties.source.ConfigurationPropertyName;
+import org.springframework.boot.context.properties.source.ConfigurationPropertySource;
 import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
 import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.core.Ordered;
@@ -44,27 +47,34 @@ public class PropertyPrefixAliasEnvironmentPostProcessor implements EnvironmentP
     // @ConfigurationProperties-based lookup ran.
     private static final class PrefixAliasPropertySource extends EnumerablePropertySource<MutablePropertySources> {
 
+        private final Iterable<ConfigurationPropertySource> configurationSources;
+
         PrefixAliasPropertySource(ConfigurableEnvironment environment) {
             super(SOURCE_NAME, environment.getPropertySources());
+            this.configurationSources = ConfigurationPropertySources.from(getSource());
         }
 
-        // Asks each source directly, never the Environment, so a lookup cannot come back to this source.
+        // Asks each source directly, never the Environment, so a lookup cannot come back to this source. Matches
+        // names the way the binder does, so CIP_INTERNALSERVICES_RUNTIMECATALOG sets
+        // cip.internal-services.runtime-catalog.
         @Override
         public Object getProperty(String name) {
             if (!name.startsWith(NEW_PREFIX)) {
                 return null;
             }
-            String legacyName = OLD_PREFIX + name.substring(NEW_PREFIX.length());
-            for (PropertySource<?> source : getSource()) {
-                if (!isDelegate(source)) {
+            ConfigurationPropertyName newName = ConfigurationPropertyName.adapt(name, '.');
+            ConfigurationPropertyName legacyName =
+                    ConfigurationPropertyName.adapt(OLD_PREFIX + name.substring(NEW_PREFIX.length()), '.');
+            for (ConfigurationPropertySource source : configurationSources) {
+                if (source.getUnderlyingSource() == this) {
                     continue;
                 }
-                Object value = source.getProperty(name);
-                if (value == null) {
-                    value = source.getProperty(legacyName);
+                ConfigurationProperty property = source.getConfigurationProperty(newName);
+                if (property == null) {
+                    property = source.getConfigurationProperty(legacyName);
                 }
-                if (value != null) {
-                    return value;
+                if (property != null) {
+                    return property.getValue();
                 }
             }
             return null;

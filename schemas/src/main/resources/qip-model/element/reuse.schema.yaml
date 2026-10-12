@@ -1,15 +1,15 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/reuse.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/reuse
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
-  - $ref: "http://qubership.org/schemas/product/qip/element/properties/container-element-properties.schema.yaml"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/container-element-properties"
 title: Reuse
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   type:
     type: string

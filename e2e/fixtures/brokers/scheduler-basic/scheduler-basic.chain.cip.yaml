@@ -1,0 +1,29 @@
+---
+id: "e2e0i001-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-scheduler-basic"
+description: "quartz-scheduler at its schema defaults: deleteJob false, a sub-minute cron so a\
+  \ spec's own timeout catches a firing rather than waiting out a real-world schedule. No inbound\
+  \ message of any kind, so a spec correlates by chain id: snapshot the sessions before, wait for\
+  \ one the snapshot does not carry."
+content:
+  labels: []
+  elements:
+  - id: "e2e0i001-0000-4000-8000-000000000002"
+    name: "Scheduler"
+    type: "quartz-scheduler"
+    properties:
+      cron: "0/3 * * * * ?"
+      deleteJob: false
+  - id: "e2e0i001-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e0i001-0000-4000-8000-000000000002"
+    to: "e2e0i001-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

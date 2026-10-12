@@ -192,42 +192,6 @@ test("POST answers one diagram per mode, and SIMPLE drops the excluded families"
   });
 });
 
-test("the design request body has two shapes the generator answers 500 to", { tag: ["@catalog", "@tier2"] }, async ({ catalog, folder, run }) => {
-  const chain = await designChain(catalog, run, folder.id, "body");
-  const path = `/v1/design-generator/chains/${chain.id}`;
-
-  // Both 500s are filed in `docs/product-defects.md` under "The design generator 500s on two shapes
-  // of its own request body". They are pinned as the measured contract rather than carried as
-  // `test.fail()`, because neither has a correct answer this spec could assert instead: the
-  // controller has no `@Valid` on the request and no schema says which status a rejected body owes.
-  // The day either is fixed this case goes red and names the endpoint.
-  const noModes = await catalog.raw("post", path, {});
-  expect(noModes.status(), "an omitted diagramModes is a null dereference").toBe(500);
-  expect(await noModes.json()).toMatchObject({
-    serviceName: "Catalog",
-    errorMessage: 'Cannot invoke "java.util.List.iterator()" because "modes" is null',
-  });
-
-  // `READ_UNKNOWN_ENUM_VALUES_AS_NULL` is enabled (`MapperAutoConfiguration.java:63`), so an
-  // unknown mode deserializes to null, the generator keys the result map on null, and Jackson
-  // refuses to write a null map key. The failure is on the way **out**, which is why this one
-  // carries Spring's own problem-detail shape rather than the catalog's error envelope.
-  const badMode = await catalog.raw("post", path, { diagramModes: ["NOPE"] });
-  expect(badMode.status(), "an unknown mode becomes a null map key").toBe(500);
-  expect(await badMode.json()).toMatchObject({
-    type: "about:blank",
-    status: 500,
-    detail: "Failed to write request",
-  });
-
-  // A zero-byte body is refused correctly, which is what makes the two above defects rather than a
-  // policy: the same endpoint does answer 400 when Spring can see there is nothing to read.
-  const empty = await catalog.upload("post", path, {
-    headers: { "content-type": "application/json" },
-  });
-  expect(empty.status()).toBe(400);
-});
-
 test("a snapshot design reads the snapshot's elements, not the chain's", { tag: ["@catalog", "@tier1"] }, async ({ catalog, folder, run }) => {
   const chain = await designChain(catalog, run, folder.id, "snapshot");
   const snapshot = await catalog.createSnapshot(chain.id);

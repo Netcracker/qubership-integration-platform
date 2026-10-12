@@ -3,6 +3,9 @@ package org.qubership.integration.platform.runtime.catalog.service.rolloutimport
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.ImportConfig;
 import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimport.RolloutImportConfigurationItem;
@@ -12,16 +15,19 @@ import org.qubership.integration.platform.runtime.catalog.rest.v3.dto.rolloutimp
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ImportConfigFactoryTest {
 
-    private static final String CHAIN_SCHEMA = "http://qubership.org/schemas/product/qip/chain";
-    private static final String SERVICE_SCHEMA = "http://qubership.org/schemas/product/qip/service";
-    private static final String CONTEXT_SERVICE_SCHEMA = "http://qubership.org/schemas/product/qip/context-service";
-    private static final String SPECIFICATION_GROUP_SCHEMA = "http://qubership.org/schemas/product/qip/specification-group";
-    private static final String SPECIFICATION_SCHEMA = "http://qubership.org/schemas/product/qip/specification";
+    private static final String CHAIN_SCHEMA = "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain";
+    private static final String SERVICE_SCHEMA = "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service";
+    private static final String CONTEXT_SERVICE_SCHEMA = "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service";
+    private static final String SPECIFICATION_GROUP_SCHEMA = "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group";
+    private static final String SPECIFICATION_SCHEMA = "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification";
 
     private static final String CHAIN_CONFIG_ID = "chain-1";
     private static final String SERVICE_CONFIG_ID = "svc-1";
@@ -112,6 +118,48 @@ class ImportConfigFactoryTest {
         assertThat(result.getServices()).doesNotContainKey(CONTEXT_SERVICE_CONFIG_ID);
     }
 
+    static Stream<Arguments> legacySchemas() {
+        return Stream.of(
+                Arguments.of("http://qubership.org/schemas/product/qip/chain", mapOf(ImportConfig::getChains)),
+                Arguments.of("http://qubership.org/schemas/product/qip/service", mapOf(ImportConfig::getServices)),
+                Arguments.of("http://qubership.org/schemas/product/qip/specification-group",
+                        mapOf(ImportConfig::getSpecificationGroups)),
+                Arguments.of("http://qubership.org/schemas/product/qip/specification",
+                        mapOf(ImportConfig::getSpecifications)),
+                Arguments.of("http://qubership.org/schemas/product/qip/context-service",
+                        mapOf(ImportConfig::getContextServices))
+        );
+    }
+
+    @ParameterizedTest
+    @MethodSource("legacySchemas")
+    @DisplayName("Configuration with a legacy qip schema is routed like the current one")
+    void legacySchemaRoutedLikeCurrent(
+            String schema,
+            Function<ImportConfig, Map<String, RolloutImportConfigurationItem>> target
+    ) {
+        RolloutImportConfigurationItem item = configItem("legacy-1", schema);
+
+        ImportConfig result = factory.fromConfigurationsAndResources(List.of(item), null);
+
+        assertThat(target.apply(result)).containsOnlyKeys("legacy-1");
+    }
+
+    @Test
+    @DisplayName("Configuration with the legacy schema file URI is not added to any map")
+    void legacySchemaFileUriNotAddedToAnyMap() {
+        RolloutImportConfigurationItem item = configItem(
+                "legacy-file-1", "http://qubership.org/schemas/product/qip/chain.schema.yaml");
+
+        ImportConfig result = factory.fromConfigurationsAndResources(List.of(item), null);
+
+        assertThat(result.getChains()).isEmpty();
+        assertThat(result.getServices()).isEmpty();
+        assertThat(result.getSpecificationGroups()).isEmpty();
+        assertThat(result.getSpecifications()).isEmpty();
+        assertThat(result.getContextServices()).isEmpty();
+    }
+
     @Test
     @DisplayName("Configuration with unknown schema is not added to any map")
     void unknownSchemaNotAddedToAnyMap() {
@@ -157,6 +205,13 @@ class ImportConfigFactoryTest {
         assertThat(result.getChains()).isEmpty();
         assertThat(result.getServices()).isEmpty();
         assertThat(result.getResources()).isEmpty();
+    }
+
+    // Gives a method reference a target type inside Arguments.of(...).
+    private static Function<ImportConfig, Map<String, RolloutImportConfigurationItem>> mapOf(
+            Function<ImportConfig, Map<String, RolloutImportConfigurationItem>> getter
+    ) {
+        return getter;
     }
 
     private RolloutImportConfigurationItem configItem(String id, String schema) {

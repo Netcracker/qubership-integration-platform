@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "700b8fc5-dfc7-4b4e-a5d3-bee6e9332463"
 name: "Service Call"
 content:

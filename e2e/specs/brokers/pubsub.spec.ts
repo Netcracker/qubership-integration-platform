@@ -142,11 +142,10 @@ test(
 );
 
 test(
-  "pubsub-sender with messageOrderingEnabled=true sends without throwing",
+  "pubsub-sender with messageOrderingEnabled=true publishes the message under its ordering key",
   { tag: ["@engine", "@sessions", "@tier2"] },
   async ({ request, env, sessions, run }) => {
-    // No `covers()` call: see the registry's own `R_PUBSUB_ORDERING_INDISTINGUISHABLE` reason. This
-    // case still runs to prove the sender keeps working with the axis set to true.
+    covers("pubsub-sender", "messageOrderingEnabled", true);
 
     const corpus = readBrokersCorpusState();
     const chain = brokerChain(corpus, "pubsub-sender-ordering");
@@ -163,12 +162,10 @@ test(
       expect(session.chainId).toBe(chain.id);
       expect(failedElements(session)).toEqual([]);
 
-      // `orderingKey` is not asserted here: measured against this stack, the element's
-      // `orderingKey` property never reaches the published message -- `GooglePubsubEndpoint` has no
-      // such URI option, only a header the template does not set. See `docs/product-defects.md`.
       const message = await pullOnePubsub(subscription);
       expect(message, `no message arrived on subscription ${subscription} within the wait`).not.toBeNull();
       expect(message!.data).toEqual(body);
+      expect(message!.orderingKey).toBe(tokenized(corpus.run, "pubsub-sender-ordering-key"));
     } finally {
       await deletePullSubscription(subscription);
     }

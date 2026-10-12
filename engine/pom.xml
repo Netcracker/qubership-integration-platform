@@ -33,7 +33,7 @@
       <dependency>
         <groupId>io.netty</groupId>
         <artifactId>netty-bom</artifactId>
-        <version>4.1.110.Final</version>
+        <version>${netty-bom.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -167,10 +167,10 @@
         <artifactId>kafka-clients</artifactId>
         <version>${kafka.version}</version>
         <exclusions>
-        <exclusion>
+          <exclusion>
             <groupId>org.lz4</groupId>
             <artifactId>lz4-java</artifactId>
-        </exclusion>
+          </exclusion>
         </exclusions>
       </dependency>
       <dependency>

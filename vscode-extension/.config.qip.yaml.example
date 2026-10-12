@@ -1,7 +1,7 @@
 version: "1.0"
 
 configs:
-  qip:
+  cip:
     extensions:
       chain: .chain.${appName}.yaml
       contextService: .context-service.${appName}.yaml
@@ -10,12 +10,12 @@ configs:
       specificationGroup: .specification-group.${appName}.yaml
       specification: .specification.${appName}.yaml
     schemaUrls:
-      contextService: http://qubership.org/schemas/product/${appName}/context-service
-      mcpService: http://qubership.org/schemas/product/${appName}/mcp-service
-      service: http://qubership.org/schemas/product/${appName}/service
-      chain: http://qubership.org/schemas/product/${appName}/chain
-      specification: http://qubership.org/schemas/product/${appName}/specification
-      specificationGroup: http://qubership.org/schemas/product/${appName}/specification-group
+      contextService: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service
+      mcpService: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service
+      service: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
+      chain: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+      specification: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification
+      specificationGroup: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group
 
   pip:
     extensions:
@@ -26,12 +26,12 @@ configs:
       specificationGroup: .specification-group.${appName}.yaml
       specification: .specification.${appName}.yaml
     schemaUrls:
-      contextService: http://qubership.org/schemas/product/${appName}/context-service
-      mcpService: http://qubership.org/schemas/product/${appName}/mcp-service
-      service: http://qubership.org/schemas/product/${appName}/service
-      chain: http://qubership.org/schemas/product/${appName}/chain
-      specification: http://qubership.org/schemas/product/${appName}/specification
-      specificationGroup: http://qubership.org/schemas/product/${appName}/specification-group
+      contextService: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service
+      mcpService: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/mcp-service
+      service: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/service
+      chain: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain
+      specification: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification
+      specificationGroup: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification-group
 
 cache:
   ttl: 60000

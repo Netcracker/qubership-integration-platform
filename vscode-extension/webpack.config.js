@@ -104,7 +104,7 @@ const webExtensionConfig = {
             type: 'asset/source'
         }, {
             // The files the integration tests expect the extension to write, bundled as text.
-            test: /\.qip\.yaml$/,
+            test: /\.cip\.yaml$/,
             include: goldenDir,
             type: 'asset/source'
         }]

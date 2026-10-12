@@ -1,22 +1,22 @@
 ---
-$id: http://qubership.org/schemas/product/qip/specification.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/specification
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/common-properties/top-level-entity-properties.schema.yaml"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/top-level-entity-properties"
 title: Specification
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
-  fileExtension: specification.qip
+    - CIP
+  fileExtension: specification.cip
 properties:
   content:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/labels-property.schema.yaml"
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/parent-property.schema.yaml"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/description-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/labels-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/parent-property"
     properties:
       deprecated:
         type: boolean
@@ -49,7 +49,7 @@ definitions:
   SpecificationSource:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/description-property"
     properties:
       id:
         type: string
@@ -74,7 +74,7 @@ definitions:
   Operation:
     type: object
     allOf:
-      - $ref: "http://qubership.org/schemas/product/qip/common-properties/description-property.schema.yaml"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/description-property"
     properties:
       id:
         type: string

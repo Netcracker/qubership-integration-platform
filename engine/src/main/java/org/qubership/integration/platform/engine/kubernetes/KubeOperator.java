@@ -27,6 +27,8 @@ import io.kubernetes.client.openapi.models.V1Preconditions;
 import io.kubernetes.client.openapi.models.V1Secret;
 import io.kubernetes.client.openapi.models.V1SecretList;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.Call;
+import okhttp3.Response;
 import org.apache.commons.lang3.tuple.Pair;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiConflictException;
 import org.qubership.integration.platform.engine.errorhandling.KubeApiException;
@@ -165,15 +167,23 @@ public class KubeOperator {
 
     public Optional<KubeCustomObject> getCustomObject(KubeCustomObjectRequest request) {
         try {
-            Object response = customObjectsApi.getNamespacedCustomObject(
+            Call call = customObjectsApi.getNamespacedCustomObject(
                     request.getGroup(),
                     request.getVersion(),
                     getNotNullNamespace(),
                     request.getResourceNamePlural(),
                     getNotNullCustomResourceName(request)
-            ).execute();
+            ).buildCall(null);
 
-            return Optional.of(objectMapper.convertValue(response, KubeCustomObject.class));
+            // Jackson parses the body because the client's Gson reads every number in an untyped
+            // Object as a Double, and the ServiceEntry CRD rejects a port written back as 80.0.
+            try (Response response = call.execute()) {
+                String body = response.body().string();
+                if (!response.isSuccessful()) {
+                    throw new ApiException(response.message(), response.code(), response.headers().toMultimap(), body);
+                }
+                return Optional.of(objectMapper.readValue(body, KubeCustomObject.class));
+            }
         } catch (ApiException e) {
             if (e.getCode() == 404) {
                 return Optional.empty();

@@ -147,10 +147,8 @@ chains of its own through the classic deployment API, calls the classic engine d
 chains through the testing service, which calls the classic engine only.
 
 **Parity findings.** A case that passes under `runtime` and fails under `runtime-micro` is a
-finding, pinned with `test.fail(engineKind === "micro", …)` and an entry in
-`docs/product-defects.md`. Three micro-engine defects are pinned: the session trace names a wrapped
-step by a UUID instead of its name, the engine has no `camel-xslt` at runtime, and a step inside a
-container is recorded with no parent, so an async branch's step can land under another step.
+finding, pinned with `strikesAsKnown` and a `ConditionalDefect` (rule 13 of `AGENTS.md`) and
+recorded in `docs/product-defects.md`.
 
 **What each target costs**, measured with the other target stopped:
 

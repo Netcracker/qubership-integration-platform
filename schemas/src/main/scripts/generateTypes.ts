@@ -5,6 +5,7 @@ import { glob } from "glob";
 import yaml from "js-yaml";
 import { compile } from "json-schema-to-typescript";
 import $RefParser from "@apidevtools/json-schema-ref-parser";
+import { ID_PREFIX, SCHEMA_FILE_SUFFIX } from "./schemaIds";
 
 // ===== Config =====
 const SCHEMA_SRC_DIR = path.resolve(
@@ -13,7 +14,6 @@ const SCHEMA_SRC_DIR = path.resolve(
 );
 const TEMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "qip-schemas-"));
 const GENERATED_DIR = path.resolve(process.cwd(), "types");
-const REF_PREFIX = "http://qubership.org/schemas/product/qip/";
 
 // Ensure generated directory exists
 fs.mkdirSync(GENERATED_DIR, { recursive: true });
@@ -41,8 +41,10 @@ function rewriteRefsAndIds(obj: any, currentFile: string): any {
     for (const [key, value] of Object.entries(obj)) {
       if ((key === "$ref" || key === "$id") && typeof value === "string") {
         let newVal = value;
-        if (value.startsWith(REF_PREFIX)) {
-          const refRelPath = value.substring(REF_PREFIX.length).split("#")[0];
+        if (value.startsWith(ID_PREFIX)) {
+          const refRelPath =
+            value.substring(ID_PREFIX.length).split("#")[0] +
+            SCHEMA_FILE_SUFFIX;
           const fragment = value.includes("#") ? "#" + value.split("#")[1] : "";
           const targetAbsolute = path.resolve(TEMP_DIR, refRelPath);
           newVal = path.join(TEMP_DIR, refRelPath) + fragment;

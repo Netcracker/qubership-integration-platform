@@ -35,7 +35,7 @@
   "contributes": {
     "configurationDefaults": {
       "workbench.diffEditorAssociations": {
-        "*.chain.qip.yaml": "qip.chainFile.editor"
+        "*.chain.cip.yaml": "qip.chainFile.editor"
       }
     },
     "configuration": {
@@ -44,7 +44,7 @@
         "qipExtension.useDefaultDiffView": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Open integration chain diffs in the built-in text diff editor instead of the QIP visual diff. Toggling this updates the `workbench.diffEditorAssociations` entry for `*.chain.qip.yaml` in your user settings."
+          "markdownDescription": "Open integration chain diffs in the built-in text diff editor instead of the QIP visual diff. Toggling this updates the `workbench.diffEditorAssociations` entry for `*.chain.cip.yaml` in your user settings."
         }
       }
     },
@@ -111,7 +111,7 @@
         "displayName": "QIP Chain File Visual Editor",
         "selector": [
           {
-            "filenamePattern": "*.chain.qip.yaml"
+            "filenamePattern": "*.chain.cip.yaml"
           }
         ],
         "priority": {
@@ -124,7 +124,7 @@
         "displayName": "QIP Service File Visual Editor",
         "selector": [
           {
-            "filenamePattern": "*.service.qip.yaml"
+            "filenamePattern": "*.service.cip.yaml"
           }
         ]
       },
@@ -133,7 +133,7 @@
         "displayName": "QIP Context Service File Visual Editor",
         "selector": [
           {
-            "filenamePattern": "*.context-service.qip.yaml"
+            "filenamePattern": "*.context-service.cip.yaml"
           }
         ]
       },
@@ -142,7 +142,7 @@
         "displayName": "QIP MCP Service File Visual Editor",
         "selector": [
           {
-            "filenamePattern": "*.mcp-service.qip.yaml"
+            "filenamePattern": "*.mcp-service.cip.yaml"
           }
         ]
       }

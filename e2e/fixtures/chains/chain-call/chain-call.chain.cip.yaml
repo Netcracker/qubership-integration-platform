@@ -1,0 +1,33 @@
+---
+id: "e2e00010-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-chain-call"
+description: "Tier-1 fixture for the Chain Call element. It addresses the chain trigger of the\
+  \ chain-callee fixture by that element's own id, so the response says which chain answered."
+content:
+  labels: []
+  elements:
+  - id: "e2e00010-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-chain-call"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e00010-0000-4000-8000-000000000003"
+    name: "Chain Call"
+    type: "chain-call-2"
+    properties:
+      elementId: "e2e00011-0000-4000-8000-000000000004"
+      timeout: 30000
+  dependencies:
+  - from: "e2e00010-0000-4000-8000-000000000002"
+    to: "e2e00010-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

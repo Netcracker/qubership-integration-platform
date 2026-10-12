@@ -1,5 +1,5 @@
 id: "e2e50002-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-exchange-body"
 description: "The Script element reading and writing the body as each type it can hold. One ladder\
   \ of scripts: the request arrives as a stream, and every step records the class it was handed\

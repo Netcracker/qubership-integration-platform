@@ -21,11 +21,11 @@ import org.qubership.integration.platform.io.model.exportimport.system.MCPServic
 import org.qubership.integration.platform.io.model.exportimport.system.MCPServiceDto;
 import org.qubership.integration.platform.io.readers.migrations.common.MigrationUtil;
 import org.qubership.integration.platform.io.readers.migrations.mcp.MCPServiceImportFileMigration;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.mcp.MCPSystemLabel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.net.URI;
@@ -39,10 +39,10 @@ public class MCPServiceDtoMapper {
 
     @Autowired
     public MCPServiceDtoMapper(
-            @Value("${cip.json.schemas.mcp-service:http://qubership.org/schemas/product/qip/mcp-service}") URI schemaUri,
+            ApplicationJsonSchemaProperties schemas,
             List<MCPServiceImportFileMigration> migrations
     ) {
-        this.schemaUri = schemaUri;
+        this.schemaUri = URI.create(schemas.getMcpService());
         this.migrations = migrations;
     }
 

@@ -130,11 +130,6 @@ const R_PUBSUB_ACKMODE_NONE_INDISTINGUISHABLE =
   "observable redelivery within a bounded test window, so a case sees the same one session, no " +
   "failed elements AUTO's case already shows; the case still runs, without a covers() call";
 
-const R_PUBSUB_ORDERING_INDISTINGUISHABLE =
-  "product defect (docs/product-defects.md, \"pubsub-sender's orderingKey property never reaches " +
-  "the published message\"): with no ordering key ever set on the message, a case cannot tell " +
-  "messageOrderingEnabled=true apart from false; the case still runs, without a covers() call";
-
 // `async-api-trigger`'s protocol axis is covered by one kafka and one amqp case in
 // `specs/brokers/async-api.spec.ts`; the element row and its `systemType: EXTERNAL` row close as a
 // byproduct of building those two chains. Its method, systemType, idempotency and acknowledgeMode
@@ -249,9 +244,6 @@ const R_SERVICE_CALL_VALIDATION_TYPE =
 const R_MCP_IDEMPOTENCY =
   "not run on mcp-trigger: the shared idempotency partial branches on the element type (ignore answers 202 on http-trigger only), " +
   "and a tools/call carries no header for keyExpression, so the http-trigger cases do not prove these rows; no case covers them";
-const R_CONTEXT_USE_CORRELATION_FALSE =
-  "useCorrelationId matters only when the contextId is blank, since ContextStorageProcessor prefers a non-blank one, and false then stores under the empty id; " +
-  "the cases in specs/runtime/misc-elements.spec.ts set a contextId, so they would pass for true too, and no case covers it";
 const R_SENDER_CORRELATION =
   "no case covers it: the sender reads correlationIdPosition through the same two processors as service-call, " +
   "and the cases in specs/runtime/service-call-axes.spec.ts cover the service-call rows only";
@@ -376,7 +368,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "context-storage", kind: "axis", axisPath: "target", value: "BODY", tier: 2, status: "covered", tags: ENGINE },
   { family: "context-storage", kind: "axis", axisPath: "target", value: "HEADER", tier: 2, status: "covered", tags: ENGINE },
   { family: "context-storage", kind: "axis", axisPath: "target", value: "PROPERTY", tier: 2, status: "covered", tags: ENGINE },
-  { family: "context-storage", kind: "axis", axisPath: "useCorrelationId", value: false, tier: 2, status: NOT_COVERED, reason: R_CONTEXT_USE_CORRELATION_FALSE, tags: ENGINE },
+  { family: "context-storage", kind: "axis", axisPath: "useCorrelationId", value: false, tier: 2, status: "covered", tags: ENGINE },
   { family: "context-storage", kind: "axis", axisPath: "useCorrelationId", value: true, tier: 2, status: "covered", tags: ENGINE },
   { family: "else", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "file-read", kind: "element", tier: 1, status: "covered", tags: ENGINE },
@@ -648,7 +640,7 @@ export const elementRegistry: RegistryEntry[] = [
   { family: "on-fallback-2", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "otherwise", kind: "element", tier: 1, status: "covered", tags: ENGINE },
   { family: "pubsub-sender", kind: "element", tier: 1, status: "covered", tags: ENGINE, target: "compose" },
-  { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: true, tier: 2, status: NOT_COVERED, reason: R_PUBSUB_ORDERING_INDISTINGUISHABLE, tags: ENGINE },
+  { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: true, tier: 2, status: "covered", tags: ENGINE, target: "compose" },
   { family: "pubsub-sender", kind: "axis", axisPath: "messageOrderingEnabled", value: false, tier: 2, status: "covered", tags: ENGINE, target: "compose" },
   { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: true, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },
   { family: "pubsub-sender", kind: "axis", axisPath: "propagateContext", value: false, tier: 2, status: NOT_COVERED, reason: R_PROPAGATE_CONTEXT, tags: ENGINE },

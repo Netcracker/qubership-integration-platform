@@ -243,7 +243,7 @@ describe("extension.ts", () => {
 
   describe("useDefaultDiffView toggle", () => {
     const DIFF_ASSOCIATIONS_SETTING = "workbench.diffEditorAssociations";
-    const CHAIN_GLOB = "*.chain.qip.yaml";
+    const CHAIN_GLOB = "*.chain.cip.yaml";
 
     const flushAsync = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -385,11 +385,11 @@ describe("extension.ts", () => {
       const provider = activateAndGetProvider();
       const diffDocuments = {
         original: {
-          uri: { path: "/original.chain.qip.yaml" },
+          uri: { path: "/original.chain.cip.yaml" },
           getText: () => "original",
         },
         modified: {
-          uri: { path: "/modified.chain.qip.yaml" },
+          uri: { path: "/modified.chain.cip.yaml" },
           getText: () => "modified",
         },
       };

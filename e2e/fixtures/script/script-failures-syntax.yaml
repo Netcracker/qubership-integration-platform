@@ -1,5 +1,5 @@
 id: "e2e50017-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-failures-syntax"
 description: "A script that does not parse. The chain is imported, deployed and deleted by\
   \ specs/runtime/script-failures.spec.ts and is named in SPEC_OWNED_FIXTURES: the seed gates on\

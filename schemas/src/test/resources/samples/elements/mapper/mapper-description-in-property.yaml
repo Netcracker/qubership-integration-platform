@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/mapper-2.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/mapper-2
 {
   "id": "cb1750c3-e3b9-43ef-99f1-d12ad124c0fb",
   "name": "Mapper",

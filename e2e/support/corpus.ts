@@ -43,7 +43,6 @@ import {
   corpusFixtures,
   MICRO_FIXTURES,
   microCopy,
-  readFixtureDocument,
   renderFixture,
   SCRIPT_FIXTURE_DIR,
   type FixtureDocument,
@@ -304,45 +303,17 @@ export async function seedCorpus(
   return { run, chains };
 }
 
-/**
- * Deploys the whole corpus, and then deploys one chain again through a different endpoint.
- *
- * The second half is not redundancy. **A bulk deploy tells the engine nothing.**
- * `DeploymentService.bulkCreate` reaches its own `@DeploymentModification` methods by
- * self-invocation — `bulkCreate` → `deploySnapshot` → `deploySnapshotToDomain` → `create` — and
- * Spring's proxy AOP does not intercept a call an object makes to itself, so the aspect that writes
- * Consul's `deployments-update` key never runs. The engine watches that key with a blocking query
- * and fetches only when its index moves, so the deployment rows exist in the catalog and no route
- * ever comes up. Measured: three bulk deploys in a row left the key at its previous timestamp, the
- * engine issued no `deployments/update` request for ten minutes, and the chains sat at no runtime
- * state at all.
- *
- * `POST /v1/catalog/chains/{id}/deployments` reaches `create` from the **controller**, through the
- * proxy, so the aspect runs. One chain deployed that way after the batch moves the key once, and
- * the engine then collects every pending deployment in the same round — which is exactly the one
- * Consul tick the batch exists to pay.
- */
+/** Deploys the whole corpus in one bulk call, which moves Consul's `deployments-update` key once. */
 export async function deployCorpus(catalog: Catalog, chains: readonly SeedChain[]): Promise<void> {
   if (chains.length === 0) {
-    throw new Error(
-      "deployCorpus was given no chains: the last one is what moves Consul's deployments-update " +
-        "key, so an empty corpus has nothing to deploy and nothing downstream would come up",
-    );
+    throw new Error("deployCorpus was given no chains, so nothing downstream would come up");
   }
-  const batch = chains.slice(0, -1);
-  const last = chains[chains.length - 1];
-
-  if (batch.length > 0) {
-    const { status, rows } = await catalog.bulkDeploy(batch.map((each) => each.id));
-    expect(status, `the corpus deploy answered ${status}: ${JSON.stringify(rows)}`).toBe(200);
-    expect(
-      rows.filter((row) => row.status !== "CREATED").map((row) => `${row.chainName}: ${row.status}`),
-      "a chain the batch could not deploy",
-    ).toEqual([]);
-  }
-
-  const snapshot = await catalog.createSnapshot(last.id);
-  await catalog.deploy(last.id, snapshot.id);
+  const { status, rows } = await catalog.bulkDeploy(chains.map((each) => each.id));
+  expect(status, `the corpus deploy answered ${status}: ${JSON.stringify(rows)}`).toBe(200);
+  expect(
+    rows.filter((row) => row.status !== "CREATED").map((row) => `${row.chainName}: ${row.status}`),
+    "a chain the batch could not deploy",
+  ).toEqual([]);
 }
 
 /** Polls until every seeded chain is keyed in the runtime view, failing with the set difference. */
@@ -682,25 +653,6 @@ export async function seedMicroCorpus(
 /** Writes the micro copy where `seedChain` and the micro `Env` read it. */
 function writeMicroCorpusState(corpus: MicroCorpus): void {
   writeStateFile(MICRO_CORPUS_STATE_FILE, corpus);
-}
-
-let microNames: Promise<Map<string, string>> | undefined;
-
-/** The name of every element of the micro copy by its id, rendered once per worker. */
-export function microElementNames(): Promise<Map<string, string>> {
-  microNames ??= microCorpusTrees(readMicroCorpusState().run).then((trees) => {
-    const names = new Map<string, string>();
-    for (const [name, tree] of trees) {
-      const { document } = readFixtureDocument(name, tree);
-      for (const element of flatten((document.content as { elements?: FixtureElement[] })?.elements ?? [])) {
-        if (typeof element.id === "string" && typeof element.name === "string") {
-          names.set(element.id, element.name);
-        }
-      }
-    }
-    return names;
-  });
-  return microNames;
 }
 
 /** The micro copy, or a failure naming `seed-micro` rather than the spec that asked. */

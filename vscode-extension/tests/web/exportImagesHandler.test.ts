@@ -72,13 +72,13 @@ describe("exportImagesHandler", () => {
   describe("getExportTargetFromFilePath", () => {
     test("builds export target from chain file", async () => {
       const target = await getExportTargetFromFilePath(
-        "file:///workspace/chain-1.chain.qip.yaml",
+        "file:///workspace/chain-1.chain.cip.yaml",
       );
 
       expect(parseFile).toHaveBeenCalled();
       expect(target).toEqual({
         chainId: "chain-1",
-        filePath: "file:///workspace/chain-1.chain.qip.yaml",
+        filePath: "file:///workspace/chain-1.chain.cip.yaml",
         outputName: "chain-1",
       });
     });
@@ -93,7 +93,7 @@ describe("exportImagesHandler", () => {
       parseFile.mockResolvedValueOnce({ name: "no-id" });
 
       await expect(
-        getExportTargetFromFilePath("/workspace/invalid.chain.qip.yaml"),
+        getExportTargetFromFilePath("/workspace/invalid.chain.cip.yaml"),
       ).rejects.toThrow("Unable to determine chain id");
     });
   });
@@ -106,12 +106,12 @@ describe("exportImagesHandler", () => {
 
       expect(
         buildExportImagesStartupPayload(
-          "file:///workspace/chain-1.chain.qip.yaml",
+          "file:///workspace/chain-1.chain.cip.yaml",
           { outputDir: "/tmp/export" },
           targets,
         ),
       ).toEqual({
-        filePath: "file:///workspace/chain-1.chain.qip.yaml",
+        filePath: "file:///workspace/chain-1.chain.cip.yaml",
         exportConfig: {
           outputDir: "/tmp/export",
           imageFormat: "png",
@@ -125,7 +125,7 @@ describe("exportImagesHandler", () => {
       const targets = [
         { chainId: "chain-1", filePath: "/a.yaml", outputName: "chain-1" },
       ];
-      const fileUri = Uri.file("/workspace/chain-1.chain.qip.yaml");
+      const fileUri = Uri.file("/workspace/chain-1.chain.cip.yaml");
 
       expect(
         buildExportImagesStartupPayload(

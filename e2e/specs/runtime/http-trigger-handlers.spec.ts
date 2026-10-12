@@ -11,7 +11,6 @@
  * `Failure response mapping` — so the case reads the step's own body, which is the handler's output.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { axisFixtureName, handlerReply, THROWING_STEP } from "../../fixtures/axis-generator.js";
 import { callChain, element, elementNames } from "../../support/sessions.js";
@@ -44,8 +43,7 @@ const CASES: HandlerCase[] = [
 
 for (const handler of CASES) {
   const branch = `${handler.axisPath}=${handler.value}`;
-  test(`${branch} answers ${handler.status} through its own handler`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-    test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+  test(`${branch} answers ${handler.status} through its own handler`, { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
     covers("http-trigger", handler.axisPath, handler.value);
     const chain = seedChain(readCorpusState(), axisFixtureName({ family: "http-trigger", ...handler }));
 

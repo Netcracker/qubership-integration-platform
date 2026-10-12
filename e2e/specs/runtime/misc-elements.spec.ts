@@ -240,6 +240,8 @@ test.describe("context-storage", () => {
     covers("context-storage", "operation", "SET");
     covers("context-storage", "operation", "GET");
     covers("context-storage", "target", "BODY");
+    // The switch is off, so the context id decides; with it on, the two context ids would share one record.
+    covers("context-storage", "useCorrelationId", false);
     const contextId = callToken("context");
     const value = callToken("value");
     await store(request, env, chains.set, { [CONTEXT_ID]: contextId, [CONTEXT_VALUE]: value });

@@ -33,6 +33,7 @@ module.exports = {
     collectCoverage: true,
     collectCoverageFrom: [
         "<rootDir>/src/web/api-services/**/*.{ts,tsx}",
+        "<rootDir>/src/web/constants/**/*.ts",
         "<rootDir>/src/web/response/**/*.{ts,tsx}",
         "<rootDir>/src/web/services/**/*.{ts,tsx}",
         "<rootDir>/src/web/extension.ts",
