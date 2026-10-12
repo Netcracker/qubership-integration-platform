@@ -833,6 +833,36 @@ class CompilerSkillRuntimeTest {
   }
 
   @Test
+  void explicitScriptEditRunsForAFilledTargetAndLeavesAnUnselectedBlankScript() {
+    ChainPlanGraph fixture = greetingsGraph();
+    List<ChainPlanNode> nodes = new java.util.ArrayList<>(fixture.nodes());
+    nodes.add(new ChainPlanNode("unselected", "script", "Unselected", null, null, List.of()));
+    List<ChainPlanEdge> edges = new java.util.ArrayList<>(fixture.edges());
+    edges.add(new ChainPlanEdge("to-unselected", "script-1", "unselected", null));
+    ChainPlanGraph graph = new ChainPlanGraph(fixture.schemaVersion(), fixture.chain(), nodes, edges);
+    var ownership = new GraphPatchOwnershipPolicy(false, false, Set.of("script"), Set.of(),
+        java.util.Map.of("script", Set.of("script")));
+    executionContextStore.set(CONVERSATION_ID, SCRIPT_GENERATOR_ID,
+        new GraphPatchExecutionContext("edit-run", SCRIPT_GENERATOR_ID, null, null, null, null, null,
+            List.of(), graph, ownership, "attempt", List.of("script-1")).withExistingScriptBodyEdit(true));
+    when(scriptBodyRepairAgent.chat(eq(memoryId(SCRIPT_GENERATOR_ID)), any()))
+        .thenAnswer(invocation -> {
+          putScriptRepair(SCRIPT_GENERATOR_ID, scriptRepairPatch("return 'Updated';"));
+          return io.smallrye.mutiny.Multi.createFrom().empty();
+        });
+    SkillWorkspace workspace = workspaceWithGraph(graph);
+    SkillRunContext context = runContext(SCRIPT_GENERATOR_ID, 7);
+    runtime.runStreaming(context, workspace, SCRIPT_GENERATOR_ID).collect().asList().await().indefinitely();
+    SkillExecutionResult result = runtime.resolveResultAfterStream(context, workspace, SCRIPT_GENERATOR_ID);
+    assertEquals(SkillRunStatus.COMPLETED, result.status(), result.message());
+    verify(scriptBodyRepairAgent, times(1)).chat(eq(memoryId(SCRIPT_GENERATOR_ID)), any());
+    var updated = result.outputs().stream().filter(a -> a.type() == SkillArtifactType.CHAIN_PLAN_GRAPH)
+        .map(a -> ((SkillArtifactPayload.ChainPlanGraphPayload) a.payload()).graph()).findFirst().orElseThrow();
+    assertEquals(List.of(new PlanProperty("script", "return 'Updated';")), updated.nodes().get(1).properties());
+    assertEquals(nodes.getLast(), updated.nodes().getLast());
+  }
+
+  @Test
   void graphConstructionFailsWhenPlanMissing() {
     SkillExecutionResult result =
         runtime.finishGraphConstructionRun(CONVERSATION_ID, CHAIN_GENERATOR_ID);

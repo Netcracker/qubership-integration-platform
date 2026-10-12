@@ -894,7 +894,8 @@ public class ChainEditCompiler {
         intent.cronExpression(),
         intent.propertyKeys(),
         ambiguities,
-        intent.disposition());
+        intent.disposition(),
+        intent.reconnectNeighbors());
   }
 
   private static ChainEditOutcome noChangeOutcome(ChainEditIntent intent) {
@@ -923,13 +924,18 @@ public class ChainEditCompiler {
    */
   private ChainEditOutcome transform(ChainEditRequest request, ChainEditIntent intent) {
     ChainPlanGraph base = request.imported().graph();
-    GraphPatch requested =
-        switch (intent.action()) {
-          case DELETE -> ChainEditDeterministicTransforms.delete(intent.targetNodeIds());
+    GraphPatch requested;
+    try {
+      requested = switch (intent.action()) {
+          case DELETE -> ChainEditDeterministicTransforms.delete(
+              base, intent.targetNodeIds(), intent.reconnectNeighbors());
           case DISCONNECT ->
               ChainEditDeterministicTransforms.disconnect(base, intent.targetNodeIds());
           default -> ChainEditDeterministicTransforms.reorder(intent.targetNodeIds());
         };
+    } catch (IllegalArgumentException e) {
+      return new ChainEditOutcome.Clarification(e.getMessage(), List.of(), intent);
+    }
     ChainPatchRemovalClosure.Expansion expansion =
         ChainPatchRemovalClosure.expand(base, requested);
     if (!expansion.coherent()) {

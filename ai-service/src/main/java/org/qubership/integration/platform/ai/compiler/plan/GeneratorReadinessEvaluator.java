@@ -19,6 +19,7 @@ import org.qubership.integration.platform.ai.compiler.ScriptBodyPromptRedaction;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.plan.model.ChainPlanNode;
 import org.qubership.integration.platform.ai.plan.model.PlanProperty;
+import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecutionContext;
 import org.qubership.integration.platform.ai.schema.ChainElementFamilies;
 import org.qubership.integration.platform.ai.schema.DeterministicElementSchemaService;
 import org.qubership.integration.platform.ai.schema.ElementPatchValidationMessages;
@@ -158,6 +159,22 @@ public final class GeneratorReadinessEvaluator {
         .filter(nodeId -> nodeId != null && !nodeId.isBlank())
         .limit(MAX_TARGET_NODE_IDS)
         .toList();
+  }
+
+  public List<String> scriptNodesForCapture(
+      ChainPlanGraph graph, GraphPatchExecutionContext context) {
+    List<String> targets = context == null ? List.of() : context.editTargetNodeIds();
+    if (context != null && context.editsExistingScriptBodies()) {
+      if (targets.isEmpty()) {
+        throw new IllegalArgumentException("Existing script edits require target node IDs");
+      }
+      return graph.nodes().stream()
+          .filter(node -> "script".equals(node.type()) && targets.contains(node.nodeId()))
+          .map(ChainPlanNode::nodeId)
+          .toList();
+    }
+    List<String> missing = scriptNodesMissingBody(graph);
+    return targets.isEmpty() ? missing : missing.stream().filter(targets::contains).toList();
   }
 
   private boolean matches(String signal, ChainPlanGraph graph, Set<String> intents) {

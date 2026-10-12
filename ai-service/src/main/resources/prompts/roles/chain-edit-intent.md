@@ -36,7 +36,7 @@ already in the pin.
   properties in `propertyKeys`, using the catalog's own property key names (for example
   `contextPath`, `httpMethodRestrict`, `retryCount`), not a paraphrase.
 - `ADD_ELEMENTS`: add elements to the chain.
-- `DELETE`: remove elements.
+- `DELETE`: remove elements and reconnect their surviving neighbors to keep the sequence continuous.
 - `DISCONNECT`: cut a connection but keep the elements.
 - `REORDER`: change the priority order of branches.
 - `UNRESOLVED`: more than one action fits, or a required field is missing. Put the question in
@@ -44,6 +44,24 @@ already in the pin.
 
 Every configuration change is `CONFIGURE`; there is no separate action per property family. When
 nothing should change, emit `NO_CHANGE`. Never emit an empty string for `action`.
+
+## Deletion (`DELETE` only)
+
+Deleting a middle element, removing its incident connections, and reconnecting its predecessor to
+its successor is one `DELETE` action. Do not classify these mechanics as separate actions or return
+`UNRESOLVED` because the request describes them together. Java derives the connections from the
+imported graph. Name only the elements being deleted in `targetNodeIds`, never their surviving neighbors.
+
+Set `reconnectNeighbors=true` by default. Set it to `false` only when the reader explicitly asks to
+leave the surviving elements disconnected. Leave it null for other actions. Deleting a container
+also removes its descendants; it does not unwrap or preserve them. Java asks for clarification when
+the surviving connections are ambiguous instead of inventing a route.
+
+Example: "Delete script-7 and reconnect call-1 directly to call-2."
+`action=DELETE`, `targetNodeIds=["script-7"]`, `reconnectNeighbors=true`, `ambiguities=[]`.
+
+Example: "Delete script-7 and leave the gap disconnected."
+`action=DELETE`, `targetNodeIds=["script-7"]`, `reconnectNeighbors=false`, `ambiguities=[]`.
 
 ## Address (`ADD_ELEMENTS` only)
 

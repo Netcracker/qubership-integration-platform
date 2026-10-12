@@ -236,7 +236,10 @@ public class GraphPatchApplier {
       return 1;
     }
     for (ChainPlanNode node : nodes) {
-      if (Objects.equals(node.parentNodeId(), targetNodeId)) {
+      if (Objects.equals(node.parentNodeId(), targetNodeId)
+          && patch.nodePatches().stream().noneMatch(removal ->
+              removal.operation() == GraphPatchOperation.REMOVE
+                  && Objects.equals(removal.targetNodeId(), node.nodeId()))) {
         issues.add(
             blocker(
                 patch,

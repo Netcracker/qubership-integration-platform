@@ -24,9 +24,8 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.NodePatch;
  * patch first keeps all three honest, and lets the card say plainly that four elements are going,
  * not one.
  *
- * <p>It also settles an ordering problem for free: the applier refuses to remove a node while a
- * child still names it as parent, and applies removals in the order the patch lists them. Emitting
- * descendants alongside their container means that order is satisfied however the model wrote it.
+ * <p>Every descendant is explicit so the atomic applier can distinguish a subtree deletion from a
+ * deletion that leaves surviving children without a parent.
  */
 public final class ChainPatchRemovalClosure {
 

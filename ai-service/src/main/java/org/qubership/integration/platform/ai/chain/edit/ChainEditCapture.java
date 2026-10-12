@@ -38,7 +38,27 @@ public record ChainEditCapture(
                 + " new structure, or REMOVE it and put the new subgraph in its place. UNSET when"
                 + " this is not an addition, or for a new root trigger. Java infers KEEP when"
                 + " target ids are present and this field is empty.")
-        ChainEditDisposition disposition) {
+        ChainEditDisposition disposition,
+    @Description(
+            "For DELETE, reconnect surviving neighbors to keep the sequence continuous: true by"
+                + " default. False only when the reader explicitly asks to leave the neighbors"
+                + " disconnected. Null for other actions. Removing incident connections and"
+                + " reconnecting neighbors is one DELETE, not DELETE plus DISCONNECT.")
+        Boolean reconnectNeighbors) {
+
+  public ChainEditCapture(
+      ChainEditAction action,
+      List<String> targetNodeIds,
+      String requestedChange,
+      String lookup,
+      String elementType,
+      String cronExpression,
+      List<String> propertyKeys,
+      List<String> ambiguities,
+      ChainEditDisposition disposition) {
+    this(action, targetNodeIds, requestedChange, lookup, elementType, cronExpression,
+        propertyKeys, ambiguities, disposition, null);
+  }
 
   /** Capture without an explicit disposition; Java infers KEEP from a named address. */
   public ChainEditCapture(
