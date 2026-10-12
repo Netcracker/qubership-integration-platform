@@ -19,12 +19,31 @@ public record GraphPatchExecutionContext(
     GraphPatchOwnershipPolicy ownership,
     String attemptId,
     List<String> editTargetNodeIds,
-    String mappingGenerationContext) {
+    String mappingGenerationContext,
+    boolean editsExistingScriptBodies) {
 
   public GraphPatchExecutionContext {
     consumedArtifacts = consumedArtifacts == null ? List.of() : List.copyOf(consumedArtifacts);
     ownership = ownership == null ? GraphPatchOwnershipPolicy.denyAll() : ownership;
     editTargetNodeIds = editTargetNodeIds == null ? List.of() : List.copyOf(editTargetNodeIds);
+  }
+
+  public GraphPatchExecutionContext(
+      String runId, String skillId, String requirementDigest, String inputGraphDigest,
+      String compilerPackageDigest, String languageVersion, RequirementBrief requirementBrief,
+      List<CompilationArtifacts.Reference> consumedArtifacts, ChainPlanGraph inputGraph,
+      GraphPatchOwnershipPolicy ownership, String attemptId, List<String> editTargetNodeIds,
+      String mappingGenerationContext) {
+    this(runId, skillId, requirementDigest, inputGraphDigest, compilerPackageDigest, languageVersion,
+        requirementBrief, consumedArtifacts, inputGraph, ownership, attemptId, editTargetNodeIds,
+        mappingGenerationContext, false);
+  }
+
+  public GraphPatchExecutionContext withExistingScriptBodyEdit(boolean enabled) {
+    return new GraphPatchExecutionContext(
+        runId, skillId, requirementDigest, inputGraphDigest, compilerPackageDigest, languageVersion,
+        requirementBrief, consumedArtifacts, inputGraph, ownership, attemptId, editTargetNodeIds,
+        mappingGenerationContext, enabled);
   }
 
   /** Create path and callers with no named edit targets. */
@@ -100,7 +119,8 @@ public record GraphPatchExecutionContext(
         ownership,
         attemptId,
         targetNodeIds,
-        mappingGenerationContext);
+        mappingGenerationContext,
+        editsExistingScriptBodies);
   }
 
   public GraphPatchExecutionContext withConsumedArtifacts(
@@ -118,7 +138,8 @@ public record GraphPatchExecutionContext(
         ownership,
         attemptId,
         editTargetNodeIds,
-        mappingGenerationContext);
+        mappingGenerationContext,
+        editsExistingScriptBodies);
   }
 
   public GraphPatchExecutionContext withMappingGenerationContext(String mappingContext) {
@@ -135,6 +156,7 @@ public record GraphPatchExecutionContext(
         ownership,
         attemptId,
         editTargetNodeIds,
-        mappingContext);
+        mappingContext,
+        editsExistingScriptBodies);
   }
 }

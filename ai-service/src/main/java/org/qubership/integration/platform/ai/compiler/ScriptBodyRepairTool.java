@@ -39,7 +39,7 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchExecut
 import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation;
 import org.qubership.integration.platform.ai.qipknowledge.patch.PropertyPatch;
 
-/** Script-only repair tool for filling missing script bodies. */
+/** Captures missing script bodies and explicitly requested edits to existing bodies. */
 @ApplicationScoped
 public class ScriptBodyRepairTool {
 
@@ -91,7 +91,8 @@ public class ScriptBodyRepairTool {
 
   @Tool(
       """
-      Repair missing script node bodies by submitting scripts.
+      Submit missing script bodies or explicitly requested edits to existing script bodies.
+      For an edit, use the supplied original body and preserve unrelated logic.
       Submit exactly one script entry for each targetNodeId listed by the user message,
       including every branch response script (for example response-even/response-odd under
       if/else). Rationale-only or empty scripts payloads are rejected.
@@ -154,9 +155,10 @@ public class ScriptBodyRepairTool {
     if (base == null) {
       return recordFailure(conversationId, capabilityId, "CHAIN_PLAN_GRAPH is required");
     }
-    List<String> missingNodeIds =
-        missingScriptNodeIds(conversationId, capabilityId, base);
-    if (missingNodeIds.isEmpty()) {
+    GraphPatchExecutionContext context = executionContextStore.get(conversationId, capabilityId)
+        .or(executionContextStore::current).orElse(null);
+    List<String> requiredNodeIds = readinessEvaluator.scriptNodesForCapture(base, context);
+    if (requiredNodeIds.isEmpty()) {
       return "No script nodes need repair.";
     }
     Map<String, ScriptBodyEntry> byNodeId =
@@ -164,7 +166,7 @@ public class ScriptBodyRepairTool {
             ? new LinkedHashMap<>()
             : scriptsByNodeId(capture.scripts());
     projectDirectFieldMappings(conversationId, capabilityId, base, byNodeId);
-    String validationError = validateCapture(capture, byNodeId, missingNodeIds);
+    String validationError = validateCapture(capture, byNodeId, requiredNodeIds);
     if (validationError != null) {
       return recordFailure(conversationId, capabilityId, validationError);
     }
@@ -175,7 +177,7 @@ public class ScriptBodyRepairTool {
       return recordFailure(conversationId, capabilityId, mappingError);
     }
     List<PropertyPatch> propertyPatches = new ArrayList<>();
-    for (String nodeId : missingNodeIds) {
+    for (String nodeId : requiredNodeIds) {
       ScriptBodyEntry entry = byNodeId.get(nodeId);
       GraphPatchOperation operation =
           hasProperty(base, nodeId, "script") ? GraphPatchOperation.UPDATE : GraphPatchOperation.ADD;
@@ -281,7 +283,7 @@ public class ScriptBodyRepairTool {
     if (!extra.isEmpty()) {
       return "Script body repair failed: targetNodeId is not allowed: "
           + String.join(", ", extra)
-          + ". Allowed missing ids: "
+          + ". Allowed script node IDs: "
           + String.join(", ", missingNodeIds)
           + ". Submit scripts[{targetNodeId, script}] only for those ids.";
     }

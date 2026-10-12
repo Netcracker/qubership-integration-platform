@@ -332,6 +332,44 @@ class ChainStructureCaptureToolTest {
   }
 
   @Test
+  void insertionPreservesImportedPropertiesAbsentFromTheSchema() {
+    when(schemaService.hasElementSchema("chain-call-2")).thenReturn(true);
+    when(schemaService.allowedPatchPropertyKeys("chain-call-2"))
+        .thenReturn(Set.of("elementId", "timeout"));
+    when(schemaService.hasElementSchema("service-call")).thenReturn(true);
+    when(schemaService.allowedPatchPropertyKeys("service-call")).thenReturn(Set.of());
+    ChainPlanNode retainedCall = new ChainPlanNode(
+        "retained-call", "chain-call-2", "Call another chain", null, null,
+        List.of(new PlanProperty("elementId", "retained-trigger"),
+            new PlanProperty("block", "true"), new PlanProperty("failIfNoConsumers", "false")));
+    ChainPlanNode retainedService = new ChainPlanNode(
+        "retained-service", "service-call", "Call service", null, null,
+        List.of(new PlanProperty("connectionTimeout", "30000")));
+    ChainPlanGraph fixture = validGraph();
+    List<ChainPlanNode> nodes = new java.util.ArrayList<>(fixture.nodes());
+    nodes.add(retainedCall);
+    nodes.add(retainedService);
+    List<ChainPlanEdge> edges = new java.util.ArrayList<>(fixture.edges());
+    edges.add(new ChainPlanEdge("to-retained-call", "script-1", "retained-call", null));
+    edges.add(new ChainPlanEdge("to-retained-service", "retained-call", "retained-service", null));
+    ChainPlanGraph base = new ChainPlanGraph(
+        fixture.schemaVersion(), fixture.chain(), List.copyOf(nodes), List.copyOf(edges));
+    session.set(CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),
+        new ChainEditStructureBase(base, insertIntent()));
+
+    assertThrows(CaptureValidationException.class,
+        () -> tool.captureChainEditSubgraph(insertSubgraph()));
+
+    ChainPlanGraph result = storedGraph();
+    assertEquals(retainedCall, node(result, "retained-call"));
+    assertEquals(retainedService, node(result, "retained-service"));
+    var patch = org.qubership.integration.platform.ai.chain.edit.CanonicalGraphDiff.between(
+        base, result, "insert-script", "cip-structure-generator", "Insert a script");
+    assertTrue(patch.propertyPatches().stream().noneMatch(property -> property.operation()
+        == org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation.REMOVE));
+  }
+
+  @Test
   void anInsertionThatCapturesTheWholeGraphIsAskedForTheSubgraphItAdds() {
     session.set(
         CaptureKey.conversation(CaptureSlot.CHAIN_EDIT_STRUCTURE_BASE, CONVERSATION_ID),

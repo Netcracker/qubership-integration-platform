@@ -558,6 +558,15 @@ public class CompilerSkillContextBuilder {
       CompilerSkillDocument document,
       CompilerSkillInputSnapshot snapshot,
       List<String> missingNodeIds) {
+    return buildScriptRepairMessage(conversationId, document, snapshot, missingNodeIds, false);
+  }
+
+  public String buildScriptRepairMessage(
+      String conversationId,
+      CompilerSkillDocument document,
+      CompilerSkillInputSnapshot snapshot,
+      List<String> requiredNodeIds,
+      boolean editsExistingBodies) {
     runtimeEligibility.requirePromptContext(document.capabilityId());
 
     StringBuilder body = new StringBuilder();
@@ -582,16 +591,33 @@ public class CompilerSkillContextBuilder {
     if (!nullToEmpty(snapshot.mappingGenerationContext()).isBlank()) {
       body.append(snapshot.mappingGenerationContext()).append("\n\n");
     }
-    body.append("Missing script node ids:\n");
-    for (String nodeId : missingNodeIds) {
+    if (editsExistingBodies) {
+      body.append(nullToEmpty(snapshot.editContext())).append("\n\n");
+      body.append("Update the existing script bodies for the listed target node IDs. Use each original body")
+          .append(" as the basis for the requested change. Preserve unrelated logic. Return the complete")
+          .append(" updated body for each listed ID through repairScriptBodies. Change only the selected")
+          .append(" scripts and the requested behavior.\n\n");
+      List<Map<String, String>> originals = new ArrayList<>();
+      for (ChainPlanNode node : snapshot.chainPlanGraph().nodes()) {
+        if (requiredNodeIds.contains(node.nodeId()) && "script".equals(node.type())) {
+          String script = node.properties() == null ? "" : node.properties().stream()
+              .filter(property -> "script".equals(property.key()))
+              .map(property -> nullToEmpty(property.value())).findFirst().orElse("");
+          originals.add(Map.of("targetNodeId", node.nodeId(), "script", script));
+        }
+      }
+      body.append("Original script bodies:\n").append(formatJson(originals)).append("\n\n");
+    }
+    body.append(editsExistingBodies ? "Required script node IDs:\n" : "Missing script node ids:\n");
+    for (String nodeId : requiredNodeIds) {
       body.append("- ").append(nodeId).append('\n');
     }
     body.append("\nCall repairScriptBodies with this exact shape (fill each listed id):\n");
     body.append("{\n");
     body.append("  \"patchId\": \"script-body\",\n");
     body.append("  \"scripts\": [\n");
-    for (int i = 0; i < missingNodeIds.size(); i++) {
-      String nodeId = missingNodeIds.get(i);
+    for (int i = 0; i < requiredNodeIds.size(); i++) {
+      String nodeId = requiredNodeIds.get(i);
       body.append("    { \"targetNodeId\": \"")
           .append(nodeId)
           .append("\", \"script\": \"exchange.in.body = 'Hello'\\nreturn exchange.in.body\"");
@@ -599,13 +625,15 @@ public class CompilerSkillContextBuilder {
         body.append(", \"mappingCoverage\": [\"$.targetPath\"]");
       }
       body.append(" }");
-      if (i + 1 < missingNodeIds.size()) {
+      if (i + 1 < requiredNodeIds.size()) {
         body.append(',');
       }
       body.append('\n');
     }
     body.append("  ],\n");
-    body.append("  \"rationale\": \"Filled missing script bodies for listed node ids\"\n");
+    body.append(editsExistingBodies
+        ? "  \"rationale\": \"Updated the selected script bodies\"\n"
+        : "  \"rationale\": \"Filled missing script bodies for listed node ids\"\n");
     body.append("}\n");
     body.append("Do not call with null/empty scripts. Do not invent extra node ids.\n");
     if (mappingTurn) {
@@ -613,7 +641,7 @@ public class CompilerSkillContextBuilder {
     }
     body.append('\n');
     body.append("Script node slice:\n");
-    appendScriptNodeSlice(body, snapshot.chainPlanGraph(), missingNodeIds);
+    appendScriptNodeSlice(body, snapshot.chainPlanGraph(), requiredNodeIds);
     body.append('\n');
     appendAddonSections(body, document);
     appendRuntimeContextPackage(body, conversationId, document, snapshot);

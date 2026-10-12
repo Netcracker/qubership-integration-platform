@@ -48,6 +48,56 @@ import org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOwners
 
 class ScriptBodyRepairToolTest {
 
+  @Test
+  void explicitEditUpdatesOnlyTheSelectedFilledScript() {
+    ChainPlanGraph base = bindFilledScriptEdit();
+    assertThrows(CaptureValidationException.class, () -> tool.repairScriptBodies(
+        new ScriptBodyRepairCapture("edit-script", List.of(new ScriptBodyEntry("validate-siteIds", "return 2")),
+            "Edit the selected script")));
+    GraphPatch patch = captureSession.get(
+        CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID),
+        GraphPatch.class).orElseThrow();
+    assertEquals(1, patch.propertyPatches().size());
+    assertEquals("validate-siteIds", patch.propertyPatches().getFirst().targetNodeId());
+    assertEquals(org.qubership.integration.platform.ai.qipknowledge.patch.GraphPatchOperation.UPDATE,
+        patch.propertyPatches().getFirst().operation());
+    ChainPlanGraph applied = new GraphPatchApplier().apply(base, patch).graph();
+    assertEquals(List.of(new PlanProperty("script", "return 2")), applied.nodes().get(1).properties());
+    assertEquals(base.nodes().get(2), applied.nodes().get(2));
+    assertEquals(List.of(new PlanProperty("script", "return 1")), base.nodes().get(1).properties());
+  }
+
+  @Test
+  void explicitEditRejectsAnUnselectedScript() {
+    bindFilledScriptEdit();
+    String result = tool.repairScriptBodies(new ScriptBodyRepairCapture("edit-extra",
+        List.of(new ScriptBodyEntry("validate-siteIds", "return 2"),
+            new ScriptBodyEntry("append-found-row", "return 3")), "Edit the selected script"));
+    assertTrue(result.contains("targetNodeId is not allowed"), result);
+  }
+
+  @Test
+  void explicitEditRejectsABlankReplacement() {
+    bindFilledScriptEdit();
+    String result = tool.repairScriptBodies(new ScriptBodyRepairCapture("edit-blank",
+        List.of(new ScriptBodyEntry("validate-siteIds", " ")), "Edit the selected script"));
+    assertTrue(result.contains("script body is blank"), result);
+  }
+
+  private ChainPlanGraph bindFilledScriptEdit() {
+    ChainPlanGraph fixture = graphWithMissingScripts();
+    ChainPlanGraph base = new ChainPlanGraph(fixture.schemaVersion(), fixture.chain(),
+        fixture.nodes().stream().map(node -> "script".equals(node.type())
+            ? new ChainPlanNode(node.nodeId(), node.type(), node.label(), node.parentNodeId(), node.order(),
+                List.of(new PlanProperty("script", "validate-siteIds".equals(node.nodeId())
+                    ? "return 1" : "return 'untouched'"))) : node).toList(), fixture.edges());
+    executionContextStore.set(CONVERSATION_ID, CAPABILITY_ID,
+        new GraphPatchExecutionContext("edit-run", CAPABILITY_ID, null, null, null, null, null,
+            List.of(), base, GraphPatchOwnershipPolicy.denyAll(), "attempt", List.of("validate-siteIds"))
+            .withExistingScriptBodyEdit(true));
+    return base;
+  }
+
   private static final String CONVERSATION_ID = "script-repair-conv";
   private static final String CAPABILITY_ID = "custom-script-generator";
 

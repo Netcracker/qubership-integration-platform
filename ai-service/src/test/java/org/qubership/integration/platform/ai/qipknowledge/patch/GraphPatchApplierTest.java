@@ -20,6 +20,30 @@ import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationS
 
 class GraphPatchApplierTest {
 
+  @Test
+  void removesAnEntireSubtreeAtomicallyInParentFirstOrder() {
+    ChainPlanGraph graph = new ChainPlanGraph("1.0", new ChainSection("demo", "Demo"),
+        List.of(new ChainPlanNode("parent", "try-catch-finally-2", "Parent", null, null, List.of()),
+            new ChainPlanNode("branch", "try-2", "Branch", "parent", null, List.of()),
+            new ChainPlanNode("child", "script", "Child", "branch", null, List.of())), List.of());
+    List<NodePatch> removals = List.of(
+        new NodePatch(GraphPatchOperation.REMOVE, null, "parent"),
+        new NodePatch(GraphPatchOperation.REMOVE, null, "branch"),
+        new NodePatch(GraphPatchOperation.REMOVE, null, "child"));
+    GraphPatch patch = new GraphPatch("delete", "chain-edit-transform", removals,
+        List.of(), List.of(), List.of(), List.of(), "Remove the subtree");
+    var result = applier.apply(graph, patch);
+    assertTrue(result.applied(), result.validationResult().summary());
+    assertTrue(result.graph().nodes().isEmpty());
+    assertEquals(3, graph.nodes().size());
+
+    GraphPatch incomplete = new GraphPatch("delete", "chain-edit-transform", removals.subList(0, 2),
+        List.of(), List.of(), List.of(), List.of(), "Remove only the ancestors");
+    var rejected = applier.apply(graph, incomplete);
+    assertFalse(rejected.applied());
+    assertEquals(graph, rejected.graph(), "a rejected partial cascade must leave the whole graph unchanged");
+  }
+
   private GraphPatchApplier applier;
   private ChainPlanGraph baseGraph;
 

@@ -526,6 +526,65 @@ class ChainEditCompilerTest {
   }
 
   @Test
+  void deletingAMiddleElementRestoresTheSurvivingSequence() {
+    ChainPlanGraph base = chainWithAScriptBetweenTheCalls();
+    intentReply =
+        capture(ChainEditAction.DELETE, List.of("normalize"), "delete the script and keep the sequence continuous");
+
+    ChainEditOutcome.Proposal proposal =
+        assertInstanceOf(
+            ChainEditOutcome.Proposal.class,
+            compiler.compile(
+                new ChainEditRequest(
+                    "conv-1", "chain-1", "edit-run-1",
+                    new ImportedChainPlan(base, null, "base-digest"),
+                    "Delete normalize and reconnect the two calls.", null)));
+
+    assertEquals(List.of(node(base, TARGET), node(base, UNRELATED)), proposal.finalGraph().nodes());
+    assertTrue(
+        proposal.finalGraph().edges().stream()
+            .anyMatch(edge -> TARGET.equals(edge.fromNodeId()) && UNRELATED.equals(edge.toNodeId())),
+        "deleting a middle element must keep its surviving predecessor and successor connected");
+    org.junit.jupiter.api.Assertions.assertNull(engine.lastRequest.get());
+  }
+
+  @Test
+  void deletionWithAmbiguousConnectionsAsksAQuestionAndKeepsTheIntent() {
+    ChainPlanGraph base = chainWithAScriptBetweenTheCalls();
+    List<ChainPlanEdge> edges = new ArrayList<>(base.edges());
+    edges.add(new ChainPlanEdge("another-exit", "normalize", TARGET, null));
+    ChainPlanGraph branching = new ChainPlanGraph(base.schemaVersion(), base.chain(), base.nodes(), edges);
+    intentReply = capture(ChainEditAction.DELETE, List.of("normalize"), "delete the script");
+
+    ChainEditOutcome.Clarification clarification = assertInstanceOf(
+        ChainEditOutcome.Clarification.class,
+        compiler.compile(new ChainEditRequest("conv-1", "chain-1", "edit-run-1",
+            new ImportedChainPlan(branching, null, "base-digest"), "Delete normalize.", null)));
+
+    assertTrue(clarification.question().contains("without reconnecting"));
+    assertEquals(ChainEditAction.DELETE, clarification.heldIntent().action());
+    assertEquals(List.of("normalize"), clarification.heldIntent().targetNodeIds());
+    assertTrue(clarification.heldIntent().reconnectNeighbors());
+    org.junit.jupiter.api.Assertions.assertNull(engine.lastRequest.get());
+  }
+
+  @Test
+  void deletionCanExplicitlyLeaveTheSurvivingNeighborsDisconnected() {
+    ChainPlanGraph base = chainWithAScriptBetweenTheCalls();
+    intentReply = new ChainEditCapture(ChainEditAction.DELETE, List.of("normalize"),
+        "delete the script without reconnecting", null, null, null, List.of(), List.of(),
+        ChainEditDisposition.UNSET, false);
+    ChainEditOutcome.Proposal proposal = assertInstanceOf(
+        ChainEditOutcome.Proposal.class,
+        compiler.compile(new ChainEditRequest("conv-1", "chain-1", "edit-run-1",
+            new ImportedChainPlan(base, null, "base-digest"), "Delete normalize and leave the gap.", null)));
+
+    assertEquals(List.of(node(base, TARGET), node(base, UNRELATED)), proposal.finalGraph().nodes());
+    assertTrue(proposal.finalGraph().edges().isEmpty());
+    assertFalse(proposal.intent().reconnectNeighbors());
+  }
+
+  @Test
   void aScriptPropertyIsRefusedOnAnElementThatDoesNotDefineIt() {
     // "script" belongs to the script element's own schema, and this target is a service call.
     intentReply = configureCapture(List.of(TARGET), "rewrite the script", List.of("script"));

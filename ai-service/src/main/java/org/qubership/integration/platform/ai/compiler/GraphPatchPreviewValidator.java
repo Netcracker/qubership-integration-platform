@@ -83,6 +83,12 @@ public final class GraphPatchPreviewValidator {
         declared.isEmpty()
             ? List.of()
             : List.copyOf(readinessEvaluator.unmetCompleteness(declared, patched));
+    if (executionContext != null && executionContext.editsExistingScriptBodies()
+        && readinessEvaluator.scriptNodesMissingBody(patched).stream()
+            .noneMatch(executionContext.editTargetNodeIds()::contains)) {
+      readinessGaps = readinessGaps.stream()
+          .filter(signal -> !"script_nodes_missing_body".equals(signal)).toList();
+    }
     boolean pass = structural.isEmpty() && readinessGaps.isEmpty();
     return new GraphPatchPreviewResult(
         pinnedBaseGraph,

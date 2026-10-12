@@ -110,6 +110,10 @@ public class ChainPlanGraphValidator {
   }
 
   public List<String> validate(ChainPlanGraph graph) {
+    return validate(graph, null);
+  }
+
+  public List<String> validate(ChainPlanGraph graph, ChainPlanGraph baseGraph) {
     var errors = new ArrayList<String>();
 
     if (graph.nodes() == null || graph.nodes().isEmpty()) {
@@ -123,7 +127,8 @@ public class ChainPlanGraphValidator {
     checkTriggerContainment(graph.nodes(), errors);
     checkWrapperShellContainment(graph.nodes(), nodesById, errors);
     checkContainmentCycles(graph.nodes(), errors);
-    checkPropertyKeys(graph.nodes(), errors);
+    checkPropertyKeys(graph.nodes(), baseGraph == null || baseGraph.nodes() == null
+        ? Map.of() : indexNodes(baseGraph.nodes()), errors);
     if (graph.edges() != null) {
       checkEdgeRefs(graph.edges(), knownIds, errors);
       checkContainerFlowContainment(graph.edges(), nodesById, errors);
@@ -620,7 +625,8 @@ public class ChainPlanGraphValidator {
     return value.trim();
   }
 
-  private void checkPropertyKeys(List<ChainPlanNode> nodes, List<String> errors) {
+  private void checkPropertyKeys(
+      List<ChainPlanNode> nodes, Map<String, ChainPlanNode> baseNodes, List<String> errors) {
     for (ChainPlanNode node : nodes) {
       String elementType = trim(node.type());
       if (elementType == null || elementType.isEmpty()) {
@@ -639,12 +645,22 @@ public class ChainPlanGraphValidator {
           if (MappingExecutionSite.isCompilerMetadataKey(key)) {
             continue;
           }
-          if (knownSchema && !allowedKeys.contains(key)) {
+          if (knownSchema && !allowedKeys.contains(key)
+              && !unchangedImportedProperty(node, property, baseNodes.get(node.nodeId()))) {
             errors.add(unknownPropertyKeyMessage(node.nodeId(), elementType, key));
           }
         }
       }
     }
+  }
+
+  private static boolean unchangedImportedProperty(
+      ChainPlanNode node, PlanProperty property, ChainPlanNode before) {
+    return before != null
+        && Objects.equals(before.nodeId(), node.nodeId())
+        && Objects.equals(before.type(), node.type())
+        && before.properties() != null
+        && before.properties().contains(property);
   }
 
   private String unknownPropertyKeyMessage(String nodeId, String elementType, String key) {

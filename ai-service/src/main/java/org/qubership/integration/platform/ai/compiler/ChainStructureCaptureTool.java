@@ -151,8 +151,10 @@ public class ChainStructureCaptureTool {
                 CaptureFailureClass.CORRECTABLE,
                 "graph is required"));
       }
+      ChainEditStructureBase edit = editBase(conversationId);
+      ChainPlanGraph baseGraph = edit == null ? null : edit.baseGraph();
       ChainStructurePropertySanitizer.SanitizationResult sanitized =
-          propertySanitizer.sanitize(shaped);
+          propertySanitizer.sanitize(shaped, baseGraph);
       for (ChainStructurePropertySanitizer.RemovedProperty removed :
           sanitized.removedProperties()) {
         LOG.warnf(
@@ -178,7 +180,7 @@ public class ChainStructureCaptureTool {
                 "Structure validation failed:\n" + e.getMessage()));
       }
       ChainPlanGraph graphUnderTest = normalized.graph();
-      List<String> errors = graphValidator.validate(graphUnderTest);
+      List<String> errors = graphValidator.validate(graphUnderTest, baseGraph);
       if (!errors.isEmpty()) {
         return finish(
             conversationId,
