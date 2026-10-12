@@ -2617,7 +2617,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
   private boolean isCurrentCleanRebuild(String runId, String stageId) {
     var attrs = attributesByRun.getOrDefault(runId, Map.of());
     Object evidence = attrs.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
-    return evidence != null && evidence.equals(attrs.get(cleanRebuildEvidenceAttribute(stageId)));
+    return evidence instanceof String hash && !hash.isBlank()
+        && hash.equals(attrs.get(cleanRebuildEvidenceAttribute(stageId)));
   }
 
   private boolean recurringRejectedOutput(RecoveryEvidence current, Object output,

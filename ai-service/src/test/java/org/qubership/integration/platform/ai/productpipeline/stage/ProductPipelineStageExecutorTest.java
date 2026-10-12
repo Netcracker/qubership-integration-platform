@@ -172,6 +172,49 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void initialCaptureNoProgressUsesUnspentCleanCredit() {
+    var calls = new AtomicInteger();
+    var execution = capability("execution-cap", context -> {
+      calls.incrementAndGet();
+      assertEquals("", context.attributeAsString(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR));
+      assertEquals("", context.attributeAsString(ProductPipelineRunSupport.PRODUCER_CLEAN_REBUILD_EVIDENCE_REF_ATTR));
+      assertFalse(StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context)));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE,
+          "Compiler skill did not capture a graph patch.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(), "", true))));
+    });
+    var input = new ArtifactTypeRef("user-input", 1);
+    var profile = new ProductPipelineProfile(1, "initial-no-progress", "1", List.of(input), List.of(
+        new ProfileStage("preparation", "preparation-cap", List.of(input), List.of(), null, null, new RetryPolicy(0, 0L)),
+        new ProfileStage("design-execution", "execution-cap", List.of(input), List.of(), null, null,
+            new RetryPolicy(0, 0L))), new TerminalPolicy("design-execution", "PLAN_APPROVED"),
+        List.of("preparation-cap", "execution-cap"));
+    var preparation = capability("preparation-cap", context -> Multi.createFrom().item(
+        new CapabilitySignal.Completed(context.attributeAsString("userText") == null
+            ? StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "Provide requirements.")
+            : StageOutcome.of(StageOutcomeClass.SUCCEEDED, "Prepared inputs."))));
+    var runtime = newRuntime(2, new RecoveryAttemptLedger(), profile, preparation, execution);
+    startAndRecordInput(runtime, profile);
+    applyLifecycle(runtime, execute(runtime, "preparation"));
+
+    var result = execute(runtime, "design-execution");
+
+    assertInstanceOf(StageDecision.Retry.class, result.decision(),
+        () -> PipelineGates.recoveryTechnicalDetailsOf(
+            ((StageDecision.WaitForInput) result.decision()).prompt()).orElse(""));
+    assertEquals(1, calls.get());
+    assertTrue(result.signals().stream().filter(PipelineSignal.Progress.class::isInstance)
+        .map(PipelineSignal.Progress.class::cast).anyMatch(signal -> signal.label().contains("clean model turn")));
+    assertFalse(artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(),
+        RecoveryEvidence.class).cleanRebuild());
+    assertEquals(1, requireRun().transitions().stream().filter(transition -> transition.reason() != null
+        && transition.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)).count());
+    assertTrue(requireRun().transitions().stream().noneMatch(transition -> transition.reason() != null
+        && transition.reason().startsWith(RecoveryAttemptLedger.GRANT_REASON_PREFIX)));
+  }
+
+  @Test
   void typedCaptureNoProgressChangesStrategyWithoutCreatingNewCredit() {
     var clean = new ArrayList<Boolean>();
     var execution = capability("execution-cap", context -> {

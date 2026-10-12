@@ -28,6 +28,81 @@ import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFl
 class RequirementCaptureProjectionTest {
 
   @Test
+  void rbacNeedsAnExplicitRoleBeforePlanning() {
+    for (String roles : List.of("", "[]", "[\"\"]", "[\"*\"]", "[\"qip-viewer\"]")) {
+      var properties = new java.util.ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();
+      properties.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("accessControlType", "RBAC"));
+      if (!roles.isEmpty()) {
+        properties.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", roles));
+      }
+      var intent = new RequirementElementIntent("entry", "http-trigger",
+          RequirementElementIntent.Placement.ANCHOR, "entry", null, null, null, properties, List.of());
+      var fact = new FactInput("access", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+          "Use RBAC for the entry.", null, null, intent);
+      var input = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+          "Caller", "GET /check", null, null, null)), List.of()), List.of(fact,
+              new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Check the session.")),
+          List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
+              "/check", null, null, null)), List.of(), new DraftSettings(false, null));
+
+      var draft = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+      boolean supplied = roles.equals("[\"qip-viewer\"]");
+
+      assertEquals(supplied, draft.readyForPlan(), roles);
+      assertEquals(supplied, draft.openQuestions().isEmpty(), roles);
+      assertEquals(input, draft.authoredDraft());
+      if (!supplied) {
+        var question = RequirementCaptureProjection.pending(input, List.of()).stream()
+            .filter(item -> "RBAC_ROLES_REQUIRED".equals(item.code())).findFirst().orElseThrow();
+        assertEquals("entry", question.interactionId());
+        assertTrue(question.message().contains("Which explicit roles"));
+      }
+    }
+  }
+
+  @Test
+  void aConfirmedNoneChoiceDoesNotRequireRbacRoles() {
+    for (var decision : RequirementPolicyConflict.Decision.values()) {
+      var policy = new RequirementPolicyConflict("CORPORATE_CIP_STANDARDS:12.4", "accessControlType",
+          "NONE", "RBAC", "access-policy", decision);
+      var fact = new FactInput("access", List.of("entry"), FactKind.CONSTRAINT, Polarity.POSITIVE,
+          "Retain the confirmed access policy.", null, policy);
+      var input = new DraftInput(new FlowInput(List.of(new InteractionInput("entry", Direction.INBOUND,
+          "Caller", "GET /check", null, null, null)), List.of()), List.of(fact,
+              new FactInput("goal", List.of("entry"), FactKind.GOAL, Polarity.POSITIVE, "Check the session.")),
+          List.of(new CapabilityInput("entry", "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
+              "/check", null, null, null)), List.of(), new DraftSettings(false, null));
+      var draft = RequirementCaptureProjection.toDraft(input, null, List.of(), "1", "hash");
+      assertEquals(decision == RequirementPolicyConflict.Decision.KEEP_REQUESTED, draft.readyForPlan());
+      assertEquals(decision == RequirementPolicyConflict.Decision.KEEP_REQUESTED, draft.openQuestions().isEmpty());
+      assertEquals(policy, draft.authoredDraft().facts().getFirst().policyConflict());
+    }
+  }
+
+  @Test
+  void oneTriggersRolesDoNotSupplyAnotherTriggersChoice() {
+    var facts = new java.util.ArrayList<FactInput>();
+    var entries = new java.util.ArrayList<InteractionInput>();
+    var capabilities = new java.util.ArrayList<CapabilityInput>();
+    for (String id : List.of("entry-a", "entry-b")) {
+      var properties = new java.util.ArrayList<org.qubership.integration.platform.ai.plan.model.PlanProperty>();
+      properties.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("accessControlType", "RBAC"));
+      if (id.equals("entry-b")) {
+        properties.add(new org.qubership.integration.platform.ai.plan.model.PlanProperty("roles", "[\"qip-viewer\"]"));
+      }
+      facts.add(new FactInput(id + "-access", List.of(id), FactKind.CONSTRAINT, Polarity.POSITIVE,
+          "Use the specified RBAC settings.", null, null, new RequirementElementIntent(id, "http-trigger",
+              RequirementElementIntent.Placement.ANCHOR, id, null, null, null, properties, List.of())));
+      entries.add(new InteractionInput(id, Direction.INBOUND, "Caller", "GET /" + id, null, null, null));
+      capabilities.add(new CapabilityInput(id, "http-trigger", HttpMode.CUSTOM, HttpMethod.GET,
+          "/" + id, null, null, null));
+    }
+    var input = new DraftInput(new FlowInput(entries, List.of()), facts, capabilities, List.of(), new DraftSettings(false, null));
+    assertEquals(List.of("entry-a"), RequirementCaptureProjection.pending(input, List.of()).stream()
+        .filter(item -> "RBAC_ROLES_REQUIRED".equals(item.code())).map(RequirementCaptureProjection.PendingWork::interactionId).toList());
+  }
+
+  @Test
   void directHttpProjectionUsesCurrentTransportValuesWithoutRewritingAuthoredDescriptions() {
     for (String capabilityKey : List.of("http-trigger", "http-sender")) {
       String path = capabilityKey.equals("http-trigger") ? "/new-tasks" : "https://example.com/new-tasks";

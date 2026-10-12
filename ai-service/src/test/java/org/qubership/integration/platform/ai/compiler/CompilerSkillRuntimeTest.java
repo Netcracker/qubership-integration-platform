@@ -591,6 +591,19 @@ class CompilerSkillRuntimeTest {
   }
 
   @Test
+  void missingPatchPreservesTheCaptureValidationRefusal() {
+    String refusal = "Nodes with accessControlType=RBAC need a non-empty roles array.";
+    feedbackStore.recordPatchValidationFailure(CONVERSATION_ID, GENERATOR_ID, refusal);
+
+    SkillExecutionResult result = runtime.resolveResultAfterStream(
+        runContext(GENERATOR_ID, 3), workspaceWithGraph(greetingsGraph()), GENERATOR_ID);
+
+    assertEquals(SkillRunStatus.FAILED, result.status());
+    assertEquals(refusal, result.message());
+    verify(generatorAgent, never()).chat(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
   void finishGeneratorRunDoesNotCallAgentWhenPatchMissing() {
     ChainPlanGraph graph = greetingsGraph();
     SkillWorkspace workspace = workspaceWithGraph(graph);
