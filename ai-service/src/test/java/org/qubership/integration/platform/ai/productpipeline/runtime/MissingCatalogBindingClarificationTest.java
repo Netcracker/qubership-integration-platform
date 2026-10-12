@@ -41,6 +41,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRe
 import org.qubership.integration.platform.ai.productpipeline.artifact.DependencyClosureEntry;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
+import org.qubership.integration.platform.ai.productpipeline.capability.ArtifactCandidate;
 import org.qubership.integration.platform.ai.productpipeline.capability.CapabilitySignal;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCause;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageCapability;
@@ -72,6 +73,7 @@ import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Direction;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow.Interaction;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 
 /**
  * Missing catalog-binding clarification is applied at the binding producer, then execution resumes
@@ -112,7 +114,7 @@ class MissingCatalogBindingClarificationTest {
         new BindingAwareExecution(
             artifactStore,
             new DefaultExecutorCatalogBindingAdapter(catalog, mock(OperationSchemaLoader.class)));
-    profile = twoStageProfile();
+    profile = bindingProfile();
     RequirementDraftStore draftStore = new RequirementDraftStore();
     RequirementDiscoveryCapability discovery =
         new RequirementDiscoveryCapability(
@@ -129,13 +131,13 @@ class MissingCatalogBindingClarificationTest {
             new CatalogBindingMatcher(catalog));
     FakeFailureNarrativeAgent agent =
         FakeFailureNarrativeAgent.owner("", "requirement-discovery")
-            .clarifying("Name the catalog service this interaction should use.")
+            .recoverAsksForCatalogChoice(INTERACTION_ID, "Name the catalog service this interaction should use.")
             .answeringOnly(WHAT_FAILED, FAILURE_ANSWER);
     support =
         ProductPipelineRunSupport.builder(
                 runStore,
                 artifactStore,
-                new StageCapabilityRegistry(List.of(discovery, execution)),
+                new StageCapabilityRegistry(List.of(discovery, bindingRequirements(), execution)),
                 Clock.fixed(FIXED, ZoneOffset.UTC))
             .failureNarrative(new FailureNarrative(agent))
             .build();
@@ -189,7 +191,8 @@ class MissingCatalogBindingClarificationTest {
     assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
     assertEquals("design-execution", run().run().currentStageId());
     assertEquals(
-        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""));
+        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""),
+        () -> run().attempts().getLast().failureEvidence());
     assertInstanceOf(
         SemanticRecoveryState.CompareResult.Unchanged.class,
         before.compareTo(runtime.captureSemanticRecoveryState(RUN_ID)));
@@ -321,7 +324,8 @@ class MissingCatalogBindingClarificationTest {
     assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
     assertEquals("design-execution", run().run().currentStageId());
     assertEquals(
-        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""));
+        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""),
+        () -> run().attempts().getLast().failureEvidence());
     SemanticRecoveryState after = runtime.captureSemanticRecoveryState(RUN_ID);
     assertEquals(before.remaining(), after.remaining());
     assertEquals(before.gateId(), after.gateId());
@@ -346,7 +350,7 @@ class MissingCatalogBindingClarificationTest {
         .indefinitely();
     List<PipelineSignal> afterInput =
         runtime
-            .acceptInput(new AcceptInputCommand(RUN_ID, "create a WFMS work order chain"))
+            .acceptInput(new AcceptInputCommand(RUN_ID, "create a WFMS work order chain", "create-1", "create-hash"))
             .collect()
             .asList()
             .await()
@@ -354,7 +358,8 @@ class MissingCatalogBindingClarificationTest {
     assertEquals(RunStatus.WAITING_FOR_INPUT, run().run().status());
     assertEquals("design-execution", run().run().currentStageId());
     assertEquals(
-        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""));
+        PipelineGates.STAGE_CLARIFICATION, PipelineGates.gateOf(latestWaitingPrompt()).orElse(""),
+        () -> run().attempts().getLast().failureEvidence());
     assertTrue(
         afterInput.stream().anyMatch(PipelineSignal.WaitingForInput.class::isInstance),
         afterInput.toString());
@@ -415,9 +420,26 @@ class MissingCatalogBindingClarificationTest {
         null,
         null,
         new RequirementFlow(
-            List.of(
-                new Interaction("http-in", Direction.INBOUND, "Caller", "POST /start", "")),
+            List.of(new Interaction("http-in", Direction.INBOUND, "Caller", "POST /start", "")),
             List.of()));
+  }
+
+  private static StageCapability bindingRequirements() {
+    return new StageCapability() {
+      public String capabilityId() { return "requirement-analysis"; }
+      public Multi<CapabilitySignal> execute(StageExecutionContext context) {
+        var draft = readyDraftWithoutBindings();
+        var brief = new RequirementBrief(
+            "Create a work order", List.of(), List.of(), List.of(), List.of(), "Select the work order service")
+            .withFlow(new RequirementFlow(List.of(draft.flow().interactions().getFirst(),
+                new Interaction(INTERACTION_ID, Direction.OUTBOUND, "WFMS", "Create Work Order", "")),
+                List.of(new RequirementFlow.Transition("http-in", INTERACTION_ID))))
+            .withFacts(draft.facts());
+        return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+            StageOutcomeClass.SUCCEEDED, List.of(new ArtifactCandidate(
+                Kind.REQUIREMENT_BRIEF, brief, context.inputRefs())), "Requirements ready", null)));
+      }
+    };
   }
 
   private static String onlyMessage(List<PipelineSignal> signals) {
@@ -444,7 +466,7 @@ class MissingCatalogBindingClarificationTest {
     return runStore.load(RUN_ID).orElseThrow();
   }
 
-  private static ProductPipelineProfile twoStageProfile() {
+  private static ProductPipelineProfile bindingProfile() {
     ArtifactTypeRef draft = new ArtifactTypeRef("requirement-draft", 1);
     ArtifactTypeRef hint = new ArtifactTypeRef("catalog-binding-hint", 1);
     return new ProductPipelineProfile(
@@ -464,6 +486,10 @@ class MissingCatalogBindingClarificationTest {
                 null,
                 new RetryPolicy(0, 1L),
                 null),
+            new ProfileStage(
+                "requirement-analysis", "requirement-analysis", List.of(draft), List.of(),
+                List.of(new ArtifactTypeRef("requirement-brief", 1)), List.of(), null, null,
+                new RetryPolicy(0, 1L), null),
             new ProfileStage(
                 "design-execution",
                 "design-execution",
@@ -492,6 +518,7 @@ class MissingCatalogBindingClarificationTest {
         "baseline-sha",
         List.of(
             new DependencyClosureEntry("requirement-discovery", "1", "c1"),
+            new DependencyClosureEntry("requirement-analysis", "1", "analysis-sha"),
             new DependencyClosureEntry("design-execution", "1", "c2")),
         "closure-sha",
         new KnowledgePackageRef(
