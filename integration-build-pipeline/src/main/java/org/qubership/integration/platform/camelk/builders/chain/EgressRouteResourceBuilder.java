@@ -377,7 +377,7 @@ public class EgressRouteResourceBuilder implements ResourceBuilder<List<Snapshot
             return yamlMapper.createObjectNode();
         }
         JsonNode existingSpec = yamlMapper.valueToTree((Map<String, Object>) existingSpecMap);
-        HttpRouteRuleNormalizer.normalizeIntegralDoubles(existingSpec);
+        IntegralDoubleNormalizer.normalizeIntegralDoubles(existingSpec);
         return existingSpec;
     }
 
