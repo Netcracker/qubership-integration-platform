@@ -1,6 +1,6 @@
 ---
 id: "e2e0k002-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-missing-rabbitmq-queue"
 description: "rabbitmq-trigger-2 pointed at a queue the brokers seed never declares. Spec-owned\
   \ (SPEC_OWNED_FIXTURES), so it sits outside the seed's corpus scan and ensureRabbitmqTopology\

@@ -18,7 +18,7 @@ import {
 import { setFileApi } from "./response/file";
 import { VSCodeFileApi } from "./response/file/fileApiImpl";
 import {
-  getExtensionsForUri,
+  DEFAULT_APP_NAME,
   initializeContextFromFile,
 } from "./response/file/fileExtensions";
 import { QipExplorerProvider } from "./qipExplorer";
@@ -346,7 +346,7 @@ class ChainFileEditorProvider extends BaseFileEditorProvider {
 }
 
 const DIFF_EDITOR_ASSOCIATIONS_SETTING = "workbench.diffEditorAssociations";
-const CHAIN_DIFF_ASSOCIATION_GLOB = "*.chain.qip.yaml";
+const CHAIN_DIFF_ASSOCIATION_GLOB = "*.chain.cip.yaml";
 
 /**
  * Keeps `workbench.diffEditorAssociations` in sync with the
@@ -559,7 +559,7 @@ async function setupFileWatchers(context: ExtensionContext): Promise<void> {
         });
       });
     } else {
-      const defaultAppNames = ["qip"];
+      const defaultAppNames = [DEFAULT_APP_NAME];
       defaultAppNames.forEach((appName) => {
         const defaultConfig = configService.buildDefaultConfig(appName);
         Object.values(defaultConfig.extensions).forEach((extension: string) => {
@@ -570,12 +570,12 @@ async function setupFileWatchers(context: ExtensionContext): Promise<void> {
     }
   } catch (error) {
     console.error(
-      "[QIP] Failed to setup file watchers from config, using qip defaults:",
+      "[QIP] Failed to setup file watchers from config, using cip defaults:",
       error,
     );
 
     const fallbackConfig =
-      ProjectConfigService.getInstance().buildDefaultConfig("qip");
+      ProjectConfigService.getInstance().buildDefaultConfig(DEFAULT_APP_NAME);
     Object.values(fallbackConfig.extensions).forEach((extension: string) => {
       const pattern = `**/*${extension}`;
       extensionsToWatch.add(pattern);
@@ -843,23 +843,7 @@ export function activate(context: ExtensionContext): QipExtensionAPI {
       async (item: any) => {
         if (item && item.fileUri) {
           try {
-            // Determine the correct editor based on file type
-            const fileName = item.fileUri.fsPath;
-            let editorType = "qip.chainFile.editor"; // default
-
-            const fileExtensions = getExtensionsForUri({ path: fileName });
-            if (fileName.endsWith(fileExtensions.service)) {
-              editorType = "qip.serviceFile.editor";
-            } else if (fileName.endsWith(fileExtensions.chain)) {
-              editorType = "qip.chainFile.editor";
-            }
-
-            // Open the file with custom editor
-            await vscode.commands.executeCommand(
-              "vscode.openWith",
-              item.fileUri,
-              editorType,
-            );
+            await openDocumentInEditor(item.fileUri);
           } catch (error) {
             console.error("Failed to open file with custom editor:", error);
             // Fallback to text editor if custom editor fails

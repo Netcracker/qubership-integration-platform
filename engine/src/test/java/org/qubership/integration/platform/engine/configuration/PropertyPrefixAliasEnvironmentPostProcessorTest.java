@@ -31,7 +31,8 @@ class PropertyPrefixAliasEnvironmentPostProcessorTest {
     @BeforeEach
     void setUp() {
         MutablePropertySources sources = environment.getPropertySources();
-        sources.addFirst(new SystemEnvironmentPropertySource("testEnvironment", osEnvironment));
+        sources.addFirst(new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME, osEnvironment));
         sources.addLast(new MapPropertySource("consul", consul));
         sources.addLast(new MapPropertySource("applicationYml", applicationYml));
         ConfigurationPropertySources.attach(environment);
@@ -75,6 +76,26 @@ class PropertyPrefixAliasEnvironmentPostProcessorTest {
         applicationYml.put("cip.istio.enabled", "true");
 
         assertEquals("false", environment.getProperty("cip.istio.enabled"));
+    }
+
+    @Test
+    void dashlessEnvironmentVariableOverridesApplicationYml() {
+        osEnvironment.put("CIP_INTERNALSERVICES_RUNTIMECATALOG_URL", "http://env-catalog:8080");
+        applicationYml.put("cip.internal-services.runtime-catalog.url", "http://runtime-catalog:8080");
+
+        assertEquals("http://env-catalog:8080", Binder.get(environment)
+                .bind("cip.internal-services.runtime-catalog.url", String.class)
+                .get());
+    }
+
+    @Test
+    void dashlessLegacyEnvironmentVariableOverridesApplicationYml() {
+        osEnvironment.put("QIP_INTERNALSERVICES_RUNTIMECATALOG_URL", "http://env-catalog:8080");
+        applicationYml.put("cip.internal-services.runtime-catalog.url", "http://runtime-catalog:8080");
+
+        assertEquals("http://env-catalog:8080", Binder.get(environment)
+                .bind("cip.internal-services.runtime-catalog.url", String.class)
+                .get());
     }
 
     @Test

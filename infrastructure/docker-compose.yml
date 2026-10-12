@@ -258,7 +258,7 @@ services:
       - ./init-db:/docker-entrypoint-initdb.d
 
   opensearch:
-    image: opensearchproject/opensearch:2.18.0
+    image: opensearchproject/opensearch:2.19.6
     container_name: opensearch
     ports:
       - 9200:9200

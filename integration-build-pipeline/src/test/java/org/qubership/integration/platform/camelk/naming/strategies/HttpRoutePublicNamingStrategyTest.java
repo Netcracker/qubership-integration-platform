@@ -8,49 +8,41 @@ import org.qubership.integration.platform.camelk.naming.NamingStrategy;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameValidator;
 import org.qubership.integration.platform.camelk.naming.validation.K8sNameVerifier;
 import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
+import org.qubership.integration.platform.chain.model.Chain;
 import org.qubership.integration.platform.chain.model.Snapshot;
 
-import java.util.Collections;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class HttpRoutePublicNamingStrategyTest {
 
     @Test
     void proposesNameWithDefaultSuffix() {
-        NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy =
-                context -> "my-domain-v1";
-        HttpRoutePublicNamingStrategy strategy = new HttpRoutePublicNamingStrategy(
-                new K8sNameVerifier(),
-                new K8sNameValidator(),
-                integrationResourceNamingStrategy,
-                "-chain-public-routes");
-
-        ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(
-                BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build(),
-                mock(IntegrationServiceCatalog.class)
-        ).updateTo(Collections.emptyList());
-
-        assertEquals("my-domain-v1-chain-public-routes", strategy.getName(context));
+        assertEquals("my-domain-v1-abc1234-chain-public-routes", strategy("-chain-public-routes").getName(context()));
     }
 
-    @Test
-    void proposesNameWithOverriddenSuffix() {
+    private HttpRoutePublicNamingStrategy strategy(String suffix) {
         NamingStrategy<ResourceBuildContext<List<Snapshot>>> integrationResourceNamingStrategy =
                 context -> "my-domain-v1";
-        HttpRoutePublicNamingStrategy strategy = new HttpRoutePublicNamingStrategy(
+        return new HttpRoutePublicNamingStrategy(
                 new K8sNameVerifier(),
                 new K8sNameValidator(),
                 integrationResourceNamingStrategy,
-                "-public");
+                seed -> "abc1234",
+                suffix);
+    }
 
-        ResourceBuildContext<List<Snapshot>> context = ResourceBuildContext.create(
+    private ResourceBuildContext<Snapshot> context() {
+        Chain chain = mock(Chain.class);
+        when(chain.getId()).thenReturn("chain-1");
+        Snapshot snapshot = mock(Snapshot.class);
+        when(snapshot.getChain()).thenReturn(chain);
+        return ResourceBuildContext.create(
                 BuildInfo.builder().options(ResourceBuildOptions.builder().name("my-domain").build()).build(),
                 mock(IntegrationServiceCatalog.class)
-        ).updateTo(Collections.emptyList());
-
-        assertEquals("my-domain-v1-public", strategy.getName(context));
+        ).updateTo(snapshot);
     }
 }

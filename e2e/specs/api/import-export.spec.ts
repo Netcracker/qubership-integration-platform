@@ -15,7 +15,7 @@
  *
  * What the export carries, measured against this stack:
  *
- * - entries are `chains/<id>/<id>.chain.qip.yaml`, and the chain id survives a round trip;
+ * - entries are `chains/<id>/<id>.chain.cip.yaml`, and the chain id survives a round trip;
  * - a folder is **not** a document. The tree travels as `metaInfo.group: "outer/inner"`, so the
  *   import rebuilds folders by name — reusing one that still exists, creating one that does not,
  *   and giving the new one a **new id**. A spec comparing folder ids across a round trip is
@@ -152,7 +152,7 @@ test("an archive whose entries sit at the zip root imports nothing and reports s
   });
   const archive = await catalog.exportChains([chain.id]);
   const flat = await flatten(archive, chainEntry(chain.id));
-  expect(await entryNames(flat)).toEqual([`${chain.id}.chain.qip.yaml`]);
+  expect(await entryNames(flat)).toEqual([`${chain.id}.chain.cip.yaml`]);
 
   await catalog.deleteChain(chain.id);
   const imported = await importChains(catalog, flat);

@@ -1,5 +1,5 @@
 id: "e2e50020-0000-4000-8000-000000000001"
-$schema: "http://qubership.org/schemas/product/qip/chain"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 name: "e2e-{{RUN}}-script-in-container-loop"
 description: "A script inside a Loop. Each pass appends its own iteration index to an exchange\
   \ property and rewrites the body, so the passes are ordered rather than merely counted, and the\

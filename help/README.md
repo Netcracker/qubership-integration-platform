@@ -33,7 +33,7 @@ Commits and pull requests should follow the [Conventional Commits](https://www.c
 
 Documents are written in Markdown. The naming convention uses numeric prefixes with double underscores for ordering (e.g. `00__Overview`, `01__Chains`). Each topic has its own directory with a main `.md` file and an optional `img/` folder for images.
 
-Each section has a landing page, such as `how_to.md` or `features.md`, that links to the pages under it. When you add, move, or remove a page, update that list and any links that point to the old path. A term that a new page introduces gets an entry in the [Glossary](docs/00__Overview/4__Glossary/glossary.md).
+Each section has a landing page, such as `how_to.md` or `features.md`, that links to the pages under it. When you add, move, or remove a page, update that list and any links that point to the old path. A term that a new page introduces gets an entry in the [Glossary](docs/00__Overview/4__Glossary/readme.md).
 
 ## Licensing
 
@@ -44,4 +44,3 @@ This software is licensed under Apache License Version 2.0. License text is loca
 - [qubership-integration-platform](../README.md) — core deployment guide
 - [qubership-integration-ui](../ui) — web UI
 - [qubership-integration-vscode-extension](../vscode-extension) — VSCode extension
-

@@ -43,7 +43,6 @@ import {
   corpusFixtures,
   MICRO_FIXTURES,
   microCopy,
-  readFixtureDocument,
   renderFixture,
   SCRIPT_FIXTURE_DIR,
   type FixtureDocument,
@@ -654,25 +653,6 @@ export async function seedMicroCorpus(
 /** Writes the micro copy where `seedChain` and the micro `Env` read it. */
 function writeMicroCorpusState(corpus: MicroCorpus): void {
   writeStateFile(MICRO_CORPUS_STATE_FILE, corpus);
-}
-
-let microNames: Promise<Map<string, string>> | undefined;
-
-/** The name of every element of the micro copy by its id, rendered once per worker. */
-export function microElementNames(): Promise<Map<string, string>> {
-  microNames ??= microCorpusTrees(readMicroCorpusState().run).then((trees) => {
-    const names = new Map<string, string>();
-    for (const [name, tree] of trees) {
-      const { document } = readFixtureDocument(name, tree);
-      for (const element of flatten((document.content as { elements?: FixtureElement[] })?.elements ?? [])) {
-        if (typeof element.id === "string" && typeof element.name === "string") {
-          names.set(element.id, element.name);
-        }
-      }
-    }
-    return names;
-  });
-  return microNames;
 }
 
 /** The micro copy, or a failure naming `seed-micro` rather than the spec that asked. */

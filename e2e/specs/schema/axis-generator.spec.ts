@@ -188,7 +188,7 @@ test("generated chains land where the corpus assembler reads them", TAGS, async 
   const sender = documents.find((each) => each.document.name === `e2e-${EXAMPLE_RUN_TOKEN}-axis-${names[0]}`);
   expect(sender, "the generated chain reached the assembled corpus with the run token substituted").toBeTruthy();
   const zip = await JSZip.loadAsync(archive);
-  expect(zip.file(`chains/${sender!.id}/${sender!.id}.chain.qip.yaml`)).not.toBeNull();
+  expect(zip.file(`chains/${sender!.id}/${sender!.id}.chain.cip.yaml`)).not.toBeNull();
 });
 
 test("a rewrite drops the chains the declarations no longer name", TAGS, async () => {
@@ -198,7 +198,7 @@ test("a rewrite drops the chains the declarations no longer name", TAGS, async (
 
   expect(corpusFixtureNames([dir])).toEqual(["http-sender-httpMethod-PUT"]);
   const written = yaml.load(
-    fs.readFileSync(path.join(dir, "http-sender-httpMethod-PUT", "http-sender-httpMethod-PUT.chain.qip.yaml"), "utf-8"),
+    fs.readFileSync(path.join(dir, "http-sender-httpMethod-PUT", "http-sender-httpMethod-PUT.chain.cip.yaml"), "utf-8"),
   );
   expect(written).toEqual(generate(SENDER_PUT));
 });

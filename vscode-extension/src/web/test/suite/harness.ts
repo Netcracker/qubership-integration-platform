@@ -6,8 +6,8 @@ import { VSCodeFileApi } from "../../response/file/fileApiImpl";
 
 const EXTENSION_NAME = "@netcracker/qip-vscode-extension";
 
-// The `$schema` base every QIP document names.
-export const SCHEMA = "http://qubership.org/schemas/product/qip";
+// The `$schema` base every CIP document names.
+export const SCHEMA = "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model";
 
 // Every suite's timeout: activating the extension and opening a webview take seconds each.
 export const SUITE_TIMEOUT = 60000;
@@ -15,13 +15,13 @@ export const SUITE_TIMEOUT = 60000;
 // Paths inside src/web/test/workspace, the folder test:integration mounts.
 export const FIXTURES = {
   chain:
-    "chains/1419390b-7423-4fab-853f-67c653e16a86/1419390b-7423-4fab-853f-67c653e16a86.chain.qip.yaml",
+    "chains/1419390b-7423-4fab-853f-67c653e16a86/1419390b-7423-4fab-853f-67c653e16a86.chain.cip.yaml",
   service:
-    "services/3b2e9742-139c-4750-bb76-adaf1cc9e3f0/3b2e9742-139c-4750-bb76-adaf1cc9e3f0.service.qip.yaml",
+    "services/3b2e9742-139c-4750-bb76-adaf1cc9e3f0/3b2e9742-139c-4750-bb76-adaf1cc9e3f0.service.cip.yaml",
   contextService:
-    "services/269327ed-e44d-491e-9f86-4a3010d63108/269327ed-e44d-491e-9f86-4a3010d63108.context-service.qip.yaml",
+    "services/269327ed-e44d-491e-9f86-4a3010d63108/269327ed-e44d-491e-9f86-4a3010d63108.context-service.cip.yaml",
   mcpService:
-    "services/0edab1e2-c311-4718-8411-adb16bfa5d54/0edab1e2-c311-4718-8411-adb16bfa5d54.mcp-service.qip.yaml",
+    "services/0edab1e2-c311-4718-8411-adb16bfa5d54/0edab1e2-c311-4718-8411-adb16bfa5d54.mcp-service.cip.yaml",
 };
 
 export function workspaceRoot(): vscode.Uri {
@@ -59,7 +59,7 @@ export function useExtensionModules(): vscode.ExtensionContext {
 // Files the extension wrote, committed as the bytes it has to keep writing. The e2e suite imports
 // them into the catalog (e2e/specs/api/extension-output.spec.ts). After a deliberate change, copy the
 // text a failing comparison reports into the file. The path is `goldenDir` in webpack.config.js.
-const goldenSources = require.context("../golden", false, /\.qip\.yaml$/);
+const goldenSources = require.context("../golden", false, /\.cip\.yaml$/);
 
 export function golden(fileName: string): string {
   return goldenSources(`./${fileName}`);

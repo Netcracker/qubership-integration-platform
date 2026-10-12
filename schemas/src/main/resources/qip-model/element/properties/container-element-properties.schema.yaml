@@ -1,15 +1,15 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/properties/container-element-properties.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/container-element-properties
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Container Element Properties
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   children:
     type: array
     title: Child elements
     items:
-      $ref: "http://qubership.org/schemas/product/qip/element/element.schema.yaml"
+      $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/element"

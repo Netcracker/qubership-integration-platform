@@ -9,8 +9,12 @@
  * so a fixture there costs the same run if it is wrong. The generated `fixtures/axes/` is left out
  * because it is absent in a fresh clone, and the generator validates what it writes.
  */
+import fs from "node:fs";
+import path from "node:path";
 import { test, expect } from "@playwright/test";
+import yaml from "js-yaml";
 import JSZip from "jszip";
+import { QIP_MODEL_DIR } from "../../registry/discriminators.js";
 import {
   SCRIPT_FIXTURE_DIR,
   TRACKED_FIXTURE_DIRS,
@@ -22,7 +26,7 @@ import {
   renderFixture,
   substitute,
 } from "../../fixtures/templating.js";
-import { EXPORTED_CHAIN_SCHEMA, canonicalSchemaId, validateDocument } from "../../fixtures/validate.js";
+import { EXPORTED_CHAIN_SCHEMA, schemaValidator, validateDocument } from "../../fixtures/validate.js";
 import { EXAMPLE_RUN_TOKEN } from "../../support/run.js";
 
 const RUN = EXAMPLE_RUN_TOKEN;
@@ -96,7 +100,7 @@ for (const { dir, name } of fixtures) {
 
     const entries = Object.values(zip.files).filter((f) => !f.dir).map((f) => f.name).sort();
     const expected = [
-      `chains/${fixture.id}/${fixture.id}.chain.qip.yaml`,
+      `chains/${fixture.id}/${fixture.id}.chain.cip.yaml`,
       ...[...fixture.companions.keys()].map((rel) => `chains/${fixture.id}/${rel}`),
     ].sort();
     expect(entries).toEqual(expected);
@@ -127,13 +131,11 @@ test("no two scripts under fixtures/script/ carry the same text", { tag: ["@infr
   expect(byText.size, "no fixture under fixtures/script/ carries a script").toBeGreaterThan(0);
 });
 
-test("the exporter's $schema and the samples' $id name the same schema", { tag: ["@infra", "@tier1"] }, () => {
-  // The exporter writes `.../chain`; the schema samples carry `.../chain.schema.yaml`. Reconciled
-  // here rather than at every call site, because a fixture may be copied from either source.
-  expect(canonicalSchemaId(EXPORTED_CHAIN_SCHEMA)).toBe(`${EXPORTED_CHAIN_SCHEMA}.schema.yaml`);
-  expect(canonicalSchemaId(`${EXPORTED_CHAIN_SCHEMA}.schema.yaml`)).toBe(
-    `${EXPORTED_CHAIN_SCHEMA}.schema.yaml`,
-  );
+test("EXPORTED_CHAIN_SCHEMA is the chain schema's $id and the validator resolves it", { tag: ["@infra", "@tier1"] }, () => {
+  // Validation looks a document's `$schema` up as a schema `$id`, with no rewriting in between.
+  const chain = yaml.load(fs.readFileSync(path.join(QIP_MODEL_DIR, "chain.schema.yaml"), "utf-8")) as { $id?: unknown };
+  expect(chain.$id).toBe(EXPORTED_CHAIN_SCHEMA);
+  expect(schemaValidator().getSchema(EXPORTED_CHAIN_SCHEMA)).toBeDefined();
 });
 
 test("an unsubstituted {{RUN}} fails assembly, naming the entry", { tag: ["@infra", "@tier1"] }, async () => {

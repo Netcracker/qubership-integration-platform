@@ -1,5 +1,5 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/properties/access-control-properties.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/access-control-properties
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
@@ -91,9 +91,9 @@ allOf:
         - abacParameters
 title: Access Control
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   accessControlType:
     title: Access Control Type

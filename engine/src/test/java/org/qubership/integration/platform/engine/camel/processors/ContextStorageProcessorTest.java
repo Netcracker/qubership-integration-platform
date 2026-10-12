@@ -76,7 +76,8 @@ class ContextStorageProcessorTest {
     }
 
     @Test
-    void setStoresUnderExplicitContextIdWhenOneIsSet() throws Exception {
+    void setStoresUnderExplicitContextIdWhenUseCorrelationIdIsFalse() throws Exception {
+        exchange.setProperty(PREFIX + "useCorrelationId", "false");
         exchange.setProperty(PREFIX + "contextId", "explicit");
         exchange.setProperty(PREFIX + "operation", "SET");
         exchange.setProperty(PREFIX + "key", "k");
@@ -103,7 +104,8 @@ class ContextStorageProcessorTest {
     }
 
     @Test
-    void getReadsUnderExplicitContextIdWhenOneIsSet() throws Exception {
+    void getReadsUnderExplicitContextIdWhenUseCorrelationIdIsFalse() throws Exception {
+        exchange.setProperty(PREFIX + "useCorrelationId", "false");
         exchange.setProperty(PREFIX + "contextId", "explicit");
         exchange.setProperty(PREFIX + "operation", "GET");
         exchange.setProperty(PREFIX + "keys", "k");
@@ -118,7 +120,8 @@ class ContextStorageProcessorTest {
     }
 
     @Test
-    void deleteRemovesExplicitContextWhenOneIsSet() throws Exception {
+    void deleteRemovesExplicitContextWhenUseCorrelationIdIsFalse() throws Exception {
+        exchange.setProperty(PREFIX + "useCorrelationId", "false");
         exchange.setProperty(PREFIX + "contextId", "explicit");
         exchange.setProperty(PREFIX + "operation", "DELETE");
 
@@ -129,6 +132,44 @@ class ContextStorageProcessorTest {
 
     @Test
     void deleteRemovesCorrelationIdContextWhenContextIdIsEmpty() throws Exception {
+        exchange.setProperty(PREFIX + "operation", "DELETE");
+
+        processor.process(exchange);
+
+        verify(contextStorageService).deleteValue(CONTEXT_SERVICE_ID, CORRELATION_ID_VALUE);
+    }
+
+    @Test
+    void setStoresUnderCorrelationIdWhenContextIdIsAlsoSet() throws Exception {
+        exchange.setProperty(PREFIX + "contextId", "explicit");
+        exchange.setProperty(PREFIX + "operation", "SET");
+        exchange.setProperty(PREFIX + "key", "k");
+        exchange.setProperty(PREFIX + "value", "v");
+        exchange.setProperty(PREFIX + "ttl", "600");
+
+        processor.process(exchange);
+
+        verify(contextStorageService).storeValue("k", "v", CONTEXT_SERVICE_ID, CORRELATION_ID_VALUE, 600L);
+    }
+
+    @Test
+    void getReadsUnderCorrelationIdWhenContextIdIsAlsoSet() throws Exception {
+        exchange.setProperty(PREFIX + "contextId", "explicit");
+        exchange.setProperty(PREFIX + "operation", "GET");
+        exchange.setProperty(PREFIX + "keys", "k");
+        exchange.setProperty(PREFIX + "target", "BODY");
+        exchange.setProperty(PREFIX + "unwrap", "false");
+        when(contextStorageService.getValue(CONTEXT_SERVICE_ID, CORRELATION_ID_VALUE, List.of("k")))
+                .thenReturn(Map.of("k", "v"));
+
+        processor.process(exchange);
+
+        assertEquals(Map.of("k", "v"), exchange.getMessage().getBody());
+    }
+
+    @Test
+    void deleteRemovesCorrelationIdContextWhenContextIdIsAlsoSet() throws Exception {
+        exchange.setProperty(PREFIX + "contextId", "explicit");
         exchange.setProperty(PREFIX + "operation", "DELETE");
 
         processor.process(exchange);

@@ -48,6 +48,12 @@ mvn checkstyle:check
 
 - **Deployment pipeline**: Chain → compiler → Camel XML builder (Handlebars) → Consul publish
 - **Import/Export**: Session-based (v3) with versioned migration chain (`service/exportimport/migrations/`)
+  - Exported file names (`<id>.chain.cip.yaml`, `<id>.service.cip.yaml`, and the rest) take `cip` from
+    `EXPORT_FILE_APP_NAME` in `util/ExportImportUtils.java`, not from `app.prefix`, which still names Kubernetes
+    resources, routes, and metrics. Build a name with the `ExportImportUtils.generate*FileExportName` helpers. Import
+    accepts `.cip.yaml` and the legacy `.qip.yaml`.
+  - Check an imported `$schema` with the `ApplicationJsonSchemaProperties.is*` methods, which accept the configured
+    URI (`cip.json.schemas.*`) and the legacy `http://qubership.org/schemas/product/qip/<type>`.
 
 #### Code Generation & Processing
 

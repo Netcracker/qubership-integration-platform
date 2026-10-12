@@ -76,12 +76,12 @@ jest.mock("../../../../src/web/services/ProjectConfigService", () => ({
   ProjectConfigService: {
     getConfig: jest.fn().mockReturnValue({
       extensions: {
-        chain: ".chain.qip.yaml",
-        service: ".service.qip.yaml",
-        contextService: ".context-service.qip.yaml",
-        mcpService: ".mcp-service.qip.yaml",
-        specificationGroup: ".specification-group.qip.yaml",
-        specification: ".specification.qip.yaml",
+        chain: ".chain.cip.yaml",
+        service: ".service.cip.yaml",
+        contextService: ".context-service.cip.yaml",
+        mcpService: ".mcp-service.cip.yaml",
+        specificationGroup: ".specification-group.cip.yaml",
+        specification: ".specification.cip.yaml",
       },
       schemaUrls: {},
       cache: { ttl: 60000 },
@@ -150,7 +150,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
   });
 
   describe("getFileUri fallback via readFile", () => {
-    const baseFileUri = createMockUri("/workspace/chains/my-chain/my-chain.chain.qip.yaml");
+    const baseFileUri = createMockUri("/workspace/chains/my-chain/my-chain.chain.cip.yaml");
     const baseDirUri = createMockUri("/workspace/chains/my-chain");
 
     beforeEach(() => {
@@ -259,7 +259,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
     });
 
     test("handles git URI scheme – preserves query path", async () => {
-      const gitBaseUri = createMockUri("/workspace/chains/my-chain/my-chain.chain.qip.yaml", "git", JSON.stringify({ path: "C:\\workspace\\chains\\my-chain\\my-chain.chain.qip.yaml" }));
+      const gitBaseUri = createMockUri("/workspace/chains/my-chain/my-chain.chain.cip.yaml", "git", JSON.stringify({ path: "C:\\workspace\\chains\\my-chain\\my-chain.chain.cip.yaml" }));
       // gitBaseUri scheme git, query contains windows path
       // getParentDirectoryUri will handle query, addToPath also
       mockStat.mockImplementation(async (uri: any) => {
@@ -285,7 +285,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
   });
 
   describe("removeFile – getFileUri fallback", () => {
-    const baseFileUri = createMockUri("/workspace/chains/my-chain/my-chain.chain.qip.yaml");
+    const baseFileUri = createMockUri("/workspace/chains/my-chain/my-chain.chain.cip.yaml");
 
     test("removes direct file when exists", async () => {
       mockStat.mockImplementation(async (uri: any) => {
@@ -358,7 +358,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
 
   describe("getDirectoriesToRemove", () => {
     test("returns [resources, serviceDirectory] for SERVICE not at workspace root", async () => {
-      const svcUri = createMockUri("/workspace/service/service.service.qip.yaml");
+      const svcUri = createMockUri("/workspace/service/service.service.cip.yaml");
       const serviceDir = createMockUri("/workspace/service");
       const resourcesDir = createMockUri("/workspace/service/resources");
       jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.SERVICE);
@@ -382,7 +382,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
     });
 
     test("returns [resources, chainDirectory] for CHAIN not at workspace root", async () => {
-      const chainFileUri = createMockUri("/workspace/chains/my-chain/my-chain.chain.qip.yaml");
+      const chainFileUri = createMockUri("/workspace/chains/my-chain/my-chain.chain.cip.yaml");
       const chainDir = createMockUri("/workspace/chains/my-chain");
       const resourcesDir = createMockUri("/workspace/chains/my-chain/resources");
 
@@ -400,7 +400,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
     });
 
     test("returns [] when chain directory is at workspace root (reference equality path)", async () => {
-      const chainFileUri = createMockUri("/workspace/my.chain.qip.yaml");
+      const chainFileUri = createMockUri("/workspace/my.chain.cip.yaml");
       const rootUri = createMockUri("/workspace");
 
       jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.CHAIN);
@@ -416,7 +416,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
     });
 
     test("uses getParentDirectoryUri and getRootDirectory correctly", async () => {
-      const chainFileUri = createMockUri("/workspace/a/b/c.chain.qip.yaml");
+      const chainFileUri = createMockUri("/workspace/a/b/c.chain.cip.yaml");
       const parentDir = createMockUri("/workspace/a/b");
       const root = createMockUri("/workspace");
 
@@ -431,7 +431,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
     });
 
     test("returns [directory] for CONTEXT_SERVICE not at workspace root (without resources)", async () => {
-      const svcUri = createMockUri("/workspace/context/my-ctx.context-service.qip.yaml");
+      const svcUri = createMockUri("/workspace/context/my-ctx.context-service.cip.yaml");
       const serviceDir = createMockUri("/workspace/context/my-ctx");
       jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.CONTEXT_SERVICE);
       jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(serviceDir);
@@ -444,7 +444,7 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
     });
 
     test("returns [directory] for MCP_SERVICE not at workspace root (without resources)", async () => {
-      const svcUri = createMockUri("/workspace/mcp/my-mcp.mcp-service.qip.yaml");
+      const svcUri = createMockUri("/workspace/mcp/my-mcp.mcp-service.cip.yaml");
       const serviceDir = createMockUri("/workspace/mcp/my-mcp");
       jest.spyOn(api as any, "getFileType").mockResolvedValue(QipFileType.MCP_SERVICE);
       jest.spyOn(api as any, "getParentDirectoryUri").mockResolvedValue(serviceDir);

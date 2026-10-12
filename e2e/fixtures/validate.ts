@@ -8,7 +8,7 @@
  * to say so. So everything here reads `schemas/src/main/resources/qip-model/`.
  *
  * ajv resolves `$ref` by lookup, not by fetch, and these schemas ref each other by absolute
- * `http://qubership.org/...` URLs. Every schema in the tree is therefore pre-registered by its
+ * `SCHEMA_BASE_URL` ids. Every schema in the tree is therefore pre-registered by its
  * `$id` before anything is compiled.
  */
 import fs from "node:fs";
@@ -17,13 +17,8 @@ import { Ajv, type ValidateFunction } from "ajv";
 import yaml from "js-yaml";
 import { QIP_MODEL_DIR, SCHEMA_BASE_URL } from "../registry/discriminators.js";
 
-/** The exporter writes this; the schema samples carry the schema's own `$id`. Both are the chain. */
+/** The `$schema` the exporter writes on a chain, which is also the chain schema's `$id`. */
 export const EXPORTED_CHAIN_SCHEMA = `${SCHEMA_BASE_URL}chain`;
-
-/** `$schema` as a fixture may write it → the `$id` that actually validates it. */
-export function canonicalSchemaId(declared: string): string {
-  return declared.endsWith(".schema.yaml") ? declared : `${declared}.schema.yaml`;
-}
 
 function collectSchemaFiles(dir: string): string[] {
   return fs
@@ -95,10 +90,9 @@ export function validateDocument(
   }
 
   const ajv = schemaValidator(modelDir);
-  const id = canonicalSchemaId(declared);
-  const validate = ajv.getSchema(id) as ValidateFunction | undefined;
+  const validate = ajv.getSchema(declared) as ValidateFunction | undefined;
   if (!validate) {
-    return [{ instancePath: "", message: `no schema registered under ${id}` }];
+    return [{ instancePath: "", message: `no schema registered under ${declared}` }];
   }
 
   if (validate(document)) return [];

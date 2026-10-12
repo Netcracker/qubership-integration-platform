@@ -46,11 +46,11 @@ function goldenId(suffix: string, which: (id: string) => boolean = () => true): 
   return ids[0];
 }
 
-const CHANGED_CHAIN = goldenId(".chain.qip.yaml", inWorkspace);
-const CREATED_CHAIN = goldenId(".chain.qip.yaml", (id) => !inWorkspace(id));
-const EXTERNAL = goldenId(".service.qip.yaml");
-const CONTEXT = goldenId(".context-service.qip.yaml");
-const MCP = goldenId(".mcp-service.qip.yaml");
+const CHANGED_CHAIN = goldenId(".chain.cip.yaml", inWorkspace);
+const CREATED_CHAIN = goldenId(".chain.cip.yaml", (id) => !inWorkspace(id));
+const EXTERNAL = goldenId(".service.cip.yaml");
+const CONTEXT = goldenId(".context-service.cip.yaml");
+const MCP = goldenId(".mcp-service.cip.yaml");
 
 /** Deletes what the catalog holds at `location` with `remove`, if it holds anything there. */
 async function removeIfPresent(catalog: Catalog, location: string, remove: () => Promise<void>): Promise<void> {
@@ -63,7 +63,7 @@ function goldenText(fileName: string): string {
 
 /** A chain archive holding one golden chain file, plus the resources its elements name. */
 async function chainArchive(id: string, resources: Record<string, string> = {}): Promise<Buffer> {
-  const entries: Record<string, string> = { [`chains/${id}/${id}.chain.qip.yaml`]: goldenText(`${id}.chain.qip.yaml`) };
+  const entries: Record<string, string> = { [`chains/${id}/${id}.chain.cip.yaml`]: goldenText(`${id}.chain.cip.yaml`) };
   for (const [name, text] of Object.entries(resources)) entries[`chains/${id}/resources/${name}`] = text;
   return await zipOf(Object.entries(entries));
 }
@@ -98,8 +98,8 @@ test("a chain the extension changed imports into the catalog, and the catalog ex
     expect(await rowsOf(response)).toEqual([expect.objectContaining({ id: CHANGED_CHAIN, status: "CREATED" })]);
 
     const exported = await catalog.exportChain(CHANGED_CHAIN);
-    const document = yaml.load(await entryText(exported, `chains/${CHANGED_CHAIN}/${CHANGED_CHAIN}.chain.qip.yaml`));
-    expect(document, "the catalog's export of the imported chain").toEqual(yaml.load(goldenText(`${CHANGED_CHAIN}.chain.qip.yaml`)));
+    const document = yaml.load(await entryText(exported, `chains/${CHANGED_CHAIN}/${CHANGED_CHAIN}.chain.cip.yaml`));
+    expect(document, "the catalog's export of the imported chain").toEqual(yaml.load(goldenText(`${CHANGED_CHAIN}.chain.cip.yaml`)));
     expect(await entryText(exported, `chains/${CHANGED_CHAIN}/resources/${script}`)).toBe(resource);
   } finally {
     await removeIfPresent(catalog, location, () => catalog.deleteChain(CHANGED_CHAIN)).catch(leftBehind(`chain ${CHANGED_CHAIN}`));
@@ -119,7 +119,7 @@ const REFUSED = [
   {
     title: "an external service the extension created imports into the catalog",
     id: EXTERNAL,
-    archive: () => serviceArchive(EXTERNAL, ".service.qip.yaml"),
+    archive: () => serviceArchive(EXTERNAL, ".service.cip.yaml"),
     importPath: "/v1/import/system",
     location: `/v1/systems/${EXTERNAL}`,
     remove: (catalog: Catalog) => catalog.deleteSystem(EXTERNAL),
@@ -127,7 +127,7 @@ const REFUSED = [
   {
     title: "a context service the extension created imports into the catalog",
     id: CONTEXT,
-    archive: () => serviceArchive(CONTEXT, ".context-service.qip.yaml"),
+    archive: () => serviceArchive(CONTEXT, ".context-service.cip.yaml"),
     importPath: "/v1/catalog/context-system/import",
     location: `/v1/catalog/context-system/${CONTEXT}`,
     remove: (catalog: Catalog) => catalog.deleteContextSystem(CONTEXT),
@@ -135,7 +135,7 @@ const REFUSED = [
   {
     title: "an MCP service the extension created imports into the catalog",
     id: MCP,
-    archive: () => serviceArchive(MCP, ".mcp-service.qip.yaml"),
+    archive: () => serviceArchive(MCP, ".mcp-service.cip.yaml"),
     importPath: "/v1/catalog/mcp-system/import",
     location: `/v1/catalog/mcp-system/${MCP}`,
     remove: (catalog: Catalog) => catalog.deleteMcpSystem(MCP),

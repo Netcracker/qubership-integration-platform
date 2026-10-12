@@ -18,7 +18,7 @@
  * **The samples are not archives.** They are schema-validation fixtures, so a zipped sample imports
  * nothing. Each floor is stored here as a fixture directory in the shape
  * `fixtures/templating.ts` already assembles: one document, zipped into
- * `chains/<id>/<id>.chain.qip.yaml` or `services/<id>/<id>.service.qip.yaml` at import time. A
+ * `chains/<id>/<id>.chain.cip.yaml` or `services/<id>/<id>.service.cip.yaml` at import time. A
  * directory of text rather than a committed `.zip` on purpose: a checksum guard whose subject is a
  * binary blob puts nothing in front of a reviewer, and the rule is that changing a frozen
  * file means changing its checksum **in the same commit**, for a person to look at.

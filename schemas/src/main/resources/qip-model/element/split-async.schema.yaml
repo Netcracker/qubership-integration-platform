@@ -1,14 +1,14 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/split-async.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/split-async
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
 title: Split Async (deprecated)
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   type:
     type: string
@@ -17,7 +17,7 @@ properties:
     type: array
     items:
       anyOf:
-        - $ref: "http://qubership.org/schemas/product/qip/element/sync-split-element.schema.yaml"
-        - $ref: "http://qubership.org/schemas/product/qip/element/async-split-element.schema.yaml"
+        - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/sync-split-element"
+        - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/async-split-element"
 required:
   - type

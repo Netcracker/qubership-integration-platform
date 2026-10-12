@@ -25,7 +25,6 @@
  * `sessionsLoggingLevel` between the import and the deploy.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
 import { callChain, elementNames, HTTP_TRIGGER_STEPS, trace } from "../../support/sessions.js";
@@ -53,8 +52,7 @@ const SPLIT_BRANCH_STEPS = [
   "Second Pass",
 ];
 
-test("a script inside a loop runs once per iteration, and each pass reads what the one before it left", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script inside a loop runs once per iteration, and each pass reads what the one before it left", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   covers("script");
 
   const chain = seedChain(readCorpusState(), "script-in-container-loop.yaml");
@@ -109,8 +107,7 @@ test("a script inside a loop runs once per iteration, and each pass reads what t
   });
 });
 
-test("a script in each branch of a split runs once, on that branch's own copy of the exchange", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a script in each branch of a split runs once, on that branch's own copy of the exchange", { tag: ["@engine", "@sessions", "@tier2"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "script-in-container-split.yaml");
   const seed = callToken("seed");
 

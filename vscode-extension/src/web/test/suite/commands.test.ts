@@ -26,13 +26,11 @@ import {
   workspaceUri,
 } from "./harness";
 
-// `revealed` is false for a file `qip.revealInExplorer` opens in the chain editor rather than in its
-// own, which is the defect the Open commands suite pins.
 const EDITORS = [
-  { viewType: "qip.chainFile.editor", fixture: FIXTURES.chain, revealed: true },
-  { viewType: "qip.serviceFile.editor", fixture: FIXTURES.service, revealed: true },
-  { viewType: "qip.contextServiceFile.editor", fixture: FIXTURES.contextService, revealed: false },
-  { viewType: "qip.mcpServiceFile.editor", fixture: FIXTURES.mcpService, revealed: false },
+  { viewType: "qip.chainFile.editor", fixture: FIXTURES.chain },
+  { viewType: "qip.serviceFile.editor", fixture: FIXTURES.service },
+  { viewType: "qip.contextServiceFile.editor", fixture: FIXTURES.contextService },
+  { viewType: "qip.mcpServiceFile.editor", fixture: FIXTURES.mcpService },
 ];
 
 // The ids the golden files carry in place of the one a create command generates.
@@ -81,7 +79,7 @@ suite("Custom editors", function () {
 
   // The manifest's `priority.diffEditor` and its `workbench.diffEditorAssociations` default both ask for this.
   test("a chain diff opens in the chain editor", async () => {
-    const copy = `${folderOf(FIXTURES.chain)}/diff-copy.chain.qip.yaml`;
+    const copy = `${folderOf(FIXTURES.chain)}/diff-copy.chain.cip.yaml`;
     await vscode.workspace.fs.copy(workspaceUri(FIXTURES.chain), workspaceUri(copy), { overwrite: true });
     try {
       await vscode.commands.executeCommand("vscode.diff", workspaceUri(FIXTURES.chain), workspaceUri(copy), "chain diff");
@@ -112,25 +110,25 @@ suite("Create commands", function () {
       ),
     );
     try {
-      assert.deepStrictEqual(await listDirectory(workspaceUri(folder)), [`${folder}.chain.qip.yaml`]);
-      assert.deepStrictEqual(await readYaml(workspaceUri(`${folder}/${folder}.chain.qip.yaml`)), {
+      assert.deepStrictEqual(await listDirectory(workspaceUri(folder)), [`${folder}.chain.cip.yaml`]);
+      assert.deepStrictEqual(await readYaml(workspaceUri(`${folder}/${folder}.chain.cip.yaml`)), {
         $schema: `${SCHEMA}/chain`,
         id: folder,
         name: "vsc-created-chain",
         content: {},
       });
-      await assertGolden(workspaceUri(`${folder}/${folder}.chain.qip.yaml`), folder, "CHAIN", ".chain.qip.yaml");
+      await assertGolden(workspaceUri(`${folder}/${folder}.chain.cip.yaml`), folder, "CHAIN", ".chain.cip.yaml");
     } finally {
       await vscode.workspace.fs.delete(workspaceUri(folder), { recursive: true });
     }
   });
 
   const SERVICE_TYPES = [
-    { pick: "EXTERNAL", suffix: ".service.qip.yaml", schema: "service" },
-    { pick: "INTERNAL", suffix: ".service.qip.yaml", schema: "service" },
-    { pick: "IMPLEMENTED", suffix: ".service.qip.yaml", schema: "service" },
-    { pick: "CONTEXT", suffix: ".context-service.qip.yaml", schema: "context-service" },
-    { pick: "MCP", suffix: ".mcp-service.qip.yaml", schema: "mcp-service" },
+    { pick: "EXTERNAL", suffix: ".service.cip.yaml", schema: "service" },
+    { pick: "INTERNAL", suffix: ".service.cip.yaml", schema: "service" },
+    { pick: "IMPLEMENTED", suffix: ".service.cip.yaml", schema: "service" },
+    { pick: "CONTEXT", suffix: ".context-service.cip.yaml", schema: "context-service" },
+    { pick: "MCP", suffix: ".mcp-service.cip.yaml", schema: "mcp-service" },
   ];
 
   for (const { pick, suffix, schema } of SERVICE_TYPES) {
@@ -271,20 +269,10 @@ suite("Open commands", function () {
     });
   }
 
-  for (const { viewType, fixture } of EDITORS.filter((each) => each.revealed)) {
+  for (const { viewType, fixture } of EDITORS) {
     test(`qip.revealInExplorer opens ${suffixOf(fixture)} in ${viewType}`, async () => {
       await vscode.commands.executeCommand("qip.revealInExplorer", { fileUri: workspaceUri(fixture) });
       await expectCustomEditor(viewType, workspaceUri(fixture));
-    });
-  }
-
-  // Pins a defect (docs/product-defects.md): `qip.revealInExplorer` opens context and MCP services in
-  // the chain editor. The case fails once the command opens their own editors; then assert that instead.
-  for (const { fixture } of EDITORS.filter((each) => !each.revealed)) {
-    test(`qip.revealInExplorer opens ${suffixOf(fixture)} in the chain editor`, async () => {
-      const uri = workspaceUri(fixture);
-      await vscode.commands.executeCommand("qip.revealInExplorer", { fileUri: uri });
-      await expectCustomEditor("qip.chainFile.editor", uri);
     });
   }
 });

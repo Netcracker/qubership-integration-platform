@@ -275,7 +275,7 @@ test("a context service is filtered, exported by either verb, and previewed back
 
     // One `@RequestMapping(method = {GET, POST})` serves the export, so the two verbs are one
     // mapping and the archives are asserted equal rather than assumed to be.
-    const entry = `services/${created.id}/${created.id}.context-service.qip.yaml`;
+    const entry = `services/${created.id}/${created.id}.context-service.cip.yaml`;
     const viaGet = await catalog.exportContextSystems([created.id], "get");
     const viaPost = await catalog.exportContextSystems([created.id], "post");
     expect(viaGet.status()).toBe(200);

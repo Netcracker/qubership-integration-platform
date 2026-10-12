@@ -7,7 +7,6 @@
  * and proves only that a corpus can be created and destroyed.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callToken } from "../../support/run.js";
 import { callChain, elementNames, failedElements } from "../../support/sessions.js";
@@ -44,8 +43,7 @@ test("the seeded http-echo chain outlives the seed project and answers on its ro
   expect(answer.headers()["e2e-fixture"]).toBe(corpus.run);
 });
 
-test("a call correlated by its own token finds the trace the engine recorded", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a call correlated by its own token finds the trace the engine recorded", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), "http-echo");
 
   const { token, response } = await callChain(request, env.chainUrl(chain.contextPath), {

@@ -1,12 +1,12 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/properties/resource-reference-mapper.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/resource-reference-mapper
 $schema: http://json-schema.org/draft-07/schema
 type: object
 title: Reference to Mapper resource
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   exportFileExtension:
     type: string
@@ -25,4 +25,4 @@ properties:
     description: Throw exception on transformation failure.
     default: true
   mappingDescription:
-    $ref: "http://qubership.org/schemas/product/qip/element/properties/mapper-description.schema.yaml"
+    $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/mapper-description"

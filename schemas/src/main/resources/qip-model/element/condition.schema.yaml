@@ -1,14 +1,14 @@
 ---
-$id: http://qubership.org/schemas/product/qip/element/condition.schema.yaml
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/condition
 $schema: http://json-schema.org/draft-07/schema
 type: object
 allOf:
-  - $ref: "http://qubership.org/schemas/product/qip/element/properties/common-element-properties.schema.yaml"
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
 title: Condition
 metaInfo:
-  application: Qubership Integration Platform
+  application: Cloud Integration Platform
   labels:
-    - QIP
+    - CIP
 properties:
   type:
     type: string
@@ -17,8 +17,8 @@ properties:
     type: array
     items:
       anyOf:
-        - $ref: "http://qubership.org/schemas/product/qip/element/if.schema.yaml"
-        - $ref: "http://qubership.org/schemas/product/qip/element/else.schema.yaml"
+        - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/if"
+        - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/else"
   properties:
     type: object
     additionalProperties: false

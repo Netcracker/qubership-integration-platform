@@ -16,7 +16,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ServiceConfigurationsToFilesConverterTest {
 
-    private static final String APP_PREFIX = "qip";
+    private static final String APP_NAME = "cip";
     private static final String SERVICE_ID = "service-abc";
     private static final String SPEC_GROUP_ID = "specgroup-xyz";
     private static final String SPEC_ID = "spec-001";
@@ -27,7 +27,7 @@ class ServiceConfigurationsToFilesConverterTest {
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
-        converter = new ServiceConfigurationsToFilesConverter(objectMapper, APP_PREFIX, Collections.emptyList());
+        converter = new ServiceConfigurationsToFilesConverter(objectMapper, Collections.emptyList());
     }
 
     @Test
@@ -45,10 +45,10 @@ class ServiceConfigurationsToFilesConverterTest {
     }
 
     @Test
-    @DisplayName("Single service creates {serviceId}/{serviceId}.service.{appPrefix}.yaml")
+    @DisplayName("Single service creates {serviceId}/{serviceId}.service.cip.yaml")
     void singleServiceCreatesCorrectFilePath() throws JsonProcessingException {
         Map<String, RolloutImportConfigurationItem> services = Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
-        Path expected = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".service." + APP_PREFIX + ".yaml");
+        Path expected = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".service." + APP_NAME + ".yaml");
 
         Map<Path, byte[]> result = converter.convert(services, emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
 
@@ -56,10 +56,10 @@ class ServiceConfigurationsToFilesConverterTest {
     }
 
     @Test
-    @DisplayName("Single contextService creates {serviceId}/{serviceId}.context-service.{appPrefix}.yaml")
+    @DisplayName("Single contextService creates {serviceId}/{serviceId}.context-service.cip.yaml")
     void singleContextServiceCreatesCorrectFilePath() throws JsonProcessingException {
         Map<String, RolloutImportConfigurationItem> contextServices = Map.of(SERVICE_ID, item(SERVICE_ID, objectMapper.createObjectNode()));
-        Path expected = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".context-service." + APP_PREFIX + ".yaml");
+        Path expected = Path.of(SERVICE_ID).resolve(SERVICE_ID + ".context-service." + APP_NAME + ".yaml");
 
         Map<Path, byte[]> result = converter.convert(emptyConfigMap(), emptyConfigMap(), emptyConfigMap(), contextServices, emptyResourceMap());
 
@@ -74,7 +74,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
         Map<Path, byte[]> result = converter.convert(services, emptyConfigMap(), specGroups, emptyConfigMap(), emptyResourceMap());
 
-        Path specGroupPath = Path.of(SERVICE_ID).resolve(SPEC_GROUP_ID + ".specification-group." + APP_PREFIX + ".yaml");
+        Path specGroupPath = Path.of(SERVICE_ID).resolve(SPEC_GROUP_ID + ".specification-group." + APP_NAME + ".yaml");
         assertThat(result).doesNotContainKey(specGroupPath);
     }
 
@@ -87,7 +87,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
         Map<Path, byte[]> result = converter.convert(emptyConfigMap(), emptyConfigMap(), specGroups, emptyConfigMap(), emptyResourceMap());
 
-        Path specGroupPath = Path.of("non-existing-service").resolve(SPEC_GROUP_ID + ".specification-group." + APP_PREFIX + ".yaml");
+        Path specGroupPath = Path.of("non-existing-service").resolve(SPEC_GROUP_ID + ".specification-group." + APP_NAME + ".yaml");
         assertThat(result).doesNotContainKey(specGroupPath);
     }
 
@@ -101,7 +101,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
         Map<Path, byte[]> result = converter.convert(services, emptyConfigMap(), specGroups, emptyConfigMap(), emptyResourceMap());
 
-        Path expected = Path.of(SERVICE_ID).resolve(SPEC_GROUP_ID + ".specification-group." + APP_PREFIX + ".yaml");
+        Path expected = Path.of(SERVICE_ID).resolve(SPEC_GROUP_ID + ".specification-group." + APP_NAME + ".yaml");
         assertThat(result).containsKey(expected);
     }
 
@@ -113,7 +113,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
         Map<Path, byte[]> result = converter.convert(services, specs, emptyConfigMap(), emptyConfigMap(), emptyResourceMap());
 
-        Path specPath = Path.of(SERVICE_ID).resolve(SPEC_ID + ".specification." + APP_PREFIX + ".yaml");
+        Path specPath = Path.of(SERVICE_ID).resolve(SPEC_ID + ".specification." + APP_NAME + ".yaml");
         assertThat(result).doesNotContainKey(specPath);
     }
 
@@ -132,7 +132,7 @@ class ServiceConfigurationsToFilesConverterTest {
 
         Map<Path, byte[]> result = converter.convert(services, specs, specGroups, emptyConfigMap(), emptyResourceMap());
 
-        Path expected = Path.of(SERVICE_ID).resolve(SPEC_ID + ".specification." + APP_PREFIX + ".yaml");
+        Path expected = Path.of(SERVICE_ID).resolve(SPEC_ID + ".specification." + APP_NAME + ".yaml");
         assertThat(result).containsKey(expected);
     }
 

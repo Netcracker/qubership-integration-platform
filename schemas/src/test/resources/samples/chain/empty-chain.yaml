@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "f15c29d9-89c6-46ad-a2f3-82533534e319"
 name: "Empty Chain"
 content:

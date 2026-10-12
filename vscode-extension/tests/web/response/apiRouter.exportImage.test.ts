@@ -47,7 +47,7 @@ jest.mock("../../../src/web/response/file", () => ({
 }));
 
 jest.mock("../../../src/web/response/file/fileExtensions", () => ({
-  getExtensionsForUri: jest.fn(() => ({ chain: "**/*.chain.qip.yaml" })),
+  getExtensionsForUri: jest.fn(() => ({ chain: "**/*.chain.cip.yaml" })),
 }));
 
 const writeFile = fileApi.writeFile as jest.Mock;
@@ -329,8 +329,8 @@ describe("apiRouter export image handlers", () => {
   });
 
   test("listChainExportTargets returns sorted targets from fileApi discovery", async () => {
-    const first = Uri.file("/workspace/chains/b.chain.qip.yaml");
-    const second = Uri.file("/workspace/chains/a.chain.qip.yaml");
+    const first = Uri.file("/workspace/chains/b.chain.cip.yaml");
+    const second = Uri.file("/workspace/chains/a.chain.cip.yaml");
     findFiles.mockResolvedValue([first, second]);
     parseFile.mockImplementation(async (uri: Uri) => ({
       id: uri.fsPath.includes("/a.") ? "alpha" : "beta",

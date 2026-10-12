@@ -20,6 +20,10 @@ jest.mock("../../src/api/api.ts", () => ({
       activeEnvironmentId: "env-1",
     } as never),
     getEnvironments: jest.fn().mockResolvedValue([] as never),
+    getContextService: jest.fn().mockResolvedValue({
+      id: "ctx-svc-1",
+      name: "Orders Context",
+    } as never),
   },
 }));
 
@@ -1130,7 +1134,9 @@ describe("buildSequenceDiagram", () => {
         messages.some((m) => m.includes("GET context") && m.includes("my-ctx")),
       ).toBe(true);
       expect(
-        diagram.participants.some((p) => p.name?.includes("ctx-svc-1")),
+        diagram.participants.some(
+          (p) => p.name === "Context storage service: Orders Context",
+        ),
       ).toBe(true);
     });
 
@@ -1160,6 +1166,107 @@ describe("buildSequenceDiagram", () => {
 
       const messages = collectMessages(diagram.actions);
       expect(messages.some((m) => m.includes("use correlation ID"))).toBe(true);
+    });
+
+    function contextStorageChain(...properties: object[]): Chain {
+      const trigger = makeElement({
+        id: "trigger-1",
+        name: "HTTP Trigger",
+        type: "http-trigger",
+        properties: { contextPath: "/test" } as never,
+      });
+      const steps = properties.map((p, i) =>
+        makeElement({
+          id: `cs-${i}`,
+          name: `Context Storage ${i}`,
+          type: "context-storage",
+          properties: { operation: "GET", ...p } as never,
+        }),
+      );
+      return makeChain(
+        [trigger, ...steps],
+        steps.map((step, i) => ({
+          from: i === 0 ? "trigger-1" : `cs-${i - 1}`,
+          to: step.id,
+        })),
+      );
+    }
+
+    it("should show the context ID when correlation ID is the string false", async () => {
+      const chain = contextStorageChain({
+        contextServiceId: "ctx-svc-1",
+        contextId: "my-ctx",
+        useCorrelationId: "false",
+      });
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(collectMessages(diagram.actions)).toContain("GET context my-ctx");
+    });
+
+    it("should show correlation ID when it is the boolean true", async () => {
+      const chain = contextStorageChain({
+        contextServiceId: "ctx-svc-1",
+        contextId: "my-ctx",
+        useCorrelationId: true,
+      });
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(collectMessages(diagram.actions)).toContain(
+        "GET context (use correlation ID)",
+      );
+    });
+
+    it("should keep two context services with one name apart", async () => {
+      jest
+        .mocked(api.getContextService)
+        .mockResolvedValueOnce({
+          id: "ctx-svc-1",
+          name: "Orders Context",
+        } as never)
+        .mockResolvedValueOnce({
+          id: "ctx-svc-2",
+          name: "Orders Context",
+        } as never);
+      const chain = contextStorageChain(
+        { contextServiceId: "ctx-svc-1", contextId: "a" },
+        { contextServiceId: "ctx-svc-2", contextId: "b" },
+      );
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      const ids = diagram.participants
+        .filter((p) => p.name === "Context storage service: Orders Context")
+        .map((p) => p.id);
+      expect(ids).toEqual(["ctx-svc-1", "ctx-svc-2"]);
+    });
+
+    it("should show the service ID when the context service cannot be loaded", async () => {
+      jest
+        .mocked(api.getContextService)
+        .mockRejectedValueOnce(new Error("not found"));
+      const chain = contextStorageChain({
+        contextServiceId: "ctx-svc-gone",
+        contextId: "my-ctx",
+      });
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(diagram.participants.map((p) => p.name)).toContain(
+        "Context storage service: ctx-svc-gone",
+      );
+    });
+
+    it("should show the empty property stub when no context service is set", async () => {
+      const chain = contextStorageChain({ contextId: "my-ctx" });
+
+      const diagram = await buildSequenceDiagram(chain, DiagramMode.FULL);
+
+      expect(api.getContextService).not.toHaveBeenCalled();
+      expect(diagram.participants.map((p) => p.name)).toContain(
+        "Context storage service: %empty_property%",
+      );
     });
   });
 

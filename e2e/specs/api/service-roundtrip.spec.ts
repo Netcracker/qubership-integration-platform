@@ -18,8 +18,16 @@
  * also make two suite runs against one stack delete and import the same services, which is one
  * more reason the suite allows one run per stack at a time.
  *
+ * The archive predates the `cip` format (#839): its entries end in `.qip.yaml` and its `$schema`
+ * values use the old `http://qubership.org/schemas/product/qip/` prefix. So the case also checks
+ * that an archive in the old format imports, and that the export renames each entry to `.cip.yaml`
+ * and moves its `$schema` to the new prefix with nothing else changed. The importer finds external
+ * services by the `.service.` part of the name and does not check their `$schema`, so the case
+ * does not reach the legacy name and URI checks for chains, context services, and MCP services;
+ * the runtime-catalog unit tests cover those.
+ *
  * The group name, the specification version, and the resource directory each put a dot into an
- * entry name, as in `<id>-r6-adj.dotted.grp.specification-group.qip.yaml`. A reader that takes the
+ * entry name, as in `<id>-r6-adj.dotted.grp.specification-group.cip.yaml`. A reader that takes the
  * text after the first dot as the type suffix reads `dotted` there, and the catalog writes such
  * entries with no extension involved.
  *
@@ -29,6 +37,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { SCHEMA_BASE_URL } from "../../registry/discriminators.js";
 import { test, expect } from "../../support/fixtures.js";
 import { leftBehind } from "../../support/teardown.js";
 import { entryNames, entryText } from "../../support/zip.js";
@@ -60,6 +69,19 @@ const ENTRIES = [
   `services/${INTERNAL}/resources/source-${ORDERS_GROUP}-1.0.0/orders.openapi.yaml`,
   `services/${IMPLEMENTED}/${IMPLEMENTED}.service.qip.yaml`,
 ].sort();
+
+/** The name the catalog exports a committed entry under. */
+function exportedEntry(entry: string): string {
+  return entry.replace(/\.qip\.yaml$/, ".cip.yaml");
+}
+
+/** The text the catalog exports for a committed entry: only the `$schema` prefix moves. */
+function exportedText(text: string): string {
+  return text.replace(
+    /^(\$schema: ")http:\/\/qubership\.org\/schemas\/product\/qip\//m,
+    `$1${SCHEMA_BASE_URL}`,
+  );
+}
 
 interface ServiceWant {
   name: string;
@@ -120,12 +142,13 @@ test("a committed service export imports back with every specification, dotted e
       }
     }
 
-    // The export of what the import wrote matches the committed archive entry for entry, so the
-    // environments, the operations, and the specification sources came back unchanged too.
+    // The export of what the import wrote matches the committed archive entry for entry, in the
+    // `cip` format, so the environments, the operations, and the specification sources came back
+    // unchanged too.
     const exported = await catalog.exportSystems(IDS);
-    expect(await entryNames(exported)).toEqual(ENTRIES);
+    expect(await entryNames(exported)).toEqual(ENTRIES.map(exportedEntry).sort());
     for (const entry of ENTRIES) {
-      expect(await entryText(exported, entry), entry).toBe(await entryText(committed, entry));
+      expect(await entryText(exported, exportedEntry(entry)), entry).toBe(exportedText(await entryText(committed, entry)));
     }
   } finally {
     // Deletes every fixed id rather than a listing, so a failed read cannot replace the case's own failure.

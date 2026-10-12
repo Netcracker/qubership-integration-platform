@@ -35,14 +35,14 @@ mvn -pl schemas test                           # JUnit 5 + networknt json-schema
 #### Build pipeline (`build.ts`)
 
 1. **clean** — removes `assets/`, `types/`, `dist/`.
-2. **`SchemaResolver.resolveAllSchemas()`** — for each `element/*.schema.yaml` (excluding `element.schema.yaml`), dereferences cross-refs under `http://qubership.org/schemas/product/qip/`, inlines nested `$ref`s, removes nested `$id`s, and writes the flattened result to `assets/`. Returns a `Map<elementType, yamlString>`.
+2. **`SchemaResolver.resolveAllSchemas()`** — for each `element/*.schema.yaml` (excluding `element.schema.yaml`), dereferences cross-refs under `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/` (an id maps to `qip-model/<path>.schema.yaml`), inlines nested `$ref`s, removes nested `$id`s, and writes the flattened result to `assets/`. Returns a `Map<elementType, yamlString>`.
 3. **`generateTypes()`** — copies all `qip-model` schemas to a temp dir, rewrites `$ref`/`$id` to local paths, compiles each to TypeScript via `json-schema-to-typescript`, and emits `types/**/*.d.ts` plus a conflict-deduplicated `types/index.d.ts` (common-properties win on name collisions).
 4. **`generateRuntimeIndex()`** — writes `dist/index.mjs` exporting the frozen `schemasByType` map (`{ "http-trigger": "<resolved yaml>", … }`, alphabetically sorted) and `dist/index.d.ts` (`SchemaType` union + `schemasByType` typing, which also exports `../types/index`).
 
 ### Conventions
 
 - **Edit only `src/main/resources/qip-model/**`.** `assets/`, `types/`, and `dist/` are generated — never hand-edit (each carries an `AUTO-GENERATED … do not edit` banner; rerun `npm run build`).
-- Schema files are YAML named `<name>.schema.yaml`, first lines `$id` + `$schema: http://json-schema.org/draft-07/schema`; cross-references use the `http://qubership.org/schemas/product/qip/...` URI namespace.
+- Schema files are YAML named `<name>.schema.yaml`, first lines `$id` + `$schema: http://json-schema.org/draft-07/schema`. The `$id` and every cross-reference use `http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/<path>`, where `<path>` is the file path under `qip-model/` without `.schema.yaml` (`element/xslt` for `qip-model/element/xslt.schema.yaml`). `metaInfo` names the `Cloud Integration Platform` application with the `CIP` label, and each top-level schema's `fileExtension` ends in `.cip`.
 - Element variants suffixed `-2` are the newer/v2 element schemas (e.g. `mapper-2`, `try-catch-finally-2`); both old and new coexist.
 - Tests validate against samples under `src/test/resources/samples/`; a sample ending in `__SHOULD_FAIL.yaml` is asserted to be rejected. Add samples (positive and negative) when adding or changing a schema.
 - **The end-to-end suite reads these sources directly, so a new element or axis value fails there too.**
@@ -75,9 +75,12 @@ mvn -pl schemas test                           # JUnit 5 + networknt json-schema
     requires the very field the typed schemas forbid. Splitting `environment` out dissolved that conflict: the shared
     part is now exactly the part both formats agree on.
   - `common-properties/*` `$id`s never reach a document as `$schema`; only top-level entity schemas do. So these
-    files can be merged, renamed, or moved freely, while a top-level `$id` cannot change without migrating every
-    document that carries it — the resolver maps a `$id` URI onto a file path by string replacement
-    (`schemaResolver.ts`), so the URI *is* the path.
+    files can be merged, renamed, or moved freely. A top-level `$id` is different: documents carry it as `$schema`,
+    and runtime-catalog checks that value on import through `ApplicationJsonSchemaProperties`, which accepts the
+    configured URI and the legacy `http://qubership.org/schemas/product/qip/<type>`. A change to a top-level `$id`
+    needs a matching change there.
+  - `schemaResolver.ts` and `generateTypes.ts` map an `$id` to a file by replacing the prefix with `qip-model/` and
+    appending `.schema.yaml`, so moving or renaming a schema file changes its `$id`.
 - The npm package version (`package.json`) and the Maven version (`pom.xml`) are independent and bumped separately.
 
 ### Platform Context

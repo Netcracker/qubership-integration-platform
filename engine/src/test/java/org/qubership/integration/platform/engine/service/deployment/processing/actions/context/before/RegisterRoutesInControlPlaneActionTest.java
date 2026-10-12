@@ -75,8 +75,8 @@ class RegisterRoutesInControlPlaneActionTest {
 
         action.execute(null, deploymentInfo(), configuration);
 
-        verify(controlPlaneService).postPublicEngineRoutes(List.of(publicRoute), DEPLOYMENT_NAME);
-        verify(controlPlaneService).postPrivateEngineRoutes(List.of(privateRoute), DEPLOYMENT_NAME);
+        verify(controlPlaneService).postPublicEngineRoutes(CHAIN_ID, List.of(publicRoute), DEPLOYMENT_NAME);
+        verify(controlPlaneService).postPrivateEngineRoutes(CHAIN_ID, List.of(privateRoute), DEPLOYMENT_NAME);
     }
 
     @Test
@@ -87,7 +87,22 @@ class RegisterRoutesInControlPlaneActionTest {
 
         action.execute(null, deploymentInfo(), configuration);
 
-        verify(controlPlaneService).postEgressGatewayRoutes(List.of(senderRoute, serviceRoute), DEPLOYMENT_NAME);
+        verify(controlPlaneService).postEgressGatewayRoutes(
+                CHAIN_ID, List.of(senderRoute, serviceRoute), DEPLOYMENT_NAME);
+    }
+
+    @Test
+    void registersEgressRoutesInTheChainRouteRegistry() {
+        DeploymentRouteUpdate triggerRoute = route("/public", RouteType.EXTERNAL_TRIGGER);
+        DeploymentRouteUpdate senderRoute = route("http://backend:8080", RouteType.EXTERNAL_SENDER);
+        DeploymentConfiguration configuration = configuration(triggerRoute, senderRoute);
+
+        action.execute(null, deploymentInfo(), configuration);
+
+        List<DeploymentRouteUpdate> registered =
+                chainRouteRegistry.getUnsharedRoutes(CHAIN_ID, DEPLOYMENT_ID);
+        assertEquals(List.of("/public", "http://backend:8080"), registered.stream()
+                .map(DeploymentRouteUpdate::getPath).toList());
     }
 
     private DeploymentInfo deploymentInfo() {

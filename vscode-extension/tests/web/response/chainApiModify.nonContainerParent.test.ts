@@ -30,7 +30,7 @@ const getMainChainMock = fileApi.getMainChain as jest.Mock;
 const getLibraryElementByTypeMock = getLibraryElementByType as jest.Mock;
 const writeMainChainMock = fileApi.writeMainChain as jest.Mock;
 
-const fileUri = Uri.file("/workspace/chain-1.chain.qip.yaml");
+const fileUri = Uri.file("/workspace/chain-1.chain.cip.yaml");
 const chainId = "chain-1";
 
 // Trimmed-down library.json entries: only the flags the transfer and create
@@ -86,7 +86,7 @@ const newChain = (
   content: Record<string, unknown> = {},
 ): ChainSchema =>
   ({
-    $schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml",
+    $schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain",
     id: chainId,
     name: "Chain 1",
     content: { elements, dependencies, ...content },

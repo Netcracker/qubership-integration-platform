@@ -8,13 +8,11 @@
  * finally branches are normal.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain, element, elementNames } from "../../support/sessions.js";
 import { covers } from "../../registry/covers.js";
 
-test("a caught exception leaves the chain green and the failing step red", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a caught exception leaves the chain green and the failing step red", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   covers("try-catch-finally-2");
   covers("try-2");
   covers("catch-2");

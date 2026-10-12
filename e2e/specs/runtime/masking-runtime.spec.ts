@@ -16,7 +16,6 @@
  * neighbors are untouched.
  */
 import { test, expect } from "../../support/fixtures.js";
-import { MICRO_STEP_NAMES } from "../../support/known-defect.js";
 import { MASKED_FIELD, MASKED_FIXTURE, readCorpusState, seedChain } from "../../support/corpus.js";
 import { callChain, elementNames, trace } from "../../support/sessions.js";
 
@@ -26,8 +25,7 @@ const MASKING_MARKER = "******";
 /** A value no other fixture sends, so finding it anywhere is unambiguous. */
 const SECRET = "4111111111111111";
 
-test("a masked field is replaced by the marker everywhere in the trace", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions, engineKind }) => {
-  test.fail(engineKind === "micro", MICRO_STEP_NAMES.title);
+test("a masked field is replaced by the marker everywhere in the trace", { tag: ["@engine", "@sessions", "@tier1"] }, async ({ request, env, sessions }) => {
   const chain = seedChain(readCorpusState(), MASKED_FIXTURE);
 
   const call = await callChain(request, env.chainUrl(chain.contextPath), {

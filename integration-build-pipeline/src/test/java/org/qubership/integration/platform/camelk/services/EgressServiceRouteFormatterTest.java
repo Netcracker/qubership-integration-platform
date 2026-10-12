@@ -13,9 +13,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies {@link EgressServiceRouteFormatter#formatServiceRoute} reproduces engine's
- * {@code RegisterRoutesInControlPlaneAction.formatServiceRoutes} transformation exactly, since both
- * write to the same shared HTTPRoute by name and must produce identical values for the same
- * underlying route.
+ * {@code RegisterRoutesInControlPlaneAction.formatServiceRoutes} transformation exactly: both must
+ * produce identical values for the same underlying route.
  */
 class EgressServiceRouteFormatterTest {
 

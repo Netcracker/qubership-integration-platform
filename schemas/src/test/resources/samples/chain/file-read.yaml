@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "d6219bc6-97e1-4bdb-976c-8add2d92bc25"
 name: "File Read"
 content:

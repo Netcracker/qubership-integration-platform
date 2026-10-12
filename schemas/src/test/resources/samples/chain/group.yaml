@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "b2a1c0d4-1f2e-43ab-9c8d-7e6f5a4b3c2d"
 name: "Grouped Chain"
 metaInfo:

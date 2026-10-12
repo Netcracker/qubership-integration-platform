@@ -42,7 +42,7 @@ function documentSchemas(): Ajv {
 
 function assertValidChain(ajv: Ajv, document: any): void {
   assert.strictEqual(document.$schema, CHAIN_SCHEMA);
-  const valid = ajv.validate(`${CHAIN_SCHEMA}.schema.yaml`, document);
+  const valid = ajv.validate(CHAIN_SCHEMA, document);
   assert.ok(valid, `the saved chain fails chain.schema.yaml: ${ajv.errorsText()}`);
 }
 
@@ -158,13 +158,13 @@ suite("Explorer tree", function () {
     explorer = new QipExplorerProvider(useExtensionModules());
 
     const chain = await readYaml(workspaceUri(FIXTURES.chain));
-    await writeYaml(`${project}/chains/${chainId}/${chainId}.chain.qip.yaml`, {
+    await writeYaml(`${project}/chains/${chainId}/${chainId}.chain.cip.yaml`, {
       ...chain,
       id: chainId,
       name: "vsc-nested-chain",
     });
     const service = await readYaml(workspaceUri(FIXTURES.contextService));
-    await writeYaml(`${project}/services/${serviceId}/${serviceId}.context-service.qip.yaml`, {
+    await writeYaml(`${project}/services/${serviceId}/${serviceId}.context-service.cip.yaml`, {
       ...service,
       id: serviceId,
       name: "vsc-nested-context",
@@ -204,7 +204,7 @@ suite("Explorer tree", function () {
     const chains = await category("Chains");
     assert.deepStrictEqual(
       chains.map((item) => relative(item.fileUri)).sort(),
-      await filesEndingWith(".chain.qip.yaml"),
+      await filesEndingWith(".chain.cip.yaml"),
     );
 
     const nested = chains.find((item) => item.id === chainId);
@@ -225,7 +225,7 @@ suite("Explorer tree", function () {
     const services = await category("Services");
     assert.deepStrictEqual(
       services.map((item) => relative(item.fileUri)).sort(),
-      await filesEndingWith(".service.qip.yaml", ".context-service.qip.yaml", ".mcp-service.qip.yaml"),
+      await filesEndingWith(".service.cip.yaml", ".context-service.cip.yaml", ".mcp-service.cip.yaml"),
     );
 
     const nested = services.find((item) => item.id === serviceId);
