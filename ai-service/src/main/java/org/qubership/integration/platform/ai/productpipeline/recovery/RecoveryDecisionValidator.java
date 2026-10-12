@@ -133,6 +133,12 @@ public final class RecoveryDecisionValidator {
         ids.add(ref.contentHash());
       });
     }
+    context.priorAttempts().forEach(attempt -> {
+      ids.add(attempt.failureId());
+      ids.add(attempt.evidenceRef().artifactId());
+      ids.add(attempt.evidenceRef().contentHash());
+      attempt.findings().forEach(finding -> ids.add(finding.occurrenceId()));
+    });
     context.authorInputs().forEach(input -> ids.add(input.inputId()));
     if (context.approvedBrief() != null) {
       java.util.stream.Stream.concat(context.approvedBrief().facts().stream(), context.approvedBrief().requirements().stream())

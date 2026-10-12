@@ -23,14 +23,26 @@ class NamingManifestCaptureToolTest {
 
   private static final String CONVERSATION_ID = "conv-naming";
 
+  private CaptureAttemptFeedbackStore feedbackStore;
   private CaptureSession session;
   private NamingManifestCaptureTool tool;
 
   @BeforeEach
   void setUp() {
     session = new CaptureSession();
-    tool = new NamingManifestCaptureTool(session, new ObjectMapper(), new CaptureAttemptFeedbackStore());
+    feedbackStore = new CaptureAttemptFeedbackStore();
+    tool = new NamingManifestCaptureTool(session, new ObjectMapper(), feedbackStore);
     org.jboss.logmanager.MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
+  }
+
+  @Test
+  void repeatIsBlockedBeforeNamingConversion() {
+    feedbackStore.beginScope(CONVERSATION_ID, "", java.util.Map.of("inputs", "v1"));
+    var invalid = new NamingCapture(1, " ", List.of(), List.of(), List.of());
+    assertTrue(tool.captureNamingManifest(invalid).contains("chainName"));
+    assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+        () -> tool.captureNamingManifest(invalid));
+    assertFalse(session.isPresent(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, CONVERSATION_ID)));
   }
 
   @Test

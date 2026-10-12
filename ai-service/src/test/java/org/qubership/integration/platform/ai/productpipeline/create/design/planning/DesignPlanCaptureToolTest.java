@@ -25,6 +25,17 @@ class DesignPlanCaptureToolTest {
   }
 
   @Test
+  void repeatedInvalidNotesSkipTheAdapterAndNewNotesRemainEligible() {
+    bind("conversation-a", "2026.1");
+    ToolSession.bind("conversation-a");
+    var invalid = new DesignPlanCapture(List.of(new DesignPlanCapture.Note(TargetKind.ENTRY_POINT, "ghost", "Unknown")));
+    assertTrue(tool.captureDesignPlan(invalid).contains("Unknown planning target"));
+    assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+        () -> tool.captureDesignPlan(invalid));
+    assertTrue(tool.captureDesignPlan(DesignPlanTestFixtures.validCapture("Trigger", "Call")).contains("HANDOFF"));
+  }
+
+  @Test
   void acceptsOneValidCaptureAndRejectsADuplicate() {
     DesignPlanCaptureSession.Binding binding = bind("conversation-a", "2026.1");
     ToolSession.bind("conversation-a");

@@ -212,6 +212,10 @@ public class CompilerGraphPatchTool {
         return finish(conversationId, startMs, "patch is required");
       }
 
+      if (!captureSession.isPresent(CaptureKey.capability(CaptureSlot.GRAPH_PATCH, conversationId, capabilityId))) {
+        feedbackStore.beginProposal(conversationId, capabilityId, "captureGraphPatch", patch,
+            resolvePreviewBaseGraph(conversationId, capabilityId));
+      }
       if (patch.isNotApplicable() && captureHasPatchOperations(patch)) {
         String message =
             "notApplicable=true requires empty nodePatches, edgePatches, propertyPatches, and"

@@ -510,6 +510,28 @@ public class RequirementCaptureTools {
       RequirementCaptureResult result;
       result = store.withWriteAuthority(conversationId, () -> {
         store.captureMutationScope(conversationId);
+        var repeated = List.of("captureRequirementDraft", "updateRequirementDraft").contains(toolName)
+            && feedbackStore.lastRequirementRejection(conversationId).isPresent()
+            ? store.rejectedProposal(conversationId, toolName, arguments) : java.util.Optional.<RequirementDraftStore.RequirementCaptureAttempt>empty();
+        if (repeated.isPresent()) {
+          store.finishTurn(conversationId, RequirementDiscoveryDirective.STAY);
+          var issues = new ArrayList<>(repeated.orElseThrow().issues());
+          issues.add(new RequirementCaptureResult.CaptureIssue("REPAIR_NO_PROGRESS", "/", null, null,
+              "The same proposal was rejected under the current source, base, and repair authority. Submit a different correction."));
+          var rejected = view(store.get(conversationId).orElse(null), false, false,
+              issues.stream().map(issue -> new Issue(issue.code(), issue.path(), issue.entityId(), issue.message())).toList());
+          store.recordCaptureAttempt(conversationId, false);
+          feedbackStore.recordClassifiedRequirementFailure(conversationId,
+              org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+              CaptureFailureClass.IDENTICAL_SPAM, false, "REPAIR_NO_PROGRESS",
+              repeated.orElseThrow().issues().stream().map(issue -> new CaptureToolOutcomeGateway.TypedIssue(
+                  issue.code(), issue.path(), issue.message(), issue.entityId())).toList(), true);
+          var stopped = new RequirementCaptureResult(false, false, rejected.revision(), rejected.readiness(),
+              RequirementCaptureResult.NextAction.STOP, rejected.issues(), rejected.pendingWork(), rejected.draft(),
+              rejected.resolutions(), rejected.defaults());
+          store.recordCaptureOutcome(conversationId, toolName, arguments, stopped);
+          return stopped;
+        }
         return recordOutcome(toolName, arguments, action.get());
       });
       String encoded = encode(result);

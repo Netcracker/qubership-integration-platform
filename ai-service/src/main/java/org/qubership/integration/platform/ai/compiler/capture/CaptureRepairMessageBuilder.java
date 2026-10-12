@@ -41,12 +41,13 @@ public class CaptureRepairMessageBuilder {
     if (feedback == null) {
       return toolArgumentsMessage(captureToolName);
     }
-    return switch (feedback.kind()) {
+    String message = switch (feedback.kind()) {
       case TOOL_ARGUMENTS -> toolArgumentsMessage(captureToolName);
       case CONVERSION -> conversionMessage(feedback.summary(), captureToolName);
       case VALIDATION ->
           validationMessage(feedback.summary(), captureToolName, feedback.fieldHints());
     };
+    return message + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(feedback.repairHistoryJson());
   }
 
   public String toolArgumentsMessage(String captureToolName) {

@@ -216,6 +216,10 @@ public class DesignExecutionCapability implements StageCapability {
               null,
               result.recoveryCause()));
     } catch (RuntimeException ex) {
+      if (ex instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException) {
+        return completedSignal(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, ex.getMessage(),
+            new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(), "", true)));
+      }
       if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(ex)) {
         return completedSignal(StageOutcome.technicalFailure(ex));
       }

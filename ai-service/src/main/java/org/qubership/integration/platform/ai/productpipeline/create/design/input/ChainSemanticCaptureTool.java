@@ -56,6 +56,7 @@ public class ChainSemanticCaptureTool {
       "Chain semantic revision captured. Do not call captureChainSemanticRevision again;"
           + " finish this turn without further tool calls.";
 
+  private final org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedbackStore;
   private final ChainSemanticCaptureAdapter adapter;
   private final ChainSemanticRevisionValidator validator;
   private final CompilerContractRepository contractRepository;
@@ -70,7 +71,9 @@ public class ChainSemanticCaptureTool {
       CompilerContractRepository contractRepository,
       QipKnowledgePackRepository knowledgePackRepository,
       CatalogElementDescriptorLoader descriptorLoader,
-      E2eRecoveryFaultInjector recoveryFaultInjector) {
+      E2eRecoveryFaultInjector recoveryFaultInjector,
+      org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedbackStore) {
+    this.feedbackStore = Objects.requireNonNull(feedbackStore, "feedbackStore");
     this.adapter = Objects.requireNonNull(adapter, "adapter");
     this.validator = Objects.requireNonNull(validator, "validator");
     this.contractRepository = Objects.requireNonNull(contractRepository, "contractRepository");
@@ -78,6 +81,13 @@ public class ChainSemanticCaptureTool {
         Objects.requireNonNull(knowledgePackRepository, "knowledgePackRepository");
     this.descriptorLoader = Objects.requireNonNull(descriptorLoader, "descriptorLoader");
     this.recoveryFaultInjector = Objects.requireNonNull(recoveryFaultInjector, "recoveryFaultInjector");
+  }
+
+  public ChainSemanticCaptureTool(ChainSemanticCaptureAdapter adapter, ChainSemanticRevisionValidator validator,
+      CompilerContractRepository contractRepository, QipKnowledgePackRepository knowledgePackRepository,
+      CatalogElementDescriptorLoader descriptorLoader, E2eRecoveryFaultInjector recoveryFaultInjector) {
+    this(adapter, validator, contractRepository, knowledgePackRepository, descriptorLoader, recoveryFaultInjector,
+        new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore());
   }
 
   public ChainSemanticCaptureTool(
@@ -165,6 +175,7 @@ public class ChainSemanticCaptureTool {
     if (binding.semanticCandidate().get() != null) {
       return rejected("DUPLICATE_CAPTURE", "/capture", DUPLICATE_CAPTURE_MESSAGE, true);
     }
+    conversationId = binding.conversationId();
     RequirementBrief brief = binding.approvedBrief();
     if (brief == null) {
       ProductCapabilityCaptureContext.offerSemanticRejection(binding,
@@ -175,9 +186,22 @@ public class ChainSemanticCaptureTool {
     CompilerContract contract = contractRepository.require(CompilerContract.V1);
     ChainSemanticRevision revision;
     try {
+      if (!feedbackStore.hasScope(conversationId, "design-input")) {
+        feedbackStore.beginScope(conversationId, "design-input", java.util.Map.of(
+            "runId", binding.runId(), "brief", brief, "contract", contract));
+      }
+      feedbackStore.beginProposal(conversationId, "design-input", TOOL_NAME, capture);
       revision = adapter.adapt(capture, binding.runId(), brief, contract);
       validator.validate(revision, contract, brief);
+    } catch (org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException repeated) {
+      String summary = feedbackStore.lastPlanFailure(conversationId).orElseThrow().summary();
+      ProductCapabilityCaptureContext.offerSemanticRejection(binding, summary);
+      return rejected("REPAIR_NO_PROGRESS", "/capture", summary, true);
     } catch (IllegalArgumentException ex) {
+      feedbackStore.recordClassifiedPlanFailure(conversationId,
+          org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE,
+          true, ex.getMessage());
       ProductCapabilityCaptureContext.offerSemanticRejection(binding, ex.getMessage());
       return rejected("DESIGN_CONTRACT_VIOLATION", "/capture", ex.getMessage(), false);
     }

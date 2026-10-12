@@ -14,6 +14,10 @@ import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutor;
 import io.quarkiverse.langchain4j.runtime.tool.QuarkusToolExecutorFactory;
 import io.quarkiverse.langchain4j.runtime.tool.ToolMethodCreateInfo;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.InjectMock;
+import org.junit.jupiter.api.BeforeEach;
+import org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore;
+import org.qubership.integration.platform.ai.compiler.artifact.InMemoryArtifactBlobStore;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Map;
@@ -25,6 +29,23 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureSchemas;
 
 @QuarkusTest
 class ScriptBodyRepairCaptureSchemaTest {
+
+  @InjectMock ArtifactBlobStore blobs;
+
+  @BeforeEach
+  void useLocalArtifactStorage() {
+    var local = new InMemoryArtifactBlobStore();
+    org.mockito.Mockito.doAnswer(call -> { local.put(call.getArgument(0), call.getArgument(1)); return null; })
+        .when(blobs).put(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+    org.mockito.Mockito.when(blobs.get(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(call -> local.get(call.getArgument(0)));
+    org.mockito.Mockito.when(blobs.getVersioned(org.mockito.ArgumentMatchers.anyString()))
+        .thenAnswer(call -> local.getVersioned(call.getArgument(0)));
+    org.mockito.Mockito.doAnswer(call -> {
+      local.putIfVersion(call.getArgument(0), call.getArgument(1), call.getArgument(2)); return null;
+    }).when(blobs).putIfVersion(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
+        org.mockito.ArgumentMatchers.nullable(String.class));
+  }
 
   @Inject ScriptBodyRepairTool bean;
   @Inject QuarkusToolExecutorFactory executorFactory;

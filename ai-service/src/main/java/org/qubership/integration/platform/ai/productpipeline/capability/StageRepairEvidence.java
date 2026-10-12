@@ -37,7 +37,8 @@ public record StageRepairEvidence(
     String failedSkillId,
     String causeCode,
     String typedCauseJson,
-    String rejectedCandidateJson) {
+    String rejectedCandidateJson,
+    String repairHistoryJson) {
 
   private static final ObjectMapper JSON = new ObjectMapper();
 
@@ -46,14 +47,25 @@ public record StageRepairEvidence(
    * rewrites it per execution from that stage's own journal snapshot, so it never carries another
    * stage's outputs and it comes back unchanged after a restart.
    */
+  public static final String REPAIR_HISTORY_ATTR = "repairHistory";
+
   public static final String PRIOR_OUTPUT_REFS_ATTR = "priorAttemptOutputRefs";
 
   public StageRepairEvidence {
+    repairHistoryJson = repairHistoryJson == null ? "" : repairHistoryJson;
     priorOutputRefs = priorOutputRefs == null ? List.of() : List.copyOf(priorOutputRefs);
     failedSkillId = failedSkillId == null ? "" : failedSkillId;
     causeCode = causeCode == null ? "" : causeCode;
     typedCauseJson = typedCauseJson == null ? "" : typedCauseJson;
     rejectedCandidateJson = rejectedCandidateJson == null ? "" : rejectedCandidateJson;
+  }
+
+  public StageRepairEvidence(String outcomeClass, String failedStageId, String findings,
+      String errorEvidence, String haltFollowUpText, String recoveryEvidenceRef,
+      List<Reference> priorOutputRefs, String failedSkillId, String causeCode,
+      String typedCauseJson, String rejectedCandidateJson) {
+    this(outcomeClass, failedStageId, findings, errorEvidence, haltFollowUpText, recoveryEvidenceRef,
+        priorOutputRefs, failedSkillId, causeCode, typedCauseJson, rejectedCandidateJson, "");
   }
 
   public StageRepairEvidence(
@@ -143,7 +155,7 @@ public record StageRepairEvidence(
         context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_FAILED_SKILL_ATTR),
         context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_CODE_ATTR),
         context.attributeAsString(ProductPipelineRunSupport.STAGE_ERROR_CAUSE_JSON_ATTR),
-        "");
+        "", context.attributeAsString(REPAIR_HISTORY_ATTR));
   }
 
   /** Attaches an exact, lineage-checked candidate without putting it in the approved compiler seed. */
@@ -162,7 +174,7 @@ public record StageRepairEvidence(
     try {
       return new StageRepairEvidence(outcomeClass, failedStageId, findings, errorEvidence,
           haltFollowUpText, recoveryEvidenceRef, selectedRefs, failedSkillId, causeCode,
-          typedCauseJson, candidate == null ? "" : JSON.writeValueAsString(candidate));
+          typedCauseJson, candidate == null ? "" : JSON.writeValueAsString(candidate), repairHistoryJson);
     } catch (JsonProcessingException e) {
       throw new IllegalStateException("Cannot project the rejected repair candidate", e);
     }
@@ -198,6 +210,7 @@ public record StageRepairEvidence(
     text.append(rejectedCandidateJson.isBlank()
         ? "Raw rejected output is retained in the halt evidence and is excluded from this request.\n"
         : "Raw transport output stays in the halt evidence and is excluded from this request.\n");
+    text.append(org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(repairHistoryJson));
     return bounded(text.toString());
   }
 

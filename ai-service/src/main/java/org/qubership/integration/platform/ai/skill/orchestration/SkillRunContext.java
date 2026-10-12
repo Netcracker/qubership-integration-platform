@@ -9,7 +9,15 @@ public record SkillRunContext(
     int stepIndex,
     boolean implementSegmentOnly,
     String effectiveUserText,
-    String repairEvidence) {
+    String repairEvidence,
+    String runId) {
+
+  public SkillRunContext(String conversationId, String skillId, String packVersion,
+      SkillSubgraph subgraph, int stepIndex, boolean implementSegmentOnly,
+      String effectiveUserText, String repairEvidence) {
+    this(conversationId, skillId, packVersion, subgraph, stepIndex, implementSegmentOnly,
+        effectiveUserText, repairEvidence, "");
+  }
 
   public SkillRunContext(
       String conversationId,
@@ -25,5 +33,6 @@ public record SkillRunContext(
 
   public SkillRunContext {
     repairEvidence = repairEvidence == null ? "" : repairEvidence;
+    runId = runId == null ? "" : runId;
   }
 }

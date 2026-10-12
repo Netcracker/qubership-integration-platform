@@ -446,7 +446,7 @@ public class RequirementDiscoveryCapability implements StageCapability {
               MappingValidationDetails.empty(),
               issue.entityId() == null || issue.entityId().isBlank() ? "requirement-draft" : issue.entityId(),
               CaptureToolOutcomeGateway.logicalRequirementPath(issue.path()))).toList();
-      var cause = new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "");
+      var cause = new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, findings, "", rejection.get().feedback().noProgress());
       draftStore.recordCaptureRejection(conversationId, cause.formattedFindings());
       return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
           "The generated requirement draft was rejected. Repair the reported fields and preserve the requirements.",
@@ -662,6 +662,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
   private Multi<ChatEvent> runGather(
       String conversationId, String userMessage, String responseLocale,
       ProductCapabilityCaptureContext.Binding binding) {
+    userMessage = (userMessage == null ? "" : userMessage)
+        + org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.block(
+            draftStore.rejectedProposalHistory(conversationId));
     if (gatherRunner != null) {
       return gatherRunner.apply(conversationId, userMessage);
     }

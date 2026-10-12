@@ -24,19 +24,31 @@ class ConfiguredTriggerSetCaptureToolTest {
 
   private static final String CONVERSATION_ID = "conv-trigger";
 
+  private CaptureAttemptFeedbackStore feedbackStore;
   private CaptureSession session;
   private ConfiguredTriggerSetCaptureTool tool;
 
   @BeforeEach
   void setUp() {
     session = new CaptureSession();
+    feedbackStore = new CaptureAttemptFeedbackStore();
     tool =
         new ConfiguredTriggerSetCaptureTool(
             session,
             new ObjectMapper(),
-            new CaptureAttemptFeedbackStore(),
+            feedbackStore,
             DeterministicElementSchemaService.createForUnitTests(new ObjectMapper()));
     org.jboss.logmanager.MDC.put(ChatMdc.CONVERSATION_ID, CONVERSATION_ID);
+  }
+
+  @Test
+  void repeatIsBlockedBeforeTriggerValidation() {
+    feedbackStore.beginScope(CONVERSATION_ID, "", java.util.Map.of("inputs", "v1"));
+    var invalid = new ConfiguredTriggerSet(1, List.of(), List.of(), List.of());
+    assertTrue(tool.captureConfiguredTriggerSet(invalid).contains("triggers"));
+    assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+        () -> tool.captureConfiguredTriggerSet(invalid));
+    assertFalse(session.isPresent(CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, CONVERSATION_ID)));
   }
 
   @Test

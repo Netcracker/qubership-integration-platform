@@ -6,7 +6,11 @@ import java.util.List;
 
 /** Result returned by {@link SkillExecutor#run}. */
 public record SkillExecutionResult(
-    SkillRunStatus status, List<SkillArtifact> outputs, String message) {
+    SkillRunStatus status, List<SkillArtifact> outputs, String message, boolean retryAllowed) {
+
+  public SkillExecutionResult(SkillRunStatus status, List<SkillArtifact> outputs, String message) {
+    this(status, outputs, message, true);
+  }
 
   public static SkillExecutionResult completed(List<SkillArtifact> outputs, String message) {
     return new SkillExecutionResult(SkillRunStatus.COMPLETED, outputs, message);

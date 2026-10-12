@@ -436,7 +436,15 @@ class MappingTurnApplicatorTest {
             "draft",
             List.of(),
             List.of())
-        .withFlow(rockyFlow());
+        .withFlow(rockyFlow())
+        .withFacts(List.of(
+            mappingRequest("request-map", "task-start", "create-task"),
+            mappingRequest("response-map", "create-task", "task-result")));
+  }
+
+  private static RequirementFact mappingRequest(String id, String source, String target) {
+    return new RequirementFact(id, RequirementFactPolarity.POSITIVE, RequirementFactKind.FIELD_MAPPING,
+        "", "Adapt fields between interactions", "", "", "", "", "", "", List.of(source, target));
   }
 
   private static RequirementBrief briefWithRequestMapping() {

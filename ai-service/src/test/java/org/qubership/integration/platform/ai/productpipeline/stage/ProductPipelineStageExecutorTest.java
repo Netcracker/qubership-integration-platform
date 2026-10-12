@@ -172,6 +172,104 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
+  void typedCaptureNoProgressChangesStrategyWithoutCreatingNewCredit() {
+    var clean = new ArrayList<Boolean>();
+    var execution = capability("execution-cap", context -> {
+      clean.add(StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context)));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE,
+          "Invalid property.", new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Invalid property.", true,
+                  MappingValidationDetails.empty(), "call-1", "/properties")), "", clean.size() > 1))));
+    });
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(2, new RecoveryAttemptLedger(), profile, analysisCandidate(), planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    for (int i = 0; i < 2; i++) {
+      var result = execute(runtime, "design-execution");
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      applyLifecycle(runtime, result);
+    }
+    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    assertEquals(List.of(false, false, true), clean);
+    assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
+  }
+
+  @Test
+  void repeatedValidatedOutputSwitchesToCleanEarlyAndStopsRecurringCleanOutput() {
+    var original = analysisThenPlanningThenExecutionProfile();
+    var stages = original.stages().stream().map(stage -> "design-execution".equals(stage.stageId())
+        ? new ProfileStage(stage.stageId(), stage.capabilityId(), stage.consumes(),
+            List.of(new ArtifactTypeRef("chain-plan-graph", 1)), null, null, stage.retry()) : stage).toList();
+    var profile = new ProductPipelineProfile(1, original.profileId(), "1", original.runInputs(), stages,
+        original.terminal(), original.dependencyRoots());
+    var clean = new ArrayList<Boolean>();
+    var graph = new ChainPlanGraph("1.0", new ChainSection("c1", "Rejected graph"),
+        List.of(failingServiceCallNode()), List.of());
+    var execution = capability("execution-cap", context -> {
+      clean.add(StageRepairEvidence.isCleanExecutionRebuild(context, StageRepairEvidence.from(context)));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+          StageOutcomeClass.CONTRACT_FAILURE,
+          List.of(new ArtifactCandidate(Kind.CHAIN_PLAN_GRAPH, graph, List.of())), "Invalid property.", null,
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Invalid property.", true,
+                  MappingValidationDetails.empty(), "call-1", "/properties")), ""))));
+    });
+    var runtime = newRuntime(2, new RecoveryAttemptLedger(), profile,
+        analysisCandidate(), planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    for (int i = 0; i < 2; i++) {
+      var result = execute(runtime, "design-execution");
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      applyLifecycle(runtime, result);
+    }
+    assertInstanceOf(StageDecision.WaitForInput.class, execute(runtime, "design-execution").decision());
+    assertEquals(List.of(false, false, true), clean);
+    assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(ProductPipelineStageExecutor.PRODUCER_REPAIR_REASON_PREFIX)).count());
+    assertEquals(1, requireRun().transitions().stream().filter(t -> t.reason() != null
+        && t.reason().startsWith(RecoveryAttemptLedger.CLEAN_REBUILD_REASON_PREFIX)).count());
+  }
+
+  @Test
+  void laterDiagnosticAndProducerRequestsReceiveSavedAttempts() throws Exception {
+    var agent = FakeFailureNarrativeAgent.narrates("Rejected output.")
+        .recoverRegenerates(Kind.CHAIN_PLAN_GRAPH, "Correct the unsupported property.");
+    var requests = new ArrayList<StageRepairEvidence>();
+    var stage = capability("execution-cap", context -> {
+      requests.add(StageRepairEvidence.from(context));
+      return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+          StageOutcomeClass.CONTRACT_FAILURE, "Invalid property.",
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE,
+              List.of(new PlanValidationFinding("CONTRACT_SHAPE", "Invalid property.", true,
+                  MappingValidationDetails.empty(), "call-1", "/properties")), ""))));
+    });
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = new CreateChainTestOrchestrator(ProductPipelineRunSupport.builder(runStore, artifactStore,
+        new StageCapabilityRegistry(List.of(analysisCandidate(), planningAlwaysCandidate(), stage)),
+        Clock.fixed(FIXED, ZoneOffset.UTC)).failureNarrative(new FailureNarrative(agent))
+        .recoveryLedger(new RecoveryAttemptLedger()).build(), runStore);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    for (int i = 0; i < 3; i++) {
+      var result = execute(runtime, "design-execution");
+      var context = mapper.readTree(agent.lastRecoveryContextJson.get());
+      assertEquals(i, context.path("repairHistory").path("attempts").size());
+      if (i > 0) {
+        assertTrue(context.at("/repairHistory/attempts/0/findings").size() > 0);
+        assertTrue(requests.get(i).diagnosticText().contains("repair-history"));
+      }
+      assertInstanceOf(StageDecision.Retry.class, result.decision());
+      applyLifecycle(runtime, result);
+    }
+  }
+
+  @Test
   void aPreparedPlanningFailureWithoutCaptureCannotJournalTheAcceptedPlanAsRejected() {
     var planning = capability("planning-cap", context -> !org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence.isRepairTurn(context)
         ? planningRepairCandidate(new AtomicReference<>(), new AtomicReference<>()).execute(context)
@@ -3116,16 +3214,31 @@ class ProductPipelineStageExecutorTest {
   }
 
   @Test
-  void rebuildPlanReopensDesignPlanningAndKeepsTheApprovedBrief() {
+  void rebuildPlanReopensDesignPlanningAndKeepsTheApprovedBrief() throws Exception {
     FakeFailureNarrativeAgent agent = FakeFailureNarrativeAgent.narrates("unused");
     AtomicInteger executionCalls = new AtomicInteger();
-    ProductPipelineProfile profile = analysisThenPlanningThenExecutionProfile();
+    var base = analysisThenPlanningThenExecutionProfile();
+    var stages = new ArrayList<>(base.stages());
+    var planner = stages.get(1);
+    stages.set(1, new ProfileStage(planner.stageId(), planner.capabilityId(),
+        List.of(new ArtifactTypeRef("requirement-brief", 1), new ArtifactTypeRef("run-manifest", 1)),
+        planner.produces(), planner.approval(), planner.bypass(), planner.retry()));
+    ProductPipelineProfile profile = new ProductPipelineProfile(base.schemaVersion(), base.profileId(), "2",
+        base.runInputs(), stages, base.terminal(), base.dependencyRoots());
+    var repairHistory = new AtomicReference<String>();
+    StageCapability subsetPlanner = capability("planning-cap", context -> {
+      repairHistory.set(context.attributeAsString(StageRepairEvidence.REPAIR_HISTORY_ATTR));
+      var brief = context.inputRefs().stream().filter(ref -> ref.kind() == Kind.REQUIREMENT_BRIEF).findFirst().orElseThrow();
+      return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(StageOutcomeClass.CANDIDATE,
+          List.of(new ArtifactCandidate(Kind.IMPLEMENTATION_PLAN, Map.of("plan", "ok"), List.of(brief))),
+          "plan ready", null)));
+    });
     CreateChainTestOrchestrator runtime =
         newRuntime(
             new FailureNarrative(agent),
             profile,
             analysisCandidate(),
-            planningAlwaysCandidate(),
+            subsetPlanner,
             executionRejectedPlanFailure(executionCalls));
     startAndRecordInput(runtime, profile);
     approveStage(runtime, "requirement-analysis");
@@ -3157,6 +3270,14 @@ class ProductPipelineStageExecutorTest {
     assertEquals("design-planning", requireRun().run().currentStageId());
     assertEquals(StageStatus.PENDING, snapshot(requireRun(), "design-execution").status());
     assertEquals(1, executionCalls.get());
+    var saved = artifactStore.payload(artifactStore.latest(RUN_ID, Kind.RECOVERY_EVIDENCE).orElseThrow(), RecoveryEvidence.class);
+    assertEquals("design-planning", saved.producerStageId());
+    assertEquals(Set.of(Kind.REQUIREMENT_BRIEF, Kind.RUN_MANIFEST), saved.producerInputs().stream()
+        .map(Reference::kind).collect(Collectors.toSet()));
+    assertEquals(1, artifactStore.latest(RUN_ID, Kind.IMPLEMENTATION_PLAN).orElseThrow().inputs().size());
+    var history = mapper.readTree(repairHistory.get());
+    assertEquals(1, history.path("attempts").size());
+    assertEquals("design-planning", history.at("/attempts/0/producerStageId").asText());
   }
 
   @Test

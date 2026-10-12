@@ -71,6 +71,10 @@ public class ConfiguredTriggerSetCaptureTool {
       if (capture == null) {
         return finish(conversationId, startMs, "capture is required");
       }
+      if (!captureSession.isPresent(CaptureKey.conversation(CaptureSlot.CONFIGURED_TRIGGER_SET, conversationId))) {
+        feedbackStore.beginProposal(conversationId, CompilerGraphPatchTool.resolveCapabilityId(),
+            "captureConfiguredTriggerSet", capture);
+      }
       if (capture.triggers() == null || capture.triggers().isEmpty()) {
         return reject(
             conversationId, startMs, "triggers must include at least one configured trigger");

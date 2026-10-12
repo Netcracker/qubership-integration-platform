@@ -18,7 +18,20 @@ public record CaptureAttemptFeedback(
     String summary,
     CaptureFailureClass failureClass,
     boolean outerAllowed,
-    List<CaptureFieldHint> fieldHints) {
+    List<CaptureFieldHint> fieldHints,
+    String repairHistoryJson,
+    boolean noProgress) {
+
+  public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
+      CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints,
+      String repairHistoryJson) {
+    this(kind, summary, failureClass, outerAllowed, fieldHints, repairHistoryJson, false);
+  }
+
+  public CaptureAttemptFeedback(CaptureFailureKind kind, String summary,
+      CaptureFailureClass failureClass, boolean outerAllowed, List<CaptureFieldHint> fieldHints) {
+    this(kind, summary, failureClass, outerAllowed, fieldHints, "");
+  }
 
   /**
    * Legacy two-arg construction for callers that have not yet classified via the gateway.
@@ -38,6 +51,7 @@ public record CaptureAttemptFeedback(
   }
 
   public CaptureAttemptFeedback {
+    repairHistoryJson = repairHistoryJson == null ? "" : repairHistoryJson;
     fieldHints = fieldHints == null ? List.of() : List.copyOf(fieldHints);
   }
 

@@ -26,6 +26,9 @@ public class DesignPlanCaptureTool {
   static final String DUPLICATE_MESSAGE =
       "Design plan already captured. Do not call captureDesignPlan again; finish this turn.";
 
+  @Inject
+  org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore feedbackStore =
+      new org.qubership.integration.platform.ai.compiler.capture.CaptureAttemptFeedbackStore();
   private final DesignPlanCaptureAdapter adapter;
   private final ObjectMapper mapper;
 
@@ -85,7 +88,13 @@ public class DesignPlanCaptureTool {
       return rejected("PLANNING_INPUT_UNRESOLVED", "/",
           binding.rejection().get(), true);
     }
+    conversationId = binding.conversationId();
     try {
+      if (!feedbackStore.hasScope(conversationId, "design-planning")) {
+        feedbackStore.beginScope(conversationId, "design-planning", java.util.Arrays.asList(
+            binding.revisionHash(), binding.revision(), binding.brief(), binding.pin(), binding.apiRelease()));
+      }
+      feedbackStore.beginProposal(conversationId, "design-planning", "captureDesignPlan", capture);
       DesignPlanContract contract = adapter.adapt(capture, binding.revision(), binding.brief(), binding.pin(),
           binding.apiRelease());
       binding.rejection().set(null);
@@ -99,6 +108,10 @@ public class DesignPlanCaptureTool {
       binding.terminal().set(true);
       return rejected("PLANNING_INPUT_UNRESOLVED", "/", message, true);
     } catch (IllegalArgumentException | NullPointerException ex) {
+      feedbackStore.recordClassifiedPlanFailure(conversationId,
+          org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.CORRECTABLE,
+          true, ex.getMessage());
       String message =
           ex.getMessage() == null || ex.getMessage().isBlank()
               ? "Invalid design plan capture shape"

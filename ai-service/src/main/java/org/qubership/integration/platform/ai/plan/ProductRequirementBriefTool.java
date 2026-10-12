@@ -198,6 +198,10 @@ public class ProductRequirementBriefTool {
       return rejected("DUPLICATE_CAPTURE", "/", RequirementBriefTool.DUPLICATE_CAPTURE_MESSAGE,
           true);
     }
+    feedbackStore.beginScope(conversationId, "requirement-analysis", java.util.Map.of(
+        "draft", approved, "sourceGeneration", binding.resetGeneration() == null ? "" : binding.resetGeneration(),
+        "sourceTurn", binding.sourceTurnId() == null ? "" : binding.sourceTurnId()));
+    feedbackStore.beginProposal(conversationId, "requirement-analysis", "captureRequirementBrief", capture);
     if (capture == null || blank(capture.goal()) && blank(capture.summary())) {
       return repair(binding, capture, "MISSING_SUMMARY", "/goal",
           "Provide a goal or a summary.");

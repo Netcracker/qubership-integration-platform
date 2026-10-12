@@ -37,6 +37,7 @@ class ChainPlanToolTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
 
+  private CaptureAttemptFeedbackStore feedbackStore;
   private CaptureSession captureSession;
   private ChainPlanStore store;
   private ChainPlanRepairDraftStore repairDraftStore;
@@ -46,6 +47,7 @@ class ChainPlanToolTest {
   @BeforeEach
   void setUp() {
     captureSession = new CaptureSession();
+    feedbackStore = new CaptureAttemptFeedbackStore();
     store = new ChainPlanStore();
     repairDraftStore = new ChainPlanRepairDraftStore();
     schemaService = mock(DeterministicElementSchemaService.class);
@@ -57,13 +59,23 @@ class ChainPlanToolTest {
             repairDraftStore,
             new ChainPlanGraphValidator(schemaService),
             MAPPER,
-            new CaptureAttemptFeedbackStore());
+            feedbackStore);
     MDC.put(ChatMdc.CONVERSATION_ID, "conversation-1");
   }
 
   @AfterEach
   void tearDown() {
     MDC.remove(ChatMdc.CONVERSATION_ID);
+  }
+
+  @Test
+  void repeatIsBlockedBeforePlanValidation() {
+    feedbackStore.beginScope("conversation-1", "", java.util.Map.of("inputs", "v1"));
+    var invalid = new ChainPlanCapture("1.0", new ChainSection("demo", "Demo"), List.of(), List.of());
+    assertTrue(tool.captureChainPlan(invalid).contains("Plan validation failed"));
+    assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+        () -> tool.captureChainPlan(invalid));
+    assertTrue(store.get("conversation-1").isEmpty());
   }
 
   @Test
@@ -245,7 +257,7 @@ class ChainPlanToolTest {
         repairDraftStore,
         new ChainPlanGraphValidator(schemaService),
         MAPPER,
-        new CaptureAttemptFeedbackStore());
+        feedbackStore);
   }
 
   private static ChainPlanGraph validPlanGraph() {

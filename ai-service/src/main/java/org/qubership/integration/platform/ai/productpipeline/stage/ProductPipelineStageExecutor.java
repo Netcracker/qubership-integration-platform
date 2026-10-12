@@ -51,6 +51,7 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageExe
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageRepairEvidence;
+import org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory;
 import org.qubership.integration.platform.ai.productpipeline.create.ApprovalPrompts;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative;
 import org.qubership.integration.platform.ai.productpipeline.create.FailureNarrative.RecoveryResult;
@@ -653,6 +654,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
    * better message instead of reaching here.
    */
   private static StageOutcome outcomeOf(Throwable failure) {
+    if (failure instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException) {
+      return StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, failure.getMessage(),
+          new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, List.of(), "", true));
+    }
     if (org.qubership.integration.platform.ai.llm.ratelimit.LlmRequestBudget.isOverflow(failure)) {
       return StageOutcome.technicalFailure(failure);
     }
@@ -1502,6 +1507,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
     List<SemanticFinding> semanticFindings =
         semanticFindingsFor(
             runId, rejectedRefs, stage.stageId(), failureId, findings, evidenceText, cause);
+    List<RepairHistory.Attempt> priorAttempts = repairHistory(runId, stage.stageId(),
+        invocation == null ? List.of() : invocation.inputs(), authorInputs(doc).stream().map(UserInput::inputId).toList());
+    List<Reference> priorAttemptRefs = priorAttempts.stream().map(RepairHistory.Attempt::evidenceRef).toList();
     RecoveryEvidence draftEvidence =
         new RecoveryEvidence(
             1,
@@ -1514,7 +1522,10 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             rejectedRefs,
             semanticFindings,
             null,
-            List.of());
+            priorAttemptRefs, List.of(),
+            invocation == null ? List.of() : invocation.inputs(),
+            authorInputs(doc).stream().map(UserInput::inputId).toList(),
+            isCurrentCleanRebuild(runId, stage.stageId()));
     RequirementBrief approvedBrief =
         approvedBriefRevision == null
             ? null
@@ -1525,7 +1536,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         new RecoveryContext(
             draftEvidence, approvedBrief, rejectedPayload, locale, authorInputs(doc),
             approvedPlanRevision == null ? null : approvedPlanRevision.reference(),
-            approvedPlanRevision == null ? null : artifactStore.payload(approvedPlanRevision, Object.class));
+            approvedPlanRevision == null ? null : artifactStore.payload(approvedPlanRevision, Object.class), priorAttempts);
     // Input contract checks identify brief defects before capture; rejected output stays with its producer.
     AcceptedRecovery acceptedRecovery =
         "design-input".equals(stage.stageId()) && cause.causeCode() != RecoveryCauseCode.MISSING_BRIEF_FACTS
@@ -1588,35 +1599,20 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                 "",
                 findings.isBlank() ? evidenceText : findings);
     }
-    boolean identicalRejection = false;
+    boolean noProgress = cause.noProgress() || recurringRejectedOutput(draftEvidence, rejectedPayload, priorAttempts);
+    boolean targetedCreditSpent = false;
     RecoveryAttemptKey recoveryKey = null;
-    List<Reference> priorAttemptRefs = priorRecoveryEvidenceRefs(runId);
     if (accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
         || accepted.action() == RecoveryAction.REVISE_BRIEF) {
       String briefIdentity = RecoveryAttemptLedger.inputArtifactIdentity(doc, stage.stageId());
       RecoveryAttemptKey key =
           recoveryLedger.key(stage.stageId(), budgetCause, briefIdentity, doc.transitions());
       recoveryKey = key;
-      identicalRejection = !recoveryLedger.mayRepair(doc.transitions(), key, InputOrigin.TRUSTED);
-      if (identicalRejection) {
-        priorAttemptRefs = priorRecoveryEvidenceRefs(runId);
-      }
+      targetedCreditSpent = !recoveryLedger.mayRepair(doc.transitions(), key, InputOrigin.TRUSTED);
     }
-    RecoveryEvidence recoveryEvidenceWithPrior =
-        priorAttemptRefs.isEmpty()
-            ? recoveryEvidence
-            : new RecoveryEvidence(
-                recoveryEvidence.schemaVersion(),
-                recoveryEvidence.failureId(),
-                recoveryEvidence.observedCauseCode(),
-                recoveryEvidence.observingStageId(),
-                recoveryEvidence.producerStageId(),
-                recoveryEvidence.approvedBriefRef(),
-                recoveryEvidence.approvedSemanticRef(),
-                recoveryEvidence.rejectedArtifactRefs(),
-                recoveryEvidence.findings(),
-                recoveryEvidence.technicalFailure(),
-                priorAttemptRefs);
+    recoveryEvidence = evidenceForFaultProducer(runId, recoveryEvidence, accepted);
+    RecoveryEvidence recoveryEvidenceWithPrior = recoveryEvidence;
+    boolean changeStrategy = targetedCreditSpent || noProgress;
     List<Reference> evidenceInputs = new ArrayList<>();
     if (approvedBriefRef != null) {
       evidenceInputs.add(approvedBriefRef);
@@ -1650,7 +1646,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         storedEvidence.contentHash());
 
     StageDecision mapped =
-        currentProducerFallback && !identicalRejection
+        currentProducerFallback && !changeStrategy
             ? new StageDecision.Retry(stage.stageId(), Duration.ZERO)
             : RecoveryExecutor.execute(
             accepted,
@@ -1658,16 +1654,17 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             doc,
             stage,
             catalogHasBeenWritten(runId),
-            identicalRejection);
+            changeStrategy);
     Reference selectedFault = accepted.faultArtifactRef();
     boolean currentRepairTarget = currentRepairEligible && accepted.action() == RecoveryAction.REGENERATE_ARTIFACT
         && (currentProducerFallback || selectedFault != null && artifactStore.get(runId, selectedFault)
             .filter(candidate -> candidate.provenance() != null
                 && stage.stageId().equals(candidate.provenance().stageId())).isPresent());
-    if (identicalRejection
+    if (changeStrategy
         && currentRepairTarget
         && supportsCleanProducerRebuild(stage.stageId())
         && !catalogHasBeenWritten(runId)
+        && !(noProgress && draftEvidence.cleanRebuild())
         && recoveryLedger.mayCleanRebuild(doc.transitions(), recoveryKey)) {
       putRunAttribute(
           runId,
@@ -1691,11 +1688,12 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
                       stage.retry() == null ? 0L : stage.retry().defaultDelayMs()));
       return new StageExecutionResult(retry, emitted);
     }
-    if (identicalRejection) {
+    if (changeStrategy) {
       if (currentRepairTarget && supportsCleanProducerRebuild(stage.stageId())
           && !recoveryLedger.perRunCeilingReached(doc.transitions())) {
         return waitContextualRecovery(doc, stage, refs, PipelineGates.RECOVERY_REPAIR_ALLOWANCE,
-            "Automatic corrections for this defect are spent. Continue repair grants up to two targeted corrections"
+            (noProgress ? "The latest correction repeated rejected output. Progress is saved. Continue repair grants up to two targeted corrections"
+                : "Automatic corrections for this defect are spent. Continue repair grants up to two targeted corrections")
                 + " and two clean regenerations in this run. Existing request, token, time, and run limits still apply.",
             terminalRecoveryDetails(findings, evidenceText, runId, PROGRESS_NONE)
                 + " Targeted corrections spent: " + recoveryLedger.repairsUsed(doc.transitions(), recoveryKey, InputOrigin.TRUSTED)
@@ -1982,7 +1980,7 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       }
       RecoveryContext nextContext = new RecoveryContext(evidence, context.approvedBrief(),
           context.rejectedArtifact(), context.responseLocale(), context.authorInputs(),
-          context.approvedPlanRef(), context.approvedPlan());
+          context.approvedPlanRef(), context.approvedPlan(), context.priorAttempts());
       saveDiagnosis(runId, identity, ++calls,
           new AcceptedRecovery(null, evidence, rejectedQuestion, RecoveryStatus.INVALID_REPLY));
       RecoveryResult reply = failureNarrative.diagnoseRecovery(runId, nextContext);
@@ -2247,8 +2245,9 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
             null,
             rejectedRefs,
             semanticFindingsFor(runId, rejectedRefs, stage.stageId(), failureId, "", "", cause),
-            null,
-            List.of());
+            null, repairHistory(runId, producerStageId).stream().map(RepairHistory.Attempt::evidenceRef).toList(),
+            List.of(), currentProducerInputs(runId, producerStageId),
+            authorInputs(doc).stream().map(UserInput::inputId).toList(), false);
     List<Reference> evidenceInputs = new ArrayList<>();
     if (approvedBriefRef != null) {
       evidenceInputs.add(approvedBriefRef);
@@ -2435,7 +2434,8 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         evidence.rejectedArtifactRefs(),
         findings,
         evidence.technicalFailure(),
-        evidence.priorAttemptRefs());
+        evidence.priorAttemptRefs(), evidence.documentRecordRefs(), evidence.producerInputs(),
+        evidence.authorInputIds(), evidence.cleanRebuild());
   }
 
   private static List<Reference> rejectedArtifactRefs(List<Reference> refs) {
@@ -2568,6 +2568,77 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
         recoveryLedger.key(stage.stageId(), cause, briefIdentity, doc.transitions());
     recordProducerRepairAttempt(
         doc, stage, refs, recoveryLedger.recordRepair(key, briefIdentity), producerStageId);
+  }
+
+  private RecoveryEvidence evidenceForFaultProducer(String runId, RecoveryEvidence evidence, RecoveryDecision decision) {
+    if (decision == null || decision.faultArtifactRef() == null) { return evidence; }
+    var fault = artifactStore.get(runId, decision.faultArtifactRef()).orElse(null);
+    if (fault == null || fault.provenance() == null
+        || fault.provenance().stageId().equals(evidence.producerStageId())) { return evidence; }
+    var producerInputs = currentProducerInputs(runId, fault.provenance().stageId());
+    if (producerInputs.isEmpty() || !producerInputs.containsAll(fault.inputs())) { return evidence; }
+    return new RecoveryEvidence(evidence.schemaVersion(), evidence.failureId(), evidence.observedCauseCode(),
+        evidence.observingStageId(), fault.provenance().stageId(), evidence.approvedBriefRef(),
+        evidence.approvedSemanticRef(), evidence.rejectedArtifactRefs(), evidence.findings(), evidence.technicalFailure(),
+        evidence.priorAttemptRefs(), evidence.documentRecordRefs(), producerInputs,
+        evidence.authorInputIds(), evidence.cleanRebuild());
+  }
+
+  private List<RepairHistory.Attempt> repairHistory(String runId, String producer) {
+    return repairHistory(runId, producer, currentProducerInputs(runId, producer),
+        authorInputs(requireRun(runId)).stream().map(UserInput::inputId).toList());
+  }
+
+  private List<Reference> currentProducerInputs(String runId, String producer) {
+    var doc = requireRun(runId);
+    var profile = profilesByRun.get(runId);
+    var stage = profile == null ? null : stageById(profile, producer);
+    return stage == null ? List.of() : resolveDeclaredInputs(profile, stage, committedInputs(doc)).inputs();
+  }
+
+  private List<RepairHistory.Attempt> repairHistory(String runId, String producer,
+      List<Reference> inputs, List<String> authorIds) {
+    return artifactStore.history(runId, Kind.RECOVERY_EVIDENCE).stream()
+        .filter(revision -> {
+          var evidence = artifactStore.payload(revision, RecoveryEvidence.class);
+          return (producer.equals(evidence.producerStageId())
+              || evidence.producerStageId().isBlank() && producer.equals(evidence.observingStageId()))
+              && inputs.equals(evidence.producerInputs()) && authorIds.equals(evidence.authorInputIds());
+        }).map(revision -> {
+          var evidence = artifactStore.payload(revision, RecoveryEvidence.class);
+          Object proposal = evidence.observingStageId().equals(producer)
+              ? rejectedArtifact(runId, evidence.rejectedArtifactRefs()) : null;
+          return new RepairHistory.Attempt(revision.reference(), evidence.failureId(), producer,
+              evidence.producerInputs(), evidence.authorInputIds(), evidence.rejectedArtifactRefs(),
+              recoveryValidationDeps().objectMapper.valueToTree(proposal), evidence.findings(), evidence.cleanRebuild());
+        }).toList();
+  }
+
+  private boolean isCurrentCleanRebuild(String runId, String stageId) {
+    var attrs = attributesByRun.getOrDefault(runId, Map.of());
+    Object evidence = attrs.get(ProductPipelineRunSupport.RECOVERY_EVIDENCE_REF_ATTR);
+    return evidence != null && evidence.equals(attrs.get(cleanRebuildEvidenceAttribute(stageId)));
+  }
+
+  private boolean recurringRejectedOutput(RecoveryEvidence current, Object output,
+      List<RepairHistory.Attempt> history) {
+    if (output == null || current.producerInputs().isEmpty()) { return false; }
+    var proposal = recoveryValidationDeps().objectMapper.valueToTree(output);
+    return history.stream().filter(attempt -> current.producerInputs().equals(attempt.inputs()))
+        .filter(attempt -> proposal.equals(attempt.proposal()))
+        .filter(attempt -> sameFindingCoverage(current.findings(), attempt.findings()))
+        .anyMatch(attempt -> attempt.authorInputIds().equals(current.authorInputIds()));
+  }
+
+  private static boolean sameFindingCoverage(List<SemanticFinding> first, List<SemanticFinding> second) {
+    return findingCoverage(first).equals(findingCoverage(second));
+  }
+
+  private static List<String> findingCoverage(List<SemanticFinding> findings) {
+    return findings.stream().filter(finding -> !"INVALID_RECOVERY_DECISION".equals(finding.code()))
+        .map(finding -> finding.code() + "\u0000" + finding.nodeId() + "\u0000" + finding.violatedRule()
+        + "\u0000" + finding.missingKeys() + "\u0000" + finding.unexpectedKeys()
+        + "\u0000" + finding.selectedOneOf()).sorted().toList();
   }
 
   private List<Reference> priorRecoveryEvidenceRefs(String runId) {
@@ -3076,6 +3147,13 @@ public final class ProductPipelineStageExecutor implements StageExecutor {
       attributes.remove(StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR);
     } else {
       attributes.put(StageRepairEvidence.PRIOR_OUTPUT_REFS_ATTR, refs);
+    }
+    var history = repairHistory(runId, stage.stageId());
+    if (history.isEmpty()) {
+      attributes.remove(StageRepairEvidence.REPAIR_HISTORY_ATTR);
+    } else {
+      attributes.put(StageRepairEvidence.REPAIR_HISTORY_ATTR,
+          RepairHistory.project(history, recoveryValidationDeps().objectMapper, RepairHistory.CHAR_BUDGET).toString());
     }
     attributesByRun.put(runId, attributes);
     return attributes;

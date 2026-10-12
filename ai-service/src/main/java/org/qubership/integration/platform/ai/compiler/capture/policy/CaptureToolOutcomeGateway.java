@@ -195,8 +195,8 @@ public class CaptureToolOutcomeGateway {
     CaptureFailureKind safeKind = kind == null ? CaptureFailureKind.VALIDATION : kind;
     CaptureFailureClass classified =
         failureClass == null ? CaptureFailureClass.CORRECTABLE : failureClass;
-    // ponytail: fingerprintArgs no longer keys the budget. Dropping the parameter touches 18 call
-    // sites, so it goes in its own mechanical change rather than this behavior fix.
+    // Proposal identity is independent of the logical defect credit.
+    // Preflight callers have already installed the pending proposal before validation.
     String fingerprint = fingerprintStore.failureFingerprint(toolName, capabilityId, message);
     boolean softUsed = fingerprintStore.softCreditUsed(conversationId, fingerprint);
     CaptureFailureDecision decision =
@@ -211,6 +211,10 @@ public class CaptureToolOutcomeGateway {
       throw new CaptureValidationException(cveMessage(decision));
     }
     return decision.message();
+  }
+
+  public void beginProposal(String conversationId, String capabilityId, String toolName, Object arguments) {
+    feedbackStore.beginProposal(conversationId, capabilityId, toolName, arguments);
   }
 
   /** ACCEPTED / DUPLICATE terminators still go through CVE (ADR 0001 harvest). */
