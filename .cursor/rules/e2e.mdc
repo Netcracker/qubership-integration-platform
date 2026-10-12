@@ -1,6 +1,6 @@
 ---
-description: "End-to-end suite: what it is for, how data is isolated on a shared stack, and the rules a spec has to follow."
-globs: "e2e/**"
+description: 'End-to-end suite: what it is for, how data is isolated on a shared stack, and the rules a spec has to follow.'
+globs: e2e/**
 ---
 
 ### Project overview

@@ -1,6 +1,6 @@
 ---
-description: "Quarkus execution engine: build commands, architecture, and private dependencies."
-globs: "micro-engine/**"
+description: 'Quarkus execution engine: build commands, architecture, and private dependencies.'
+globs: micro-engine/**
 ---
 
 ### Project Overview

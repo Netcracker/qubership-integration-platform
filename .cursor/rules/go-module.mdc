@@ -1,6 +1,6 @@
 ---
-description: "Build conventions for the repository's Go module."
-globs: "**"
+description: Build conventions for the repository's Go module.
+globs: **
 ---
 
 ## The Go module `testing-service/`
