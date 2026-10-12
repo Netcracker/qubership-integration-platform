@@ -123,8 +123,12 @@ class DesignExecutionCapabilityTest {
     ids = sampleIds();
 
     idsRef = append(Kind.IDS_DOCUMENT, "1", ids);
+    var briefRef = append(Kind.REQUIREMENT_BRIEF, "1",
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+            "Orders", List.of(), List.of(), List.of(), List.of(), "Retrieve orders"));
     revisionRef =
-        append(Kind.CHAIN_SEMANTIC_REVISION, ChainSemanticRevision.CURRENT_SCHEMA_VERSION, revision);
+        append(Kind.CHAIN_SEMANTIC_REVISION, ChainSemanticRevision.CURRENT_SCHEMA_VERSION, revision,
+            List.of(briefRef));
     reportRef = append(Kind.DESIGN_PLAN_REPORT, "1", report);
     planRef = append(Kind.DESIGN_EXECUTION_PLAN, "1", approvedPlan);
     implementationRef = append(Kind.IMPLEMENTATION_PLAN, "1", implementationPlan);

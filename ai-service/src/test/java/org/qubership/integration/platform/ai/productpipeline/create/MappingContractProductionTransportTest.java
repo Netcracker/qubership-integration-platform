@@ -77,9 +77,14 @@ import org.qubership.integration.platform.ai.productpipeline.knowledge.Knowledge
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgeContextProvider;
 import org.qubership.integration.platform.ai.productpipeline.knowledge.KnowledgePackageRef;
 import org.qubership.integration.platform.ai.productpipeline.profile.ApprovalPolicy;
+import org.qubership.integration.platform.ai.productpipeline.store.LogicalCommit;
 import org.qubership.integration.platform.ai.productpipeline.store.ProductPipelineRunStore;
 import org.qubership.integration.platform.ai.productpipeline.store.RunSnapshot;
 import org.qubership.integration.platform.ai.productpipeline.store.RunStatus;
+import org.qubership.integration.platform.ai.productpipeline.store.RunTransition;
+import org.qubership.integration.platform.ai.productpipeline.store.StageAttempt;
+import org.qubership.integration.platform.ai.productpipeline.store.StageSnapshot;
+import org.qubership.integration.platform.ai.productpipeline.store.StageStatus;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntent;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingIntentRule;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.MappingPort;
@@ -115,6 +120,7 @@ class MappingContractProductionTransportTest {
       new ObjectMapper().registerModule(new JavaTimeModule());
 
   private CompilationArtifacts artifacts;
+  private ProductPipelineRunStore runStore;
   private ProductPipelineArtifactStore artifactStore;
   private DefaultCompilerDagExecutionEngine engine;
   private CipDesignExecutorJavaAdapter adapter;
@@ -129,7 +135,7 @@ class MappingContractProductionTransportTest {
     InMemoryArtifactBlobStore blobStore = new InMemoryArtifactBlobStore();
     artifacts = new CompilationArtifacts(blobStore, MAPPER, clock);
     artifactStore = new ProductPipelineArtifactStore(artifacts);
-    ProductPipelineRunStore runStore = new ProductPipelineRunStore(blobStore, MAPPER, clock);
+    runStore = new ProductPipelineRunStore(blobStore, MAPPER, clock);
     InMemorySkillWorkspaceStore workspaceStore =
         new InMemorySkillWorkspaceStore(new ChainPlanStore());
     SkillExecutorRegistry skillRegistry = mock(SkillExecutorRegistry.class);
@@ -281,7 +287,7 @@ class MappingContractProductionTransportTest {
   }
 
   @Test
-  void findingsUseTheBriefRevisionLoadedByTheProductionRunner() {
+  void findingsUseTheCommittedBriefAndIgnoreUncommittedStoreRevisions() {
     RequirementBrief laterBrief =
         new RequirementBrief(
                 "later-goal", List.of(), List.of(), List.of(), List.of(), "later-summary")
@@ -294,9 +300,9 @@ class MappingContractProductionTransportTest {
         adapter.executeAfterApproval(adapterInputs(revisionWith(unknownTargetIntent()), manifest));
 
     PlanValidationFinding finding = result.recoveryCause().findings().getFirst();
-    assertEquals(laterStored.artifactId(), finding.mappingDetails().consumedBriefArtifactId());
-    assertEquals(laterStored.contentHash(), finding.mappingDetails().consumedBriefContentHash());
-    assertNotEquals(storedBrief.artifactId(), finding.mappingDetails().consumedBriefArtifactId());
+    assertEquals(storedBrief.artifactId(), finding.mappingDetails().consumedBriefArtifactId());
+    assertEquals(storedBrief.contentHash(), finding.mappingDetails().consumedBriefContentHash());
+    assertNotEquals(laterStored.artifactId(), finding.mappingDetails().consumedBriefArtifactId());
   }
 
   private void persistRun(ProductPipelineRunStore runStore, RunManifest manifest) {
@@ -325,10 +331,23 @@ class MappingContractProductionTransportTest {
             "renderer-1",
             "# IDS\n");
     Reference idsRef = appendRunArtifact(Kind.IDS_DOCUMENT, "1", ids).reference();
-    Reference revisionRef =
-        appendRunArtifact(
-                Kind.CHAIN_SEMANTIC_REVISION, ChainSemanticRevision.CURRENT_SCHEMA_VERSION, revision)
-            .reference();
+    Reference revisionRef = appendRunArtifact(Kind.CHAIN_SEMANTIC_REVISION,
+        ChainSemanticRevision.CURRENT_SCHEMA_VERSION, revision, List.of(storedBrief.reference())).reference();
+    var doc = runStore.load(RUN_ID).orElseThrow();
+    long version = doc.run().runRevision();
+    runStore.commit(version, new LogicalCommit(
+        RUN_ID, version, RunStatus.RUNNING, "design-execution",
+        List.of(new StageSnapshot(
+            "requirement-analysis", StageStatus.SUCCEEDED,
+            List.of(storedBrief.reference()), storedBrief.artifactId()),
+            new StageSnapshot(
+                "design-input", StageStatus.SUCCEEDED,
+                List.of(revisionRef), null)),
+        new StageAttempt("selected-inputs", "design-input",
+            version + 1, StageStatus.SUCCEEDED,
+            FIXED, FIXED, List.of(revisionRef), null),
+        new RunTransition(version, version + 1,
+            RunStatus.RUNNING, RunStatus.RUNNING, "design-execution", FIXED, "Commit compiler inputs")));
     Reference reportRef = appendRunArtifact(Kind.DESIGN_PLAN_REPORT, "1", report).reference();
     Reference planRef = appendRunArtifact(Kind.DESIGN_EXECUTION_PLAN, "1", plan).reference();
     Reference implementationRef =
@@ -376,6 +395,10 @@ class MappingContractProductionTransportTest {
   }
 
   private Revision appendRunArtifact(Kind kind, String schemaVersion, Object payload) {
+    return appendRunArtifact(kind, schemaVersion, payload, List.of());
+  }
+
+  private Revision appendRunArtifact(Kind kind, String schemaVersion, Object payload, List<Reference> inputs) {
     return artifactStore.append(
         new AppendCommand(
             RUN_ID,
@@ -384,7 +407,7 @@ class MappingContractProductionTransportTest {
             "test-producer",
             "1",
             payload,
-            List.of(),
+            inputs,
             null,
             new ArtifactProvenance(
                 RUN_ID,

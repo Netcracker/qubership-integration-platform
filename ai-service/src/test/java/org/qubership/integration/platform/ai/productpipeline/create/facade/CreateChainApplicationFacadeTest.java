@@ -136,9 +136,12 @@ class CreateChainApplicationFacadeTest {
     command.setRevision(4L);
     Runnable click = () -> service.apply(taskId, command).collect().asList().await().indefinitely();
 
-    java.util.concurrent.CompletableFuture.allOf(
-        java.util.concurrent.CompletableFuture.runAsync(click),
-        java.util.concurrent.CompletableFuture.runAsync(click)).get(10, java.util.concurrent.TimeUnit.SECONDS);
+    try (var workers = java.util.concurrent.Executors.newFixedThreadPool(2)) {
+      java.util.concurrent.CompletableFuture.allOf(
+          java.util.concurrent.CompletableFuture.runAsync(click, workers),
+          java.util.concurrent.CompletableFuture.runAsync(click, workers))
+          .get(10, java.util.concurrent.TimeUnit.SECONDS);
+    }
     String offer = ProductPipelineRunSupport.repairOfferCommand(waiting);
     facade.continueWithInput(new ContinueCreateChainCommand(taskId, offer, "transport-replay"))
         .collect().asList().await().indefinitely();

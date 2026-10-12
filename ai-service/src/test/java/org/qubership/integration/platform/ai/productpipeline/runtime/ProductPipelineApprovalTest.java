@@ -358,7 +358,9 @@ class ProductPipelineApprovalTest {
     assertNotEquals(firstWait.waiting().candidate(), secondWait.waiting().candidate());
     assertNotEquals(firstOutputRefs, stage.outputRefs());
     assertEquals(3, stage.outputRefs().size());
-    assertEquals(6, stage.candidateReferences().size());
+    assertEquals(stage.outputRefs(), stage.candidateReferences());
+    assertTrue(java.util.Collections.disjoint(firstOutputRefs, stage.candidateReferences()));
+    assertTrue(runStore.load(RUN_ID).orElseThrow().attempts().stream().anyMatch(attempt -> attempt.outputs().equals(firstOutputRefs)));
   }
 
   @Test
