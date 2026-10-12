@@ -1,0 +1,32 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/catch
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+title: Catch (deprecated)
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  type:
+    type: string
+    const: catch
+  properties:
+    type: object
+    additionalProperties: false
+    properties:
+      exception:
+        type: string
+        title: Exception
+        description: Exception that should be handled
+      priorityNumber:
+        type: integer
+        title: Priority
+        description: >
+          Determines the order of the catch blocks.
+          The lower the number, the earlier the exception will be handled.
+          For general exception classes such as Exception, you need to set a big number.
+required:
+  - type

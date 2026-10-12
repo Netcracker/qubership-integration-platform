@@ -41,6 +41,11 @@ public class SnapshotScenarioDriverRegistry {
         return new SnapshotScenarioDriverRegistry(List.of(
                 new HttpTriggerSnapshotScenarioDriverProvider(),
                 new FileReadSnapshotScenarioDriverProvider(),
+                new NumericInputSnapshotScenarioDriverProvider(),
+                new BinaryInputSnapshotScenarioDriverProvider(),
+                new KafkaBatchInputSnapshotScenarioDriverProvider(),
+                new TypedHeadersSnapshotScenarioDriverProvider(),
+                new RepeatedBodySnapshotScenarioDriverProvider(),
                 new RouteSelectorSnapshotScenarioDriverProvider()
         ));
     }

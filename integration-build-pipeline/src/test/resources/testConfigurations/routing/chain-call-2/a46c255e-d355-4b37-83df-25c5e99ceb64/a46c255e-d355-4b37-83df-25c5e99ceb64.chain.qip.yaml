@@ -5,14 +5,68 @@ name: "chain-call"
 content:
   labels: []
   elements:
-  - id: "4bccb828-d66d-43a6-9704-f95137c70d5b"
-    name: "Chain Call"
-    type: "chain-call-2"
-    properties:
-      block: true
-      elementId: "ec738992-9f5b-4368-92d2-0e4c461b7bb6"
-      failIfNoConsumers: false
-      timeout: 30000
+  - id: "06ea40c8-bef0-449d-b424-61c152211030"
+    name: "Try-Catch-Finally"
+    type: "try-catch-finally-2"
+    children:
+    - id: "2b0729bf-4614-4991-8fc9-165b8766cfe2"
+      name: "Catch IllegalStateException"
+      type: "catch-2"
+      children:
+      - id: "5135ae1d-4934-4c43-9875-85b5b68b6a5f"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-5135ae1d-4934-4c43-9875-85b5b68b6a5f.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        exception: "java.lang.IllegalStateException"
+        priority: 0
+    - id: "9c17e565-15b3-45ce-8b90-6d02092b6ef1"
+      name: "Catch"
+      type: "catch-2"
+      children:
+      - id: "2d5f9b1f-5413-4975-ac93-5a294db5c05a"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-2d5f9b1f-5413-4975-ac93-5a294db5c05a.groovy"
+          propertiesToExportInSeparateFile: "script"
+      properties:
+        exception: "java.lang.Exception"
+        priority: 1
+    - id: "9dda8764-8444-40f2-bc05-8fffa1baef30"
+      name: "Try"
+      type: "try-2"
+      children:
+      - id: "0919e03d-0776-4952-b6b5-ea329431797d"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-0919e03d-0776-4952-b6b5-ea329431797d.groovy"
+          propertiesToExportInSeparateFile: "script"
+      - id: "4bccb828-d66d-43a6-9704-f95137c70d5b"
+        name: "Chain Call"
+        type: "chain-call-2"
+        properties:
+          block: true
+          elementId: "ec738992-9f5b-4368-92d2-0e4c461b7bb6"
+          failIfNoConsumers: false
+          timeout: 30000
+    - id: "f915960f-746a-44af-b79d-a94de138eecf"
+      name: "Finally"
+      type: "finally-2"
+      children:
+      - id: "119a2a98-4539-4293-8880-839cb250fc24"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "script-119a2a98-4539-4293-8880-839cb250fc24.groovy"
+          propertiesToExportInSeparateFile: "script"
   - id: "573699af-6329-47f9-a409-f469528b6eaa"
     name: "Chain Trigger"
     type: "chain-trigger-2"
@@ -20,7 +74,9 @@ content:
       elementId: "573699af-6329-47f9-a409-f469528b6eaa"
   dependencies:
   - from: "573699af-6329-47f9-a409-f469528b6eaa"
-    to: "4bccb828-d66d-43a6-9704-f95137c70d5b"
+    to: "06ea40c8-bef0-449d-b424-61c152211030"
+  - from: "4bccb828-d66d-43a6-9704-f95137c70d5b"
+    to: "0919e03d-0776-4952-b6b5-ea329431797d"
   deployments:
   - domain: "default"
   deployAction: "DEPLOY"

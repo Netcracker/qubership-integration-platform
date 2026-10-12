@@ -11,7 +11,8 @@ import lombok.NoArgsConstructor;
 @Builder(toBuilder = true)
 public class MonitoringOptions {
     @Builder.Default
-    private boolean enabled = true;
+    private boolean enabled = false;
 
-    private String interval;
+    @Builder.Default
+    private String interval = "30s";
 }

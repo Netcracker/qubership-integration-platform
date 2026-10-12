@@ -183,7 +183,7 @@ describe("extension export image commands", () => {
     mockListChainExportTargets.mockResolvedValue([
       {
         chainId: "chain-1",
-        filePath: "file:///workspace/chains/chain-1.chain.qip.yaml",
+        filePath: "file:///workspace/chains/chain-1.chain.cip.yaml",
         outputName: "chain-1",
       },
     ]);
@@ -191,7 +191,7 @@ describe("extension export image commands", () => {
   });
 
   test("qip.exportImages shows error when outputDir is missing", async () => {
-    await getExportImagesCommand()("file:///workspace/chains/chain-1.chain.qip.yaml");
+    await getExportImagesCommand()("file:///workspace/chains/chain-1.chain.cip.yaml");
 
     expect(mockShowErrorMessage).toHaveBeenCalledWith("outputDir is required");
     expect(mockCreateWebviewPanel).not.toHaveBeenCalled();
@@ -207,7 +207,7 @@ describe("extension export image commands", () => {
   test("qip.exportImages opens export webview for explicit file paths", async () => {
     await getExportImagesCommand()(undefined, {
       outputDir: "/tmp/export",
-      filePaths: ["file:///workspace/chains/chain-1.chain.qip.yaml"],
+      filePaths: ["file:///workspace/chains/chain-1.chain.cip.yaml"],
     });
 
     expect(mockParseFile).toHaveBeenCalled();
@@ -237,7 +237,7 @@ describe("extension export image commands", () => {
 
   test("qip.exportImages uses filePath argument when filePaths are omitted", async () => {
     await getExportImagesCommand()(
-      "file:///workspace/chains/chain-1.chain.qip.yaml",
+      "file:///workspace/chains/chain-1.chain.cip.yaml",
       { outputDir: "/tmp/export" },
     );
 
@@ -248,7 +248,7 @@ describe("extension export image commands", () => {
   test("qip.exportImages resolves relative file paths", async () => {
     await getExportImagesCommand()(undefined, {
       outputDir: "/tmp/export",
-      filePaths: ["/workspace/chains/chain-1.chain.qip.yaml"],
+      filePaths: ["/workspace/chains/chain-1.chain.cip.yaml"],
     });
 
     expect(mockParseFile).toHaveBeenCalled();
@@ -257,7 +257,7 @@ describe("extension export image commands", () => {
 
   test("qip.exportImages accepts Uri filePath argument", async () => {
     const fileUri = {
-      toString: () => "file:///workspace/chains/chain-1.chain.qip.yaml",
+      toString: () => "file:///workspace/chains/chain-1.chain.cip.yaml",
     };
 
     await getExportImagesCommand()(fileUri, { outputDir: "/tmp/export" });
@@ -282,7 +282,7 @@ describe("extension export image commands", () => {
 
     await getExportImagesCommand()(undefined, {
       outputDir: "/tmp/export",
-      filePaths: ["/workspace/chains/chain-1.chain.qip.yaml"],
+      filePaths: ["/workspace/chains/chain-1.chain.cip.yaml"],
     });
 
     expect(mockShowErrorMessage).toHaveBeenCalledWith(
@@ -295,7 +295,7 @@ describe("extension export image commands", () => {
 
     await getExportImagesCommand()(undefined, {
       outputDir: "/tmp/export",
-      filePaths: ["file:///workspace/chains/chain-1.chain.qip.yaml"],
+      filePaths: ["file:///workspace/chains/chain-1.chain.cip.yaml"],
     });
 
     expect(mockShowErrorMessage).toHaveBeenCalledWith(
@@ -337,7 +337,7 @@ describe("extension export image commands", () => {
       undefined,
       {
         outputDir: "file:///tmp/export",
-        filePaths: ["file:///workspace/chains/chain-1.chain.qip.yaml"],
+        filePaths: ["file:///workspace/chains/chain-1.chain.cip.yaml"],
       },
     );
   });

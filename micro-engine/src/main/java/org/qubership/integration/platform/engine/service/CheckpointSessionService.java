@@ -58,7 +58,7 @@ public class CheckpointSessionService {
     private final IdempotencyRecordService idempotencyRecordService;
     private final ChainDeploymentChecker chainDeploymentChecker;
 
-    @ConfigProperty(name = "qip.sessions.checkpoints.cleanup.interval")
+    @ConfigProperty(name = "cip.sessions.checkpoints.cleanup.interval")
     String idempotencyKeyTTL;
 
     @Inject

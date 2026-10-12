@@ -45,10 +45,10 @@ public class TasksScheduler {
     private final ChainRuntimePropertiesService chainRuntimePropertiesService;
     private final SnapshotService snapshotService;
 
-    @Value("${qip.actions-log.cleanup.interval}")
+    @Value("${cip.actions-log.cleanup.interval}")
     private String actionLogInterval;
 
-    @Value("${qip.snapshots.cleanup.interval}")
+    @Value("${cip.snapshots.cleanup.interval}")
     private int snapshotCleanupInterval;
     private static final int SNAPSHOT_CLEANUP_CHUNK = 1000;
 
@@ -66,14 +66,14 @@ public class TasksScheduler {
         this.snapshotService = snapshotService;
     }
 
-    @Scheduled(cron = "${qip.snapshots.cleanup.cron}")
+    @Scheduled(cron = "${cip.snapshots.cleanup.cron}")
     public void snapshotCleanup() {
         snapshotService.pruneSnapshotsAsync(snapshotCleanupInterval, SNAPSHOT_CLEANUP_CHUNK);
 
         log.info("Remove old snapshots");
     }
 
-    @Scheduled(cron = "${qip.actions-log.cleanup.cron}")
+    @Scheduled(cron = "${cip.actions-log.cleanup.cron}")
     public void cleanupActionsLog() {
         actionsLogService.deleteAllOldRecordsByInterval(actionLogInterval);
 

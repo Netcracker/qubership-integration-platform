@@ -7,6 +7,7 @@ import { isVsCode } from "../../../api/rest/vscodeExtensionApi.ts";
 export type DiffViewType = "graph" | "table" | "text";
 
 export type ChainDiffViewControlsProps = {
+  viewType: DiffViewType;
   changes: Change[];
   selectedChangeId?: string;
   onSelectChange: (id: string) => void;
@@ -16,6 +17,7 @@ export type ChainDiffViewControlsProps = {
 };
 
 export const ChainDiffViewControls: React.FC<ChainDiffViewControlsProps> = ({
+  viewType,
   changes,
   selectedChangeId,
   onSelectChange,
@@ -93,7 +95,7 @@ export const ChainDiffViewControls: React.FC<ChainDiffViewControlsProps> = ({
           { label: "Table", value: "table" },
           ...(isVsCode ? [] : [{ label: "Text", value: "text" }]),
         ]}
-        defaultValue="graph"
+        value={viewType}
         optionType="button"
         buttonStyle="solid"
         onChange={(event) =>

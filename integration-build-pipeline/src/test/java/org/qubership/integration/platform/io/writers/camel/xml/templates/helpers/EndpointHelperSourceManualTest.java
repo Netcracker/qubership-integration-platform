@@ -43,9 +43,9 @@ import static org.mockito.Mockito.mockStatic;
 @ExtendWith(MockitoExtension.class)
 @ContextConfiguration(classes = EndpointHelperSource.class)
 @TestPropertySource(properties = {
-        "qip.gateway.egress.protocol=http",
-        "qip.gateway.egress.url=egress-gateway:8080",
-        "qip.control-plane.chain-routes-registration.egress-gateway=false"
+        "cip.gateway.egress.protocol=http",
+        "cip.gateway.egress.url=egress-gateway:8080",
+        "cip.control-plane.chain-routes-registration.egress-gateway=false"
 })
 public class EndpointHelperSourceManualTest {
 

@@ -13,7 +13,7 @@ import java.util.Collections;
 import java.util.List;
 
 @Component("controlPlaneService")
-@ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(value = "cip.control-plane.enabled", havingValue = "false", matchIfMissing = true)
 public class ControlPlaneDevService implements ControlPlaneService {
 
     public List<RouteConfigurationResponse> getRoutesList() throws JsonProcessingException, ControlPlaneException, RestClientException {
@@ -21,23 +21,23 @@ public class ControlPlaneDevService implements ControlPlaneService {
     }
 
     @Override
-    public void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
+    public void postPublicEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
         // do nothing
     }
 
     @Override
-    public void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
+    public void postPrivateEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
         // do nothing
     }
 
     @Override
-    public void removeEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName)
+    public void removeEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName)
         throws ControlPlaneException {
         // do nothing
     }
 
     @Override
-    public void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint) {
+    public void postEgressGatewayRoutes(String chainId, List<DeploymentRouteUpdate> routes, String endpoint) {
         // do nothing
     }
 }

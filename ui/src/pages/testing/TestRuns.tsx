@@ -1,5 +1,6 @@
+import { Table } from "antd";
 import React, { useMemo, useRef, useState } from "react";
-import { Flex, Table } from "antd";
+import { Flex } from "antd";
 import { api } from "../../api/api.ts";
 import {
   TestingSortOrder,
@@ -17,7 +18,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useColumnsWithResizeAndScroll } from "../../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
 import { isTestsRunCancellable } from "../../components/testing/runStatus.ts";
 import { RunStatusTag } from "../../components/testing/TestingTags.tsx";
@@ -57,7 +58,11 @@ export const TestRuns: React.FC = () => {
   const [detailsRun, setDetailsRun] = useState<TestsRunView | null>(null);
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
-  const { filters, filterButton } = useTestingFilter("testsRuns");
+  const { filters, filterButton } = useTestingFilter(
+    "testsRuns",
+    undefined,
+    "testsRunsTable",
+  );
   const permissions = useMemo(() => getTestingPermissions(), []);
 
   const {
@@ -67,7 +72,8 @@ export const TestRuns: React.FC = () => {
     loadMore,
     refresh,
     exportEntities,
-    handleTableChange,
+    tableSort,
+    handleTableChange: handleServerTableChange,
     selectedRowKeys,
     selectAllMatching,
     rowSelection,
@@ -75,6 +81,7 @@ export const TestRuns: React.FC = () => {
     collectTargetIds,
     confirmSearch,
   } = useTestingEntityList<TestsRunView>({
+    storageKey: "testsRunsTable",
     source: testsRunsListSource,
     filters,
     searchString,
@@ -221,10 +228,21 @@ export const TestRuns: React.FC = () => {
       columnDefinitions,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(orderedColumns, COLUMN_WIDTHS, {
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    COLUMN_WIDTHS,
+    {
       selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
-    });
+      controlledSort: tableSort,
+      onChange: handleServerTableChange,
+    },
+    "testsRunsTable",
+  );
 
   const toolbarActions = useMemo(
     () => (
@@ -233,7 +251,7 @@ export const TestRuns: React.FC = () => {
         entityLabel="test runs"
         permissions={permissions}
         actions={[
-          { kind: "refresh", onClick: handleRefresh },
+          { kind: "refresh", onClick: handleRefresh, loading: isLoading },
           {
             kind: "restart",
             onClick: () => void startRun(),
@@ -257,6 +275,7 @@ export const TestRuns: React.FC = () => {
     [
       permissions,
       handleRefresh,
+      isLoading,
       isStarting,
       hasSelection,
       startRun,
@@ -277,7 +296,7 @@ export const TestRuns: React.FC = () => {
     columnSettingsButton,
     actions: toolbarActions,
     registerInChainHeader: false,
-    registerDependencies: [],
+    registerDependencies: [isLoading],
   });
 
   return (
@@ -312,7 +331,7 @@ export const TestRuns: React.FC = () => {
               locale={{ emptyText: tableEmpty("No test runs to display") }}
               scroll={tableScroll(scrollX, items.length)}
               components={components}
-              onChange={handleTableChange}
+              onChange={handleConfiguredTableChange}
               onRow={rowClickProps(setDetailsRun)}
             />
           </div>

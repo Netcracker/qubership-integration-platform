@@ -52,7 +52,7 @@ public class PersistenceConfigsAutoConfiguration {
 
     @Primary
     @Bean("configsDataSource")
-    @ConditionalOnProperty(value = "qip.datasource.configuration.enabled", havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(value = "cip.datasource.configuration.enabled", havingValue = "true", matchIfMissing = true)
     DataSource dataSource(DatabasePool dbaasConnectionPool,
                           DbaasClassifierFactory classifierFactory,
                           @Autowired(required = false) @Qualifier("dbaasApiProperties") DbaasApiProperties dbaasApiProperties

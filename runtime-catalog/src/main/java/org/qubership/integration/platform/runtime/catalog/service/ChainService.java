@@ -19,6 +19,7 @@ package org.qubership.integration.platform.runtime.catalog.service;
 import lombok.extern.slf4j.Slf4j;
 import org.codehaus.plexus.util.StringUtils;
 import org.qubership.integration.platform.runtime.catalog.configuration.aspect.ChainModification;
+import org.qubership.integration.platform.runtime.catalog.events.ChainsDeletedEvent;
 import org.qubership.integration.platform.runtime.catalog.model.dto.system.UsedSystem;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.AbstractLabel;
@@ -43,6 +44,7 @@ import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainF
 import org.qubership.integration.platform.runtime.catalog.service.migration.element.MigrationContext;
 import org.qubership.integration.platform.runtime.catalog.util.ChainUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.auditing.AuditingHandler;
 import org.springframework.data.jpa.domain.Specification;
@@ -80,6 +82,7 @@ public class ChainService extends ChainBaseService {
     private final AuditingHandler auditingHandler;
     private final ChainFinderService chainFinderService;
     private final PropertyPlaceholderService propertyPlaceholderService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Autowired
     public ChainService(
@@ -98,7 +101,8 @@ public class ChainService extends ChainBaseService {
             AuditingHandler auditingHandler,
             ChainFinderService chainFinderService,
             ContextBaseService contextBaseService,
-            PropertyPlaceholderService propertyPlaceholderService
+            PropertyPlaceholderService propertyPlaceholderService,
+            ApplicationEventPublisher applicationEventPublisher
     ) {
         super(chainRepository, elementService, contextBaseService);
         this.chainRepository = chainRepository;
@@ -116,6 +120,7 @@ public class ChainService extends ChainBaseService {
         this.auditingHandler = auditingHandler;
         this.chainFinderService = chainFinderService;
         this.propertyPlaceholderService = propertyPlaceholderService;
+        this.applicationEventPublisher = applicationEventPublisher;
     }
 
     public Boolean exists(String chainId) {
@@ -210,6 +215,7 @@ public class ChainService extends ChainBaseService {
             chainRepository.deleteById(chainId);
 
             logChainAction(chain, LogOperation.DELETE);
+            applicationEventPublisher.publishEvent(new ChainsDeletedEvent(List.of(chainId)));
         }
 
         return optionalChain;

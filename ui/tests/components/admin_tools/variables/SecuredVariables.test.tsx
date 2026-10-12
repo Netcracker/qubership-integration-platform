@@ -66,7 +66,7 @@ jest.mock(
         onConfirmEdit,
         onCancelEditing,
         selectedKeys,
-        editingKey: _editingKey,
+        editingKey,
         editingValue,
         onChangeEditingValue,
         isAddingNew,
@@ -93,7 +93,7 @@ jest.mock(
           </button>
           <button
             data-testid="mock-confirm-edit"
-            onClick={() => onConfirmEdit?.("mock-key", "updated-value")}
+            onClick={() => onConfirmEdit?.("mock-key", editingValue)}
           >
             Confirm Edit
           </button>
@@ -105,6 +105,7 @@ jest.mock(
             value={editingValue || ""}
             onChange={(e) => onChangeEditingValue?.(e.target.value)}
           />
+          <div data-testid="editing-key">{editingKey ?? ""}</div>
           <div data-testid="selected-keys">{JSON.stringify(selectedKeys)}</div>
           <div data-testid="is-adding-new">{String(isAddingNew)}</div>
         </div>
@@ -145,6 +146,7 @@ jest.mock("../../../../src/permissions/ProtectedButton", () => ({
       <button
         type="button"
         data-testid={String(tooltipProps.title)}
+        title={String(tooltipProps.title)}
         {...(rest as React.ButtonHTMLAttributes<HTMLButtonElement>)}
       />
     );
@@ -345,20 +347,21 @@ describe("SecuredVariables Component", () => {
       render(<SecuredVariables />);
       await screen.findByText("default-secret");
       const defaultRow = screen.getByText("default-secret").closest("tr");
-      expect(
-        within(defaultRow!).getByTestId(
-          "Adding new variables to default secret is not allowed",
-        ),
-      ).toBeDisabled();
-      fireEvent.click(
-        within(defaultRow!).getByTestId(
-          "Adding new variables to default secret is not allowed",
-        ),
+      const defaultAdd = within(defaultRow!).getByTestId(
+        "secured-variables-add",
       );
+      expect(defaultAdd).toHaveAttribute(
+        "title",
+        "Adding new variables to default secret is not allowed",
+      );
+      expect(defaultAdd).toBeDisabled();
+      fireEvent.click(defaultAdd);
 
       await screen.findByText("app-secret");
       const row = screen.getByText("app-secret").closest("tr");
-      fireEvent.click(within(row!).getByTestId("Add variable"));
+      const add = within(row!).getByTestId("secured-variables-add");
+      expect(add).toHaveAttribute("title", "Add variable");
+      fireEvent.click(add);
       await waitFor(() => {
         expect(screen.getByTestId("is-adding-new")).toHaveTextContent("true");
       });
@@ -518,6 +521,23 @@ describe("SecuredVariables Component", () => {
           [{ key: "mock-key", value: "updated-value" }],
         );
       });
+    });
+
+    it("starts editing a secured value from an empty value", () => {
+      fireEvent.click(screen.getByTestId("mock-edit-variable"));
+
+      expect(screen.getByTestId("editing-key")).toHaveTextContent("mock-key");
+      expect(screen.getByTestId("mock-edit-input")).toHaveValue("");
+    });
+
+    it("closes the editor without an update when the value is empty", async () => {
+      fireEvent.click(screen.getByTestId("mock-edit-variable"));
+      fireEvent.click(screen.getByTestId("mock-confirm-edit"));
+
+      await waitFor(() => {
+        expect(screen.getByTestId("editing-key")).toBeEmptyDOMElement();
+      });
+      expect(mockApi.updateSecuredVariables).not.toHaveBeenCalled();
     });
 
     it("deletes a variable", async () => {

@@ -1,14 +1,6 @@
+import { Table } from "antd";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Button,
-  Flex,
-  Form,
-  Input,
-  Modal,
-  Select,
-  Table,
-  UploadFile,
-} from "antd";
+import { Button, Flex, Form, Input, Modal, Select, UploadFile } from "antd";
 import Dragger from "antd/es/upload/Dragger";
 import type { TableProps } from "antd";
 import { confirmAndRun } from "../../misc/confirm-utils.ts";
@@ -48,7 +40,7 @@ import {
 } from "./importInstructionsHandlers.ts";
 import { useModalsContext } from "../../Modals.tsx";
 import { UploadImportInstructionsWarningModal } from "../modal/UploadImportInstructionsWarningModal.tsx";
-import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
@@ -124,7 +116,8 @@ const ENTITY_ICON: Record<InstructionEntityType, string> = {
 function getEntityHref(row: InstructionRow): string | undefined {
   if (!row.name) return undefined;
   if (row.entityType === "Chain") return `/chains/${row.id}`;
-  if (row.entityType === "Service") return `/services/systems/${row.id}/parameters`;
+  if (row.entityType === "Service")
+    return `/services/systems/${row.id}/parameters`;
   return undefined;
 }
 
@@ -685,7 +678,8 @@ export const ImportInstructions: React.FC = () => {
     columnsWithResize: visibleColumnsWithResize,
     components: importInstructionsComponents,
     scrollX: importInstructionsScrollX,
-  } = useColumnsWithResizeAndScroll(
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
     orderedColumns,
     {
       id: 280,
@@ -698,6 +692,7 @@ export const ImportInstructions: React.FC = () => {
       expandColumnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
       selectionColumnWidth: IMPORT_INSTRUCTIONS_SELECTION_COLUMN_WIDTH,
     },
+    "importInstructionsTable",
   );
 
   const rowSelection = useMemo<TableProps<InstructionRow>["rowSelection"]>(
@@ -799,6 +794,7 @@ export const ImportInstructions: React.FC = () => {
             y: "100%",
           }}
           components={importInstructionsComponents}
+          onChange={handleConfiguredTableChange}
           expandable={{
             expandIcon: treeExpandIcon(),
             columnWidth: IMPORT_INSTRUCTIONS_EXPAND_COLUMN_WIDTH,
@@ -1004,7 +1000,7 @@ export const UploadInstructionsModal: React.FC<
     columnsWithResize: uploadColumnsWithResize,
     components: uploadInstructionsComponents,
     scrollX: uploadInstructionsScrollX,
-  } = useColumnsWithResizeAndScroll(
+  } = useTableConfiguration(
     uploadResultColumns,
     {
       id: 280,

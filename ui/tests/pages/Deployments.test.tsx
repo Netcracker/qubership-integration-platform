@@ -188,9 +188,7 @@ describe("Deployments chain header toolbar", () => {
     expect(
       within(slot).getByPlaceholderText("Search deployments..."),
     ).toBeInTheDocument();
-    expect(
-      within(slot).getByTestId("protected-btn-create-deployment"),
-    ).toBeInTheDocument();
+    expect(within(slot).getByTestId("deployments-create")).toBeInTheDocument();
   });
 
   test("Create deployment invokes showModal", async () => {
@@ -205,9 +203,7 @@ describe("Deployments chain header toolbar", () => {
     renderDeployments();
 
     const slot = await waitFor(() => screen.getByTestId("chain-header-slot"));
-    fireEvent.click(
-      within(slot).getByTestId("protected-btn-create-deployment"),
-    );
+    fireEvent.click(within(slot).getByTestId("deployments-create"));
 
     expect(showModal).toHaveBeenCalledTimes(1);
   });

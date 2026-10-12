@@ -25,6 +25,7 @@ import org.qubership.integration.platform.chain.impl.ElementImpl;
 import org.qubership.integration.platform.chain.impl.ServiceEnvironmentImpl;
 import org.qubership.integration.platform.chain.model.EnvironmentSourceType;
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainElementExternalEntity;
+import org.qubership.integration.platform.library.components.ElementDescriptorHelper;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
 import org.qubership.integration.platform.library.model.ElementProperty;
@@ -67,8 +68,8 @@ class ChainElementsExternalEntityMapperTest {
         // A real substitutor is a no-op for elements whose properties do not opt into separate files,
         // so the mapper output stays the honest oracle here.
         ChainElementFilePropertiesSubstitutor substitutor =
-                new ChainElementFilePropertiesSubstitutor(new ObjectMapper());
-        mapper = new ChainElementsExternalEntityMapper(libraryService, substitutor);
+                new ChainElementFilePropertiesSubstitutor(new ObjectMapper(), new ElementResourceFileNameBuilderImpl());
+        mapper = new ChainElementsExternalEntityMapper(new ElementDescriptorHelper(libraryService), substitutor);
     }
 
     private void stubDescriptor(String type, ElementType elementType, boolean container) {

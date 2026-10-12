@@ -1,5 +1,6 @@
+import { Table } from "antd";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { Flex, Table } from "antd";
+import { Flex } from "antd";
 import { useNavigate, useParams } from "react-router";
 import { api } from "../../api/api.ts";
 import { TestCaseView } from "../../api/apiTypes.ts";
@@ -16,7 +17,7 @@ import {
   ColumnsTypeWithSettings,
   useColumnSettingsBasedOnColumnsType,
 } from "../../components/table/useColumnSettingsButton.tsx";
-import { useColumnsWithResizeAndScroll } from "../../components/table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../components/table/useTableConfiguration.tsx";
 import { TestCaseDetailsDrawer } from "../../components/testing/TestCaseDetailsDrawer.tsx";
 import { isTestCaseReady } from "../../components/testing/testCases.ts";
 import { getTestingPermissions } from "../../components/testing/testingPermissions.ts";
@@ -71,7 +72,11 @@ export const TestCases: React.FC<TestCasesProps> = ({
   );
   const tableWrapperRef = useRef<HTMLDivElement>(null);
 
-  const { filters, filterButton } = useTestingFilter("testCases", chainId);
+  const { filters, filterButton } = useTestingFilter(
+    "testCases",
+    chainId,
+    chainId ? "testCasesTableChain" : "testCasesTableAdmin",
+  );
   const permissions = useMemo(() => getTestingPermissions(chainId), [chainId]);
   const sectionPath = chainId
     ? `/chains/${chainId}/testing`
@@ -88,7 +93,8 @@ export const TestCases: React.FC<TestCasesProps> = ({
     exportEntities,
     sortBy,
     sortOrder,
-    handleTableChange,
+    tableSort,
+    handleTableChange: handleServerTableChange,
     selectedRowKeys,
     selectAllMatching,
     rowSelection,
@@ -96,6 +102,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
     collectTargetIds,
     confirmSearch,
   } = useTestingEntityList<TestCaseView>({
+    storageKey: chainId ? "testCasesTableChain" : "testCasesTableAdmin",
     source: testCasesListSource,
     chainId,
     filters,
@@ -288,10 +295,21 @@ export const TestCases: React.FC<TestCasesProps> = ({
       columnDefinitions,
     );
 
-  const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(orderedColumns, COLUMN_WIDTHS, {
+  const {
+    columnsWithResize,
+    scrollX,
+    components,
+    handleTableChange: handleConfiguredTableChange,
+  } = useTableConfiguration(
+    orderedColumns,
+    COLUMN_WIDTHS,
+    {
       selectionColumnWidth: TESTING_SELECTION_COLUMN_WIDTH,
-    });
+      controlledSort: tableSort,
+      onChange: handleServerTableChange,
+    },
+    chainId ? "testCasesTableChain" : "testCasesTableAdmin",
+  );
 
   const toolbarActions = useMemo(
     () => (
@@ -301,7 +319,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
         createLabel="a test case"
         permissions={permissions}
         actions={[
-          { kind: "refresh", onClick: handleRefresh },
+          { kind: "refresh", onClick: handleRefresh, loading: isLoading },
           {
             kind: "run",
             onClick: () => void startRun(),
@@ -327,6 +345,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
       chainId,
       permissions,
       handleRefresh,
+      isLoading,
       isStarting,
       hasSelection,
       startRun,
@@ -348,6 +367,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
     actions: toolbarActions,
     registerInChainHeader: variant === "chain-tab",
     registerDependencies: [
+      isLoading,
       variant,
       searchString,
       sortBy,
@@ -386,7 +406,7 @@ export const TestCases: React.FC<TestCasesProps> = ({
           locale={{ emptyText: tableEmpty("No test cases to display") }}
           scroll={tableScroll(scrollX, items.length)}
           components={components}
-          onChange={handleTableChange}
+          onChange={handleConfiguredTableChange}
           onRow={rowClickProps(setDetailsTestCase)}
         />
       </div>

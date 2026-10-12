@@ -35,6 +35,13 @@ public class PersistentIntegrationServiceCatalog implements IntegrationServiceCa
     }
 
     @Override
+    public Collection<IntegrationService> findAll() {
+        return systemService.findAll().stream()
+            .<IntegrationService>map(IntegrationServiceAdapter::new)
+            .toList();
+    }
+
+    @Override
     public Optional<IntegrationService> findById(String id) {
         return Optional.ofNullable(systemService.findById(id)).map(IntegrationServiceAdapter::new);
     }

@@ -24,5 +24,5 @@ export const useContextServiceFilters = (): {
     [],
   );
 
-  return useFilter(filterColumns);
+  return useFilter(filterColumns, "contextSystemTable");
 };

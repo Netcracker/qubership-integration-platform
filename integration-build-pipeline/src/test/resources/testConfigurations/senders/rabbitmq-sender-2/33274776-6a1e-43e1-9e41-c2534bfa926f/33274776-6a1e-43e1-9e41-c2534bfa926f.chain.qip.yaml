@@ -20,8 +20,62 @@ content:
     type: "chain-trigger-2"
     properties:
       elementId: "95160f10-b129-44e0-8fef-8afeedbf8b5e"
+  - id: "1e126088-9c32-448c-b16d-7cb04cd8dde4"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "1e126088-9c32-448c-b16d-7cb04cd8dde4"
+  - id: "f2fec252-829d-4d9d-832e-5744a7a993d9"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      addresses: "test:12345"
+      connectionSourceType: "manual"
+      exchange: "test"
+      exchangePattern: "InOnly"
+      propagateContext: false
+      vhostClassifierName: "public"
+  - id: "585e2fbb-c303-4c2b-b588-7f7687ee7118"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      addresses: "test:12345"
+      connectionSourceType: "manual"
+      exchange: "test"
+      exchangePattern: "InOnly"
+      overrideContextParams:
+        X-Test-Param: "test-value"
+      propagateContext: true
+      vhostClassifierName: "public"
+  - id: "e33de23c-651b-4485-97a2-75f6cf796025"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "e33de23c-651b-4485-97a2-75f6cf796025"
+  - id: "88d981e3-8fc9-4122-aacf-d21738b86e69"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "88d981e3-8fc9-4122-aacf-d21738b86e69"
+  - id: "c0787d0f-b3bf-4ac3-9d6f-8498f4700c29"
+    name: "RabbitMQ Sender"
+    type: "rabbitmq-sender-2"
+    properties:
+      addresses: "test:12345"
+      connectionSourceType: "manual"
+      exchange: "test"
+      exchangePattern: "InOnly"
+      propagateContext: true
+      routingKey: "orderId"
+      vhostClassifierName: "public"
   dependencies:
   - from: "95160f10-b129-44e0-8fef-8afeedbf8b5e"
     to: "9425be17-d0e2-4081-8068-6b14e4cb433e"
+  - from: "1e126088-9c32-448c-b16d-7cb04cd8dde4"
+    to: "f2fec252-829d-4d9d-832e-5744a7a993d9"
+  - from: "e33de23c-651b-4485-97a2-75f6cf796025"
+    to: "585e2fbb-c303-4c2b-b588-7f7687ee7118"
+  - from: "88d981e3-8fc9-4122-aacf-d21738b86e69"
+    to: "c0787d0f-b3bf-4ac3-9d6f-8498f4700c29"
   deployAction: "SNAPSHOT"
   migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

@@ -1,0 +1,39 @@
+---
+id: "e2e0k002-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-missing-rabbitmq-queue"
+description: "rabbitmq-trigger-2 pointed at a queue the brokers seed never declares. Spec-owned\
+  \ (SPEC_OWNED_FIXTURES), so it sits outside the seed's corpus scan and ensureRabbitmqTopology\
+  \ never sees it -- that is the whole premise. Imported and deployed by missing-target.spec.ts,\
+  \ which asserts PR #781's AmpqConnectionCheckAction refuses the deploy on its own passive\
+  \ queueDeclare check rather than the consumer restart-looping behind a silent DEPLOYED."
+content:
+  labels: []
+  elements:
+  - id: "e2e0k002-0000-4000-8000-000000000002"
+    name: "RabbitMQ Trigger"
+    type: "rabbitmq-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      addresses: "rabbitmq:5672"
+      username: "guest"
+      password: "guest"
+      exchange: "e2e-{{RUN}}-missing-rabbitmq-queue"
+      routingKey: "e2e-{{RUN}}-missing-rabbitmq-queue"
+      queues: "e2e-{{RUN}}-missing-rabbitmq-queue"
+      exchangeType: "direct"
+      acknowledgeMode: "AUTO"
+      idempotency:
+        enabled: false
+  - id: "e2e0k002-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e0k002-0000-4000-8000-000000000002"
+    to: "e2e0k002-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

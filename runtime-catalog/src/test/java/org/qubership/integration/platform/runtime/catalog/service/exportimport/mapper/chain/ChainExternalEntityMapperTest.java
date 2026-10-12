@@ -16,6 +16,7 @@ import org.qubership.integration.platform.io.model.exportimport.chain.ChainExter
 import org.qubership.integration.platform.io.model.exportimport.chain.ChainExternalEntity;
 import org.qubership.integration.platform.io.model.exportimport.chain.DependencyExternalEntity;
 import org.qubership.integration.platform.io.model.exportimport.chain.MaskedFieldExternalEntity;
+import org.qubership.integration.platform.runtime.catalog.configuration.ApplicationJsonSchemaProperties;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainElementsExternalMapperEntity;
 import org.qubership.integration.platform.runtime.catalog.model.exportimport.chain.ChainExternalMapperEntity;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.Chain;
@@ -58,7 +59,7 @@ class ChainExternalEntityMapperTest {
         mapper = new ChainExternalEntityMapper(
                 chainElementsMapper,
                 List.of(),
-                URI.create("http://qubership.org/schemas/product/qip/chain"));
+                new ApplicationJsonSchemaProperties());
     }
 
     // ---- export: folder hierarchy -> metaInfo.group ----
@@ -97,6 +98,18 @@ class ChainExternalEntityMapperTest {
         ChainExternalMapperEntity result = mapper.toExternalEntity(chain);
 
         assertNull(result.getChainExternalEntity().getMetaInfo());
+    }
+
+    @DisplayName("Export should write the chain schema URI into $schema")
+    @Test
+    void shouldExportChainSchema() {
+        Chain chain = Chain.builder().id("c1").name("Chain 1").build();
+
+        ChainExternalMapperEntity result = mapper.toExternalEntity(chain);
+
+        assertEquals(
+                URI.create("http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"),
+                result.getChainExternalEntity().getSchema());
     }
 
     // ---- import: metaInfo.group -> folder hierarchy ----

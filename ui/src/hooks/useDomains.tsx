@@ -29,5 +29,9 @@ export const useDomains = () => {
     void getDomains();
   }, [getDomains]);
 
-  return { isLoading, domains: Array.isArray(domains) ? domains : [] };
+  return {
+    refresh: getDomains,
+    isLoading,
+    domains: Array.isArray(domains) ? domains : [],
+  };
 };

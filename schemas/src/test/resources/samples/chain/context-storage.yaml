@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "a178f38f-9932-4bcc-84a3-315003c54f47"
 name: "Context Storage"
 content:

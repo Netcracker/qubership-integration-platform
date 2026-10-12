@@ -84,5 +84,5 @@ export const useAccessControlFilter = (): {
     [],
   );
 
-  return useFilter(filterColumns);
+  return useFilter(filterColumns, "accessControlTable");
 };

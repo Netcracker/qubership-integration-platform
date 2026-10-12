@@ -34,13 +34,13 @@ import java.util.Optional;
 @ApplicationScoped
 @Getter
 public class PredeployCheckKafkaConfiguration {
-    @ConfigProperty(name = "qip.camel.component.kafka.predeploy-check-enabled")
+    @ConfigProperty(name = "cip.camel.component.kafka.predeploy-check-enabled")
     boolean camelKafkaPredeployCheckEnabled;
 
-    @ConfigProperty(name = "qip.local-truststore.store.path")
+    @ConfigProperty(name = "cip.local-truststore.store.path")
     String truststoreLocation;
 
-    @ConfigProperty(name = "qip.local-truststore.store.password")
+    @ConfigProperty(name = "cip.local-truststore.store.password")
     Optional<String> truststorePassword;
 
     public Map<String, Object> createValidationKafkaAdminConfig(String brokers,

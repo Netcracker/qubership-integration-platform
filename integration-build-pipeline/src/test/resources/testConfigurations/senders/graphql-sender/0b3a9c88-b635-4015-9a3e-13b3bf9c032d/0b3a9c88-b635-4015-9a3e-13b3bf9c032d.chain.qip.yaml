@@ -52,7 +52,7 @@ content:
   dependencies:
   - from: "b855fa07-94b9-49e0-89e3-f0fffcd59f4c"
     to: "28f2ed0d-ac14-4154-96ad-ac2adfdd7f21"
-  - from: "b855fa07-94b9-49e0-89e3-f0fffcd59f4c"
+  - from: "28f2ed0d-ac14-4154-96ad-ac2adfdd7f21"
     to: "29f44c03-2324-42bb-b760-68cf6063b431"
   - from: "29f44c03-2324-42bb-b760-68cf6063b431"
     to: "ed2f1f36-abee-4d88-bfce-757101d2bba5"

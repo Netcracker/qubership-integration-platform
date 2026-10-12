@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.engine.routes.tests;
 
+import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotExecutionTarget;
 import org.qubership.integration.platform.engine.routes.entrypoint.execution.SnapshotResourceDefinition;
 
 import java.io.IOException;
@@ -36,11 +37,22 @@ final class SnapshotResourceStager implements AutoCloseable {
     private final FileChannel stagingLockChannel;
     private final FileLock stagingLock;
 
-    SnapshotResourceStager() throws IOException {
-        this(STAGING_LOCK_FILE, JVM_STAGING_LOCK);
+    SnapshotResourceStager(SnapshotExecutionTarget target) throws IOException {
+        this(target, STAGING_LOCK_FILE, JVM_STAGING_LOCK);
     }
 
-    SnapshotResourceStager(Path stagingLockFile, ReentrantLock jvmStagingLock) throws IOException {
+    SnapshotResourceStager(
+            SnapshotExecutionTarget target,
+            Path stagingLockFile,
+            ReentrantLock jvmStagingLock
+    ) throws IOException {
+        if (target.getResources().isEmpty()
+                && target.getFixtures().stream().noneMatch(fixture -> "file-output".equals(fixture.getProvider()))) {
+            this.jvmStagingLock = null;
+            stagingLockChannel = null;
+            stagingLock = null;
+            return;
+        }
         this.jvmStagingLock = jvmStagingLock;
         jvmStagingLock.lock();
         FileChannel lockChannel = null;
@@ -191,17 +203,19 @@ final class SnapshotResourceStager implements AutoCloseable {
                 cleanupFailure = append(cleanupFailure, exception);
             }
         }
-        try {
-            stagingLock.release();
-        } catch (IOException exception) {
-            cleanupFailure = append(cleanupFailure, exception);
-        }
-        try {
-            stagingLockChannel.close();
-        } catch (IOException exception) {
-            cleanupFailure = append(cleanupFailure, exception);
-        } finally {
-            jvmStagingLock.unlock();
+        if (stagingLock != null) {
+            try {
+                stagingLock.release();
+            } catch (IOException exception) {
+                cleanupFailure = append(cleanupFailure, exception);
+            }
+            try {
+                stagingLockChannel.close();
+            } catch (IOException exception) {
+                cleanupFailure = append(cleanupFailure, exception);
+            } finally {
+                jvmStagingLock.unlock();
+            }
         }
         if (cleanupFailure != null) {
             throw cleanupFailure;

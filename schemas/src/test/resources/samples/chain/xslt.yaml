@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "4d8090ef-1b73-442f-982c-030c5880d304"
 name: "XSLT"
 content:

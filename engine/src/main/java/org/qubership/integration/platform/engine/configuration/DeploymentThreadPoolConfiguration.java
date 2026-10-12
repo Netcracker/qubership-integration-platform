@@ -29,8 +29,8 @@ import java.util.concurrent.Executor;
 public class DeploymentThreadPoolConfiguration {
     @Bean(name = "deploymentExecutor")
     Executor deploymentExecutor(
-            @Value("${qip.deployments.thread-pool.core-size:3}") int corePoolSize,
-            @Value("${qip.deployments.thread-pool.max-size:3}") int maxPoolSize
+            @Value("${cip.deployments.thread-pool.core-size:3}") int corePoolSize,
+            @Value("${cip.deployments.thread-pool.max-size:3}") int maxPoolSize
     ) {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
         executor.setCorePoolSize(corePoolSize);

@@ -1,8 +1,8 @@
 # Configuration of the standalone testing-service binary.
 #
 # Every key can be overridden from the environment: uppercase it, replace the
-# dots with underscores and prefix it with QIP_TESTING_. For example
-# QIP_TESTING_POSTGRES_DSN sets postgres.dsn and QIP_TESTING_EXECUTION_WORKERS
+# dots with underscores and prefix it with CIP_TESTING_. For example
+# CIP_TESTING_POSTGRES_DSN sets postgres.dsn and CIP_TESTING_EXECUTION_WORKERS
 # sets execution.workers.
 
 server:
@@ -10,7 +10,7 @@ server:
 
 postgres:
   # The DSN can carry a password, so it is supplied per installation through
-  # QIP_TESTING_POSTGRES_DSN rather than shipped in the image. Its search_path
+  # CIP_TESTING_POSTGRES_DSN rather than shipped in the image. Its search_path
   # must name the same schema as postgres.schema below, which the binary creates
   # on startup:
   #   postgres://USER:PASSWORD@HOST:5432/DATABASE?sslmode=disable&search_path=testing_service
@@ -50,7 +50,6 @@ pprof:
   enabled: false
   bind: ":6060"
 
-# production is reported through GET /api/v1/mode, and the front end hides the
-# operations that are unsafe on a live installation while it is on. It is left
-# out here so that it stays on: an installation nobody told otherwise is treated
-# as a live one. Add `production: false` on a sandbox to show those operations.
+# The production mode is not read from this file. It comes from PRODUCTION_MODE,
+# the flag every service of the platform reads, and an installation that does
+# not set it is treated as a live one.

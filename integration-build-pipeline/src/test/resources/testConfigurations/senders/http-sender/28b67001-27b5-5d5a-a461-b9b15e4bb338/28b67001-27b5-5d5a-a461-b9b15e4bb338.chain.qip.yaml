@@ -1,0 +1,31 @@
+id: 28b67001-27b5-5d5a-a461-b9b15e4bb338
+$schema: http://qubership.org/schemas/product/qip/chain
+name: http-sender-correlation-body
+content:
+  labels: []
+  elements:
+  - id: b6aac2b6-31c1-558d-84d6-4f6c1bfdb754
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: b6aac2b6-31c1-558d-84d6-4f6c1bfdb754
+  - id: 449ab4ef-472a-5725-a6ff-6aea37be28d3
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=correlation-body
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      reuseEstablishedConnection: true
+      correlationIdPosition: Body
+      correlationIdName: requestId
+  dependencies:
+  - from: b6aac2b6-31c1-558d-84d6-4f6c1bfdb754
+    to: 449ab4ef-472a-5725-a6ff-6aea37be28d3
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

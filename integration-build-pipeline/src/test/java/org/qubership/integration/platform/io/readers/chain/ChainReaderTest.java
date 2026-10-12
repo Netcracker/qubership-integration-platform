@@ -25,6 +25,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.chain.model.ImportChain;
 import org.qubership.integration.platform.io.readers.migrations.FileMigrationService;
+import org.qubership.integration.platform.library.components.ElementDescriptorHelper;
 import org.qubership.integration.platform.library.components.LibraryElementsService;
 import org.qubership.integration.platform.library.configuration.ElementDescriptorProperties;
 import org.qubership.integration.platform.library.model.ElementDescriptor;
@@ -62,7 +63,7 @@ class ChainReaderTest {
         sender.setType(ElementType.MODULE);
         libraryService.registerElement(sender);
 
-        ChainModelMapper mapper = new ChainModelMapper(libraryService, new ChainElementPropertiesSubstitutor(new ObjectMapper()));
+        ChainModelMapper mapper = new ChainModelMapper(new ElementDescriptorHelper(libraryService), new ChainElementPropertiesSubstitutor(new ObjectMapper()));
 
         // Migration is exercised by its own tests; here it passes the document through unchanged.
         FileMigrationService fileMigrationService = mock(FileMigrationService.class);

@@ -33,7 +33,7 @@ import java.util.*;
 @Service
 public class FileMigrationService {
 
-    @Value("${qip.export.legacy-format}")
+    @Value("${cip.export.legacy-format}")
     private boolean isLegacyExport;
 
     private final YAMLMapper yamlMapper;

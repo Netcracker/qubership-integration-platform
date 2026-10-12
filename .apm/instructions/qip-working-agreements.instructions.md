@@ -17,3 +17,10 @@ Edit an unpushed migration in place. A Flyway or import-file migration that exis
 an unpushed branch is still editable, so keep the branch down to one new migration instead
 of layering a second one on top. Never add compatibility code between two migrations that
 no deployment has ever run.
+
+New PostgreSQL columns use `timestamptz` rather than `timestamp`, `text` rather than `varchar`,
+and `bytea` rather than a Large Object. The reasoning is in
+`infrastructure/docs/adr/0001-guideline-on-postgresql-types.md`.
+
+The repository is Apache 2.0. Existing sources carry the NetCracker copyright header; a file
+you create does not need it.

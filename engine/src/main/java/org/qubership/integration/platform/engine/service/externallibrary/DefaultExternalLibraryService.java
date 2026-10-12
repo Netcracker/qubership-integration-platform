@@ -38,7 +38,7 @@ public class DefaultExternalLibraryService implements ExternalLibraryService {
     private static final String RUNTIME_CATALOG_DOWNLOAD_DTO_JAR_ENDPOINT_TEMPLATE = "/v1/models/{id}/dto/jar";
     private static final String LIBRARIES_PATH = "/tmp/cip-engine-libraries";
 
-    @Value("${qip.internal-services.runtime-catalog.url}")
+    @Value("${cip.internal-services.runtime-catalog.url}")
     private String runtimeCatalogUrl;
 
     private final RestTemplate restTemplateMS;

@@ -1,1 +1,1 @@
-exchange.getMessage().setBody("On Fallback");
+exchange.getMessage().setBody('On Fallback')

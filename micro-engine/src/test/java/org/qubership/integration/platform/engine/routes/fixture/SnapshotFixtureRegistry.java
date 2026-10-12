@@ -38,6 +38,7 @@ public class SnapshotFixtureRegistry {
         return new SnapshotFixtureRegistry(List.of(
                 new CamelEndpointSnapshotFixtureProvider(),
                 new HttpServiceCallSnapshotFixtureProvider(),
+                new HttpSenderSnapshotFixtureProvider(),
                 new GraphqlHttpSnapshotFixtureProvider(),
                 new CircuitBreakerSnapshotFixtureProvider(),
                 new CheckpointSnapshotFixtureProvider(),
@@ -45,6 +46,7 @@ public class SnapshotFixtureRegistry {
                 new LogCaptureSnapshotFixtureProvider(),
                 new AsyncFlowSnapshotFixtureProvider(),
                 new ParallelBarrierSnapshotFixtureProvider(),
+                new SplitTimeoutSnapshotFixtureProvider(),
                 new KafkaContainerSnapshotFixtureProvider(),
                 new RabbitMqContainerSnapshotFixtureProvider(),
                 new ArtemisJmsContainerSnapshotFixtureProvider(),
@@ -157,6 +159,20 @@ public class SnapshotFixtureRegistry {
             throw new IllegalArgumentException(
                     "Snapshot fixture '" + definition.getId() + "' using provider '" + provider.getId()
                             + "' does not support expectedState."
+            );
+        }
+        if (interaction.getAwaitState() != null && !provider.supportsAwaitState()) {
+            throw new IllegalArgumentException(
+                    "Snapshot fixture '" + definition.getId() + "' using provider '" + provider.getId()
+                            + "' does not support awaitState."
+            );
+        }
+        if (interaction.getResponse() != null
+                && interaction.getResponse().getDelayMillis() != null
+                && !provider.supportsResponseDelay()) {
+            throw new IllegalArgumentException(
+                    "Snapshot fixture '" + definition.getId() + "' using provider '" + provider.getId()
+                            + "' does not support response.delayMillis."
             );
         }
     }

@@ -1,0 +1,31 @@
+id: 5d3f56b0-7207-59ca-a5d4-826f893b071f
+$schema: http://qubership.org/schemas/product/qip/chain
+name: http-sender-context-disabled
+content:
+  labels: []
+  elements:
+  - id: 1b6bcbe7-6269-5349-8457-39d8e6f80c30
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: 1b6bcbe7-6269-5349-8457-39d8e6f80c30
+  - id: d7b260a2-3753-5067-b8df-5d90cf466601
+    name: HTTP sender
+    type: http-sender
+    properties:
+      httpMethod: POST
+      uri: http://snapshot-http.invalid/api/v1/items?source=snapshot&mode=context-disabled
+      connectTimeout: 5000
+      isExternalCall: false
+      m2m: false
+      propagateContext: false
+      reuseEstablishedConnection: true
+      overrideContextParams:
+        X-Request-Id: ignored-disabled-override
+  dependencies:
+  - from: 1b6bcbe7-6269-5349-8457-39d8e6f80c30
+    to: d7b260a2-3753-5067-b8df-5d90cf466601
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

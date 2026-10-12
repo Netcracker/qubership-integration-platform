@@ -14,19 +14,27 @@ public class SnapshotFixtureExchangeExpectation {
     private final boolean bodyDefined;
     private final Map<String, Object> headers;
     private final Map<String, Object> properties;
+    private final SnapshotFailureExpectation expectedFailure;
 
     @JsonCreator
     public SnapshotFixtureExchangeExpectation(
             @JsonProperty("count") Integer count,
             @JsonProperty("body") JsonNode body,
             @JsonProperty("headers") Map<String, Object> headers,
-            @JsonProperty("properties") Map<String, Object> properties
+            @JsonProperty("properties") Map<String, Object> properties,
+            @JsonProperty("expectedFailure") JsonNode expectedFailure
     ) {
         this.count = count == null ? 1 : requireNonNegative(count);
         this.bodyDefined = body != null;
         this.body = SnapshotExpectedValues.toJavaValue(body);
         this.headers = immutableMapOrEmpty(headers);
         this.properties = immutableMapOrEmpty(properties);
+        this.expectedFailure = expectedFailure == null
+                ? null
+                : SnapshotFailureExpectation.parse(
+                        expectedFailure,
+                        "Snapshot fixture expectedExchanges[].expectedFailure"
+                );
     }
 
     public int getCount() {
@@ -47,6 +55,10 @@ public class SnapshotFixtureExchangeExpectation {
 
     public Map<String, Object> getProperties() {
         return properties;
+    }
+
+    public SnapshotFailureExpectation getExpectedFailure() {
+        return expectedFailure;
     }
 
     private static int requireNonNegative(int value) {

@@ -1,6 +1,6 @@
 ---
 description: Monorepo layout, top-level build commands, branch model, CI, and the release process.
-globs: "**/*"
+globs: **/*
 ---
 
 ### Monorepo nature
@@ -16,7 +16,8 @@ module, scoped by `applyTo` to that module's path:
 - `schemas` — JSON Schema sources + ts-node build/codegen pipeline (npm + Maven publish)
 - `vscode-extension` — offline web extension, embeds `@netcracker/qip-ui`
 - `infrastructure` — Docker Compose + Helm for the local stack
-- `testing-service` — chain test cases and endpoint mocks; the repository's only Go module, with a hand-maintained `testing-service/AGENTS.md`
+- `testing-service` — chain test cases and endpoint mocks; the repository's only Go module, built with the Go toolchain rather than Maven or npm
+- `e2e` — the end-to-end suite (Playwright) against a local stack, Docker Compose or a Kubernetes cluster (`CIP_TARGET`); outside the npm workspaces, with its own `package.json` and lockfile
 - `integration-build-pipeline` — `qip-integration-build-pipeline`, the chain-compilation library runtime-catalog depends on (codegen, parsers, mapper, library, chain, io). No instruction of its own yet.
 
 The `ui` module is covered by the four `ui-*` skills rather than an instruction, because its
@@ -32,13 +33,12 @@ Edit these instructions under `.apm/`, never the generated `AGENTS.md` files.
 
 ```bash
 mvn clean install -Dgpg.skip=true              # Build all Java modules (see <modules> in the root pom.xml)
-mvn -pl engine -am clean install -Dgpg.skip=true   # Single module + its dependencies
+mvn -pl engine -am package -Dgpg.skip=true   # Single module + its dependencies, nothing written to ~/.m2
 ```
 
 `-Dgpg.skip=true` is required locally (GPG signing is configured in `parent/pom.xml` for release publishing).
 
-Published Maven artifacts retain their original coordinates — the monorepo did not rename them:
-`qip-engine`, `qip-runtime-catalog`, `qip-sessions-management`, `qip-micro-engine`, `qip-checkstyle`, `qip-integration-build-pipeline` (all under `org.qubership.integration.platform`).
+Consolidation did not rename any published artifact; each module's POM still carries its original coordinates.
 
 #### npm workspaces (root `package.json`)
 
@@ -58,7 +58,7 @@ Node `>=22` required (see `engines` in root `package.json`).
 docker compose -f infrastructure/docker-compose.yml up -d --build
 ```
 
-See the `infrastructure` instruction and `infrastructure/README.md` for sibling-repo expectations, ports, and optional compose files (`docker-compose.kafka.yml`, `.rabbitmq.yml`, `.redis.yml`, `.pubsub.yml`).
+See the `infrastructure` instruction and `infrastructure/README.md` for sibling-repo expectations, ports, and optional compose files (`docker-compose.kafka.yml`, `.rabbitmq.yml`, `.redis.yml`, `.pubsub.yml`, `.sftp.yml`).
 
 ### Build order between workspaces
 
@@ -82,22 +82,17 @@ When working on feature branches, expect Maven to fail without GitHub Packages c
 
 ### CI workflows
 
-`.github/workflows/` is organized by module with a consistent `<module>-build.yaml` / `<module>-release.yaml` pair (`engine-build.yaml`, `runtime-catalog-build.yaml`, `ui-build.yaml`, etc.) plus repo-wide ones: `release-all.yaml`, `pr-conventional-commits.yaml`, `pr-lint-title.yaml`, `super-linter.yaml`. **Conventional Commits** is enforced on PR titles and commit messages — non-conforming PRs are rejected at the CI gate.
+Each module owns a `<module>-build.yaml` / `<module>-release.yaml` pair under `.github/workflows/`, alongside the repo-wide workflows. **Conventional Commits** is enforced on PR titles and commit messages — non-conforming PRs are rejected at the CI gate.
 
 ### Release process
 
-Version-type driven — you never type a version number. Pick `patch`/`minor`/`major` (a `*-release.yaml` dispatch, or `release-all.yaml` for a wave): the version is computed from the file in the repo, published, tagged (`<module>-vX.Y.Z`), and the bumped version is committed back to the branch as `qubership-actions[bot]`. The file in the repo is the source of truth for the next version.
-
-- **Maven** (`${revision}${changelist}`, reusable `_maven-module-release.yaml`): releases the current `<revision>`; `release-type` sets the next dev `<revision>`.
-- **micro-engine** is the exception — it publishes to GitHub Packages (`profile=github`, fixed in its wrapper) because its private `com.netcracker.cloud` deps are not on Central.
-- **npm** (`npm version`, reusable `_npm-module-release.yaml`): bumps `package.json` by `release-type` and releases that; cascade schemas → ui → vscode-extension is auto-`patch`.
-- The bump commit is pushed via the runner token, so `github-actions[bot]` must be allowed to bypass branch protection on the target branch — otherwise the next release of a module fails (its tag already exists). `scripts/commit-and-push.sh` does the commit + rebase-retry push (shared by both reusables).
-- Optional `version` input overrides the computed version for edge cases (first release, explicit jump).
-- **Snapshot/dev publish** (on-demand, GitHub Packages only, no tag/bump/commit/GitHub Release): Maven → `snapshot-publish.yaml` (current `X.Y.Z-SNAPSHOT`); npm → `snapshot-publish-npm.yaml` (ephemeral `<next>-dev.<UTC-ts>` under dist-tag `dev`, for `ui`/`vscode-extension`). For testing unreleased branch code in consumers — runnable from any branch.
+A release is version-type driven: you pick `patch`, `minor`, or `major` and never a version
+number, and the workflow computes, publishes, tags, and commits the bump back. When cutting a release, running a
+release wave, or publishing a snapshot, apply the `release-process` skill.
 
 ### Cross-module change tips
 
 - A change touching schemas + UI + vscode-extension usually only needs `npm install` once at the root — workspace symlinks propagate. No publish step required for local testing.
-- A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am install -Dgpg.skip=true`.
+- A Java change rarely needs the full aggregator build; prefer `mvn -pl <module> -am package -Dgpg.skip=true`. `install` writes the branch's snapshots to the shared `~/.m2`, where every other checkout and worktree builds against them.
 - The `parent/` POM controls Spring Boot, MapStruct, Lombok, Checkstyle, JaCoCo versions for every Spring module — bump dependency versions there, not in module POMs.
 - The `qip-checkstyle` rules version is pinned via `qip-checkstyle-revision` in `parent/pom.xml`. Java modules also keep a `checkstyle-suppressions.xml` for module-local exceptions.

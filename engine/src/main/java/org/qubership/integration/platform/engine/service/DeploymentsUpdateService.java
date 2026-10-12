@@ -42,7 +42,7 @@ public class DeploymentsUpdateService {
     private final ServerConfiguration serverConfiguration;
     private final RestTemplate restTemplate;
 
-    @Value("${qip.internal-services.runtime-catalog.url}")
+    @Value("${cip.internal-services.runtime-catalog.url}")
     private String runtimeCatalogUrl;
 
     @Autowired

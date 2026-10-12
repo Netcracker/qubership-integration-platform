@@ -20,8 +20,11 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.time.DurationFormatUtils;
+import org.qubership.integration.platform.chain.model.Element;
 import org.qubership.integration.platform.io.factories.SnapshotWriterFactory;
 import org.qubership.integration.platform.io.model.DataFormat;
+import org.qubership.integration.platform.runtime.catalog.adapters.ChainAdapter;
+import org.qubership.integration.platform.runtime.catalog.adapters.ChainElementAdapter;
 import org.qubership.integration.platform.runtime.catalog.adapters.SnapshotAdapter;
 import org.qubership.integration.platform.runtime.catalog.context.RequestIdContext;
 import org.qubership.integration.platform.runtime.catalog.exception.exceptions.SnapshotCreationException;
@@ -40,8 +43,8 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.re
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.DependencyRepository;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.chain.ElementRepository;
 import org.qubership.integration.platform.runtime.catalog.service.helpers.ChainFinderService;
-import org.qubership.integration.platform.runtime.catalog.service.verification.ElementPropertiesVerificationService;
-import org.qubership.integration.platform.runtime.catalog.service.verification.properties.VerificationError;
+import org.qubership.integration.platform.verification.ElementPropertiesVerificationService;
+import org.qubership.integration.platform.verification.properties.VerificationError;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.lang.NonNull;
@@ -221,15 +224,15 @@ public class SnapshotService {
     }
 
     private void verifyElementProperties(Chain chain) {
-        Map<ChainElement, Collection<VerificationError>> errorMap =
-            elementPropertiesVerificationService.verifyElementProperties(chain);
+        Map<Element, Collection<VerificationError>> errorMap =
+            elementPropertiesVerificationService.verifyElementProperties(new ChainAdapter(chain));
         if (!errorMap.isEmpty()) {
             errorMap.forEach((element, errors) -> errors.forEach(
                 error -> log.error("Chain '{}' ({}), element '{}' ({}) properties verification error: {}",
                     chain.getName(), chain.getId(), element.getName(), element.getId(), error.message()))
             );
-            Map.Entry<ChainElement, Collection<VerificationError>> entry = errorMap.entrySet().iterator().next();
-            ChainElement element = entry.getKey();
+            Map.Entry<Element, Collection<VerificationError>> entry = errorMap.entrySet().iterator().next();
+            ChainElement element = ((ChainElementAdapter) entry.getKey()).getChainElement();
             String message = entry.getValue().stream().findFirst().map(VerificationError::message).orElse("");
             throw new SnapshotCreationException(message, element);
         }

@@ -38,7 +38,7 @@ public class CamelServletConfiguration {
     public static final String CAMEL_SERVLET_NAME = "CamelServlet";
     public static final String CAMEL_ROUTES_LEGACY_PREFIX = "/routes";
 
-    @Value("${qip.camel.routes.prefix}")
+    @Value("${cip.camel.routes.prefix}")
     private String routePrefix;
 
     /**

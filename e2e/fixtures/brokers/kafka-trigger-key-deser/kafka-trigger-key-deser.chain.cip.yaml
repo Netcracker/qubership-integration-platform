@@ -1,0 +1,38 @@
+---
+id: "e2e0f004-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-kafka-trigger-key-deser"
+description: "kafka-trigger-2 with keyDeserializer=ByteArrayDeserializer, the one non-default value\
+  \ the suite runs for the axis; valueDeserializer stays at its default."
+content:
+  labels: []
+  elements:
+  - id: "e2e0f004-0000-4000-8000-000000000002"
+    name: "Kafka Trigger"
+    type: "kafka-trigger-2"
+    properties:
+      connectionSourceType: "manual"
+      brokers: "kafka:29092"
+      topics: "e2e-{{RUN}}-kafka-trigger-key-deser"
+      securityProtocol: "PLAINTEXT"
+      saslMechanism: "GSSAPI"
+      sslProtocol: "TLS"
+      groupId: "e2e-{{RUN}}-kafka-trigger-key-deser"
+      consumerConsistencyMode: "EVENTUAL"
+      autoOffsetReset: "latest"
+      keyDeserializer: "org.apache.kafka.common.serialization.ByteArrayDeserializer"
+      valueDeserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      idempotency:
+        enabled: false
+  - id: "e2e0f004-0000-4000-8000-000000000003"
+    name: "Header Modification"
+    type: "header-modification"
+    properties:
+      headerModificationToAdd:
+        e2e-fixture: "{{RUN}}"
+      headerModificationToRemove: []
+  dependencies:
+  - from: "e2e0f004-0000-4000-8000-000000000002"
+    to: "e2e0f004-0000-4000-8000-000000000003"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

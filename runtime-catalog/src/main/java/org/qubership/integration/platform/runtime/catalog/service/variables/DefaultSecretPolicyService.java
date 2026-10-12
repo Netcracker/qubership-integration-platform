@@ -33,7 +33,7 @@ public class DefaultSecretPolicyService {
 
     public DefaultSecretPolicyService(
             SecretService secretService,
-            @Value("${qip.variables.default-secret.enabled:false}") boolean defaultSecretEnabled) {
+            @Value("${cip.variables.default-secret.enabled:false}") boolean defaultSecretEnabled) {
         this.secretService = secretService;
         this.defaultSecretEnabled = defaultSecretEnabled;
     }

@@ -27,6 +27,7 @@ final class ImportConstants {
 
     static final String CONTAINER = "container";
     static final String SERVICE_CALL = "service-call";
+    static final String HTTP_TRIGGER = "http-trigger";
 
     static final String FILE_NAME_PROPERTY = "propertiesFilename";
     static final String PROPS_EXPORT_IN_SEPARATE_FILE_PROPERTY = "propertiesToExportInSeparateFile";
@@ -34,6 +35,8 @@ final class ImportConstants {
 
     static final String AFTER = "after";
     static final String BEFORE = "before";
+    static final String HANDLER_CONTAINER = "handlerContainer";
+    static final String CHAIN_FAILURE_HANDLER_CONTAINER = "chainFailureHandlerContainer";
     static final String TYPE = "type";
     static final String SCRIPT = "script";
     static final String MAPPER = "mapper";

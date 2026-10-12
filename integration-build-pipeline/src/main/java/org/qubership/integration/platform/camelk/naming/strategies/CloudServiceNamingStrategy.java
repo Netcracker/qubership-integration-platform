@@ -19,7 +19,7 @@ public class CloudServiceNamingStrategy extends K8sResourceNamingStrategy<Resour
     public CloudServiceNamingStrategy(
         K8sNameVerifier nameVerifier,
 
-        @Value("${qip.cr.naming.prefix:}")
+        @Value("${cip.cr.naming.prefix:}")
         String prefix
     ) {
         super(nameVerifier);

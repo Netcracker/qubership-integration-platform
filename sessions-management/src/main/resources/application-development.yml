@@ -14,9 +14,9 @@ spring:
       config:
         m2m:
           enabled: false
-        acl-token: ${CONSUL_ADMIN_TOKEN}
+        acl-token: ${CONSUL_ADMIN_TOKEN:}
 
-qip:
+cip:
   standalone: true
   internal-services:
     runtime-catalog: qip-runtime-catalog

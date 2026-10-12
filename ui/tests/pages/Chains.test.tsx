@@ -11,6 +11,25 @@ import { CatalogItemType, FolderItem, ChainItem } from "../../src/api/apiTypes";
 
 const mockNavigate = jest.fn();
 let mockSearchParams = new URLSearchParams();
+let mockCapturedEnsureChainLoaded:
+  | ((record: FolderItem | ChainItem) => Promise<React.Key[]>)
+  | undefined;
+
+jest.mock("../../src/components/table/useTableRowExpandCollapse", () => {
+  const actual = jest.requireActual(
+    "../../src/components/table/useTableRowExpandCollapse",
+  );
+  return {
+    ...actual,
+    useTableRowExpandCollapse: (opts: {
+      getSubtreeIds: (record: unknown) => React.Key[];
+      ensureLoaded?: (record: unknown) => Promise<React.Key[]>;
+    }) => {
+      mockCapturedEnsureChainLoaded = opts.ensureLoaded;
+      return actual.useTableRowExpandCollapse(opts);
+    },
+  };
+});
 
 const mockFolder: FolderItem = {
   id: "folder-1",
@@ -81,18 +100,21 @@ jest.mock("../../src/hooks/useGenerateDds.tsx", () => ({
 }));
 
 const mockRequestFailed = jest.fn();
+const mockNotificationService = {
+  requestFailed: mockRequestFailed,
+  errorWithDetails: jest.fn(),
+  info: jest.fn(),
+  warning: jest.fn(),
+};
 jest.mock("../../src/hooks/useNotificationService", () => ({
-  useNotificationService: () => ({
-    requestFailed: mockRequestFailed,
-    errorWithDetails: jest.fn(),
-    info: jest.fn(),
-    warning: jest.fn(),
-  }),
+  useNotificationService: () => mockNotificationService,
 }));
 
+const mockChainFilters: import("../../src/components/table/filter/filterTypes").EntityFilterModel[] =
+  [];
 jest.mock("../../src/hooks/useChainFilter", () => ({
   useChainFilters: () => ({
-    filters: [],
+    filters: mockChainFilters,
     filterButton: <button data-testid="filter-btn">Filter</button>,
   }),
 }));
@@ -305,6 +327,7 @@ describe("Chains page", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockSearchParams = new URLSearchParams();
+    mockCapturedEnsureChainLoaded = undefined;
     mockApi.listFolder.mockResolvedValue([]);
     mockApi.getPathToFolder.mockResolvedValue([]);
   });
@@ -825,5 +848,215 @@ describe("Chains page", () => {
         parentId: "folder-1",
       }),
     );
+  });
+
+  describe("ensureChainSubtreeLoaded", () => {
+    const makeFolder = (
+      id: string,
+      name: string,
+      parentId?: string,
+    ): FolderItem => ({
+      id,
+      name,
+      description: "",
+      itemType: CatalogItemType.FOLDER,
+      ...(parentId ? { parentId } : {}),
+    });
+
+    const makeChain = (
+      id: string,
+      name: string,
+      parentId?: string,
+    ): ChainItem => ({
+      id,
+      name,
+      description: "",
+      itemType: CatalogItemType.CHAIN,
+      labels: [],
+      ...(parentId ? { parentId } : {}),
+    });
+
+    const renderAndCaptureEnsureLoaded = async (
+      rootItems: (FolderItem | ChainItem)[] = [],
+    ) => {
+      mockApi.listFolder.mockResolvedValue(rootItems);
+      render(<Chains />);
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: undefined }),
+        ),
+      );
+      await waitFor(() => expect(mockCapturedEnsureChainLoaded).toBeDefined());
+      return mockCapturedEnsureChainLoaded!;
+    };
+
+    it("should return only the chain id when record is not a folder", async () => {
+      const ensureLoaded = await renderAndCaptureEnsureLoaded([mockChain]);
+      mockApi.listFolder.mockClear();
+
+      const result = await ensureLoaded(mockChain);
+      expect(result).toEqual(["chain-1"]);
+      expect(mockApi.listFolder).not.toHaveBeenCalled();
+    });
+
+    it("should fetch an unloaded folder subtree and return descendant folder ids", async () => {
+      const childFolder = makeFolder("folder-1-1", "Child", "folder-1");
+      const childChain = makeChain("chain-child", "Child Chain", "folder-1");
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === "folder-1") {
+            return [childFolder, childChain];
+          }
+          if (req.folderId === "folder-1-1") {
+            return [];
+          }
+          return [mockFolder];
+        },
+      );
+      render(<Chains />);
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: undefined }),
+        ),
+      );
+      await waitFor(() => expect(mockCapturedEnsureChainLoaded).toBeDefined());
+      const ensureLoaded = mockCapturedEnsureChainLoaded!;
+      mockApi.listFolder.mockClear();
+
+      const result = await ensureLoaded(mockFolder);
+
+      expect(mockApi.listFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: "folder-1" }),
+      );
+      expect(mockApi.listFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: "folder-1-1" }),
+      );
+      // Only folders are part of the expand/collapse subtree; chains are not.
+      expect(result).toEqual(
+        expect.arrayContaining(["folder-1", "folder-1-1"]),
+      );
+      expect(result).not.toContain("chain-child");
+    });
+
+    it("should reuse cached child folders when the folder is expanded again", async () => {
+      const childFolder = makeFolder("folder-1-1", "Child", "folder-1");
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === "folder-1") {
+            return [childFolder];
+          }
+          if (req.folderId === "folder-1-1") {
+            return [];
+          }
+          return [mockFolder];
+        },
+      );
+      render(<Chains />);
+      await waitFor(() => expect(mockCapturedEnsureChainLoaded).toBeDefined());
+      const firstEnsure = mockCapturedEnsureChainLoaded!;
+      mockApi.listFolder.mockClear();
+
+      await firstEnsure(mockFolder);
+      const callsAfterFirst = mockApi.listFolder.mock.calls.length;
+      expect(callsAfterFirst).toBeGreaterThan(0);
+
+      await waitFor(() =>
+        expect(mockCapturedEnsureChainLoaded).not.toBe(firstEnsure),
+      );
+      const freshEnsure = mockCapturedEnsureChainLoaded!;
+      mockApi.listFolder.mockClear();
+
+      const result = await freshEnsure(mockFolder);
+
+      // The already-loaded child folder is reused without another fetch.
+      expect(mockApi.listFolder).toHaveBeenCalledTimes(1);
+      expect(mockApi.listFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: "folder-1" }),
+      );
+      expect(result).toEqual(
+        expect.arrayContaining(["folder-1", "folder-1-1"]),
+      );
+    });
+
+    it("should notify and return local ids when folder content fails to load", async () => {
+      const ensureLoaded = await renderAndCaptureEnsureLoaded([mockFolder]);
+      mockApi.listFolder.mockRejectedValue(new Error("boom"));
+      mockRequestFailed.mockClear();
+
+      const result = await ensureLoaded(mockFolder);
+
+      expect(mockRequestFailed).toHaveBeenCalledWith(
+        "Failed to get folder content",
+        expect.any(Error),
+      );
+      expect(result).toEqual(["folder-1"]);
+    });
+
+    it("should load nested folders recursively", async () => {
+      const level1 = makeFolder("folder-1-1", "Level 1", "folder-1");
+      const level2 = makeFolder("folder-1-1-1", "Level 2", "folder-1-1");
+      const leafChain = makeChain("chain-leaf", "Leaf", "folder-1-1-1");
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === undefined) {
+            return [mockFolder];
+          }
+          if (req.folderId === "folder-1") {
+            return [level1];
+          }
+          if (req.folderId === "folder-1-1") {
+            return [level2];
+          }
+          return [leafChain];
+        },
+      );
+      render(<Chains />);
+      await waitFor(() => expect(mockCapturedEnsureChainLoaded).toBeDefined());
+      const ensureLoaded = mockCapturedEnsureChainLoaded!;
+      mockApi.listFolder.mockClear();
+
+      const result = await ensureLoaded(mockFolder);
+
+      expect(mockApi.listFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: "folder-1" }),
+      );
+      expect(mockApi.listFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: "folder-1-1" }),
+      );
+      expect(mockApi.listFolder).toHaveBeenCalledWith(
+        expect.objectContaining({ folderId: "folder-1-1-1" }),
+      );
+      expect(result).toEqual(
+        expect.arrayContaining(["folder-1", "folder-1-1", "folder-1-1-1"]),
+      );
+    });
+
+    it("should load the subtree when Expand All is clicked in the folder menu", async () => {
+      const nestedChain = makeChain("chain-nested", "Nested Chain", "folder-1");
+      mockApi.listFolder.mockImplementation(
+        async (req: { folderId?: string }) => {
+          if (req.folderId === "folder-1") {
+            return [nestedChain];
+          }
+          return [mockFolder];
+        },
+      );
+      render(<Chains />);
+      await waitFor(() =>
+        expect(screen.getByText("Test Folder")).toBeInTheDocument(),
+      );
+
+      mockApi.listFolder.mockClear();
+      fireEvent.click(screen.getByTestId("menu-item-expandAll"));
+
+      await waitFor(() =>
+        expect(mockApi.listFolder).toHaveBeenCalledWith(
+          expect.objectContaining({ folderId: "folder-1" }),
+        ),
+      );
+      await waitFor(() =>
+        expect(screen.getByText("Nested Chain")).toBeInTheDocument(),
+      );
+    });
   });
 });

@@ -22,7 +22,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import java.util.Properties;
 
 @AllArgsConstructor
-@ConfigurationProperties(prefix = "qip.element-descriptors")
+@ConfigurationProperties(prefix = "cip.element-descriptors")
 public class ElementDescriptorProperties {
 
     private Properties properties;

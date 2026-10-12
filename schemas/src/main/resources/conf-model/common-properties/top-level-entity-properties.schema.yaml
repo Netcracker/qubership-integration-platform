@@ -1,0 +1,29 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/top-level-entity-properties
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: TopLevel Entity Properties
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  $schema:
+    type: string
+  id:
+    type: string
+    title: Identifier
+  name:
+    type: string
+    title: Name
+  metaInfo:
+    type: object
+    properties:
+      group:
+        type: string
+        pattern: ^([^\/:*?"<>|,;\\]+)(\/[^\/:*?"<>|,;\\]+)*$
+required:
+  - $schema
+  - id
+  - name
+

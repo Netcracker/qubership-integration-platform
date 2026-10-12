@@ -2,6 +2,7 @@ import {
   ChainCommitRequestAction,
   ChainImportInstructions,
   ChainImportPreview,
+  DomainType,
   EngineDomain,
   ImportChainResult,
   ImportEntityStatus,
@@ -41,9 +42,16 @@ import { SelectEdit } from "../table/SelectEdit.tsx";
 import { StatusTag } from "../labels/StatusTag.tsx";
 import { useNotificationService } from "../../hooks/useNotificationService.tsx";
 import { OverridableIcon } from "../../icons/IconProvider.tsx";
-import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 import { ChainDiffPopup } from "../chains/diff/ChainDiffPopup.tsx";
 import { useModalsContext } from "../../Modals.tsx";
+import { EngineDomainItem } from "../EngineDomainItem.tsx";
+import {
+  getDomainOptionNode,
+  getDomainType,
+  resolveDomains,
+  useDomainTypes,
+} from "../SelectDomains.tsx";
 
 /** rc-table selection column when `rowSelection` is set; not in `columns`. */
 const IMPORT_PREVIEW_SELECTION_COLUMN_WIDTH = 48;
@@ -133,6 +141,10 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     React.Key[]
   >([]);
   const [domains, setDomains] = useState<EngineDomain[]>([]);
+  const [domainsLoaded, setDomainsLoaded] = useState<boolean>(false);
+  const microDomainsEnabled = useDomainTypes().domainTypes.includes(
+    DomainType.MICRO,
+  );
   const [validateByHashChecked, setValidateByHashChecked] =
     useState<boolean>(false);
   const [, setPreviewImportInstructionTableItems] = useState<
@@ -172,7 +184,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
   const getDomains = useCallback(async () => {
     setLoading(true);
     try {
-      return api.getDomains();
+      return await api.getDomains();
     } catch (error) {
       notificationService.requestFailed("Failed to get domains", error);
       return [];
@@ -187,23 +199,29 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
       setSelectedVariableRowKeys(
         importPreview?.variables?.map((i) => i.name) ?? [],
       );
-      void getDomains().then(setDomains);
+      void getDomains().then((loadedDomains) => {
+        setDomains(loadedDomains);
+        setDomainsLoaded(true);
+      });
     }
   }, [getDomains, importPreview, previewServices]);
 
   useEffect(() => {
-    if (importPreview) {
+    // Before the domains arrive, every archive domain looks unlisted and would show as a micro-domain.
+    if (importPreview && domainsLoaded) {
       setPreviewImportChainTableItems(
         importPreview.chains?.map((i, index) => ({
           ...i,
           id: i.id ?? index,
-          domains: domains?.filter((domain) =>
-            i.deployments?.some((d) => d.domain === domain.id),
+          domains: resolveDomains(
+            i.deployments?.map((d) => d.domain) ?? [],
+            domains,
+            microDomainsEnabled,
           ),
         })) ?? [],
       );
     }
-  }, [importPreview, domains]);
+  }, [importPreview, domains, domainsLoaded, microDomainsEnabled]);
 
   useEffect(() => {
     setResultImportInstructionTableItems([
@@ -424,12 +442,25 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                     label: i.name,
                     value: i.id,
                   }))}
+                  selectProps={{
+                    // Tags mode turns a typed name into a value on Enter, as SelectDomains does.
+                    mode: microDomainsEnabled ? "tags" : "multiple",
+                    labelRender: (props) => getDomainOptionNode(props, domains),
+                    optionRender: (props) =>
+                      getDomainOptionNode(props, domains),
+                  }}
                 />
               }
               viewer={
                 <Flex gap="4px 4px" wrap>
                   {item.domains.map((i) => (
-                    <Tag key={i.id}>{i.name}</Tag>
+                    <Tag key={i.id}>
+                      <EngineDomainItem
+                        variant={"outlined"}
+                        name={i.name}
+                        type={getDomainType(i.id, domains)}
+                      />
+                    </Tag>
                   ))}
                 </Flex>
               }
@@ -439,8 +470,10 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
                     i.id === item.id
                       ? {
                           ...i,
-                          domains: domains.filter((d) =>
-                            values.domains.includes(d.id),
+                          domains: resolveDomains(
+                            values.domains,
+                            domains,
+                            microDomainsEnabled,
                           ),
                         }
                       : i,
@@ -512,7 +545,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
           ),
         },
       ],
-      [domains, previewImportChainTableItems],
+      [domains, microDomainsEnabled, previewImportChainTableItems],
     );
 
   const resultChainTableColumns: TableProps<ImportChainResult>["columns"] =
@@ -594,7 +627,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: previewChainColumnsResized,
     scrollX: previewChainScrollX,
     components: previewChainComponents,
-  } = useColumnsWithResizeAndScroll(previewChainTableColumns, {
+  } = useTableConfiguration(previewChainTableColumns, {
     name: 180,
     id: 220,
     domains: 220,
@@ -606,7 +639,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: previewServiceColumnsResized,
     scrollX: previewServiceScrollX,
     components: previewServiceComponents,
-  } = useColumnsWithResizeAndScroll(
+  } = useTableConfiguration(
     PREVIEW_IMPORT_SERVICE_TABLE_COLUMNS,
     {
       name: 240,
@@ -621,7 +654,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: previewVariablesColumnsResized,
     scrollX: previewVariablesScrollX,
     components: previewVariablesComponents,
-  } = useColumnsWithResizeAndScroll(
+  } = useTableConfiguration(
     PREVIEW_IMPORT_COMMON_VARIABLES_TABLE_COLUMNS,
     {
       name: 200,
@@ -637,7 +670,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: resultChainColumnsResized,
     scrollX: resultChainScrollX,
     components: resultChainComponents,
-  } = useColumnsWithResizeAndScroll(resultChainTableColumns, {
+  } = useTableConfiguration(resultChainTableColumns, {
     name: 220,
     id: 260,
     status: 180,
@@ -647,7 +680,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: resultServiceColumnsResized,
     scrollX: resultServiceScrollX,
     components: resultServiceComponents,
-  } = useColumnsWithResizeAndScroll(resultServiceTableColumns, {
+  } = useTableConfiguration(resultServiceTableColumns, {
     name: 220,
     id: 260,
     status: 180,
@@ -657,7 +690,7 @@ export const ImportChains: React.FC<ImportChainsProps> = ({ onSuccess }) => {
     columnsWithResize: resultVariablesColumnsResized,
     scrollX: resultVariablesScrollX,
     components: resultVariablesComponents,
-  } = useColumnsWithResizeAndScroll(RESULT_COMMON_VARIABLES_TABLE_COLUMNS, {
+  } = useTableConfiguration(RESULT_COMMON_VARIABLES_TABLE_COLUMNS, {
     name: 200,
     value: 200,
     status: 180,

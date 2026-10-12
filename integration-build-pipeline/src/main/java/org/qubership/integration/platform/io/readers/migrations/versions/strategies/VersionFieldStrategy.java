@@ -28,7 +28,7 @@ import java.util.stream.IntStream;
 
 import static org.qubership.integration.platform.io.readers.migrations.ImportFileMigration.IMPORT_VERSION_FIELD_OLD;
 
-@Order(Ordered.LOWEST_PRECEDENCE)
+@Order(Ordered.LOWEST_PRECEDENCE - 1)
 @Component
 public class VersionFieldStrategy implements VersionsGetterStrategy {
     @Override

@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "5a21177d-c375-4fe4-b233-a9a564b2b710"
 name: "Checkpoint"
 content:

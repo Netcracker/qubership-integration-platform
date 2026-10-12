@@ -129,6 +129,7 @@ export const ChainDiffTextView = forwardRef<
   return (
     <DiffEditor
       className="qip-editor"
+      wrapperProps={{ "data-testid": "chain-diff-editor" }}
       originalLanguage={"yaml"}
       modifiedLanguage={"yaml"}
       original={yaml1}

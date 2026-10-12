@@ -251,16 +251,14 @@ describe("Snapshots chain header toolbar", () => {
     expect(
       within(slot).getByTestId("protected-btn-delete-selected-snapshots"),
     ).toBeInTheDocument();
-    expect(
-      within(slot).getByTestId("protected-btn-create-snapshot"),
-    ).toBeInTheDocument();
+    expect(within(slot).getByTestId("snapshots-create")).toBeInTheDocument();
   });
 
   test("Create snapshot calls api.createSnapshot", async () => {
     renderSnapshots();
 
     const slot = await waitFor(() => screen.getByTestId("chain-header-slot"));
-    fireEvent.click(within(slot).getByTestId("protected-btn-create-snapshot"));
+    fireEvent.click(within(slot).getByTestId("snapshots-create"));
 
     await waitFor(() => {
       expect(mockCreateSnapshot).toHaveBeenCalledWith("chain-1");

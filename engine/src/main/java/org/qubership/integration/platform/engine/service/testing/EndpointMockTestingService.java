@@ -23,7 +23,7 @@ import java.util.Map;
 
 @Slf4j
 @Service
-@ConditionalOnProperty(value = "qip.testing.enabled", havingValue = "true")
+@ConditionalOnProperty(value = "cip.testing.enabled", havingValue = "true")
 public class EndpointMockTestingService implements TestingService {
 
     private static final String MOCK_CALL_PATH = "/api/v1/endpoint-mocks/call";
@@ -41,7 +41,7 @@ public class EndpointMockTestingService implements TestingService {
     private final String mockCallPath;
     private final HttpRoute mockRoute;
 
-    public EndpointMockTestingService(@Value("${qip.testing.address}") String address) {
+    public EndpointMockTestingService(@Value("${cip.testing.address}") String address) {
         URI uri = parseAddress(address);
         this.testingServiceHost = resolveHost(uri);
         this.mockCallPath = basePath(uri) + MOCK_CALL_PATH;

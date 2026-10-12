@@ -1,0 +1,33 @@
+id: 467a8879-151c-445d-bc0e-aeb32e9387fb
+$schema: http://qubership.org/schemas/product/qip/chain
+name: graphql-sender-internal-routing
+content:
+  labels: []
+  elements:
+  - id: fcf9aea8-e2f8-4501-a0ed-3439b89e6922
+    name: Chain trigger
+    type: chain-trigger-2
+    properties:
+      elementId: fcf9aea8-e2f8-4501-a0ed-3439b89e6922
+  - id: a7d17c3d-e961-4b9b-908c-1a6803719156
+    name: GraphQL sender
+    type: graphql-sender
+    properties:
+      isExternalCall: false
+      m2m: false
+      propagateContext: true
+      query: ${header.CamelGraphQLQuery}
+      queryHeader: CamelGraphQLQuery
+      receiveCorrelationId: false
+      reuseEstablishedConnection: true
+      uri: http://graphql-internal:8087/api/v2/graphql
+      variablesHeader: CamelGraphQLVariables
+      operationName: Request
+      variablesJSON: ${exchangeProperty.graphqlVariables}
+  dependencies:
+  - from: fcf9aea8-e2f8-4501-a0ed-3439b89e6922
+    to: a7d17c3d-e961-4b9b-908c-1a6803719156
+  deployments:
+  - domain: default
+  deployAction: DEPLOY
+  migrations: '[100, 101, 102, 103, 104, 105, 106, 107, 108]'

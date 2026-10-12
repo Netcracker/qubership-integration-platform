@@ -22,7 +22,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.chain.model.IntegrationService;
+import org.qubership.integration.platform.chain.model.ServiceSpecification;
+import org.qubership.integration.platform.chain.model.SpecificationGroup;
+import org.qubership.integration.platform.chain.model.SpecificationSource;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.IntegrationSystem;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SystemModel;
 
 import java.util.Collection;
 import java.util.List;
@@ -34,7 +38,8 @@ import static org.mockito.Mockito.when;
 /**
  * Covers {@link PersistentIntegrationServiceCatalog}: it looks each system up through
  * {@link SystemService} and wraps it in an adapter, returning an empty optional when a lookup by id
- * finds nothing.
+ * finds nothing. The wrapped system exposes its specification groups, specifications, and sources,
+ * which is what DTO library generation walks.
  */
 @ExtendWith(MockitoExtension.class)
 class PersistentIntegrationServiceCatalogTest {
@@ -77,5 +82,70 @@ class PersistentIntegrationServiceCatalogTest {
         Collection<IntegrationService> result = catalog.findAllByIds(List.of("sys-a", "sys-b"));
 
         assertThat(result).extracting(IntegrationService::getId).containsExactly("sys-a", "sys-b");
+    }
+
+    @Test
+    void findAllWrapsEverySystem() {
+        IntegrationSystem first = IntegrationSystem.builder().id("sys-a").name("A").build();
+        IntegrationSystem second = IntegrationSystem.builder().id("sys-b").name("B").build();
+        when(systemService.findAll()).thenReturn(List.of(first, second));
+
+        Collection<IntegrationService> result = catalog.findAll();
+
+        assertThat(result).extracting(IntegrationService::getId).containsExactly("sys-a", "sys-b");
+        assertThat(result).extracting(IntegrationService::getName).containsExactly("A", "B");
+    }
+
+    @Test
+    void findAllReturnsEmptyWhenThereAreNoSystems() {
+        when(systemService.findAll()).thenReturn(List.of());
+
+        assertThat(catalog.findAll()).isEmpty();
+    }
+
+    @Test
+    void exposesTheSpecificationGroupsSpecificationsAndSourcesOfASystem() {
+        org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource source =
+            org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationSource.builder()
+                .name("orders.proto")
+                .isMainSource(true)
+                .source("syntax = \"proto3\";")
+                .build();
+        SystemModel model = SystemModel.builder()
+            .id("model-1")
+            .name("v1")
+            .description("First version")
+            .specificationSources(List.of(source))
+            .build();
+        org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup group =
+            org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.system.SpecificationGroup.builder()
+                .id("group-1")
+                .name("Orders API")
+                .description("Orders gRPC API")
+                .systemModels(List.of(model))
+                .build();
+        IntegrationSystem system = IntegrationSystem.builder()
+            .id("sys-1")
+            .name("Orders")
+            .specificationGroups(List.of(group))
+            .build();
+        when(systemService.findAll()).thenReturn(List.of(system));
+
+        IntegrationService service = catalog.findAll().iterator().next();
+
+        SpecificationGroup specificationGroup = service.getSpecificationGroups().iterator().next();
+        assertThat(specificationGroup.getId()).isEqualTo("group-1");
+        assertThat(specificationGroup.getName()).isEqualTo("Orders API");
+        assertThat(specificationGroup.getDescription()).isEqualTo("Orders gRPC API");
+
+        ServiceSpecification specification = specificationGroup.getSpecifications().iterator().next();
+        assertThat(specification.getId()).isEqualTo("model-1");
+        assertThat(specification.getName()).isEqualTo("v1");
+        assertThat(specification.getDescription()).isEqualTo("First version");
+
+        SpecificationSource specificationSource = specification.getSources().iterator().next();
+        assertThat(specificationSource.getName()).isEqualTo("orders.proto");
+        assertThat(specificationSource.isMainSource()).isTrue();
+        assertThat(specificationSource.getText()).isEqualTo("syntax = \"proto3\";");
     }
 }

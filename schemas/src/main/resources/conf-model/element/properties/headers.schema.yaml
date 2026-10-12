@@ -1,0 +1,12 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/headers
+$schema: http://json-schema.org/draft-07/schema
+type: object
+title: Headers
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+patternProperties:
+  "^.+$":
+    type: string

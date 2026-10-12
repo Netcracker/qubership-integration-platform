@@ -12,7 +12,7 @@ import org.springframework.context.annotation.Primary;
 import javax.sql.DataSource;
 
 @AutoConfiguration
-@ConditionalOnProperty(name = "qip.standalone", havingValue = "true")
+@ConditionalOnProperty(name = "cip.standalone", havingValue = "true")
 @EnableConfigurationProperties(HikariConfigProperties.class)
 public class PersistenceStandaloneAutoConfiguration {
 

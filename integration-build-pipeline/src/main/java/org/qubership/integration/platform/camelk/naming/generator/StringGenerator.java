@@ -1,6 +1,7 @@
 package org.qubership.integration.platform.camelk.naming.generator;
 
 import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 
 /*
 Inspired by a Kubernetes suffix generation algorithm
@@ -20,13 +21,16 @@ public class StringGenerator {
     // No. of random letters we can extract from a single int.
     private static final int MAX_ALPHA_NUMS_PER_LONG = Long.SIZE / ALPHA_NUMS_IDX_BITS;
 
-    private final Random random;
-
-    public StringGenerator(Random random) {
-        this.random = random;
+    public String generate(int length) {
+        return generate(ThreadLocalRandom.current(), length);
     }
 
-    public String generate(int length) {
+    public String generate(int length, long seed) {
+        Random random = new Random(seed);
+        return generate(random, length);
+    }
+
+    public String generate(Random random, int length) {
         StringBuilder sb = new StringBuilder();
 
         long randomLong = random.nextLong();

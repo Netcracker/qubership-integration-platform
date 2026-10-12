@@ -23,7 +23,7 @@ To run it from the source tree, point the DSN at a database of your own:
 
 ```bash
 cd testing-service
-QIP_TESTING_POSTGRES_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable&search_path=testing_service' \
+CIP_TESTING_POSTGRES_DSN='postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable&search_path=testing_service' \
   go run ./cmd/testing-service
 ```
 
@@ -35,16 +35,16 @@ so only a caller reaching the service directly gets them. Set `pprof.enabled` to
 
 `GET /api/v1/mode` reports whether this is a live installation, and the frontend hides the operations that are unsafe
 there while it says so. An installation that names no mode is a live one. `PRODUCTION_MODE` is the flag every service
-of the platform reads, so a sandbox sets `PRODUCTION_MODE=false` once rather than naming this service; `production:
-false` in the file, or `QIP_TESTING_PRODUCTION=false`, overrides it for this service alone.
+of the platform reads, and the only source of the mode: a sandbox sets `PRODUCTION_MODE=false`. The mode has no key in
+the file and no `CIP_TESTING_` variable.
 
 Every other key can be overridden from the environment: uppercase it, replace the dots with underscores and prefix it
-with `QIP_TESTING_`. `QIP_TESTING_POSTGRES_DSN` sets `postgres.dsn`, `QIP_TESTING_EXECUTION_WORKERS` sets
+with `CIP_TESTING_`. `CIP_TESTING_POSTGRES_DSN` sets `postgres.dsn`, `CIP_TESTING_EXECUTION_WORKERS` sets
 `execution.workers`. `postgres.schema` names the schema the binary creates, and the `search_path` of the DSN has to
 point at the same one.
 
 The DSN is parsed as a URL, so a `#`, `/` or `?` in a username or a password has to be percent-encoded inside it. Set
-`postgres.user` and `postgres.password` instead — `QIP_TESTING_POSTGRES_USER` and `QIP_TESTING_POSTGRES_PASSWORD` from
+`postgres.user` and `postgres.password` instead — `CIP_TESTING_POSTGRES_USER` and `CIP_TESTING_POSTGRES_PASSWORD` from
 the environment — and leave the credentials out of the DSN. They reach the driver verbatim, need no encoding, and
 override whatever the DSN carries. This is what the Helm chart does: kubelet expands `$(POSTGRES_URL)` into the DSN but
 cannot encode a secret it expands.

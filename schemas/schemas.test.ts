@@ -19,7 +19,7 @@ function getDocuments(directory: string, suffix: string): Document[] {
 }
 
 function getSchemas(): any[] {
-  return getDocuments("src/main/resources/qip-model", ".schema.yaml");
+  return getDocuments("src/main/resources/conf-model", ".schema.yaml");
 }
 
 function getSamples(): any[] {

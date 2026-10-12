@@ -51,30 +51,42 @@ public class CorrelationIdSetter {
         if (exchange.getProperty(CORRELATION_ID_POSITION) != null && exchange.getProperty(CORRELATION_ID_NAME) != null) {
             String correlationIdPosition = String.valueOf(exchange.getProperty(CORRELATION_ID_POSITION));
             String correlationIdName = String.valueOf(exchange.getProperty(CORRELATION_ID_NAME));
-            if (HEADER.equals(correlationIdPosition)) {
-                if (exchange.getMessage().getHeader(correlationIdName) != null) {
-                    String correlationId = String.valueOf(exchange.getMessage().getHeader(correlationIdName));
-                    exchange.setProperty(CORRELATION_ID, correlationId);
-                    if (StringUtils.isNotBlank(correlationId)) {
-                        MDCUtil.setCorrelationId(correlationId);
-                    }
-                } else {
-                    exchange.setProperty(CORRELATION_ID, null);
-                }
-            } else if (BODY.equals(correlationIdPosition)) {
-                try {
-                    Map<String, Object> body = objectMapper.readValue(MessageHelper.extractBody(exchange), HashMap.class);
-                    if (body.containsKey(correlationIdName)) {
-                        String correlationId = String.valueOf(body.get(correlationIdName));
-                        exchange.setProperty(CORRELATION_ID, correlationId);
-                        if (StringUtils.isNotBlank(correlationId)) {
-                            MDCUtil.setCorrelationId(correlationId);
-                        }
-                    }
-                } catch (IOException e) {
-                    log.error("Error while finding correlation id with name {}", correlationIdName);
+            if (HEADER.equalsIgnoreCase(correlationIdPosition)) {
+                setCorrelationIdFromHeader(exchange, correlationIdName);
+            } else if (BODY.equalsIgnoreCase(correlationIdPosition)) {
+                setCorrelationIdFromBody(exchange, correlationIdName);
+            }
+        }
+    }
+
+    private void setCorrelationIdFromHeader(Exchange exchange, String correlationIdName) {
+        if (exchange.getMessage().getHeader(correlationIdName) != null) {
+            String correlationId = String.valueOf(exchange.getMessage().getHeader(correlationIdName));
+            exchange.setProperty(CORRELATION_ID, correlationId);
+            if (StringUtils.isNotBlank(correlationId)) {
+                MDCUtil.setCorrelationId(correlationId);
+            }
+        } else {
+            exchange.setProperty(CORRELATION_ID, null);
+        }
+    }
+
+    private void setCorrelationIdFromBody(Exchange exchange, String correlationIdName) {
+        String payload = MessageHelper.extractBody(exchange);
+        if (StringUtils.isBlank(payload)) {
+            return;
+        }
+        try {
+            Map<String, Object> body = objectMapper.readValue(payload, HashMap.class);
+            if (body.containsKey(correlationIdName)) {
+                String correlationId = String.valueOf(body.get(correlationIdName));
+                exchange.setProperty(CORRELATION_ID, correlationId);
+                if (StringUtils.isNotBlank(correlationId)) {
+                    MDCUtil.setCorrelationId(correlationId);
                 }
             }
+        } catch (IOException e) {
+            log.error("Error while finding correlation id with name {}", correlationIdName);
         }
     }
 }

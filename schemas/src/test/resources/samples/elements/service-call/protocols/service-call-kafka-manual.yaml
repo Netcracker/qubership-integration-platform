@@ -1,4 +1,4 @@
-# $schema: http://qubership.org/schemas/product/qip/element/service-call.schema.yaml
+# $schema: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/service-call
 id: "e9dcb2d1-bef8-49c7-9ad4-5916fa035739"
 name: "Service Call kafka-manual"
 type: "service-call"

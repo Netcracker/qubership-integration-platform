@@ -18,6 +18,8 @@ package org.qubership.integration.platform.runtime.catalog.util;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.qubership.integration.platform.runtime.catalog.model.system.OperationProtocol;
 
 import java.io.File;
@@ -162,14 +164,58 @@ class ExportImportUtilsTest {
 
     @Test
     void testGenerateMainContextServiceFileExportNameLegacy() {
-        String name = ExportImportUtils.generateMainContextServiceFileExportName("id1", "app", true);
+        String name = ExportImportUtils.generateMainContextServiceFileExportName("id1", true);
         assertEquals("context-service-id1.yaml", name);
     }
 
     @Test
     void testGenerateMainContextServiceFileExportNameNewFormat() {
-        String name = ExportImportUtils.generateMainContextServiceFileExportName("id1", "app", false);
-        assertEquals("id1.context-service.app.yaml", name);
+        String name = ExportImportUtils.generateMainContextServiceFileExportName("id1", false);
+        assertEquals("id1.context-service.cip.yaml", name);
+    }
+
+    @Test
+    void testGenerateChainFileExportNameLegacy() {
+        assertEquals("chain-id1.yaml", ExportImportUtils.generateChainFileExportName("id1", true));
+    }
+
+    @Test
+    void testGenerateChainFileExportNameNewFormat() {
+        assertEquals("id1.chain.cip.yaml", ExportImportUtils.generateChainFileExportName("id1", false));
+    }
+
+    @Test
+    void testGenerateMainSystemFileExportNameNewFormat() {
+        assertEquals("id1.service.cip.yaml", ExportImportUtils.generateMainSystemFileExportName("id1", false));
+    }
+
+    @Test
+    void testGenerateSpecificationGroupFileExportNameNewFormat() {
+        assertEquals("id1.specification-group.cip.yaml",
+                ExportImportUtils.generateSpecificationGroupFileExportName("id1", false));
+    }
+
+    @Test
+    void testGenerateSpecificationFileExportNameNewFormat() {
+        assertEquals("id1.specification.cip.yaml",
+                ExportImportUtils.generateSpecificationFileExportName("id1", false));
+    }
+
+    @Test
+    void testGenerateMCPServiceFileExportNameNewFormat() {
+        assertEquals("id1.mcp-service.cip.yaml", ExportImportUtils.generateMCPServiceFileExportName("id1", false));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"id1.chain.cip.yaml", "id1.chain.qip.yaml", "chain-id1.yaml"})
+    void testIsChainFileNameAcceptsCurrentAndLegacyNames(String fileName) {
+        assertTrue(ExportImportUtils.isChainFileName(fileName));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"id1.chain.other.yaml", "id1.service.cip.yaml", "id1.chain.cip.json"})
+    void testIsChainFileNameRejectsOtherNames(String fileName) {
+        assertFalse(ExportImportUtils.isChainFileName(fileName));
     }
 
     @Test

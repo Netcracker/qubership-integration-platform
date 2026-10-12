@@ -1,0 +1,17 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/sync-split-element
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/element/properties/common-element-properties"
+title: Sync Split Element (deprecated)
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+properties:
+  type:
+    type: string
+    const: sync-split-element
+required:
+  - type

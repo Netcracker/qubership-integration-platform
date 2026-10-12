@@ -117,8 +117,8 @@ properties:
       title: Correlation id position
       type: string
       allowedValues:
-        - Header
-        - Body
+        - header
+        - body
     - name: handleValidationAction
       title: Action
       type: string

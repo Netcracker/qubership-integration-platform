@@ -1,0 +1,73 @@
+---
+id: "c0c8e0de-ce5c-429b-abeb-dcf88a00d747"
+$schema: "http://qubership.org/schemas/product/qip/chain"
+name: "circuit-breaker alternative"
+content:
+  labels: []
+  elements:
+  - id: "1a76f830-1b79-47d0-ac8f-3811a556572c"
+    name: "Chain Trigger"
+    type: "chain-trigger-2"
+    properties:
+      elementId: "1a76f830-1b79-47d0-ac8f-3811a556572c"
+  - id: "ff5ac3cc-648f-4222-b563-5aeb79e35e3b"
+    name: "Circuit Breaker"
+    type: "circuit-breaker-2"
+    children:
+    - id: "737d70f6-8844-48b8-a1dd-42b14589a901"
+      name: "Circuit Breaker Configuration"
+      type: "circuit-breaker-configuration-2"
+      children:
+      - id: "7b680d03-4895-43e2-85fe-2221392a9e8c"
+        name: "Service Call"
+        type: "service-call"
+        properties:
+          after: []
+          afterValidation: []
+          authorizationConfiguration:
+            type: "inherit"
+          before:
+            type: "none"
+          errorThrowing: true
+          handleValidationAction: "default"
+          integrationOperationId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744-petstore-1.0.7-getPetById"
+          integrationOperationMethod: "GET"
+          integrationOperationPath: "/pet/{petId}"
+          integrationOperationPathParameters:
+            petId: "1"
+          integrationOperationProtocolType: "http"
+          integrationOperationSkipEmptyQueryParameters: false
+          integrationSpecificationGroupId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744-petstore"
+          integrationSpecificationId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744-petstore-1.0.7"
+          integrationSystemId: "1acc68e3-fa98-4b67-95a5-60e3e26ba744"
+          propagateContext: true
+          receiveCorrelationId: false
+          retryCount: 0
+          retryDelay: 5000
+          systemType: "INTERNAL"
+      properties:
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        failureRateThreshold: 50
+        minimumNumberOfCalls: "4"
+        permittedNumberOfCallsInHalfOpenState: "2"
+        slidingWindowSize: "4"
+        slidingWindowType: "COUNT_BASED"
+        slowCallDurationThreshold: 1
+        slowCallRateThreshold: "50"
+        waitDurationInOpenState: "2"
+    - id: "fb766a15-5c29-47ac-8a76-9652f76b6613"
+      name: "On fallback"
+      type: "on-fallback-2"
+      children:
+      - id: "56eb5ba5-8d75-40fa-b38e-faa2a4211228"
+        name: "Script"
+        type: "script"
+        properties:
+          exportFileExtension: "groovy"
+          propertiesFilename: "56eb5ba5-8d75-40fa-b38e-faa2a4211228.element.script.cip.groovy"
+          propertiesToExportInSeparateFile: "script"
+  dependencies:
+  - from: "1a76f830-1b79-47d0-ac8f-3811a556572c"
+    to: "ff5ac3cc-648f-4222-b563-5aeb79e35e3b"
+  deployAction: "SNAPSHOT"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

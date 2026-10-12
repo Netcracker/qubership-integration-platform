@@ -24,13 +24,13 @@
   <parent>
     <groupId>org.qubership.integration.platform</groupId>
     <artifactId>qip-monorepo-parent</artifactId>
-    <version>1.2.3-SNAPSHOT</version>
+    <version>1.5.1-SNAPSHOT</version>
     <relativePath>../parent</relativePath>
   </parent>
 
   <properties>
-    <revision>1.2.3</revision>
-    <changelist>-1-istio-SNAPSHOT</changelist>
+    <revision>1.5.1</revision>
+    <changelist>-SNAPSHOT</changelist>
 
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

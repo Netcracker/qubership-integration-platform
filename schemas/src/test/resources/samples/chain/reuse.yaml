@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "1969e06d-1ae5-4a1c-8d9d-4d20dd2dd3d1"
 name: "Reuse"
 content:

@@ -91,7 +91,7 @@ import {
   hasBreakingChanges,
 } from "../../mapper/util/compare.ts";
 import { LoadConfirmationDialog } from "./LoadConfirmationDialog.tsx";
-import { useColumnsWithResizeAndScroll } from "../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../table/useTableConfiguration.tsx";
 
 export type MappingTableViewProps = Omit<
   React.HTMLAttributes<HTMLElement>,
@@ -1783,7 +1783,7 @@ export const MappingTableView: React.FC<MappingTableViewProps> = ({
     );
 
   const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
+    useTableConfiguration(
       orderedColumns,
       {
         name: 200,

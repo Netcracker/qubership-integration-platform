@@ -1,6 +1,8 @@
 package org.qubership.integration.platform.engine.camel;
 
 import org.apache.camel.CamelContext;
+import org.apache.camel.builder.RouteBuilder;
+import org.apache.camel.impl.DefaultCamelContext;
 import org.apache.camel.observation.MicrometerObservationTracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayNameGeneration;
@@ -12,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.qubership.integration.platform.engine.service.debugger.CamelDebugger;
 import org.qubership.integration.platform.engine.testutils.DisplayNameUtils;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.doThrow;
@@ -49,6 +52,22 @@ class ContextCustomizerTest {
         inOrder.verify(tracer).init(camelContext);
         inOrder.verify(camelContext).setDebugger(debugger);
         inOrder.verify(camelContext).setDebugging(true);
+    }
+
+    @Test
+    void shouldStartRouteWithEmptyStepAfterConfigure() throws Exception {
+        contextCustomizer.configure(camelContext);
+
+        try (CamelContext context = new DefaultCamelContext()) {
+            context.addRoutes(new RouteBuilder() {
+                @Override
+                public void configure() {
+                    from("direct:start").step("empty-step").end();
+                }
+            });
+
+            assertDoesNotThrow(context::start);
+        }
     }
 
     @Test

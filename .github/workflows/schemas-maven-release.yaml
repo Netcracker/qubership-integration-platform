@@ -2,15 +2,14 @@
 # Release the schemas module as a Maven artifact (ZIP + sources + javadoc,
 # GPG-signed) to Maven Central via the shared _maven-module-release workflow.
 #
-# Call-only, from schemas-release.yaml. The Maven and npm lines carry the SAME
-# version: schemas-release.yaml releases npm first and chains this workflow with
-# that exact number. There is deliberately no workflow_dispatch — dispatching the
+# Call-only, from schemas-release.yaml and release-all.yaml. The Maven and npm
+# lines carry the SAME version: both callers release npm first and chain this
+# workflow with that exact number. There is deliberately no workflow_dispatch — dispatching the
 # Maven line on its own is the only way the two could diverge again. Tags differ
 # (schemas-maven-v* here, schemas-v* for npm) so each line keeps its own recovery
 # sentinel.
 #
-# Not part of release-all (rare, manual cadence). build-docker is false: schemas
-# is a library, not a service image.
+# build-docker is false: schemas is a library, not a service image.
 
 name: Schemas Maven Release (Central)
 

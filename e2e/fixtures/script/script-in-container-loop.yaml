@@ -1,0 +1,59 @@
+id: "e2e50020-0000-4000-8000-000000000001"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
+name: "e2e-{{RUN}}-script-in-container-loop"
+description: "A script inside a Loop. Each pass appends its own iteration index to an exchange\
+  \ property and rewrites the body, so the passes are ordered rather than merely counted, and the\
+  \ script after the loop reports what the last pass left behind."
+content:
+  labels: []
+  elements:
+  - id: "e2e50020-0000-4000-8000-000000000002"
+    name: "HTTP Trigger"
+    type: "http-trigger"
+    properties:
+      contextPath: "e2e-{{RUN}}-script-in-container-loop"
+      httpMethodRestrict: "POST"
+      accessControlType: "NONE"
+      externalRoute: false
+      validateRequest: false
+      handleValidationAction: "default"
+      handleChainFailureAction: "default"
+      correlationId: false
+      isExternalContextPath: false
+  - id: "e2e50020-0000-4000-8000-000000000003"
+    name: "Loop"
+    type: "loop-2"
+    properties:
+      expression: "3"
+      maxLoopIteration: 1500
+      loopIndexPropertyName: "e2eLoopIndex"
+    children:
+    - id: "e2e50020-0000-4000-8000-000000000004"
+      name: "Loop Pass"
+      type: "script"
+      properties:
+        script: |-
+          // script-in-container-loop/loop-pass
+          // One pass of the loop body: read what the pass before it left on the exchange, append
+          // this iteration's index, and rewrite the body so each pass is legible in the trace.
+          def index = String.valueOf(exchange.getProperty('e2eLoopIndex'))
+          exchange.setProperty('e2eLoopPasses', (exchange.getProperty('e2eLoopPasses') ?: '') + index + ';')
+          exchange.getIn().setBody('pass-' + index)
+  - id: "e2e50020-0000-4000-8000-000000000005"
+    name: "Report Passes"
+    type: "script"
+    properties:
+      script: |-
+        // script-in-container-loop/report-passes
+        // After the loop: what the passes accumulated, the body the last one left, and whether the
+        // loop's index property is still on the exchange once the container has exited.
+        def carried = exchange.getIn().getBody(String.class)
+        def cleared = exchange.getProperty('e2eLoopIndex') == null
+        exchange.getIn().setBody('{"passes":"' + exchange.getProperty('e2eLoopPasses') + '","lastBody":"' + carried + '","indexCleared":' + cleared + '}')
+  dependencies:
+  - from: "e2e50020-0000-4000-8000-000000000002"
+    to: "e2e50020-0000-4000-8000-000000000003"
+  - from: "e2e50020-0000-4000-8000-000000000003"
+    to: "e2e50020-0000-4000-8000-000000000005"
+  deployAction: "NONE"
+  migrations: "[100, 101, 102, 103, 104, 105, 106, 107, 108]"

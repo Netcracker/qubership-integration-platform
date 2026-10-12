@@ -116,8 +116,8 @@ properties:
       title: Correlation id position
       type: string
       allowedValues:
-        - Header
-        - Body
+        - header
+        - body
     - name: invalidURI
       title: Is URI invalid
       type: boolean

@@ -90,6 +90,9 @@ export const INITIAL_UI_SCHEMA: UiSchema = {
     externalRoute: {
       "ui:widget": "hidden",
     },
+    receiveCorrelationId: {
+      "ui:field": "correlationIdSwitchField",
+    },
     checkpointElementId: {
       "ui:widget": "hidden",
     },

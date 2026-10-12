@@ -52,6 +52,11 @@ class HttpServiceCallSnapshotFixtureProvider implements SnapshotFixtureProvider 
     }
 
     @Override
+    public boolean supportsResponseDelay() {
+        return true;
+    }
+
+    @Override
     public SnapshotFixture create(String deploymentId, List<SnapshotFixtureBinding> bindings) {
         bindings.forEach(binding -> binding.interactionsByInvocationId().values()
                 .forEach(interaction -> validateInteraction(binding.definition().getId(), interaction)));
@@ -214,6 +219,9 @@ class HttpServiceCallSnapshotFixtureProvider implements SnapshotFixtureProvider 
             ResponseDefinitionBuilder responseDefinition = aResponse()
                     .withStatus(response.getStatus())
                     .withBody(responseBody(response));
+            if (response.getDelayMillis() != null) {
+                responseDefinition.withFixedDelay(response.getDelayMillis());
+            }
             response.getHeaders().forEach((name, value) ->
                     responseDefinition.withHeader(name, String.valueOf(value)));
             server.stubFor(any(anyUrl()).willReturn(responseDefinition));

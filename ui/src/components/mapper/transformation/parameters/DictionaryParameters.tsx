@@ -35,7 +35,7 @@ import {
   useMonacoTheme,
   applyVSCodeThemeToMonaco,
 } from "../../../../hooks/useMonacoTheme";
-import { useColumnsWithResizeAndScroll } from "../../../table/useColumnsWithResizeAndScroll.tsx";
+import { useTableConfiguration } from "../../../table/useTableConfiguration.tsx";
 import { tableScroll } from "../../../table/tableScroll.ts";
 
 const MAPPER_DICTIONARY_LANGUAGE_ID = "qip-mapper-dictionary";
@@ -240,7 +240,7 @@ const DictionaryTableEditor: React.FC<DictionaryEditorProps> = ({
   );
 
   const { columnsWithResize, scrollX, components } =
-    useColumnsWithResizeAndScroll(
+    useTableConfiguration(
       dictionaryColumns,
       {
         key: 160,
@@ -339,6 +339,7 @@ const DictionaryTextEditor: React.FC<DictionaryEditorProps> = ({
   return (
     <Editor
       className="qip-editor"
+      wrapperProps={{ "data-testid": "mapper-dictionary-editor" }}
       theme={monacoTheme}
       value={text}
       language={MAPPER_DICTIONARY_LANGUAGE_ID}

@@ -185,33 +185,6 @@ class KubeOperatorCreateOrUpdateTest {
         assertThrows(KubeApiConflictException.class, () -> kubeOperator.createOrUpdateResource(configMap));
     }
 
-    @Test
-    void createsWithoutReadingWhenTheCallerObservedTheObjectAbsent() throws ApiException {
-        V1ConfigMap configMap = configMap("order-chain-sources");
-        CoreV1Api.APIcreateNamespacedConfigMapRequest createRequest =
-                mock(CoreV1Api.APIcreateNamespacedConfigMapRequest.class);
-        when(coreApi.createNamespacedConfigMap(NAMESPACE, configMap)).thenReturn(createRequest);
-
-        kubeOperator.createOrUpdateResource(configMap, true);
-
-        verify(createRequest).execute();
-        // Reading first would find an object a racing writer created during the build, and the
-        // replace that followed would overwrite it wholesale instead of raising a conflict.
-        verify(coreApi, never()).readNamespacedConfigMap(anyString(), anyString());
-        verify(coreApi, never()).replaceNamespacedConfigMap(anyString(), anyString(), any(V1ConfigMap.class));
-    }
-
-    @Test
-    void raisesAConflictExceptionWhenAnObservedAbsentCreateLosesTheRace() throws ApiException {
-        V1ConfigMap configMap = configMap("order-chain-sources");
-        CoreV1Api.APIcreateNamespacedConfigMapRequest createRequest =
-                mock(CoreV1Api.APIcreateNamespacedConfigMapRequest.class);
-        when(coreApi.createNamespacedConfigMap(NAMESPACE, configMap)).thenReturn(createRequest);
-        when(createRequest.execute()).thenThrow(new ApiException(409, "AlreadyExists"));
-
-        assertThrows(KubeApiConflictException.class, () -> kubeOperator.createOrUpdateResource(configMap, true));
-    }
-
     // The API server rejects a create that declares a resourceVersion, and not with a 409, so the
     // deploy retry would never fire. A version reaches this branch whenever Phase 1 observed the
     // object and something deleted it before the write.
@@ -243,6 +216,21 @@ class KubeOperatorCreateOrUpdateTest {
 
         verify(createRequest).execute();
         assertNull(service.getMetadata().getResourceVersion());
+    }
+
+    @Test
+    void carriesTheApiServersRefusalInTheMessage() throws ApiException {
+        KubeCustomObject httpRoute = customObject(GATEWAY_GROUP + "/" + GATEWAY_VERSION, "HTTPRoute", "orders-public");
+        stubCustomObjectReadAsNotFound(GATEWAY_GROUP, GATEWAY_VERSION, HTTP_ROUTES_PLURAL, "orders-public");
+        CustomObjectsApi.APIcreateNamespacedCustomObjectRequest createRequest =
+                stubCustomObjectCreate(GATEWAY_GROUP, GATEWAY_VERSION, HTTP_ROUTES_PLURAL);
+        String refusal = "{\"kind\":\"Status\",\"message\":\"spec.rules: Too many: 17: must have at most 16 items\"}";
+        when(createRequest.execute()).thenThrow(new ApiException(422, Map.of(), refusal));
+
+        KubeApiException exception =
+                assertThrows(KubeApiException.class, () -> kubeOperator.createOrUpdateResource(httpRoute));
+
+        assertEquals("Failed to create or update custom object: " + refusal, exception.getMessage());
     }
 
     @Test

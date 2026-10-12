@@ -1,5 +1,6 @@
 package org.qubership.integration.platform.runtime.catalog.adapters;
 
+import lombok.Getter;
 import org.qubership.integration.platform.chain.model.*;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ChainElement;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.chain.element.ContainerChainElement;
@@ -7,6 +8,7 @@ import org.qubership.integration.platform.runtime.catalog.persistence.configs.en
 import java.util.*;
 
 public class ChainElementAdapter implements Element {
+    @Getter
     private final ChainElement chainElement;
 
     public ChainElementAdapter(ChainElement chainElement) {

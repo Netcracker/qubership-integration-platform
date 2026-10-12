@@ -15,7 +15,7 @@ import org.qubership.integration.platform.engine.service.SdsService;
 @Slf4j
 @OnRouteRemoved
 @ApplicationScoped
-@IfBuildProperty(name = "qip.sds.enabled", stringValue = "true")
+@IfBuildProperty(name = "cip.sds.enabled", stringValue = "true")
 public class RemoveSdsSchedulerJobsAction implements EventProcessingAction<CamelEvent.RouteRemovedEvent> {
     @Inject
     SdsService sdsService;

@@ -73,20 +73,19 @@ public class ChainElementPropertiesSubstitutor {
             if (propertiesFilename == null) {
                 propertiesFilename = (String) properties.get(FILE_NAME_PROPERTY);
             }
-            if (propertiesFilename == null) {
-                return;
+            if (propertiesFilename != null) {
+                Object propertiesFileContent = extractPropertiesFileContent(properties, fileSource, propertiesFilename);
+                if (propertiesFileContent instanceof Map<?, ?>) {
+                    properties.putAll((Map<String, Object>) propertiesFileContent);
+                } else {
+                    properties.put(
+                            (String) properties.get(PROPS_EXPORT_IN_SEPARATE_FILE_PROPERTY),
+                            propertiesFileContent
+                    );
+                }
+                properties.remove(FILE_NAME_PROPERTY);
             }
-
-            Object propertiesFileContent = extractPropertiesFileContent(properties, fileSource, propertiesFilename);
-            if (propertiesFileContent instanceof Map<?, ?>) {
-                properties.putAll((Map<String, Object>) propertiesFileContent);
-            } else {
-                properties.put(
-                        (String) properties.get(PROPS_EXPORT_IN_SEPARATE_FILE_PROPERTY),
-                        propertiesFileContent
-                );
-            }
-            properties.remove(FILE_NAME_PROPERTY);
+            restoreHandlerContainers(properties, fileSource);
             return;
         }
 
@@ -118,20 +117,52 @@ public class ChainElementPropertiesSubstitutor {
         Object beforePropertiesObj = properties.getOrDefault(BEFORE, Collections.emptyMap());
         if (beforePropertiesObj instanceof Map<?, ?> beforeProperties) {
             String beforePropertiesFilename = (String) beforeProperties.get(FILE_NAME_PROPERTY);
-            if (beforePropertiesFilename == null) {
-                return;
+            if (beforePropertiesFilename != null) {
+                addServiceCallHandlerContent(
+                        (Map<String, Object>) beforeProperties,
+                        extractPropertiesFileContent((Map<String, Object>) beforeProperties, fileSource, beforePropertiesFilename)
+                );
+                beforeProperties.remove(FILE_NAME_PROPERTY);
             }
-
-            addServiceCallHandlerContent(
-                    (Map<String, Object>) beforeProperties,
-                    extractPropertiesFileContent((Map<String, Object>) beforeProperties, fileSource, beforePropertiesFilename)
-            );
-            beforeProperties.remove(FILE_NAME_PROPERTY);
         } else {
             log.error("Either the 'before' property is missing, or it is not formatted as a key-value pair {}",
                     beforePropertiesObj.getClass().getName());
             throw new IllegalArgumentException("Either the 'before' property is missing, or it is not formatted as a key-value pair");
         }
+        restoreHandlerContainer(properties, HANDLER_CONTAINER, fileSource);
+    }
+
+    private void restoreHandlerContainers(Map<String, Object> properties, PropertyFileSource fileSource)
+            throws IOException {
+        restoreHandlerContainer(properties, HANDLER_CONTAINER, fileSource);
+        restoreHandlerContainer(properties, CHAIN_FAILURE_HANDLER_CONTAINER, fileSource);
+    }
+
+    @SuppressWarnings("unchecked")
+    private void restoreHandlerContainer(Map<String, Object> properties, String containerName, PropertyFileSource fileSource)
+            throws IOException {
+        Object containerObj = properties.get(containerName);
+        if (!(containerObj instanceof Map<?, ?>)) {
+            return;
+        }
+        Map<String, Object> container = (Map<String, Object>) containerObj;
+        String containerFileName = (String) container.get(FILE_NAME_PROPERTY);
+        if (containerFileName == null) {
+            return;
+        }
+        Object containerContent = extractPropertiesFileContent(container, fileSource, containerFileName);
+        if (containerContent instanceof Map<?, ?>) {
+            Map<String, Object> containerContentMap = (Map<String, Object>) containerContent;
+            Object mappingDescription = containerContentMap.get(MAPPING_DESCRIPTION);
+            if (mappingDescription != null) {
+                container.put(MAPPING_DESCRIPTION, mappingDescription);
+            } else {
+                container.putAll(containerContentMap);
+            }
+        } else {
+            container.put(SCRIPT, containerContent);
+        }
+        container.remove(FILE_NAME_PROPERTY);
     }
 
     private Object extractPropertiesFileContent(Map<String, Object> properties, PropertyFileSource fileSource, String propertiesFilename)

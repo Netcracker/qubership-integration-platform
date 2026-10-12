@@ -39,7 +39,7 @@ import static java.util.Objects.isNull;
 public class CamelServletObservationConvention extends DefaultServerRequestObservationConvention {
     private final GatewayHttpRegistry httpRegistry;
 
-    @Value("${qip.camel.routes.prefix}")
+    @Value("${cip.camel.routes.prefix}")
     private String routesPrefix;
 
     @Autowired

@@ -52,5 +52,5 @@ export const useImportInstructionsFilter = (): {
     [],
   );
 
-  return useFilter(filterColumns);
+  return useFilter(filterColumns, "importInstructionsTable");
 };

@@ -924,6 +924,7 @@ export type ActionLogPagedSearchRequest = {
   offset: number;
   limit: number;
   filters?: EntityFilterModel[];
+  searchString?: string;
 };
 
 export type ActionLogPagedSearchResponse = {
@@ -1333,7 +1334,7 @@ export type ServiceOptions = {
 
 export type ContainerOptions = {
   image?: string;
-  imagePoolPolicy?: "Always" | "Never" | "IfNotPresent";
+  imagePullPolicy?: "Always" | "Never" | "IfNotPresent";
 };
 
 export type LiveExchange = {

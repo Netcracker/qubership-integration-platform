@@ -734,7 +734,6 @@ export class VSCodeFileApi implements FileApi {
               name: serviceName.trim(),
               content: {
                 description: serviceDescription?.trim() || "",
-                migrations: [],
               },
             }
           : serviceType.value === "MCP"
@@ -746,7 +745,6 @@ export class VSCodeFileApi implements FileApi {
                   identifier: identifier?.trim() || "",
                   instructions: "",
                   description: serviceDescription?.trim() || "",
-                  migrations: [],
                 },
               }
             : {
@@ -762,7 +760,6 @@ export class VSCodeFileApi implements FileApi {
                   specification: "",
                   environments: [],
                   labels: [],
-                  migrations: [],
                 },
               };
 

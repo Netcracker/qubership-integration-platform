@@ -1,5 +1,5 @@
 ---
-$schema: "http://qubership.org/schemas/product/qip/chain.schema.yaml"
+$schema: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/chain"
 id: "0435193f-f55f-4889-bb33-3a1f5882c643"
 name: "PubSub Sender"
 content:

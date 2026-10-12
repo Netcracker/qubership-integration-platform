@@ -69,6 +69,7 @@ export const SessionElementBodyChangesView: React.FC<
       {viewDiff ? (
         <DiffEditor
           className="qip-editor"
+          wrapperProps={{ "data-testid": "session-body-diff-editor" }}
           originalLanguage={originalLanguage}
           modifiedLanguage={modifiedLanguage}
           original={bodyBefore}
@@ -101,11 +102,13 @@ export const SessionElementBodyChangesView: React.FC<
             style={{ flexShrink: 1, flexGrow: 1 }}
           >
             <SessionElementBodyView
+              data-testid="session-body-before-editor"
               style={{ flexGrow: 1, flexShrink: 1 }}
               headers={headersBefore ?? {}}
               body={bodyBefore ?? ""}
             />
             <SessionElementBodyView
+              data-testid="session-body-after-editor"
               style={{ flexGrow: 1, flexShrink: 1 }}
               headers={headersAfter ?? {}}
               body={bodyAfter ?? ""}

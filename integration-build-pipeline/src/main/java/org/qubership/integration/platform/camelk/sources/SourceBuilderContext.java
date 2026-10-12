@@ -13,5 +13,6 @@ public class SourceBuilderContext {
     private String domainName;
     private String buildName;
     private Instant buildTimestamp;
+    private String createdBy;
     private IntegrationServiceCatalog integrationServiceCatalog;
 }

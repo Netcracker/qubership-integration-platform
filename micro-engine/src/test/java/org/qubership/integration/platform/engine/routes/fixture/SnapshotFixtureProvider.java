@@ -25,5 +25,13 @@ public interface SnapshotFixtureProvider {
         return false;
     }
 
+    default boolean supportsAwaitState() {
+        return false;
+    }
+
+    default boolean supportsResponseDelay() {
+        return false;
+    }
+
     SnapshotFixture create(String deploymentId, List<SnapshotFixtureBinding> bindings);
 }

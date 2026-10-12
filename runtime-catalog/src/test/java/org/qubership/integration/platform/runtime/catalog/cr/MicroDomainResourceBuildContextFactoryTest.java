@@ -22,18 +22,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.camelk.integrations.configuration.IntegrationsConfiguration;
+import org.qubership.integration.platform.camelk.model.BuildInfo;
 import org.qubership.integration.platform.camelk.model.ResourceBuildContext;
 import org.qubership.integration.platform.camelk.model.options.MountOptions;
 import org.qubership.integration.platform.camelk.model.options.ResourceBuildOptions;
-import org.qubership.integration.platform.camelk.naming.NamingStrategy;
-import org.qubership.integration.platform.camelk.naming.strategies.BuildNamingContext;
 import org.qubership.integration.platform.camelk.naming.strategies.SourceDslConfigMapNamingStrategy;
+import org.qubership.integration.platform.camelk.services.BuildInfoFactory;
+import org.qubership.integration.platform.camelk.sources.IntegrationServiceCatalog;
 import org.qubership.integration.platform.chain.model.Snapshot;
 import org.qubership.integration.platform.runtime.catalog.cr.integrations.configuration.IntegrationConfigurationSerdes;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.CamelKIntegration;
 import org.qubership.integration.platform.runtime.catalog.cr.k8s.KubeCustomObject;
 import org.qubership.integration.platform.runtime.catalog.cr.rest.v1.dto.ResourceBuildRequest;
+import org.qubership.integration.platform.runtime.catalog.persistence.configs.entity.User;
 import org.qubership.integration.platform.runtime.catalog.persistence.configs.repository.SnapshotRepository;
+import org.springframework.data.domain.AuditorAware;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -62,52 +66,46 @@ class MicroDomainResourceBuildContextFactoryTest {
 
     private static final String DOMAIN = "payments";
     private static final String BUILD_NAME = "build-name";
-    // The name httpRoutePublicNamingStrategy yields for DOMAIN in this fixture; stubbed below
-    // rather than computed by a real strategy instance, since the factory only needs some name
-    // that both the mock and the "observed absent" test agree on.
-    private static final String PUBLIC_ROUTE_NAME = "payments-chain-public-routes";
-    private static final String PRIVATE_ROUTE_NAME = "payments-chain-private-routes";
-    private static final String EGRESS_ROUTE_NAME = "payments-chain-egress-routes";
 
     private SnapshotRepository snapshotRepository;
-    private NamingStrategy<BuildNamingContext> buildNamingStrategy;
+    private BuildInfoFactory buildInfoFactory;
     private MicroDomainService microDomainService;
     private IntegrationConfigurationSerdes integrationConfigurationSerdes;
+    private IntegrationServiceCatalog integrationServiceCatalog;
     private SourceDslConfigMapNamingStrategy sourceDslConfigMapNamingStrategy;
-    private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePublicNamingStrategy;
-    private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRoutePrivateNamingStrategy;
-    private NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy;
+    private AuditorAware<User> auditor;
     private MicroDomainResourceBuildContextFactory factory;
 
     @BeforeEach
     @SuppressWarnings("unchecked")
     void setUp() {
         snapshotRepository = mock(SnapshotRepository.class);
-        buildNamingStrategy = mock(NamingStrategy.class);
+        buildInfoFactory = mock(BuildInfoFactory.class);
         microDomainService = mock(MicroDomainService.class);
         integrationConfigurationSerdes = mock(IntegrationConfigurationSerdes.class);
+        integrationServiceCatalog = mock(IntegrationServiceCatalog.class);
         sourceDslConfigMapNamingStrategy = mock(SourceDslConfigMapNamingStrategy.class);
-        httpRoutePublicNamingStrategy = mock(NamingStrategy.class);
-        httpRoutePrivateNamingStrategy = mock(NamingStrategy.class);
-        httpRouteEgressNamingStrategy = mock(NamingStrategy.class);
+        auditor = mock(AuditorAware.class);
+        when(auditor.getCurrentAuditor()).thenReturn(Optional.empty());
         when(snapshotRepository.findAllByIdIn(any())).thenReturn(List.of());
-        when(buildNamingStrategy.getName(any())).thenReturn(BUILD_NAME);
-        when(httpRoutePublicNamingStrategy.getName(any())).thenReturn(PUBLIC_ROUTE_NAME);
-        when(httpRoutePrivateNamingStrategy.getName(any())).thenReturn(PRIVATE_ROUTE_NAME);
-        when(httpRouteEgressNamingStrategy.getName(any())).thenReturn(EGRESS_ROUTE_NAME);
+        when(buildInfoFactory.createBuildInfo(any(), any())).thenAnswer(invocation -> BuildInfo.builder()
+            .id(UUID.randomUUID().toString())
+            .name(BUILD_NAME)
+            .options(invocation.getArgument(0))
+            .createdBy(invocation.getArgument(1))
+            .build());
         factory = factoryWithHostResources(true);
     }
 
     private MicroDomainResourceBuildContextFactory factoryWithHostResources(boolean hostResourcesEnabled) {
         return new MicroDomainResourceBuildContextFactory(
                 snapshotRepository,
-                buildNamingStrategy,
                 microDomainService,
                 integrationConfigurationSerdes,
+                buildInfoFactory,
+                integrationServiceCatalog,
                 sourceDslConfigMapNamingStrategy,
-                httpRoutePublicNamingStrategy,
-                httpRoutePrivateNamingStrategy,
-                httpRouteEgressNamingStrategy,
+                auditor,
                 hostResourcesEnabled);
     }
 
@@ -135,26 +133,14 @@ class MicroDomainResourceBuildContextFactoryTest {
             V1ConfigMap integrationsConfiguration,
             List<V1ConfigMap> sources
     ) {
-        return resources(integration, integrationsConfiguration, sources, null);
-    }
-
-    private MicroDomainService.IntegrationResources resources(
-            CamelKIntegration integration,
-            V1ConfigMap integrationsConfiguration,
-            List<V1ConfigMap> sources,
-            KubeCustomObject publicHttpRoute
-    ) {
         return new MicroDomainService.IntegrationResources(
-                integration, null, null, integrationsConfiguration, sources, null, List.of(),
-                publicHttpRoute, null, null);
+                integration, null, null, integrationsConfiguration, sources, null, List.of());
     }
 
     /** IntegrationResources with only the fields a given test cares about; the rest read as absent. */
-    private MicroDomainService.IntegrationResources resources(
-            CamelKIntegration integration, KubeCustomObject publicHttpRoute) {
+    private MicroDomainService.IntegrationResources resources(CamelKIntegration integration) {
         return new MicroDomainService.IntegrationResources(
-                integration, null, null, null, List.of(), null, List.of(),
-                publicHttpRoute, null, null);
+                integration, null, null, null, List.of(), null, List.of());
     }
 
     private CamelKIntegration integrationWithVersion(String name, String resourceVersion) {
@@ -184,6 +170,37 @@ class MicroDomainResourceBuildContextFactoryTest {
         assertTrue(context.getData().isEmpty());
         verify(snapshotRepository).findAllByIdIn(List.of("snap-1"));
         verify(microDomainService, never()).getMainIntegrationResources(any());
+    }
+
+    @DisplayName("Wires the injected IntegrationServiceCatalog into the built context -- a factory that built "
+            + "its own or omitted one previously left every external-system service-call element unable to "
+            + "resolve its system at build time")
+    @Test
+    void buildsContextWithRealServiceCatalog() {
+        ResourceBuildContext<List<Snapshot>> context =
+                factory.createResourceBuildContext(request(options()), false).context();
+
+        assertSame(integrationServiceCatalog, context.getServiceCatalog());
+    }
+
+    @DisplayName("Stamps the requesting user onto the build, since a micro domain keeps no deployment row to audit")
+    @Test
+    void buildsContextWithTheCurrentUserAsCreator() {
+        when(auditor.getCurrentAuditor()).thenReturn(Optional.of(new User("user-1", "test-admin")));
+
+        ResourceBuildContext<List<Snapshot>> context =
+                factory.createResourceBuildContext(request(options()), false).context();
+
+        assertEquals("test-admin", context.getBuildInfo().getCreatedBy());
+    }
+
+    @DisplayName("Leaves the creator unset when there is no current user")
+    @Test
+    void buildsContextWithoutCreatorWhenTheAuditorIsEmpty() {
+        ResourceBuildContext<List<Snapshot>> context =
+                factory.createResourceBuildContext(request(options()), false).context();
+
+        assertNull(context.getBuildInfo().getCreatedBy());
     }
 
     @DisplayName("Leaves the options untouched when appending finds no existing resources")
@@ -300,52 +317,18 @@ class MicroDomainResourceBuildContextFactoryTest {
         verify(sourceDslConfigMapNamingStrategy).useName(any(), eq("src-chain"));
     }
 
-    @DisplayName("Caches the public tier's existing HTTPRoute rules so append-mode builds can preserve them")
-    @Test
-    void appendModeCachesExistingHttpRouteRules() {
-        Map<String, Object> spec = new LinkedHashMap<>();
-        spec.put("rules", List.of(Map.of("matches", List.of(Map.of("path", Map.of("value", "/qip-routes/a"))))));
-        KubeCustomObject publicRoute = new KubeCustomObject();
-        publicRoute.setSpec(spec);
-
-        CamelKIntegration integration = new CamelKIntegration();
-        integration.setSpec(new CamelKIntegration.IntegrationSpec());
-        when(microDomainService.getMainIntegrationResources(DOMAIN))
-                .thenReturn(java.util.Optional.of(resources(integration, null, List.of(), publicRoute)));
-
-        ResourceBuildContext<List<Snapshot>> context =
-                factory.createResourceBuildContext(request(options()), true).context();
-
-        assertEquals(spec, context.getBuildCache().get("publicHttpRoute"));
-    }
-
     @Test
     void recordsTheLiveMetadataOfEveryObjectItReadUnderAppendMode() {
         CamelKIntegration integration = integrationWithVersion("int-res", "42");
         when(microDomainService.getMainIntegrationResources(DOMAIN))
-                .thenReturn(Optional.of(resources(integration, null)));
+                .thenReturn(Optional.of(resources(integration)));
 
         var built = factory.createResourceBuildContext(buildRequest(DOMAIN), true);
 
-        Optional<V1ObjectMeta> observed =
+        V1ObjectMeta observed =
                 built.observations().get(new MicroDomainService.ResourceKey("Integration", "int-res"));
         assertNotNull(observed, "an object Phase 1 read must be recorded, not omitted");
-        assertTrue(observed.isPresent());
-        assertEquals("42", observed.get().getResourceVersion());
-    }
-
-    @Test
-    void recordsAnAbsentObjectAsObservedEmptyRatherThanOmittingIt() {
-        // publicHttpRoute is null: getMainIntegrationResources looked and found nothing.
-        when(microDomainService.getMainIntegrationResources(DOMAIN))
-                .thenReturn(Optional.of(resources(integrationWithVersion("int-res", "42"), null)));
-
-        var built = factory.createResourceBuildContext(buildRequest(DOMAIN), true);
-
-        Optional<V1ObjectMeta> observed = built.observations()
-                .get(new MicroDomainService.ResourceKey("HTTPRoute", PUBLIC_ROUTE_NAME));
-        assertNotNull(observed, "looked-and-absent must be distinguishable from never-looked");
-        assertTrue(observed.isEmpty());
+        assertEquals("42", observed.getResourceVersion());
     }
 
     @Test

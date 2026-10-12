@@ -1,0 +1,21 @@
+---
+$id: http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/context-service
+$schema: http://json-schema.org/draft-07/schema
+type: object
+allOf:
+  - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/top-level-entity-properties"
+title: Context Service
+metaInfo:
+  application: Cloud Integration Platform
+  labels:
+    - CIP
+  fileExtension: context-service.cip
+properties:
+  content:
+    type: object
+    allOf:
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/description-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/labels-property"
+      - $ref: "http://netcracker.com/schemas/product/cloud-integration-platform/conf-model/common-properties/migrations-property"
+required:
+  - content

@@ -30,7 +30,7 @@ import static com.google.auth.oauth2.ServiceAccountCredentials.fromStream;
 @Slf4j
 @Component
 @ConditionalOnProperty(
-        name = "qip.camel.component.pubsub.predeploy-check-enabled",
+        name = "cip.camel.component.pubsub.predeploy-check-enabled",
         havingValue = "true",
         matchIfMissing = true
 )

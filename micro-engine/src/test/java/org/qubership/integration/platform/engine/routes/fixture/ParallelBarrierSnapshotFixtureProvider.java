@@ -131,23 +131,33 @@ class ParallelBarrierSnapshotFixtureProvider implements SnapshotFixtureProvider 
 
         @Override
         public void beforeInvocation(SnapshotScenarioInvocation invocation) {
+            int barrierCount = bindings.getFirst().interaction(invocation.getId())
+                    .getExpectedRequest()
+                    .getCount();
             for (SnapshotFixtureBinding binding : bindings) {
                 int expectedCount = binding.interaction(invocation.getId())
                         .getExpectedRequest()
                         .getCount();
-                if (expectedCount != invocation.getRepeat()) {
+                if (expectedCount != 0 && expectedCount != invocation.getRepeat()) {
                     throw new IllegalArgumentException(
                             "Parallel barrier fixture '" + binding.definition().getId()
                                     + "' invocation '" + invocation.getId() + "' expects "
-                                    + expectedCount + " requests, but invocation repeat is "
+                                    + expectedCount + " requests; count must be 0 or match invocation repeat of "
                                     + invocation.getRepeat() + "."
+                    );
+                }
+                if (expectedCount != barrierCount) {
+                    throw new IllegalArgumentException(
+                            "Parallel barrier deployment '" + deploymentId
+                                    + "' must use the same request count for every fixture in invocation '"
+                                    + invocation.getId() + "'."
                     );
                 }
             }
 
             InvocationState state = new InvocationState(
                     invocation.getId(),
-                    invocation.getRepeat(),
+                    barrierCount,
                     bindings
             );
             if (!activeInvocation.compareAndSet(null, state)) {

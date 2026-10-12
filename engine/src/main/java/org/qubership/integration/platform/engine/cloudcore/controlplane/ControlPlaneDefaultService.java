@@ -40,10 +40,10 @@ import static org.qubership.integration.platform.engine.configuration.camel.Came
 
 @Slf4j
 @Component("controlPlaneService")
-@ConditionalOnProperty(value = "qip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnProperty(value = "cip.control-plane.enabled", havingValue = "true", matchIfMissing = true)
 @ConditionalOnExpression(
-        "'${qip.control-plane.mesh-type:Core}'.equalsIgnoreCase('Core')"
-                + " or !'${qip.istio.enabled:false}'.equalsIgnoreCase('true')")
+        "'${cip.control-plane.mesh-type:Core}'.equalsIgnoreCase('Core')"
+                + " or !'${cip.istio.enabled:false}'.equalsIgnoreCase('true')")
 public class ControlPlaneDefaultService implements ControlPlaneService {
 
     private static final String CAMEL_ROUTES_REWRITE_PREFIX = CAMEL_ROUTES_LEGACY_PREFIX;
@@ -53,32 +53,32 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
     @Value("${cloud.microservice.namespace}")
     private String namespace;
 
-    @Value("${qip.control-plane.host}")
+    @Value("${cip.control-plane.host}")
     private String controlPlaneHost;
 
-    @Value("${qip.control-plane.egress.name}")
+    @Value("${cip.control-plane.egress.name}")
     private String egressGatewayName;
 
-    @Value("${qip.control-plane.routes.endpoints.v3.public-gateway-name}")
+    @Value("${cip.control-plane.routes.endpoints.v3.public-gateway-name}")
     private String publicGatewayName;
 
-    @Value("${qip.control-plane.routes.endpoints.v3.private-gateway-name}")
+    @Value("${cip.control-plane.routes.endpoints.v3.private-gateway-name}")
     private String privateGatewayName;
 
-    @Value("${qip.control-plane.egress.virtual-service}")
+    @Value("${cip.control-plane.egress.virtual-service}")
     private String virtualServiceName;
 
-    @Value("${qip.control-plane.egress.enable-insecure-tls}")
+    @Value("${cip.control-plane.egress.enable-insecure-tls}")
     private boolean enableInsecureTls;
 
-    @Value("${qip.chains.external-routes.base-path}")
+    @Value("${cip.chains.external-routes.base-path}")
     private String baseRoutePrefix;
-    @Value("${qip.control-plane.routes.endpoints.v1.get-routes}")
+    @Value("${cip.control-plane.routes.endpoints.v1.get-routes}")
     private String getRoutesEndpoint;
-    @Value("${qip.control-plane.routes.endpoints.v2.delete-routes-by-uuid}")
+    @Value("${cip.control-plane.routes.endpoints.v2.delete-routes-by-uuid}")
     private String deleteRoutesByUUID;
 
-    @Value("${qip.control-plane.routes.endpoints.v3.post-configuration}")
+    @Value("${cip.control-plane.routes.endpoints.v3.post-configuration}")
     private String postConfigurationEndpoint;
 
     private final RestTemplate restTemplateMS;
@@ -117,12 +117,12 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
     }
 
     @Override
-    public void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
+    public void postPublicEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
         postEngineRoutes(deploymentRoutes, endpoint, publicGatewayName);
     }
 
     @Override
-    public void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
+    public void postPrivateEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint) throws ControlPlaneException {
         postEngineRoutes(deploymentRoutes, endpoint, privateGatewayName);
     }
 
@@ -168,20 +168,20 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
     }
 
     @Override
-    public void removeEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName) throws ControlPlaneException {
+    public void removeEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String deploymentName) throws ControlPlaneException {
         try {
-            if (deploymentRoutes.isEmpty() || deploymentName.isEmpty()) {
-                return;
-            }
-
-            List<RouteConfigurationResponse> routesList = getRoutesList();
-
             List<String> publicPaths = deploymentRoutes.stream()
                 .filter(route -> RouteType.isPublicTriggerRoute(route.getType()))
                 .map(DeploymentRouteUpdate::getPath).toList();
             List<String> privatePaths = deploymentRoutes.stream()
                 .filter(route -> RouteType.isPrivateTriggerRoute(route.getType()))
                 .map(DeploymentRouteUpdate::getPath).toList();
+
+            if ((publicPaths.isEmpty() && privatePaths.isEmpty()) || deploymentName.isEmpty()) {
+                return;
+            }
+
+            List<RouteConfigurationResponse> routesList = getRoutesList();
 
             removeEngineRoutesByPathsAndEndpoint(publicPaths, routesList, PUBLIC_GATEWAY_SERVICE_NODEGROUP, deploymentName);
             removeEngineRoutesByPathsAndEndpoint(privatePaths, routesList, PRIVATE_GATEWAY_SERVICE_NODEGROUP, deploymentName);
@@ -255,7 +255,7 @@ public class ControlPlaneDefaultService implements ControlPlaneService {
      * @param endpoint unused; Core Mesh's route objects aren't named per pod
      */
     @Override
-    public void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint) throws ControlPlaneException {
+    public void postEgressGatewayRoutes(String chainId, List<DeploymentRouteUpdate> routes, String endpoint) throws ControlPlaneException {
         for (DeploymentRouteUpdate route : routes) {
             postEgressGatewayRoute(route);
         }

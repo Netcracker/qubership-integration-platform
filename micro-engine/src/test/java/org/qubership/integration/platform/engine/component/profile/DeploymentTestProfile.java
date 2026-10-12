@@ -48,7 +48,7 @@ public class DeploymentTestProfile implements QuarkusTestProfile {
     public Map<String, String> getConfigOverrides() {
         return Map.ofEntries(
                 Map.entry("quarkus.arc.exclude-types", EXCLUDED_TYPES),
-                Map.entry("qip.metrics.enabled", "false"),
+                Map.entry("cip.metrics.enabled", "false"),
                 Map.entry("apigateway.routes.registration.enabled", "false")
         );
     }
