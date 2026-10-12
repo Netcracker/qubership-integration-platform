@@ -13,11 +13,11 @@ import java.util.List;
  * Recursively rewrites {@link DoubleNode} values that hold whole numbers (as produced by
  * {@code io.kubernetes.client.openapi.JSON}'s Gson instance, which decodes every JSON number as
  * {@code Double} by default) into integral nodes. Without this, a Kubernetes object carrying such
- * a value re-emits it as e.g. {@code 8080.0}, which the Gateway API's int32-typed schema fields
- * (HTTPRoute {@code backendRefs[].port}/{@code weight}) reject at apply time.
+ * a value re-emits it as e.g. {@code 80.0}, and the CRD rejects an integer field such as a
+ * {@code ServiceEntry} port number at apply time.
  */
-public final class HttpRouteRuleNormalizer {
-    private HttpRouteRuleNormalizer() {
+public final class IntegralDoubleNormalizer {
+    private IntegralDoubleNormalizer() {
     }
 
     public static void normalizeIntegralDoubles(JsonNode node) {

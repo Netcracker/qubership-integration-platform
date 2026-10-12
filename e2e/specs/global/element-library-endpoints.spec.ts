@@ -3,7 +3,7 @@
  *
  * The set of elements `GET /v1/library` offers is **not** asserted here.
  * `specs/api/element-library.spec.ts` already reconciles it against the tracked schema tree under
- * `schemas/qip-model/element/`, and reading the same list twice would earn one row two ways. What
+ * `schemas/conf-model/element/`, and reading the same list twice would earn one row two ways. What
  * this spec asserts is the three endpoints' own behavior: how the hierarchy decides where an
  * element is served, what shape every entry carries, that the by-name read answers the same object,
  * and what makes the types listing a subset of the palette rather than a copy of it.

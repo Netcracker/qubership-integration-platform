@@ -70,6 +70,7 @@ export const ChainDiffView: React.FC<ChainDiffViewProps> = ({
         </Col>
       </Row>
       <ChainDiffViewControls
+        viewType={viewType}
         changes={changes ?? []}
         selectedChangeId={selectedChangeId}
         onSelectChange={setSelectedChangeId}

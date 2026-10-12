@@ -22,14 +22,14 @@ import java.util.List;
 
 public interface ControlPlaneService {
 
-    void postPublicEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
+    void postPublicEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
         throws ControlPlaneException;
 
-    void postPrivateEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
+    void postPrivateEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes, String endpoint)
         throws ControlPlaneException;
 
-    void removeEngineRoutes(List<DeploymentRouteUpdate> deploymentRoutes,
+    void removeEngineRoutes(String chainId, List<DeploymentRouteUpdate> deploymentRoutes,
         String deploymentName) throws ControlPlaneException;
 
-    void postEgressGatewayRoutes(List<DeploymentRouteUpdate> routes, String endpoint) throws ControlPlaneException;
+    void postEgressGatewayRoutes(String chainId, List<DeploymentRouteUpdate> routes, String endpoint) throws ControlPlaneException;
 }

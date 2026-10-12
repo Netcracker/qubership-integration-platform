@@ -9,7 +9,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class HttpRouteRuleNormalizerTest {
+class IntegralDoubleNormalizerTest {
 
     private static final JsonNodeFactory FACTORY = JsonNodeFactory.instance;
 
@@ -26,7 +26,7 @@ class HttpRouteRuleNormalizerTest {
         backendRef.put("port", 443.0);
         backendRef.put("weight", 2.0);
 
-        HttpRouteRuleNormalizer.normalizeIntegralDoubles(root);
+        IntegralDoubleNormalizer.normalizeIntegralDoubles(root);
 
         assertTrue(root.get("topLevelPort").isIntegralNumber());
         assertEquals(8080L, root.get("topLevelPort").longValue());
@@ -48,7 +48,7 @@ class HttpRouteRuleNormalizerTest {
         ArrayNode values = root.putArray("values");
         values.add(2.5);
 
-        HttpRouteRuleNormalizer.normalizeIntegralDoubles(root);
+        IntegralDoubleNormalizer.normalizeIntegralDoubles(root);
 
         assertTrue(root.get("factor") instanceof DoubleNode);
         assertEquals(1.5, root.get("factor").doubleValue());

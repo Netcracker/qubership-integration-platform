@@ -22,7 +22,7 @@ public class OptionControlledEgressRouteResourceBuilder extends EgressRouteResou
         RoutesGetterService routesGetterService,
 
         @Qualifier("httpRouteEgressNamingStrategy")
-        NamingStrategy<ResourceBuildContext<List<Snapshot>>> httpRouteEgressNamingStrategy,
+        NamingStrategy<ResourceBuildContext<Snapshot>> httpRouteEgressNamingStrategy,
 
         K8sNameValidator k8sNameValidator
     ) {

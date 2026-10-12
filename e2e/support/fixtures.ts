@@ -52,7 +52,6 @@ import {
   type RunRecord,
 } from "./run.js";
 import { attachDiagnostics, beginDiagnostics } from "./diagnostics.js";
-import { settleMicroDefects } from "./known-defect.js";
 import { Sessions } from "./sessions.js";
 import { Engine } from "./engine.js";
 import type { EngineKind, Env } from "../env/index.js";
@@ -77,8 +76,6 @@ interface TestFixtures {
    * diagnostics is a spec that fails without them on the day they matter.
    */
   diagnostics: void;
-  /** Once the body has run, settles the case on the `MicroDefect` it is pinned with. */
-  knownDefects: void;
   /**
    * The session lookup, over the same `request` context the spec's own calls go through.
    *
@@ -154,15 +151,6 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       // After the test body and before Playwright decides the run is over, which is the only point
       // where both the outcome and the window the test ran in are known.
       await attachDiagnostics(testInfo, env, engineKind);
-    },
-    { auto: true },
-  ],
-
-  knownDefects: [
-    // eslint-disable-next-line no-empty-pattern
-    async ({}, use, testInfo) => {
-      await use();
-      settleMicroDefects(testInfo);
     },
     { auto: true },
   ],

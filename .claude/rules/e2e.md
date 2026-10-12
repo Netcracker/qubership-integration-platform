@@ -51,7 +51,7 @@ catalog.
 
 No workflow runs the suite. `npm run check-types` and `npx playwright test --project=schema` need no
 stack, so run both before pushing a change to `e2e/` or to a tree the `schema` project reads:
-`schemas/src/main/resources/qip-model/`, `schemas/src/test/resources/samples/`, `infrastructure/`,
+`schemas/src/main/resources/conf-model/`, `schemas/src/test/resources/samples/`, `infrastructure/`,
 and the import-file migration classes under `integration-build-pipeline/`. The rest of the suite
 provisions a Compose stack or a cluster namespace and expects to own it for the length of the run.
 

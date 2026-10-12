@@ -10,7 +10,7 @@ import { ID_PREFIX, SCHEMA_FILE_SUFFIX } from "./schemaIds";
 // ===== Config =====
 const SCHEMA_SRC_DIR = path.resolve(
   process.cwd(),
-  "src/main/resources/qip-model",
+  "src/main/resources/conf-model",
 );
 const TEMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "qip-schemas-"));
 const GENERATED_DIR = path.resolve(process.cwd(), "types");
