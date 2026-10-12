@@ -113,6 +113,15 @@ catalog resolution, and defaults.
   `"requestedValue":"NONE","recommendedValue":"RBAC","questionId":"access-policy","decision":null}`.
   Add an open question with that questionId and the same interactionIds. Do not leave
   policyConflict null on that fact. After the reply, update the same fact and remove its question.
+- Record an explicitly requested HTTP trigger accessControlType in its ANCHOR elementIntent
+  requestedProperties. For RBAC, capture the author's exact role names in the same anchor's
+  roles property as a JSON array string and retain them in exactValues and fact text.
+  If the saved author messages do not supply roles for this trigger, save the partial draft and
+  ask which explicit roles may access it. Use STAY until the author answers that question.
+  Keep accessControlType=RBAC while asking; do not switch to NONE or invent a role to pass validation.
+  Role names in knowledge examples are examples, not an approved role choice for this chain.
+  When the author supplies roles, update the saved draft, preserve every other requirement, and
+  remove the answered question. A confirmed NONE choice does not require an RBAC role question.
 - Preserve stable interaction, fact, and question IDs. Give separate IDs to repeated calls.
   Calls on different branches remain separate occurrences even when they use the same target
   and method. For three branches with HTTP Senders, capture three OUTBOUND interactions and
