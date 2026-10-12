@@ -44,7 +44,10 @@ public final class RecoveryContextProjector {
       root.put("responseLocale", context.responseLocale().trim());
     }
 
-    String inline = write(root, mapper);
+    int remaining = CHAR_BUDGET - write(root, mapper).length() - 100;
+    root.set("repairHistory", RepairHistory.project(context.priorAttempts(), mapper,
+        Math.min(RepairHistory.CHAR_BUDGET, remaining)));
+    String inline = RepairHistory.registerContext(root);
     if (inline.length() > CHAR_BUDGET) {
       throw new IllegalArgumentException("Recovery context exceeds the diagnostic character budget");
     }
@@ -64,7 +67,7 @@ public final class RecoveryContextProjector {
         evidence.findings(),
         redactedTechnicalFailure(evidence.technicalFailure()),
         evidence.priorAttemptRefs(),
-        evidence.documentRecordRefs());
+        evidence.documentRecordRefs(), evidence.producerInputs(), evidence.authorInputIds(), evidence.cleanRebuild());
   }
 
   private static TechnicalFailureRecord redactedTechnicalFailure(TechnicalFailureRecord record) {

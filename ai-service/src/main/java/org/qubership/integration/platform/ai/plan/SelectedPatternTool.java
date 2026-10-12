@@ -118,6 +118,11 @@ public class SelectedPatternTool {
         return finish(conversationId, startMs, message);
       }
 
+      if (!captureSession.isPresent(CaptureKey.conversation(CaptureSlot.SELECTED_PATTERN, conversationId))) {
+        feedbackStore.beginProposal(conversationId,
+            org.qubership.integration.platform.ai.compiler.CompilerGraphPatchTool.resolveCapabilityId(),
+            "captureSelectedPattern", capture);
+      }
       capture = (SelectedPatternCapture) fillPolicy.apply(capture);
 
       String patternValidationError = validatePattern(capture);

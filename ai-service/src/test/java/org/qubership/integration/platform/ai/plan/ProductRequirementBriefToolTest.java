@@ -3,6 +3,7 @@ package org.qubership.integration.platform.ai.plan;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
@@ -170,7 +171,11 @@ class ProductRequirementBriefToolTest {
     assertEquals(approved, ProductCapabilityCaptureContext.binding(CONVERSATION)
         .orElseThrow().approvedDraft());
 
-    assertTrue(tool.capture(capture, CONVERSATION).accepted());
+    assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+        () -> tool.capture(capture, CONVERSATION));
+    var corrected = new RequirementAnalysisCapture(
+        "Greetings", List.of("GET /greetings"), List.of(), "Return Hello world!", List.of(), List.of());
+    assertTrue(tool.capture(corrected, CONVERSATION).accepted());
     assertTrue(candidate.get() instanceof RequirementBrief);
   }
 

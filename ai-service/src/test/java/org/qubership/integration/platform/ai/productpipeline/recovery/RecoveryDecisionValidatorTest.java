@@ -54,6 +54,24 @@ class RecoveryDecisionValidatorTest {
   }
 
   @Test
+  void historicalCitationDoesNotAuthorizeAnObsoleteFaultTarget() {
+    var oldGraph = new Reference(Kind.CHAIN_PLAN_GRAPH, "old-graph", "old-hash");
+    var prior = new RepairHistory.Attempt(new Reference(Kind.RECOVERY_EVIDENCE, "old-evidence", "evidence-hash"),
+        "old-failure", "design-execution", List.of(), List.of(), List.of(oldGraph), null, List.of(), false);
+    var input = new RecoveryContext(evidence, context.approvedBrief(), context.rejectedArtifact(), "en",
+        List.of(), null, null, List.of(prior));
+    var cited = new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
+        List.of("old-failure"), RecoveryAction.PARK, List.of(), "", "Review the rejected proposal.");
+    assertTrue(RecoveryDecisionValidator.validate(cited, input).accepted());
+    var obsolete = new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, oldGraph,
+        List.of("old-failure"), RecoveryAction.PARK, List.of(), "", "Review the rejected proposal.");
+    assertFalse(RecoveryDecisionValidator.validate(obsolete, input).accepted());
+    var unrelated = new RecoveryDecision(RecoveryCauseClass.UNCLASSIFIED, null,
+        List.of("unrelated-failure"), RecoveryAction.PARK, List.of(), "", "Review the rejected proposal.");
+    assertFalse(RecoveryDecisionValidator.validate(unrelated, input).accepted());
+  }
+
+  @Test
   void documentRecordReferenceIsAcceptedEvidence() {
     RecoveryEvidence withRecord =
         new RecoveryEvidence(

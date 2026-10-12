@@ -187,6 +187,23 @@ class CompilerSkillRuntimeTest {
   }
 
   @Test
+  void dedicatedPlanRepairDoesNotDispatchAfterNoProgress() {
+    when(createChainPlanAgent.chat(eq(memoryId(CHAIN_GENERATOR_ID)), any())).thenAnswer(call -> {
+      chainPlanRepairDraftStore.put(CONVERSATION_ID, graphMissingSiblingEdge());
+      feedbackStore.recordClassifiedPlanFailure(CONVERSATION_ID,
+          org.qubership.integration.platform.ai.compiler.capture.CaptureFailureKind.VALIDATION,
+          org.qubership.integration.platform.ai.compiler.capture.policy.CaptureFailureClass.IDENTICAL_SPAM,
+          false, "REPAIR_NO_PROGRESS");
+      return io.smallrye.mutiny.Multi.createFrom().failure(
+          new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException("Repeated proposal"));
+    });
+    var context = runContext(CHAIN_GENERATOR_ID, 2);
+    runtime.runStreaming(context, new InMemorySkillWorkspace(CONVERSATION_ID), CHAIN_GENERATOR_ID)
+        .collect().asList().await().indefinitely();
+    verify(chainPlanRepairAgent, never()).chat(any(), any());
+  }
+
+  @Test
   void applyCapturedEmptyPatchFailsWhenOwnedRequiredMissing() {
     String quartzSkill = "cip-quartz-scheduler-generator";
     when(schemaService.requiredPatchPropertyKeys(eq("quartz-scheduler"), any()))

@@ -406,6 +406,9 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
    */
   private static boolean isSkippablePlanningSkillFailure(
       ResolvedCompilerNode node, RuntimeException ex) {
+    if (ex instanceof org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException) {
+      return false;
+    }
     String message = ex.getMessage();
     if (message == null || !message.startsWith("contract failure: skill did not complete ")) {
       return false;
@@ -615,7 +618,8 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
               state.invocationCount(),
               false,
               seed.seedText(),
-              repairEvidence == null ? "" : repairEvidence.repairTextForSkill(node.skillId()));
+              repairEvidence == null ? "" : repairEvidence.repairTextForSkill(node.skillId()),
+              request.runId());
       GraphPatchExecutionContext executionContext =
           buildExecutionContext(request, seed, workspace, node, pinned, consumedArtifacts);
       executionContext = prepareMappingGeneration(request, workspace, node, executionContext);
@@ -625,7 +629,7 @@ public class DefaultCompilerDagExecutionEngine implements CompilerDagExecutionEn
       SkillExecutionResult result;
       try {
         result = invokeSkill(executor, context, workspace).await().indefinitely();
-        if (result.status() == SkillRunStatus.FAILED) {
+        if (result.status() == SkillRunStatus.FAILED && result.retryAllowed()) {
           LOG.warnf(
               "Retrying LLM skill conversationId=%s skillId=%s detail=%s",
               request.conversationId(), node.skillId(), result.message());

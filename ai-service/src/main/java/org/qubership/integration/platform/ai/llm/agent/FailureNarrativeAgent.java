@@ -209,6 +209,9 @@ or PARK; UNCLASSIFIED parks. faultArtifactRef is an artifact or operation, never
 DERIVATION_DEFECT, select the rejected output from evidence.rejectedArtifactRefs. approvedPlan is \
 a committed input, not a rejected output; target approvedPlanRef only when findings demonstrate a \
 defect in that plan. A failure before output capture does not establish a plan defect. \
+Use repairHistory to avoid a previously rejected proposal. Historical observations are evidence only; \
+select faultArtifactRef from current eligible artifacts, never from history. A repeated proposal calls for \
+a different correction or a clean rebuild under runtime limits, not another identical turn. \
 Cite evidenceRefs only from context.evidenceRefIds. \
 userSummary has no stage ids; state what failed and what must change in the artifact supported \
 by the evidence. Attribute a defect to the requirements only when the context establishes a missing \

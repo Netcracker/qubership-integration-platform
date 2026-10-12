@@ -51,6 +51,11 @@ public final class LlmRequestBudget {
   }
 
   ChatRequest prepare(ChatRequest request) {
+    request.messages().forEach(message -> {
+      if (message instanceof dev.langchain4j.data.message.UserMessage user && user.hasSingleText()) {
+        org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.bind(user.singleText());
+      }
+    });
     var parameters = request.parameters();
     var tools = parameters.toolSpecifications();
     if (tools != null && !tools.isEmpty()) {
@@ -78,6 +83,10 @@ public final class LlmRequestBudget {
     if ((long) estimateInputTokens(request) + outputTokens
         + positive(config.contextHeadroomTokens(), 8192) > allowance) {
       request = rebuild(request);
+      if ((long) estimateInputTokens(request) + outputTokens
+          + positive(config.contextHeadroomTokens(), 8192) > allowance) {
+        request = omitRepairHistory(request);
+      }
     }
     String packet = packet(request);
     // ponytail: CL100K estimates differ from provider tokenizers; reserve headroom before sending.
@@ -131,6 +140,19 @@ public final class LlmRequestBudget {
       messages.set(i, ToolExecutionResultMessage.builder().id(result.id()).toolName(result.toolName())
           .text(marker.toString()).isError(result.isError()).attributes(result.attributes()).build());
     }
+    return request.toBuilder().messages(messages).build();
+  }
+
+  private static ChatRequest omitRepairHistory(ChatRequest request) {
+    var messages = request.messages().stream().map(message -> {
+      if (message instanceof dev.langchain4j.data.message.UserMessage user && user.hasSingleText()) {
+        String reduced = org.qubership.integration.platform.ai.productpipeline.recovery.RepairHistory.omit(user.singleText());
+        if (!reduced.equals(user.singleText())) {
+          return (ChatMessage) user.toBuilder().contents(java.util.List.of(dev.langchain4j.data.message.TextContent.from(reduced))).build();
+        }
+      }
+      return message;
+    }).toList();
     return request.toBuilder().messages(messages).build();
   }
 

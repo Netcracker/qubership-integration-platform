@@ -75,6 +75,10 @@ public class NamingManifestCaptureTool {
       if (capture == null) {
         return finish(conversationId, startMs, "capture is required");
       }
+      if (!captureSession.isPresent(CaptureKey.conversation(CaptureSlot.NAMING_MANIFEST, conversationId))) {
+        feedbackStore.beginProposal(conversationId, CompilerGraphPatchTool.resolveCapabilityId(),
+            "captureNamingManifest", capture);
+      }
       if (capture.chainName() == null || capture.chainName().isBlank()) {
         String message = "chainName must be non-blank";
         boolean repeated = feedbackStore.recordPlanValidationFailure(conversationId, message);

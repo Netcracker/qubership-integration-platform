@@ -12,7 +12,12 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValida
  * already had. Travels to recovery routing unmodified.
  */
 public record RecoveryCause(
-    RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact) {
+    RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact,
+    boolean noProgress) {
+
+  public RecoveryCause(RecoveryCauseCode causeCode, List<PlanValidationFinding> findings, String requestedFact) {
+    this(causeCode, findings, requestedFact, false);
+  }
 
   public RecoveryCause {
     causeCode = causeCode == null ? RecoveryCauseCode.VALIDATION_BLOCKER : causeCode;

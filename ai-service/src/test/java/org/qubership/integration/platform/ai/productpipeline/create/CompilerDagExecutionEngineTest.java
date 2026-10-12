@@ -139,6 +139,22 @@ class CompilerDagExecutionEngineTest {
   }
 
   @Test
+  void noProgressDoesNotRetryTheSkillOrUsePlanningFallback() {
+    String conversation = "no-progress-dag";
+    ResolvedCompilerDag dag = dagWithStructureGenerator();
+    SkillExecutor executor = mock(SkillExecutor.class);
+    when(executor.run(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+        .thenReturn(Uni.createFrom().failure(new org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException("Same rejected proposal")));
+    when(skillRegistry.require("cip-structure-generator")).thenReturn(executor);
+    var request = new CompilerDagExecutionRequest("run-1", conversation, manifestFor(dag), brief(),
+        null, dag, List.of(), List.of());
+    assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+        () -> engine.execute(request, (id, status) -> {}).await().indefinitely());
+    org.mockito.Mockito.verify(executor, org.mockito.Mockito.times(1))
+        .run(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
   void executeRunsProvidedDagAndReturnsSucceededResult() {
     String conversationId = "conv-engine-direct";
     ResolvedCompilerDag dag = dagWithMandatoryValidation();

@@ -26,6 +26,64 @@ class CaptureAttemptFeedbackStoreTest {
   }
 
   @Test
+  void patchTraceIdsDoNotChangeTheMutationAndCleanAliasesRetainHistory() {
+    store.beginScope("chat", "skill", java.util.Map.of("run", "r1", "inputs", "i1"));
+    store.beginProposal("chat", "skill", "captureGraphPatch", java.util.Map.of(
+        "patchId", "first", "rationale", "first explanation", "value", " A "));
+    store.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Invalid mutation");
+    store.beginScope("clean-alias", "skill", java.util.Map.of("run", "r1", "inputs", "i1"), "chat");
+    org.junit.jupiter.api.Assertions.assertThrows(CaptureNoProgressException.class,
+        () -> store.beginProposal("clean-alias", "skill", "captureGraphPatch", java.util.Map.of(
+            "patchId", "new-id", "rationale", "new explanation", "value", " A ")));
+    assertTrue(store.lastPatchFailure("clean-alias", "skill").orElseThrow().noProgress());
+    store.beginProposal("clean-alias", "skill", "captureGraphPatch", java.util.Map.of(
+        "patchId", "new-id", "rationale", "new explanation", "value", "A"));
+    store.beginScope("chat", "skill", java.util.Map.of("run", "r2", "inputs", "i1"));
+    store.beginProposal("chat", "skill", "captureGraphPatch", java.util.Map.of(
+        "patchId", "first", "rationale", "first explanation", "value", " A "));
+  }
+
+  @Test
+  void genericProposalFeedbackSurvivesReconstructionAndClearKeepsHistory() {
+    var mapper = new ObjectMapper().findAndRegisterModules();
+    var blobs = new InMemoryArtifactBlobStore();
+    var artifacts = new CompilationArtifacts(blobs, mapper, Clock.systemUTC());
+    var sessions = new CompilationSessions(blobs, mapper, Clock.systemUTC());
+    var first = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    first.beginScope("chat", "skill", java.util.Map.of("base", "v1"));
+    first.beginProposal("chat", "skill", "capture", java.util.Map.of("value", "A"));
+    first.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Invalid A");
+    var restored = new CaptureAttemptFeedbackStore(new ToolCallFingerprintStore(mapper, artifacts, sessions), artifacts, sessions);
+    assertTrue(restored.lastPatchFailure("chat", "skill").isPresent());
+    restored.clearPatch("chat", "skill");
+    assertTrue(restored.lastPatchFailure("chat", "skill").isEmpty());
+    restored.beginScope("chat", "skill", java.util.Map.of("base", "v1"));
+    assertTrue(restored.repairHistory("chat", "skill").contains("Invalid A"));
+    org.junit.jupiter.api.Assertions.assertThrows(CaptureValidationException.class,
+        () -> restored.beginProposal("chat", "skill", "capture", java.util.Map.of("value", "A")));
+    assertTrue(restored.lastPatchFailure("other-chat", "skill").isEmpty());
+  }
+
+  @Test
+  void proposalHistoryBlocksNonAdjacentRepeatsButAdmitsChangedInputAndArguments() {
+    store.beginScope("chat", "skill", java.util.Map.of("base", "v1", "contract", "c1"));
+    store.beginProposal("chat", "skill", "capture", java.util.Map.of("value", " A "));
+    store.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Invalid A");
+    store.beginProposal("chat", "skill", "capture", java.util.Map.of("value", "B"));
+    store.recordClassifiedPatchFailure("chat", "skill", CaptureFailureKind.VALIDATION,
+        CaptureFailureClass.CORRECTABLE, true, "Invalid B");
+    org.junit.jupiter.api.Assertions.assertThrows(CaptureValidationException.class,
+        () -> store.beginProposal("chat", "skill", "capture", java.util.Map.of("value", " A ")));
+    assertFalse(store.lastPatchFailure("chat", "skill").orElseThrow().outerAllowed());
+    store.beginProposal("chat", "skill", "capture", java.util.Map.of("value", "A"));
+    store.beginScope("chat", "skill", java.util.Map.of("base", "v2", "contract", "c1"));
+    store.beginProposal("chat", "skill", "capture", java.util.Map.of("value", " A "));
+  }
+
+  @Test
   void requirementFailureClassificationSurvivesReconstructionAndExplicitClear() {
     var mapper = new ObjectMapper().findAndRegisterModules();
     var blobs = new InMemoryArtifactBlobStore();

@@ -1437,13 +1437,15 @@ class RequirementAnalysisCapabilityTest {
                         "",
                         "CONFLICTING_TIMEOUT",
                         true)),
-                "Goal: prior brief"));
+                "Goal: prior brief", "{\"readOnly\":true,\"partial\":false,\"attempts\":[{\"failureId\":\"prior-failure\"}]}"));
     assertTrue(message.contains("Repair the previously approved requirement brief"));
     assertTrue(message.contains("outcomeClass: VALIDATION_FAILURE"));
     assertTrue(message.contains("failedStageId: design-execution"));
     assertTrue(message.contains("accessControlType=RBAC"));
     assertTrue(message.contains("Prior requirement brief:"));
     assertTrue(message.contains("Goal: prior brief"));
+    assertTrue(message.contains("<repair-history>"));
+    assertTrue(message.contains("prior-failure"));
     assertTrue(message.contains("previousValue=0"));
     assertTrue(message.contains("proposedValue="));
     assertTrue(message.contains("authorDecisionRequired=true"));

@@ -13,9 +13,18 @@ public record RecoveryContext(
     String responseLocale,
     List<UserInput> authorInputs,
     Reference approvedPlanRef,
-    Object approvedPlan) {
+    Object approvedPlan,
+    List<RepairHistory.Attempt> priorAttempts) {
   public RecoveryContext {
+    priorAttempts = priorAttempts == null ? List.of() : List.copyOf(priorAttempts);
     authorInputs = authorInputs == null ? List.of() : List.copyOf(authorInputs);
+  }
+
+  public RecoveryContext(RecoveryEvidence evidence, RequirementBrief approvedBrief,
+      Object rejectedArtifact, String responseLocale, List<UserInput> authorInputs,
+      Reference approvedPlanRef, Object approvedPlan) {
+    this(evidence, approvedBrief, rejectedArtifact, responseLocale, authorInputs, approvedPlanRef,
+        approvedPlan, List.of());
   }
 
   public RecoveryContext(RecoveryEvidence evidence, RequirementBrief approvedBrief,

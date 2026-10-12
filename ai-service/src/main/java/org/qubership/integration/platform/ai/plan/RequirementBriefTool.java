@@ -138,6 +138,11 @@ public class RequirementBriefTool {
         return finish(conversationId, startMs, message);
       }
 
+      if (!captureSession.isPresent(CaptureKey.conversation(CaptureSlot.REQUIREMENT_BRIEF, conversationId))) {
+        feedbackStore.beginProposal(conversationId,
+            org.qubership.integration.platform.ai.compiler.CompilerGraphPatchTool.resolveCapabilityId(),
+            "captureRequirementBrief", capture);
+      }
       if (!hasText(capture.goal()) && !hasText(capture.summary())) {
         String message =
             repairMessageBuilder.requirementBriefEmptyMessage("captureRequirementBrief");

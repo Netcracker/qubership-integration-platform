@@ -93,6 +93,17 @@ class ScriptBodyRepairToolTest {
   }
 
   @Test
+  void repeatWithANewTraceIdIsBlockedBeforeScriptRepair() {
+    planStore.put(CONVERSATION_ID, graphWithMissingScripts());
+    feedbackStore.beginScope(CONVERSATION_ID, CAPABILITY_ID, java.util.Map.of("inputs", "v1"));
+    var invalid = new ScriptBodyRepairCapture("first", List.of(), "first attempt");
+    assertTrue(tool.repairScriptBodies(invalid).contains("scripts"));
+    assertThrows(org.qubership.integration.platform.ai.compiler.capture.CaptureNoProgressException.class,
+        () -> tool.repairScriptBodies(new ScriptBodyRepairCapture("second", List.of(), "second attempt")));
+    assertFalse(captureSession.isPresent(CaptureKey.capability(CaptureSlot.SCRIPT_BODY_REPAIR, CONVERSATION_ID, CAPABILITY_ID)));
+  }
+
+  @Test
   void deduplicatesDuplicateTargetNodeIdsKeepingLastScript() {
     planStore.put(CONVERSATION_ID, graphWithMissingScripts());
 

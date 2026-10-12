@@ -50,6 +50,21 @@ class ChainSemanticCaptureToolTest {
   }
 
   @Test
+  void rawSemanticRepeatIsStoppedAndAChangedCaptureRemainsEligible() throws Exception {
+    ChainSemanticCaptureTool tool = tool(completePack());
+    bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
+    var capture = ChainSemanticCaptureFixtures.linearCapture();
+    var invalid = new ChainSemanticCapture(capture.chainIdentity(), List.of(), List.of(),
+        List.of(new CapturedOperation("op-shared", "script", List.of("foreign-fact"))),
+        capture.sequenceRegions(), capture.conditionRegions(), capture.splitRegions(), capture.loopRegions(),
+        capture.retryRegions(), capture.errorScopeRegions(), capture.edges(), capture.containment());
+    assertTrue(tool.captureChainSemanticRevision(invalid).contains("DESIGN_CONTRACT_VIOLATION"));
+    assertTrue(tool.captureChainSemanticRevision(invalid).contains("REPAIR_NO_PROGRESS"));
+    assertTrue(ProductCapabilityCaptureContext.semanticCandidate().isEmpty());
+    assertTrue(tool.captureChainSemanticRevision(capture).contains("HANDOFF"));
+  }
+
+  @Test
   void captureStoresOneCandidate() throws Exception {
     ChainSemanticCaptureTool tool = tool(completePack());
     bindDesign(ChainSemanticCaptureFixtures.approvedBrief());
