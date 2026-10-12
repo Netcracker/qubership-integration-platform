@@ -1,6 +1,6 @@
 ---
-description: "Runtime catalog service: layers, mapper DSL, build and test commands, conventions."
-globs: "runtime-catalog/**"
+description: 'Runtime catalog service: layers, mapper DSL, build and test commands, conventions.'
+globs: runtime-catalog/**
 ---
 
 ### Build & Test Commands
@@ -115,7 +115,7 @@ Chain definition (UI/import) → Runtime Catalog compiles → Camel XML (Handleb
 
 The end-to-end suite covers the API against a running stack: its typed client
 `e2e/support/catalog.ts` holds the calls that work, and a behavior reproduced through the API
-gets its regression case in `e2e/specs/api/`. Read `e2e/AGENTS.md` before writing one.
+gets its regression case in `e2e/specs/api/`. Load the `e2e-spec-authoring` skill before writing one.
 
 Exercise a change in four directions: once, twice (including into an entity that already
 exists), from several threads at once, and with edge inputs (blank, forbidden characters,

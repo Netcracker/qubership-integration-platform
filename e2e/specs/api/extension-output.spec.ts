@@ -13,8 +13,7 @@
  *
  * Only the changed chain imports as written. The catalog refuses the created chain and all three
  * created services with `Failed to retrieve migration data`: none of them carries the `migrations`
- * field the catalog reads its version from. Those four cases pin the defect with `test.fail()`, and
- * `docs/product-defects.md` records it under the VS Code extension section.
+ * field the catalog reads its version from. Those four cases pin the defect, #1004, with `test.fail()`.
  *
  * The golden files carry fixed ids, which the spec reads off their file names, so the cases delete
  * whatever holds an id before importing, and two suite runs against one stack would import the same
@@ -142,7 +141,7 @@ const REFUSED = [
   },
 ];
 
-// docs/product-defects.md: a file the extension creates carries no `migrations`, so no strategy finds its version.
+// #1004: a file the extension creates carries no `migrations`, so no strategy finds its version.
 const REFUSAL = "Failed to retrieve migration data";
 
 for (const each of REFUSED) {

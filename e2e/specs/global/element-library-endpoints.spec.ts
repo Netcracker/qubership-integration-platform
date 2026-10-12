@@ -36,8 +36,7 @@
  *   And the miss is a bare `ResponseEntity.notFound().build()`: **404 with an empty body**, not the
  *   `{serviceName, errorMessage, errorDate}` envelope the rest of the catalog answers with.
  *
- * **One platform defect stands behind the types listing** and is filed in `docs/product-defects.md`
- * under "One unusable element type 500s the whole element-type listing":
+ * **One platform defect, decided as won't fix, stands behind the types listing**:
  * `ElementLibraryController.findAllUsingElementsTypes` maps each type through
  * `libraryElementsService.getElementDescriptor(type)`, which throws `ElementNotFoundException` for
  * a type the library does not offer. The query is catalog-wide and spans snapshot elements as well
@@ -149,7 +148,7 @@ async function presentableTypesInUse(catalog: Catalog): Promise<ElementTypeInUse
       "Find it with:\n" +
       "  SELECT e.id, e.type, e.chain_id, e.snapshot_id FROM catalog.elements e\n" +
       "  WHERE e.type NOT IN (<the names GET /v1/library offers>);\n" +
-      "Filed in docs/product-defects.md. Body: " +
+      "Body: " +
       (await response.text()),
   ).toBe(200);
   return (await response.json()) as ElementTypeInUse[];

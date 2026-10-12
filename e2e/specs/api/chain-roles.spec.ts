@@ -34,8 +34,7 @@
  * - **An unsupported (column, condition) pair is refused with a 400** naming the conditions the
  *   column does take. This is a regression test: the pair used to yield a null predicate that
  *   `buildFilterQuery` dropped with `.filter(Objects::nonNull)`, so `CHAIN IS` silently returned
- *   **every** chain. Fixed in PR #819 (issue #808); `docs/product-defects.md` carries the withdrawn
- *   entry.
+ *   **every** chain. Fixed in PR #819 (issue #808).
  * - **`CHAIN` compares against `chain.name` and never the chain id**, so a search by id finds
  *   nothing however well-formed the id is.
  * - **The row's `properties` is a projection, not the element's map.**

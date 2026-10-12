@@ -24,8 +24,7 @@
  *   no drain handshake, and a call that resolves a suspended consumer — or that is still executing
  *   when the superseded context stops — answers `500 QIP-0001`, which is indistinguishable from a
  *   chain that threw. The redeploy case tolerates that one answer, bounds how many samples may
- *   carry it, and refuses everything else; `docs/product-defects.md` has the mechanism and the
- *   reproduction.
+ *   carry it, and refuses everything else; issue #845 has the mechanism and the reproduction.
  * - Two **chains** sharing one `contextPath` on one domain both reach `DEPLOYED`, and the last one
  *   deployed owns the route. Camel does not treat it as a route conflict, and the second deployment
  *   never reaches `FAILED`.
@@ -73,9 +72,9 @@ const SAMPLE_PAUSE = 100;
  *
  * The window is tolerated rather than pinned, and a tolerance with no bound on the count is not a
  * measurement: a window that got an order of magnitude wider answers the same document every time,
- * so a filter asking only *which* answers came back stays green through it. This is the bound that
- * keeps `docs/product-defects.md`'s own number load-bearing — 31,890 calls across eight redeploys
- * produced no non-200 at all, and the single live sighting this suite has is one sample.
+ * so a filter asking only *which* answers came back stays green through it. This bound keeps the
+ * measured number meaningful: 31,890 calls across eight redeploys produced no non-200 at all, and
+ * the single live sighting this suite has is one sample.
  *
  * Ten is roughly a second of drain at `SAMPLE_PAUSE`, and the switch itself spans between 30 and 45
  * samples on this stack, so the bound is about a quarter of the redeploy. Every full run so far has
@@ -297,13 +296,11 @@ test("a redeploy swaps the response and the route never goes missing", { tag: ["
   // What the engine does not promise is that every sample answers 200. There is no drain handshake:
   // a request that resolves the superseded consumer while it is suspended, or that is still
   // executing when its context stops, answers `500 QIP-0001` — the same body a chain that threw
-  // would produce. `docs/product-defects.md`, "A request that arrives while a route is draining is
-  // reported as a chain execution failure", has the mechanism and the reproduction. The second of
-  // the two paths it describes is the one that reaches a redeploy: `stopSupersededContext` tears the
-  // old context down under whatever is still executing on it, and `CamelServlet.service` answers
-  // that request 500. This suite has seen it once, and the entry records that sighting beside the
-  // 31,890 redeploy calls that produced no non-200 — rare, not impossible, which is why the window
-  // is tolerated here rather than pinned with `test.fail()`.
+  // would produce. Issue #845 has the mechanism and the reproduction. The second of the two paths
+  // it describes is the one that reaches a redeploy: `stopSupersededContext` tears the old context
+  // down under whatever is still executing on it, and `CamelServlet.service` answers that request
+  // 500. This suite has seen it once, against 31,890 redeploy calls that produced no non-200: rare,
+  // not impossible, which is why the window is tolerated here rather than pinned with `test.fail()`.
   //
   // Tolerated is not unread. A sample that is neither a 200 nor that one answer fails the case, so
   // a redeploy that starts answering 502, or 500 with some other code, is still a regression, and
@@ -322,7 +319,7 @@ test("a redeploy swaps the response and the route never goes missing", { tag: ["
   expect(
     drains.length,
     `${drains.length} of ${samples.length} samples answered the drain window, which is wider than ` +
-      "the one docs/product-defects.md measured — the tolerance is for a window, not for a redeploy " +
+      "the one issue #845 measured — the tolerance is for a window, not for a redeploy " +
       "that spends most of itself unserved",
   ).toBeLessThanOrEqual(DRAIN_SAMPLE_LIMIT);
 

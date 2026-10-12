@@ -5,9 +5,8 @@
  * Before the fix, only Kafka's own `KafkaTopicAndConnectionCheckAction` caught this at deploy time.
  * An AMQP consumer against a missing queue reported `DEPLOYED` with a null error while the listener
  * restart-looped, and an AMQP producer to a missing exchange answered the caller 200 with a
- * `COMPLETED_NORMALLY` session while the broker silently discarded the message — both recorded in
- * `docs/product-defects.md` under "Deployment status is not a readiness signal", and both closed by
- * the same PR: `AmpqConnectionCheckAction` now runs a passive-declare check before either side of an
+ * `COMPLETED_NORMALLY` session while the broker silently discarded the message. The same PR closed
+ * both: `AmpqConnectionCheckAction` now runs a passive-declare check before either side of an
  * AMQP connection goes live, the same shape Kafka's check already had.
  *
  * Every fixture here is spec-owned (`fixtures/templating.ts`'s `SPEC_OWNED_FIXTURES`) and lives

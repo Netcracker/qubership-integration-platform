@@ -222,9 +222,9 @@ export interface LibraryElementsView {
  * There is no method for that endpoint here, and the absence is deliberate. It answers the types in
  * use across the **whole catalog** — `ElementRepository.findAllGroupByType` is
  * `SELECT e.type FROM elements e GROUP BY e.type` with no chain, snapshot or caller predicate — and
- * it answers 500 for a type the library cannot name, which is a defect
- * `docs/product-defects.md` carries. A caller therefore reads it through `raw` and asserts the
- * status itself; `specs/global/element-library-endpoints.spec.ts` is the one that does.
+ * it answers 500 for a type the library cannot name, a defect decided as won't fix. A caller
+ * therefore reads it through `raw` and asserts the status itself;
+ * `specs/global/element-library-endpoints.spec.ts` is the one that does.
  */
 export interface ElementTypeInUse {
   elementTitle: string;

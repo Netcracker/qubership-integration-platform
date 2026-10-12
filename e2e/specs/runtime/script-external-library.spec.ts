@@ -40,18 +40,13 @@
  * caps the catalog at 320m, which is what makes this case's two imports affordable; at the 192m it
  * used to run under, the first one killed it.
  *
- * **It lives in `specs/global/` because the cache is global.** `GroovyLanguage.stop()` clears the
- * whole `scriptCache`, and `GroovyLanguageWithResettableCache` is a `@Component("groovy")` Spring
- * singleton every per-chain context resolves — so **any undeploy anywhere** on the stack recompiles
- * this case's script against the rebuilt classloader and the poll below succeeds with no reset
- * having worked. That is not something this file can promise by deploying once and undeploying
- * nothing: `specs/api/` and `specs/runtime/` share one 8-worker pool with no ordering relation, and
- * a dozen cases across both undeploy a chain. `specs/global/` is `workers: 1` behind
- * `dependencies: ["api", "runtime", "env"]`, which is the suite's existing shape for "nothing else
- * may be touching the stack" — rule 2 sends a spec here for a global view, and a spec reading
- * global *state* has the same scheduling need.
+ * **The cache belongs to this case's chain, so the case runs beside the others.**
+ * `IntegrationRuntimeService.buildContext` binds a new `GroovyLanguageWithResettableCache` into each
+ * context it builds, and an undeploy stops only the language of the context it stops. A library
+ * change another case makes resets this cache too, through the same reflection, so it cannot turn
+ * the case green with the reflection broken.
  *
- * Two more defeaters, each of which would make the case green with the reflection broken:
+ * Two defeaters remain, and each would make the case green with the reflection broken:
  *
  * 1. The cache is a `newLRUSoftCache`, so a GC under memory pressure evicts the entry and the next
  *    call recompiles on its own. Nothing pins that; the mutation check is what measures whether it
@@ -70,7 +65,6 @@
  * The micro engine is not measured here and has nothing to measure: `resetScriptCache()` has no
  * caller in `micro-engine/src/main`, because micro loads libraries before chains and loads chains
  * once at application start, so no cached script can outlive a library change.
- * `docs/product-defects.md` carries both halves.
  */
 import { test, expect } from "../../support/fixtures.js";
 import {
@@ -228,7 +222,7 @@ test("a DTO library replaced under a deployed script is seen without a redeploy"
     expect(before.fields, "the first state declares color").toEqual(["color", "id", "name"]);
 
     // Opened here, so `Resetting groovy script cache` below is this case's reset and not one an
-    // earlier import or an unrelated undeploy left in the log.
+    // earlier import left in the log.
     const since = logWindowStart();
 
     // The lever. Two steps, because `SystemModelService.deleteSystemModel` refuses a specification

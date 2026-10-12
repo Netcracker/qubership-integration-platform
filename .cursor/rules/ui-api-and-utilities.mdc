@@ -1,6 +1,6 @@
 ---
-description: "API layer and utility usage patterns for QIP UI."
-globs: "ui/src/{api,misc,hooks,pages}/**/*.{ts,tsx}"
+description: API layer and utility usage patterns for QIP UI.
+globs: ui/src/{api,misc,hooks,pages}/**/*.{ts,tsx}
 ---
 
 When editing API integrations, business types, utility helpers, or related UI

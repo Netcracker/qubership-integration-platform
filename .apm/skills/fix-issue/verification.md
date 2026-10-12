@@ -36,7 +36,7 @@ Companion to `SKILL.md`, gates 2 and 4.
 ## ui
 
 A defect only a browser shows (layout, focus, a missing redraw, a screen that throws) gets its
-regression case in `e2e/specs/ui/`, following "The browser layer" in `e2e/AGENTS.md`; the #679
+regression case in `e2e/specs/ui/`, following `browser.md` in the `e2e-spec-authoring` skill; the #679
 cases in `e2e/specs/ui/chain-tabs.spec.ts` are the shape. Run it with
 `cd e2e && E2E_PROVISION=never npm test -- --project=ui`, which builds and serves the bundle itself. A defect jsdom
 renders the same way gets a Jest case under `ui/tests/` instead.
