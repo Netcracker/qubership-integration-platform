@@ -110,7 +110,7 @@ export const ENGINE_CASE_TIMEOUT = 180_000;
 export interface DeployedChain {
   id: string;
   name: string;
-  /** The HTTP trigger's `contextPath`, already carrying the run token. */
+  /** The HTTP trigger's `contextPath`, already carrying the run token; `""` for a chain with no HTTP trigger. */
   contextPath: string;
 }
 
@@ -213,9 +213,6 @@ function describe(fixture: string, document: Record<string, unknown>): SeedChain
   const elements = flatten(content.elements ?? []);
   const trigger = elements.find((each) => each.type === "http-trigger");
   const contextPath = (trigger?.properties?.contextPath as string | undefined) ?? "";
-  if (!contextPath) {
-    throw new Error(`fixture ${fixture} carries no HTTP trigger, so nothing can call it`);
-  }
 
   // A `Map` rather than an object: the keys are fixture-supplied names, and a plain object answers
   // `constructor` and `toString` out of its prototype, which reads as a duplicate that is not one.
@@ -378,7 +375,8 @@ export async function waitForUndeployed(catalog: Catalog, chains: readonly Deplo
  * whole reading — it separates "deployed" from "serving" without running the chain once. A trigger
  * that does allow `GET` answers **200**, so both count as serving and nothing else does: a 500 or a
  * 401 is a route that is up and broken, and passing it through the gate hands every downstream spec
- * a failure that reads as its own.
+ * a failure that reads as its own. A chain with no HTTP trigger has no route to poll, so the status
+ * poll before this one is its only gate.
  *
  * `timeout` is a parameter because the seed is not the only caller: the restart spec waits for the
  * same routes to come back after the engine has been recreated, and that budget is a different
@@ -394,7 +392,7 @@ export async function waitForRoutes(
     .poll(
       async () => {
         const missing: string[] = [];
-        for (const chain of chains) {
+        for (const chain of chains.filter((each) => each.contextPath !== "")) {
           const status = await fetch(env.chainUrl(chain.contextPath), { method: "GET" })
             .then((response) => response.status)
             .catch(() => 0);

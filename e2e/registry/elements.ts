@@ -267,7 +267,7 @@ const R_SWIMLANE_COLOR =
 // deprecated flag is the library's own (`GET /v1/library`), and `SUPERSEDED` below is read against
 // it in `specs/api/element-library.spec.ts`. `choice`, `when` and `otherwise` stay covered: tier 1
 // runs them, and a row holds what a passing test proves.
-// `quartz-scheduler` is covered in `specs/brokers/scheduler.spec.ts`, and `script` by its fixture chain.
+// `quartz-scheduler` is covered in `specs/runtime/scheduler.spec.ts`, and `script` by its fixture chain.
 
 /**
  * Every element the library flags deprecated, and its successor. The library publishes no successor

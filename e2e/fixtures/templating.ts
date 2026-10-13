@@ -154,6 +154,7 @@ export const MICRO_FIXTURES: readonly string[] = [
   "mapper",
   "masking",
   "reuse",
+  "scheduler-basic",
   "script",
   "script-exchange-body.yaml",
   "script-exchange-headers.yaml",

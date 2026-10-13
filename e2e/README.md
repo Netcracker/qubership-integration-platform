@@ -174,7 +174,7 @@ npm test -- --project=tooling         # the testing service, before runtime lean
 npm test -- --project=runtime         # the seeded chains, called and asserted
 npm test -- --project=env             # the specs that restart a service, one worker
 npm test -- --project=global          # the reads no worker can scope, one worker, last
-npm test -- --project=brokers         # kafka, rabbitmq, pub/sub, sftp and the scheduler
+npm test -- --project=brokers         # kafka, rabbitmq, pub/sub and sftp
 npm test -- --project=brokers-restart # the one spec that restarts a broker mid-run
 npm test -- --project=ui              # the browser layer, against the bundle it serves on 4200
 npm test -- --grep @engine --no-deps  # one backend component's cases, no browser
@@ -535,7 +535,7 @@ specs/
   runtime/      calls the seeded chains and asserts what they did
   env/          specs that restart a service, one worker, after api, runtime, and ui
   brokers-seed/ brings up the broker overlays and deploys fixtures/brokers/, then removes it
-  brokers/      kafka, rabbitmq, pub/sub, sftp and the scheduler, called and asserted
+  brokers/      kafka, rabbitmq, pub/sub and sftp, called and asserted
   global/       reads over the whole platform or over state it shares, one worker, after env
   ui-server/    builds and serves the UI bundle on 4200, then stops it
   ui/           the browser layer, Chromium through nginx on 8080

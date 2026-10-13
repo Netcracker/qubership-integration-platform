@@ -545,6 +545,7 @@ const CORPUS_MARKERS: Record<string, CorpusMarkers> = {
   // The reference renders the reused block inline where the reference sits, which is why the
   // reused script appears and the reference itself never does.
   reuse: { labels: ["Reused Script", "Report"] },
+  "scheduler-basic": { labels: ["Header Modification"], trigger: "Scheduler" },
   script: { labels: ["Script"] },
   // The script corpus under `fixtures/script/`, drawn like any other script: one line per
   // element, under the name the fixture gave it. The `.yaml` is part of the fixture name, because
