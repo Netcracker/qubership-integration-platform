@@ -27,11 +27,13 @@ jobs:
       packages: read
     steps:
       - name: Checkout
+        id: checkout
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           persist-credentials: false
 
       - name: Set up Java
+        id: java
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           java-version: "21"
@@ -48,6 +50,7 @@ jobs:
             maven-${{ runner.os }}-runtime-catalog-
 
       - name: Set up Node.js
+        id: node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: '22.x'
@@ -58,6 +61,7 @@ jobs:
 
       # The runner image ships an older kind in /usr/local/bin, so the pinned one goes first on PATH.
       - name: Install kind and istioctl
+        id: tools
         env:
           KIND_VERSION: v0.33.0
           KIND_SHA256: aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d
@@ -78,6 +82,7 @@ jobs:
           echo "$TOOLS_DIR" >> "$GITHUB_PATH"
 
       - name: Print tool versions
+        id: versions
         run: |
           kind version
           istioctl version --remote=false
@@ -86,16 +91,20 @@ jobs:
           mvn -v
 
       - name: Bootstrap the cluster
+        id: bootstrap
         run: e2e/k8s/bootstrap-cluster.sh
 
       - name: Install root dependencies
+        id: root-deps
         run: npm ci --legacy-peer-deps
 
       - name: Install e2e dependencies
+        id: e2e-deps
         working-directory: e2e
         run: npm ci
 
       - name: Install Chromium
+        id: chromium
         working-directory: e2e
         run: npx playwright install --with-deps chromium
 
@@ -103,6 +112,7 @@ jobs:
       # At the global timeout the reporters still write; a job cancel gives them about 7.5 s.
       # MAVEN_ARGS needs Maven 3.9 or later.
       - name: Run the suite
+        id: suite
         working-directory: e2e
         env:
           E2E_WORKERS: ${{ inputs.workers || '4' }}
@@ -113,29 +123,22 @@ jobs:
         run: npm run test:k8s -- --global-timeout="$E2E_SAMPLE_MAX_MS"
 
       - name: Reconcile the coverage registry
+        id: reconcile
         if: ${{ always() && hashFiles('e2e/test-results/report.json') != '' }}
         working-directory: e2e
         run: npm run reconcile
 
-      # The status comes from .last-run.json: report.json has none and, after a global timeout,
-      # counts the tests that never ran as skipped.
+      # The script prints what the failure email names as a step output. A run that fails before the
+      # suite has no test-results directory to summarize.
       - name: Write the step summary
+        id: summary
         if: ${{ always() }}
         working-directory: e2e
         run: |
-          {
-            if [ -f test-results/.last-run.json ]; then
-              jq -r '"Status: **\(.status)**\n"' test-results/.last-run.json
-            fi
-            if [ -f test-results/report.json ]; then
-              jq -r '.stats | "| Passed | Failed | Flaky | Skipped |\n| --- | --- | --- | --- |\n| \(.expected) | \(.unexpected) | \(.flaky) | \(.skipped) |\n"' test-results/report.json
-              # Playwright colors the messages with ANSI escapes.
-              jq -r 'select(.errors | length > 0) | "### Errors\n\n```text\n\(.errors | map(.message | gsub("\u001b\\[[0-9;]*m"; "")) | join("\n\n"))\n```\n"' test-results/report.json
-            fi
-            if [ -f test-results/stack.json ]; then
-              jq -r 'select(.absent | length > 0) | "### Absent\n\n\(.absent | map("- `\(.name)`: \(.reason)") | join("\n"))"' test-results/stack.json
-            fi
-          } >> "$GITHUB_STEP_SUMMARY"
+          if [ -d test-results ]; then
+            npm run --silent run-summary >> "$GITHUB_OUTPUT"
+            cat test-results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Upload the report
         if: ${{ always() }}
@@ -180,3 +183,53 @@ jobs:
           name: e2e-cluster
           path: ${{ runner.temp }}/cluster/
           retention-days: 14
+
+      # The subject names the failed tests or the first global error, or else the step that failed first.
+      - name: Write the failure email
+        id: email
+        if: ${{ failure() && github.event_name == 'schedule' }}
+        env:
+          FAILURE: ${{ steps.summary.outputs.failure }}
+          FAILED_STEP: >-
+            ${{ steps.checkout.outcome == 'failure' && 'Checkout'
+            || steps.java.outcome == 'failure' && 'Set up Java'
+            || steps.node.outcome == 'failure' && 'Set up Node.js'
+            || steps.tools.outcome == 'failure' && 'Install kind and istioctl'
+            || steps.versions.outcome == 'failure' && 'Print tool versions'
+            || steps.bootstrap.outcome == 'failure' && 'Bootstrap the cluster'
+            || steps.root-deps.outcome == 'failure' && 'Install root dependencies'
+            || steps.e2e-deps.outcome == 'failure' && 'Install e2e dependencies'
+            || steps.chromium.outcome == 'failure' && 'Install Chromium'
+            || steps.suite.outcome == 'failure' && 'Run the suite'
+            || steps.reconcile.outcome == 'failure' && 'Reconcile the coverage registry'
+            || 'a step after the suite' }}
+          REF: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BODY: ${{ runner.temp }}/email.md
+        run: |
+          echo "subject=E2E nightly failed: ${FAILURE:-$FAILED_STEP} ($REF @ ${SHA:0:7})" >> "$GITHUB_OUTPUT"
+          {
+            echo "Logs and the \`e2e-report\` artifact: $RUN_URL"
+            echo
+            if [ -f e2e/test-results/summary.md ]; then
+              cat e2e/test-results/summary.md
+            fi
+          } > "$BODY"
+
+      - name: Email the failure
+        if: ${{ failure() && github.event_name == 'schedule' }}
+        uses: netcracker/qubership-workflow-hub/actions/email-action@0eefd4976131d113c986281eed8bc642b6da303d # v2.8.1
+        env:
+          EMAIL_SMTP_HOST: ${{ vars.EMAIL_SMTP_HOST }}
+          EMAIL_SMTP_PORT: ${{ vars.EMAIL_SMTP_PORT }}
+          EMAIL_FROM: ${{ vars.EMAIL_FROM }}
+          EMAIL_USERNAME: ${{ vars.EMAIL_FROM }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_TO: ${{ vars.EMAIL_TO }}
+        with:
+          subject: ${{ steps.email.outputs.subject }}
+          # The action converts only html-body from Markdown; body is the plain-text part.
+          body: file://${{ runner.temp }}/email.md
+          html-body: file://${{ runner.temp }}/email.md
+          convert-markdown: "true"
