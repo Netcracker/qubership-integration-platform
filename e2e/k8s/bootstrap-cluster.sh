@@ -45,6 +45,10 @@ nodes:
       - { containerPort: 30092, hostPort: 30092 }
       - { containerPort: 30093, hostPort: 30093 }
       - { containerPort: 30095, hostPort: 30095 }
+      - { containerPort: 30992, hostPort: 30992 }
+      - { containerPort: 30672, hostPort: 30672 }
+      - { containerPort: 30085, hostPort: 30085 }
+      - { containerPort: 30022, hostPort: 30022 }
 EOF
         ;;
 esac

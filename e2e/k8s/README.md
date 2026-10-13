@@ -26,7 +26,7 @@ e2e/k8s/bootstrap-cluster.sh
 
 On the `docker-desktop` context, or on any `k3d-<name>` or `kind-<name>` context, it uses the
 current cluster. On any other context, or with no kubeconfig at all, it creates the kind cluster
-`kind-qip` from `kindest/node:v1.37.0` with the five ports below mapped, and kind switches the
+`kind-qip` from `kindest/node:v1.37.0` with the nine ports below mapped, and kind switches the
 current context to it. Then it installs the Gateway API CRDs, Istio, the camel-k operator, and,
 except on k3d, metrics-server, which the sections below install by hand. A second run on a cluster
 the script has prepared restarts nothing.
@@ -48,6 +48,12 @@ Every host-side address is a fixed port:
 | 30092 | the classic engine |
 | 30093 | sessions-management |
 | 30095 | the testing service |
+| 30992 | Kafka, its `EXTERNAL` listener |
+| 30672 | RabbitMQ, AMQP |
+| 30085 | the Pub/Sub emulator |
+| 30022 | the SFTP server |
+
+The last four answer only when the run installs the brokers, which `E2E_BROKERS=0` turns off.
 
 **Docker Desktop.** Enable Kubernetes in the settings. The kind-based cluster (node
 `desktop-control-plane`) pulls host images through Docker Desktop's registry mirror, so an image the
@@ -55,16 +61,24 @@ suite builds with `docker build` runs with no loading step. It publishes a LoadB
 port on the host and a NodePort not at all, so on this context the suite sets each service's
 `loadBalancerPort` in the chart, which adds a LoadBalancer Service on the same fixed port.
 
-**kind.** The script maps the five ports when it creates `kind-qip`. A kind cluster created another
+**kind.** The script maps the nine ports when it creates `kind-qip`. A kind cluster created another
 way needs the same `extraPortMappings` on its control-plane node, each `containerPort` equal to its
-`hostPort`.
+`hostPort`. kind fixes the mappings at creation, so a `kind-qip` created before the broker ports
+were added has to be deleted and created again:
+
+```bash
+kind delete cluster --name qip
+e2e/k8s/bootstrap-cluster.sh
+```
 
 **k3d.** The script does not create a k3d cluster. Create one with the ports mapped:
 
 ```bash
 k3d cluster create qip \
   -p "30080:30080@server:0" -p "30091:30091@server:0" -p "30092:30092@server:0" \
-  -p "30093:30093@server:0" -p "30095:30095@server:0"
+  -p "30093:30093@server:0" -p "30095:30095@server:0" \
+  -p "30992:30992@server:0" -p "30672:30672@server:0" -p "30085:30085@server:0" \
+  -p "30022:30022@server:0"
 ```
 
 The UI bundle is served by `vite preview` on port 4200 of your machine, and the proxy reaches it
