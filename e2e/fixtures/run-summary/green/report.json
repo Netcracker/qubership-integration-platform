@@ -1,0 +1,415 @@
+{
+  "config": {
+    "rootDir": "/home/runner/work/qubership-integration-platform/qubership-integration-platform/e2e/specs"
+  },
+  "suites": [
+    {
+      "title": "schema/api-coverage.spec.ts",
+      "file": "schema/api-coverage.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "the operation registry is populated and its own shape holds",
+          "ok": true,
+          "tags": [
+            "infra",
+            "tier1"
+          ],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "schema",
+              "projectName": "schema",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 9,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-13T06:29:53.215Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "24e118d2d84cd0fd5bf0-36ecc226b1ebdf775695",
+          "file": "schema/api-coverage.spec.ts",
+          "line": 29,
+          "column": 1
+        },
+        {
+          "title": "the cache holds an inventory for each of the four services",
+          "ok": true,
+          "tags": [
+            "infra",
+            "tier1"
+          ],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "schema",
+              "projectName": "schema",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 17,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-13T06:29:53.210Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "24e118d2d84cd0fd5bf0-e8f9300881de5b4211c7",
+          "file": "schema/api-coverage.spec.ts",
+          "line": 38,
+          "column": 1
+        }
+      ],
+      "suites": []
+    },
+    {
+      "title": "runtime/misc-elements.spec.ts",
+      "file": "runtime/misc-elements.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "httpMethod=POST: an http sender sends POST",
+          "ok": true,
+          "tags": [
+            "engine",
+            "sessions",
+            "tier2"
+          ],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [
+                {
+                  "type": "covers",
+                  "description": "http-sender::httpMethod=\"POST\""
+                },
+                {
+                  "type": "reached",
+                  "description": "sessions-management POST /v1/sessions/chains/{chainId}"
+                },
+                {
+                  "type": "reached",
+                  "description": "sessions-management GET /v1/sessions/{sessionId}"
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "runtime",
+              "projectName": "runtime",
+              "results": [
+                {
+                  "workerIndex": 21,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 2049,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-13T06:34:52.261Z",
+                  "annotations": [
+                    {
+                      "type": "covers",
+                      "description": "http-sender::httpMethod=\"POST\""
+                    },
+                    {
+                      "type": "reached",
+                      "description": "sessions-management POST /v1/sessions/chains/{chainId}"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "sessions-management GET /v1/sessions/{sessionId}"
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7a91858a898ea9b4c83a-964f69a0407aaa044e21",
+          "file": "runtime/misc-elements.spec.ts",
+          "line": 76,
+          "column": 3
+        },
+        {
+          "title": "httpMethod=GET: an http sender sends GET",
+          "ok": true,
+          "tags": [
+            "engine",
+            "sessions",
+            "tier2"
+          ],
+          "tests": [
+            {
+              "timeout": 120000,
+              "annotations": [
+                {
+                  "type": "covers",
+                  "description": "http-sender::httpMethod=\"GET\""
+                },
+                {
+                  "type": "reached",
+                  "description": "sessions-management POST /v1/sessions/chains/{chainId}"
+                },
+                {
+                  "type": "reached",
+                  "description": "sessions-management GET /v1/sessions/{sessionId}"
+                }
+              ],
+              "expectedStatus": "passed",
+              "projectId": "runtime",
+              "projectName": "runtime",
+              "results": [
+                {
+                  "workerIndex": 21,
+                  "parallelIndex": 1,
+                  "status": "passed",
+                  "duration": 2040,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-13T06:34:54.334Z",
+                  "annotations": [
+                    {
+                      "type": "covers",
+                      "description": "http-sender::httpMethod=\"GET\""
+                    },
+                    {
+                      "type": "reached",
+                      "description": "sessions-management POST /v1/sessions/chains/{chainId}"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "sessions-management GET /v1/sessions/{sessionId}"
+                    }
+                  ],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7a91858a898ea9b4c83a-b462868d0090c233cab0",
+          "file": "runtime/misc-elements.spec.ts",
+          "line": 76,
+          "column": 3
+        }
+      ],
+      "suites": [
+        {
+          "title": "context-storage",
+          "file": "runtime/misc-elements.spec.ts",
+          "line": 165,
+          "column": 6,
+          "specs": [
+            {
+              "title": "operation=SET stores a value that operation=GET reads back into the body",
+              "ok": true,
+              "tags": [
+                "engine",
+                "catalog",
+                "sessions",
+                "tier2"
+              ],
+              "tests": [
+                {
+                  "timeout": 120000,
+                  "annotations": [
+                    {
+                      "type": "reached",
+                      "description": "catalog POST /v1/catalog/context-system"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "catalog POST /v1/chains"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "catalog POST /v1/chains/{chainId}/elements"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "catalog GET /v1/chains/{chainId}/elements/{elementId}"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "catalog PATCH /v1/chains/{chainId}/elements/{elementId}"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "catalog POST /v1/chains/{chainId}/dependencies"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "catalog POST /v1/chains/{chainId}/properties/logging"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "catalog POST /v1/catalog/chains/{chainId}/snapshots"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "catalog POST /v1/catalog/chains/{chainId}/deployments"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "catalog GET /v1/catalog/runtime-deployments"
+                    },
+                    {
+                      "type": "reached",
+                      "description": "sessions-management GET /v1/sessions/external-id/{externalSessionId}"
+                    },
+                    {
+                      "type": "covers",
+                      "description": "context-storage"
+                    },
+                    {
+                      "type": "covers",
+                      "description": "context-storage::operation=\"SET\""
+                    },
+                    {
+                      "type": "covers",
+                      "description": "context-storage::operation=\"GET\""
+                    },
+                    {
+                      "type": "covers",
+                      "description": "context-storage::target=\"BODY\""
+                    },
+                    {
+                      "type": "covers",
+                      "description": "context-storage::useCorrelationId=false"
+                    }
+                  ],
+                  "expectedStatus": "passed",
+                  "projectId": "runtime",
+                  "projectName": "runtime",
+                  "results": [
+                    {
+                      "workerIndex": 21,
+                      "parallelIndex": 1,
+                      "status": "passed",
+                      "duration": 1912,
+                      "errors": [],
+                      "stdout": [],
+                      "stderr": [],
+                      "retry": 0,
+                      "startTime": "2026-10-13T06:35:16.785Z",
+                      "annotations": [
+                        {
+                          "type": "reached",
+                          "description": "catalog POST /v1/catalog/context-system"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "catalog POST /v1/chains"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "catalog POST /v1/chains/{chainId}/elements"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "catalog GET /v1/chains/{chainId}/elements/{elementId}"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "catalog PATCH /v1/chains/{chainId}/elements/{elementId}"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "catalog POST /v1/chains/{chainId}/dependencies"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "catalog POST /v1/chains/{chainId}/properties/logging"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "catalog POST /v1/catalog/chains/{chainId}/snapshots"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "catalog POST /v1/catalog/chains/{chainId}/deployments"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "catalog GET /v1/catalog/runtime-deployments"
+                        },
+                        {
+                          "type": "reached",
+                          "description": "sessions-management GET /v1/sessions/external-id/{externalSessionId}"
+                        },
+                        {
+                          "type": "covers",
+                          "description": "context-storage"
+                        },
+                        {
+                          "type": "covers",
+                          "description": "context-storage::operation=\"SET\""
+                        },
+                        {
+                          "type": "covers",
+                          "description": "context-storage::operation=\"GET\""
+                        },
+                        {
+                          "type": "covers",
+                          "description": "context-storage::target=\"BODY\""
+                        },
+                        {
+                          "type": "covers",
+                          "description": "context-storage::useCorrelationId=false"
+                        }
+                      ],
+                      "attachments": []
+                    }
+                  ],
+                  "status": "expected"
+                }
+              ],
+              "id": "7a91858a898ea9b4c83a-fc188e0887cceb2597b6",
+              "file": "runtime/misc-elements.spec.ts",
+              "line": 238,
+              "column": 3
+            }
+          ],
+          "suites": []
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-13T06:23:38.914Z",
+    "duration": 1120269.395,
+    "expected": 944,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}
