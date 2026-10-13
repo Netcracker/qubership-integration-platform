@@ -3821,17 +3821,23 @@ class ProductPipelineStageExecutorTest {
                                 List.of(new ArtifactCandidate(Kind.MATERIALIZATION_REQUEST, "request", List.of())),
                                 "execution complete",
                                 null))));
+    AtomicInteger materializationCalls = new AtomicInteger();
     StageCapability materialization =
         capability(
             "materialization-cap",
-            context ->
-                Multi.createFrom()
-                    .item(
-                        new CapabilitySignal.Completed(
-                            StageOutcome.of(
-                                StageOutcomeClass.CONTRACT_FAILURE,
-                                "materialization rejected the execution request",
-                                RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE)))));
+            context -> {
+              if (materializationCalls.incrementAndGet() == 1) {
+                return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+                    StageOutcomeClass.CONTRACT_FAILURE, "HTTP_ENDPOINT_MISMATCH: approved=/orders, generated=/wrong",
+                    RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
+              }
+              return Multi.createFrom().item(new CapabilitySignal.Completed(new StageOutcome(
+                  StageOutcomeClass.SUCCEEDED, List.of(new ArtifactCandidate(Kind.MATERIALIZATION_RESULT,
+                      new org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationResult(
+                          1, "catalog-chain-1", null, "digest",
+                          org.qubership.integration.platform.ai.productpipeline.materialization.MaterializationPhase.COMPLETE),
+                      List.of())), "chain materialized", null)));
+            });
     ProductPipelineProfile profile = executionThenMaterializationProfile(request);
     CreateChainTestOrchestrator runtime = newRuntime(profile, execution, materialization);
     startAndRecordInput(runtime, profile);
@@ -3847,6 +3853,12 @@ class ProductPipelineStageExecutorTest {
     assertEquals("design-execution", reopen.producerStageId());
     applyLifecycle(runtime, failed);
     assertEquals("design-execution", requireRun().run().currentStageId());
+    var repaired = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Continue.class, repaired.decision());
+    applyLifecycle(runtime, repaired);
+    var complete = assertInstanceOf(StageDecision.Complete.class, execute(runtime, "materialization").decision());
+    assertEquals(RunStatus.CHAIN_MATERIALIZED, complete.status());
+    assertEquals(2, materializationCalls.get());
   }
 
   @Test
@@ -5014,6 +5026,38 @@ class ProductPipelineStageExecutorTest {
         org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
     assertEquals(1, calls.get());
     assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
+  }
+
+  @Test
+  void localDiagnosisFailureKeepsTheCauseAndAllowsGuardedProducerRepair() {
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString())).thenThrow(
+            new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException(
+                "Tool call belongs to an obsolete reset generation."));
+    var calls = new AtomicInteger();
+    var execution = capability("execution-cap", context -> Multi.createFrom().item(new CapabilitySignal.Completed(
+        calls.incrementAndGet() == 1
+            ? StageOutcome.of(StageOutcomeClass.VALIDATION_FAILURE, "Generated output was rejected.",
+                RecoveryCause.of(RecoveryCauseCode.SECURITY_POLICY))
+            : StageOutcome.of(StageOutcomeClass.SUCCEEDED, "ready"))));
+    var profile = analysisThenPlanningThenExecutionProfile();
+    var runtime = newRuntime(new FailureNarrative(agent), profile, analysisWithBrief(accessPolicyBrief(
+        org.qubership.integration.platform.ai.plan.RequirementPolicyConflict.Decision.USE_RECOMMENDED)),
+        planningAlwaysCandidate(), execution);
+    startAndRecordInput(runtime, profile);
+    approveStage(runtime, "requirement-analysis");
+    approveStage(runtime, "design-planning");
+    var priorPlan = snapshot(requireRun(), "design-planning");
+    var repair = execute(runtime, "design-execution");
+    assertInstanceOf(StageDecision.Retry.class, repair.decision());
+    org.mockito.Mockito.verify(agent).recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString());
+    assertEquals(1, calls.get());
+    assertEquals(priorPlan, snapshot(requireRun(), "design-planning"));
+    applyLifecycle(runtime, repair);
+    assertInstanceOf(StageDecision.Complete.class, execute(runtime, "design-execution").decision());
+    assertEquals(2, calls.get());
   }
 
   @Test

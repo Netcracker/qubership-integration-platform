@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.*;
 
@@ -35,6 +36,12 @@ final class RequirementRevisionAdmission {
     }
     var allowed = new java.util.LinkedHashSet<>(authorPaths);
     if (base != null) {
+      if (base.settings().idsRequested() != null && candidate.openQuestions().stream()
+          .anyMatch(question -> PipelineGates.IDS_PATH_CHOICE
+              .equals(question.questionId()))) {
+        issues.add(new Issue("CONFIRMED_ANSWER_CHANGED", "/draft/openQuestions", null,
+            "Retain the confirmed IDS choice and do not reopen its question."));
+      }
       repairPaths.stream().filter(path -> !path.contains("/policyConflict") && validPath(base, path))
           .forEach(allowed::add);
       candidate.facts().stream().filter(fact -> fact.policyConflict() != null
@@ -109,6 +116,11 @@ final class RequirementRevisionAdmission {
         && original.policyConflict().decision() != null && replacement.policyConflict() != null
         && Objects.equals(original.policyConflict().unresolved(), replacement.policyConflict().unresolved())
         && paths.contains("/facts/" + factId + "/policyConflict/decision");
+  }
+
+  static String canonicalPath(String path) {
+    return path != null && (path.startsWith("/flow/interactions/") || path.startsWith("/flow/transitions/"))
+        ? path.substring("/flow".length()) : path;
   }
 
   static boolean validPath(DraftInput base, String path) {

@@ -86,6 +86,9 @@ public class GatherRequirementsPromptBuilder {
           invoke implementation skills, or run the compiler spine. Answer the user's current
           question before asking for more requirements. Capture accepted requirement changes only;
           do not capture explanations, recommendations, or unselected alternatives.
+          The service owns the IDS review choice and presents a Yes/No card. Do not ask about IDS
+          in prose or add that choice to openQuestions. Keep idsRequested null unless the author
+          explicitly chose it; requesting a choice card is not a Yes answer.
           When an explicit requirement conflicts with a company recommendation, explain the
           requested value, the recommended value, and the consequence. Persist an open question
           and ask the user which value to use. Do not silently replace the requested value or

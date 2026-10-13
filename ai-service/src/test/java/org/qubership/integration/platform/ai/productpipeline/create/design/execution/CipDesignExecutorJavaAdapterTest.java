@@ -296,6 +296,43 @@ class CipDesignExecutorJavaAdapterTest {
   }
 
   @Test
+  void rejectsUrlDriftWithTheRejectedGraphAndRepairTargetBeforeEmittingABundle() {
+    briefRef = append(Kind.REQUIREMENT_BRIEF, "1",
+        new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief(
+            "Orders", List.of(), List.of(), List.of(), List.of(), "Orders", null, "", List.of(),
+            List.of(new org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementEntryPoint(
+                "entry-1", "source-http", "http-trigger", "", "GET", "/orders", "GET /orders")),
+            List.of(), List.of(), List.of()));
+    revisionRef = append(Kind.CHAIN_SEMANTIC_REVISION, revision.schemaVersion(), revision);
+    approval = new ApprovalRecordV2(implementationRef, implementationRef.contentHash(),
+        List.of(idsRef, revisionRef, reportRef, planRef, implementationRef), "tester", "approved", FIXED,
+        ApprovalPolicy.CATALOG_FIRST_V1, ApprovalPolicy.CATALOG_FIRST_V1_HASH, null, null, null, null, null, null);
+    approvalRef = append(Kind.APPROVAL_RECORD, "2", approval);
+    var graph = new ChainPlanGraph("1.0", new ChainSection("chain-1", "Orders"),
+        List.of(new ChainPlanNode("trigger-http", "http-trigger", "HTTP", null, null, List.of(
+            new org.qubership.integration.platform.ai.plan.model.PlanProperty("contextPath", "\"/orders\""),
+            new org.qubership.integration.platform.ai.plan.model.PlanProperty("httpMethodRestrict", "GET")))), List.of());
+    var valid = successfulEngineResult(List.of("cip-trigger-generator"));
+    when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any()))
+        .thenReturn(new CompilerDagExecutionResult(StageOutcomeClass.SUCCEEDED, "ok", valid.executedSkillIds(),
+            valid.patchLedger(), graph, valid.assemblyResult(), valid.validationBundle()));
+
+    var result = adapter.executeAfterApproval(baseInputs());
+
+    assertEquals(StageOutcomeClass.VALIDATION_FAILURE, result.outcomeClass());
+    var finding = result.recoveryCause().findings().getFirst();
+    assertEquals("HTTP_ENDPOINT_MISMATCH", finding.code());
+    assertEquals("trigger-http", finding.originRecordId());
+    assertEquals("/properties/contextPath", finding.fieldPointer());
+    assertTrue(finding.message().contains("approved=/orders"));
+    assertTrue(finding.message().contains("generated=\"/orders\""));
+    assertTrue(result.candidates().stream().anyMatch(candidate -> candidate.kind() == Kind.CHAIN_PLAN_GRAPH
+        && graph.equals(candidate.payload())));
+    assertTrue(artifactStore.latest(RUN_ID, Kind.VALIDATED_EXECUTION_BUNDLE).isEmpty());
+    assertTrue(artifactStore.latest(RUN_ID, Kind.MATERIALIZATION_REQUEST).isEmpty());
+  }
+
+  @Test
   void engineSkillOutsideClosureIsRejected() {
     when(runner.execute(eq(approvedPlan), eq(revision), eq(bindings), eq(manifest), any()))
         .thenReturn(successfulEngineResult(List.of("cip-script-generator")));

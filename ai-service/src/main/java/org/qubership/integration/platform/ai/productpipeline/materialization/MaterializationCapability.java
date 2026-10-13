@@ -13,6 +13,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFacts;
 import org.qubership.integration.platform.ai.chain.presentation.ChainCatalogFactsService;
 import org.qubership.integration.platform.ai.chain.presentation.ChainMaterializedSummary;
@@ -27,6 +28,7 @@ import org.qubership.integration.platform.ai.productpipeline.artifact.ApprovalRe
 import org.qubership.integration.platform.ai.productpipeline.artifact.ArtifactProvenance;
 import org.qubership.integration.platform.ai.productpipeline.artifact.CompilerValidationBundle;
 import org.qubership.integration.platform.ai.productpipeline.artifact.GraphAssemblyResult;
+import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationFinding;
 import org.qubership.integration.platform.ai.productpipeline.artifact.PlanValidationResult;
 import org.qubership.integration.platform.ai.productpipeline.artifact.ProductPipelineArtifactStore;
 import org.qubership.integration.platform.ai.productpipeline.artifact.RunManifest;
@@ -39,14 +41,20 @@ import org.qubership.integration.platform.ai.productpipeline.capability.StageCap
 import org.qubership.integration.platform.ai.productpipeline.capability.StageExecutionContext;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcome;
 import org.qubership.integration.platform.ai.productpipeline.capability.StageOutcomeClass;
-import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
+import org.qubership.integration.platform.ai.productpipeline.create.CompilerPlanningRunner;
 import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter.ExecutionResult;
+import org.qubership.integration.platform.ai.productpipeline.create.design.execution.CipDesignExecutorJavaAdapter;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ExecutorValidationBundle;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.MaterializationRequest;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.OrderedGraphPatches;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.ValidatedExecutionBundle;
+import org.qubership.integration.platform.ai.productpipeline.create.design.semantic.ChainSemanticRevision;
 import org.qubership.integration.platform.ai.productpipeline.recovery.E2eRecoveryFaultInjector;
+import org.qubership.integration.platform.ai.productpipeline.recovery.SupersededBriefLineageGuard;
+import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementBrief;
 import org.qubership.integration.platform.ai.qipknowledge.patch.CanonicalGraphDigest;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ApprovedHttpEndpointValidator;
+import org.qubership.integration.platform.ai.qipknowledge.validation.ValidationResult;
 import org.qubership.integration.platform.ai.skill.orchestration.ReconcileResult;
 
 /**
@@ -152,6 +160,35 @@ public class MaterializationCapability implements StageCapability {
               new CapabilitySignal.Completed(
                   StageOutcome.of(StageOutcomeClass.CONTRACT_FAILURE, resolved.error())));
     }
+    if (resolved.v2()) {
+      try {
+        var approvedPlan = artifactStore.get(context.runId(), resolved.implementationPlanRef()).orElseThrow();
+        var briefRef = SupersededBriefLineageGuard
+            .originatingBriefRevision(artifactStore, context.runId(), approvedPlan)
+            .orElseThrow(() -> new IllegalStateException("Approved plan has no requirement brief lineage."));
+        var semanticRef = SupersededBriefLineageGuard
+            .originatingRevision(artifactStore, context.runId(), approvedPlan, Kind.CHAIN_SEMANTIC_REVISION)
+            .orElseThrow(() -> new IllegalStateException("Approved plan has no semantic revision lineage."));
+        var issues = ApprovedHttpEndpointValidator.validate(
+            resolved.graph(),
+            artifactStore.payload(briefRef, RequirementBrief.class),
+            artifactStore.payload(semanticRef,
+                ChainSemanticRevision.class));
+        if (!issues.isEmpty()) {
+          var validation = CompilerPlanningRunner
+              .buildValidationResult(new ValidationResult(
+                  false, issues, "Generated HTTP endpoint differs from approved requirements."), List.of());
+          return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+              StageOutcomeClass.CONTRACT_FAILURE, validation.findings().stream()
+                  .map(PlanValidationFinding::message)
+                  .collect(Collectors.joining("\n")),
+              new RecoveryCause(RecoveryCauseCode.CONTRACT_SHAPE, validation.findings(), ""))));
+        }
+      } catch (IllegalArgumentException | IllegalStateException missingSource) {
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+            StageOutcomeClass.CONTRACT_FAILURE, missingSource.getMessage(), RecoveryCause.of(RecoveryCauseCode.CONTRACT_SHAPE))));
+      }
+    }
     String chainName =
         resolved.graph().chain() == null ? null : resolved.graph().chain().name();
     Optional<RecoveryCauseCode> injected =
@@ -178,12 +215,15 @@ public class MaterializationCapability implements StageCapability {
             Uni.createFrom()
                 .item(
                     () -> {
-                      SkillActivitySupport.bindWorker(CAPABILITY_ID, turnEmit);
-                      try {
-                        return SkillActivitySupport.wrapTerminal(
-                            CAPABILITY_ID, completeMaterialization(context, resolved));
-                      } finally {
-                        SkillActivitySupport.unbindWorker(turnEmit);
+                      try (var session = org.qubership.integration.platform.ai.chat.ToolSession.open(context.conversationId())) {
+                        SkillActivitySupport.bindWorker(CAPABILITY_ID, turnEmit, context.conversationId());
+                        try {
+                          return SkillActivitySupport.wrapTerminal(
+                              CAPABILITY_ID, completeMaterialization(context, resolved));
+                        } finally {
+                          org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink.flushCatalogChanges();
+                          SkillActivitySupport.unbindWorker(turnEmit);
+                        }
                       }
                     })
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())

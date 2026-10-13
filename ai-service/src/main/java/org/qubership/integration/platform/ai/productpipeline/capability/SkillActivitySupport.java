@@ -1,12 +1,12 @@
 package org.qubership.integration.platform.ai.productpipeline.capability;
 
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Consumer;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
-import org.qubership.integration.platform.ai.chat.ToolSession;
 import org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
@@ -16,6 +16,9 @@ import org.qubership.integration.platform.ai.chat.evidence.EvidenceIds;
  * spine ({@link CapabilitySignal.SkillProgress}), and nest tool/API steps under that skill.
  */
 public final class SkillActivitySupport {
+
+  private static final ThreadLocal<ArrayDeque<Boolean>> WORKER_BINDS =
+      ThreadLocal.withInitial(ArrayDeque::new);
 
   private SkillActivitySupport() {}
 
@@ -51,16 +54,7 @@ public final class SkillActivitySupport {
    * id. Empty when no turn is bound.
    */
   public static Optional<Consumer<ChatEvent>> captureTurnEmit(String conversationId) {
-    Optional<Consumer<ChatEvent>> emit = ToolInvocationSink.currentEmit();
-    if (emit.isPresent() || conversationId == null || conversationId.isBlank()) {
-      return emit;
-    }
-    ToolSession.bind(conversationId);
-    try {
-      return ToolInvocationSink.currentEmit();
-    } finally {
-      ToolSession.clear();
-    }
+    return ToolInvocationSink.currentEmit(conversationId);
   }
 
   /** Re-binds the turn sink on a worker thread and nests later tool steps under {@code skillId}. */
@@ -84,16 +78,21 @@ public final class SkillActivitySupport {
     Objects.requireNonNull(turnEmit, "turnEmit");
     Optional<Consumer<ChatEvent>> emit =
         turnEmit.isPresent() ? turnEmit : captureTurnEmit(conversationId);
-    emit.ifPresent(
-        consumer ->
-            ToolInvocationSink.bind(consumer, EvidenceIds.wireSkill(skillId), conversationId));
+    WORKER_BINDS.get().push(emit.isPresent());
+    if (emit.isEmpty()) return;
+    ToolInvocationSink.bind(emit.orElseThrow(), EvidenceIds.wireSkill(skillId), conversationId);
     bindParents(skillId);
   }
 
   /** Clears parent skill ids and undoes {@link #bindWorker} if that call bound the turn sink. */
   public static void unbindWorker() {
-    clearParents();
-    ToolInvocationSink.unbindIfBound();
+    ArrayDeque<Boolean> bindings = WORKER_BINDS.get();
+    boolean owned = !bindings.isEmpty() && bindings.pop();
+    if (bindings.isEmpty()) WORKER_BINDS.remove();
+    if (owned) {
+      clearParents();
+      ToolInvocationSink.unbindIfBound();
+    }
   }
 
   /** Delegates to {@link #unbindWorker()}. Existing stages pass the optional they captured for bind. */

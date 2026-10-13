@@ -24,6 +24,55 @@ import org.qubership.integration.platform.ai.chat.ChatEvent;
 import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 
 class CatalogOutboundLoggingFilterTest {
+  @Test
+  void onlyConfirmedWriteRoutesProduceCatalogChanges() {
+    for (String route : List.of("/v1/chains/a", "/v1/chains/a/elements/x", "/v1/chains/a/dependencies",
+        "/v1/chains/a/elements/transfer", "/v1/catalog/chains/a/snapshots")) {
+      String method = route.endsWith("/x") ? "PATCH" : route.equals("/v1/chains/a") ? "PUT" : "POST";
+      assertEquals(new ChatEvent.CatalogChanged(List.of("a"), true),
+          CatalogOutboundLoggingFilter.catalogChange(method, URI.create(route), 200, null));
+      org.junit.jupiter.api.Assertions.assertNull(CatalogOutboundLoggingFilter.catalogChange(method, URI.create(route), 202, null));
+      org.junit.jupiter.api.Assertions.assertNull(CatalogOutboundLoggingFilter.catalogChange(method, URI.create(route), 500, null));
+    }
+    for (String route : List.of("/v2/folders/list", "/v1/folders/search", "/v1/folders/filter",
+        "/v1/systems", "/v1/maas-actions/kafka")) {
+      org.junit.jupiter.api.Assertions.assertNull(CatalogOutboundLoggingFilter.catalogChange("POST", URI.create(route), 200, null));
+    }
+    assertEquals(new ChatEvent.CatalogChanged(List.of("new"), true),
+        CatalogOutboundLoggingFilter.catalogChange("POST", URI.create("/v1/chains/a/copy"), 201, "{\"id\":\"new\"}"));
+    assertEquals(new ChatEvent.CatalogChanged(null, true),
+        CatalogOutboundLoggingFilter.catalogChange("POST", URI.create("/v1/chains"), 201, "{\"unexpected\":true}"));
+    assertEquals(new ChatEvent.CatalogChanged(List.of(), true),
+        CatalogOutboundLoggingFilter.catalogChange("POST", URI.create("/v2/folders"), 201, null));
+    assertEquals(new ChatEvent.CatalogChanged(null, true),
+        CatalogOutboundLoggingFilter.catalogChange("DELETE", URI.create("/v2/folders/a"), 204, null));
+  }
+
+  @Test
+  void creationTracksItsIdWithLoggingDisabledAndPreservesTheResponseStream() throws IOException {
+    CatalogOutboundLoggingFilter.logResponseBodyOverride = false;
+    List<ChatEvent> events = new ArrayList<>();
+    ToolInvocationSink.bind(events::add);
+    var request = mock(ClientRequestContext.class);
+    var properties = new java.util.HashMap<String, Object>();
+    org.mockito.Mockito.doAnswer(call -> { properties.put(call.getArgument(0), call.getArgument(1)); return null; })
+        .when(request).setProperty(any(), any());
+    when(request.getProperty(any())).thenAnswer(call -> properties.get(call.getArgument(0)));
+    when(request.getMethod()).thenReturn("POST");
+    when(request.getUri()).thenReturn(URI.create("/v1/chains"));
+    var response = mock(ClientResponseContext.class);
+    when(response.getStatus()).thenReturn(201);
+    when(response.hasEntity()).thenReturn(true);
+    when(response.getEntityStream()).thenReturn(new ByteArrayInputStream("{\"id\":\"new\"}".getBytes(StandardCharsets.UTF_8)));
+    var filter = new CatalogOutboundLoggingFilter();
+    filter.filter(request);
+    filter.filter(request, response);
+    var stream = org.mockito.ArgumentCaptor.forClass(InputStream.class);
+    verify(response).setEntityStream(stream.capture());
+    assertEquals("{\"id\":\"new\"}", new String(stream.getValue().readAllBytes(), StandardCharsets.UTF_8));
+    ToolInvocationSink.flushCatalogChanges();
+    assertEquals(new ChatEvent.CatalogChanged(List.of("new"), true), events.getLast());
+  }
 
   @AfterEach
   void tearDown() {

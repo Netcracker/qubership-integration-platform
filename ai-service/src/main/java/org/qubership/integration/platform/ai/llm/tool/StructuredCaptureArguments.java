@@ -99,7 +99,7 @@ public final class StructuredCaptureArguments {
         if (issue == null) {
           return null;
         }
-        if (!"INVALID_TYPE".equals(issue.code())) {
+        if (!"INVALID_TYPE".equals(issue.code()) || !path.equals(issue.path())) {
           matchingShapeIssue = issue;
         }
       }

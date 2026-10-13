@@ -62,6 +62,11 @@ public final class SupersededBriefLineageGuard {
   /** Resolves one exact brief on the selected artifact's input lineage. */
   public static Optional<Revision> originatingBriefRevision(
       ProductPipelineArtifactStore store, String runId, Revision revision) {
+    return originatingRevision(store, runId, revision, Kind.REQUIREMENT_BRIEF);
+  }
+
+  public static Optional<Revision> originatingRevision(
+      ProductPipelineArtifactStore store, String runId, Revision revision, Kind kind) {
     Objects.requireNonNull(store, "store");
     if (runId == null || runId.isBlank() || revision == null) { return Optional.empty(); }
     ArrayDeque<Revision> queue = new ArrayDeque<>();
@@ -71,7 +76,7 @@ public final class SupersededBriefLineageGuard {
     while (!queue.isEmpty()) {
       Revision current = queue.removeFirst();
       if (!visited.add(current.reference())) { continue; }
-      if (current.kind() == Kind.REQUIREMENT_BRIEF) {
+      if (current.kind() == kind) {
         briefs.put(current.reference(), current);
         continue;
       }
@@ -82,7 +87,8 @@ public final class SupersededBriefLineageGuard {
         queue.addLast(stored);
       }
     }
-    if (briefs.size() > 1) { throw new IllegalStateException("Compile inputs name multiple requirement briefs"); }
+    if (briefs.size() > 1) { throw new IllegalStateException(kind == Kind.REQUIREMENT_BRIEF
+        ? "Compile inputs name multiple requirement briefs" : "Compile inputs name multiple " + kind + " revisions"); }
     return briefs.values().stream().findFirst();
   }
 

@@ -138,17 +138,25 @@ public class ChainPatchScenario implements ScenarioHandler {
    */
   private static Multi<ChatEvent> streamCompile(
       Function<BiConsumer<String, String>, Multi<ChatEvent>> work) {
+    var context = org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink.attachedContext();
+    var sessionContext = org.qubership.integration.platform.ai.chat.ToolSession.attachedContext();
     return Multi.createFrom()
         .<ChatEvent>emitter(
             emitter -> {
-              try {
-                work.apply(ChainEditSkillProgress.toChat(emitter::emit))
-                    .subscribe()
-                    .with(emitter::emit, emitter::fail, emitter::complete);
-              } catch (RuntimeException failure) {
-                SkillActivitySupport.clearParents();
-                emitter.fail(failure);
-              }
+              org.qubership.integration.platform.ai.chat.ToolSession.executeInBoundContext(
+                  sessionContext,
+                  () -> org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink.executeInBoundContext(
+                      context,
+                      () -> {
+                        try {
+                          work.apply(ChainEditSkillProgress.toChat(emitter::emit))
+                              .subscribe()
+                              .with(emitter::emit, emitter::fail, emitter::complete);
+                        } catch (RuntimeException failure) {
+                          SkillActivitySupport.clearParents();
+                          emitter.fail(failure);
+                        }
+                      }));
             })
         .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
   }
@@ -389,7 +397,12 @@ public class ChainPatchScenario implements ScenarioHandler {
     }
 
     patchStore.clearProposal(conversationId);
-    ChainPatchWriteResult result = writer.write(proposed.patched(), proposed.patch());
+    ChainPatchWriteResult result;
+    try {
+      result = writer.write(proposed.patched(), proposed.patch());
+    } finally {
+      org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink.flushCatalogChanges();
+    }
     String text = describe(result, proposed);
     if (result.succeeded()) {
       pinnedFailureStore.clear(conversationId, proposed.chainId());

@@ -215,6 +215,44 @@ public class RequirementDiscoveryCapability implements StageCapability {
     String conversationId = context.conversationId();
     String userMessage =
         context.attributeAsString("userText") == null ? "" : context.attributeAsString("userText");
+    Object correction = context.attributes().get("requirementCorrectionDraft");
+    if (correction instanceof RequirementDraft prior && draftStore.get(conversationId).isEmpty()) {
+      draftStore.restoreAccepted(conversationId, prior);
+    }
+    RequirementDraft saved = draftStore.get(conversationId).orElse(null);
+    Boolean admittedChoice = idsChoice(userMessage);
+    if (saved != null && saved.idsRequested() == null && admittedChoice != null
+        && stageDeclaresIdsBypass(context)
+        && PipelineGates.IDS_PATH_CHOICE.equals(
+            context.attributeAsString(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR))
+        && context.attributes().get(ProductPipelineRunSupport.ADMITTED_INPUT_REVISION_ATTR) instanceof Long) {
+      draftStore.beginTurn(conversationId, userMessage);
+      draftStore.recordIdsChoice(conversationId, admittedChoice);
+      draftStore.markCaptured(conversationId);
+      if (captureFeedback != null) {
+        captureFeedback.clearRequirement(conversationId);
+      }
+      RequirementDraft decided = draftStore.get(conversationId).orElseThrow();
+      if (StageRepairEvidence.from(context) != null) {
+        var attributes = new java.util.HashMap<>(context.attributes());
+        attributes.put("userText", "");
+        attributes.remove(ProductPipelineRunSupport.ADMITTED_INPUT_GATE_ATTR);
+        attributes.remove(ProductPipelineRunSupport.ADMITTED_INPUT_REVISION_ATTR);
+        if (attributes.get("requirementCorrectionDraft") instanceof RequirementDraft original) {
+          attributes.put("requirementCorrectionDraft", original.withIdsRequested(admittedChoice));
+        }
+        return execute(new StageExecutionContext(context.runId(), conversationId, context.stageId(),
+            context.executionKey(), context.attemptId(), context.profile(), context.runManifest(),
+            context.inputRefs(), attributes));
+      }
+      if (!decided.readyForPlan()) {
+        String questions = String.join("\n", decided.openQuestions());
+        return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(
+            StageOutcomeClass.NEEDS_INPUT, questions.isBlank()
+                ? "IDS choice saved. The remaining requirements still need clarification." : questions)));
+      }
+      return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(decided)));
+    }
     RequirementDraft mappingRepairDraft = mappingRepairDraft(context);
     if (mappingRepairDraft != null) {
       var repair = StageRepairEvidence.from(context);
@@ -282,8 +320,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
     }
     // Initial advance has no recorded input; recovery can reuse the pending author source.
     if (userMessage.isBlank()) {
-      RequirementDraft saved = draftStore.get(conversationId).orElse(null);
-      if (saved != null && saved.readyForPlan()) {
+      RequirementDraft waiting = draftStore.get(conversationId).orElse(null);
+      if (shouldOfferIds(context, waiting)) {
+        return Multi.createFrom().item(idsChoiceOutcome());
+      }
+      if (waiting != null && waiting.readyForPlan()) {
         return Multi.createFrom().item(new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
             PipelineGates.tag(PipelineGates.REQUIREMENT_DRAFT_READY,
                 "Requirements draft saved. Continue to planning when ready."))));
@@ -294,10 +335,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
               new CapabilitySignal.Completed(
                   StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, "")));
     }
-    Object correction = context.attributes().get("requirementCorrectionDraft");
-    if (correction instanceof RequirementDraft prior && draftStore.get(conversationId).isEmpty()) {
-      draftStore.restoreAccepted(conversationId, prior);
-    }
     RequirementDraft current = draftStore.get(conversationId).orElse(null);
     if (current != null
         && current.readyForPlan()
@@ -306,19 +343,6 @@ public class RequirementDiscoveryCapability implements StageCapability {
       draftStore.beginTurn(conversationId);
       draftStore.finishTurn(conversationId, RequirementDiscoveryDirective.CONTINUE);
       return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(current)));
-    }
-    Boolean idsChoice = idsChoice(userMessage);
-    if (current != null
-        && current.readyForPlan()
-        && repair == null
-        && current.idsRequested() == null
-        && stageDeclaresIdsBypass(context)
-        && idsChoice != null) {
-      RequirementDraft decided = current.withIdsRequested(idsChoice);
-      draftStore.beginTurn(conversationId);
-      draftStore.recordIdsChoice(conversationId, idsChoice);
-      draftStore.markCaptured(conversationId);
-      return Multi.createFrom().item(completeDiscovery(context, new AtomicReference<>(decided)));
     }
     AtomicReference<RequirementDraft> captured = new AtomicReference<>();
     String gatherMessage = userMessage;
@@ -459,6 +483,9 @@ public class RequirementDiscoveryCapability implements StageCapability {
           "REPAIR_FACT_LOSS: Change only the rejected mapping field paths. The selected draft was retained.",
           RecoveryCause.mappingContract(List.of())));
     }
+    if (shouldOfferIds(context, draft)) {
+      return idsChoiceOutcome();
+    }
     if (directive == RequirementDiscoveryDirective.STAY) {
       if (draft != null && draft.readyForPlan()) {
         return new CapabilitySignal.Completed(
@@ -488,35 +515,11 @@ public class RequirementDiscoveryCapability implements StageCapability {
     boolean pendingImportHandoff = draft.hasPendingImport() && !draft.facts().isEmpty();
     boolean pendingUploadedSpecHandoff =
         hasAllowedUploadedSpecs(conversationId) && !draft.facts().isEmpty();
-    if (draft.decision() == DraftDecision.NEEDS_INPUT
-        && draft.idsRequested() == null
-        && draft.openQuestions().isEmpty()
-        && !draft.facts().isEmpty()
-        && !draft.flow().interactions().isEmpty()
-        && RequirementFlowValidator.validateBindings(
-                draft.flow(), draft.facts(), draft.catalogBindings())
-            .isEmpty()
-        && !pendingImportHandoff) {
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(
-              StageOutcomeClass.NEEDS_INPUT,
-              PipelineGates.tag(PipelineGates.IDS_PATH_CHOICE, "")));
-    }
     if (!draft.readyForPlan() && !pendingImportHandoff && !pendingUploadedSpecHandoff) {
       // Blank on purpose: the gather agent already streamed the clarifying question. Emitting an
       // internal draft-state sentence glued it to that text and leaked READY_FOR_PLAN into chat.
       return new CapabilitySignal.Completed(
           StageOutcome.of(StageOutcomeClass.NEEDS_INPUT, ""));
-    }
-    if (draft.readyForPlan()
-        && draft.idsRequested() == null
-        && stageDeclaresIdsBypass(context)) {
-      return new CapabilitySignal.Completed(
-          StageOutcome.of(
-              StageOutcomeClass.NEEDS_INPUT,
-              PipelineGates.tag(
-                  PipelineGates.IDS_PATH_CHOICE,
-                  "Show the Integration Design Specification (IDS) for review?")));
     }
     if (draft.facts().isEmpty()) {
       return new CapabilitySignal.Completed(
@@ -602,6 +605,25 @@ public class RequirementDiscoveryCapability implements StageCapability {
       return null;
     }
     return "yes".equals(choice);
+  }
+
+  private static boolean shouldOfferIds(StageExecutionContext context, RequirementDraft draft) {
+    if (draft == null || draft.idsRequested() != null || !stageDeclaresIdsBypass(context)
+        || draft.hasPendingImport()) {
+      return false;
+    }
+    return draft.readyForPlan()
+        || draft.authoredDraft() != null && draft.authoredDraft().openQuestions().stream()
+            .anyMatch(question -> PipelineGates.IDS_PATH_CHOICE.equals(question.questionId()))
+        || draft.decision() == DraftDecision.NEEDS_INPUT && draft.openQuestions().isEmpty()
+            && !draft.facts().isEmpty() && !draft.flow().interactions().isEmpty()
+            && RequirementFlowValidator.validateBindings(draft.flow(), draft.facts(), draft.catalogBindings()).isEmpty();
+  }
+
+  private static CapabilitySignal.Completed idsChoiceOutcome() {
+    return new CapabilitySignal.Completed(StageOutcome.of(StageOutcomeClass.NEEDS_INPUT,
+        PipelineGates.tag(PipelineGates.IDS_PATH_CHOICE,
+            "Show the Integration Design Specification (IDS) for review?")));
   }
 
   private static boolean declaresCatalogBindingHintProduce(ProfileStage stage) {

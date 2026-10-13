@@ -10,6 +10,12 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureToolProvider
 class GatherRequirementsAgentTest {
 
   @Test
+  void gatherProviderIsNotAvailableToUnrelatedAgentsThroughDefaultCdiLookup() {
+    org.junit.jupiter.api.Assertions.assertFalse(dev.langchain4j.service.tool.ToolProvider.class
+        .isAssignableFrom(RequirementCaptureToolProvider.class));
+  }
+
+  @Test
   void registersGatherTools() {
     RegisterAiService annotation = GatherRequirementsAgent.class.getAnnotation(RegisterAiService.class);
     Class<?>[] tools = annotation.tools();

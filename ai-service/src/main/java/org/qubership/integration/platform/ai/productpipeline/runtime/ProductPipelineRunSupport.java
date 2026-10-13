@@ -100,6 +100,9 @@ import org.qubership.integration.platform.ai.storage.S3Service;
  */
 public final class ProductPipelineRunSupport {
 
+  public static final String ADMITTED_INPUT_GATE_ATTR = "admittedInputGate";
+  public static final String ADMITTED_INPUT_REVISION_ATTR = "admittedInputRevision";
+
   private static final Logger LOG = Logger.getLogger(ProductPipelineRunSupport.class);
 
   /**
@@ -1758,6 +1761,13 @@ public final class ProductPipelineRunSupport {
                       command.runId(), ignored -> new ConcurrentHashMap<>());
               if (!haltCardClick) {
                 attributes.put("userText", command.text());
+                attributes.remove(ADMITTED_INPUT_GATE_ATTR);
+                attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
+                if (PipelineGates.IDS_PATH_CHOICE.equals(haltGate) && command.text() != null
+                    && ChatEvent.IDS_PATH_CHOICE_ACTIONS.contains(command.text().strip())) {
+                  attributes.put(ADMITTED_INPUT_GATE_ATTR, haltGate);
+                  attributes.put(ADMITTED_INPUT_REVISION_ATTR, doc.run().runRevision());
+                }
                 if (isClarificationWait(doc)) {
                   attributes.put(HALT_FOLLOW_UP_TEXT_ATTR, command.text() == null ? "" : command.text());
                 }
@@ -4473,6 +4483,8 @@ public final class ProductPipelineRunSupport {
       return;
     }
     attributes.remove("userText");
+    attributes.remove(ADMITTED_INPUT_GATE_ATTR);
+    attributes.remove(ADMITTED_INPUT_REVISION_ATTR);
   }
 
   private String approvalPromptFor(String runId, String stageId) {

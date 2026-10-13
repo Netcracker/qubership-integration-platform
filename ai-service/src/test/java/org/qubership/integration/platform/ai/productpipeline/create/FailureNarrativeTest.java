@@ -952,6 +952,19 @@ class FailureNarrativeTest {
         new FailureNarrative(agent).diagnoseRecovery("run", sampleRecoveryContext()).status());
   }
 
+  @Test
+  void aLocalCaptureGuardIsNotReportedAsAProviderFailure() {
+    var agent = org.mockito.Mockito.mock(org.qubership.integration.platform.ai.llm.agent.FailureNarrativeAgent.class);
+    String reason = "Tool call belongs to an obsolete reset generation.";
+    org.mockito.Mockito.when(agent.recover(org.mockito.ArgumentMatchers.anyString(),
+        org.mockito.ArgumentMatchers.anyString())).thenThrow(new IllegalStateException(
+            new org.qubership.integration.platform.ai.compiler.capture.CaptureValidationException(reason)));
+    var result = new FailureNarrative(agent).diagnoseRecovery("run", sampleRecoveryContext());
+    assertEquals("INTERNAL_FAILURE", result.status().name());
+    assertTrue(result.detail().contains(reason));
+    assertTrue(result.status().permitsProducerFallback());
+  }
+
   private static Optional<RecoveryDecision> recover(
       FailureNarrative narrative, String runId, RecoveryDecision ignored) {
     return Optional.ofNullable(narrative.diagnoseRecovery(runId, sampleRecoveryContext()).decision());
