@@ -266,11 +266,16 @@ right now, so a controller added to a service fails a run.
     `engine-identity.spec.ts` reads `engineKind`, because its subject is the engine kind. A
     difference between the two engines is a finding, and only the run on one engine meets it: pin
     it with `strikesAsKnown` and a `ConditionalDefect` (rule 13), name its issue, and never loosen
-    the assertion for one engine. A runtime file
-    that deploys its own chains, calls the classic engine directly, or goes through the testing
-    service is classic-only: it goes in `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`, which
-    `runtime-micro` ignores and the report header lists.
-    `specs/schema/target-rules.spec.ts` checks this rule and the `support/kube.ts` half of rule 4.
+    the assertion for one engine. A case the micro engine cannot run by design, such as a library
+    replaced under a deployed chain, a deployment parked for a retry, or a chain that fails to load
+    and so takes its micro domain down, carries the `@classic-only` tag and the annotation
+    `{ type: "classic-only", description: "<reason>" }` on its declaration line; the micro projects
+    leave it out through `grepInvert: /@classic-only/`. The files still listed in
+    `CLASSIC_ONLY_RUNTIME_FILES` in `env/target-setup.ts`, which `runtime-micro` ignores and the
+    report header lists, deploy their own chains, call the classic engine directly, or go through
+    the testing service; each leaves the list once its chains are seeded on both engines.
+    `specs/schema/target-rules.spec.ts` checks this rule, that the tag and the annotation come
+    together, and the `support/kube.ts` half of rule 4.
 
 ## Assertions that catch a reported success
 

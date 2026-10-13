@@ -80,15 +80,55 @@ function fixturesReadBy(source: string): string[] {
   return read;
 }
 
+/** `source` without its `@classic-only` tests, each cut from its declaration line to its closing `});`. */
+function withoutClassicOnly(source: string): string {
+  const kept: string[] = [];
+  let closing: string | undefined;
+  for (const line of source.split("\n")) {
+    if (closing !== undefined) {
+      if (line === closing) closing = undefined;
+      continue;
+    }
+    const declaration = /^(\s*)test(\.\w+)?\(/.exec(line);
+    if (declaration && line.includes('"@classic-only"')) closing = `${declaration[1]}});`;
+    else kept.push(line);
+  }
+  return kept.join("\n");
+}
+
 test("the micro copy holds exactly the fixtures the runtime-micro files read", { tag: ["@infra", "@tier1"] }, () => {
   const files = fs
     .readdirSync(RUNTIME_DIR)
     .filter((file) => file.endsWith(".spec.ts") && !CLASSIC_ONLY_RUNTIME_FILES.includes(file));
-  const read = new Set(files.flatMap((file) => fixturesReadBy(fs.readFileSync(path.join(RUNTIME_DIR, file), "utf-8"))));
+  const read = new Set(
+    files.flatMap((file) => fixturesReadBy(withoutClassicOnly(fs.readFileSync(path.join(RUNTIME_DIR, file), "utf-8")))),
+  );
   expect([...MICRO_FIXTURES].sort()).toEqual([...read].sort());
   // A classic-only file that no longer exists would keep its fixtures out of the comparison above.
   const missing = CLASSIC_ONLY_RUNTIME_FILES.filter((file) => !fs.existsSync(path.join(RUNTIME_DIR, file)));
   expect(missing, "classic-only runtime files that are not in specs/runtime/").toEqual([]);
+
+  // A tagged test's reads are left out, and the reads around it are kept.
+  const source = [
+    'const shared = seedChain(state, "kept-a");',
+    'test("micro", { tag: ["@engine", "@tier1"] }, async () => {',
+    '  seedChain(state, "kept-b");',
+    "});",
+    'test("classic", { tag: ["@engine", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "a reason" } }, async () => {',
+    "  await withBuilt(catalog, async () => {",
+    '    seedChain(state, "dropped");',
+    "  });",
+    "});",
+    'test.describe("group", () => {',
+    '  test("nested classic", { tag: ["@engine", "@tier1", "@classic-only"] }, async () => {',
+    '    seedChain(state, "dropped-nested");',
+    "  });",
+    '  test("nested micro", { tag: ["@engine", "@tier1"] }, async () => {',
+    '    seedChain(state, "kept-c");',
+    "  });",
+    "});",
+  ].join("\n");
+  expect(fixturesReadBy(withoutClassicOnly(source))).toEqual(["kept-a", "kept-b", "kept-c"]);
 });
 
 test("the copies share no chain id, element id, or path", { tag: ["@infra", "@tier1"] }, async () => {

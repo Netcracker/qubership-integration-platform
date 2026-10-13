@@ -182,6 +182,8 @@ function k8sProjects(): SuiteProject[] {
       name: "runtime-micro",
       testDir: "./specs/runtime",
       testIgnore: CLASSIC_ONLY_RUNTIME_FILES.map((file) => `**/${file}`),
+      // A case that cannot apply to the micro engine carries `@classic-only` and says why.
+      grepInvert: /@classic-only/,
       fullyParallel: true,
       dependencies: ["seed-micro", "tooling"],
       use: { engineKind: "micro" },
