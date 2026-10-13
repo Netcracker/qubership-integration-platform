@@ -13,8 +13,8 @@ import type {
 } from "./index.js";
 import { apiPath, CHAIN_ROUTE_PREFIX } from "./api-routes.js";
 import { CONTAINER, PROXY_CONTAINER } from "./compose-containers.js";
-import { kafkaHostBrokers, proxyUrl, pubsubHostUrl, serviceUrl, sftpHostAddress } from "./containers.js";
-import { httpReady, kafkaReady, OVERLAY_READY_TIMEOUT, tcpReady } from "./overlays.js";
+import { proxyUrl, serviceUrl } from "./containers.js";
+import { hostReady, OVERLAY_READY_TIMEOUT } from "./overlays.js";
 import { composeProcessEnvelope, readPeaks } from "./resources.js";
 import { pollUntil, repoRoot } from "./host.js";
 import { forgetOverride, recordOverride } from "./overrides.js";
@@ -71,7 +71,7 @@ const OVERLAYS: Record<Overlay, OverlayDefinition> = {
     file: "docker-compose.kafka.yml",
     services: ["kafka"],
     primary: "kafka",
-    ready: () => kafkaReady([kafkaHostBrokers()])(),
+    ready: hostReady("kafka"),
   },
   rabbitmq: {
     name: "rabbitmq",
@@ -85,17 +85,14 @@ const OVERLAYS: Record<Overlay, OverlayDefinition> = {
     file: "docker-compose.pubsub.yml",
     services: ["pubsub"],
     primary: "pubsub",
-    ready: () => httpReady(`${pubsubHostUrl()}/v1/projects/e2e-overlay-ready-probe/topics`)(),
+    ready: hostReady("pubsub"),
   },
   sftp: {
     name: "sftp",
     file: "docker-compose.sftp.yml",
     services: ["sftp-server"],
     primary: "sftp-server",
-    ready: () => {
-      const { host, port } = sftpHostAddress();
-      return tcpReady(host, port)();
-    },
+    ready: hostReady("sftp"),
   },
 };
 

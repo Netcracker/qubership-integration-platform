@@ -95,15 +95,17 @@ export interface Env {
    */
   resourcePeaks(): Promise<ResourcePeak[]>;
   /**
-   * Start an optional Compose overlay by name, composed with the base stack under one project, and
-   * wait until it is serving. A spec never names `docker`, so this is the one seam through which the
-   * `brokers` project brings up the broker it needs.
+   * Brings up an optional broker by name and waits until it is serving on its host port. A spec
+   * never names `docker` or `kubectl`, so this is the one seam through which the `brokers` project
+   * brings up the broker it needs.
    *
-   * Left alone when it is already up: the same rule provisioning follows for the base stack applies
-   * here, and `docker compose up -d` with no `--force-recreate` already does that on its own. An
-   * unknown overlay name fails immediately, before anything is started, naming every overlay the
-   * adapter knows — a broker fixture deployed against an overlay that never came up would otherwise
-   * sit at `PROCESSING` and retry silently until the seed's own poll times out.
+   * On Compose it starts the overlay's compose file together with the base stack under one project,
+   * and leaves a running broker alone: the same rule provisioning follows for the base stack, and
+   * `docker compose up -d` with no `--force-recreate` already does that on its own. An unknown
+   * overlay name fails immediately, before anything is started, naming every overlay the adapter
+   * knows — a broker fixture deployed against an overlay that never came up would otherwise sit at
+   * `PROCESSING` and retry silently until the seed's own poll times out. On Kubernetes the Helm
+   * release already runs the broker, so it waits for the broker's rollout.
    */
   ensureOverlay(overlay: Overlay): Promise<void>;
   /**
@@ -119,8 +121,9 @@ export interface Env {
    */
   restartOverlay(overlay: Overlay): Promise<void>;
   /**
-   * Stops and removes the overlay's containers. `brokers-seed-teardown` calls it once the broker
-   * corpus is gone, so the brokers do not outlive the run that started them.
+   * Stops and removes the overlay's containers on Compose. `brokers-seed-teardown` calls it once the
+   * broker corpus is gone, so the brokers do not outlive the run that started them. On Kubernetes it
+   * does nothing, because the brokers belong to the Helm release.
    */
   removeOverlay(overlay: Overlay): Promise<void>;
   /**
@@ -140,7 +143,10 @@ export interface DomainFacts {
   listsEnginePods: boolean;
 }
 
-/** An optional Compose overlay the `brokers` project can bring up beside the base stack. */
+/**
+ * An optional broker the `brokers` project brings up beside the platform: a Compose overlay, or a
+ * broker sub-chart of the Helm release on Kubernetes.
+ */
 export type Overlay = "kafka" | "rabbitmq" | "pubsub" | "sftp";
 
 /** Committed Metaspace and the ceiling it is committed against, in bytes. */
