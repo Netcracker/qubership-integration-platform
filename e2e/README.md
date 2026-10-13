@@ -29,9 +29,9 @@ are in [`AGENTS.md`](AGENTS.md), generated from `.apm/instructions/e2e.instructi
 - Maven and JDK 21. Provisioning runs `mvn install` for a service whose image is stale, because the
   service Dockerfiles copy a jar the host has already built.
 - Node 22 or newer.
-- For the Kubernetes target, `kubectl`, `helm`, `istioctl`, the `kind` or `k3d` CLI on those
-  clusters, and a local cluster with Istio, the Gateway API CRDs, the camel-k operator, and
-  metrics-server. [The Kubernetes target page](k8s/README.md) installs them.
+- For the Kubernetes target, `kubectl`, `helm`, `istioctl` 1.31 or later, the `kind` or `k3d` CLI
+  on those clusters, and a local cluster with Istio, the Gateway API CRDs, the camel-k operator,
+  and metrics-server. [The Kubernetes target page](k8s/README.md) installs them.
 
 Install the suite inside `e2e/`, which sits outside the npm workspaces:
 
@@ -199,8 +199,17 @@ pass it, then the VS Code extension's integration tests. The extension suite run
 first one failed, and the command exits non-zero when either did. The extension's results appear in
 the console output only, and the command does not run `npm run reconcile`.
 
-No CI job runs the suite. `npm run check-types` and `--project=schema` need no stack; run them
-before pushing, as `AGENTS.md` describes.
+`.github/workflows/e2e-k8s.yaml` runs the full suite on a kind cluster, nightly on `main` and on
+manual dispatch from the Actions tab. The dispatch input `workers` sets `E2E_WORKERS`; left empty,
+the run uses the nightly value. Start with the job's step summary: it shows the run status, the
+test counts, the errors raised outside any test, and the projects left out on this target. Every
+run uploads the `e2e-report` artifact: `playwright-report/`, `test-results/`, the `.e2e-k8s-` state
+files, and `.e2e-ui-server.log`. A failed or cancelled run also uploads `e2e-cluster`: the
+workloads and events of every namespace, a description of each pod in `qip-e2e`, and the logs of
+those pods' containers, istiod, and the camel-k operator.
+
+No pull request check runs the suite. `npm run check-types` and `--project=schema` need no stack;
+run them before pushing, as `AGENTS.md` describes.
 
 **Selecting cases.** Every test carries a component tag (`@catalog`, `@engine`, `@sessions`,
 `@testing-service`, `@ui`, `@infra`) and a tier: `@tier1` is the release floor and `@tier2` the
@@ -510,7 +519,8 @@ rm .e2e-overrides.json
 env/        the seam between a spec and whatever runs the platform: target.ts reads CIP_TARGET,
             target-setup.ts gives each target its Env, provisioner, and projects, and
             compose.ts and k8s.ts are the two Env implementations
-k8s/        the e2e chart values and the page that installs a local cluster
+k8s/        the e2e chart values, the cluster bootstrap script, and the page that installs a
+            local cluster
 fixtures/   the chains the seed imports, the axis chain generator, the API documents a spec
             imports as a specification, the frozen import corpus, and services/, the catalog
             export specs/api/service-roundtrip.spec.ts imports

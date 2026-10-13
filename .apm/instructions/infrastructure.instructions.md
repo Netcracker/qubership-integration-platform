@@ -93,6 +93,7 @@ docker/                       # Docker Compose local stack
   kafka-ssl/                  # client/server cert dirs (mounted into engine)
 helm/
   qip-dev/                    # Helm umbrella chart (version 0.0.1) + per-component subcharts
+    istio.yaml                # IstioOperator for istioctl install: minimal profile, small requests
     charts/{camelk,consul,opensearch,postgres,ui,qip-engine,qip-runtime-catalog,qip-sessions-management}
 docs/adr/                     # architecture decision records (0001 PostgreSQL types)
 ```
