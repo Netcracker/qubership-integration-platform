@@ -5,12 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -600,4 +602,91 @@ func TestMigrationLockKeyIsStableAndPerSchema(t *testing.T) {
 	assert.NotEqual(t, migrationLockKey("catalog"), migrationLockKey("testing"))
 	assert.GreaterOrEqual(t, migrationLockKey(""), int64(0))
 	assert.GreaterOrEqual(t, migrationLockKey("catalog"), int64(0))
+}
+
+func TestWaitForPostgresRetriesUntilTheDatabaseAcceptsAConnection(t *testing.T) {
+	pings := 0
+	ping := func(ctx context.Context) error {
+		// A ping on a silent server ends at the startup deadline, not after the driver read timeout.
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		assert.WithinDuration(t, time.Now().Add(postgresStartupTimeout), deadline, time.Second)
+		pings++
+		if pings <= 4 {
+			return errors.New("connection refused")
+		}
+		return nil
+	}
+	var delays []time.Duration
+	sleep := func(_ context.Context, d time.Duration) error {
+		delays = append(delays, d)
+		return nil
+	}
+	var out bytes.Buffer
+
+	err := waitForPostgres(context.Background(), ping, sleep, newLogger(&out, "info", "json"))
+
+	require.NoError(t, err)
+	assert.Equal(t, 5, pings)
+	assert.Equal(t, []time.Duration{time.Second, time.Second, time.Second, time.Second}, delays)
+	assert.Equal(t, 4, strings.Count(out.String(), "PostgreSQL does not accept connections yet"))
+}
+
+func TestWaitForPostgresGivesUpAtTheDeadlineWithTheLastError(t *testing.T) {
+	pings := 0
+	var lastErr error
+	ping := func(context.Context) error {
+		pings++
+		lastErr = fmt.Errorf("dial attempt %d: connection refused", pings)
+		return lastErr
+	}
+	sleeps := 0
+	// The third wait runs into the deadline.
+	sleep := func(ctx context.Context, _ time.Duration) error {
+		deadline, ok := ctx.Deadline()
+		require.True(t, ok)
+		assert.WithinDuration(t, time.Now().Add(postgresStartupTimeout), deadline, time.Second)
+		sleeps++
+		if sleeps == 3 {
+			return context.DeadlineExceeded
+		}
+		return nil
+	}
+
+	err := waitForPostgres(context.Background(), ping, sleep, discardLogger())
+
+	require.ErrorIs(t, err, lastErr)
+	assert.Equal(t, 3, pings)
+	assert.Contains(t, err.Error(), "gave up after 3 attempts")
+}
+
+func TestWaitForPostgresStopsWhenTheParentContextIsCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	pings := 0
+	pingErr := errors.New("connection refused")
+	ping := func(context.Context) error {
+		pings++
+		return pingErr
+	}
+
+	err := waitForPostgres(ctx, ping, sleepContext, discardLogger())
+
+	require.ErrorIs(t, err, pingErr)
+	assert.Equal(t, 1, pings)
+}
+
+func TestSleepContextReturnsTheContextErrorAtOnce(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	start := time.Now()
+	err := sleepContext(ctx, time.Hour)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Less(t, time.Since(start), time.Second)
+}
+
+func TestSleepContextWaitsOutTheDuration(t *testing.T) {
+	require.NoError(t, sleepContext(context.Background(), time.Millisecond))
 }
