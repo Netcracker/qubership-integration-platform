@@ -91,11 +91,15 @@ describe("ChainDiffPopup", () => {
     expect(props.editable2).toBe(false);
   });
 
-  it("should pass style={{ height: '100%' }} to ChainDiffView", () => {
+  it("should pass layout className to ChainDiffView and modal", () => {
     render(<ChainDiffPopup item1={item1} item2={item2} />);
 
-    const props = MockChainDiffView.mock.calls[0][0];
-    expect(props.style).toEqual({ height: "100%" });
+    const viewProps = MockChainDiffView.mock.calls[0][0];
+    expect(viewProps.className).toBe("view");
+
+    const modalProps = MockModal.mock.calls[0][0];
+    expect(modalProps.className).toBe("modal");
+    expect(modalProps.classNames).toEqual({ body: "modalBody" });
   });
 
   it("should call closeContainingModal when the modal is closed", () => {
