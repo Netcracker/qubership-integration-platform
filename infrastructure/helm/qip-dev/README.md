@@ -93,6 +93,28 @@ catalog. Both services still run with `-XX:+ExitOnOutOfMemoryError`.
 `qip-runtime-catalog.serviceAliases` lists extra ClusterIP Service names for the catalog's port
 8080, for a caller that addresses the catalog by another name.
 
+`qip-engine.trustedCerts` maps a file name to a PEM certificate. The chart puts the map in Secret
+`<release>-engine-certs` and mounts it at `/app/cert/defaultsslcertificate`, where the engine's
+`development` profile reads the certificates it trusts. From this directory:
+
+```sh
+helm install ... --set-file 'qip-engine.trustedCerts.ca\.crt=../kafka-ssl/client/ca.crt'
+```
+
+`qip-runtime-catalog.microDomainResources` and `qip-runtime-catalog.microDomainEmptyDirs` become
+`MICRO_DOMAIN_RESOURCES` and `MICRO_DOMAIN_EMPTY_DIRS`: the camel-k mount resources and emptyDir
+volumes of every micro domain. These two give a micro domain the same certificates, and an emptyDir
+for the truststore it builds from them, because its root file system is read-only:
+
+```sh
+helm install ... \
+  --set 'qip-runtime-catalog.microDomainResources={secret:<release>-engine-certs@/app/cert/defaultsslcertificate}' \
+  --set 'qip-runtime-catalog.microDomainEmptyDirs={truststore:/app/truststore}'
+```
+
+The chart refuses to render a mount of `<release>-engine-certs` while `qip-engine.trustedCerts` is
+empty, because a micro pod that mounts a missing Secret stays in `ContainerCreating`.
+
 The proxy takes `global.qip.ui.loadBalancerPort` and `global.qip.ui.podAnnotations`, with the same
 meaning as above, and `global.qip.ui.e2eLocations` (default `false`) adds two nginx locations for
 the end-to-end suite:
@@ -144,7 +166,8 @@ Kafka has the listener layout of `docker-compose.kafka.yml`:
 
 `AUTH` and `AUTHTLS` accept PLAIN, SCRAM-SHA-256, and SCRAM-SHA-512. `TLS` and `AUTHTLS` exist only
 when you pass the server certificate and its unencrypted key; the CA that signed them is
-`../kafka-ssl/client/ca.crt`. From this directory:
+`../kafka-ssl/client/ca.crt`, which the engines trust through the values in "Values for the platform
+services". From this directory:
 
 ```sh
 helm install ... --set kafka.enabled=true \

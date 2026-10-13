@@ -121,6 +121,14 @@ spec:
                   name: {{ .Release.Name }}-env
             - name: ENGINE_SERVICE_NAME
               value: {{ .Release.Name }}-engine
+            {{- with .Values.microDomainResources }}
+            - name: MICRO_DOMAIN_RESOURCES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- with .Values.microDomainEmptyDirs }}
+            - name: MICRO_DOMAIN_EMPTY_DIRS
+              value: {{ join "," . | quote }}
+            {{- end }}
             - name: DEPLOYMENT_VERSION
               valueFrom:
                 configMapKeyRef:

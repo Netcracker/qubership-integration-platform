@@ -55,6 +55,10 @@ qip-engine:
   strategy:
     type: Recreate
   extraEnv: []
+  # Maps a file name to a PEM certificate. The engine trusts each one: they go
+  # into Secret <release>-engine-certs, mounted at
+  # /app/cert/defaultsslcertificate. Pass a file with --set-file.
+  trustedCerts: {}
   jvm:
     maxHeap: 832m
     metaspaceSize: 384m
@@ -67,6 +71,15 @@ qip-runtime-catalog:
   loadBalancerPort:
   # Extra ClusterIP Service names for port 8080.
   serviceAliases: []
+  # camel-k mount resources for every micro domain, such as
+  # secret:<release>-engine-certs@/app/cert/defaultsslcertificate for the
+  # engine's trusted certificates.
+  microDomainResources: []
+  # camel-k emptyDir volumes for every micro domain, as
+  # name:/container/path[:sizeLimit]. A micro domain's root file system is
+  # read-only; it writes the truststore it builds from those certificates to
+  # truststore:/app/truststore.
+  microDomainEmptyDirs: []
   podAnnotations: {}
   strategy: {}
   extraEnv: []
