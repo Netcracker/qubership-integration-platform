@@ -18,7 +18,9 @@ record PropertyPatchCapture(
     @Description("Catalog property key from describeElementPatchSchema")
         @JsonProperty(required = true) String key,
     @Description("Unused placeholder when mapEntries or arrayValue is set; send {}") JsonNode value,
-    @Description("String, number, boolean, or serialized JSON object/array; schema-coerced when value is {}")
+    @Description("JSON string or null. Its contents are the property value, not another JSON string literal."
+        + " Examples: \"/path\", \"GET\", \"200\", \"false\". Do not add quote characters around string contents."
+        + " Serialize objects and arrays inside the string; schema-coerced when value is {}.")
         String scalarValue,
     @Description("String list such as headerModificationToRemove; send value={}")
         List<String> arrayValue,

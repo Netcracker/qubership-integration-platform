@@ -164,6 +164,8 @@ class GatherRequirementsPromptBuilderTest {
     assertTrue(input.contains("<current-requirement-draft decision=\"READY_FOR_PLAN\">"), input);
     assertTrue(input.contains("already ready"), input);
     assertTrue(input.contains("finishRequirementDiscoveryTurn"), input);
+    assertTrue(input.contains("The service owns the IDS review choice and presents a Yes/No card"), input);
+    assertTrue(input.contains("requesting a choice card is not a Yes answer"), input);
     assertTrue(input.contains("searchRequirementKnowledge"), input);
     assertTrue(input.contains("Do not show source names or identifiers"), input);
     assertTrue(input.contains("write exactly one final answer"), input);

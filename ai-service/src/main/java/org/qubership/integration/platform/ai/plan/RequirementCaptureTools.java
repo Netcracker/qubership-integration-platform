@@ -134,7 +134,8 @@ public class RequirementCaptureTools {
       and mapping values. Reassign fact references when fixing topology; add omitted requirements as
       new facts. A new author message permits only its explicit amendments. For each changed accepted
       value, supply amendments with path, sourceTurnId, and the exact quote authorizing that change.
-      Paths use stable IDs, such as /facts/goal/text, /facts/goal for removal, or /capabilities/entry/path. Use /transitions/entry for the outgoing transitions of entry.
+      Paths use stable IDs, such as /facts/goal/text, /facts/goal for removal, /capabilities/entry/path,
+      or /interactions/entry/operation. Use /transitions/entry for the outgoing transitions of entry.
       Apply the amendment to all affected representations in one update. A URL change includes
       capability.path and any operation, description, or fact text repeating that URL. Cite the same
       source quote with a separate exact path for each changed field; retain unrelated content.

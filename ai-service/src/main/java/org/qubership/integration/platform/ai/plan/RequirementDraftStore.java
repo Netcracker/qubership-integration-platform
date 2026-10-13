@@ -121,13 +121,15 @@ public class RequirementDraftStore {
     var authorPaths = new java.util.LinkedHashSet<String>();
     if (changes != null && changes.amendments() != null) {
       for (var amendment : changes.amendments()) {
-        if (amendment == null || !RequirementRevisionAdmission.validPath(base, amendment.path())
-            || !supportsAmendment(conversationId, amendment)) {
+        var normalized = amendment == null ? null : new RequirementCaptureInput.AmendmentInput(
+            RequirementRevisionAdmission.canonicalPath(amendment.path()), amendment.sourceTurnId(), amendment.quote());
+        if (normalized == null || !RequirementRevisionAdmission.validPath(base, normalized.path())
+            || !supportsAmendment(conversationId, normalized)) {
           issues.add(new RequirementCaptureEditor.Issue("INVALID_AUTHOR_AMENDMENT", "/changes/amendments", null,
               "Cite a fresh READY author source and its exact nonempty quote for an existing requirement path."
                   + " A repair instruction or an earlier consumed source does not authorize an amendment."));
         } else {
-          authorPaths.add(amendment.path());
+          authorPaths.add(normalized.path());
         }
       }
     }
@@ -224,6 +226,7 @@ public class RequirementDraftStore {
             attempt.authorText(), List.of()).sameSource(current))
         .map(attempt -> new ObjectMapper().<com.fasterxml.jackson.databind.JsonNode>valueToTree(attempt.arguments()))
         .anyMatch(arguments -> arguments.path("amendments").findValuesAsText("path").stream()
+            .map(RequirementRevisionAdmission::canonicalPath)
             .anyMatch(prior -> prior.equals(path) || prior.startsWith(path + "/") || path.startsWith(prior + "/")));
   }
 

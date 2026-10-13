@@ -137,7 +137,8 @@ public class StringifiedToolArgumentsNormalizer implements QuarkusToolExecutor.W
       var inspected = StructuredCaptureArguments.inspect(request, method, objectMapper);
       if (inspected.issue() != null) {
         Object memoryId = invocationContext == null ? null : invocationContext.chatMemoryId();
-        String conversationId = memoryId == null ? ToolSession.resolveConversationId() : memoryId.toString();
+        String conversationId = memoryId == null ? ToolSession.resolveConversationId()
+            : org.qubership.integration.platform.ai.compiler.CompilerSkillMemoryIds.conversationId(memoryId.toString());
         String capabilityId = CompilerGraphPatchTool.resolveCapabilityId();
         var issue = inspected.issue();
         String result = outcomeGateway.onFailure(

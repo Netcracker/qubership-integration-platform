@@ -638,6 +638,28 @@ class ChatExecutionServiceTest {
   }
 
   @Test
+  void eagerCommandWritesRunOnlyAfterTheCatalogTrackerIsBound() {
+    ChatDecisionService decisions = mock(ChatDecisionService.class);
+    when(decisions.apply(eq("conv-eager-write"), any())).thenAnswer(invocation -> {
+      org.qubership.integration.platform.ai.chat.activity.LlmRateLimitBackoffSink.onBackoff(1, 1);
+      ToolInvocationSink.catalogChanges().orElseThrow().chainChanged("chain-a");
+      ToolInvocationSink.catalogChanges().orElseThrow().chainChanged("chain-b");
+      return Multi.createFrom().item(ChatEvent.token("Saved."));
+    });
+    ChatRequest request = new ChatRequest();
+    request.setConversationId("conv-eager-write");
+    ChatDecisionCommand decision = new ChatDecisionCommand();
+    decision.setAction(ChatEvent.CREATE_ACTION);
+    request.setDecision(decision);
+    List<String> frames = commandPathService(decisions).streamV1Sse(request)
+        .collect().asList().await().indefinitely();
+    assertTrue(frames.stream().anyMatch(frame -> frame.contains("Taking another pass")));
+    assertEquals(1L, frames.stream().filter(frame -> frame.startsWith("event: catalog-changed")).count());
+    assertTrue(frames.stream().anyMatch(frame -> frame.contains("\"chainIds\":[\"chain-a\",\"chain-b\"]")));
+    assertTrue(frames.getLast().startsWith("event: done"));
+  }
+
+  @Test
   void recoverFailedSseEmitsErrorThenDone() {
     List<String> frames =
         ChatExecutionService.recoverFailedSse(

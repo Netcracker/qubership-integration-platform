@@ -42,6 +42,8 @@ import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.integration.catalog.model.CatalogElementResponseDto;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailureMapper;
 import org.qubership.integration.platform.ai.chat.failure.PinnedFailureStore;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
@@ -98,6 +100,27 @@ class DeployChainScenarioTest {
             pinnedFailureStore,
             0L,
             0L);
+  }
+
+  @Test
+  void workerRetainsCatalogMutationTracker() {
+    when(chainContextExtractor.resolveChainId(any(), eq(CONVERSATION_ID)))
+        .thenReturn(Optional.of(CHAIN_ID));
+    when(catalogRestClient.createSnapshot(CHAIN_ID)).thenAnswer(invocation -> {
+      ToolInvocationSink.catalogChanges().orElseThrow().chainChanged(CHAIN_ID);
+      return new SnapshotDto(SNAPSHOT_ID, "V1");
+    });
+    java.util.List<ChatEvent> sent = new java.util.concurrent.CopyOnWriteArrayList<>();
+    ToolSession.bind(CONVERSATION_ID);
+    ToolInvocationSink.bind(sent::add, null, CONVERSATION_ID);
+    try {
+      tokenFrom("take a snapshot");
+      ToolInvocationSink.flushCatalogChanges();
+      assertEquals(List.of(new ChatEvent.CatalogChanged(List.of(CHAIN_ID), true)), sent);
+    } finally {
+      ToolInvocationSink.unbind();
+      ToolSession.clear();
+    }
   }
 
   @Test

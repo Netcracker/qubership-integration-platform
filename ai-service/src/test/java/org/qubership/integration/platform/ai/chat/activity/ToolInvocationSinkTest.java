@@ -14,6 +14,41 @@ import org.junit.jupiter.api.Test;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
 
 class ToolInvocationSinkTest {
+  @Test
+  void reusedWorkerDropsDepthFromATurnTerminatedOnAnotherThread() throws Exception {
+    org.qubership.integration.platform.ai.chat.ToolSession.bind("finished-turn");
+    ToolInvocationSink.bind(event -> {}, null, "finished-turn");
+    Thread terminal = new Thread(() -> ToolInvocationSink.unbind("finished-turn"));
+    terminal.start();
+    terminal.join();
+    org.qubership.integration.platform.ai.chat.ToolSession.bind("next-turn");
+    ToolInvocationSink.bind(event -> {}, null, "next-turn");
+    ToolInvocationSink.catalogChanges().orElseThrow().chainChanged("a");
+    ToolInvocationSink.unbind();
+    assertTrue(ToolInvocationSink.catalogChanges().isEmpty());
+    org.qubership.integration.platform.ai.chat.ToolSession.clear();
+  }
+
+  @Test
+  void catalogFactsSurviveParentChangesAndNestedWorkerContexts() {
+    List<ChatEvent> events = new ArrayList<>();
+    ToolInvocationSink.bind(events::add, null, "catalog-turn");
+    var root = ToolInvocationSink.catalogChanges().orElseThrow();
+    root.chainChanged("a");
+    ToolInvocationSink.setParentSkillId("skill:structure");
+    var context = ToolInvocationSink.attachedContext();
+    Uni.createFrom().item(() -> ToolInvocationSink.callInBoundContext(context, () -> {
+      ToolInvocationSink.setParentSkillId("skill:materialization");
+      org.junit.jupiter.api.Assertions.assertSame(root, ToolInvocationSink.catalogChanges().orElseThrow());
+      root.chainChanged("b");
+      return true;
+    })).runSubscriptionOn(Infrastructure.getDefaultWorkerPool()).await().indefinitely();
+    ToolInvocationSink.flushCatalogChanges();
+    ToolInvocationSink.flushCatalogChanges();
+    assertEquals(List.of(new ChatEvent.CatalogChanged(List.of("a", "b"), true)), events);
+    ToolInvocationSink.unbind("catalog-turn");
+    assertTrue(ToolInvocationSink.catalogChanges().isEmpty());
+  }
 
   @AfterEach
   void tearDown() {

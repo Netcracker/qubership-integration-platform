@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import org.qubership.integration.platform.ai.configuration.AppConfig;
+import org.qubership.integration.platform.ai.plan.model.ChainPlanGraph;
 import org.qubership.integration.platform.ai.productpipeline.capability.RecoveryCauseCode;
 
 /** Injects deterministic, chain-scoped failures for live recovery tests. */
@@ -42,6 +43,27 @@ public class E2eRecoveryFaultInjector {
     }
     int count = injections.merge(runId + '\0' + stageId, 1, Integer::sum);
     return count <= fault.maxInjections() ? Optional.of(fault.causeCode()) : Optional.empty();
+  }
+
+  /** Corrupts a real graph value so the live test exercises validation and model repair. */
+  public ChainPlanGraph corruptHttpUrl(String runId, ChainPlanGraph graph) {
+    if (graph == null || !faultsByStage.containsKey("http-url-validation")) {
+      return graph;
+    }
+    for (var node : graph.nodes()) {
+      if (!"http-trigger".equals(node.type())) {
+        continue;
+      }
+      for (var property : node.properties()) {
+        if ("contextPath".equals(property.key()) && property.value() != null && !property.value().isBlank()) {
+          if (next(runId, graph.chain().name(), "http-url-validation").isPresent()) {
+            return graph.withNodeProperty(node.nodeId(), "contextPath", "\"" + property.value() + "\"");
+          }
+          return graph;
+        }
+      }
+    }
+    return graph;
   }
 
   private static Map<String, FaultSpec> parse(String plan) {

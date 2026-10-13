@@ -14,6 +14,8 @@ import org.qubership.integration.platform.ai.chain.deploy.PendingRedeploy;
 import org.qubership.integration.platform.ai.chain.deploy.PendingRedeployStore;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import org.qubership.integration.platform.ai.chat.LastAssistantTurn;
 import org.qubership.integration.platform.ai.chat.failure.CatalogOperation;
 import org.qubership.integration.platform.ai.chat.failure.KnownFailure;
@@ -189,11 +191,15 @@ public class DeployChainScenario implements ScenarioHandler {
   }
 
   private static Multi<ChatEvent> streamOnWorker(Supplier<Multi<ChatEvent>> work) {
+    var context = ToolInvocationSink.attachedContext();
+    var sessionContext = ToolSession.attachedContext();
     return Multi.createFrom()
         .<ChatEvent>emitter(
             emitter -> {
               try {
-                work.get().subscribe().with(emitter::emit, emitter::fail, emitter::complete);
+                ToolSession.executeInBoundContext(sessionContext, () ->
+                    ToolInvocationSink.executeInBoundContext(context, () ->
+                        work.get().subscribe().with(emitter::emit, emitter::fail, emitter::complete)));
               } catch (RuntimeException failure) {
                 emitter.fail(failure);
               }
@@ -1068,6 +1074,9 @@ public class DeployChainScenario implements ScenarioHandler {
     DeploymentDto created = catalogRestClient.createDeployment(
         chainId, new CreateDeploymentRequest(domain, snapshot.id()));
     DeploymentObservation observation = pollDeploymentStatus(chainId, domain, created);
+    if (STATUS_DEPLOYED.equals(observation.status()) || STATUS_FAILED.equals(observation.status())) {
+      ToolInvocationSink.catalogChanges().ifPresent(changes -> changes.chainChanged(chainId));
+    }
     return deploymentResult(conversationId, chainId, snapshot, domain, observation);
   }
 

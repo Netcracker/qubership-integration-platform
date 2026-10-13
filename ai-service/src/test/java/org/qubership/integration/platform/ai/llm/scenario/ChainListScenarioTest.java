@@ -27,6 +27,9 @@ import org.qubership.integration.platform.ai.chain.folder.ChainTable;
 import org.qubership.integration.platform.ai.chain.folder.ChainTable.Row;
 import org.qubership.integration.platform.ai.chain.presentation.ChainContextExtractor;
 import org.qubership.integration.platform.ai.chat.ChatEvent;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
+import org.qubership.integration.platform.ai.model.ScenarioType;
 import org.qubership.integration.platform.ai.chat.conversation.ConversationService;
 import org.qubership.integration.platform.ai.chat.model.ChatDecisionCommand;
 import org.qubership.integration.platform.ai.chat.model.ChatRequest;
@@ -70,6 +73,30 @@ class ChainListScenarioTest {
             agent, replies, folders, table, catalog, mock(ConversationService.class),
             chainContext);
     when(folders.tree()).thenReturn(List.of(CRM, LEGACY));
+  }
+
+  @Test
+  void workerRetainsCatalogMutationTracker() {
+    answer(command(ChainListAction.MOVE_CHAINS, null, "CRM", List.of("orders sync"), List.of()));
+    when(table.find(List.of())).thenReturn(List.of(ORDERS));
+    when(folders.resolveOrCreateId("/CRM")).thenReturn("f1");
+    org.mockito.Mockito.doAnswer(invocation -> {
+      ToolInvocationSink.catalogChanges().orElseThrow().chainChanged("c1");
+      return null;
+    }).when(catalog).moveChain("c1", "f1");
+    java.util.List<ChatEvent> sent = new java.util.concurrent.CopyOnWriteArrayList<>();
+    ToolSession.bind(CONVERSATION);
+    ToolInvocationSink.bind(sent::add, null, CONVERSATION);
+    try {
+      var subscriber = scenario.handle(message(), CONVERSATION, ScenarioType.MANAGE_CHAIN_LIST)
+          .subscribe().withSubscriber(io.smallrye.mutiny.helpers.test.AssertSubscriber.create(Long.MAX_VALUE));
+      subscriber.awaitCompletion().assertCompleted();
+      ToolInvocationSink.flushCatalogChanges();
+      assertEquals(List.of(new ChatEvent.CatalogChanged(List.of("c1"), true)), sent);
+    } finally {
+      ToolInvocationSink.unbind();
+      ToolSession.clear();
+    }
   }
 
   @Test

@@ -36,7 +36,16 @@ class RateLimitChatModelWiringIT {
   @Inject StreamingChatModel streamingChatModel;
   @Inject LlmRunBudget budget;
   @Inject org.qubership.integration.platform.ai.configuration.AppConfig config;
+  @Inject org.qubership.integration.platform.ai.plan.RequirementCaptureToolProvider.ProviderSupplier gatherTools;
   @io.quarkus.test.InjectMock org.qubership.integration.platform.ai.compiler.artifact.ArtifactBlobStore blobs;
+
+  @Test
+  void defaultAgentsHaveNoGatherToolsButTheExplicitGatherSupplierStillWorks() {
+    assertFalse(io.quarkus.arc.Arc.container().instance(dev.langchain4j.service.tool.ToolProvider.class).isAvailable());
+    assertNotNull(gatherTools.get());
+    assertTrue(gatherTools.get().provideTools(null).tools().keySet().stream()
+        .anyMatch(tool -> "captureRequirementDraft".equals(tool.name())));
+  }
 
   @org.junit.jupiter.api.BeforeEach
   void useLocalAccountingStorage() {

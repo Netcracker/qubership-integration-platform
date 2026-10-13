@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.qubership.integration.platform.ai.productpipeline.facade.PipelineGates;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
 import org.qubership.integration.platform.ai.productpipeline.create.design.model.CatalogBindingHint;
 import org.qubership.integration.platform.ai.qipknowledge.artifact.RequirementFlow;
@@ -483,6 +484,17 @@ public record RequirementDraft(
 
   /** Same draft with the author's IDS answer recorded. */
   public RequirementDraft withIdsRequested(Boolean requested) {
+    if (requested != null && authoredDraft != null && authoredDraft.openQuestions().stream()
+        .anyMatch(question -> PipelineGates.IDS_PATH_CHOICE
+            .equals(question.questionId()))) {
+      var input = new RequirementCaptureInput.DraftInput(authoredDraft.flow(), authoredDraft.facts(),
+          authoredDraft.capabilities(), authoredDraft.openQuestions().stream()
+              .filter(question -> !PipelineGates.IDS_PATH_CHOICE
+                  .equals(question.questionId())).toList(),
+          new RequirementCaptureInput.DraftSettings(requested, authoredDraft.settings().preferredSystemType(),
+              authoredDraft.settings().targetFolderPath()));
+      return RequirementCaptureProjection.toDraft(input, this, catalogBindings, sourceSkillVersion, sourceSkillHash);
+    }
     return new RequirementDraft(
         complete,
         assembledText,

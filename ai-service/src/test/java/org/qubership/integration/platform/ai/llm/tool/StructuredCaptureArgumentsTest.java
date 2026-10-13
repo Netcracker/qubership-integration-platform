@@ -50,6 +50,25 @@ class StructuredCaptureArgumentsTest {
         """).issue().code());
   }
 
+  @Test
+  void nullableArraysRetainTheExactFieldPathOfAnInvalidItem() {
+    var item = JsonObjectSchema.builder().addProperty("scalarValue",
+        JsonAnyOfSchema.builder().anyOf(new JsonStringSchema(), new JsonNullSchema()).build()).build();
+    var capture = JsonObjectSchema.builder().addProperty("propertyPatches",
+        JsonAnyOfSchema.builder().anyOf(JsonArraySchema.builder().items(item).build(), new JsonNullSchema()).build())
+        .build();
+    var method = new ToolMethodCreateInfo("capture", "invoker",
+        ToolSpecification.builder().name("capture")
+            .parameters(JsonObjectSchema.builder().addProperty("capture", capture).required("capture").build())
+            .build(), "mapper", ToolMethodCreateInfo.ExecutionModel.BLOCKING,
+        ReturnBehavior.TO_LLM, null, null);
+    var result = StructuredCaptureArguments.inspect(ToolExecutionRequest.builder().id("call-1").name("capture")
+        .arguments("{\"capture\":{\"propertyPatches\":[{\"scalarValue\":false}]}}")
+        .build(), method, mapper);
+    assertEquals("INVALID_TYPE", result.issue().code());
+    assertEquals("/capture/propertyPatches/0/scalarValue", result.issue().path());
+  }
+
   private StructuredCaptureArguments.Result inspect(String arguments) {
     var operation = JsonObjectSchema.builder()
         .addStringProperty("nodeId").addStringProperty("elementType")

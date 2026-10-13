@@ -34,9 +34,9 @@ import org.qubership.integration.platform.ai.plan.RequirementCaptureEditor.Issue
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftInput;
 import org.qubership.integration.platform.ai.plan.RequirementCaptureInput.DraftUpdate;
 
-/** Exposes the capture DTOs with closed, required, and explicitly nullable schemas. */
+/** Builds capture tools for the explicit gather supplier, not for default CDI tool lookup. */
 @ApplicationScoped
-public class RequirementCaptureToolProvider implements ToolProvider {
+public class RequirementCaptureToolProvider {
 
   private final RequirementCaptureTools tools;
   private final ObjectMapper mapper;
@@ -57,7 +57,6 @@ public class RequirementCaptureToolProvider implements ToolProvider {
     this(tools, mapper, null);
   }
 
-  @Override
   public ToolProviderResult provideTools(ToolProviderRequest request) {
     JsonObjectSchema capture = RequirementCaptureSchemas.parameters("draft", DraftInput.class);
     JsonObjectSchema update = RequirementCaptureSchemas.parameters("changes", DraftUpdate.class);
@@ -274,9 +273,11 @@ public class RequirementCaptureToolProvider implements ToolProvider {
   /** Resolves the CDI provider for the gather agent only. */
   @ApplicationScoped
   public static final class ProviderSupplier implements java.util.function.Supplier<ToolProvider> {
+    @Inject RequirementCaptureToolProvider provider;
+
     @Override
     public ToolProvider get() {
-      return Arc.container().instance(RequirementCaptureToolProvider.class).get();
+      return provider::provideTools;
     }
   }
 }

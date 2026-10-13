@@ -4,6 +4,8 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.qubership.integration.platform.ai.chat.ToolSession;
+import org.qubership.integration.platform.ai.chat.activity.ToolInvocationSink;
 import java.util.function.Supplier;
 import org.qubership.integration.platform.ai.chat.attachment.UploadedSpecAttachment;
 import org.qubership.integration.platform.ai.integration.apihub.ApiHubRequirementRefs;
@@ -81,6 +83,11 @@ public class CatalogMutationGateway {
   }
 
   private static <T> Uni<T> onWorker(Supplier<T> work) {
-    return Uni.createFrom().item(work).runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
+    var context = ToolInvocationSink.attachedContext();
+    var sessionContext = ToolSession.attachedContext();
+    return Uni.createFrom().item(() ->
+        ToolSession.callInBoundContext(sessionContext, () ->
+            ToolInvocationSink.callInBoundContext(context, work)))
+        .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
   }
 }
