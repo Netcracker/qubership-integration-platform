@@ -430,30 +430,36 @@ test("removeOverlay leaves the Helm-owned brokers alone", { tag: ["@infra", "@ti
   expect(calls).toEqual([]);
 });
 
-test("the k8s target declares its own projects and lists the brokers and the classic-only files as not run", { tag: ["@infra", "@tier1"] }, () => {
-  const setup = targetSetup("k8s");
+const CLASSIC_ONLY_ABSENT = CLASSIC_ONLY_RUNTIME_FILES.map((file) => `runtime-micro: specs/runtime/${file}`);
+
+test("the k8s target declares its own projects and the broker projects, and lists the classic-only files as not run", { tag: ["@infra", "@tier1"] }, () => {
+  const setup = withEnv({ E2E_BROKERS: undefined }, () => targetSetup("k8s"));
   expect(
     setup.projects.map((each) => ({
       name: each.name,
       dependencies: each.dependencies,
+      teardown: each.teardown,
       engineKind: each.use?.engineKind,
     })),
   ).toEqual([
-    { name: "k8s", dependencies: ["seed"], engineKind: undefined },
-    { name: "seed-micro", dependencies: undefined, engineKind: "micro" },
-    { name: "seed-micro-teardown", dependencies: undefined, engineKind: undefined },
-    { name: "runtime-micro", dependencies: ["seed-micro", "tooling"], engineKind: "micro" },
+    { name: "k8s", dependencies: ["seed"], teardown: undefined, engineKind: undefined },
+    { name: "seed-micro", dependencies: undefined, teardown: "suite-teardown", engineKind: "micro" },
+    { name: "runtime-micro", dependencies: ["seed-micro", "tooling"], teardown: undefined, engineKind: "micro" },
+    { name: "brokers-seed", dependencies: undefined, teardown: "suite-teardown", engineKind: undefined },
+    { name: "brokers", dependencies: ["brokers-seed"], teardown: undefined, engineKind: undefined },
+    { name: "brokers-restart", dependencies: ["brokers"], teardown: undefined, engineKind: undefined },
   ]);
-  expect(setup.projects.find((each) => each.name === "seed-micro")?.teardown).toBe("seed-micro-teardown");
-  // The micro teardown waits for `global`, and with it for the catalog restarts in `env`.
-  expect(setup.decorate({ name: "global" }).teardown).toBe("seed-micro-teardown");
-  expect(setup.decorate({ name: "env" }).teardown).toBeUndefined();
-  expect(setup.absent.map((each) => each.name)).toEqual([
-    "brokers-seed",
-    "brokers-seed-teardown",
-    "brokers",
-    "brokers-restart",
-    ...CLASSIC_ONLY_RUNTIME_FILES.map((file) => `runtime-micro: specs/runtime/${file}`),
+  expect(setup.absent.map((each) => each.name)).toEqual(CLASSIC_ONLY_ABSENT);
+});
+
+test("E2E_BROKERS=0 drops the broker projects on k8s and names them as absent", { tag: ["@infra", "@tier1"] }, () => {
+  const setup = withEnv({ E2E_BROKERS: "0" }, () => targetSetup("k8s"));
+  expect(setup.projects.map((each) => each.name)).toEqual(["k8s", "seed-micro", "runtime-micro"]);
+  expect(setup.absent).toEqual([
+    { name: "brokers-seed", reason: "E2E_BROKERS=0" },
+    { name: "brokers", reason: "E2E_BROKERS=0" },
+    { name: "brokers-restart", reason: "E2E_BROKERS=0" },
+    ...CLASSIC_ONLY_ABSENT.map((name) => expect.objectContaining({ name })),
   ]);
 });
 

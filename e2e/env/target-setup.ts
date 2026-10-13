@@ -3,9 +3,9 @@
  *
  * `env/target.ts` names the target and imports nothing; this module imports both adapters and
  * answers `targetSetup()`: the environment a worker gets, the provisioner `globalSetup` calls, the
- * observer that records the stack, and the projects only one target declares.
- * `playwright.config.ts` builds its project list from the common projects passed through
- * `decorate`, plus `projects`.
+ * observer that records the stack, and the projects the target adds: its own, and the broker
+ * projects unless `E2E_BROKERS=0`. `playwright.config.ts` builds its project list from the common
+ * projects plus `projects`.
  */
 import type {
   PlaywrightTestOptions,
@@ -48,10 +48,8 @@ export interface TargetSetup {
   createEnv(engineKind: EngineKind): Env;
   provision(mode: ProvisionMode): Promise<ProvisionReport>;
   observer: StackObserver;
-  /** Projects declared only on this target. */
+  /** Projects this target adds to the common ones. */
   projects: SuiteProject[];
-  /** The target-specific edges on a common project, such as `global`'s `teardown` on Compose. */
-  decorate(project: SuiteProject): SuiteProject;
   /** Projects and spec files left out on this target, printed in the report header. */
   absent: Absence[];
 }
@@ -65,32 +63,12 @@ function brokerProjects(): SuiteProject[] {
       // directory the `seed` project imports wholesale. `testMatch` is not optional, for the
       // reason `seed`'s is not: Playwright's default collects `*.setup.ts` not at all, and a
       // setup project that runs zero tests reports success and satisfies its dependents.
+      // `suite-teardown` runs `brokers.teardown.ts` after `global` as well as after the broker
+      // projects; `playwright.config.ts` says why.
       name: "brokers-seed",
       testDir: "./specs/brokers-seed",
       testMatch: /.*\.setup\.ts$/,
-      teardown: "brokers-seed-teardown",
-    },
-    {
-      // A project of its own, named by `brokers-seed`'s `teardown` property — the same split
-      // `seed` and `seed-teardown` use, for the same reason: both setup and teardown behind one
-      // `testMatch` would make the teardown an ordinary test of the setup project, running
-      // before a single broker spec had used the corpus.
-      //
-      // `global` also names this project as its own `teardown` target, through `decorate` — a second use of
-      // the same mechanism, for a problem `brokers`/`brokers-restart`'s `dependencies` on
-      // `brokers-seed` cannot reach. Measured with `DEBUG=pw:test:task`: before that second
-      // edge, this project's own phase held nothing back from `env`'s, so `teardownBrokers` —
-      // `deleteLoggingProperties`, `undeployAll`, chain deletes, then a 15 s Kafka
-      // delete-and-confirm loop that assumes the engine's consumers are stopping — ran
-      // concurrently with `restart-resilience.spec.ts` and `service-type-roundtrip.spec.ts`
-      // force-recreating the engine and the catalog in `env`. A recreated engine re-attaches its
-      // consumers and re-creates the very topics that loop is deleting, and a catalog down for
-      // 30 s pushes onto `teardownBrokers`'s own failure list. `global` picking up this project's
-      // `teardown` closes that gap without either project naming the other in `dependencies` —
-      // see `global`'s own comment for the mechanism and the trade-off it carries instead.
-      name: "brokers-seed-teardown",
-      testDir: "./specs/brokers-seed",
-      testMatch: /.*\.teardown\.ts$/,
+      teardown: "suite-teardown",
     },
     {
       // Kafka and RabbitMQ carry more production traffic than any other transport, so this runs
@@ -145,31 +123,12 @@ function composeSetup(): TargetSetup {
       header: collectStackHeader,
     },
     projects: brokers ? brokerProjects() : [],
-    decorate(project) {
-      // Declaring `brokers-seed-teardown` as `global`'s own `teardown` target orders that teardown
-      // after `global` without gating either one on the other's success. More than one project may
-      // name the same `teardown` target — Playwright collects every project that does and holds the
-      // teardown back until all of them, and everything that depends on any of them, have run — so
-      // `brokers-seed` and `global` can both point at `brokers-seed-teardown` at once. (A
-      // *teardown* project cannot declare `dependencies` of its own — `common/index.js:716`,
-      // checked against this config directly — but that restriction falls on `brokers-seed-
-      // teardown`, not on the projects naming it.) `global`'s own `deps` array is untouched by
-      // this: the phase-ordering check that decides whether `brokers-seed-teardown` may start reads
-      // which projects have already *run*, and the pass/fail gate that decides whether `global`
-      // itself runs reads only `global`'s own `dependencies` — two different reads over two
-      // different fields, both confirmed directly in `node_modules/playwright/lib/runner/index.js`.
-      // So a failing broker case still cannot skip `global`, the property this suite chose over
-      // naming `brokers`/`brokers-restart` in `global`'s `dependencies`, and `teardownBrokers` now
-      // waits for `global` to finish the way it used to before that edge was removed, closing the
-      // race `brokers-seed-teardown`'s own comment describes. Restricted to a run with brokers:
-      // `brokers-seed-teardown` does not exist as a project when brokers are dropped, and naming an
-      // unknown `teardown` project fails the config outright.
-      return brokers && project.name === "global"
-        ? { ...project, teardown: "brokers-seed-teardown" }
-        : project;
-    },
-    absent: brokers ? [] : brokerProjects().map(({ name }) => ({ name, reason: "E2E_BROKERS=0" })),
+    absent: brokers ? [] : brokersAbsent(),
   };
+}
+
+function brokersAbsent(): Absence[] {
+  return brokerProjects().map(({ name }) => ({ name, reason: "E2E_BROKERS=0" }));
 }
 
 /**
@@ -211,13 +170,8 @@ function k8sProjects(): SuiteProject[] {
       name: "seed-micro",
       testDir: "./specs/seed-micro",
       testMatch: /.*\.setup\.ts$/,
-      teardown: "seed-micro-teardown",
+      teardown: "suite-teardown",
       use: { engineKind: "micro" },
-    },
-    {
-      name: "seed-micro-teardown",
-      testDir: "./specs/seed-micro",
-      testMatch: /.*\.teardown\.ts$/,
     },
     {
       // `specs/runtime/` again, against the micro engine. Not named in the dependencies of `env`
@@ -237,6 +191,7 @@ function k8sProjects(): SuiteProject[] {
 }
 
 function k8sSetup(): TargetSetup {
+  const brokers = brokersEnabled();
   return {
     name: "k8s",
     createEnv: (engineKind) => new K8sEnv({ engineKind }),
@@ -248,20 +203,9 @@ function k8sSetup(): TargetSetup {
       },
       header: collectK8sHeader,
     },
-    projects: k8sProjects(),
-    decorate(project) {
-      // The micro teardown deletes the micro copy's chains through the catalog, and `env`
-      // restarts the catalog. Measured: with nothing ordering the two, the teardown ran during
-      // that restart and three chain deletes failed with `socket hang up`. `global` runs after
-      // `env`, and naming the teardown here holds it back without gating either project, as
-      // `brokers-seed-teardown` is held back on Compose.
-      return project.name === "global" ? { ...project, teardown: "seed-micro-teardown" } : project;
-    },
+    projects: [...k8sProjects(), ...(brokers ? brokerProjects() : [])],
     absent: [
-      ...brokerProjects().map(({ name }) => ({
-        name,
-        reason: "the brokers have no chart on the k8s target",
-      })),
+      ...(brokers ? [] : brokersAbsent()),
       ...CLASSIC_ONLY_RUNTIME_FILES.map((file) => ({
         name: `runtime-micro: specs/runtime/${file}`,
         reason: "classic-only: it deploys its own chains, calls the classic engine, or uses the testing service",

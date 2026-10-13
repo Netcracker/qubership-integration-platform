@@ -63,6 +63,7 @@ test("a red run lists each failed test with its project, location, title, and fi
       "Error: expect(received).toBe(expected) // Object.is equality |",
   );
   expect(summary).not.toContain("\u001b");
+  // The red run predates the broker subcharts, so its stack.json still lists brokers-seed as absent.
   expect(summary).toContain("### Absent\n\n- `brokers-seed`: the brokers have no chart on the k8s target");
 });
 

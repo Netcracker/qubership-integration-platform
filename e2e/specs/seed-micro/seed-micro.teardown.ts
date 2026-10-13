@@ -1,10 +1,10 @@
 /**
  * Removes the micro copy of the corpus and its domain once `runtime-micro` has finished.
  *
- * A project of its own, named by `seed-micro`'s `teardown` property, for the reason
- * `specs/seed/seed.teardown.ts` is one. `global` names it as its `teardown` too, so
- * `--project=global` alone runs this with no `seed-micro` in the run; a corpus another run wrote is
- * then left to that run, as `specs/brokers-seed/brokers.teardown.ts` leaves a broker corpus.
+ * It runs in `suite-teardown`, which `seed-micro`, `global`, and the broker seeds name as their
+ * `teardown`, and on Compose too. So a run without `seed-micro`, such as `--project=global` alone,
+ * runs this file as well; a corpus another run wrote is then left to that run, as
+ * `specs/brokers-seed/brokers.teardown.ts` leaves a broker corpus.
  */
 import fs from "node:fs";
 import { test } from "../../support/fixtures.js";

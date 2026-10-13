@@ -22,9 +22,12 @@ reaches the corpus through a project declaring `seed` needs no edge of its own.
 
 `dependencies` also gates a project on the success of the ones it names. That is why `global` names
 no broker project: one failing broker case would skip every `global` case. Where only the order
-matters, name a shared `teardown` project instead. `global` declares `brokers-seed-teardown` (Compose)
-or `seed-micro-teardown` (k8s) as its `teardown`, which holds that teardown back until `global` has
-run without gating either side.
+matters, name a shared `teardown` project instead. A project gets one `teardown`, so the seeds
+`global` does not depend on (`seed-micro`, `brokers-seed`, `brokers-micro-seed`) share one:
+`suite-teardown` collects their `*.teardown.ts` files, and they and `global` all name it. It then
+runs after `global` without gating either side. It runs on both targets and in any selection that
+names one of them, so a teardown file it collects returns early unless its seed wrote the state
+file in this run.
 
 `seed` declares `teardown: "seed-teardown"`, which names **another project**. Setup and teardown
 behind one project's `testMatch` would make the teardown an ordinary test of the setup project,

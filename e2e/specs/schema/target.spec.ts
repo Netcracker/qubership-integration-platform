@@ -22,7 +22,10 @@ import { targetSetup, type SuiteProject } from "../../env/target-setup.js";
 import { URL_OVERRIDES, withEnv } from "../../support/with-env.js";
 import { BROKER_PROJECTS } from "./projects.js";
 
-/** The projects the config declared on 2026-09-24, before the target seam, with brokers on. */
+/**
+ * The projects the config declared on 2026-09-24, before the target seam, with brokers on, and with
+ * `suite-teardown` in place of `brokers-seed-teardown`.
+ */
 const COMPOSE_PROJECTS = [
   "schema",
   "api",
@@ -35,10 +38,10 @@ const COMPOSE_PROJECTS = [
   "ui-server-teardown",
   "ui",
   "brokers-seed",
-  "brokers-seed-teardown",
   "brokers",
   "brokers-restart",
   "global",
+  "suite-teardown",
 ];
 
 function composeProjects(brokers: string | undefined): SuiteProject[] {
@@ -75,11 +78,11 @@ const COMPOSE_SCHEDULE: Record<string, string> = {
   "ui-server": "./specs/ui-server /.*\\.setup\\.ts$/; teardown ui-server-teardown",
   "ui-server-teardown": "./specs/ui-server /.*\\.teardown\\.ts$/",
   ui: "./specs/ui; after seed, ui-server; parallel",
-  // `decorate` carries the one Compose edge on a common project: the broker teardown waits for
-  // `global` without gating either one.
-  global: "./specs/global; after api, runtime, env, ui; teardown brokers-seed-teardown; 1 worker",
-  "brokers-seed": "./specs/brokers-seed /.*\\.setup\\.ts$/; teardown brokers-seed-teardown",
-  "brokers-seed-teardown": "./specs/brokers-seed /.*\\.teardown\\.ts$/",
+  // The broker and micro teardowns wait for `global` without gating either side.
+  global: "./specs/global; after api, runtime, env, ui; teardown suite-teardown; 1 worker",
+  "suite-teardown":
+    "./specs /\\/(seed-micro|brokers-seed|brokers-micro-seed)\\/[^/]*\\.teardown\\.ts$/",
+  "brokers-seed": "./specs/brokers-seed /.*\\.setup\\.ts$/; teardown suite-teardown",
   brokers: "./specs/brokers except /broker-restart\\.spec\\.ts$/; after brokers-seed; parallel",
   "brokers-restart": "./specs/brokers /broker-restart\\.spec\\.ts$/; after brokers; 1 worker",
 };
@@ -105,13 +108,26 @@ test("the Compose project list is the list the config declared before the seam",
   expect(Object.fromEntries(projects.map((each) => [each.name, schedule(each)]))).toEqual(COMPOSE_SCHEDULE);
 });
 
+test("suite-teardown collects the micro and broker teardowns and no other", { tag: ["@infra", "@tier1"] }, () => {
+  const testMatch = composeProjects(undefined).find((each) => each.name === "suite-teardown")?.testMatch;
+  expect(testMatch).toBeInstanceOf(RegExp);
+  const collects = (file: string) => (testMatch as RegExp).test(`/repo/e2e/${file}`);
+  expect(collects("specs/seed-micro/seed-micro.teardown.ts")).toBe(true);
+  expect(collects("specs/brokers-seed/brokers.teardown.ts")).toBe(true);
+  expect(collects("specs/brokers-micro-seed/brokers-micro.teardown.ts")).toBe(true);
+  // `seed` and `ui-server` keep teardowns of their own, which `global` depends on through them.
+  expect(collects("specs/seed/seed.teardown.ts")).toBe(false);
+  expect(collects("specs/ui-server/ui-server.teardown.ts")).toBe(false);
+  expect(collects("specs/brokers-seed/brokers.setup.ts")).toBe(false);
+});
+
 test("E2E_BROKERS=0 drops the broker projects and names them as absent", { tag: ["@infra", "@tier1"] }, () => {
   const projects = composeProjects("0");
   expect(projects.map((each) => each.name).sort()).toEqual(
     COMPOSE_PROJECTS.filter((name) => !BROKER_PROJECTS.includes(name)).sort(),
   );
-  // Naming a `teardown` project that is not declared fails the config outright.
-  expect(projects.find((each) => each.name === "global")?.teardown).toBeUndefined();
+  // `suite-teardown` stays declared, so `global` still names it.
+  expect(projects.find((each) => each.name === "global")?.teardown).toBe("suite-teardown");
   const absent = withEnv({ E2E_BROKERS: "0" }, () => targetSetup("compose").absent);
   expect(absent.map((each) => each.name)).toEqual(BROKER_PROJECTS);
 });

@@ -367,7 +367,7 @@ test("E2E_BROKERS=0 narrows the run even though it never reaches argv", { tag: [
     runFilters(
       withProjects(
         "schema", "api", "seed", "seed-teardown", "tooling", "runtime", "env",
-        "brokers-seed", "brokers-seed-teardown", "brokers", "brokers-restart", "global",
+        "brokers-seed", "brokers", "brokers-restart", "global", "suite-teardown",
       ),
     ),
   ).toEqual([]);

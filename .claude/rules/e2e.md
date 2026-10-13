@@ -133,11 +133,10 @@ e2e/
 ```
 
 `playwright.config.ts` declares the projects both targets run, and `env/target-setup.ts` declares
-the ones only one target runs, through `TargetSetup.projects`, and the edges only one target needs on
-a common project, through `decorate`. The project list and every `dependencies` list come from those
-two places and nowhere else. The common list never names a target. A project or a spec file one
-target leaves out goes in that target's `absent` list, which the report header prints with the
-reason.
+the ones only one target runs and the broker projects `E2E_BROKERS` turns off, through
+`TargetSetup.projects`. The project list and every `dependencies` list come from those two places
+and nowhere else. The common list never names a target. A project or a spec file one target leaves
+out goes in that target's `absent` list, which the report header prints with the reason.
 
 ### Isolation on a shared stack
 

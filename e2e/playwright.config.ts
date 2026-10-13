@@ -7,8 +7,8 @@
  *
  * `CIP_TARGET` picks the infrastructure, `compose` by default and `k8s` for a local cluster, and any
  * other value fails the config at load. The common projects below run on both targets. The target
- * adds the projects only it declares and the edges only it needs on a common project, through
- * `env/target-setup.ts`, so the list below never names a target.
+ * adds the projects only it declares through `env/target-setup.ts`, so the list below never names a
+ * target.
  */
 
 import {
@@ -192,18 +192,35 @@ const suite: SuiteProject[] = [
     // after all of them. The second is that `specs/env/` is defined by a behavior — a spec belongs
     // there as soon as it calls `env.restartWith` — and nothing here restarts anything.
     //
-    // On Compose, `env/target-setup.ts` adds `teardown: "brokers-seed-teardown"` here through
-    // `decorate`, which orders the broker teardown after this project without gating either one.
+    // `suite-teardown` waits for this project too, without gating either one; see its comment.
     name: "global",
     testDir: "./specs/global",
     workers: 1,
     dependencies: ["api", "runtime", "env", "ui"],
+    teardown: "suite-teardown",
+  },
+  {
+    // The teardowns of the seeds `global` does not depend on: `seed-micro`, `brokers-seed`, and
+    // `brokers-micro-seed`. Each of those seeds names this project as its `teardown`, and so does
+    // `global`, so it runs after all of them and after everything that depends on them. Playwright
+    // gives a project one `teardown`, and `global` has to hold back two of these files. Measured:
+    // the micro teardown ran during `env`'s catalog restart and three chain deletes failed with
+    // `socket hang up`, and the broker teardown ran while `env` recreated the engine and the
+    // catalog (`DEBUG=pw:test:task`). A `teardown` edge orders this project after `global` without
+    // gating `global` on a broker or micro case, which naming `brokers` or `runtime-micro` in its
+    // `dependencies` would do.
+    //
+    // It runs on both targets and whatever `E2E_BROKERS` says, so each file returns early unless
+    // its seed wrote a state file in this run.
+    name: "suite-teardown",
+    testDir: "./specs",
+    testMatch: /\/(seed-micro|brokers-seed|brokers-micro-seed)\/[^/]*\.teardown\.ts$/,
   },
 ];
 
-/** The projects a run on `setup`'s target declares: the common ones decorated, then its own. */
+/** The projects a run on `setup`'s target declares: the common ones, then its own. */
 export function suiteProjects(setup: TargetSetup): SuiteProject[] {
-  return [...suite.map((project) => setup.decorate(project)), ...setup.projects];
+  return [...suite, ...setup.projects];
 }
 
 export default defineConfig<PlaywrightTestOptions, PlaywrightWorkerOptions & SuiteWorkerOptions>({

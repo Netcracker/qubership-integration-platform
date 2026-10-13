@@ -2,18 +2,17 @@
  * Removes the broker corpus, and the topics and queues the seed created for it, once every project
  * that depends on `brokers-seed` has finished.
  *
- * A project of its own, named by `brokers-seed`'s `teardown` property, for the same reason
- * `specs/seed/seed.teardown.ts` is: Playwright's `teardown` names **another project**, and both
- * files behind one `testMatch` would make this an ordinary test of the setup project, running
- * before a single broker spec had used the corpus.
+ * It runs in `suite-teardown`, a project of its own, for the same reason
+ * `specs/seed/seed.teardown.ts` runs in `seed-teardown`: Playwright's `teardown` names **another
+ * project**, and both files behind one `testMatch` would make this an ordinary test of the setup
+ * project, running before a single broker spec had used the corpus.
  *
- * `global` also names this project as its own `teardown` target (`playwright.config.ts`), and that
- * edge does not go through `brokers-seed`'s `dependencies` — deliberately, so one failing broker
- * case cannot skip every `global` case (see that project's own comment). The cost is that
- * `--project=global` alone pulls this project in without `brokers-seed` ever running in the same
- * process: `npx playwright test --list --project=global` resolves to `brokers-seed-teardown` with
- * no `brokers-seed` and no `brokers` beside it. Left ungated, this test would then read whatever
- * `.e2e-brokers-corpus.json` a *previous* run left on disk — including one kept deliberately with
+ * `global` and `seed-micro` also name `suite-teardown` (`playwright.config.ts`), and neither edge
+ * goes through `brokers-seed`'s `dependencies`, so one failing broker case cannot skip every
+ * `global` case. The cost is that `--project=global` alone runs this file without `brokers-seed`
+ * ever running in the same process: `npx playwright test --list --project=global` resolves to
+ * `suite-teardown` with no `brokers-seed` and no `brokers` beside it. Left ungated, this test would
+ * then read whatever `.e2e-brokers-corpus.json` a *previous* run left on disk — including one kept deliberately with
  * `E2E_KEEP=1` — and tear it down: undeploy and delete its chains, and delete its Kafka topics,
  * consumer groups, RabbitMQ topology, pub/sub topology and `/upload/<run>` tree. That is exactly
  * the residue the "Broker residue" entry of `e2e/README.md` says only this test may clear, and

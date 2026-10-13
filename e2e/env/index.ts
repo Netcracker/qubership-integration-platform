@@ -121,7 +121,7 @@ export interface Env {
    */
   restartOverlay(overlay: Overlay): Promise<void>;
   /**
-   * Stops and removes the overlay's containers on Compose. `brokers-seed-teardown` calls it once the
+   * Stops and removes the overlay's containers on Compose. `brokers.teardown.ts` calls it once the
    * broker corpus is gone, so the brokers do not outlive the run that started them. On Kubernetes it
    * does nothing, because the brokers belong to the Helm release.
    */

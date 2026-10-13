@@ -27,6 +27,7 @@ import Client from "ssh2-sftp-client";
 import type { Catalog, LoggingProperties } from "./catalog.js";
 import type { Env, Overlay } from "../env/index.js";
 import { kafkaHostBrokers, pubsubHostUrl, rabbitmqHostUrl, sftpHostAddress } from "../env/containers.js";
+import { stateFileName } from "../env/target.js";
 import { assembleCorpus, corpusFixtureNames, BROKERS_FIXTURE_DIR } from "../fixtures/templating.js";
 import { deployCorpus, waitForDeployed, waitForRoutes, waitForUndeployed, flatten, type FixtureElement, type SeedChain } from "./corpus.js";
 import { keepEntities } from "./fixtures.js";
@@ -39,7 +40,7 @@ export { BROKERS_FIXTURE_DIR };
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** Where the brokers seed leaves what it imported, mirroring `support/corpus.ts`'s `CORPUS_STATE_FILE`. */
-export const BROKERS_CORPUS_STATE_FILE = path.join(HERE, "..", ".e2e-brokers-corpus.json");
+export const BROKERS_CORPUS_STATE_FILE = path.join(HERE, "..", stateFileName(".e2e-brokers-corpus.json"));
 
 /** The same session logging the shared corpus deploys with: `sftp-trigger-2` and `quartz-scheduler` have no other observable. */
 export const BROKERS_LOGGING: LoggingProperties = {
@@ -391,7 +392,9 @@ export async function ensureKafkaTopics(topics: readonly string[]): Promise<void
  * starts, not once it has joined its group — measured, a message published right after `seedBrokers`
  * returned without this wait went unconsumed on some topics and not others (`autoOffsetReset:
  * latest` has nothing to redeliver once the record is past), while the same publish always worked
- * once every group had settled. Polling `describeGroups` here is what closes that gap for Kafka.
+ * once every group had settled. Polling `describeGroups` here closes most of that gap for Kafka. A group
+ * turns `Stable` a few milliseconds before its consumer looks up the offset to start from, so a case that
+ * publishes right after this wait reads its own new topic from `earliest`.
  * RabbitMQ measures the same "`DEPLOYED` is not listening yet" lag but does not poll the management
  * API for it: a durable queue buffers regardless, and three live runs held `sessions.byExternalId`'s
  * own timeout budget over the measured worst-case attach time with no flake.
@@ -704,7 +707,7 @@ export async function seedBrokers(
   // — pure reads off the fixture documents — so this is the same object the function returns.
   // Without the early write, a failure anywhere from here to the return (creating a topic, the
   // import, the deploy, the consumer wait) leaves the run's topics, queues and subscriptions on the
-  // broker with nothing on disk naming them: `brokers-seed-teardown` runs whether or not this test
+  // broker with nothing on disk naming them: the broker teardown runs whether or not this test
   // passed, but only `readBrokersCorpusState` tells it what to remove.
   const corpus: SeededBrokerCorpus = { run, chains, kafkaTopics, rabbitmqTopology, pubsubTopology };
   writeBrokersCorpusState(corpus);
