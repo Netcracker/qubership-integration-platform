@@ -13,7 +13,6 @@ import Input from "antd/es/input/index";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import React, {
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -36,7 +35,7 @@ import type {
 import { AiModelProvider } from "../../ai/modelProviders/AiModelProvider.ts";
 import type { ChatSession } from "../../ai/sessions/types.ts";
 import { getChatSessionStore } from "../../ai/sessions/sessionStore.ts";
-import { ChainContext as PageChainContext } from "../../pages/ChainPage.tsx";
+import { publishCatalogChange } from "../../misc/catalog-change-events.ts";
 import type { ChainModificationProposal } from "./ChainModificationConfirmation.tsx";
 import { ChainModificationConfirmation } from "./ChainModificationConfirmation.tsx";
 import { applyChainModificationProposal } from "./applyChainModificationProposal.ts";
@@ -116,6 +115,7 @@ import { fetchOpenDecision } from "../../api/ai/decisionClient.ts";
 interface ResponseResult {
   finalMessages: ChatMessage[];
   conversationId?: string;
+  supportsCatalogChangeEvents?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -151,7 +151,7 @@ export const AiAssistant: React.FC = () => {
   const chainContext = useChainContext();
   const { showModal } = useModalsContext();
   const notificationService = useNotificationService();
-  const pageChainContext = useContext(PageChainContext);
+  const interruptionRefreshRef = useRef({ refreshed: false });
 
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -368,23 +368,25 @@ export const AiAssistant: React.FC = () => {
   // Chain context refresh
   // ---------------------------------------------------------------------------
 
-  const refreshChainContexts = useCallback(
-    async (chainId?: string) => {
-      if (!chainContext) return;
-      if (chainContext.refresh) await chainContext.refresh();
-      if (pageChainContext?.refresh) await pageChainContext.refresh();
-      if (
-        typeof window !== "undefined" &&
-        (chainId ?? chainContext.chain?.id)
-      ) {
-        window.dispatchEvent(
-          new CustomEvent("chain-updated", {
-            detail: chainId ?? chainContext.chain.id,
-          }),
-        );
-      }
+  const refreshChainContexts = useCallback((chainId?: string) => {
+    publishCatalogChange({
+      chainIds: chainId ? [chainId] : null,
+      chainsListChanged: true,
+    });
+  }, []);
+
+  const refreshAfterInterruption = useCallback(
+    (state = interruptionRefreshRef.current) => {
+      if (state.refreshed) return;
+      state.refreshed = true;
+      publishCatalogChange({ chainIds: null, chainsListChanged: true });
+      notificationService.warning(
+        "Catalog update status is unknown",
+        "The connection ended before completion. The server may still be writing; refresh again if needed.",
+        () => publishCatalogChange({ chainIds: null, chainsListChanged: true }),
+      );
     },
-    [chainContext, pageChainContext],
+    [notificationService],
   );
 
   // ---------------------------------------------------------------------------
@@ -412,7 +414,7 @@ export const AiAssistant: React.FC = () => {
         }
       }
 
-      void refreshChainContexts();
+      if (!result.supportsCatalogChangeEvents) void refreshChainContexts();
       const cid =
         conversationId ?? sessionStore.getSession(sessionId)?.conversationId;
       void refreshChainPlanStatus(cid);
@@ -452,6 +454,9 @@ export const AiAssistant: React.FC = () => {
       let activeConversationId = conversationId;
       let turnFailed = false;
       let turnEnded = false;
+      let receivedDone = false;
+      let supportsCatalogChangeEvents = false;
+      const interruptionState = interruptionRefreshRef.current;
       let streamOps: Promise<void> = Promise.resolve();
 
       const paintVisible = (chunk: string) => {
@@ -465,7 +470,7 @@ export const AiAssistant: React.FC = () => {
         scrollToBottom();
       };
 
-      const enqueueOp = (op: () => Promise<void>) => {
+      const enqueueOp = (op: () => void | Promise<void>) => {
         streamOps = streamOps.then(op).catch((err: unknown) => {
           console.error("[AiAssistant] stream reveal failed", err);
         });
@@ -473,8 +478,15 @@ export const AiAssistant: React.FC = () => {
 
       await aiProvider.streamChat!(requestPayload, (chunk: StreamingChunk) => {
         if (chunk.type === "meta" && chunk.conversationId) {
+          supportsCatalogChangeEvents =
+            chunk.supportsCatalogChangeEvents === true;
           activeConversationId = chunk.conversationId;
           sessionStore.updateConversationId(sessionId, chunk.conversationId);
+          return;
+        }
+
+        if (chunk.type === "catalog-changed" && chunk.catalogChange) {
+          publishCatalogChange(chunk.catalogChange);
           return;
         }
 
@@ -487,7 +499,7 @@ export const AiAssistant: React.FC = () => {
 
         if (chunk.type === "decision" && chunk.decision) {
           const decision = chunk.decision;
-          enqueueOp(async () => {
+          enqueueOp(() => {
             // Keep whatever the assistant streamed before the gate, then park the card after it.
             if (accumulatedContent.trim()) {
               currentMessages = upsertAssistantMessage(
@@ -520,7 +532,7 @@ export const AiAssistant: React.FC = () => {
                 turnEnded ||
                 abortControllerRef.current?.signal.aborted === true,
             );
-            if (chainContext) {
+            if (chainContext && !supportsCatalogChangeEvents) {
               const now = performance.now();
               if (now >= periodicalChainRefreshAt) {
                 periodicalChainRefreshAt = now + 2000;
@@ -532,8 +544,9 @@ export const AiAssistant: React.FC = () => {
         }
 
         if (chunk.type === "done") {
+          receivedDone = true;
           turnEnded = true;
-          enqueueOp(async () => {
+          enqueueOp(() => {
             const durationMs = Math.round(performance.now() - start);
             let finalMessages = applyStreamingDoneMessages(
               currentMessages,
@@ -555,6 +568,7 @@ export const AiAssistant: React.FC = () => {
             handleResponseComplete(sessionId, {
               finalMessages,
               conversationId: chunk.conversationId ?? activeConversationId,
+              supportsCatalogChangeEvents,
             });
             setIsStreaming(false);
             scrollToBottom();
@@ -563,10 +577,11 @@ export const AiAssistant: React.FC = () => {
         }
 
         if (chunk.type === "error" && chunk.errorMessage) {
+          if (chunk.transportError) refreshAfterInterruption(interruptionState);
           turnEnded = true;
           const errorMessage = chunk.errorMessage;
           turnFailed = true;
-          enqueueOp(async () => {
+          enqueueOp(() => {
             // The turn ended without a "done" event: check whether the server still has
             // a gate open so an aborted or failed turn does not leave a stale card.
             void reconcileOpenDecision(activeConversationId, sessionId);
@@ -594,6 +609,7 @@ export const AiAssistant: React.FC = () => {
           });
         }
       });
+      if (!receivedDone) refreshAfterInterruption(interruptionState);
       await streamOps;
     },
     [
@@ -607,6 +623,7 @@ export const AiAssistant: React.FC = () => {
       handleResponseComplete,
       flushRefresh,
       reconcileOpenDecision,
+      refreshAfterInterruption,
     ],
   );
 
@@ -630,7 +647,21 @@ export const AiAssistant: React.FC = () => {
       );
       refreshSessions();
 
+      let supportsCatalogChangeEvents = false;
+      let receivedDone = false;
+      let serverError = false;
+      const interruptionState = interruptionRefreshRef.current;
       const onChunk = (chunk: StreamingChunk) => {
+        if (chunk.type === "meta")
+          supportsCatalogChangeEvents =
+            chunk.supportsCatalogChangeEvents === true;
+        if (chunk.type === "catalog-changed" && chunk.catalogChange)
+          publishCatalogChange(chunk.catalogChange);
+        if (chunk.type === "done") receivedDone = true;
+        if (chunk.type === "error") {
+          serverError = !chunk.transportError;
+          if (chunk.transportError) refreshAfterInterruption(interruptionState);
+        }
         if (chunk.type === "step" && chunk.step) {
           activityStore.applyStep(chunk.step);
         }
@@ -640,6 +671,8 @@ export const AiAssistant: React.FC = () => {
       try {
         response = await aiProvider.chatWithProgress(requestPayload, onChunk);
       } finally {
+        if (!receivedDone && !serverError)
+          refreshAfterInterruption(interruptionState);
         setIsStreaming(false);
       }
 
@@ -682,6 +715,7 @@ export const AiAssistant: React.FC = () => {
         handleResponseComplete(sessionId, {
           finalMessages,
           conversationId: response.conversationId,
+          supportsCatalogChangeEvents,
         });
       }
     },
@@ -691,6 +725,7 @@ export const AiAssistant: React.FC = () => {
       refreshSessions,
       scrollToBottom,
       handleResponseComplete,
+      refreshAfterInterruption,
     ],
   );
 
@@ -750,6 +785,7 @@ export const AiAssistant: React.FC = () => {
       setIsLoading(true);
       setIsStreaming(false);
       abortControllerRef.current = new AbortController();
+      interruptionRefreshRef.current = { refreshed: false };
 
       try {
         const currentSessionData = sessionStore.getSession(sessionId);
@@ -801,7 +837,10 @@ export const AiAssistant: React.FC = () => {
         };
 
         if (chainContext) {
-          const { chain, compactSchema } = chainContext;
+          const fresh = chainContext.getFreshContext
+            ? await chainContext.getFreshContext()
+            : chainContext;
+          const { chain, compactSchema } = fresh;
           requestPayload.context = {
             type: "chain",
             chainId: chain.id,
@@ -947,6 +986,7 @@ export const AiAssistant: React.FC = () => {
   };
 
   const handleAbort = useCallback(() => {
+    refreshAfterInterruption();
     abortControllerRef.current?.abort();
     activityStore.markRunningCancelled();
     if (currentSessionId) {
@@ -976,6 +1016,7 @@ export const AiAssistant: React.FC = () => {
     sessionStore,
     refreshSessions,
     reconcileOpenDecision,
+    refreshAfterInterruption,
   ]);
 
   // ---------------------------------------------------------------------------
@@ -1991,11 +2032,6 @@ export const AiAssistant: React.FC = () => {
               return;
             }
             void applyChainModificationProposal(proposal, api, chainContext)
-              .then(() => {
-                void refreshChainContexts(
-                  proposal.chainId ?? chainContext.chain?.id,
-                );
-              })
               .catch((err: unknown) => {
                 console.error("[AI] Failed to apply chain modifications", err);
               })

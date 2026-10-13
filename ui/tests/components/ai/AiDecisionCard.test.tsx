@@ -179,6 +179,7 @@ describe("AiDecisionCard", () => {
   });
 
   it("should submit the planning action from a ready requirements card", () => {
+    const onAnswer = jest.fn();
     const onSubmitClarification = jest.fn();
     render(
       <AiDecisionCard
@@ -187,7 +188,7 @@ describe("AiDecisionCard", () => {
           question: "Requirements are ready. Continue to planning?",
           actions: ["continue-to-planning"],
         })}
-        onAnswer={jest.fn()}
+        onAnswer={onAnswer}
         onSubmitClarification={onSubmitClarification}
       />,
     );
@@ -196,7 +197,8 @@ describe("AiDecisionCard", () => {
       screen.getByRole("button", { name: "Continue to planning" }),
     );
 
-    expect(onSubmitClarification).toHaveBeenCalledWith("continue-to-planning");
+    expect(onAnswer).toHaveBeenCalledWith("continue-to-planning", "");
+    expect(onSubmitClarification).not.toHaveBeenCalled();
   });
 
   it("should send per-spec system types when Import is clicked", () => {
@@ -430,32 +432,37 @@ describe("AiDecisionCard", () => {
     );
   });
 
-  it("should render Yes and No buttons for an IDS path-choice clarify gate", () => {
-    const onAnswer = jest.fn();
-    const onSubmitClarification = jest.fn();
-    const decision = buildDecision({
-      kind: "clarify",
-      reason:
-        "Would you like an integration design document (IDS) for your approved requirements?",
-      missingEvidence: [],
-      actions: ["yes", "no"],
-    });
-    render(
-      <AiDecisionCard
-        decision={decision}
-        onAnswer={onAnswer}
-        onSubmitClarification={onSubmitClarification}
-      />,
-    );
+  it.each(["yes", "no"])(
+    "should send %s as a command at an IDS gate",
+    (action) => {
+      const onAnswer = jest.fn();
+      const onSubmitClarification = jest.fn();
+      const decision = buildDecision({
+        kind: "clarify",
+        reason:
+          "Would you like an integration design document (IDS) for your approved requirements?",
+        missingEvidence: [],
+        actions: ["yes", "no"],
+      });
+      render(
+        <AiDecisionCard
+          decision={decision}
+          onAnswer={onAnswer}
+          onSubmitClarification={onSubmitClarification}
+        />,
+      );
 
-    expect(
-      screen.queryByPlaceholderText("Provide the missing information"),
-    ).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Yes" }));
+      expect(
+        screen.queryByPlaceholderText("Provide the missing information"),
+      ).toBeNull();
+      fireEvent.click(
+        screen.getByRole("button", { name: action === "yes" ? "Yes" : "No" }),
+      );
 
-    expect(onAnswer).not.toHaveBeenCalled();
-    expect(onSubmitClarification).toHaveBeenCalledWith("yes");
-  });
+      expect(onAnswer).toHaveBeenCalledWith(action, "");
+      expect(onSubmitClarification).not.toHaveBeenCalled();
+    },
+  );
 
   it("should render Retry for a stage-retry clarify gate", () => {
     const onAnswer = jest.fn();

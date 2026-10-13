@@ -162,8 +162,14 @@ export type StreamingChunkType =
   | "delta"
   | "step"
   | "decision"
+  | "catalog-changed"
   | "done"
   | "error";
+
+export interface CatalogChangePayload {
+  chainIds: string[] | null;
+  chainsListChanged: boolean;
+}
 
 /** SSE chunks from POST /api/v1/chat */
 export interface StreamingChunk {
@@ -171,8 +177,11 @@ export interface StreamingChunk {
   usage?: ChatUsage;
   finishReason?: string;
   errorMessage?: string;
+  transportError?: boolean;
   contentDelta?: string;
   conversationId?: string;
   step?: ActivityStepPayload;
   decision?: ChatDecision;
+  supportsCatalogChangeEvents?: boolean;
+  catalogChange?: CatalogChangePayload;
 }
