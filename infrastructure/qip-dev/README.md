@@ -110,6 +110,9 @@ helm install ... \
 The chart refuses to render a mount of `<release>-engine-certs` while `qip-engine.trustedCerts` is
 empty, because a micro pod that mounts a missing Secret stays in `ContainerCreating`.
 
+`qip-runtime-catalog.microDomainMetrics` (default `false`) sets `CIP_METRICS_ENABLED` in every micro
+domain, which then serves the chain meters on `/metrics`. It creates no ServiceMonitor.
+
 The proxy takes `global.qip.ui.loadBalancerPort` and `global.qip.ui.podAnnotations`, with the same
 meaning as above, and `global.qip.ui.e2eLocations` (default `false`) adds two nginx locations for
 the end-to-end suite:
