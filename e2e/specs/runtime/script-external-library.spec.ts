@@ -170,7 +170,7 @@ async function widgetFields(
   };
 }
 
-test("a DTO library replaced under a deployed script is seen without a redeploy", { tag: ["@engine", "@catalog", "@sessions", "@tier1"] }, async ({ request, env, catalog, sessions, folder, run }) => {
+test("a DTO library replaced under a deployed script is seen without a redeploy", { tag: ["@engine", "@catalog", "@sessions", "@tier1", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine loads its libraries once, when the Integration starts" } }, async ({ request, env, catalog, sessions, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   covers("script");
 

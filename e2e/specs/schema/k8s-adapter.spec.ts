@@ -449,6 +449,7 @@ test("the k8s target declares its own projects and the broker projects, and list
     { name: "brokers-restart", dependencies: ["brokers"], teardown: undefined, engineKind: undefined },
   ]);
   expect(setup.absent.map((each) => each.name)).toEqual(CLASSIC_ONLY_ABSENT);
+  expect(setup.projects.find((each) => each.name === "runtime-micro")?.grepInvert).toEqual(/@classic-only/);
 });
 
 test("E2E_BROKERS=0 drops the broker projects on k8s and names them as absent", { tag: ["@infra", "@tier1"] }, () => {

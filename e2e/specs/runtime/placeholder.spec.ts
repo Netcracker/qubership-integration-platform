@@ -146,7 +146,7 @@ test("a variable changed under a live chain is served only after a redeploy", { 
   });
 });
 
-test("a variable missing at deploy parks the chain until the variable exists", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ env, catalog, folder, run }) => {
+test("a variable missing at deploy parks the chain until the variable exists", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine does not retry a parked deployment, and a chain that fails to load takes its domain down" } }, async ({ env, catalog, folder, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
 
   const variable = tokenized(run, "placeholder-missing");

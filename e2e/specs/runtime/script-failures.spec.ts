@@ -104,7 +104,7 @@ function occurrences(log: string, needle: string): number {
   return log.split(needle).length - 1;
 }
 
-test("a script that does not compile fails the deployment", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ env, catalog, run }) => {
+test("a script that does not compile fails the deployment", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "a chain that fails to load takes its micro domain down" } }, async ({ env, catalog, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
   covers("script");
 
@@ -122,7 +122,7 @@ test("a script that does not compile fails the deployment", { tag: ["@engine", "
   });
 });
 
-test("a script naming a class the engine cannot resolve parks the deployment and keeps retrying", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ env, catalog, run }) => {
+test("a script naming a class the engine cannot resolve parks the deployment and keeps retrying", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "the micro engine does not retry a DeploymentRetriableException, and a chain that fails to load takes its domain down" } }, async ({ env, catalog, run }) => {
   test.setTimeout(RETRY_CASE_TIMEOUT);
 
   // Opened before the import, so every compile attempt counted below is this case's.
@@ -168,7 +168,7 @@ test("a script naming a class the engine cannot resolve parks the deployment and
   });
 });
 
-test("a syntax error inside a container fails the deployment too", { tag: ["@engine", "@catalog", "@tier2"] }, async ({ env, catalog, run }) => {
+test("a syntax error inside a container fails the deployment too", { tag: ["@engine", "@catalog", "@tier2", "@classic-only"], annotation: { type: "classic-only", description: "a chain that fails to load takes its micro domain down" } }, async ({ env, catalog, run }) => {
   test.setTimeout(ENGINE_CASE_TIMEOUT);
 
   await withOwnFixture(catalog, run, "script-failures-nested-syntax.yaml", SCRIPT_FIXTURE_DIR, async (chain) => {
