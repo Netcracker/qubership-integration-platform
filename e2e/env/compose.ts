@@ -3,8 +3,6 @@ import { promisify } from "node:util";
 import path from "node:path";
 import fs from "node:fs/promises";
 import os from "node:os";
-import net from "node:net";
-import { Kafka, logLevel } from "kafkajs";
 import type {
   DomainFacts,
   Env,
@@ -15,7 +13,8 @@ import type {
 } from "./index.js";
 import { apiPath, CHAIN_ROUTE_PREFIX } from "./api-routes.js";
 import { CONTAINER, PROXY_CONTAINER } from "./compose-containers.js";
-import { proxyUrl, serviceUrl } from "./containers.js";
+import { kafkaHostBrokers, proxyUrl, pubsubHostUrl, serviceUrl, sftpHostAddress } from "./containers.js";
+import { httpReady, kafkaReady, OVERLAY_READY_TIMEOUT, tcpReady } from "./overlays.js";
 import { composeProcessEnvelope, readPeaks } from "./resources.js";
 import { pollUntil, repoRoot } from "./host.js";
 import { forgetOverride, recordOverride } from "./overrides.js";
@@ -46,80 +45,6 @@ export interface OverlayDefinition {
   ready(): Promise<string | null>;
 }
 
-/**
- * A bare TCP connect, for an overlay whose compose file declares no healthcheck.
- *
- * `docker-compose.sftp.yml` is the one overlay still on this shape: `docker-compose.rabbitmq.yml`
- * declares a healthcheck of its own, and Kafka and the pub/sub emulator moved to `kafkaReady`/
- * `httpReady` once a bare connect proved too early for both (see their own doc comments). A connect
- * that succeeds is enough here — the adapter is answering "is anything listening", not "is the
- * server healthy", which is exactly the question a spec's own client answers next.
- */
-function tcpReady(host: string, port: number): () => Promise<string | null> {
-  return () =>
-    new Promise((resolve) => {
-      const socket = net.createConnection({ host, port });
-      const settle = (result: string | null) => {
-        socket.destroy();
-        resolve(result);
-      };
-      socket.setTimeout(2_000);
-      socket.once("connect", () => settle(null));
-      socket.once("timeout", () => settle(`${host}:${port} did not accept a connection`));
-      socket.once("error", (cause) => settle(`${host}:${port} refused a connection (${String(cause)})`));
-    });
-}
-
-/**
- * An HTTP GET that has to answer, not merely accept a connection.
- *
- * The pub/sub emulator needs this rather than `tcpReady`: measured, its wrapper script opens the
- * listening socket seconds before the JVM inside it is actually serving, so a bare TCP connect
- * succeeds and the very next request is answered by a connection reset — `ensurePubsubTopology`'s
- * first `PUT` failed with exactly that (`SocketError: other side closed`) against a container
- * `docker ps` already reported as `Up`. A GET that has to complete and answer `ok` is what actually
- * proves the server is there.
- */
-function httpReady(url: string): () => Promise<string | null> {
-  return async () => {
-    try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
-      return response.ok ? null : `${url} answered HTTP ${response.status}`;
-    } catch (cause) {
-      return `${url} did not answer (${String(cause)})`;
-    }
-  };
-}
-
-/**
- * A real Kafka admin request, not a bare TCP connect.
- *
- * Kafka has the same defect measured and fixed for pub/sub above: `docker compose restart kafka`
- * against this stack opened the published port ~1 s in, but `admin.listTopics()` did not answer
- * until ~6.5 s in, a ~5.5 s gap reproduced twice. `ensureOverlay` calling this instead of `tcpReady`
- * is what keeps it from returning while the broker still refuses every request against it.
- */
-function kafkaReady(brokers: string[]): () => Promise<string | null> {
-  return async () => {
-    const admin = new Kafka({
-      clientId: "e2e-overlay-ready-probe",
-      brokers,
-      logLevel: logLevel.NOTHING,
-      requestTimeout: 2_000,
-      retry: { retries: 0 },
-    }).admin();
-    try {
-      await admin.connect();
-      await admin.listTopics();
-      return null;
-    } catch (cause) {
-      return `${brokers.join(",")} did not answer a metadata request (${String(cause)})`;
-    } finally {
-      await admin.disconnect().catch(() => {});
-    }
-  };
-}
-
 /** The named container's own `Health.Status`, for an overlay whose compose file already declares one. */
 function healthcheckReady(container: string): () => Promise<string | null> {
   return async () => {
@@ -132,16 +57,6 @@ function healthcheckReady(container: string): () => Promise<string | null> {
 }
 
 /**
- * How long `ensureOverlay` and `restartOverlay` each poll for one overlay to answer ready, on top
- * of the unbounded `docker compose up -d`/`restart` ahead of the poll.
- *
- * Exported so a caller that brings up more than one overlay in sequence — `seedBrokers` in
- * `support/brokers.ts`, currently the only one — can size its own `test.setTimeout` on the same
- * number this module actually polls with, instead of guessing a budget that drifts from it.
- */
-export const OVERLAY_READY_TIMEOUT = 180_000;
-
-/**
  * Every optional overlay the adapter knows how to bring up, keyed by the name a spec passes to
  * `Env.ensureOverlay`.
  *
@@ -150,22 +65,13 @@ export const OVERLAY_READY_TIMEOUT = 180_000;
  * of their own, and started standalone the broker would land on a network the running stack cannot
  * reach.
  */
-// Where a broker spec's own client connects from the host — the chain fixtures address the
-// container-internal listener instead (`kafka:29092`, and so on). Owned here rather than duplicated
-// in `support/brokers.ts`, since the ready probes below already need them; that module re-exports
-// what it needs.
-export const KAFKA_HOST_BROKERS = process.env.CIP_KAFKA_URL ?? "localhost:9092";
-export const PUBSUB_HOST_URL = process.env.CIP_PUBSUB_URL ?? "http://localhost:8085";
-export const SFTP_HOST = process.env.CIP_SFTP_HOST ?? "localhost";
-export const SFTP_PORT = Number(process.env.CIP_SFTP_PORT ?? 2222);
-
 const OVERLAYS: Record<Overlay, OverlayDefinition> = {
   kafka: {
     name: "kafka",
     file: "docker-compose.kafka.yml",
     services: ["kafka"],
     primary: "kafka",
-    ready: kafkaReady([KAFKA_HOST_BROKERS]),
+    ready: () => kafkaReady([kafkaHostBrokers()])(),
   },
   rabbitmq: {
     name: "rabbitmq",
@@ -179,14 +85,17 @@ const OVERLAYS: Record<Overlay, OverlayDefinition> = {
     file: "docker-compose.pubsub.yml",
     services: ["pubsub"],
     primary: "pubsub",
-    ready: httpReady(`${PUBSUB_HOST_URL}/v1/projects/e2e-overlay-ready-probe/topics`),
+    ready: () => httpReady(`${pubsubHostUrl()}/v1/projects/e2e-overlay-ready-probe/topics`)(),
   },
   sftp: {
     name: "sftp",
     file: "docker-compose.sftp.yml",
     services: ["sftp-server"],
     primary: "sftp-server",
-    ready: tcpReady(SFTP_HOST, SFTP_PORT),
+    ready: () => {
+      const { host, port } = sftpHostAddress();
+      return tcpReady(host, port)();
+    },
   },
 };
 

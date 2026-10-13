@@ -10,7 +10,7 @@
  *
  * The Compose container behind each role is in `env/compose-containers.ts`.
  */
-import type { ServiceRole } from "./index.ts";
+import type { Overlay, ServiceRole } from "./index.ts";
 import { target, type Target } from "./target.ts";
 
 /** The roles, in the order every report prints them. */
@@ -58,4 +58,41 @@ export function serviceUrl(role: ServiceRole): string {
  */
 export function proxyUrl(): string {
   return process.env.CIP_PROXY_URL ?? `http://localhost:${proxyPort()}`;
+}
+
+/**
+ * The host port of each broker per target, for the suite's own clients. The chain fixtures reach
+ * the same brokers by their bare in-cluster names, such as `kafka:29092`.
+ *
+ * On Kubernetes each port is the node port of the broker's `<name>-host` Service, which
+ * `e2e/k8s/bootstrap-cluster.sh` maps when it creates the kind cluster.
+ */
+export const BROKER_PORT: Record<Overlay, Record<Target, number>> = {
+  kafka: { compose: 9092, k8s: 30992 },
+  rabbitmq: { compose: 5672, k8s: 30672 },
+  pubsub: { compose: 8085, k8s: 30085 },
+  sftp: { compose: 2222, k8s: 30022 },
+};
+
+/** The Kafka bootstrap address on the host, or `CIP_KAFKA_URL` when set. */
+export function kafkaHostBrokers(): string {
+  return process.env.CIP_KAFKA_URL ?? `localhost:${BROKER_PORT.kafka[target()]}`;
+}
+
+/** The AMQP URL of RabbitMQ on the host, or `CIP_RABBITMQ_URL` when set. */
+export function rabbitmqHostUrl(): string {
+  return process.env.CIP_RABBITMQ_URL ?? `amqp://guest:guest@localhost:${BROKER_PORT.rabbitmq[target()]}`;
+}
+
+/** The base URL of the pub/sub emulator on the host, or `CIP_PUBSUB_URL` when set. */
+export function pubsubHostUrl(): string {
+  return process.env.CIP_PUBSUB_URL ?? `http://localhost:${BROKER_PORT.pubsub[target()]}`;
+}
+
+/** The SFTP server on the host; `CIP_SFTP_HOST` and `CIP_SFTP_PORT` override each half. */
+export function sftpHostAddress(): { host: string; port: number } {
+  return {
+    host: process.env.CIP_SFTP_HOST ?? "localhost",
+    port: Number(process.env.CIP_SFTP_PORT ?? BROKER_PORT.sftp[target()]),
+  };
 }

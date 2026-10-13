@@ -26,7 +26,7 @@ import amqp from "amqplib";
 import Client from "ssh2-sftp-client";
 import type { Catalog, LoggingProperties } from "./catalog.js";
 import type { Env, Overlay } from "../env/index.js";
-import { KAFKA_HOST_BROKERS, PUBSUB_HOST_URL, SFTP_HOST, SFTP_PORT } from "../env/compose.js";
+import { kafkaHostBrokers, pubsubHostUrl, rabbitmqHostUrl, sftpHostAddress } from "../env/containers.js";
 import { assembleCorpus, corpusFixtureNames, BROKERS_FIXTURE_DIR } from "../fixtures/templating.js";
 import { deployCorpus, waitForDeployed, waitForRoutes, waitForUndeployed, flatten, type FixtureElement, type SeedChain } from "./corpus.js";
 import { keepEntities } from "./fixtures.js";
@@ -52,17 +52,15 @@ export const BROKERS_LOGGING: LoggingProperties = {
   sessionLogDetails: "OFF",
 };
 
-// Re-exported for the specs that need their own producer or consumer against the host-side
-// listener — `env/compose.ts` is what already owns these addresses, to size its overlay readiness
-// probes on them, so this module reads them rather than carrying a second copy. The chain fixtures
-// themselves address the container-internal listener instead (`kafka:29092`), which is the "two
-// addresses for one broker" split this module's own header documents.
-export { KAFKA_HOST_BROKERS, PUBSUB_HOST_URL };
-export const RABBITMQ_HOST_URL = process.env.CIP_RABBITMQ_URL ?? "amqp://guest:guest@localhost:5672";
-/** `docker-compose.sftp.yml`'s one user, host-side. The chains address the same server as `sftp-server:22`. */
+// Host-side addresses for the specs' own producers and consumers, read once from the per-target
+// table in `env/containers.ts`. The chain fixtures address the in-cluster listener instead
+// (`kafka:29092`).
+export const KAFKA_HOST_BROKERS = kafkaHostBrokers();
+export const PUBSUB_HOST_URL = pubsubHostUrl();
+export const RABBITMQ_HOST_URL = rabbitmqHostUrl();
+/** The SFTP server's one user, host-side. The chains address the same server as `sftp-server:22`. */
 export const SFTP_HOST_CONFIG = {
-  host: SFTP_HOST,
-  port: SFTP_PORT,
+  ...sftpHostAddress(),
   username: "e2e",
   password: "e2epass",
 };

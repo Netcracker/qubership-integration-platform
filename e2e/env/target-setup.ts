@@ -20,7 +20,7 @@ import { collectK8sHeader, k8sBaseline, topSample } from "./k8s-observer.js";
 import { provisionCompose } from "./provision/compose.js";
 import { provisionK8s } from "./provision/k8s.js";
 import { composeBaseline, startResourceSampler } from "./resources.js";
-import { target, type Target } from "./target.js";
+import { brokersEnabled, target, type Target } from "./target.js";
 import { collectStackHeader, type Absence, type StackFacts } from "../support/report.js";
 
 /** The worker-scoped options a project can set, which `support/fixtures.ts` declares. */
@@ -54,18 +54,6 @@ export interface TargetSetup {
   decorate(project: SuiteProject): SuiteProject;
   /** Projects and spec files left out on this target, printed in the report header. */
   absent: Absence[];
-}
-
-/**
- * Whether the `brokers` project runs, `E2E_BROKERS=0` being the one way to say no.
- *
- * On by default: Kafka and RabbitMQ carry more production traffic than any other transport, so a
- * release run without them does not answer the release question. The flag is for a faster local
- * run without the broker overlays. Playwright 1.62 has no per-project `default: false`, so leaving a
- * project out of a run means leaving it out of the project list, which is what `composeSetup` does.
- */
-function brokersEnabled(): boolean {
-  return process.env.E2E_BROKERS !== "0";
 }
 
 function brokerProjects(): SuiteProject[] {

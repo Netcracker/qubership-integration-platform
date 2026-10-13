@@ -10,10 +10,15 @@
  */
 import path from "node:path";
 import fs from "node:fs";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import yaml from "js-yaml";
 import { test, expect } from "@playwright/test";
 import { overlayDefinition, overlayNames } from "../../env/compose.js";
+import { BROKER_PORT } from "../../env/containers.js";
+import { httpReady, tcpReady } from "../../env/overlays.js";
 import { repoRoot } from "../../env/host.js";
+import type { Overlay } from "../../env/index.js";
 
 test("the adapter knows exactly the four broker overlays the suite starts", { tag: ["@infra", "@tier1"] }, async () => {
   expect(overlayNames()).toEqual(["kafka", "pubsub", "rabbitmq", "sftp"]);
@@ -57,4 +62,37 @@ test("an unknown overlay name fails immediately, naming every overlay the adapte
 
 test("the same failure holds for an empty name", { tag: ["@infra", "@tier1"] }, async () => {
   expect(() => overlayDefinition("")).toThrow(/no overlay named ""/);
+});
+
+test("the broker port table names exactly the overlays the adapter knows", { tag: ["@infra", "@tier1"] }, async () => {
+  expect(Object.keys(BROKER_PORT).sort()).toEqual(overlayNames());
+});
+
+test("the broker port table matches the ports Compose publishes and kind maps", { tag: ["@infra", "@tier1"] }, async () => {
+  const bootstrap = fs.readFileSync(path.join(repoRoot(), "e2e/k8s/bootstrap-cluster.sh"), "utf-8");
+  for (const name of overlayNames()) {
+    const definition = overlayDefinition(name);
+    const file = path.join(repoRoot(), "infrastructure", definition.file);
+    const parsed = yaml.load(fs.readFileSync(file, "utf-8")) as { services: Record<string, { ports?: string[] }> };
+    const published = (parsed.services[definition.primary].ports ?? []).map((each) => Number(each.split(":")[0]));
+    const port = BROKER_PORT[name as Overlay];
+    expect(published, `the host ports ${definition.file} publishes`).toContain(port.compose);
+    expect(bootstrap, `the kind port mapping for ${name}`).toContain(
+      `{ containerPort: ${port.k8s}, hostPort: ${port.k8s} }`,
+    );
+  }
+});
+
+test("the TCP and HTTP probes report a listener as ready and a closed port as not", { tag: ["@infra", "@tier1"] }, async () => {
+  const server = http.createServer((_, response) => response.end("ok"));
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address() as AddressInfo;
+  try {
+    expect(await tcpReady("127.0.0.1", port)()).toBeNull();
+    expect(await httpReady(`http://127.0.0.1:${port}/`)()).toBeNull();
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+  expect(await tcpReady("127.0.0.1", port)()).toMatch(/refused a connection/);
+  expect(await httpReady(`http://127.0.0.1:${port}/`)()).toMatch(/did not answer/);
 });

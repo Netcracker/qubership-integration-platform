@@ -18,7 +18,8 @@ import {
   writeBrokersCorpusState,
 } from "../../support/brokers.js";
 import { DEPLOY_TIMEOUT } from "../../support/corpus.js";
-import { overlayNames, OVERLAY_READY_TIMEOUT } from "../../env/compose.js";
+import { overlayNames } from "../../env/compose.js";
+import { OVERLAY_READY_TIMEOUT } from "../../env/overlays.js";
 
 /**
  * The worst case `seedBrokers` can take: every overlay it needs starts cold and each uses its whole
@@ -26,7 +27,7 @@ import { overlayNames, OVERLAY_READY_TIMEOUT } from "../../env/compose.js";
  * wait that follow them.
  *
  * Sized on the same numbers `seedBrokers` actually calls with, not guessed: up to `overlayNames()`
- * overlays (four today), `OVERLAY_READY_TIMEOUT` each (`env/compose.ts`), plus `DEPLOY_TIMEOUT`
+ * overlays (four today), `OVERLAY_READY_TIMEOUT` each (`env/overlays.ts`), plus `DEPLOY_TIMEOUT`
  * (`support/corpus.ts`) and `KAFKA_CONSUMER_ATTACH_TIMEOUT` (`support/brokers.ts`) for the two waits
  * after the last overlay is up. Left at the suite's 120 s default, this test's own budget is smaller
  * than what `Env.ensureOverlay` alone can legitimately take, so a broker that is genuinely slow to
