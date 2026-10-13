@@ -803,6 +803,12 @@ export class VSCodeFileApi implements FileApi {
         if (name.endsWith(extensions.contextService)) {
           return QipFileType.CONTEXT_SERVICE;
         }
+        if (name.endsWith(extensions.specificationGroup)) {
+          return QipFileType.SPECIFICATION_GROUP;
+        }
+        if (name.endsWith(extensions.specification)) {
+          return QipFileType.SPECIFICATION;
+        }
         if (name.endsWith(extensions.service)) {
           return QipFileType.SERVICE;
         }

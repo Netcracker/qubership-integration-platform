@@ -456,4 +456,28 @@ describe("VSCodeFileApi – new functionality from 91a8a539", () => {
       expect(result).toEqual([serviceDir]);
     });
   });
+
+  describe("getFileType", () => {
+    test("returns SPECIFICATION_GROUP for specification group config file", async () => {
+      const groupUri = createMockUri(
+        "/workspace/services/svc/group-api.specification-group.cip.yaml",
+      );
+      mockStat.mockResolvedValue({ type: 1 } as any);
+
+      const fileType = await api.getFileType(groupUri);
+
+      expect(fileType).toBe(QipFileType.SPECIFICATION_GROUP);
+    });
+
+    test("returns SPECIFICATION for specification config file", async () => {
+      const specUri = createMockUri(
+        "/workspace/services/svc/operation.specification.cip.yaml",
+      );
+      mockStat.mockResolvedValue({ type: 1 } as any);
+
+      const fileType = await api.getFileType(specUri);
+
+      expect(fileType).toBe(QipFileType.SPECIFICATION);
+    });
+  });
 });
