@@ -63,7 +63,8 @@ Application has 'development' Spring profile to run service locally with minimum
 
 ## Dependencies
 
-- Consul service.
+- Consul service. At startup the service retries it as long as `spring.cloud.consul.retry` in `application.yml`
+  allows.
 - Access to Kubernetes API.
 - PostgreSQL database.
 
