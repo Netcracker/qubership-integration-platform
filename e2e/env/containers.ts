@@ -60,6 +60,9 @@ export function proxyUrl(): string {
   return process.env.CIP_PROXY_URL ?? `http://localhost:${proxyPort()}`;
 }
 
+/** The broker overlays, sorted for a stable error message. */
+export const OVERLAY_NAMES: readonly Overlay[] = ["kafka", "pubsub", "rabbitmq", "sftp"];
+
 /**
  * The host port of each broker per target, for the suite's own clients. The chain fixtures reach
  * the same brokers by their bare in-cluster names, such as `kafka:29092`.

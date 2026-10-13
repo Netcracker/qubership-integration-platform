@@ -12,8 +12,8 @@
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import type { Overlay, ServiceRole } from "../index.js";
-import { BROKER_PORT, hostPort, proxyPort, proxyUrl, ROLES } from "../containers.js";
+import type { ServiceRole } from "../index.js";
+import { BROKER_PORT, hostPort, OVERLAY_NAMES, proxyPort, proxyUrl, ROLES } from "../containers.js";
 import { brokersEnabled } from "../target.js";
 import {
   deploymentOf,
@@ -360,7 +360,7 @@ export function helmArguments(options: {
   }
   // Only `enabled` follows E2E_BROKERS, so a run without the brokers leaves the engine and the catalog alone.
   const hostPortKey = choice.hostPorts === "LoadBalancer Services" ? "loadBalancerPort" : "nodePort";
-  for (const overlay of Object.keys(BROKER_PORT) as Overlay[]) {
+  for (const overlay of OVERLAY_NAMES) {
     args.push("--set", `${overlay}.enabled=${brokersEnabled()}`);
     args.push("--set", `${overlay}.${hostPortKey}=${BROKER_PORT[overlay].k8s}`);
   }

@@ -7,15 +7,31 @@ import net from "node:net";
 import { Kafka, logLevel } from "kafkajs";
 import type { Overlay } from "./index.js";
 import { kafkaHostBrokers, pubsubHostUrl, rabbitmqHostUrl, sftpHostAddress } from "./containers.js";
+import { pollUntil } from "./host.js";
 
 /**
  * How long `ensureOverlay` and `restartOverlay` each poll for one overlay to answer ready, on top
- * of the command that starts or restarts it.
+ * of the command that starts or restarts it. On Kubernetes, `ensureOverlay` also bounds its rollout
+ * wait with it.
  *
  * Exported so that `specs/brokers-seed/brokers.setup.ts`, which brings up every overlay in
  * sequence, sizes its own `test.setTimeout` on the number the adapters poll with.
  */
 export const OVERLAY_READY_TIMEOUT = 180_000;
+
+/** Polls `probe` until `overlay` is ready, and fails naming what the overlay did not do in time. */
+export async function awaitOverlayReady(
+  overlay: Overlay,
+  probe: () => Promise<string | null>,
+  what: string,
+): Promise<void> {
+  await pollUntil(
+    OVERLAY_READY_TIMEOUT,
+    2_000,
+    probe,
+    (last) => `overlay ${overlay} did not ${what} within ${OVERLAY_READY_TIMEOUT}ms (${last})`,
+  );
+}
 
 /**
  * A bare TCP connect, for a broker whose client protocol needs no deeper probe.

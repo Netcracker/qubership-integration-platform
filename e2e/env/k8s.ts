@@ -28,7 +28,7 @@ import {
   type PatchOperation,
 } from "./k8s-env-patch.js";
 import { capture, httpStatus, pollUntil } from "./host.js";
-import { hostReady, OVERLAY_READY_TIMEOUT } from "./overlays.js";
+import { awaitOverlayReady, hostReady, OVERLAY_READY_TIMEOUT } from "./overlays.js";
 import { forgetOverride, recordOverride } from "./overrides.js";
 import { UUID } from "../support/absent.js";
 import { readStateFile } from "../support/state-file.js";
@@ -390,48 +390,30 @@ export class K8sEnv implements Env {
     return readK8sPeaks();
   }
 
-  /** Helm installs the brokers, so this only waits for the rollout and the host port. */
   async ensureOverlay(overlay: Overlay): Promise<void> {
     await this.kubectl([
-      "rollout", "status", `deploy/${overlay}`, "-n", NAMESPACE, "--timeout=180s",
+      "rollout", "status", `deploy/${overlay}`, "-n", NAMESPACE,
+      `--timeout=${OVERLAY_READY_TIMEOUT / 1000}s`,
     ]);
-    await this.awaitHostReady(overlay, "start serving");
+    await awaitOverlayReady(overlay, this.overlayReady(overlay), "start serving");
   }
 
-  /**
-   * Kills the broker's PID 1, so the kubelet restarts the container in place and the pod keeps its
-   * `emptyDir` with the topics and queues. Kafka and RabbitMQ run their broker as PID 1, which
-   * handles SIGTERM; the pub/sub emulator's PID 1 does not.
-   */
   async restartOverlay(overlay: Overlay): Promise<void> {
     const before = await overlayContainer(overlay, this.kubectl);
     await this.kubectl([
       "exec", `deploy/${overlay}`, "-n", NAMESPACE, "-c", overlay, "--", "sh", "-c", "kill 1",
     ]);
-    await pollUntil(
-      OVERLAY_READY_TIMEOUT,
-      2_000,
-      async () => {
-        const now = await overlayContainer(overlay, this.kubectl);
-        if (now.restartCount <= before.restartCount) return `restartCount stayed ${now.restartCount}`;
-        return now.ready ? null : "the restarted container is not Ready";
-      },
-      (last) => `the ${overlay} container did not restart within ${OVERLAY_READY_TIMEOUT}ms (${last})`,
-    );
-    await this.awaitHostReady(overlay, "resume serving after a restart");
+    const restarted = async () => {
+      const now = await overlayContainer(overlay, this.kubectl);
+      if (now.restartCount <= before.restartCount) return `restartCount stayed ${now.restartCount}`;
+      return now.ready ? null : "the restarted container is not Ready";
+    };
+    await awaitOverlayReady(overlay, restarted, "restart its container");
+    await awaitOverlayReady(overlay, this.overlayReady(overlay), "resume serving after a restart");
   }
 
   /** Nothing to remove: the brokers belong to the Helm release. */
   async removeOverlay(_overlay: Overlay): Promise<void> {}
-
-  private async awaitHostReady(overlay: Overlay, what: string): Promise<void> {
-    await pollUntil(
-      OVERLAY_READY_TIMEOUT,
-      2_000,
-      this.overlayReady(overlay),
-      (last) => `overlay ${overlay} did not ${what} within ${OVERLAY_READY_TIMEOUT}ms (${last})`,
-    );
-  }
 
   /** The chart's `ClassicDomainSource` reads the engine Deployments and lists their pods. */
   domainFacts(): DomainFacts {
