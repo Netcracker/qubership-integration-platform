@@ -68,7 +68,7 @@ type DB struct {
 }
 
 // New opens a lazy connection pool. It contacts PostgreSQL only when the first
-// query runs, so a database that is still starting up does not fail the process.
+// query runs, so it succeeds while the database is still starting up.
 func New(opts Options) (_ *DB, err error) {
 	if opts.DSN == "" {
 		return nil, errors.New("postgres: DSN is empty")
