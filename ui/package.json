@@ -54,6 +54,7 @@
     "@lightenna/react-mermaid-diagram": "^1.0.21",
     "@monaco-editor/react": "^4.7.0",
     "@netcracker/qip-schemas": "^1.0.0",
+    "@opencode-ai/sdk": "1.19.0",
     "@rjsf/antd": "^6.6.2",
     "@rjsf/core": "^6.6.2",
     "@rjsf/utils": "^6.6.2",

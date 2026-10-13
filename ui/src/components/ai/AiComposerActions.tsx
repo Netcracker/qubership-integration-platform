@@ -4,6 +4,7 @@ import { OverridableIcon } from "../../icons/IconProvider.tsx";
 
 export interface AiComposerActionsProps {
   isTurnInFlight: boolean;
+  disabled?: boolean;
   onAttach: () => void;
   onSend: () => void;
   onAbort: () => void;
@@ -11,6 +12,7 @@ export interface AiComposerActionsProps {
 
 export const AiComposerActions: React.FC<AiComposerActionsProps> = ({
   isTurnInFlight,
+  disabled = false,
   onAttach,
   onSend,
   onAbort,
@@ -22,11 +24,15 @@ export const AiComposerActions: React.FC<AiComposerActionsProps> = ({
         size="small"
         icon={<OverridableIcon name="paperClip" />}
         onClick={onAttach}
-        disabled={isTurnInFlight}
+        disabled={isTurnInFlight || disabled}
         aria-label="Attach file"
         title="Attach file"
       />
-      <Button type="primary" disabled={isTurnInFlight} onClick={onSend}>
+      <Button
+        type="primary"
+        disabled={isTurnInFlight || disabled}
+        onClick={onSend}
+      >
         Send
       </Button>
       {isTurnInFlight ? (

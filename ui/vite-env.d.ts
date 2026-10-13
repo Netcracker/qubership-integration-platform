@@ -4,6 +4,7 @@ interface ImportMetaEnv {
   readonly VITE_SHOW_DEV_TOOLS: string;
   readonly VITE_AI_SERVICE_URL?: string;
   readonly VITE_AI_ASSISTANT_NAME?: string;
+  readonly VITE_OPENCODE_URL?: string;
 }
 
 interface ImportMeta {

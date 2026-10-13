@@ -9,7 +9,6 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import Input from "antd/es/input/index";
 import type { TextAreaRef } from "antd/es/input/TextArea";
 import React, {
   useCallback,
@@ -79,11 +78,11 @@ import {
   tryParseChainModificationProposal,
 } from "./chainModificationContent.ts";
 import { MarkdownRenderer } from "./AiMarkdownRenderer.tsx";
-import { SEND_KEY } from "./aiAssistantConstants.ts";
 import { revealStreamText, waitForNextPaint } from "./streamReveal.ts";
 import { AiEmptyState } from "./AiEmptyState.tsx";
 import { AiAssistantHeaderActions } from "./AiAssistantHeaderActions.tsx";
-import { AiComposerActions } from "./AiComposerActions.tsx";
+import { AiChatComposer } from "./AiChatComposer.tsx";
+import { AiChatMessage } from "./AiChatMessage.tsx";
 import { AiActivityInline } from "./activity/AiActivityInline.tsx";
 import { attachActivityToLastAssistant } from "./activity/activitySummary.ts";
 import { useActivityStore } from "./activity/activityStore.ts";
@@ -1723,187 +1722,179 @@ export const AiAssistant: React.FC = () => {
                       !hideChromeRecovery;
 
                     return (
-                      <div
+                      <AiChatMessage
                         key={message.id ?? `msg-${index}`}
-                        className={`ai-message ai-message--${message.role}${
-                          isErrorBubble ? " ai-message--error" : ""
-                        }`}
+                        role={message.role}
+                        label={getRoleLabel(message.role, assistantName)}
+                        error={isErrorBubble}
+                        actions={
+                          showEdit || showCopy || showRegenerate ? (
+                            <Space size="small" className="ai-message__actions">
+                              {showEdit ? (
+                                <Tooltip title="Edit message and send again">
+                                  <Button
+                                    size="small"
+                                    type="text"
+                                    icon={<OverridableIcon name="edit" />}
+                                    aria-label="Edit message and send again"
+                                    onClick={() =>
+                                      void handlePrepareRegenerateFromIndex(
+                                        index,
+                                      )
+                                    }
+                                  />
+                                </Tooltip>
+                              ) : null}
+                              {showCopy ? (
+                                <Tooltip title="Copy">
+                                  <Button
+                                    size="small"
+                                    type="text"
+                                    icon={<OverridableIcon name="copy" />}
+                                    aria-label="Copy"
+                                    onClick={() =>
+                                      handleCopyMessage(narrativeContent)
+                                    }
+                                  />
+                                </Tooltip>
+                              ) : null}
+                              {showRegenerate ? (
+                                <Tooltip title="Regenerate this answer">
+                                  <Button
+                                    size="small"
+                                    type="text"
+                                    icon={
+                                      <OverridableIcon
+                                        name="redo"
+                                        className="ai-icon-rotate-vertical"
+                                      />
+                                    }
+                                    aria-label="Regenerate this answer"
+                                    onClick={() =>
+                                      void handleRegenerateFromIndex(index)
+                                    }
+                                  />
+                                </Tooltip>
+                              ) : null}
+                            </Space>
+                          ) : null
+                        }
                       >
-                        {!isUser ? (
-                          <div className="ai-message__meta">
-                            <Typography.Text
-                              type="secondary"
-                              className="ai-message__role"
-                            >
-                              {getRoleLabel(message.role, assistantName)}
-                            </Typography.Text>
-                          </div>
+                        {showLiveActivity ? (
+                          <AiActivityInline
+                            rows={activityStore.rows}
+                            collapsed={false}
+                            inFlight
+                          />
                         ) : null}
-                        <div className="ai-message__bubble">
-                          {showLiveActivity ? (
-                            <AiActivityInline
-                              rows={activityStore.rows}
-                              collapsed={false}
-                              inFlight
-                            />
-                          ) : null}
-                          {showPersistedActivity && message.activity ? (
-                            <AiActivityInline
-                              rows={message.activity.steps}
-                              collapsed={message.activity.collapsed}
-                              summary={message.activity.summary}
-                            />
-                          ) : null}
-                          {isErrorBubble && (
-                            <div className="ai-message__error">
-                              <Typography.Text type="danger">
-                                {message.content}
-                              </Typography.Text>
-                              {message.detail?.trim() ? (
-                                <Typography.Paragraph
-                                  type="secondary"
-                                  className="ai-message__error-detail"
-                                >
-                                  {message.detail}
-                                </Typography.Paragraph>
-                              ) : null}
-                              {message.content.includes(
-                                "Reload this conversation",
-                              ) ? (
-                                <Button
-                                  size="small"
-                                  className="ai-message__reload"
-                                  onClick={() => {
-                                    if (!currentSessionId) return;
-                                    void reconcileOpenDecision(
-                                      sessionStore.getSession(currentSessionId)
-                                        ?.conversationId,
-                                      currentSessionId,
-                                    );
-                                  }}
-                                >
-                                  Reload this conversation
-                                </Button>
-                              ) : null}
+                        {showPersistedActivity && message.activity ? (
+                          <AiActivityInline
+                            rows={message.activity.steps}
+                            collapsed={message.activity.collapsed}
+                            summary={message.activity.summary}
+                          />
+                        ) : null}
+                        {isErrorBubble && (
+                          <div className="ai-message__error">
+                            <Typography.Text type="danger">
+                              {message.content}
+                            </Typography.Text>
+                            {message.detail?.trim() ? (
+                              <Typography.Paragraph
+                                type="secondary"
+                                className="ai-message__error-detail"
+                              >
+                                {message.detail}
+                              </Typography.Paragraph>
+                            ) : null}
+                            {message.content.includes(
+                              "Reload this conversation",
+                            ) ? (
+                              <Button
+                                size="small"
+                                className="ai-message__reload"
+                                onClick={() => {
+                                  if (!currentSessionId) return;
+                                  void reconcileOpenDecision(
+                                    sessionStore.getSession(currentSessionId)
+                                      ?.conversationId,
+                                    currentSessionId,
+                                  );
+                                }}
+                              >
+                                Reload this conversation
+                              </Button>
+                            ) : null}
+                          </div>
+                        )}
+                        {!isErrorBubble && narrativeContent.trim() && (
+                          <MarkdownRenderer>
+                            {narrativeContent}
+                          </MarkdownRenderer>
+                        )}
+                        {message.decision ? (
+                          <AiDecisionCard
+                            decision={message.decision}
+                            busy={isLoading || isStreaming}
+                            onStartSameTask={handleStartSameTask}
+                            onAnswer={(action, comment, specSystemTypes) =>
+                              void handleDecisionAnswer(
+                                message.decision!,
+                                action,
+                                comment,
+                                specSystemTypes,
+                              )
+                            }
+                            onSubmitClarification={(text) =>
+                              void handleClarificationSubmit(
+                                message.decision!,
+                                text,
+                              )
+                            }
+                          />
+                        ) : null}
+                        {showThinkingInBubble ? (
+                          <Typography.Text
+                            type="secondary"
+                            style={{ fontStyle: "italic" }}
+                          >
+                            {showLongRunningHint
+                              ? "Working… (this may take a minute)"
+                              : "Thinking"}
+                            <span className="ai-thinking-dots">
+                              <span className="ai-thinking-dot ai-thinking-dot--1">
+                                .
+                              </span>
+                              <span className="ai-thinking-dot ai-thinking-dot--2">
+                                .
+                              </span>
+                              <span className="ai-thinking-dot ai-thinking-dot--3">
+                                .
+                              </span>
+                            </span>
+                          </Typography.Text>
+                        ) : null}
+
+                        {message.role === "assistant" &&
+                          !isErrorBubble &&
+                          index === visibleMessages.length - 1 &&
+                          !isLoading &&
+                          !isStreaming &&
+                          looksLikeValidationResult(message.content) &&
+                          chainContext?.chain?.id && (
+                            <div className="ai-message__plan-actions">
+                              <Button
+                                type="primary"
+                                size="middle"
+                                onClick={() => {
+                                  window.location.href = `/chains/${chainContext.chain.id}/sessions`;
+                                }}
+                              >
+                                Go to Sessions
+                              </Button>
                             </div>
                           )}
-                          {!isErrorBubble && narrativeContent.trim() && (
-                            <MarkdownRenderer>
-                              {narrativeContent}
-                            </MarkdownRenderer>
-                          )}
-                          {message.decision ? (
-                            <AiDecisionCard
-                              decision={message.decision}
-                              busy={isLoading || isStreaming}
-                              onStartSameTask={handleStartSameTask}
-                              onAnswer={(action, comment, specSystemTypes) =>
-                                void handleDecisionAnswer(
-                                  message.decision!,
-                                  action,
-                                  comment,
-                                  specSystemTypes,
-                                )
-                              }
-                              onSubmitClarification={(text) =>
-                                void handleClarificationSubmit(
-                                  message.decision!,
-                                  text,
-                                )
-                              }
-                            />
-                          ) : null}
-                          {showThinkingInBubble ? (
-                            <Typography.Text
-                              type="secondary"
-                              style={{ fontStyle: "italic" }}
-                            >
-                              {showLongRunningHint
-                                ? "Working… (this may take a minute)"
-                                : "Thinking"}
-                              <span className="ai-thinking-dots">
-                                <span className="ai-thinking-dot ai-thinking-dot--1">
-                                  .
-                                </span>
-                                <span className="ai-thinking-dot ai-thinking-dot--2">
-                                  .
-                                </span>
-                                <span className="ai-thinking-dot ai-thinking-dot--3">
-                                  .
-                                </span>
-                              </span>
-                            </Typography.Text>
-                          ) : null}
-
-                          {message.role === "assistant" &&
-                            !isErrorBubble &&
-                            index === visibleMessages.length - 1 &&
-                            !isLoading &&
-                            !isStreaming &&
-                            looksLikeValidationResult(message.content) &&
-                            chainContext?.chain?.id && (
-                              <div className="ai-message__plan-actions">
-                                <Button
-                                  type="primary"
-                                  size="middle"
-                                  onClick={() => {
-                                    window.location.href = `/chains/${chainContext.chain.id}/sessions`;
-                                  }}
-                                >
-                                  Go to Sessions
-                                </Button>
-                              </div>
-                            )}
-                        </div>
-                        {showEdit || showCopy || showRegenerate ? (
-                          <Space size="small" className="ai-message__actions">
-                            {showEdit ? (
-                              <Tooltip title="Edit message and send again">
-                                <Button
-                                  size="small"
-                                  type="text"
-                                  icon={<OverridableIcon name="edit" />}
-                                  aria-label="Edit message and send again"
-                                  onClick={() =>
-                                    void handlePrepareRegenerateFromIndex(index)
-                                  }
-                                />
-                              </Tooltip>
-                            ) : null}
-                            {showCopy ? (
-                              <Tooltip title="Copy">
-                                <Button
-                                  size="small"
-                                  type="text"
-                                  icon={<OverridableIcon name="copy" />}
-                                  aria-label="Copy"
-                                  onClick={() =>
-                                    handleCopyMessage(narrativeContent)
-                                  }
-                                />
-                              </Tooltip>
-                            ) : null}
-                            {showRegenerate ? (
-                              <Tooltip title="Regenerate this answer">
-                                <Button
-                                  size="small"
-                                  type="text"
-                                  icon={
-                                    <OverridableIcon
-                                      name="redo"
-                                      className="ai-icon-rotate-vertical"
-                                    />
-                                  }
-                                  aria-label="Regenerate this answer"
-                                  onClick={() =>
-                                    void handleRegenerateFromIndex(index)
-                                  }
-                                />
-                              </Tooltip>
-                            ) : null}
-                          </Space>
-                        ) : null}
-                      </div>
+                      </AiChatMessage>
                     );
                   })}
 
@@ -1957,69 +1948,20 @@ export const AiAssistant: React.FC = () => {
 
           <Divider className="ai-divider" />
 
-          <div className="ai-input">
-            <input
-              type="file"
-              ref={fileInputRef}
-              multiple
-              accept=".txt,.md,.json,.yaml,.yml,.csv,.pdf,text/plain,application/json,text/yaml,application/x-yaml,text/markdown,text/csv,application/pdf,image/png,image/jpeg,image/gif,image/webp"
-              style={{ display: "none" }}
-              onChange={(e) => {
-                const files = e.target.files ? Array.from(e.target.files) : [];
-                const maxSize = 10 * 1024 * 1024;
-                const valid = files
-                  .filter((f) => f.size <= maxSize)
-                  .slice(0, 5);
-                setAttachedFiles((prev) => [...prev, ...valid].slice(0, 5));
-                e.target.value = "";
-              }}
-            />
-
-            {attachedFiles.length > 0 && (
-              <div className="ai-input__attachments">
-                {attachedFiles.map((file, i) => (
-                  <Tag
-                    key={`${file.name}-${i}`}
-                    closable
-                    onClose={(event) => {
-                      event.preventDefault();
-                      setAttachedFiles((prev) =>
-                        prev.filter((_, j) => j !== i),
-                      );
-                    }}
-                  >
-                    {file.name}
-                  </Tag>
-                ))}
-              </div>
-            )}
-
-            <Input.TextArea
-              ref={inputRef}
-              value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onInput={(e) => setInputValue(e.currentTarget.value)}
-              placeholder={`Ask ${assistantName} about this chain...`}
-              autoSize={{ minRows: 1, maxRows: 8 }}
-              onKeyDown={(e) => {
-                if (e.key === SEND_KEY && !e.shiftKey) {
-                  e.preventDefault();
-                  if (!isTurnInFlight) {
-                    void handleSend();
-                  }
-                }
-              }}
-            />
-
-            <AiComposerActions
-              isTurnInFlight={isTurnInFlight}
-              onAttach={() => fileInputRef.current?.click()}
-              onSend={() => {
-                void handleSend();
-              }}
-              onAbort={handleAbort}
-            />
-          </div>
+          <AiChatComposer
+            fileInputRef={fileInputRef}
+            inputRef={inputRef}
+            inputValue={inputValue}
+            setInputValue={setInputValue}
+            attachedFiles={attachedFiles}
+            setAttachedFiles={setAttachedFiles}
+            placeholder={`Ask ${assistantName} about this chain...`}
+            isTurnInFlight={isTurnInFlight}
+            onSend={() => {
+              void handleSend();
+            }}
+            onAbort={handleAbort}
+          />
         </div>
 
         <ChainModificationConfirmation

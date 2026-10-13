@@ -95,6 +95,8 @@ const config: Config = {
 
   // A map from regular expressions to module names or to arrays of module names that allow to stub out resources with a single module
   moduleNameMapper: {
+    "^@opencode-ai/sdk/v2/client$":
+      "<rootDir>/../node_modules/@opencode-ai/sdk/dist/v2/client.js",
     "^tests/helpers/(.*)$": "<rootDir>/tests/helpers/$1",
     "^@netcracker/qip-schemas$": "<rootDir>/tests/__mocks__/qipSchemasStub.cjs",
     "\\.svg\\?raw$": "<rootDir>/tests/__mocks__/svgRawMock.cjs",
@@ -208,6 +210,11 @@ const config: Config = {
 
   // A map from regular expressions to paths to transformers
   transform: {
+    // The SDK publishes ESM-only client entry points.
+    "[/\\\\]@opencode-ai[/\\\\]sdk[/\\\\].+\\.js$": [
+      "ts-jest",
+      { tsconfig: { allowJs: true, esModuleInterop: true } },
+    ],
     "^.+\\.tsx?$": [
       "ts-jest",
       {
@@ -236,6 +243,7 @@ const config: Config = {
       },
     ],
   },
+  transformIgnorePatterns: ["/node_modules/(?!@opencode-ai/sdk/)"],
 
   // An array of regexp pattern strings that are matched against all modules before the module loader will automatically return a mock for them
   // unmockedModulePathPatterns: undefined,

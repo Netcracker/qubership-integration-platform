@@ -18,6 +18,7 @@ export type AppConfig = {
   appName?: string;
   aiServiceUrl?: string;
   aiAssistantName?: string;
+  opencodeUrl?: string;
   icons?: IconOverrides;
   cssVariables?: Record<string, string>;
   additionalCss?: string[];
@@ -35,6 +36,7 @@ const appConfigValue: AppConfig = {
   apiGateway: import.meta.env.VITE_GATEWAY,
   aiServiceUrl: import.meta.env.VITE_AI_SERVICE_URL as string | undefined,
   aiAssistantName: import.meta.env.VITE_AI_ASSISTANT_NAME as string | undefined,
+  opencodeUrl: import.meta.env.VITE_OPENCODE_URL,
   icons: {},
   dev: import.meta.env.DEV,
 };
@@ -120,6 +122,10 @@ export function configure(config: Partial<AppConfig>): void {
     overrides.push(
       `aiAssistantName: "${oldValue}" -> "${config.aiAssistantName}"`,
     );
+  }
+  if (config.opencodeUrl !== undefined) {
+    appConfigValue.opencodeUrl = config.opencodeUrl;
+    overrides.push("opencodeUrl: updated");
   }
   if (config.icons !== undefined) {
     const previousIcons = appConfigValue.icons || {};
@@ -239,6 +245,8 @@ export function loadConfigFromEnv(): Partial<AppConfig> {
   }
 
   const cssVars = import.meta.env.VITE_CSS_VARIABLES as string | undefined;
+  const opencodeUrl = import.meta.env.VITE_OPENCODE_URL;
+  if (opencodeUrl) config.opencodeUrl = opencodeUrl;
   if (cssVars) {
     try {
       const parsed = JSON.parse(cssVars) as unknown;
@@ -279,6 +287,7 @@ export type AppExtensionProps = {
   apiGateway?: string;
   aiServiceUrl?: string;
   aiAssistantName?: string;
+  opencodeUrl?: string;
   cssVariables?: Record<string, string>;
   additionalCss?: string[];
   themeOverrides?: Partial<ThemeConfig>;

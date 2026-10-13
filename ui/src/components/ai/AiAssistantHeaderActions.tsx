@@ -7,16 +7,18 @@ export interface AiAssistantHeaderActionsProps {
   onNewChat: () => void;
   onClearChat: () => void | Promise<void>;
   clearDisabled: boolean;
+  newChatDisabled?: boolean;
 }
 
 export const AiAssistantHeaderActions: React.FC<
   AiAssistantHeaderActionsProps
-> = ({ onNewChat, onClearChat, clearDisabled }) => (
+> = ({ onNewChat, onClearChat, clearDisabled, newChatDisabled = false }) => (
   <Space size="small">
     <Button
       size="small"
       icon={<OverridableIcon name="plus" />}
       onClick={onNewChat}
+      disabled={newChatDisabled}
       title="New chat"
       aria-label="New chat"
     />

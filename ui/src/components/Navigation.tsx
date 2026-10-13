@@ -12,6 +12,7 @@ import {
   protectMenuItems,
 } from "../permissions/ProtectedDropdown.tsx";
 import { AiAssistant } from "./ai/AiAssistant.tsx";
+import { OpenCodeAssistant } from "./ai/opencode/OpenCodeAssistant.tsx";
 import { useIsAiServiceAvailable } from "../ai/appConfig";
 import { UserMenu } from "./UserMenu.tsx";
 
@@ -87,6 +88,7 @@ const Navigation = () => {
           </>
         )}
         {isAiServiceAvailable && <AiAssistant />}
+        <OpenCodeAssistant />
         <NotificationBar />
         <UserMenu />
       </div>

@@ -25,13 +25,16 @@ function safeStorageSet(key: string, value: string): void {
   }
 }
 
-export function useAiDrawerResize(open: boolean): {
+export function useAiDrawerResize(
+  open: boolean,
+  storageKey = DRAWER_WIDTH_STORAGE_KEY,
+): {
   drawerWidth: number;
   isResizing: boolean;
   onResizeMouseDown: (e: React.MouseEvent) => void;
 } {
   const [drawerWidth, setDrawerWidth] = useState(() => {
-    const savedWidth = safeStorageGet(DRAWER_WIDTH_STORAGE_KEY);
+    const savedWidth = safeStorageGet(storageKey);
     const parsed = savedWidth ? parseInt(savedWidth, 10) : DEFAULT_DRAWER_WIDTH;
     const maxAllowed =
       typeof window !== "undefined"
@@ -62,7 +65,8 @@ export function useAiDrawerResize(open: boolean): {
   const onResizeMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    drawerWrapperRef.current = null;
+    const wrapper = e.currentTarget.closest(".ant-drawer-content-wrapper");
+    drawerWrapperRef.current = wrapper instanceof HTMLElement ? wrapper : null;
     setIsResizing(true);
   }, []);
 
@@ -73,14 +77,8 @@ export function useAiDrawerResize(open: boolean): {
       if (rafRef.current !== null) return;
       rafRef.current = window.requestAnimationFrame(() => {
         rafRef.current = null;
-        const element =
-          drawerWrapperRef.current ||
-          document.querySelector(
-            ".ai-assistant-drawer .ant-drawer-content-wrapper",
-          );
-        const wrapper = element instanceof HTMLElement ? element : null;
+        const wrapper = drawerWrapperRef.current;
         if (!wrapper) return;
-        drawerWrapperRef.current = wrapper;
         const newWidth = Math.round(
           wrapper.getBoundingClientRect().right - e.clientX,
         );
@@ -93,10 +91,7 @@ export function useAiDrawerResize(open: boolean): {
 
     const handleMouseUp = () => {
       setIsResizing(false);
-      safeStorageSet(
-        DRAWER_WIDTH_STORAGE_KEY,
-        drawerWidthRef.current.toString(),
-      );
+      safeStorageSet(storageKey, drawerWidthRef.current.toString());
       if (rafRef.current !== null) {
         window.cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -117,7 +112,7 @@ export function useAiDrawerResize(open: boolean): {
         rafRef.current = null;
       }
     };
-  }, [isResizing]);
+  }, [isResizing, storageKey]);
 
   return { drawerWidth, isResizing, onResizeMouseDown };
 }
